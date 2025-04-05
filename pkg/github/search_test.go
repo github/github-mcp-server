@@ -72,9 +72,9 @@ func Test_SearchRepositories(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
-				"query":    "golang test",
-				"page":     float64(2),
-				"per_page": float64(10),
+				"query":   "golang test",
+				"page":    float64(2),
+				"perPage": float64(10),
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,

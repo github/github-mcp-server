@@ -36,7 +36,7 @@ func searchRepositories(client *github.Client, t translations.TranslationHelperF
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			perPage, err := optionalIntParamWithDefault(request, "per_page", 30)
+			perPage, err := optionalIntParamWithDefault(request, "perPage", 30)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
