@@ -39,14 +39,24 @@ var (
 			logFile := viper.GetString("log-file")
 			readOnly := viper.GetBool("read-only")
 			exportTranslations := viper.GetBool("export-translations")
+			logCommands := viper.GetBool("enable-command-logging")
+
 			logger, err := initLogger(logFile)
 			if err != nil {
 				stdlog.Fatal("Failed to initialize logger:", err)
 			}
-			logCommands := viper.GetBool("enable-command-logging")
+
 			if err := runStdioServer(readOnly, logger, logCommands, exportTranslations); err != nil {
 				stdlog.Fatal("failed to run stdio server:", err)
 			}
+		},
+	}
+
+	versionCmd = &cobra.Command{
+		Use:   "version",
+		Short: "Print version information",
+		Run: func(_ *cobra.Command, _ []string) {
+			fmt.Printf("GitHub MCP Server\nVersion: %s\nCommit: %s\nBuild Date: %s\n", version, commit, date)
 		},
 	}
 )
@@ -70,6 +80,7 @@ func init() {
 
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)
+	rootCmd.AddCommand(versionCmd)
 }
 
 func initConfig() {
