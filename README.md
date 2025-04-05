@@ -266,7 +266,7 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `body`: Review comment text (string, optional)
   - `event`: Review action ('APPROVE', 'REQUEST_CHANGES', 'COMMENT') (string, required)
   - `commitId`: SHA of commit to review (string, optional)
-  - `comments`: Line-specific comments array of objects, each object with path (string), position (number), and body (string) (array, optional)
+  - `comments`: Line-specific comments array of objects, each object with path (string), either position (number) or line (number), and body (string) (array, optional)
 
 - **create_pull_request** - Create a new pull request
 

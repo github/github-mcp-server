@@ -1167,7 +1167,44 @@ func Test_CreatePullRequestReview(t *testing.T) {
 				},
 			},
 			expectError:    false,
-			expectedErrMsg: "each comment must have a position",
+			expectedErrMsg: "each comment must have either position or line",
+		},
+		{
+			name: "successful review creation with line parameter",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PostReposPullsReviewsByOwnerByRepoByPullNumber,
+					expectRequestBody(t, map[string]interface{}{
+						"body":  "Code review comments",
+						"event": "COMMENT",
+						"comments": []interface{}{
+							map[string]interface{}{
+								"path": "main.go",
+								"line": float64(42),
+								"body": "Consider adding a comment here",
+							},
+						},
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockReview),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"body":       "Code review comments",
+				"event":      "COMMENT",
+				"comments": []interface{}{
+					map[string]interface{}{
+						"path": "main.go",
+						"line": float64(42),
+						"body": "Consider adding a comment here",
+					},
+				},
+			},
+			expectError:    false,
+			expectedReview: mockReview,
 		},
 		{
 			name: "review creation fails",
