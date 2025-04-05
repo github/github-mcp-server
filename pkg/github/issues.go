@@ -597,6 +597,66 @@ func updateIssue(client *github.Client, t translations.TranslationHelperFunc) (t
 		}
 }
 
+// getIssueComments creates a tool to get comments for a GitHub issue.
+func getIssueComments(client *github.Client, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("get_issue_comments",
+			mcp.WithDescription(t("TOOL_GET_ISSUE_COMMENTS_DESCRIPTION", "Get comments for a GitHub issue")),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithNumber("issue_number",
+				mcp.Required(),
+				mcp.Description("Issue number"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := requiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			repo, err := requiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			issueNumber, err := requiredInt(request, "issue_number")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			opts := &github.IssueListCommentsOptions{
+				ListOptions: github.ListOptions{
+					PerPage: 100,
+				},
+			}
+
+			comments, resp, err := client.Issues.ListComments(ctx, owner, repo, issueNumber, opts)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get issue comments: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get issue comments: %s", string(body))), nil
+			}
+
+			r, err := json.Marshal(comments)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
 // parseISOTimestamp parses an ISO 8601 timestamp string into a time.Time object.
 // Returns the parsed time or an error if parsing fails.
 // Example formats supported: "2023-01-15T14:30:00Z", "2023-01-15"

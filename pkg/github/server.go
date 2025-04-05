@@ -34,6 +34,7 @@ func NewServer(client *github.Client, readOnly bool, t translations.TranslationH
 	s.AddTool(getIssue(client, t))
 	s.AddTool(searchIssues(client, t))
 	s.AddTool(listIssues(client, t))
+	s.AddTool(getIssueComments(client, t))
 	if !readOnly {
 		s.AddTool(createIssue(client, t))
 		s.AddTool(addIssueComment(client, t))

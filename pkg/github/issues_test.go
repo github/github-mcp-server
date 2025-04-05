@@ -984,3 +984,112 @@ func Test_ParseISOTimestamp(t *testing.T) {
 		})
 	}
 }
+
+func Test_GetIssueComments(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := getIssueComments(mockClient, translations.NullTranslationHelper)
+
+	assert.Equal(t, "get_issue_comments", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "issue_number"})
+
+	// Setup mock comments for success case
+	mockComments := []*github.IssueComment{
+		{
+			ID:   github.Ptr(int64(123)),
+			Body: github.Ptr("This is the first comment"),
+			User: &github.User{
+				Login: github.Ptr("user1"),
+			},
+			CreatedAt: &github.Timestamp{Time: time.Now().Add(-time.Hour * 24)},
+		},
+		{
+			ID:   github.Ptr(int64(456)),
+			Body: github.Ptr("This is the second comment"),
+			User: &github.User{
+				Login: github.Ptr("user2"),
+			},
+			CreatedAt: &github.Timestamp{Time: time.Now().Add(-time.Hour)},
+		},
+	}
+
+	tests := []struct {
+		name             string
+		mockedClient     *http.Client
+		requestArgs      map[string]interface{}
+		expectError      bool
+		expectedComments []*github.IssueComment
+		expectedErrMsg   string
+	}{
+		{
+			name: "successful comments retrieval",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposIssuesCommentsByOwnerByRepoByIssueNumber,
+					mockComments,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectError:      false,
+			expectedComments: mockComments,
+		},
+		{
+			name: "issue not found",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposIssuesCommentsByOwnerByRepoByIssueNumber,
+					mockResponse(t, http.StatusNotFound, `{"message": "Issue not found"}`),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(999),
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to get issue comments",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := getIssueComments(client, translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			textContent := getTextResult(t, result)
+
+			// Unmarshal and verify the result
+			var returnedComments []*github.IssueComment
+			err = json.Unmarshal([]byte(textContent.Text), &returnedComments)
+			require.NoError(t, err)
+			assert.Equal(t, len(tc.expectedComments), len(returnedComments))
+			if len(returnedComments) > 0 {
+				assert.Equal(t, *tc.expectedComments[0].Body, *returnedComments[0].Body)
+				assert.Equal(t, *tc.expectedComments[0].User.Login, *returnedComments[0].User.Login)
+			}
+		})
+	}
+}

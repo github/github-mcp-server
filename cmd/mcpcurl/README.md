@@ -50,6 +50,7 @@ Available Commands:
   fork_repository       Fork a GitHub repository to your account or specified organization
   get_file_contents     Get the contents of a file or directory from a GitHub repository
   get_issue             Get details of a specific issue in a GitHub repository.
+  get_issue_comments    Get comments for a GitHub issue
   list_commits          Get list of commits of a branch in a GitHub repository
   list_issues           List issues in a GitHub repository with filtering options
   push_files            Push multiple files to a GitHub repository in a single commit
