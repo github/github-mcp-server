@@ -1,0 +1,32 @@
+{
+    "inputs": [
+        {
+            "id": "github-pat",
+            "type": "promptString",
+            "description": "Github Personal Access Token",
+            "password": true
+        }
+    ],
+    "servers": {
+        "github-mcp-server-dev": {
+            "type": "stdio",
+            "command": "./src/github.com/github/github-mcp-server/script/go-run",
+            "args": [
+                // ""
+            ],
+            "env": {
+                "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github-pat}"
+            }
+        },
+        "github-mcp-server-docker-dev": {
+            "type": "stdio",
+            "command": "./src/github.com/github/github-mcp-server/script/docker-build-run",
+            "args": [
+                // ""
+            ],
+            "env": {
+                "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github-pat}"
+            }
+        }
+    }
+}

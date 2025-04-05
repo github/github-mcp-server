@@ -1,0 +1,8 @@
+#!/bin/bash
+
+cd "${0%/*}"
+cd ../
+echo "Running go-run.sh in $(pwd)"
+
+docker build . --tag ghcr.io/github/github-mcp-server:dev 
+docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server:dev ./github-mcp-server stdio
