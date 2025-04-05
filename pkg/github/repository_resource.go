@@ -64,7 +64,7 @@ func getRepositoryResourcePrContent(client *github.Client, t translations.Transl
 
 func repositoryResourceContentsHandler(client *github.Client) func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
 	return func(ctx context.Context, request mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-		// the matcher will give []string with one elemenent
+		// the matcher will give []string with one element
 		// https://github.com/mark3labs/mcp-go/pull/54
 		o, ok := request.Params.Arguments["owner"].([]string)
 		if !ok || len(o) == 0 {
