@@ -279,6 +279,17 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `draft`: Create as draft PR (boolean, optional)
   - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
 
+- **update_pull_request** - Update an existing pull request in a GitHub repository
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `pullNumber`: Pull request number to update (number, required)
+  - `title`: New title (string, optional)
+  - `body`: New description (string, optional)
+  - `state`: New state ('open' or 'closed') (string, optional)
+  - `base`: New base branch name (string, optional)
+  - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
+
 ### Repositories
 
 - **create_or_update_file** - Create or update a single file in a repository

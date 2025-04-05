@@ -126,6 +126,188 @@ func Test_GetPullRequest(t *testing.T) {
 	}
 }
 
+func Test_UpdatePullRequest(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := updatePullRequest(mockClient, translations.NullTranslationHelper)
+
+	assert.Equal(t, "update_pull_request", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
+	assert.Contains(t, tool.InputSchema.Properties, "title")
+	assert.Contains(t, tool.InputSchema.Properties, "body")
+	assert.Contains(t, tool.InputSchema.Properties, "state")
+	assert.Contains(t, tool.InputSchema.Properties, "base")
+	assert.Contains(t, tool.InputSchema.Properties, "maintainer_can_modify")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber"})
+
+	// Setup mock PR for success case
+	mockUpdatedPR := &github.PullRequest{
+		Number:              github.Ptr(42),
+		Title:               github.Ptr("Updated Test PR Title"),
+		State:               github.Ptr("open"),
+		HTMLURL:             github.Ptr("https://github.com/owner/repo/pull/42"),
+		Body:                github.Ptr("Updated test PR body."),
+		MaintainerCanModify: github.Ptr(false),
+		Base: &github.PullRequestBranch{
+			Ref: github.Ptr("develop"),
+		},
+	}
+
+	mockClosedPR := &github.PullRequest{
+		Number: github.Ptr(42),
+		Title:  github.Ptr("Test PR"),
+		State:  github.Ptr("closed"), // State updated
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedPR     *github.PullRequest
+		expectedErrMsg string
+	}{
+		{
+			name: "successful PR update (title, body, base, maintainer_can_modify)",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PatchReposPullsByOwnerByRepoByPullNumber,
+					// Expect the flat string based on previous test failure output and API docs
+					expectRequestBody(t, map[string]interface{}{
+						"title":                 "Updated Test PR Title",
+						"body":                  "Updated test PR body.",
+						"base":                  "develop",
+						"maintainer_can_modify": false,
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockUpdatedPR),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":                 "owner",
+				"repo":                  "repo",
+				"pullNumber":            float64(42),
+				"title":                 "Updated Test PR Title",
+				"body":                  "Updated test PR body.",
+				"base":                  "develop",
+				"maintainer_can_modify": false,
+			},
+			expectError: false,
+			expectedPR:  mockUpdatedPR,
+		},
+		{
+			name: "successful PR update (state)",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PatchReposPullsByOwnerByRepoByPullNumber,
+					expectRequestBody(t, map[string]interface{}{
+						"state": "closed",
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockClosedPR),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"state":      "closed",
+			},
+			expectError: false,
+			expectedPR:  mockClosedPR,
+		},
+		{
+			name:         "no update parameters provided",
+			mockedClient: mock.NewMockedHTTPClient(), // No API call expected
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				// No update fields
+			},
+			expectError:    false, // Error is returned in the result, not as Go error
+			expectedErrMsg: "No update parameters provided",
+		},
+		{
+			name: "PR update fails (API error)",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PatchReposPullsByOwnerByRepoByPullNumber,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusUnprocessableEntity)
+						_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"title":      "Invalid Title Causing Error",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to update pull request",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := updatePullRequest(client, translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Parse the result and get the text content
+			textContent := getTextResult(t, result)
+
+			// Check for expected error message within the result text
+			if tc.expectedErrMsg != "" {
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			// Unmarshal and verify the successful result
+			var returnedPR github.PullRequest
+			err = json.Unmarshal([]byte(textContent.Text), &returnedPR)
+			require.NoError(t, err)
+			assert.Equal(t, *tc.expectedPR.Number, *returnedPR.Number)
+			if tc.expectedPR.Title != nil {
+				assert.Equal(t, *tc.expectedPR.Title, *returnedPR.Title)
+			}
+			if tc.expectedPR.Body != nil {
+				assert.Equal(t, *tc.expectedPR.Body, *returnedPR.Body)
+			}
+			if tc.expectedPR.State != nil {
+				assert.Equal(t, *tc.expectedPR.State, *returnedPR.State)
+			}
+			if tc.expectedPR.Base != nil && tc.expectedPR.Base.Ref != nil {
+				assert.NotNil(t, returnedPR.Base)
+				assert.Equal(t, *tc.expectedPR.Base.Ref, *returnedPR.Base.Ref)
+			}
+			if tc.expectedPR.MaintainerCanModify != nil {
+				assert.Equal(t, *tc.expectedPR.MaintainerCanModify, *returnedPR.MaintainerCanModify)
+			}
+		})
+	}
+}
+
 func Test_ListPullRequests(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)

@@ -67,6 +67,119 @@ func getPullRequest(client *github.Client, t translations.TranslationHelperFunc)
 		}
 }
 
+// updatePullRequest creates a tool to update an existing pull request.
+func updatePullRequest(client *github.Client, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("update_pull_request",
+			mcp.WithDescription(t("TOOL_UPDATE_PULL_REQUEST_DESCRIPTION", "Update an existing pull request in a GitHub repository")),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithNumber("pullNumber",
+				mcp.Required(),
+				mcp.Description("Pull request number to update"),
+			),
+			mcp.WithString("title",
+				mcp.Description("New title"),
+			),
+			mcp.WithString("body",
+				mcp.Description("New description"),
+			),
+			mcp.WithString("state",
+				mcp.Description("New state ('open' or 'closed')"),
+				mcp.Enum("open", "closed"),
+			),
+			mcp.WithString("base",
+				mcp.Description("New base branch name"),
+			),
+			mcp.WithBoolean("maintainer_can_modify",
+				mcp.Description("Allow maintainer edits"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := requiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			repo, err := requiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			pullNumber, err := requiredInt(request, "pullNumber")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Build the update struct only with provided fields
+			update := &github.PullRequest{}
+			updateNeeded := false
+
+			if title, ok, err := optionalParamOK[string](request, "title"); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			} else if ok {
+				update.Title = github.Ptr(title)
+				updateNeeded = true
+			}
+
+			if body, ok, err := optionalParamOK[string](request, "body"); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			} else if ok {
+				update.Body = github.Ptr(body)
+				updateNeeded = true
+			}
+
+			if state, ok, err := optionalParamOK[string](request, "state"); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			} else if ok {
+				update.State = github.Ptr(state)
+				updateNeeded = true
+			}
+
+			if base, ok, err := optionalParamOK[string](request, "base"); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			} else if ok {
+				update.Base = &github.PullRequestBranch{Ref: github.Ptr(base)}
+				updateNeeded = true
+			}
+
+			if maintainerCanModify, ok, err := optionalParamOK[bool](request, "maintainer_can_modify"); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			} else if ok {
+				update.MaintainerCanModify = github.Ptr(maintainerCanModify)
+				updateNeeded = true
+			}
+
+			if !updateNeeded {
+				return mcp.NewToolResultError("No update parameters provided."), nil
+			}
+
+			pr, resp, err := client.PullRequests.Edit(ctx, owner, repo, pullNumber, update)
+			if err != nil {
+				return nil, fmt.Errorf("failed to update pull request: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to update pull request: %s", string(body))), nil
+			}
+
+			r, err := json.Marshal(pr)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
 // listPullRequests creates a tool to list and filter repository pull requests.
 func listPullRequests(client *github.Client, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("list_pull_requests",
