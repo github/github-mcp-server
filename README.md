@@ -15,7 +15,8 @@ automation and interaction capabilities for developers and tools.
 ## Prerequisites
 
 1. To run the server in a container, you will need to have [Docker](https://www.docker.com/) installed.
-2. [Create a GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new).
+2. Once Docker is installed, you will also need to ensure Docker is running.
+3. Lastly you will need to [Create a GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new).
 The MCP server can use many of the GitHub APIs, so enable the permissions that you feel comfortable granting your AI tools (to learn more about access tokens, please check out the [documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)).
 
 
@@ -331,6 +332,13 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `branch`: Branch name (string, optional)
   - `sha`: File SHA if updating (string, optional)
 
+- **list_branches** - List branches in a GitHub repository
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `page`: Page number (number, optional)
+  - `perPage`: Results per page (number, optional)
+
 - **push_files** - Push multiple files in a single commit
 
   - `owner`: Repository owner (string, required)
@@ -374,13 +382,20 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `branch`: New branch name (string, required)
   - `sha`: SHA to create branch from (string, required)
 
-- **list_commits** - Gets commits of a branch in a repository
+- **list_commits** - Get a list of commits of a branch in a repository
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `sha`: Branch name, tag, or commit SHA (string, optional)
   - `path`: Only commits containing this file path (string, optional)
   - `page`: Page number (number, optional)
   - `perPage`: Results per page (number, optional)
+
+- **get_commit** - Get details for a commit from a repository
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `sha`: Commit SHA, branch name, or tag name (string, required)
+  - `page`: Page number, for files in the commit (number, optional)
+  - `perPage`: Results per page, for files in the commit (number, optional)
 
 ### Search
 
