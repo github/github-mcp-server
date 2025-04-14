@@ -1178,3 +1178,92 @@ func CreatePullRequest(getClient GetClientFn, t translations.TranslationHelperFu
 			return mcp.NewToolResultText(string(r)), nil
 		}
 }
+
+// RequestPullRequestReviewers creates a tool to request reviewers for a pull request.
+func RequestPullRequestReviewers(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("request_pull_request_reviewers",
+			mcp.WithDescription(t("TOOL_REQUEST_PULL_REQUEST_REVIEWERS_DESCRIPTION", "Request reviewers for a pull request")),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithNumber("pull_number",
+				mcp.Required(),
+				mcp.Description("Pull request number"),
+			),
+			mcp.WithArray("reviewers",
+				mcp.Items(map[string]interface{}{"type": "string"}),
+				mcp.Description("GitHub usernames of reviewers to request"),
+			),
+			mcp.WithArray("team_reviewers",
+				mcp.Items(map[string]interface{}{"type": "string"}),
+				mcp.Description("GitHub team names to request review from"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := requiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			repo, err := requiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			pullNumber, err := RequiredInt(request, "pull_number")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Extract reviewers and team reviewers
+			reviewers, err := OptionalStringArrayParam(request, "reviewers")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			teamReviewers, err := OptionalStringArrayParam(request, "team_reviewers")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Verify at least one reviewer is specified
+			if len(reviewers) == 0 && len(teamReviewers) == 0 {
+				return mcp.NewToolResultError("At least one reviewer or team reviewer must be specified"), nil
+			}
+
+			// Create the request options
+			reviewersRequest := &github.ReviewersRequest{
+				Reviewers:     reviewers,
+				TeamReviewers: teamReviewers, // Reverting to original field name
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			pr, resp, err := client.PullRequests.RequestReviewers(ctx, owner, repo, pullNumber, *reviewersRequest)
+			if err != nil {
+				return nil, fmt.Errorf("failed to request reviewers: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to request reviewers: %s", string(body))), nil
+			}
+
+			r, err := json.Marshal(pr)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}

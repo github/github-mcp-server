@@ -1916,3 +1916,186 @@ func Test_AddPullRequestReviewComment(t *testing.T) {
 		})
 	}
 }
+
+func Test_RequestPullRequestReviewers(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := RequestPullRequestReviewers(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "request_pull_request_reviewers", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "pull_number")
+	assert.Contains(t, tool.InputSchema.Properties, "reviewers")
+	assert.Contains(t, tool.InputSchema.Properties, "team_reviewers")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pull_number"})
+
+	// Setup mock PR for success case
+	mockPR := &github.PullRequest{
+		Number:  github.Ptr(42),
+		Title:   github.Ptr("Test PR"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42"),
+		RequestedReviewers: []*github.User{
+			{Login: github.Ptr("reviewer1")},
+			{Login: github.Ptr("reviewer2")},
+		},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedPR     *github.PullRequest
+		expectedErrMsg string
+	}{
+		{
+			name: "successful reviewers request with individual reviewers",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber,
+					expectRequestBody(t, map[string]interface{}{
+						"reviewers": []interface{}{"reviewer1", "reviewer2"},
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockPR),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":       "owner",
+				"repo":        "repo",
+				"pull_number": float64(42),
+				"reviewers":   []interface{}{"reviewer1", "reviewer2"},
+			},
+			expectError: false,
+			expectedPR:  mockPR,
+		},
+		{
+			name: "successful reviewers request with team reviewers",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber,
+					expectRequestBody(t, map[string]interface{}{
+						"team_reviewers": []interface{}{"core-team", "design-team"},
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockPR),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":          "owner",
+				"repo":           "repo",
+				"pull_number":    float64(42),
+				"team_reviewers": []interface{}{"core-team", "design-team"},
+			},
+			expectError: false,
+			expectedPR:  mockPR,
+		},
+		{
+			name: "successful reviewers request with both individual and team reviewers",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber,
+					expectRequestBody(t, map[string]interface{}{
+						"reviewers":      []interface{}{"reviewer1"},
+						"team_reviewers": []interface{}{"core-team"},
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockPR),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":          "owner",
+				"repo":           "repo",
+				"pull_number":    float64(42),
+				"reviewers":      []interface{}{"reviewer1"},
+				"team_reviewers": []interface{}{"core-team"},
+			},
+			expectError: false,
+			expectedPR:  mockPR,
+		},
+		{
+			name:         "no reviewers specified",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]interface{}{
+				"owner":       "owner",
+				"repo":        "repo",
+				"pull_number": float64(42),
+				// No reviewers or team_reviewers provided
+			},
+			expectError:    false,
+			expectedErrMsg: "At least one reviewer or team reviewer must be specified",
+		},
+		{
+			name: "request reviewers fails",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusUnprocessableEntity)
+						_, _ = w.Write([]byte(`{"message": "Validation failed"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":       "owner",
+				"repo":        "repo",
+				"pull_number": float64(999),
+				"reviewers":   []interface{}{"reviewer1"},
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to request reviewers",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := RequestPullRequestReviewers(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Parse the result and get the text content
+			textContent := getTextResult(t, result)
+
+			// Check for expected error message within the result text
+			if tc.expectedErrMsg != "" {
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			// Unmarshal and verify the successful result
+			var returnedPR github.PullRequest
+			err = json.Unmarshal([]byte(textContent.Text), &returnedPR)
+			require.NoError(t, err)
+			assert.Equal(t, *tc.expectedPR.Number, *returnedPR.Number)
+			assert.Equal(t, *tc.expectedPR.Title, *returnedPR.Title)
+			assert.Equal(t, *tc.expectedPR.State, *returnedPR.State)
+
+			// Verify requested reviewers if available
+			if tc.expectedPR.RequestedReviewers != nil {
+				require.NotNil(t, returnedPR.RequestedReviewers)
+				assert.Len(t, returnedPR.RequestedReviewers, len(tc.expectedPR.RequestedReviewers))
+				for i, reviewer := range returnedPR.RequestedReviewers {
+					assert.Equal(t, *tc.expectedPR.RequestedReviewers[i].Login, *reviewer.Login)
+				}
+			}
+		})
+	}
+}
