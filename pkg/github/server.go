@@ -44,6 +44,9 @@ func NewServer(getClient GetClientFn, version string, readOnly bool, t translati
 	s.AddTool(SearchIssues(getClient, t))
 	s.AddTool(ListIssues(getClient, t))
 	s.AddTool(GetIssueComments(getClient, t))
+	s.AddTool(GetIssueTimeline(getClient, t))
+	s.AddTool(GetIssueEvents(getClient, t))
+	s.AddTool(GetIssueEvent(getClient, t))
 	if !readOnly {
 		s.AddTool(CreateIssue(getClient, t))
 		s.AddTool(AddIssueComment(getClient, t))
@@ -196,6 +199,19 @@ func RequiredInt(r mcp.CallToolRequest, p string) (int, error) {
 		return 0, err
 	}
 	return int(v), nil
+}
+
+// RequiredInt64 is a helper function that can be used to fetch a requested parameter from the request.
+// It does the following checks:
+// 1. Checks if the parameter is present in the request.
+// 2. Checks if the parameter is of the expected type.
+// 3. Checks if the parameter is not empty, i.e: non-zero value
+func RequiredInt64(r mcp.CallToolRequest, p string) (int64, error) {
+	v, err := requiredParam[float64](r, p)
+	if err != nil {
+		return 0, err
+	}
+	return int64(v), nil
 }
 
 // OptionalParam is a helper function that can be used to fetch a requested parameter from the request.

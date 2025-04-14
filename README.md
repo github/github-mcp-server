@@ -174,6 +174,27 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `repo`: Repository name (string, required)
   - `issue_number`: Issue number (number, required)
 
+- **get_issue_events** - Get events for a GitHub issue
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `issue_number`: Issue number (number, required)
+  - `page`: Page number (number, optional)
+  - `perPage`: Results per page (number, optional)
+
+- **get_issue_timeline** - Get the timeline of events for a GitHub issue
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `issue_number`: Issue number (number, required)
+  - `page`: Page number (number, optional)
+  - `perPage`: Results per page (number, optional)
+
+- **get_issue_event** - Get a specific event for a GitHub issue
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `event_id`: Event ID (number, required)
+
 - **create_issue** - Create a new issue in a GitHub repository
 
   - `owner`: Repository owner (string, required)
