@@ -11,7 +11,13 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v69/github"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/mark3labs/mcp-go/mock"
 	"github.com/mark3labs/mcp-go/server"
+)
+
+const (
+	PostReposSubIssuesByOwnerByRepoByParentIssueNumberByChildIssueNumber mock.EndpointPattern = "POST /repos/{owner}/{repo}/issues/{parent_issue_number}/sub-issues/{child_issue_number}"
+	GetReposSubIssuesByOwnerByRepoByIssueNumber                          mock.EndpointPattern = "GET /repos/{owner}/{repo}/issues/{issue_number}/sub-issues"
 )
 
 // GetIssue creates a tool to get details of a specific issue in a GitHub repository.
@@ -49,6 +55,8 @@ func GetIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (tool
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
+
+			// Get issue details
 			issue, resp, err := client.Issues.Get(ctx, owner, repo, issueNumber)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get issue: %w", err)
@@ -63,6 +71,37 @@ func GetIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (tool
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get issue: %s", string(body))), nil
 			}
 
+			// Get sub-issues
+			url := fmt.Sprintf("repos/%v/%v/issues/%d/sub-issues", owner, repo, issueNumber)
+			req, err := client.NewRequest("GET", url, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create request: %w", err)
+			}
+
+			var subIssues []*github.Issue
+			resp, err = client.Do(ctx, req, &subIssues)
+			if err == nil && resp.StatusCode == http.StatusOK {
+				// Only include sub-issues if the request was successful
+				// Create a custom response struct that includes sub-issues
+				type IssueWithSubIssues struct {
+					*github.Issue
+					SubIssues []*github.Issue `json:"sub_issues,omitempty"`
+				}
+
+				issueWithSubs := &IssueWithSubIssues{
+					Issue:     issue,
+					SubIssues: subIssues,
+				}
+
+				r, err := json.Marshal(issueWithSubs)
+				if err != nil {
+					return nil, fmt.Errorf("failed to marshal issue with sub-issues: %w", err)
+				}
+
+				return mcp.NewToolResultText(string(r)), nil
+			}
+
+			// If getting sub-issues failed, just return the main issue
 			r, err := json.Marshal(issue)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal issue: %w", err)
@@ -677,6 +716,159 @@ func GetIssueComments(getClient GetClientFn, t translations.TranslationHelperFun
 			r, err := json.Marshal(comments)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
+// AddSubIssue creates a tool to add a sub-issue to an existing issue.
+func AddSubIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("add_sub_issue",
+			mcp.WithDescription(t("TOOL_ADD_SUB_ISSUE_DESCRIPTION", "Add a sub-issue to an existing issue")),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithNumber("parent_issue_number",
+				mcp.Required(),
+				mcp.Description("Parent issue number"),
+			),
+			mcp.WithNumber("child_issue_number",
+				mcp.Required(),
+				mcp.Description("Child issue number to add as sub-issue"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := requiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			repo, err := requiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			parentIssueNumber, err := RequiredInt(request, "parent_issue_number")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			childIssueNumber, err := RequiredInt(request, "child_issue_number")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			// First verify both issues exist
+			_, resp, err := client.Issues.Get(ctx, owner, repo, parentIssueNumber)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get parent issue: %w", err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				return mcp.NewToolResultError("parent issue not found"), nil
+			}
+
+			_, resp, err = client.Issues.Get(ctx, owner, repo, childIssueNumber)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get child issue: %w", err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				return mcp.NewToolResultError("child issue not found"), nil
+			}
+
+			// Add sub-issue relationship
+			url := fmt.Sprintf("repos/%v/%v/issues/%d/sub-issues/%d", owner, repo, parentIssueNumber, childIssueNumber)
+			req, err := client.NewRequest("POST", url, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create request: %w", err)
+			}
+
+			resp, err = client.Do(ctx, req, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to add sub-issue: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusCreated {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to add sub-issue: %s", string(body))), nil
+			}
+
+			return mcp.NewToolResultText(fmt.Sprintf("Successfully added issue #%d as a sub-issue of #%d", childIssueNumber, parentIssueNumber)), nil
+		}
+}
+
+// GetSubIssues creates a tool to get sub-issues of a specific issue.
+func GetSubIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("get_sub_issues",
+			mcp.WithDescription(t("TOOL_GET_SUB_ISSUES_DESCRIPTION", "Get sub-issues of a specific issue")),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithNumber("issue_number",
+				mcp.Required(),
+				mcp.Description("Parent issue number"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := requiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			repo, err := requiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			issueNumber, err := RequiredInt(request, "issue_number")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			// Get sub-issues
+			url := fmt.Sprintf("repos/%v/%v/issues/%d/sub-issues", owner, repo, issueNumber)
+			req, err := client.NewRequest("GET", url, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create request: %w", err)
+			}
+
+			var subIssues []*github.Issue
+			resp, err := client.Do(ctx, req, &subIssues)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get sub-issues: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get sub-issues: %s", string(body))), nil
+			}
+
+			r, err := json.Marshal(subIssues)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal sub-issues: %w", err)
 			}
 
 			return mcp.NewToolResultText(string(r)), nil

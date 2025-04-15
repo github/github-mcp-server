@@ -26,6 +26,67 @@ func NewServer(version string, opts ...server.ServerOption) *server.MCPServer {
 		version,
 		opts...,
 	)
+
+	// Add GitHub Resources
+	s.AddResourceTemplate(GetRepositoryResourceContent(getClient, t))
+	s.AddResourceTemplate(GetRepositoryResourceBranchContent(getClient, t))
+	s.AddResourceTemplate(GetRepositoryResourceCommitContent(getClient, t))
+	s.AddResourceTemplate(GetRepositoryResourceTagContent(getClient, t))
+	s.AddResourceTemplate(GetRepositoryResourcePrContent(getClient, t))
+
+	// Add GitHub tools - Issues
+	s.AddTool(GetIssue(getClient, t))
+	s.AddTool(SearchIssues(getClient, t))
+	s.AddTool(ListIssues(getClient, t))
+	s.AddTool(GetIssueComments(getClient, t))
+	s.AddTool(GetSubIssues(getClient, t))
+	if !readOnly {
+		s.AddTool(CreateIssue(getClient, t))
+		s.AddTool(AddIssueComment(getClient, t))
+		s.AddTool(UpdateIssue(getClient, t))
+		s.AddTool(AddSubIssue(getClient, t))
+	}
+
+	// Add GitHub tools - Pull Requests
+	s.AddTool(GetPullRequest(getClient, t))
+	s.AddTool(ListPullRequests(getClient, t))
+	s.AddTool(GetPullRequestFiles(getClient, t))
+	s.AddTool(GetPullRequestStatus(getClient, t))
+	s.AddTool(GetPullRequestComments(getClient, t))
+	s.AddTool(GetPullRequestReviews(getClient, t))
+	if !readOnly {
+		s.AddTool(MergePullRequest(getClient, t))
+		s.AddTool(UpdatePullRequestBranch(getClient, t))
+		s.AddTool(CreatePullRequestReview(getClient, t))
+		s.AddTool(CreatePullRequest(getClient, t))
+		s.AddTool(UpdatePullRequest(getClient, t))
+		s.AddTool(AddPullRequestReviewComment(getClient, t))
+	}
+
+	// Add GitHub tools - Repositories
+	s.AddTool(SearchRepositories(getClient, t))
+	s.AddTool(GetFileContents(getClient, t))
+	s.AddTool(GetCommit(getClient, t))
+	s.AddTool(ListCommits(getClient, t))
+	s.AddTool(ListBranches(getClient, t))
+	if !readOnly {
+		s.AddTool(CreateOrUpdateFile(getClient, t))
+		s.AddTool(CreateRepository(getClient, t))
+		s.AddTool(ForkRepository(getClient, t))
+		s.AddTool(CreateBranch(getClient, t))
+		s.AddTool(PushFiles(getClient, t))
+	}
+
+	// Add GitHub tools - Search
+	s.AddTool(SearchCode(getClient, t))
+	s.AddTool(SearchUsers(getClient, t))
+
+	// Add GitHub tools - Users
+	s.AddTool(GetMe(getClient, t))
+
+	// Add GitHub tools - Code Scanning
+	s.AddTool(GetCodeScanningAlert(getClient, t))
+	s.AddTool(ListCodeScanningAlerts(getClient, t))
 	return s
 }
 

@@ -15,6 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Custom endpoint patterns for sub-issues
+const (
+	PostReposSubIssuesByOwnerByRepoByParentIssueNumberByChildIssueNumber mock.EndpointPattern = "POST /repos/{owner}/{repo}/issues/{parent_issue_number}/sub-issues/{child_issue_number}"
+	GetReposSubIssuesByOwnerByRepoByIssueNumber                          mock.EndpointPattern = "GET /repos/{owner}/{repo}/issues/{issue_number}/sub-issues"
+)
+
 func Test_GetIssue(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
@@ -75,6 +81,33 @@ func Test_GetIssue(t *testing.T) {
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to get issue",
+		},
+		{
+			name: "successful issue retrieval with sub-issues",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
+					mockIssue,
+				),
+				mock.WithRequestMatchHandler(
+					GetReposSubIssuesByOwnerByRepoByIssueNumber,
+					mockResponse(t, http.StatusOK, []*github.Issue{
+						{
+							Number:  github.Ptr(43),
+							Title:   github.Ptr("Sub Issue"),
+							State:   github.Ptr("open"),
+							HTMLURL: github.Ptr("https://github.com/owner/repo/issues/43"),
+						},
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectError:   false,
+			expectedIssue: mockIssue,
 		},
 	}
 
@@ -1126,6 +1159,279 @@ func Test_GetIssueComments(t *testing.T) {
 			if len(returnedComments) > 0 {
 				assert.Equal(t, *tc.expectedComments[0].Body, *returnedComments[0].Body)
 				assert.Equal(t, *tc.expectedComments[0].User.Login, *returnedComments[0].User.Login)
+			}
+		})
+	}
+}
+
+func Test_AddSubIssue(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := AddSubIssue(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "add_sub_issue", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "parent_issue_number")
+	assert.Contains(t, tool.InputSchema.Properties, "child_issue_number")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "parent_issue_number", "child_issue_number"})
+
+	// Setup mock issues for success case
+	mockParentIssue := &github.Issue{
+		Number:  github.Ptr(42),
+		Title:   github.Ptr("Parent Issue"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
+	}
+
+	mockChildIssue := &github.Issue{
+		Number:  github.Ptr(43),
+		Title:   github.Ptr("Child Issue"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/43"),
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedErrMsg string
+	}{
+		{
+			name: "successful sub-issue addition",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
+					mockParentIssue,
+				),
+				mock.WithRequestMatch(
+					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
+					mockChildIssue,
+				),
+				mock.WithRequestMatchHandler(
+					PostReposSubIssuesByOwnerByRepoByParentIssueNumberByChildIssueNumber,
+					mockResponse(t, http.StatusCreated, nil),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":               "owner",
+				"repo":                "repo",
+				"parent_issue_number": float64(42),
+				"child_issue_number":  float64(43),
+			},
+			expectError: false,
+		},
+		{
+			name: "parent issue not found",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
+					mockResponse(t, http.StatusNotFound, `{"message": "Issue not found"}`),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":               "owner",
+				"repo":                "repo",
+				"parent_issue_number": float64(999),
+				"child_issue_number":  float64(43),
+			},
+			expectError:    false,
+			expectedErrMsg: "parent issue not found",
+		},
+		{
+			name: "child issue not found",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
+					mockParentIssue,
+				),
+				mock.WithRequestMatchHandler(
+					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
+					mockResponse(t, http.StatusNotFound, `{"message": "Issue not found"}`),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":               "owner",
+				"repo":                "repo",
+				"parent_issue_number": float64(42),
+				"child_issue_number":  float64(999),
+			},
+			expectError:    false,
+			expectedErrMsg: "child issue not found",
+		},
+		{
+			name: "sub-issue addition fails",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
+					mockParentIssue,
+				),
+				mock.WithRequestMatch(
+					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
+					mockChildIssue,
+				),
+				mock.WithRequestMatchHandler(
+					PostReposSubIssuesByOwnerByRepoByParentIssueNumberByChildIssueNumber,
+					mockResponse(t, http.StatusUnprocessableEntity, `{"message": "Issues cannot be nested more than one level deep"}`),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":               "owner",
+				"repo":                "repo",
+				"parent_issue_number": float64(42),
+				"child_issue_number":  float64(43),
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to add sub-issue",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := AddSubIssue(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			if tc.expectedErrMsg != "" {
+				require.NotNil(t, result)
+				textContent := getTextResult(t, result)
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			textContent := getTextResult(t, result)
+			assert.Contains(t, textContent.Text, "Successfully added issue")
+		})
+	}
+}
+
+func Test_GetSubIssues(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := GetSubIssues(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "get_sub_issues", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "issue_number"})
+
+	// Setup mock issues for success case
+	mockSubIssues := []*github.Issue{
+		{
+			Number:  github.Ptr(43),
+			Title:   github.Ptr("Sub Issue 1"),
+			State:   github.Ptr("open"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/issues/43"),
+		},
+		{
+			Number:  github.Ptr(44),
+			Title:   github.Ptr("Sub Issue 2"),
+			State:   github.Ptr("closed"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/issues/44"),
+		},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedIssues []*github.Issue
+		expectedErrMsg string
+	}{
+		{
+			name: "successful sub-issues retrieval",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					GetReposSubIssuesByOwnerByRepoByIssueNumber,
+					mockResponse(t, http.StatusOK, mockSubIssues),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectError:    false,
+			expectedIssues: mockSubIssues,
+		},
+		{
+			name: "parent issue not found",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					GetReposSubIssuesByOwnerByRepoByIssueNumber,
+					mockResponse(t, http.StatusNotFound, `{"message": "Issue not found"}`),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(999),
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to get sub-issues",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := GetSubIssues(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			if tc.expectedErrMsg != "" {
+				require.NotNil(t, result)
+				textContent := getTextResult(t, result)
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			textContent := getTextResult(t, result)
+
+			// Unmarshal and verify the result
+			var returnedIssues []*github.Issue
+			err = json.Unmarshal([]byte(textContent.Text), &returnedIssues)
+			require.NoError(t, err)
+
+			assert.Len(t, returnedIssues, len(tc.expectedIssues))
+			for i, issue := range returnedIssues {
+				assert.Equal(t, *tc.expectedIssues[i].Number, *issue.Number)
+				assert.Equal(t, *tc.expectedIssues[i].Title, *issue.Title)
+				assert.Equal(t, *tc.expectedIssues[i].State, *issue.State)
+				assert.Equal(t, *tc.expectedIssues[i].HTMLURL, *issue.HTMLURL)
 			}
 		})
 	}
