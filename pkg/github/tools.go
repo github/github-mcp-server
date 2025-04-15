@@ -73,6 +73,10 @@ func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn,
 			toolsets.NewServerTool(GetCodeScanningAlert(getClient, t)),
 			toolsets.NewServerTool(ListCodeScanningAlerts(getClient, t)),
 		)
+	actions := toolsets.NewToolset("actions", "GitHub Actions related tools").
+		AddWriteTools(
+			toolsets.NewServerTool(RunWorkflow(getClient, t)),
+		)
 	// Keep experiments alive so the system doesn't error out when it's always enabled
 	experiments := toolsets.NewToolset("experiments", "Experimental features that are not considered stable yet")
 
@@ -82,6 +86,7 @@ func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn,
 	tsg.AddToolset(users)
 	tsg.AddToolset(pullRequests)
 	tsg.AddToolset(codeSecurity)
+	tsg.AddToolset(actions)
 	tsg.AddToolset(experiments)
 	// Enable the requested features
 
