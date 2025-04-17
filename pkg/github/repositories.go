@@ -321,7 +321,7 @@ func CreateOrUpdateFile(getClient GetClientFn, t translations.TranslationHelperF
 // CreateRepository creates a tool to create a new GitHub repository.
 func CreateRepository(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("create_repository",
-			mcp.WithDescription(t("TOOL_CREATE_REPOSITORY_DESCRIPTION", "Create a new GitHub repository in your account")),
+			mcp.WithDescription(t("TOOL_CREATE_REPOSITORY_DESCRIPTION", "Create a new GitHub repository in your account without using a template")),
 			mcp.WithString("name",
 				mcp.Required(),
 				mcp.Description("Repository name"),
@@ -377,6 +377,92 @@ func CreateRepository(getClient GetClientFn, t translations.TranslationHelperFun
 					return nil, fmt.Errorf("failed to read response body: %w", err)
 				}
 				return mcp.NewToolResultError(fmt.Sprintf("failed to create repository: %s", string(body))), nil
+			}
+
+			r, err := json.Marshal(createdRepo)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
+// CreateRepositoryFromTemplate creates a tool to create a new GitHub repository from a template.
+func CreateRepositoryFromTemplate(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("create_repository_from_template",
+			mcp.WithDescription(t("TOOL_CREATE_REPOSITORY_FROM_TEMPLATE_DESCRIPTION", "Create a new GitHub repository in your account from a template repository")),
+			mcp.WithString("name",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithString("description",
+				mcp.Description("Repository description"),
+			),
+			mcp.WithBoolean("private",
+				mcp.Description("Whether repo should be private"),
+			),
+			mcp.WithBoolean("includeAllBranches",
+				mcp.Description("Include all branches from template"),
+			),
+			mcp.WithString("templateOwner",
+				mcp.Required(),
+				mcp.Description("Template repository owner"),
+			),
+			mcp.WithString("templateRepo",
+				mcp.Required(),
+				mcp.Description("Template repository name"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			name, err := requiredParam[string](request, "name")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			description, err := OptionalParam[string](request, "description")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			private, err := OptionalParam[bool](request, "private")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			includeAllBranches, err := OptionalParam[bool](request, "includeAllBranches")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			templateOwner, err := requiredParam[string](request, "templateOwner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			templateRepo, err := requiredParam[string](request, "templateRepo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			templateReq := &github.TemplateRepoRequest{
+				Name:               github.Ptr(name),
+				Description:        github.Ptr(description),
+				Private:            github.Ptr(private),
+				IncludeAllBranches: github.Ptr(includeAllBranches),
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+			createdRepo, resp, err := client.Repositories.CreateFromTemplate(ctx, templateOwner, templateRepo, templateReq)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create repository from template: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusCreated {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to create repository from template: %s", string(body))), nil
 			}
 
 			r, err := json.Marshal(createdRepo)

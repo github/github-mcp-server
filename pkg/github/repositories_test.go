@@ -1528,3 +1528,157 @@ func Test_ListBranches(t *testing.T) {
 		})
 	}
 }
+
+func Test_CreateRepositoryFromTemplate(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := CreateRepositoryFromTemplate(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "create_repository_from_template", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "name")
+	assert.Contains(t, tool.InputSchema.Properties, "description")
+	assert.Contains(t, tool.InputSchema.Properties, "private")
+	assert.Contains(t, tool.InputSchema.Properties, "includeAllBranches")
+	assert.Contains(t, tool.InputSchema.Properties, "templateOwner")
+	assert.Contains(t, tool.InputSchema.Properties, "templateRepo")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"name", "templateOwner", "templateRepo"})
+
+	// Setup mock repository response
+	mockRepo := &github.Repository{
+		Name:        github.Ptr("test-repo"),
+		Description: github.Ptr("Test repository"),
+		Private:     github.Ptr(true),
+		HTMLURL:     github.Ptr("https://github.com/testuser/test-repo"),
+		CloneURL:    github.Ptr("https://github.com/testuser/test-repo.git"),
+		CreatedAt:   &github.Timestamp{Time: time.Now()},
+		Owner: &github.User{
+			Login: github.Ptr("testuser"),
+		},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedRepo   *github.Repository
+		expectedErrMsg string
+	}{
+		{
+			name: "successful repository creation from template with all params",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/template-owner/template-repo/generate",
+						Method:  "POST",
+					},
+					expectRequestBody(t, map[string]interface{}{
+						"name":                 "test-repo",
+						"description":          "Test repository",
+						"private":              true,
+						"include_all_branches": true,
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockRepo),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"name":               "test-repo",
+				"description":        "Test repository",
+				"private":            true,
+				"includeAllBranches": true,
+				"templateOwner":      "template-owner",
+				"templateRepo":       "template-repo",
+			},
+			expectError:  false,
+			expectedRepo: mockRepo,
+		},
+		{
+			name: "successful repository creation from template with minimal params",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/template-owner/template-repo/generate",
+						Method:  "POST",
+					},
+					expectRequestBody(t, map[string]interface{}{
+						"name":                 "test-repo",
+						"description":          "",
+						"private":              false,
+						"include_all_branches": false,
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockRepo),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"name":          "test-repo",
+				"templateOwner": "template-owner",
+				"templateRepo":  "template-repo",
+			},
+			expectError:  false,
+			expectedRepo: mockRepo,
+		},
+		{
+			name: "repository creation from template fails",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/template-owner/template-repo/generate",
+						Method:  "POST",
+					},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusUnprocessableEntity)
+						_, _ = w.Write([]byte(`{"message": "Repository creation from template failed"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"name":          "invalid-repo",
+				"templateOwner": "template-owner",
+				"templateRepo":  "template-repo",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to create repository from template",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := CreateRepositoryFromTemplate(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Parse the result and get the text content if no error
+			textContent := getTextResult(t, result)
+
+			// Unmarshal and verify the result
+			var returnedRepo github.Repository
+			err = json.Unmarshal([]byte(textContent.Text), &returnedRepo)
+			assert.NoError(t, err)
+
+			// Verify repository details
+			assert.Equal(t, *tc.expectedRepo.Name, *returnedRepo.Name)
+			assert.Equal(t, *tc.expectedRepo.Description, *returnedRepo.Description)
+			assert.Equal(t, *tc.expectedRepo.Private, *returnedRepo.Private)
+			assert.Equal(t, *tc.expectedRepo.HTMLURL, *returnedRepo.HTMLURL)
+			assert.Equal(t, *tc.expectedRepo.Owner.Login, *returnedRepo.Owner.Login)
+		})
+	}
+}
