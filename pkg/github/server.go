@@ -130,6 +130,20 @@ func OptionalIntParam(r mcp.CallToolRequest, p string) (int, error) {
 	return int(v), nil
 }
 
+// OptionalBoolParamWithDefault is a helper function that retrieves a boolean parameter from the request.
+// If the parameter is not present, it returns the provided default value. If the parameter is present,
+// it validates its type and returns the value.
+func OptionalBoolParamWithDefault(request mcp.CallToolRequest, s string, b bool) (bool, error) {
+	v, err := OptionalParam[bool](request, s)
+	if err != nil {
+		return false, err
+	}
+	if b == false {
+		return b, nil
+	}
+	return v, nil
+}
+
 // OptionalIntParamWithDefault is a helper function that can be used to fetch a requested parameter from the request
 // similar to optionalIntParam, but it also takes a default value.
 func OptionalIntParamWithDefault(r mcp.CallToolRequest, p string, d int) (int, error) {
