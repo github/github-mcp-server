@@ -87,6 +87,21 @@ More about using MCP server tools in VS Code's [agent mode documentation](https:
 }
 ```
 
+### Using Mise for Installation
+
+To quickly configure and deploy the GitHub MCP Server in your environment, you can use **[Mise](https://mise.jdx.dev)**, a developer tool manager
+
+Here’s how to get started:
+
+1. Install `mise` by following the installation instructions at [https://mise.jdx.dev](https://mise.jdx.dev).
+2. Use the following command to install the latest build of github-mcp-server
+
+   ```bash
+   mise use -g ubi:github/github-mcp-server
+   ```
+
+For more details, see [Mise's official documentation](https://mise.jdx.dev/docs).
+
 ### Build from source
 
 If you don't have Docker, you can use `go build` to build the binary in the
