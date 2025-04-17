@@ -14,8 +14,11 @@ require (
 	github.com/stretchr/testify v1.10.0
 )
 
+require github.com/cli/safeexec v1.0.0 // indirect
+
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
+	github.com/cli/go-gh v1.2.1
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/distribution/reference v0.6.0 // indirect

@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/cli/go-gh/pkg/auth"
 	"github.com/github/github-mcp-server/pkg/github"
 	iolog "github.com/github/github-mcp-server/pkg/log"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -24,9 +25,12 @@ var version = "version"
 var commit = "commit"
 var date = "date"
 
+var rootCommandName = "github-mcp-server"
+var defaultTokenSource = "env"
+
 var (
 	rootCmd = &cobra.Command{
-		Use:     "server",
+		Use:     rootCommandName,
 		Short:   "GitHub MCP Server",
 		Long:    `A GitHub MCP server that handles various tools and resources.`,
 		Version: fmt.Sprintf("Version: %s\nCommit: %s\nBuild Date: %s", version, commit, date),
@@ -75,6 +79,7 @@ func init() {
 	rootCmd.PersistentFlags().Bool("enable-command-logging", false, "When enabled, the server will log all command requests and responses to the log file")
 	rootCmd.PersistentFlags().Bool("export-translations", false, "Save translations to a JSON file")
 	rootCmd.PersistentFlags().String("gh-host", "", "Specify the GitHub hostname (for GitHub Enterprise etc.)")
+	rootCmd.PersistentFlags().String("token-source", defaultTokenSource, "Authentication token source (e.g. env, gh)")
 
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
@@ -84,6 +89,7 @@ func init() {
 	_ = viper.BindPFlag("enable-command-logging", rootCmd.PersistentFlags().Lookup("enable-command-logging"))
 	_ = viper.BindPFlag("export-translations", rootCmd.PersistentFlags().Lookup("export-translations"))
 	_ = viper.BindPFlag("host", rootCmd.PersistentFlags().Lookup("gh-host"))
+	_ = viper.BindPFlag("token-source", rootCmd.PersistentFlags().Lookup("token-source"))
 
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)
@@ -126,21 +132,9 @@ func runStdioServer(cfg runConfig) error {
 	defer stop()
 
 	// Create GH client
-	token := viper.GetString("personal_access_token")
-	if token == "" {
-		cfg.logger.Fatal("GITHUB_PERSONAL_ACCESS_TOKEN not set")
-	}
-	ghClient := gogithub.NewClient(nil).WithAuthToken(token)
-	ghClient.UserAgent = fmt.Sprintf("github-mcp-server/%s", version)
-
-	host := viper.GetString("host")
-
-	if host != "" {
-		var err error
-		ghClient, err = ghClient.WithEnterpriseURLs(host, host)
-		if err != nil {
-			return fmt.Errorf("failed to create GitHub client with host: %w", err)
-		}
+	ghClient, err := newGitHubClient()
+	if err != nil {
+		cfg.logger.Fatalf("failed to create GitHub client: %v", err)
 	}
 
 	t, dumpTranslations := translations.TranslationHelper()
@@ -227,6 +221,50 @@ func runStdioServer(cfg runConfig) error {
 	}
 
 	return nil
+}
+
+func getToken(host string) (string, error) {
+	tokenSource := viper.GetString("token-source")
+	switch tokenSource {
+	case "env":
+		token := os.Getenv("GITHUB_PERSONAL_ACCESS_TOKEN")
+		if token == "" {
+			return "", fmt.Errorf("GITHUB_PERSONAL_ACCESS_TOKEN not set")
+		}
+		return token, nil
+	case "gh":
+		token, source := auth.TokenForHost(host)
+		if source == "default" {
+			return "", fmt.Errorf("no token found for host: %s", host)
+		}
+		return token, nil
+	}
+	return "", fmt.Errorf("unknown token source: %s", tokenSource)
+}
+
+func getHost() string {
+	host := os.Getenv("GH_HOST")
+	if host == "" {
+		host = viper.GetString("gh-host")
+	}
+	return host
+}
+
+func newGitHubClient() (*gogithub.Client, error) {
+	host := getHost()
+	token, err := getToken(host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get token: %w", err)
+	}
+	ghClient := gogithub.NewClient(nil).WithAuthToken(token)
+	if host != "" {
+		ghClient, err = ghClient.WithEnterpriseURLs(host, host)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create GitHub client with host: %w", err)
+		}
+	}
+	ghClient.UserAgent = fmt.Sprintf("github-mcp-server/%s", version)
+	return ghClient, nil
 }
 
 func main() {
