@@ -16,6 +16,10 @@ import (
 func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("search_repositories",
 			mcp.WithDescription(t("TOOL_SEARCH_REPOSITORIES_DESCRIPTION", "Search for GitHub repositories")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_SEARCH_REPOSITORIES_USER_TITLE", "Search repositories"),
+				ReadOnlyHint: true,
+			}),
 			mcp.WithString("query",
 				mcp.Required(),
 				mcp.Description("Search query"),
@@ -70,6 +74,10 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 func SearchCode(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("search_code",
 			mcp.WithDescription(t("TOOL_SEARCH_CODE_DESCRIPTION", "Search for code across GitHub repositories")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_SEARCH_CODE_USER_TITLE", "Search code"),
+				ReadOnlyHint: true,
+			}),
 			mcp.WithString("q",
 				mcp.Required(),
 				mcp.Description("Search query using GitHub code search syntax"),
@@ -142,6 +150,10 @@ func SearchCode(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 func SearchUsers(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("search_users",
 			mcp.WithDescription(t("TOOL_SEARCH_USERS_DESCRIPTION", "Search for GitHub users")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_SEARCH_USERS_USER_TITLE", "Search users"),
+				ReadOnlyHint: true,
+			}),
 			mcp.WithString("q",
 				mcp.Required(),
 				mcp.Description("Search query using GitHub users search syntax"),

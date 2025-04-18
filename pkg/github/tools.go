@@ -118,6 +118,7 @@ func InitDynamicToolset(s *server.MCPServer, tsg *toolsets.ToolsetGroup, t trans
 			toolsets.NewServerTool(GetToolsetsTools(tsg, t)),
 			toolsets.NewServerTool(EnableToolset(s, tsg, t)),
 		)
+
 	dynamicToolSelection.Enabled = true
 	return dynamicToolSelection
 }
