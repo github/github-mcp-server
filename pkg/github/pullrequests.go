@@ -103,6 +103,12 @@ func UpdatePullRequest(getClient GetClientFn, t translations.TranslationHelperFu
 			mcp.WithBoolean("maintainer_can_modify",
 				mcp.Description("Allow maintainer edits"),
 			),
+			mcp.WithArray("reviewers",
+				mcp.Description("GitHub usernames to request reviews from"),
+				mcp.Items(map[string]interface{}{
+					"type": "string",
+				}),
+			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := requiredParam[string](request, "owner")
@@ -157,26 +163,101 @@ func UpdatePullRequest(getClient GetClientFn, t translations.TranslationHelperFu
 				updateNeeded = true
 			}
 
-			if !updateNeeded {
-				return mcp.NewToolResultError("No update parameters provided."), nil
+			// Handle reviewers separately
+			var reviewers []string
+			if reviewersArr, ok := request.Params.Arguments["reviewers"].([]interface{}); ok && len(reviewersArr) > 0 {
+				for _, reviewer := range reviewersArr {
+					if reviewerStr, ok := reviewer.(string); ok {
+						reviewers = append(reviewers, reviewerStr)
+					}
+				}
 			}
 
+			// Create the GitHub client
 			client, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			pr, resp, err := client.PullRequests.Edit(ctx, owner, repo, pullNumber, update)
-			if err != nil {
-				return nil, fmt.Errorf("failed to update pull request: %w", err)
-			}
-			defer func() { _ = resp.Body.Close() }()
 
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
+			var pr *github.PullRequest
+			var resp *http.Response
+
+			// First, update the PR if needed
+			if updateNeeded {
+				var ghResp *github.Response
+				pr, ghResp, err = client.PullRequests.Edit(ctx, owner, repo, pullNumber, update)
 				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
+					return nil, fmt.Errorf("failed to update pull request: %w", err)
 				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to update pull request: %s", string(body))), nil
+				resp = ghResp.Response
+				defer func() {
+					if resp != nil && resp.Body != nil {
+						_ = resp.Body.Close()
+					}
+				}()
+
+				if resp.StatusCode != http.StatusOK {
+					body, err := io.ReadAll(resp.Body)
+					if err != nil {
+						return nil, fmt.Errorf("failed to read response body: %w", err)
+					}
+					return mcp.NewToolResultError(fmt.Sprintf("failed to update pull request: %s", string(body))), nil
+				}
+			} else {
+				// If no update needed, just get the current PR
+				var ghResp *github.Response
+				pr, ghResp, err = client.PullRequests.Get(ctx, owner, repo, pullNumber)
+				if err != nil {
+					return nil, fmt.Errorf("failed to get pull request: %w", err)
+				}
+				resp = ghResp.Response
+				defer func() {
+					if resp != nil && resp.Body != nil {
+						_ = resp.Body.Close()
+					}
+				}()
+
+				if resp.StatusCode != http.StatusOK {
+					body, err := io.ReadAll(resp.Body)
+					if err != nil {
+						return nil, fmt.Errorf("failed to read response body: %w", err)
+					}
+					return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request: %s", string(body))), nil
+				}
+			}
+
+			// Add reviewers if specified
+			if len(reviewers) > 0 {
+				reviewersRequest := github.ReviewersRequest{
+					Reviewers: reviewers,
+				}
+
+				// Use the direct result of RequestReviewers which includes the requested reviewers
+				updatedPR, resp, err := client.PullRequests.RequestReviewers(ctx, owner, repo, pullNumber, reviewersRequest)
+				if err != nil {
+					return nil, fmt.Errorf("failed to request reviewers: %w", err)
+				}
+				defer func() {
+					if resp != nil && resp.Body != nil {
+						_ = resp.Body.Close()
+					}
+				}()
+
+				if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+					body, err := io.ReadAll(resp.Body)
+					if err != nil {
+						return nil, fmt.Errorf("failed to read response body: %w", err)
+					}
+					return mcp.NewToolResultError(fmt.Sprintf("failed to request reviewers: %s", string(body))), nil
+				}
+
+				// Use the updated PR with reviewers
+				pr = updatedPR
+			}
+
+			// If no updates and no reviewers, return error
+			if !updateNeeded && len(reviewers) == 0 {
+				return mcp.NewToolResultError("No update parameters provided"), nil
 			}
 
 			r, err := json.Marshal(pr)
