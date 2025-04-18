@@ -78,6 +78,19 @@ func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn,
 			toolsets.NewServerTool(GetSecretScanningAlert(getClient, t)),
 			toolsets.NewServerTool(ListSecretScanningAlerts(getClient, t)),
 		)
+
+	notifications := toolsets.NewToolset("notifications", "GitHub Notifications related tools").
+		AddReadTools(
+
+			toolsets.NewServerTool(MarkNotificationRead(getClient, t)),
+			toolsets.NewServerTool(MarkAllNotificationsRead(getClient, t)),
+			toolsets.NewServerTool(MarkNotificationDone(getClient, t)),
+		).
+		AddWriteTools(
+			toolsets.NewServerTool(GetNotifications(getClient, t)),
+			toolsets.NewServerTool(GetNotificationThread(getClient, t)),
+		)
+
 	// Keep experiments alive so the system doesn't error out when it's always enabled
 	experiments := toolsets.NewToolset("experiments", "Experimental features that are not considered stable yet")
 
@@ -88,6 +101,7 @@ func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn,
 	tsg.AddToolset(pullRequests)
 	tsg.AddToolset(codeSecurity)
 	tsg.AddToolset(secretProtection)
+	tsg.AddToolset(notifications)
 	tsg.AddToolset(experiments)
 	// Enable the requested features
 

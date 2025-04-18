@@ -143,6 +143,47 @@ func OptionalIntParamWithDefault(r mcp.CallToolRequest, p string, d int) (int, e
 	return v, nil
 }
 
+// OptionalBoolParamWithDefault is a helper function that can be used to fetch a requested parameter from the request
+// similar to optionalParam, but it also takes a default value.
+func OptionalBoolParamWithDefault(r mcp.CallToolRequest, p string, d bool) (bool, error) {
+	v, err := OptionalParam[bool](r, p)
+	if err != nil {
+		return false, err
+	}
+	if !v {
+		return d, nil
+	}
+	return v, nil
+}
+
+// OptionalStringParam is a helper function that can be used to fetch a requested parameter from the request.
+// It does the following checks:
+// 1. Checks if the parameter is present in the request, if not, it returns its zero-value
+// 2. If it is present, it checks if the parameter is of the expected type and returns it
+func OptionalStringParam(r mcp.CallToolRequest, p string) (string, error) {
+	v, err := OptionalParam[string](r, p)
+	if err != nil {
+		return "", err
+	}
+	if v == "" {
+		return "", nil
+	}
+	return v, nil
+}
+
+// OptionalStringParamWithDefault is a helper function that can be used to fetch a requested parameter from the request
+// similar to optionalParam, but it also takes a default value.
+func OptionalStringParamWithDefault(r mcp.CallToolRequest, p string, d string) (string, error) {
+	v, err := OptionalParam[string](r, p)
+	if err != nil {
+		return "", err
+	}
+	if v == "" {
+		return d, nil
+	}
+	return v, nil
+}
+
 // OptionalStringArrayParam is a helper function that can be used to fetch a requested parameter from the request.
 // It does the following checks:
 // 1. Checks if the parameter is present in the request, if not, it returns its zero-value
