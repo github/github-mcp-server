@@ -41,11 +41,19 @@ func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn,
 			toolsets.NewServerTool(SearchIssues(getClient, t)),
 			toolsets.NewServerTool(ListIssues(getClient, t)),
 			toolsets.NewServerTool(GetIssueComments(getClient, t)),
+			toolsets.NewServerTool(ListLabels(getClient, t)),
+			toolsets.NewServerTool(GetLabel(getClient, t)),
+			toolsets.NewServerTool(ListLabelsForIssue(getClient, t)),
 		).
 		AddWriteTools(
 			toolsets.NewServerTool(CreateIssue(getClient, t)),
 			toolsets.NewServerTool(AddIssueComment(getClient, t)),
 			toolsets.NewServerTool(UpdateIssue(getClient, t)),
+			toolsets.NewServerTool(CreateLabel(getClient, t)),
+			toolsets.NewServerTool(UpdateLabel(getClient, t)),
+			toolsets.NewServerTool(DeleteLabel(getClient, t)),
+			toolsets.NewServerTool(AddLabelsToIssue(getClient, t)),
+			toolsets.NewServerTool(RemoveLabelFromIssue(getClient, t)),
 		)
 	users := toolsets.NewToolset("users", "GitHub User related tools").
 		AddReadTools(
