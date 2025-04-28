@@ -1529,6 +1529,142 @@ func Test_ListBranches(t *testing.T) {
 	}
 }
 
+func Test_DeleteFile(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := DeleteFile(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "delete_file", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "path")
+	assert.Contains(t, tool.InputSchema.Properties, "message")
+	assert.Contains(t, tool.InputSchema.Properties, "branch")
+	assert.Contains(t, tool.InputSchema.Properties, "sha")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "path", "message", "branch", "sha"})
+
+	// Setup mock delete response
+	mockDeleteResponse := &github.RepositoryContentResponse{
+		Content: &github.RepositoryContent{
+			Name:    github.Ptr("example.md"),
+			Path:    github.Ptr("docs/example.md"),
+			SHA:     github.Ptr("abc123def456"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/blob/main/docs/example.md"),
+		},
+		Commit: github.Commit{
+			SHA:     github.Ptr("def456abc789"),
+			Message: github.Ptr("Delete example file"),
+			Author: &github.CommitAuthor{
+				Name:  github.Ptr("Test User"),
+				Email: github.Ptr("test@example.com"),
+				Date:  &github.Timestamp{Time: time.Now()},
+			},
+			HTMLURL: github.Ptr("https://github.com/owner/repo/commit/def456abc789"),
+		},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedResult *github.RepositoryContentResponse
+		expectedErrMsg string
+	}{
+		{
+			name: "successful file deletion",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.DeleteReposContentsByOwnerByRepoByPath,
+					expectRequestBody(t, map[string]interface{}{
+						"message": "Delete example file",
+						"branch":  "main",
+						"sha":     "abc123def456",
+						"content": interface{}(nil),
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockDeleteResponse),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":   "owner",
+				"repo":    "repo",
+				"path":    "docs/example.md",
+				"message": "Delete example file",
+				"branch":  "main",
+				"sha":     "abc123def456",
+			},
+			expectError:    false,
+			expectedResult: mockDeleteResponse,
+		},
+		{
+			name: "file deletion fails",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.DeleteReposContentsByOwnerByRepoByPath,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":   "owner",
+				"repo":    "repo",
+				"path":    "docs/nonexistent.md",
+				"message": "Delete nonexistent file",
+				"branch":  "main",
+				"sha":     "abc123def456",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to delete file",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := DeleteFile(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Parse the result and get the text content if no error
+			textContent := getTextResult(t, result)
+
+			// Unmarshal and verify the result
+			var returnedContent github.RepositoryContentResponse
+			err = json.Unmarshal([]byte(textContent.Text), &returnedContent)
+			require.NoError(t, err)
+
+			// Verify content
+			if tc.expectedResult.Content != nil {
+				assert.Equal(t, *tc.expectedResult.Content.Name, *returnedContent.Content.Name)
+				assert.Equal(t, *tc.expectedResult.Content.Path, *returnedContent.Content.Path)
+				assert.Equal(t, *tc.expectedResult.Content.SHA, *returnedContent.Content.SHA)
+			}
+
+			// Verify commit
+			assert.Equal(t, *tc.expectedResult.Commit.SHA, *returnedContent.Commit.SHA)
+			assert.Equal(t, *tc.expectedResult.Commit.Message, *returnedContent.Commit.Message)
+		})
+	}
+}
+
 func Test_ListTags(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
