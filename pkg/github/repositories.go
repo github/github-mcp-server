@@ -560,6 +560,11 @@ func ForkRepository(getClient GetClientFn, t translations.TranslationHelperFunc)
 func DeleteFile(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("delete_file",
 			mcp.WithDescription(t("TOOL_DELETE_FILE_DESCRIPTION", "Delete a file from a GitHub repository")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:           t("TOOL_DELETE_FILE_USER_TITLE", "Delete file"),
+				ReadOnlyHint:    false,
+				DestructiveHint: true,
+			}),
 			mcp.WithString("owner",
 				mcp.Required(),
 				mcp.Description("Repository owner (username or organization)"),
