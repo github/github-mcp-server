@@ -154,6 +154,10 @@ func AddIssueComment(getClient GetClientFn, t translations.TranslationHelperFunc
 func UpdateIssueComment(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("update_issue_comment",
 			mcp.WithDescription(t("TOOL_UPDATE_ISSUE_COMMENT_DESCRIPTION", "Update a comment on an issue")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_UPDATE_ISSUE_COMMENT_USER_TITLE", "Update issue comment"),
+				ReadOnlyHint: false,
+			}),
 			mcp.WithString("owner",
 				mcp.Required(),
 				mcp.Description("Repository owner"),
