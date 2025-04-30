@@ -127,50 +127,19 @@ func GetNotifications(getClient GetClientFn, t translations.TranslationHelperFun
 		}
 }
 
-// markNotificationRead creates a tool to mark a notification as read.
-func MarkNotificationRead(getclient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("mark_notification_read",
-			mcp.WithDescription(t("TOOL_MARK_NOTIFICATION_READ_DESCRIPTION", "Mark a notification as read")),
-			mcp.WithString("threadID",
+// ManageNotifications creates a tool to manage notifications (mark as read, mark all as read, or mark as done).
+func ManageNotifications(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("manage_notifications",
+			mcp.WithDescription(t("TOOL_MANAGE_NOTIFICATIONS_DESCRIPTION", "Manage notifications (mark as read, mark all as read, or mark as done)")),
+			mcp.WithString("action",
 				mcp.Required(),
-				mcp.Description("The ID of the notification thread"),
+				mcp.Description("The action to perform: 'mark_read', 'mark_all_read', or 'mark_done'"),
 			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			client, err := getclient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-
-			threadID, err := requiredParam[string](request, "threadID")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			resp, err := client.Activity.MarkThreadRead(ctx, threadID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to mark notification as read: %w", err)
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusResetContent && resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to mark notification as read: %s", string(body))), nil
-			}
-
-			return mcp.NewToolResultText("Notification marked as read"), nil
-		}
-}
-
-// MarkAllNotificationsRead creates a tool to mark all notifications as read.
-func MarkAllNotificationsRead(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("mark_all_notifications_read",
-			mcp.WithDescription(t("TOOL_MARK_ALL_NOTIFICATIONS_READ_DESCRIPTION", "Mark all notifications as read")),
+			mcp.WithString("threadID",
+				mcp.Description("The ID of the notification thread (required for 'mark_read' and 'mark_done')"),
+			),
 			mcp.WithString("lastReadAt",
-				mcp.Description("Describes the last point that notifications were checked (optional). Default: Now"),
+				mcp.Description("Describes the last point that notifications were checked (optional, for 'mark_all_read'). Default: Now"),
 			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -179,122 +148,96 @@ func MarkAllNotificationsRead(getClient GetClientFn, t translations.TranslationH
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			lastReadAt, err := OptionalStringParam(request, "lastReadAt")
+			action, err := requiredParam[string](request, "action")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			var markReadOptions github.Timestamp
-			if lastReadAt != "" {
-				lastReadTime, err := time.Parse(time.RFC3339, lastReadAt)
+			switch action {
+			case "mark_read":
+				threadID, err := requiredParam[string](request, "threadID")
 				if err != nil {
-					return mcp.NewToolResultError(fmt.Sprintf("invalid lastReadAt time format, should be RFC3339/ISO8601: %v", err)), nil
+					return mcp.NewToolResultError(err.Error()), nil
 				}
-				markReadOptions = github.Timestamp{
-					Time: lastReadTime,
-				}
-			}
 
-			resp, err := client.Activity.MarkNotificationsRead(ctx, markReadOptions)
-			if err != nil {
-				return nil, fmt.Errorf("failed to mark all notifications as read: %w", err)
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusResetContent && resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
+				resp, err := client.Activity.MarkThreadRead(ctx, threadID)
 				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
+					return nil, fmt.Errorf("failed to mark notification as read: %w", err)
 				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to mark all notifications as read: %s", string(body))), nil
-			}
+				defer func() { _ = resp.Body.Close() }()
 
-			return mcp.NewToolResultText("All notifications marked as read"), nil
-		}
-}
+				if resp.StatusCode != http.StatusResetContent && resp.StatusCode != http.StatusOK {
+					body, err := io.ReadAll(resp.Body)
+					if err != nil {
+						return nil, fmt.Errorf("failed to read response body: %w", err)
+					}
+					return mcp.NewToolResultError(fmt.Sprintf("failed to mark notification as read: %s", string(body))), nil
+				}
 
-// GetNotificationThread creates a tool to get a specific notification thread.
-func GetNotificationThread(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("get_notification_thread",
-			mcp.WithDescription(t("TOOL_GET_NOTIFICATION_THREAD_DESCRIPTION", "Get a specific notification thread")),
-			mcp.WithString("threadID",
-				mcp.Required(),
-				mcp.Description("The ID of the notification thread"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
+				return mcp.NewToolResultText("Notification marked as read"), nil
 
-			threadID, err := requiredParam[string](request, "threadID")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			thread, resp, err := client.Activity.GetThread(ctx, threadID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get notification thread: %w", err)
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
+			case "mark_done":
+				threadIDStr, err := requiredParam[string](request, "threadID")
 				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
+					return mcp.NewToolResultError(err.Error()), nil
 				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get notification thread: %s", string(body))), nil
-			}
 
-			r, err := json.Marshal(thread)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
-		}
-}
-
-// markNotificationDone creates a tool to mark a notification as done.
-func MarkNotificationDone(getclient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("mark_notification_done",
-			mcp.WithDescription(t("TOOL_MARK_NOTIFICATION_DONE_DESCRIPTION", "Mark a notification as done")),
-			mcp.WithString("threadID",
-				mcp.Required(),
-				mcp.Description("The ID of the notification thread"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			client, err := getclient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-
-			threadIDStr, err := requiredParam[string](request, "threadID")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			threadID, err := strconv.ParseInt(threadIDStr, 10, 64)
-			if err != nil {
-				return mcp.NewToolResultError("Invalid threadID: must be a numeric value"), nil
-			}
-
-			resp, err := client.Activity.MarkThreadDone(ctx, threadID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to mark notification as done: %w", err)
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusResetContent && resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
+				threadID, err := strconv.ParseInt(threadIDStr, 10, 64)
 				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
+					return mcp.NewToolResultError("Invalid threadID: must be a numeric value"), nil
 				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to mark notification as done: %s", string(body))), nil
-			}
 
-			return mcp.NewToolResultText("Notification marked as done"), nil
+				resp, err := client.Activity.MarkThreadDone(ctx, threadID)
+				if err != nil {
+					return nil, fmt.Errorf("failed to mark notification as done: %w", err)
+				}
+				defer func() { _ = resp.Body.Close() }()
+
+				if resp.StatusCode != http.StatusResetContent && resp.StatusCode != http.StatusOK {
+					body, err := io.ReadAll(resp.Body)
+					if err != nil {
+						return nil, fmt.Errorf("failed to read response body: %w", err)
+					}
+					return mcp.NewToolResultError(fmt.Sprintf("failed to mark all notifications as read: %s", string(body))), nil
+				}
+
+				return mcp.NewToolResultText("Notification marked as done"), nil
+
+			case "mark_all_read":
+				lastReadAt, err := OptionalStringParam(request, "lastReadAt")
+				if err != nil {
+					return mcp.NewToolResultError(err.Error()), nil
+				}
+
+				var markReadOptions github.Timestamp
+				if lastReadAt != "" {
+					lastReadTime, err := time.Parse(time.RFC3339, lastReadAt)
+					if err != nil {
+						return mcp.NewToolResultError(fmt.Sprintf("invalid lastReadAt time format, should be RFC3339/ISO8601: %v", err)), nil
+					}
+					markReadOptions = github.Timestamp{
+						Time: lastReadTime,
+					}
+				}
+
+				resp, err := client.Activity.MarkNotificationsRead(ctx, markReadOptions)
+				if err != nil {
+					return nil, fmt.Errorf("failed to mark all notifications as read: %w", err)
+				}
+				defer func() { _ = resp.Body.Close() }()
+
+				if resp.StatusCode != http.StatusResetContent && resp.StatusCode != http.StatusOK {
+					body, err := io.ReadAll(resp.Body)
+					if err != nil {
+						return nil, fmt.Errorf("failed to read response body: %w", err)
+					}
+					return mcp.NewToolResultError(fmt.Sprintf("failed to mark all notifications as read: %s", string(body))), nil
+				}
+
+				return mcp.NewToolResultText("All notifications marked as read"), nil
+
+			default:
+				return mcp.NewToolResultError("Invalid action: must be 'mark_read', 'mark_all_read', or 'mark_done'"), nil
+			}
 		}
 }

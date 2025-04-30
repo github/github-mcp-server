@@ -81,14 +81,10 @@ func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn,
 
 	notifications := toolsets.NewToolset("notifications", "GitHub Notifications related tools").
 		AddReadTools(
-
-			toolsets.NewServerTool(MarkNotificationRead(getClient, t)),
-			toolsets.NewServerTool(MarkAllNotificationsRead(getClient, t)),
-			toolsets.NewServerTool(MarkNotificationDone(getClient, t)),
+			toolsets.NewServerTool(GetNotifications(getClient, t)),
 		).
 		AddWriteTools(
-			toolsets.NewServerTool(GetNotifications(getClient, t)),
-			toolsets.NewServerTool(GetNotificationThread(getClient, t)),
+			toolsets.NewServerTool(ManageNotifications(getClient, t)),
 		)
 
 	// Keep experiments alive so the system doesn't error out when it's always enabled
