@@ -1541,49 +1541,96 @@ func Test_DeleteFile(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "path")
 	assert.Contains(t, tool.InputSchema.Properties, "message")
 	assert.Contains(t, tool.InputSchema.Properties, "branch")
-	assert.Contains(t, tool.InputSchema.Properties, "sha")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "path", "message", "branch", "sha"})
+	// SHA is no longer required since we're using Git Data API
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "path", "message", "branch"})
 
-	// Setup mock delete response
-	mockDeleteResponse := &github.RepositoryContentResponse{
-		Content: &github.RepositoryContent{
-			Name:    github.Ptr("example.md"),
-			Path:    github.Ptr("docs/example.md"),
-			SHA:     github.Ptr("abc123def456"),
-			HTMLURL: github.Ptr("https://github.com/owner/repo/blob/main/docs/example.md"),
-		},
-		Commit: github.Commit{
-			SHA:     github.Ptr("def456abc789"),
-			Message: github.Ptr("Delete example file"),
-			Author: &github.CommitAuthor{
-				Name:  github.Ptr("Test User"),
-				Email: github.Ptr("test@example.com"),
-				Date:  &github.Timestamp{Time: time.Now()},
-			},
-			HTMLURL: github.Ptr("https://github.com/owner/repo/commit/def456abc789"),
+	// Setup mock objects for Git Data API
+	mockRef := &github.Reference{
+		Ref: github.Ptr("refs/heads/main"),
+		Object: &github.GitObject{
+			SHA: github.Ptr("abc123"),
 		},
 	}
 
+	mockCommit := &github.Commit{
+		SHA: github.Ptr("abc123"),
+		Tree: &github.Tree{
+			SHA: github.Ptr("def456"),
+		},
+	}
+
+	mockTree := &github.Tree{
+		SHA: github.Ptr("ghi789"),
+	}
+
+	mockNewCommit := &github.Commit{
+		SHA:     github.Ptr("jkl012"),
+		Message: github.Ptr("Delete example file"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/commit/jkl012"),
+	}
+
 	tests := []struct {
-		name           string
-		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
-		expectError    bool
-		expectedResult *github.RepositoryContentResponse
-		expectedErrMsg string
+		name             string
+		mockedClient     *http.Client
+		requestArgs      map[string]interface{}
+		expectError      bool
+		expectedCommitSHA string
+		expectedErrMsg   string
 	}{
 		{
-			name: "successful file deletion",
+			name: "successful file deletion using Git Data API",
 			mockedClient: mock.NewMockedHTTPClient(
+				// Get branch reference
+				mock.WithRequestMatch(
+					mock.GetReposGitRefByOwnerByRepoByRef,
+					mockRef,
+				),
+				// Get commit
+				mock.WithRequestMatch(
+					mock.GetReposGitCommitsByOwnerByRepoByCommitSha,
+					mockCommit,
+				),
+				// Create tree
 				mock.WithRequestMatchHandler(
-					mock.DeleteReposContentsByOwnerByRepoByPath,
+					mock.PostReposGitTreesByOwnerByRepo,
+					expectRequestBody(t, map[string]interface{}{
+						"base_tree": "def456",
+						"tree": []interface{}{
+							map[string]interface{}{
+								"path":    "docs/example.md",
+								"mode":    "100644",
+								"type":    "blob",
+								"sha":     nil,
+							},
+						},
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockTree),
+					),
+				),
+				// Create commit
+				mock.WithRequestMatchHandler(
+					mock.PostReposGitCommitsByOwnerByRepo,
 					expectRequestBody(t, map[string]interface{}{
 						"message": "Delete example file",
-						"branch":  "main",
-						"sha":     "abc123def456",
-						"content": interface{}(nil),
+						"tree":    "ghi789",
+						"parents": []interface{}{"abc123"},
 					}).andThen(
-						mockResponse(t, http.StatusOK, mockDeleteResponse),
+						mockResponse(t, http.StatusCreated, mockNewCommit),
+					),
+				),
+				// Update reference
+				mock.WithRequestMatchHandler(
+					mock.PatchReposGitRefsByOwnerByRepoByRef,
+					expectRequestBody(t, map[string]interface{}{
+						"sha":   "jkl012",
+						"force": false,
+					}).andThen(
+						mockResponse(t, http.StatusOK, &github.Reference{
+							Ref: github.Ptr("refs/heads/main"),
+							Object: &github.GitObject{
+								SHA: github.Ptr("jkl012"),
+							},
+						}),
 					),
 				),
 			),
@@ -1593,19 +1640,18 @@ func Test_DeleteFile(t *testing.T) {
 				"path":    "docs/example.md",
 				"message": "Delete example file",
 				"branch":  "main",
-				"sha":     "abc123def456",
 			},
-			expectError:    false,
-			expectedResult: mockDeleteResponse,
+			expectError:        false,
+			expectedCommitSHA: "jkl012",
 		},
 		{
-			name: "file deletion fails",
+			name: "file deletion fails - branch not found",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
-					mock.DeleteReposContentsByOwnerByRepoByPath,
+					mock.GetReposGitRefByOwnerByRepoByRef,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+						_, _ = w.Write([]byte(`{"message": "Reference not found"}`))
 					}),
 				),
 			),
@@ -1614,11 +1660,10 @@ func Test_DeleteFile(t *testing.T) {
 				"repo":    "repo",
 				"path":    "docs/nonexistent.md",
 				"message": "Delete nonexistent file",
-				"branch":  "main",
-				"sha":     "abc123def456",
+				"branch":  "nonexistent-branch",
 			},
 			expectError:    true,
-			expectedErrMsg: "failed to delete file",
+			expectedErrMsg: "failed to get branch reference",
 		},
 	}
 
@@ -1647,20 +1692,16 @@ func Test_DeleteFile(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
-			var returnedContent github.RepositoryContentResponse
-			err = json.Unmarshal([]byte(textContent.Text), &returnedContent)
+			var response map[string]interface{}
+			err = json.Unmarshal([]byte(textContent.Text), &response)
 			require.NoError(t, err)
 
-			// Verify content
-			if tc.expectedResult.Content != nil {
-				assert.Equal(t, *tc.expectedResult.Content.Name, *returnedContent.Content.Name)
-				assert.Equal(t, *tc.expectedResult.Content.Path, *returnedContent.Content.Path)
-				assert.Equal(t, *tc.expectedResult.Content.SHA, *returnedContent.Content.SHA)
-			}
-
-			// Verify commit
-			assert.Equal(t, *tc.expectedResult.Commit.SHA, *returnedContent.Commit.SHA)
-			assert.Equal(t, *tc.expectedResult.Commit.Message, *returnedContent.Commit.Message)
+			// Verify the response contains the expected commit
+			commit, ok := response["commit"].(map[string]interface{})
+			require.True(t, ok)
+			commitSHA, ok := commit["sha"].(string)
+			require.True(t, ok)
+			assert.Equal(t, tc.expectedCommitSHA, commitSHA)
 		})
 	}
 }
