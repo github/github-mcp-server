@@ -1,3 +1,6 @@
+# https://golangci-lint.run/usage/configuration
+version: "2"
+
 run:
   timeout: 5m
   tests: true
@@ -8,13 +11,9 @@ linters:
     - govet
     - errcheck
     - staticcheck
-    - gofmt
-    - goimports
     - revive
     - ineffassign
-    - typecheck
     - unused
-    - gosimple
     - misspell
     - nakedret
     - bodyclose
@@ -22,7 +21,15 @@ linters:
     - makezero
     - gosec
 
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - goimports
+    - golines
+
 output:
-  formats: colored-line-number
-  print-issued-lines: true
-  print-linter-name: true
+  formats:
+    text:
+      print-linter-name: true
+      print-issued-lines: true
