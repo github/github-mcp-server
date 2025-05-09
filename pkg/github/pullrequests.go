@@ -1183,3 +1183,40 @@ func CreatePullRequest(getClient GetClientFn, t translations.TranslationHelperFu
 			return mcp.NewToolResultText(string(r)), nil
 		}
 }
+
+// RequestCopilotReview creates a tool to request a Copilot review for a pull request.
+func RequestCopilotReview(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("request_copilot_review",
+		mcp.WithDescription(t("TOOL_REQUEST_COPILOT_REVIEW_DESCRIPTION", "Request a GitHub Copilot review for a pull request. Note: This feature depends on GitHub API support and may not be available for all users.")),
+		mcp.WithString("owner",
+			mcp.Required(),
+			mcp.Description("Repository owner"),
+		),
+		mcp.WithString("repo",
+			mcp.Required(),
+			mcp.Description("Repository name"),
+		),
+		mcp.WithNumber("pull_number",
+			mcp.Required(),
+			mcp.Description("Pull request number"),
+		),
+	),
+	func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		owner, err := requiredParam[string](request, "owner")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		repo, err := requiredParam[string](request, "repo")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		pullNumber, err := RequiredInt(request, "pull_number")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		// As of now, GitHub API does not support Copilot as a reviewer programmatically.
+		// This is a placeholder for future support.
+		return mcp.NewToolResultError(fmt.Sprintf("Requesting a Copilot review for PR #%d in %s/%s is not currently supported by the GitHub API. Please request a Copilot review via the GitHub UI.", pullNumber, owner, repo)), nil
+	}
+}
