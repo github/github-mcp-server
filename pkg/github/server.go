@@ -3,6 +3,7 @@ package github
 import (
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/google/go-github/v69/github"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -27,6 +28,27 @@ func NewServer(version string, opts ...server.ServerOption) *server.MCPServer {
 		opts...,
 	)
 	return s
+}
+
+type constrainableValue interface {
+	Constrain(any) error
+}
+
+type constrainableInt32 int32
+
+func (ci *constrainableInt32) Constrain(param any) error {
+	i, ok := param.(float64)
+	if !ok {
+		return fmt.Errorf("parameter is not of type float, is %T", param)
+	}
+
+	// Check if the parameter is within the int32 range
+	if i < math.MinInt32 || i > math.MaxInt32 {
+		return fmt.Errorf("parameter is out of int32 range")
+	}
+
+	*ci = constrainableInt32(i)
+	return nil
 }
 
 // OptionalParamOK is a helper function that can be used to fetch a requested parameter from the request.
@@ -68,21 +90,32 @@ func requiredParam[T comparable](r mcp.CallToolRequest, p string) (T, error) {
 	var zero T
 
 	// Check if the parameter is present in the request
-	if _, ok := r.Params.Arguments[p]; !ok {
+	param, ok := r.Params.Arguments[p]
+	if !ok {
 		return zero, fmt.Errorf("missing required parameter: %s", p)
 	}
 
+	// Check whether our parameter is something that can be parsed. It is expected that the ParseParam method
+	// sets the receiver's value to the parsed value.
+	var parsableParamResult T
+	if constrainableValue, ok := any(&parsableParamResult).(constrainableValue); ok {
+		if err := constrainableValue.Constrain(param); err != nil {
+			return zero, fmt.Errorf("failed to parse parameter %s: %w", p, err)
+		}
+		return parsableParamResult, nil
+	}
+
 	// Check if the parameter is of the expected type
-	if _, ok := r.Params.Arguments[p].(T); !ok {
+	typedParam, ok := r.Params.Arguments[p].(T)
+	if !ok {
 		return zero, fmt.Errorf("parameter %s is not of type %T", p, zero)
 	}
 
 	if r.Params.Arguments[p].(T) == zero {
 		return zero, fmt.Errorf("missing required parameter: %s", p)
-
 	}
 
-	return r.Params.Arguments[p].(T), nil
+	return typedParam, nil
 }
 
 // RequiredInt is a helper function that can be used to fetch a requested parameter from the request.
@@ -106,16 +139,28 @@ func OptionalParam[T any](r mcp.CallToolRequest, p string) (T, error) {
 	var zero T
 
 	// Check if the parameter is present in the request
-	if _, ok := r.Params.Arguments[p]; !ok {
+	param, ok := r.Params.Arguments[p]
+	if !ok {
 		return zero, nil
 	}
 
-	// Check if the parameter is of the expected type
-	if _, ok := r.Params.Arguments[p].(T); !ok {
-		return zero, fmt.Errorf("parameter %s is not of type %T, is %T", p, zero, r.Params.Arguments[p])
+	// Check whether our parameter is something that can be parsed. It is expected that the ParseParam method
+	// sets the receiver's value to the parsed value.
+	var parsableParamResult T
+	if parseableParam, ok := any(&parsableParamResult).(constrainableValue); ok {
+		if err := parseableParam.Constrain(param); err != nil {
+			return zero, fmt.Errorf("failed to parse parameter %s: %w", p, err)
+		}
+		return parsableParamResult, nil
 	}
 
-	return r.Params.Arguments[p].(T), nil
+	// Check if the parameter is of the expected type
+	typedParam, ok := param.(T)
+	if !ok {
+		return zero, fmt.Errorf("parameter %s is not of type %T, is %T", p, parsableParamResult, r.Params.Arguments[p])
+	}
+
+	return typedParam, nil
 }
 
 // OptionalIntParam is a helper function that can be used to fetch a requested parameter from the request.

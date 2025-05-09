@@ -3,10 +3,13 @@ package github
 import (
 	"context"
 	"fmt"
+	"math"
+	"reflect"
 	"testing"
 
 	"github.com/google/go-github/v69/github"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func stubGetClientFn(client *github.Client) GetClientFn {
@@ -99,6 +102,70 @@ func Test_RequiredStringParam(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+type testEnum string
+
+func (te *testEnum) Constrain(param any) error {
+	str, ok := param.(string)
+	if !ok {
+		return fmt.Errorf("parameter is not of type string, is %T", param)
+	}
+
+	if str != "foo" {
+		return fmt.Errorf("parameter is not a valid enum value: %s", str)
+	}
+
+	*te = testEnum(str)
+	return nil
+}
+
+func TestRequiredParseableParam(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		params      map[string]any
+		typ         reflect.Type
+		paramName   string
+		expected    string
+		expectError bool
+	}{
+		{
+			name: "successful simple parse",
+			params: map[string]any{
+				"enum": "foo",
+			},
+			paramName:   "enum",
+			expected:    "foo",
+			expectError: false,
+		},
+		{
+			name: "failing simple parse",
+			params: map[string]any{
+				"enum": "not-a-valid-enum",
+			},
+			paramName:   "enum",
+			expected:    "",
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			request := createMCPRequest(tc.params)
+			result, err := requiredParam[testEnum](request, tc.paramName)
+
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.EqualValues(t, tc.expected, result)
 			}
 		})
 	}
@@ -513,6 +580,54 @@ func TestOptionalPaginationParams(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestOptionalParseableParam(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		params      map[string]any
+		typ         reflect.Type
+		paramName   string
+		expected    int
+		expectError bool
+	}{
+		{
+			name: "successful simple parse",
+			params: map[string]any{
+				"num": float64(123),
+			},
+			paramName:   "num",
+			expected:    123,
+			expectError: false,
+		},
+		{
+			name: "failing simple parse",
+			params: map[string]any{
+				"num": float64(math.MaxInt32 + 1), // overflow int32
+			},
+			paramName:   "num",
+			expected:    0,
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			request := createMCPRequest(tc.params)
+			result, err := OptionalParam[constrainableInt32](request, tc.paramName)
+
+			if tc.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.EqualValues(t, tc.expected, result)
 			}
 		})
 	}
