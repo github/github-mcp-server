@@ -10,6 +10,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// expectPath is a helper function to create a partial mock that expects a
+// request with the given path, with the ability to chain a response handler.
+func expectPath(t *testing.T, expectedPath string) *partialMock {
+	return &partialMock{
+		t:            t,
+		expectedPath: expectedPath,
+	}
+}
+
 // expectQueryParams is a helper function to create a partial mock that expects a
 // request with the given query parameters, with the ability to chain a response handler.
 func expectQueryParams(t *testing.T, expectedQueryParams map[string]string) *partialMock {
@@ -29,7 +38,9 @@ func expectRequestBody(t *testing.T, expectedRequestBody any) *partialMock {
 }
 
 type partialMock struct {
-	t                   *testing.T
+	t *testing.T
+
+	expectedPath        string
 	expectedQueryParams map[string]string
 	expectedRequestBody any
 }
@@ -37,12 +48,8 @@ type partialMock struct {
 func (p *partialMock) andThen(responseHandler http.HandlerFunc) http.HandlerFunc {
 	p.t.Helper()
 	return func(w http.ResponseWriter, r *http.Request) {
-		if p.expectedRequestBody != nil {
-			var unmarshaledRequestBody any
-			err := json.NewDecoder(r.Body).Decode(&unmarshaledRequestBody)
-			require.NoError(p.t, err)
-
-			require.Equal(p.t, p.expectedRequestBody, unmarshaledRequestBody)
+		if p.expectedPath != "" {
+			require.Equal(p.t, p.expectedPath, r.URL.Path)
 		}
 
 		if p.expectedQueryParams != nil {
@@ -50,6 +57,14 @@ func (p *partialMock) andThen(responseHandler http.HandlerFunc) http.HandlerFunc
 			for k, v := range p.expectedQueryParams {
 				require.Equal(p.t, v, r.URL.Query().Get(k))
 			}
+		}
+
+		if p.expectedRequestBody != nil {
+			var unmarshaledRequestBody any
+			err := json.NewDecoder(r.Body).Decode(&unmarshaledRequestBody)
+			require.NoError(p.t, err)
+
+			require.Equal(p.t, p.expectedRequestBody, unmarshaledRequestBody)
 		}
 
 		responseHandler(w, r)

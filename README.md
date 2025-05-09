@@ -77,17 +77,17 @@ Each tool requires specific GitHub Personal Access Token permissions to function
 
 Note: For organization repositories, additional organization-specific permissions may be required.
 
+2. Once Docker is installed, you will also need to ensure Docker is running. The image is public; if you get errors on pull, you may have an expired token and need to `docker logout ghcr.io`.
+3. Lastly you will need to [Create a GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new).
+The MCP server can use many of the GitHub APIs, so enable the permissions that you feel comfortable granting your AI tools (to learn more about access tokens, please check out the [documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)).
+
 ## Installation
 
 ### Usage with VS Code
 
-For quick installation, use one of the one-click install buttons at the top of this README.
+For quick installation, use one of the one-click install buttons at the top of this README. Once you complete that flow, toggle Agent mode (located by the Copilot Chat text input) and the server will start.
 
 For manual installation, add the following JSON block to your User Settings (JSON) file in VS Code. You can do this by pressing `Ctrl + Shift + P` and typing `Preferences: Open User Settings (JSON)`.
-
-Optionally, you can add it to a file called `.vscode/mcp.json` in your workspace. This will allow you to share the configuration with others.
-
-> Note that the `mcp` key is not needed in the `.vscode/mcp.json` file.
 
 ```json
 {
@@ -118,6 +118,39 @@ Optionally, you can add it to a file called `.vscode/mcp.json` in your workspace
     }
   }
 }
+```
+
+Optionally, you can add a similar example (i.e. without the mcp key) to a file called `.vscode/mcp.json` in your workspace. This will allow you to share the configuration with others.
+
+
+```json
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "github_token",
+      "description": "GitHub Personal Access Token",
+      "password": true
+    }
+  ],
+  "servers": {
+    "github": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}"
+      }
+    }
+  }
+}
+
 ```
 
 More about using MCP server tools in VS Code's [agent mode documentation](https://code.visualstudio.com/docs/copilot/chat/mcp-servers).
@@ -166,10 +199,113 @@ If you don't have Docker, you can use `go build` to build the binary in the
 }
 ```
 
+## Tool Configuration
+
+The GitHub MCP Server supports enabling or disabling specific groups of functionalities via the `--toolsets` flag. This allows you to control which GitHub API capabilities are available to your AI tools. Enabling only the toolsets that you need can help the LLM with tool choice and reduce the context size.
+
+### Available Toolsets
+
+The following sets of tools are available (all are on by default):
+
+| Toolset                 | Description                                                   |
+| ----------------------- | ------------------------------------------------------------- |
+| `repos`                 | Repository-related tools (file operations, branches, commits) |
+| `issues`                | Issue-related tools (create, read, update, comment)           |
+| `users`                 | Anything relating to GitHub Users                             |
+| `pull_requests`         | Pull request operations (create, merge, review)               |
+| `code_security`         | Code scanning alerts and security features                    |
+| `experiments`           | Experimental features (not considered stable)                 |
+
+#### Specifying Toolsets
+
+To specify toolsets you want available to the LLM, you can pass an allow-list in two ways:
+
+1. **Using Command Line Argument**:
+
+   ```bash
+   github-mcp-server --toolsets repos,issues,pull_requests,code_security
+   ```
+
+2. **Using Environment Variable**:
+   ```bash
+   GITHUB_TOOLSETS="repos,issues,pull_requests,code_security" ./github-mcp-server
+   ```
+
+The environment variable `GITHUB_TOOLSETS` takes precedence over the command line argument if both are provided.
+
+### Using Toolsets With Docker
+
+When using Docker, you can pass the toolsets as environment variables:
+
+```bash
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_TOOLSETS="repos,issues,pull_requests,code_security,experiments" \
+  ghcr.io/github/github-mcp-server
+```
+
+### The "all" Toolset
+
+The special toolset `all` can be provided to enable all available toolsets regardless of any other configuration:
+
+```bash
+./github-mcp-server --toolsets all
+```
+
+Or using the environment variable:
+
+```bash
+GITHUB_TOOLSETS="all" ./github-mcp-server
+```
+
+## Dynamic Tool Discovery
+
+**Note**: This feature is currently in beta and may not be available in all environments. Please test it out and let us know if you encounter any issues.
+
+Instead of starting with all tools enabled, you can turn on dynamic toolset discovery. Dynamic toolsets allow the MCP host to list and enable toolsets in response to a user prompt. This should help to avoid situations where the model gets confused by the sheer number of tools available.
+
+### Using Dynamic Tool Discovery
+
+When using the binary, you can pass the `--dynamic-toolsets` flag.
+
+```bash
+./github-mcp-server --dynamic-toolsets
+```
+
+When using Docker, you can pass the toolsets as environment variables:
+
+```bash
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_DYNAMIC_TOOLSETS=1 \
+  ghcr.io/github/github-mcp-server
+```
+
 ## GitHub Enterprise Server
 
-The flag `--gh-host` and the environment variable `GH_HOST` can be used to set
+The flag `--gh-host` and the environment variable `GITHUB_HOST` can be used to set
 the GitHub Enterprise Server hostname.
+Prefix the hostname with the `https://` URI scheme, as it otherwise defaults to `http://` which GitHub Enterprise Server does not support.
+
+``` json
+"github": {
+    "command": "docker",
+    "args": [
+    "run",
+    "-i",
+    "--rm",
+    "-e",
+    "GITHUB_PERSONAL_ACCESS_TOKEN",
+    "-e",
+    "GITHUB_HOST",
+    "ghcr.io/github/github-mcp-server"
+    ],
+    "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}",
+        "GITHUB_HOST": "https://<your GHES domain name>"
+    }
+}
+```
 
 ## i18n / Overriding Descriptions
 
@@ -393,7 +529,6 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
 ### Repositories
 
 - **create_or_update_file** - Create or update a single file in a repository
-
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `path`: File path (string, required)
@@ -402,8 +537,13 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `branch`: Branch name (string, optional)
   - `sha`: File SHA if updating (string, optional)
 
-- **push_files** - Push multiple files in a single commit
+- **list_branches** - List branches in a GitHub repository
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `page`: Page number (number, optional)
+  - `perPage`: Results per page (number, optional)
 
+- **push_files** - Push multiple files in a single commit
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `branch`: Branch to push to (string, required)
@@ -411,7 +551,6 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `message`: Commit message (string, required)
 
 - **search_repositories** - Search for GitHub repositories
-
   - `query`: Search query (string, required)
   - `sort`: Sort field (string, optional)
   - `order`: Sort order (string, optional)
@@ -419,27 +558,23 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `perPage`: Results per page (number, optional)
 
 - **create_repository** - Create a new GitHub repository
-
   - `name`: Repository name (string, required)
   - `description`: Repository description (string, optional)
   - `private`: Whether the repository is private (boolean, optional)
   - `autoInit`: Auto-initialize with README (boolean, optional)
 
 - **get_file_contents** - Get contents of a file or directory
-
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `path`: File path (string, required)
   - `ref`: Git reference (string, optional)
 
 - **fork_repository** - Fork a repository
-
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `organization`: Target organization name (string, optional)
 
 - **create_branch** - Create a new branch
-
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `branch`: New branch name (string, required)
@@ -454,17 +589,24 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `perPage`: Results per page (number, optional)
 
 ### Search
+- **get_commit** - Get details for a commit from a repository
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `sha`: Commit SHA, branch name, or tag name (string, required)
+  - `page`: Page number, for files in the commit (number, optional)
+  - `perPage`: Results per page, for files in the commit (number, optional)
 
 - **search_code** - Search for code across GitHub repositories
-
   - `query`: Search query (string, required)
   - `sort`: Sort field (string, optional)
   - `order`: Sort order (string, optional)
   - `page`: Page number (number, optional)
   - `perPage`: Results per page (number, optional)
 
+### Users
+
 - **search_users** - Search for GitHub users
-  - `query`: Search query (string, required)
+  - `q`: Search query (string, required)
   - `sort`: Sort field (string, optional)
   - `order`: Sort order (string, optional)
   - `page`: Page number (number, optional)
@@ -485,6 +627,21 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `state`: Alert state (string, optional)
   - `severity`: Alert severity (string, optional)
   - `tool_name`: The name of the tool used for code scanning (string, optional)
+
+### Secret Scanning
+
+- **get_secret_scanning_alert** - Get a secret scanning alert
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `alertNumber`: Alert number (number, required)
+
+- **list_secret_scanning_alerts** - List secret scanning alerts for a repository
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `state`: Alert state (string, optional)
+  - `secret_type`: The secret types to be filtered for in a comma-separated list (string, optional)
+  - `resolution`: The resolution status (string, optional)
 
 ## Resources
 

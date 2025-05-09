@@ -1,25 +1,17 @@
 package main
 
 import (
-	"context"
+	"errors"
 	"fmt"
-	"io"
-	stdlog "log"
 	"os"
-	"os/signal"
-	"syscall"
 
+	"github.com/github/github-mcp-server/internal/ghmcp"
 	"github.com/github/github-mcp-server/pkg/github"
-	iolog "github.com/github/github-mcp-server/pkg/log"
-	"github.com/github/github-mcp-server/pkg/translations"
-	gogithub "github.com/google/go-github/v69/github"
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
+// These variables are set by the build process using ldflags.
 var version = "version"
 var commit = "commit"
 var date = "date"
@@ -36,28 +28,34 @@ var (
 		Use:   "stdio",
 		Short: "Start stdio server",
 		Long:  `Start a server that communicates via standard input/output streams using JSON-RPC messages.`,
-		Run: func(_ *cobra.Command, _ []string) {
-			logFile := viper.GetString("log-file")
-			readOnly := viper.GetBool("read-only")
-			exportTranslations := viper.GetBool("export-translations")
-			logger, err := initLogger(logFile)
-			if err != nil {
-				stdlog.Fatal("Failed to initialize logger:", err)
+		RunE: func(_ *cobra.Command, _ []string) error {
+			token := viper.GetString("personal_access_token")
+			if token == "" {
+				return errors.New("GITHUB_PERSONAL_ACCESS_TOKEN not set")
 			}
 
-			enabledToolsets := viper.GetStringSlice("toolsets")
+			// If you're wondering why we're not using viper.GetStringSlice("toolsets"),
+			// it's because viper doesn't handle comma-separated values correctly for env
+			// vars when using GetStringSlice.
+			// https://github.com/spf13/viper/issues/380
+			var enabledToolsets []string
+			if err := viper.UnmarshalKey("toolsets", &enabledToolsets); err != nil {
+				return fmt.Errorf("failed to unmarshal toolsets: %w", err)
+			}
 
-			logCommands := viper.GetBool("enable-command-logging")
-			cfg := runConfig{
-				readOnly:           readOnly,
-				logger:             logger,
-				logCommands:        logCommands,
-				exportTranslations: exportTranslations,
-				enabledToolsets:    enabledToolsets,
+			stdioServerConfig := ghmcp.StdioServerConfig{
+				Version:              version,
+				Host:                 viper.GetString("host"),
+				Token:                token,
+				EnabledToolsets:      enabledToolsets,
+				DynamicToolsets:      viper.GetBool("dynamic_toolsets"),
+				ReadOnly:             viper.GetBool("read-only"),
+				ExportTranslations:   viper.GetBool("export-translations"),
+				EnableCommandLogging: viper.GetBool("enable-command-logging"),
+				LogFilePath:          viper.GetString("log-file"),
 			}
-			if err := runStdioServer(cfg); err != nil {
-				stdlog.Fatal("failed to run stdio server:", err)
-			}
+
+			return ghmcp.RunStdioServer(stdioServerConfig)
 		},
 	}
 )
@@ -95,143 +93,9 @@ func initConfig() {
 	viper.AutomaticEnv()
 }
 
-func initLogger(outPath string) (*log.Logger, error) {
-	if outPath == "" {
-		return log.New(), nil
-	}
-
-	file, err := os.OpenFile(outPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open log file: %w", err)
-	}
-
-	logger := log.New()
-	logger.SetLevel(log.DebugLevel)
-	logger.SetOutput(file)
-
-	return logger, nil
-}
-
-type runConfig struct {
-	readOnly           bool
-	logger             *log.Logger
-	logCommands        bool
-	exportTranslations bool
-	enabledToolsets    []string
-}
-
-func runStdioServer(cfg runConfig) error {
-	// Create app context
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	// Create GH client
-	token := viper.GetString("personal_access_token")
-	if token == "" {
-		cfg.logger.Fatal("GITHUB_PERSONAL_ACCESS_TOKEN not set")
-	}
-	ghClient := gogithub.NewClient(nil).WithAuthToken(token)
-	ghClient.UserAgent = fmt.Sprintf("github-mcp-server/%s", version)
-
-	host := viper.GetString("host")
-
-	if host != "" {
-		var err error
-		ghClient, err = ghClient.WithEnterpriseURLs(host, host)
-		if err != nil {
-			return fmt.Errorf("failed to create GitHub client with host: %w", err)
-		}
-	}
-
-	t, dumpTranslations := translations.TranslationHelper()
-
-	beforeInit := func(_ context.Context, _ any, message *mcp.InitializeRequest) {
-		ghClient.UserAgent = fmt.Sprintf("github-mcp-server/%s (%s/%s)", version, message.Params.ClientInfo.Name, message.Params.ClientInfo.Version)
-	}
-
-	getClient := func(_ context.Context) (*gogithub.Client, error) {
-		return ghClient, nil // closing over client
-	}
-
-	hooks := &server.Hooks{
-		OnBeforeInitialize: []server.OnBeforeInitializeFunc{beforeInit},
-	}
-	// Create server
-	ghServer := github.NewServer(version, server.WithHooks(hooks))
-
-	enabled := cfg.enabledToolsets
-	dynamic := viper.GetBool("dynamic_toolsets")
-	if dynamic {
-		// filter "all" from the enabled toolsets
-		enabled = make([]string, 0, len(cfg.enabledToolsets))
-		for _, toolset := range cfg.enabledToolsets {
-			if toolset != "all" {
-				enabled = append(enabled, toolset)
-			}
-		}
-	}
-
-	// Create default toolsets
-	toolsets, err := github.InitToolsets(enabled, cfg.readOnly, getClient, t)
-	context := github.InitContextToolset(getClient, t)
-
-	if err != nil {
-		stdlog.Fatal("Failed to initialize toolsets:", err)
-	}
-
-	// Register resources with the server
-	github.RegisterResources(ghServer, getClient, t)
-	// Register the tools with the server
-	toolsets.RegisterTools(ghServer)
-	context.RegisterTools(ghServer)
-
-	if dynamic {
-		dynamic := github.InitDynamicToolset(ghServer, toolsets, t)
-		dynamic.RegisterTools(ghServer)
-	}
-
-	stdioServer := server.NewStdioServer(ghServer)
-
-	stdLogger := stdlog.New(cfg.logger.Writer(), "stdioserver", 0)
-	stdioServer.SetErrorLogger(stdLogger)
-
-	if cfg.exportTranslations {
-		// Once server is initialized, all translations are loaded
-		dumpTranslations()
-	}
-
-	// Start listening for messages
-	errC := make(chan error, 1)
-	go func() {
-		in, out := io.Reader(os.Stdin), io.Writer(os.Stdout)
-
-		if cfg.logCommands {
-			loggedIO := iolog.NewIOLogger(in, out, cfg.logger)
-			in, out = loggedIO, loggedIO
-		}
-
-		errC <- stdioServer.Listen(ctx, in, out)
-	}()
-
-	// Output github-mcp-server string
-	_, _ = fmt.Fprintf(os.Stderr, "GitHub MCP Server running on stdio\n")
-
-	// Wait for shutdown signal
-	select {
-	case <-ctx.Done():
-		cfg.logger.Infof("shutting down server...")
-	case err := <-errC:
-		if err != nil {
-			return fmt.Errorf("error running server: %w", err)
-		}
-	}
-
-	return nil
-}
-
 func main() {
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
 }
