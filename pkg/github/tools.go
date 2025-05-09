@@ -69,6 +69,7 @@ func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn,
 			toolsets.NewServerTool(CreatePullRequest(getClient, t)),
 			toolsets.NewServerTool(UpdatePullRequest(getClient, t)),
 			toolsets.NewServerTool(AddPullRequestReviewComment(getClient, t)),
+			toolsets.NewServerTool(RequestCopilotReview(getClient, t)),
 		)
 	codeSecurity := toolsets.NewToolset("code_security", "Code security related tools, such as GitHub Code Scanning").
 		AddReadTools(

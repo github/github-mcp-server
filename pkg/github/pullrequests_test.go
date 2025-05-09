@@ -1916,3 +1916,27 @@ func Test_AddPullRequestReviewComment(t *testing.T) {
 		})
 	}
 }
+
+func Test_RequestCopilotReview(t *testing.T) {
+	mockClient := github.NewClient(nil)
+	tool, handler := RequestCopilotReview(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "request_copilot_review", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "pull_number")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pull_number"})
+
+	request := createMCPRequest(map[string]interface{}{
+		"owner":      "owner",
+		"repo":       "repo",
+		"pull_number": float64(42),
+	})
+
+	result, err := handler(context.Background(), request)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+	textContent := getTextResult(t, result)
+	assert.Contains(t, textContent.Text, "not currently supported by the GitHub API")
+}

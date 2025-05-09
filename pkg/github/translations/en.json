@@ -1,0 +1,3 @@
+{
+  "TOOL_REQUEST_COPILOT_REVIEW_DESCRIPTION": "Request a GitHub Copilot review for a pull request. Note: This feature depends on GitHub API support and may not be available for all users."
+} 
