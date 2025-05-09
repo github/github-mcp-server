@@ -435,6 +435,101 @@ func TestOptionalStringArrayParam(t *testing.T) {
 	}
 }
 
+func TestRequiredStringArrayParam(t *testing.T) {
+	tests := []struct {
+		name        string
+		params      map[string]interface{}
+		paramName   string
+		expected    []string
+		expectError bool
+	}{
+		{
+			name:        "parameter not in request",
+			params:      map[string]any{},
+			paramName:   "flag",
+			expected:    nil,
+			expectError: true,
+		},
+		{
+			name: "empty any array parameter",
+			params: map[string]any{
+				"flag": []any{},
+			},
+			paramName:   "flag",
+			expected:    nil,
+			expectError: true,
+		},
+		{
+			name: "empty string array parameter",
+			params: map[string]any{
+				"flag": []string{},
+			},
+			paramName:   "flag",
+			expected:    nil,
+			expectError: true,
+		},
+		{
+			name: "valid any array parameter",
+			params: map[string]any{
+				"flag": []any{"v1", "v2"},
+			},
+			paramName:   "flag",
+			expected:    []string{"v1", "v2"},
+			expectError: false,
+		},
+		{
+			name: "valid string array parameter",
+			params: map[string]any{
+				"flag": []string{"v1", "v2"},
+			},
+			paramName:   "flag",
+			expected:    []string{"v1", "v2"},
+			expectError: false,
+		},
+		{
+			name: "nil parameter",
+			params: map[string]any{
+				"flag": nil,
+			},
+			paramName:   "flag",
+			expected:    nil,
+			expectError: true,
+		},
+		{
+			name: "wrong type parameter",
+			params: map[string]any{
+				"flag": 1,
+			},
+			paramName:   "flag",
+			expected:    nil,
+			expectError: true,
+		},
+		{
+			name: "wrong slice type parameter",
+			params: map[string]any{
+				"flag": []any{"foo", 2},
+			},
+			paramName:   "flag",
+			expected:    nil,
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			request := createMCPRequest(tc.params)
+			result, err := RequiredStringArrayParam(request, tc.paramName)
+
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
 func TestOptionalPaginationParams(t *testing.T) {
 	tests := []struct {
 		name        string

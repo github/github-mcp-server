@@ -173,6 +173,43 @@ func OptionalStringArrayParam(r mcp.CallToolRequest, p string) ([]string, error)
 	}
 }
 
+// RequiredStringArrayParam gets a required array of strings from the request.
+// Returns an error if the parameter is missing or an empty array.
+func RequiredStringArrayParam(request mcp.CallToolRequest, name string) ([]string, error) {
+	v, ok := request.Params.Arguments[name]
+	if !ok {
+		return nil, fmt.Errorf("missing required parameter %s", name)
+	}
+
+	if v == nil {
+		return nil, fmt.Errorf("parameter %s is nil", name)
+	}
+
+	switch value := v.(type) {
+	case []string:
+		if len(value) == 0 {
+			return nil, fmt.Errorf("parameter %s cannot be empty", name)
+		}
+		return value, nil
+	case []interface{}:
+		if len(value) == 0 {
+			return nil, fmt.Errorf("parameter %s cannot be empty", name)
+		}
+
+		result := make([]string, len(value))
+		for i, val := range value {
+			str, ok := val.(string)
+			if !ok {
+				return nil, fmt.Errorf("parameter %s[%d] is not a string", name, i)
+			}
+			result[i] = str
+		}
+		return result, nil
+	default:
+		return nil, fmt.Errorf("parameter %s is not an array of strings", name)
+	}
+}
+
 // WithPagination returns a ToolOption that adds "page" and "perPage" parameters to the tool.
 // The "page" parameter is optional, min 1. The "perPage" parameter is optional, min 1, max 100.
 func WithPagination() mcp.ToolOption {
