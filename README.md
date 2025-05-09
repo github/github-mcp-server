@@ -384,6 +384,12 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `base`: New base branch name (string, optional)
   - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
 
+- **request_copilot_review** - Request a GitHub Copilot review for a pull request (experimental; subject to GitHub API support)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `pull_number`: Pull request number (number, required)
+  - _Note: As of now, requesting a Copilot review programmatically is not supported by the GitHub API. This tool will return an error until GitHub exposes this functionality._
+
 ### Repositories
 
 - **create_or_update_file** - Create or update a single file in a repository
