@@ -1529,6 +1529,183 @@ func Test_ListBranches(t *testing.T) {
 	}
 }
 
+func Test_DeleteFile(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := DeleteFile(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "delete_file", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "path")
+	assert.Contains(t, tool.InputSchema.Properties, "message")
+	assert.Contains(t, tool.InputSchema.Properties, "branch")
+	// SHA is no longer required since we're using Git Data API
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "path", "message", "branch"})
+
+	// Setup mock objects for Git Data API
+	mockRef := &github.Reference{
+		Ref: github.Ptr("refs/heads/main"),
+		Object: &github.GitObject{
+			SHA: github.Ptr("abc123"),
+		},
+	}
+
+	mockCommit := &github.Commit{
+		SHA: github.Ptr("abc123"),
+		Tree: &github.Tree{
+			SHA: github.Ptr("def456"),
+		},
+	}
+
+	mockTree := &github.Tree{
+		SHA: github.Ptr("ghi789"),
+	}
+
+	mockNewCommit := &github.Commit{
+		SHA:     github.Ptr("jkl012"),
+		Message: github.Ptr("Delete example file"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/commit/jkl012"),
+	}
+
+	tests := []struct {
+		name             string
+		mockedClient     *http.Client
+		requestArgs      map[string]interface{}
+		expectError      bool
+		expectedCommitSHA string
+		expectedErrMsg   string
+	}{
+		{
+			name: "successful file deletion using Git Data API",
+			mockedClient: mock.NewMockedHTTPClient(
+				// Get branch reference
+				mock.WithRequestMatch(
+					mock.GetReposGitRefByOwnerByRepoByRef,
+					mockRef,
+				),
+				// Get commit
+				mock.WithRequestMatch(
+					mock.GetReposGitCommitsByOwnerByRepoByCommitSha,
+					mockCommit,
+				),
+				// Create tree
+				mock.WithRequestMatchHandler(
+					mock.PostReposGitTreesByOwnerByRepo,
+					expectRequestBody(t, map[string]interface{}{
+						"base_tree": "def456",
+						"tree": []interface{}{
+							map[string]interface{}{
+								"path":    "docs/example.md",
+								"mode":    "100644",
+								"type":    "blob",
+								"sha":     nil,
+							},
+						},
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockTree),
+					),
+				),
+				// Create commit
+				mock.WithRequestMatchHandler(
+					mock.PostReposGitCommitsByOwnerByRepo,
+					expectRequestBody(t, map[string]interface{}{
+						"message": "Delete example file",
+						"tree":    "ghi789",
+						"parents": []interface{}{"abc123"},
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockNewCommit),
+					),
+				),
+				// Update reference
+				mock.WithRequestMatchHandler(
+					mock.PatchReposGitRefsByOwnerByRepoByRef,
+					expectRequestBody(t, map[string]interface{}{
+						"sha":   "jkl012",
+						"force": false,
+					}).andThen(
+						mockResponse(t, http.StatusOK, &github.Reference{
+							Ref: github.Ptr("refs/heads/main"),
+							Object: &github.GitObject{
+								SHA: github.Ptr("jkl012"),
+							},
+						}),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":   "owner",
+				"repo":    "repo",
+				"path":    "docs/example.md",
+				"message": "Delete example file",
+				"branch":  "main",
+			},
+			expectError:        false,
+			expectedCommitSHA: "jkl012",
+		},
+		{
+			name: "file deletion fails - branch not found",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposGitRefByOwnerByRepoByRef,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Reference not found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":   "owner",
+				"repo":    "repo",
+				"path":    "docs/nonexistent.md",
+				"message": "Delete nonexistent file",
+				"branch":  "nonexistent-branch",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to get branch reference",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := DeleteFile(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Parse the result and get the text content if no error
+			textContent := getTextResult(t, result)
+
+			// Unmarshal and verify the result
+			var response map[string]interface{}
+			err = json.Unmarshal([]byte(textContent.Text), &response)
+			require.NoError(t, err)
+
+			// Verify the response contains the expected commit
+			commit, ok := response["commit"].(map[string]interface{})
+			require.True(t, ok)
+			commitSHA, ok := commit["sha"].(string)
+			require.True(t, ok)
+			assert.Equal(t, tc.expectedCommitSHA, commitSHA)
+		})
+	}
+}
+
 func Test_ListTags(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
