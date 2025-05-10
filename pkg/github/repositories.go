@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
+
+	"encoding/base64"
 
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v69/github"
@@ -431,6 +434,12 @@ func GetFileContents(getClient GetClientFn, t translations.TranslationHelperFunc
 			mcp.WithString("branch",
 				mcp.Description("Branch to get contents from"),
 			),
+			mcp.WithNumber("begin",
+				mcp.Description("Begin line number (1-indexed, optional)"),
+			),
+			mcp.WithNumber("end",
+				mcp.Description("End line number (1-indexed, optional)"),
+			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := requiredParam[string](request, "owner")
@@ -446,6 +455,14 @@ func GetFileContents(getClient GetClientFn, t translations.TranslationHelperFunc
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 			branch, err := OptionalParam[string](request, "branch")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			begin, err := OptionalIntParam(request, "begin")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			end, err := OptionalIntParam(request, "end")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -471,7 +488,39 @@ func GetFileContents(getClient GetClientFn, t translations.TranslationHelperFunc
 
 			var result interface{}
 			if fileContent != nil {
-				result = fileContent
+				if fileContent.Content != nil && (begin > 0 || end > 0) {
+					decoded, err := fileContent.GetContent()
+					if err != nil {
+						return nil, fmt.Errorf("failed to decode file content: %w", err)
+					}
+					lines := strings.Split(decoded, "\n")
+					totalLines := len(lines)
+					// Adjust indices for 1-based input
+					startIdx := begin - 1
+					if startIdx < 0 {
+						startIdx = 0
+					}
+					endIdx := end
+					if endIdx <= 0 || endIdx > totalLines {
+						endIdx = totalLines
+					}
+					if startIdx >= totalLines {
+						startIdx = totalLines - 1
+					}
+					if startIdx < 0 {
+						startIdx = 0
+					}
+					if endIdx < startIdx {
+						endIdx = startIdx
+					}
+					ranged := lines[startIdx:endIdx]
+					joined := strings.Join(ranged, "\n")
+					result = &github.RepositoryContent{
+						Content: github.Ptr(base64.StdEncoding.EncodeToString([]byte(joined))),
+					}
+				} else {
+					result = fileContent
+				}
 			} else {
 				result = dirContent
 			}
