@@ -83,6 +83,11 @@ func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn,
 	// Keep experiments alive so the system doesn't error out when it's always enabled
 	experiments := toolsets.NewToolset("experiments", "Experimental features that are not considered stable yet")
 
+	notifications := toolsets.NewToolset("notifications", "GitHub Notifications related tools").
+		AddReadTools(
+			toolsets.NewServerTool(ListNotifications(getClient, t)),
+		)
+
 	// Add toolsets to the group
 	tsg.AddToolset(repos)
 	tsg.AddToolset(issues)
@@ -91,6 +96,7 @@ func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn,
 	tsg.AddToolset(codeSecurity)
 	tsg.AddToolset(secretProtection)
 	tsg.AddToolset(experiments)
+	tsg.AddToolset(notifications)
 	// Enable the requested features
 
 	if err := tsg.EnableToolsets(passedToolsets); err != nil {
