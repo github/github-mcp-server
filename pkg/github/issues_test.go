@@ -1130,3 +1130,358 @@ func Test_GetIssueComments(t *testing.T) {
 		})
 	}
 }
+
+func Test_GetIssueTimeline(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := GetIssueTimeline(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "get_issue_timeline", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.Properties, "page")
+	assert.Contains(t, tool.InputSchema.Properties, "per_page")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "issue_number"})
+
+	// Setup mock timeline for success case
+	mockTimeline := []*github.Timeline{
+		{
+			ID:  github.Ptr(int64(123)),
+			URL: github.Ptr("https://api.github.com/repos/owner/repo/issues/events/17196710688"),
+			User: &github.User{
+				Login: github.Ptr("user1"),
+			},
+			Event: github.Ptr("connected"),
+		},
+		{
+			ID:  github.Ptr(int64(456)),
+			URL: github.Ptr("https://api.github.com/repos/owner/repo/issues/events/17196710689"),
+			User: &github.User{
+				Login: github.Ptr("user2"),
+			},
+			Event: github.Ptr("disconnected"),
+		},
+	}
+
+	tests := []struct {
+		name             string
+		mockedClient     *http.Client
+		requestArgs      map[string]interface{}
+		expectError      bool
+		expectedTimeline []*github.Timeline
+		expectedErrMsg   string
+	}{
+		{
+			name: "successful timeline retrieval",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposIssuesTimelineByOwnerByRepoByIssueNumber,
+					mockTimeline,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectError:      false,
+			expectedTimeline: mockTimeline,
+		},
+		{
+			name: "successful timeline retrieval with pagination",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposIssuesTimelineByOwnerByRepoByIssueNumber,
+					expectQueryParams(t, map[string]string{
+						"page":     "2",
+						"per_page": "10",
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockTimeline),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"page":         float64(2),
+				"per_page":     float64(10),
+			},
+			expectError:      false,
+			expectedTimeline: mockTimeline,
+		},
+		{
+			name: "issue not found",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposIssuesTimelineByOwnerByRepoByIssueNumber,
+					mockResponse(t, http.StatusNotFound, `{"message": "Issue not found"}`),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(999),
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to get issue timeline",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := GetIssueTimeline(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			textContent := getTextResult(t, result)
+
+			// Unmarshal and verify the result
+			var returnedTimeline []*github.Timeline
+			err = json.Unmarshal([]byte(textContent.Text), &returnedTimeline)
+			require.NoError(t, err)
+			assert.Equal(t, len(tc.expectedTimeline), len(returnedTimeline))
+			if len(returnedTimeline) > 0 {
+				assert.Equal(t, *tc.expectedTimeline[0].URL, *returnedTimeline[0].URL)
+				assert.Equal(t, *tc.expectedTimeline[0].User.Login, *returnedTimeline[0].User.Login)
+			}
+		})
+	}
+}
+
+func Test_GetIssueEvents(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := GetIssueEvents(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "get_issue_events", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.Properties, "page")
+	assert.Contains(t, tool.InputSchema.Properties, "per_page")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "issue_number"})
+
+	// Setup mock events for success case
+	mockEvents := []*github.IssueEvent{
+		{
+			ID:    github.Ptr(int64(123)),
+			URL:   github.Ptr("https://api.github.com/repos/owner/repo/issues/events/17196710688"),
+			Event: github.Ptr("connected"),
+		},
+		{
+			ID:    github.Ptr(int64(456)),
+			URL:   github.Ptr("https://api.github.com/repos/owner/repo/issues/events/17196710689"),
+			Event: github.Ptr("disconnected"),
+		},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedEvents []*github.IssueEvent
+		expectedErrMsg string
+	}{
+		{
+			name: "successful events retrieval",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposIssuesEventsByOwnerByRepoByIssueNumber,
+					mockEvents,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectError:    false,
+			expectedEvents: mockEvents,
+		},
+		{
+			name: "successful events retrieval with pagination",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposIssuesEventsByOwnerByRepoByIssueNumber,
+					expectQueryParams(t, map[string]string{
+						"page":     "2",
+						"per_page": "10",
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockEvents),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"page":         float64(2),
+				"per_page":     float64(10),
+			},
+			expectError:    false,
+			expectedEvents: mockEvents,
+		},
+		{
+			name: "issue not found",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposIssuesEventsByOwnerByRepoByIssueNumber,
+					mockResponse(t, http.StatusNotFound, `{"message": "Issue not found"}`),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(999),
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to get issue events",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := GetIssueEvents(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			textContent := getTextResult(t, result)
+
+			// Unmarshal and verify the result
+			var returnedEvents []*github.IssueEvent
+			err = json.Unmarshal([]byte(textContent.Text), &returnedEvents)
+			require.NoError(t, err)
+			assert.Equal(t, len(tc.expectedEvents), len(returnedEvents))
+			if len(returnedEvents) > 0 {
+				assert.Equal(t, *tc.expectedEvents[0].URL, *returnedEvents[0].URL)
+				assert.Equal(t, *tc.expectedEvents[0].Event, *returnedEvents[0].Event)
+			}
+		})
+	}
+}
+
+func Test_GetIssueEvent(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := GetIssueEvent(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "get_issue_event", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "event_id")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "event_id"})
+
+	// Setup mock event for success case
+	mockEvent := github.IssueEvent{
+		ID:    github.Ptr(int64(17196710688)),
+		URL:   github.Ptr("https://api.github.com/repos/owner/repo/issues/events/17196710688"),
+		Event: github.Ptr("connected"),
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedEvent  github.IssueEvent
+		expectedErrMsg string
+	}{
+		{
+			name: "successful event retrieval",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposIssuesEventsByOwnerByRepoByEventId,
+					mockEvent,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":    "owner",
+				"repo":     "repo",
+				"event_id": float64(42),
+			},
+			expectError:   false,
+			expectedEvent: mockEvent,
+		},
+		{
+			name: "event not found",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposIssuesEventsByOwnerByRepoByEventId,
+					mockResponse(t, http.StatusNotFound, `{"message": "Event not found"}`),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":    "owner",
+				"repo":     "repo",
+				"event_id": float64(999),
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to get issue event",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := GetIssueEvent(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			textContent := getTextResult(t, result)
+
+			// Unmarshal and verify the result
+			var returnedEvent github.IssueEvent
+			err = json.Unmarshal([]byte(textContent.Text), &returnedEvent)
+			require.NoError(t, err)
+			assert.Equal(t, *tc.expectedEvent.URL, *returnedEvent.URL)
+			assert.Equal(t, *tc.expectedEvent.Event, *returnedEvent.Event)
+		})
+	}
+}
