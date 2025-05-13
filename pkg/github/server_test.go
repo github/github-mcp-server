@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/google/go-github/v69/github"
@@ -157,7 +158,7 @@ func Test_OptionalStringParam(t *testing.T) {
 	}
 }
 
-func Test_RequiredNumberParam(t *testing.T) {
+func Test_RequiredInt(t *testing.T) {
 	tests := []struct {
 		name        string
 		params      map[string]interface{}
@@ -203,7 +204,71 @@ func Test_RequiredNumberParam(t *testing.T) {
 	}
 }
 
-func Test_OptionalNumberParam(t *testing.T) {
+func Test_RequiredInt32Param(t *testing.T) {
+	tests := []struct {
+		name        string
+		params      map[string]interface{}
+		paramName   string
+		expected    int32
+		expectError bool
+	}{
+		{
+			name:        "valid int32 parameter",
+			params:      map[string]interface{}{"count": float64(42)},
+			paramName:   "count",
+			expected:    42,
+			expectError: false,
+		},
+		{
+			name:        "missing parameter",
+			params:      map[string]interface{}{},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name: "too small parameter",
+			params: map[string]interface{}{
+				"count": float64(math.MinInt32 - 1),
+			},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name: "too large parameter",
+			params: map[string]interface{}{
+				"count": float64(math.MaxInt32 + 1),
+			},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "wrong type parameter",
+			params:      map[string]interface{}{"count": "not-a-number"},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			request := createMCPRequest(tc.params)
+			result, err := RequiredInt32Param(request, tc.paramName)
+
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func Test_OptionalIntParam(t *testing.T) {
 	tests := []struct {
 		name        string
 		params      map[string]interface{}
@@ -245,6 +310,63 @@ func Test_OptionalNumberParam(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			request := createMCPRequest(tc.params)
 			result, err := OptionalIntParam(request, tc.paramName)
+
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func Test_OptionalInt32Param(t *testing.T) {
+	tests := []struct {
+		name        string
+		params      map[string]interface{}
+		paramName   string
+		expected    int32
+		expectError bool
+	}{
+		{
+			name:        "valid int32 parameter",
+			params:      map[string]interface{}{"count": float64(42)},
+			paramName:   "count",
+			expected:    42,
+			expectError: false,
+		},
+		{
+			name:        "missing parameter",
+			params:      map[string]interface{}{},
+			paramName:   "count",
+			expected:    0,
+			expectError: false,
+		},
+		{
+			name: "too small parameter",
+			params: map[string]interface{}{
+				"count": float64(math.MinInt32 - 1),
+			},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name: "too large parameter",
+			params: map[string]interface{}{
+				"count": float64(math.MaxInt32 + 1),
+			},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			request := createMCPRequest(tc.params)
+			result, err := OptionalInt32Param(request, tc.paramName)
 
 			if tc.expectError {
 				assert.Error(t, err)

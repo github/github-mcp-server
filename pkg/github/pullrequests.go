@@ -11,10 +11,11 @@ import (
 	"github.com/google/go-github/v69/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/shurcooL/githubv4"
 )
 
 // GetPullRequest creates a tool to get details of a specific pull request.
-func GetPullRequest(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func GetPullRequest(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("get_pull_request",
 			mcp.WithDescription(t("TOOL_GET_PULL_REQUEST_DESCRIPTION", "Get details of a specific pull request in a GitHub repository.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -75,8 +76,123 @@ func GetPullRequest(getClient GetClientFn, t translations.TranslationHelperFunc)
 		}
 }
 
+// CreatePullRequest creates a tool to create a new pull request.
+func CreatePullRequest(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+	return mcp.NewTool("create_pull_request",
+			mcp.WithDescription(t("TOOL_CREATE_PULL_REQUEST_DESCRIPTION", "Create a new pull request in a GitHub repository.")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_CREATE_PULL_REQUEST_USER_TITLE", "Open new pull request"),
+				ReadOnlyHint: toBoolPtr(false),
+			}),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithString("title",
+				mcp.Required(),
+				mcp.Description("PR title"),
+			),
+			mcp.WithString("body",
+				mcp.Description("PR description"),
+			),
+			mcp.WithString("head",
+				mcp.Required(),
+				mcp.Description("Branch containing changes"),
+			),
+			mcp.WithString("base",
+				mcp.Required(),
+				mcp.Description("Branch to merge into"),
+			),
+			mcp.WithBoolean("draft",
+				mcp.Description("Create as draft PR"),
+			),
+			mcp.WithBoolean("maintainer_can_modify",
+				mcp.Description("Allow maintainer edits"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := requiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			repo, err := requiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			title, err := requiredParam[string](request, "title")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			head, err := requiredParam[string](request, "head")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			base, err := requiredParam[string](request, "base")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			body, err := OptionalParam[string](request, "body")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			draft, err := OptionalParam[bool](request, "draft")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			maintainerCanModify, err := OptionalParam[bool](request, "maintainer_can_modify")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			newPR := &github.NewPullRequest{
+				Title: github.Ptr(title),
+				Head:  github.Ptr(head),
+				Base:  github.Ptr(base),
+			}
+
+			if body != "" {
+				newPR.Body = github.Ptr(body)
+			}
+
+			newPR.Draft = github.Ptr(draft)
+			newPR.MaintainerCanModify = github.Ptr(maintainerCanModify)
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+			pr, resp, err := client.PullRequests.Create(ctx, owner, repo, newPR)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create pull request: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusCreated {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to create pull request: %s", string(body))), nil
+			}
+
+			r, err := json.Marshal(pr)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
 // UpdatePullRequest creates a tool to update an existing pull request.
-func UpdatePullRequest(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func UpdatePullRequest(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("update_pull_request",
 			mcp.WithDescription(t("TOOL_UPDATE_PULL_REQUEST_DESCRIPTION", "Update an existing pull request in a GitHub repository.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -197,7 +313,7 @@ func UpdatePullRequest(getClient GetClientFn, t translations.TranslationHelperFu
 }
 
 // ListPullRequests creates a tool to list and filter repository pull requests.
-func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("list_pull_requests",
 			mcp.WithDescription(t("TOOL_LIST_PULL_REQUESTS_DESCRIPTION", "List pull requests in a GitHub repository.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -306,7 +422,7 @@ func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFun
 }
 
 // MergePullRequest creates a tool to merge a pull request.
-func MergePullRequest(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func MergePullRequest(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("merge_pull_request",
 			mcp.WithDescription(t("TOOL_MERGE_PULL_REQUEST_DESCRIPTION", "Merge a pull request in a GitHub repository.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -395,7 +511,7 @@ func MergePullRequest(getClient GetClientFn, t translations.TranslationHelperFun
 }
 
 // GetPullRequestFiles creates a tool to get the list of files changed in a pull request.
-func GetPullRequestFiles(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func GetPullRequestFiles(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("get_pull_request_files",
 			mcp.WithDescription(t("TOOL_GET_PULL_REQUEST_FILES_DESCRIPTION", "Get the files changed in a specific pull request.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -458,7 +574,7 @@ func GetPullRequestFiles(getClient GetClientFn, t translations.TranslationHelper
 }
 
 // GetPullRequestStatus creates a tool to get the combined status of all status checks for a pull request.
-func GetPullRequestStatus(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func GetPullRequestStatus(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("get_pull_request_status",
 			mcp.WithDescription(t("TOOL_GET_PULL_REQUEST_STATUS_DESCRIPTION", "Get the status of a specific pull request.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -535,7 +651,7 @@ func GetPullRequestStatus(getClient GetClientFn, t translations.TranslationHelpe
 }
 
 // UpdatePullRequestBranch creates a tool to update a pull request branch with the latest changes from the base branch.
-func UpdatePullRequestBranch(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func UpdatePullRequestBranch(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("update_pull_request_branch",
 			mcp.WithDescription(t("TOOL_UPDATE_PULL_REQUEST_BRANCH_DESCRIPTION", "Update the branch of a pull request with the latest changes from the base branch.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -613,7 +729,7 @@ func UpdatePullRequestBranch(getClient GetClientFn, t translations.TranslationHe
 }
 
 // GetPullRequestComments creates a tool to get the review comments on a pull request.
-func GetPullRequestComments(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func GetPullRequestComments(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("get_pull_request_comments",
 			mcp.WithDescription(t("TOOL_GET_PULL_REQUEST_COMMENTS_DESCRIPTION", "Get comments for a specific pull request.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -680,182 +796,8 @@ func GetPullRequestComments(getClient GetClientFn, t translations.TranslationHel
 		}
 }
 
-// AddPullRequestReviewComment creates a tool to add a review comment to a pull request.
-func AddPullRequestReviewComment(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("add_pull_request_review_comment",
-			mcp.WithDescription(t("TOOL_ADD_PULL_REQUEST_REVIEW_COMMENT_DESCRIPTION", "Add a review comment to a pull request.")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_ADD_PULL_REQUEST_REVIEW_COMMENT_USER_TITLE", "Add review comment to pull request"),
-				ReadOnlyHint: toBoolPtr(false),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-			mcp.WithNumber("pull_number",
-				mcp.Required(),
-				mcp.Description("Pull request number"),
-			),
-			mcp.WithString("body",
-				mcp.Required(),
-				mcp.Description("The text of the review comment"),
-			),
-			mcp.WithString("commit_id",
-				mcp.Description("The SHA of the commit to comment on. Required unless in_reply_to is specified."),
-			),
-			mcp.WithString("path",
-				mcp.Description("The relative path to the file that necessitates a comment. Required unless in_reply_to is specified."),
-			),
-			mcp.WithString("subject_type",
-				mcp.Description("The level at which the comment is targeted"),
-				mcp.Enum("line", "file"),
-			),
-			mcp.WithNumber("line",
-				mcp.Description("The line of the blob in the pull request diff that the comment applies to. For multi-line comments, the last line of the range"),
-			),
-			mcp.WithString("side",
-				mcp.Description("The side of the diff to comment on"),
-				mcp.Enum("LEFT", "RIGHT"),
-			),
-			mcp.WithNumber("start_line",
-				mcp.Description("For multi-line comments, the first line of the range that the comment applies to"),
-			),
-			mcp.WithString("start_side",
-				mcp.Description("For multi-line comments, the starting side of the diff that the comment applies to"),
-				mcp.Enum("LEFT", "RIGHT"),
-			),
-			mcp.WithNumber("in_reply_to",
-				mcp.Description("The ID of the review comment to reply to. When specified, only body is required and all other parameters are ignored"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := requiredParam[string](request, "owner")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			repo, err := requiredParam[string](request, "repo")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			pullNumber, err := RequiredInt(request, "pull_number")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			body, err := requiredParam[string](request, "body")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-
-			// Check if this is a reply to an existing comment
-			if replyToFloat, ok := request.Params.Arguments["in_reply_to"].(float64); ok {
-				// Use the specialized method for reply comments due to inconsistency in underlying go-github library: https://github.com/google/go-github/pull/950
-				commentID := int64(replyToFloat)
-				createdReply, resp, err := client.PullRequests.CreateCommentInReplyTo(ctx, owner, repo, pullNumber, body, commentID)
-				if err != nil {
-					return nil, fmt.Errorf("failed to reply to pull request comment: %w", err)
-				}
-				defer func() { _ = resp.Body.Close() }()
-
-				if resp.StatusCode != http.StatusCreated {
-					respBody, err := io.ReadAll(resp.Body)
-					if err != nil {
-						return nil, fmt.Errorf("failed to read response body: %w", err)
-					}
-					return mcp.NewToolResultError(fmt.Sprintf("failed to reply to pull request comment: %s", string(respBody))), nil
-				}
-
-				r, err := json.Marshal(createdReply)
-				if err != nil {
-					return nil, fmt.Errorf("failed to marshal response: %w", err)
-				}
-
-				return mcp.NewToolResultText(string(r)), nil
-			}
-
-			// This is a new comment, not a reply
-			// Verify required parameters for a new comment
-			commitID, err := requiredParam[string](request, "commit_id")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			path, err := requiredParam[string](request, "path")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			comment := &github.PullRequestComment{
-				Body:     github.Ptr(body),
-				CommitID: github.Ptr(commitID),
-				Path:     github.Ptr(path),
-			}
-
-			subjectType, err := OptionalParam[string](request, "subject_type")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			if subjectType != "file" {
-				line, lineExists := request.Params.Arguments["line"].(float64)
-				startLine, startLineExists := request.Params.Arguments["start_line"].(float64)
-				side, sideExists := request.Params.Arguments["side"].(string)
-				startSide, startSideExists := request.Params.Arguments["start_side"].(string)
-
-				if !lineExists {
-					return mcp.NewToolResultError("line parameter is required unless using subject_type:file"), nil
-				}
-
-				comment.Line = github.Ptr(int(line))
-				if sideExists {
-					comment.Side = github.Ptr(side)
-				}
-				if startLineExists {
-					comment.StartLine = github.Ptr(int(startLine))
-				}
-				if startSideExists {
-					comment.StartSide = github.Ptr(startSide)
-				}
-
-				if startLineExists && !lineExists {
-					return mcp.NewToolResultError("if start_line is provided, line must also be provided"), nil
-				}
-				if startSideExists && !sideExists {
-					return mcp.NewToolResultError("if start_side is provided, side must also be provided"), nil
-				}
-			}
-
-			createdComment, resp, err := client.PullRequests.CreateComment(ctx, owner, repo, pullNumber, comment)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create pull request comment: %w", err)
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusCreated {
-				respBody, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to create pull request comment: %s", string(respBody))), nil
-			}
-
-			r, err := json.Marshal(createdComment)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
-		}
-}
-
 // GetPullRequestReviews creates a tool to get the reviews on a pull request.
-func GetPullRequestReviews(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func GetPullRequestReviews(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("get_pull_request_reviews",
 			mcp.WithDescription(t("TOOL_GET_PULL_REQUEST_REVIEWS_DESCRIPTION", "Get reviews for a specific pull request.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -916,14 +858,16 @@ func GetPullRequestReviews(getClient GetClientFn, t translations.TranslationHelp
 		}
 }
 
-// CreatePullRequestReview creates a tool to submit a review on a pull request.
-func CreatePullRequestReview(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("create_pull_request_review",
-			mcp.WithDescription(t("TOOL_CREATE_PULL_REQUEST_REVIEW_DESCRIPTION", "Create a review for a pull request.")),
+func CreateAndSubmitPullRequestReview(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+	return mcp.NewTool("create_and_submit_pull_request_review",
+			mcp.WithDescription(t("TOOL_CREATE_AND_SUBMIT_PULL_REQUEST_REVIEW_DESCRIPTION", "Create and submit a review for a pull request without review comments.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_CREATE_PULL_REQUEST_REVIEW_USER_TITLE", "Submit pull request review"),
+				Title:        t("TOOL_CREATE_AND_SUBMIT_PULL_REQUEST_REVIEW_USER_TITLE", "Create and submit a pull request review without comments"),
 				ReadOnlyHint: toBoolPtr(false),
 			}),
+			// Either we need the PR GQL Id directly, or we need owner, repo and PR number to look it up.
+			// Since our other Pull Request tools are working with the REST Client, will handle the lookup
+			// internally for now.
 			mcp.WithString("owner",
 				mcp.Required(),
 				mcp.Description("Repository owner"),
@@ -937,6 +881,7 @@ func CreatePullRequestReview(getClient GetClientFn, t translations.TranslationHe
 				mcp.Description("Pull request number"),
 			),
 			mcp.WithString("body",
+				mcp.Required(),
 				mcp.Description("Review comment text"),
 			),
 			mcp.WithString("event",
@@ -947,199 +892,100 @@ func CreatePullRequestReview(getClient GetClientFn, t translations.TranslationHe
 			mcp.WithString("commitId",
 				mcp.Description("SHA of commit to review"),
 			),
-			mcp.WithArray("comments",
-				mcp.Items(
-					map[string]interface{}{
-						"type":                 "object",
-						"additionalProperties": false,
-						"required":             []string{"path", "body", "position", "line", "side", "start_line", "start_side"},
-						"properties": map[string]interface{}{
-							"path": map[string]interface{}{
-								"type":        "string",
-								"description": "path to the file",
-							},
-							"position": map[string]interface{}{
-								"anyOf": []interface{}{
-									map[string]string{"type": "number"},
-									map[string]string{"type": "null"},
-								},
-								"description": "position of the comment in the diff",
-							},
-							"line": map[string]interface{}{
-								"anyOf": []interface{}{
-									map[string]string{"type": "number"},
-									map[string]string{"type": "null"},
-								},
-								"description": "line number in the file to comment on. For multi-line comments, the end of the line range",
-							},
-							"side": map[string]interface{}{
-								"anyOf": []interface{}{
-									map[string]string{"type": "string"},
-									map[string]string{"type": "null"},
-								},
-								"description": "The side of the diff on which the line resides. For multi-line comments, this is the side for the end of the line range. (LEFT or RIGHT)",
-							},
-							"start_line": map[string]interface{}{
-								"anyOf": []interface{}{
-									map[string]string{"type": "number"},
-									map[string]string{"type": "null"},
-								},
-								"description": "The first line of the range to which the comment refers. Required for multi-line comments.",
-							},
-							"start_side": map[string]interface{}{
-								"anyOf": []interface{}{
-									map[string]string{"type": "string"},
-									map[string]string{"type": "null"},
-								},
-								"description": "The side of the diff on which the start line resides for multi-line comments. (LEFT or RIGHT)",
-							},
-							"body": map[string]interface{}{
-								"type":        "string",
-								"description": "comment body",
-							},
-						},
-					},
-				),
-				mcp.Description("Line-specific comments array of objects to place comments on pull request changes. Requires path and body. For line comments use line or position. For multi-line comments use start_line and line with optional side parameters."),
-			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := requiredParam[string](request, "owner")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+
 			repo, err := requiredParam[string](request, "repo")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			pullNumber, err := RequiredInt(request, "pullNumber")
+
+			pullNumber, err := RequiredInt32Param(request, "pullNumber")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+
+			body, err := requiredParam[string](request, "body")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
 			event, err := requiredParam[string](request, "event")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			// Create review request
-			reviewRequest := &github.PullRequestReviewRequest{
-				Event: github.Ptr(event),
-			}
-
-			// Add body if provided
-			body, err := OptionalParam[string](request, "body")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			if body != "" {
-				reviewRequest.Body = github.Ptr(body)
-			}
-
-			// Add commit ID if provided
 			commitID, err := OptionalParam[string](request, "commitId")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			if commitID != "" {
-				reviewRequest.CommitID = github.Ptr(commitID)
-			}
 
-			// Add comments if provided
-			if commentsObj, ok := request.Params.Arguments["comments"].([]interface{}); ok && len(commentsObj) > 0 {
-				comments := []*github.DraftReviewComment{}
-
-				for _, c := range commentsObj {
-					commentMap, ok := c.(map[string]interface{})
-					if !ok {
-						return mcp.NewToolResultError("each comment must be an object with path and body"), nil
-					}
-
-					path, ok := commentMap["path"].(string)
-					if !ok || path == "" {
-						return mcp.NewToolResultError("each comment must have a path"), nil
-					}
-
-					body, ok := commentMap["body"].(string)
-					if !ok || body == "" {
-						return mcp.NewToolResultError("each comment must have a body"), nil
-					}
-
-					_, hasPosition := commentMap["position"].(float64)
-					_, hasLine := commentMap["line"].(float64)
-					_, hasSide := commentMap["side"].(string)
-					_, hasStartLine := commentMap["start_line"].(float64)
-					_, hasStartSide := commentMap["start_side"].(string)
-
-					switch {
-					case !hasPosition && !hasLine:
-						return mcp.NewToolResultError("each comment must have either position or line"), nil
-					case hasPosition && (hasLine || hasSide || hasStartLine || hasStartSide):
-						return mcp.NewToolResultError("position cannot be combined with line, side, start_line, or start_side"), nil
-					case hasStartSide && !hasSide:
-						return mcp.NewToolResultError("if start_side is provided, side must also be provided"), nil
-					}
-
-					comment := &github.DraftReviewComment{
-						Path: github.Ptr(path),
-						Body: github.Ptr(body),
-					}
-
-					if positionFloat, ok := commentMap["position"].(float64); ok {
-						comment.Position = github.Ptr(int(positionFloat))
-					} else if lineFloat, ok := commentMap["line"].(float64); ok {
-						comment.Line = github.Ptr(int(lineFloat))
-					}
-					if side, ok := commentMap["side"].(string); ok {
-						comment.Side = github.Ptr(side)
-					}
-					if startLineFloat, ok := commentMap["start_line"].(float64); ok {
-						comment.StartLine = github.Ptr(int(startLineFloat))
-					}
-					if startSide, ok := commentMap["start_side"].(string); ok {
-						comment.StartSide = github.Ptr(startSide)
-					}
-
-					comments = append(comments, comment)
-				}
-
-				reviewRequest.Comments = comments
-			}
-
-			client, err := getClient(ctx)
+			// Given our owner, repo and PR number, lookup the GQL ID of the PR.
+			client, err := getGQLClient(ctx)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-			review, resp, err := client.PullRequests.CreateReview(ctx, owner, repo, pullNumber, reviewRequest)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create pull request review: %w", err)
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to create pull request review: %s", string(body))), nil
+				return nil, fmt.Errorf("failed to get GitHub GQL client: %w", err)
 			}
 
-			r, err := json.Marshal(review)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			var getPullRequestQuery struct {
+				Repository struct {
+					PullRequest struct {
+						ID githubv4.ID
+					} `graphql:"pullRequest(number: $prNum)"`
+				} `graphql:"repository(owner: $owner, name: $repo)"`
+			}
+			if err := client.Query(ctx, &getPullRequestQuery, map[string]any{
+				"owner": githubv4.String(owner),
+				"repo":  githubv4.String(repo),
+				"prNum": githubv4.Int(pullNumber),
+			}); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			return mcp.NewToolResultText(string(r)), nil
+			// Now we have the GQL ID, we can create a review
+			var addPullRequestReviewMutation struct {
+				AddPullRequestReview struct {
+					PullRequestReview struct {
+						ID githubv4.ID // We don't need this, but a selector is required or GQL complains.
+					}
+				} `graphql:"addPullRequestReview(input: $input)"`
+			}
+
+			if err := client.Mutate(
+				ctx,
+				&addPullRequestReviewMutation,
+				githubv4.AddPullRequestReviewInput{
+					PullRequestID: getPullRequestQuery.Repository.PullRequest.ID,
+					Body:          newGQLStringlike[githubv4.String](body),
+					Event:         newGQLStringlike[githubv4.PullRequestReviewEvent](event),
+					CommitOID:     newGQLStringlike[githubv4.GitObjectID](commitID),
+				},
+				nil,
+			); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Return nothing, just indicate success for the time being.
+			// In future, we may want to return the review ID, but for the moment, we're not leaking
+			// API implementation details to the LLM.
+			return mcp.NewToolResultText(""), nil
 		}
 }
 
-// CreatePullRequest creates a tool to create a new pull request.
-func CreatePullRequest(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("create_pull_request",
-			mcp.WithDescription(t("TOOL_CREATE_PULL_REQUEST_DESCRIPTION", "Create a new pull request in a GitHub repository.")),
+// CreatePendingPullRequestReview creates a tool to create a pending review on a pull request.
+func CreatePendingPullRequestReview(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+	return mcp.NewTool("create_pending_pull_request_review",
+			mcp.WithDescription(t("TOOL_CREATE_PENDING_PULL_REQUEST_REVIEW_DESCRIPTION", "Create a pending review for a pull request. Call this first before attempting to add comments to a pending review, and ultimately submitting it. A pending pull request review means a pull request review, it is pending because you create it first and submit it later, and the PR author will not see it until it is submitted.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_CREATE_PULL_REQUEST_USER_TITLE", "Open new pull request"),
+				Title:        t("TOOL_CREATE_PENDING_PULL_REQUEST_REVIEW_USER_TITLE", "Create pending pull request review"),
 				ReadOnlyHint: toBoolPtr(false),
 			}),
+			// Either we need the PR GQL Id directly, or we need owner, repo and PR number to look it up.
+			// Since our other Pull Request tools are working with the REST Client, will handle the lookup
+			// internally for now.
 			mcp.WithString("owner",
 				mcp.Required(),
 				mcp.Description("Repository owner"),
@@ -1148,26 +994,141 @@ func CreatePullRequest(getClient GetClientFn, t translations.TranslationHelperFu
 				mcp.Required(),
 				mcp.Description("Repository name"),
 			),
-			mcp.WithString("title",
+			mcp.WithNumber("pullNumber",
 				mcp.Required(),
-				mcp.Description("PR title"),
+				mcp.Description("Pull request number"),
+			),
+			mcp.WithString("commitID",
+				mcp.Description("SHA of commit to review"),
+			),
+			// Event is omitted here because we always want to create a pending review.
+			// Threads are omitted for the moment, and we'll see if the LLM can use the appropriate tool.
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := requiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			repo, err := requiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			pullNumber, err := RequiredInt32Param(request, "pullNumber")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			commitID, err := OptionalParam[string](request, "commitID")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Given our owner, repo and PR number, lookup the GQL ID of the PR.
+			client, err := getGQLClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub GQL client: %w", err)
+			}
+
+			var getPullRequestQuery struct {
+				Repository struct {
+					PullRequest struct {
+						ID githubv4.ID
+					} `graphql:"pullRequest(number: $prNum)"`
+				} `graphql:"repository(owner: $owner, name: $repo)"`
+			}
+			if err := client.Query(ctx, &getPullRequestQuery, map[string]any{
+				"owner": githubv4.String(owner),
+				"repo":  githubv4.String(repo),
+				"prNum": githubv4.Int(pullNumber),
+			}); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Now we have the GQL ID, we can create a pending review
+			var addPullRequestReviewMutation struct {
+				AddPullRequestReview struct {
+					PullRequestReview struct {
+						ID githubv4.ID // We don't need this, but a selector is required or GQL complains.
+					}
+				} `graphql:"addPullRequestReview(input: $input)"`
+			}
+
+			if err := client.Mutate(
+				ctx,
+				&addPullRequestReviewMutation,
+				githubv4.AddPullRequestReviewInput{
+					PullRequestID: getPullRequestQuery.Repository.PullRequest.ID,
+					CommitOID:     newGQLStringlike[githubv4.GitObjectID](commitID),
+				},
+				nil,
+			); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Return nothing, just indicate success for the time being.
+			// In future, we may want to return the review ID, but for the moment, we're not leaking
+			// API implementation details to the LLM.
+			return mcp.NewToolResultText(""), nil
+		}
+}
+
+// AddPullRequestReviewCommentToPendingReview creates a tool to add a comment to a pull request review.
+func AddPullRequestReviewCommentToPendingReview(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+	return mcp.NewTool("add_pull_request_review_comment_to_pending_review",
+			mcp.WithDescription(t("TOOL_ADD_PULL_REQUEST_REVIEW_COMMENT_TO_PENDING_REVIEW_DESCRIPTION", "Add a comment to the requester's latest pending pull request review, a pending review needs to already exist to call this (check with the user if not sure).")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_ADD_PULL_REQUEST_REVIEW_COMMENT_TO_PENDING_REVIEW_USER_TITLE", "Add comment to the requester's latest pending pull request review"),
+				ReadOnlyHint: toBoolPtr(false),
+			}),
+			// Ideally, for performance sake this would just accept the pullRequestReviewID. However, we would need to
+			// add a new tool to get that ID for clients that aren't in the same context as the original pending review
+			// creation. So for now, we'll just accept the owner, repo and pull number and assume this is adding a comment
+			// the latest review from a user, since only one can be active at a time. It can later be extended with
+			// a pullRequestReviewID parameter if targeting other reviews is desired:
+			// mcp.WithString("pullRequestReviewID",
+			// 	mcp.Required(),
+			// 	mcp.Description("The ID of the pull request review to add a comment to"),
+			// ),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithNumber("pullNumber",
+				mcp.Required(),
+				mcp.Description("Pull request number"),
+			),
+			mcp.WithString("path",
+				mcp.Required(),
+				mcp.Description("The relative path to the file that necessitates a comment"),
 			),
 			mcp.WithString("body",
-				mcp.Description("PR description"),
-			),
-			mcp.WithString("head",
 				mcp.Required(),
-				mcp.Description("Branch containing changes"),
+				mcp.Description("The text of the review comment"),
 			),
-			mcp.WithString("base",
+			mcp.WithString("subjectType",
 				mcp.Required(),
-				mcp.Description("Branch to merge into"),
+				mcp.Description("The level at which the comment is targeted"),
+				mcp.Enum("FILE", "LINE"),
 			),
-			mcp.WithBoolean("draft",
-				mcp.Description("Create as draft PR"),
+			mcp.WithNumber("line",
+				mcp.Description("The line of the blob in the pull request diff that the comment applies to. For multi-line comments, the last line of the range"),
 			),
-			mcp.WithBoolean("maintainer_can_modify",
-				mcp.Description("Allow maintainer edits"),
+			mcp.WithString("side",
+				mcp.Description("The side of the diff to comment on"),
+				mcp.Enum("LEFT", "RIGHT"),
+			),
+			mcp.WithNumber("startLine",
+				mcp.Description("For multi-line comments, the first line of the range that the comment applies to"),
+			),
+			mcp.WithString("startSide",
+				mcp.Description("For multi-line comments, the starting side of the diff that the comment applies to"),
+				mcp.Enum("LEFT", "RIGHT"),
 			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -1175,19 +1136,189 @@ func CreatePullRequest(getClient GetClientFn, t translations.TranslationHelperFu
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+
 			repo, err := requiredParam[string](request, "repo")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			title, err := requiredParam[string](request, "title")
+
+			pullNumber, err := RequiredInt32Param(request, "pullNumber")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			head, err := requiredParam[string](request, "head")
+
+			path, err := requiredParam[string](request, "path")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			base, err := requiredParam[string](request, "base")
+
+			body, err := requiredParam[string](request, "body")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			subjectType, err := requiredParam[string](request, "subjectType")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			line, err := OptionalInt32Param(request, "line")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			side, err := OptionalParam[string](request, "side")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			startLine, err := OptionalInt32Param(request, "startLine")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			startSide, err := OptionalParam[string](request, "startSide")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			client, err := getGQLClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub GQL client: %w", err)
+			}
+
+			// First we'll get the current user
+			var getViewerQuery struct {
+				Viewer struct {
+					Login githubv4.String
+				}
+			}
+
+			if err := client.Query(ctx, &getViewerQuery, nil); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Then let's get the ID of the review (but maybe we should just get the ID of the review itself: TODO)
+			var getLatestReviewForViewerQuery struct {
+				Repository struct {
+					PullRequest struct {
+						Reviews struct {
+							Nodes []struct {
+								ID    githubv4.ID
+								State githubv4.PullRequestReviewState
+								URL   githubv4.URI
+							}
+						} `graphql:"reviews(first: 1, author: $author)"`
+					} `graphql:"pullRequest(number: $number)"`
+				} `graphql:"repository(owner: $owner, name: $name)"`
+			}
+
+			vars := map[string]interface{}{
+				"author": githubv4.String(getViewerQuery.Viewer.Login),
+				"owner":  githubv4.String(owner),
+				"name":   githubv4.String(repo),
+				"number": githubv4.Int(pullNumber),
+			}
+
+			if err := client.Query(context.Background(), &getLatestReviewForViewerQuery, vars); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Validate there is one review and the state is pending
+			if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
+				return mcp.NewToolResultError("No pending review found for the viewer"), nil
+			}
+
+			review := getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes[0]
+			if review.State != githubv4.PullRequestReviewStatePending {
+				errText := fmt.Sprintf("The latest review, found at %s is not pending", review.URL)
+				return mcp.NewToolResultError(errText), nil
+			}
+
+			// Then we can create a new review thread comment on the review.
+			var addPullRequestReviewThreadMutation struct {
+				AddPullRequestReviewThread struct {
+					Thread struct {
+						ID githubv4.ID // We don't need this, but a selector is required or GQL complains.
+					}
+				} `graphql:"addPullRequestReviewThread(input: $input)"`
+			}
+
+			if err := client.Mutate(
+				ctx,
+				&addPullRequestReviewThreadMutation,
+				githubv4.AddPullRequestReviewThreadInput{
+					Path:                githubv4.String(path),
+					Body:                githubv4.String(body),
+					SubjectType:         newGQLStringlike[githubv4.PullRequestReviewThreadSubjectType](subjectType),
+					Line:                githubv4.NewInt(githubv4.Int(line)),
+					Side:                newGQLStringlike[githubv4.DiffSide](side),
+					StartLine:           githubv4.NewInt(githubv4.Int(startLine)),
+					StartSide:           newGQLStringlike[githubv4.DiffSide](startSide),
+					PullRequestReviewID: &review.ID,
+				},
+				nil,
+			); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Return nothing, just indicate success for the time being.
+			// In future, we may want to return the review ID, but for the moment, we're not leaking
+			// API implementation details to the LLM.
+			return mcp.NewToolResultText(""), nil
+		}
+}
+
+// SubmitPendingPullRequestReview creates a tool to submit a pull request review.
+func SubmitPendingPullRequestReview(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+	return mcp.NewTool("submit_pending_pull_request_review",
+			mcp.WithDescription(t("TOOL_SUBMIT_PENDING_PULL_REQUEST_REVIEW_DESCRIPTION", "Submit the requester's latest pending pull request review, normally this is a final step after creating a pending review, adding comments first, unless you know that the user already did the first two steps, you should check before calling this.")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_SUBMIT_PENDING_PULL_REQUEST_REVIEW_USER_TITLE", "Submit the requester's latest pending pull request review"),
+				ReadOnlyHint: toBoolPtr(false),
+			}),
+			// Ideally, for performance sake this would just accept the pullRequestReviewID. However, we would need to
+			// add a new tool to get that ID for clients that aren't in the same context as the original pending review
+			// creation. So for now, we'll just accept the owner, repo and pull number and assume this is submitting
+			// the latest review from a user, since only one can be active at a time.
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithNumber("pullNumber",
+				mcp.Required(),
+				mcp.Description("Pull request number"),
+			),
+			mcp.WithString("event",
+				mcp.Required(),
+				mcp.Description("The event to perform"),
+				mcp.Enum("APPROVE", "REQUEST_CHANGES", "COMMENT"),
+			),
+			mcp.WithString("body",
+				mcp.Description("The text of the review comment"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := requiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			repo, err := requiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			pullNumber, err := RequiredInt32Param(request, "pullNumber")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			event, err := requiredParam[string](request, "event")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -1197,52 +1328,230 @@ func CreatePullRequest(getClient GetClientFn, t translations.TranslationHelperFu
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			draft, err := OptionalParam[bool](request, "draft")
+			client, err := getGQLClient(ctx)
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return nil, fmt.Errorf("failed to get GitHub GQL client: %w", err)
 			}
 
-			maintainerCanModify, err := OptionalParam[bool](request, "maintainer_can_modify")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			newPR := &github.NewPullRequest{
-				Title: github.Ptr(title),
-				Head:  github.Ptr(head),
-				Base:  github.Ptr(base),
-			}
-
-			if body != "" {
-				newPR.Body = github.Ptr(body)
-			}
-
-			newPR.Draft = github.Ptr(draft)
-			newPR.MaintainerCanModify = github.Ptr(maintainerCanModify)
-
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-			pr, resp, err := client.PullRequests.Create(ctx, owner, repo, newPR)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create pull request: %w", err)
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusCreated {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
+			// First we'll get the current user
+			var getViewerQuery struct {
+				Viewer struct {
+					Login githubv4.String
 				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to create pull request: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(pr)
+			if err := client.Query(ctx, &getViewerQuery, nil); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Then let's get the ID of the review (but maybe we should just get the ID of the review itself: TODO)
+			var getLatestReviewForViewerQuery struct {
+				Repository struct {
+					PullRequest struct {
+						Reviews struct {
+							Nodes []struct {
+								ID     githubv4.ID
+								Author struct {
+									Login githubv4.String
+								}
+								State       githubv4.PullRequestReviewState
+								SubmittedAt githubv4.DateTime
+								Body        githubv4.String
+								URL         githubv4.URI
+							}
+						} `graphql:"reviews(first: 1, author: $author)"`
+					} `graphql:"pullRequest(number: $number)"`
+				} `graphql:"repository(owner: $owner, name: $name)"`
+			}
+
+			vars := map[string]interface{}{
+				"author": githubv4.String(getViewerQuery.Viewer.Login),
+				"owner":  githubv4.String(owner),
+				"name":   githubv4.String(repo),
+				"number": githubv4.Int(pullNumber),
+			}
+
+			if err := client.Query(context.Background(), &getLatestReviewForViewerQuery, vars); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Validate there is one review and the state is pending
+			if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
+				return mcp.NewToolResultError("No pending review found for the viewer"), nil
+			}
+
+			review := getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes[0]
+			if review.State != githubv4.PullRequestReviewStatePending {
+				errText := fmt.Sprintf("The latest review, found at %s is not pending", review.URL)
+				return mcp.NewToolResultError(errText), nil
+			}
+
+			// Prepare the mutation
+			var submitPullRequestReviewMutation struct {
+				SubmitPullRequestReview struct {
+					PullRequestReview struct {
+						State       githubv4.PullRequestReviewState
+						SubmittedAt githubv4.DateTime
+					}
+				} `graphql:"submitPullRequestReview(input: $input)"`
+			}
+
+			if err := client.Mutate(
+				ctx,
+				&submitPullRequestReviewMutation,
+				githubv4.SubmitPullRequestReviewInput{
+					PullRequestReviewID: &review.ID,
+					Event:               githubv4.PullRequestReviewEvent(event),
+					Body:                newGQLStringlike[githubv4.String](body),
+				},
+				nil,
+			); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Return the state and submitted at time of the review as a receipt for the LLM.
+			r, err := json.Marshal(submitPullRequestReviewMutation.SubmitPullRequestReview.PullRequestReview)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
 			return mcp.NewToolResultText(string(r)), nil
 		}
+}
+
+func DeletePendingPullRequestReview(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+	return mcp.NewTool("delete_pending_pull_request_review",
+			mcp.WithDescription(t("TOOL_DELETE_PENDING_PULL_REQUEST_REVIEW_DESCRIPTION", "Delete the requester's latest pending pull request review. Use this after the user decides not to submit a pending review, if you don't know if they already created one then check first.")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_DELETE_PENDING_PULL_REQUEST_REVIEW_USER_TITLE", "Delete the requester's latest pending pull request review"),
+				ReadOnlyHint: toBoolPtr(false),
+			}),
+			// Ideally, for performance sake this would just accept the pullRequestReviewID. However, we would need to
+			// add a new tool to get that ID for clients that aren't in the same context as the original pending review
+			// creation. So for now, we'll just accept the owner, repo and pull number and assume this is deleting
+			// the latest pending review from a user, since only one can be active at a time.
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithNumber("pullNumber",
+				mcp.Required(),
+				mcp.Description("Pull request number"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := requiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			repo, err := requiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			pullNumber, err := RequiredInt32Param(request, "pullNumber")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			client, err := getGQLClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub GQL client: %w", err)
+			}
+
+			// First we'll get the current user
+			var getViewerQuery struct {
+				Viewer struct {
+					Login githubv4.String
+				}
+			}
+
+			if err := client.Query(ctx, &getViewerQuery, nil); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Then let's get the ID of the review (but maybe we should just get the ID of the review itself: TODO)
+			var getLatestReviewForViewerQuery struct {
+				Repository struct {
+					PullRequest struct {
+						Reviews struct {
+							Nodes []struct {
+								ID     githubv4.ID
+								Author struct {
+									Login githubv4.String
+								}
+								State       githubv4.PullRequestReviewState
+								SubmittedAt githubv4.DateTime
+								Body        githubv4.String
+								URL         githubv4.URI
+							}
+						} `graphql:"reviews(first: 1, author: $author)"`
+					} `graphql:"pullRequest(number: $number)"`
+				} `graphql:"repository(owner: $owner, name: $name)"`
+			}
+
+			vars := map[string]interface{}{
+				"author": githubv4.String(getViewerQuery.Viewer.Login),
+				"owner":  githubv4.String(owner),
+				"name":   githubv4.String(repo),
+				"number": githubv4.Int(pullNumber),
+			}
+
+			if err := client.Query(context.Background(), &getLatestReviewForViewerQuery, vars); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Validate there is one review and the state is pending
+			if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
+				return mcp.NewToolResultError("No pending review found for the viewer"), nil
+			}
+
+			review := getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes[0]
+			if review.State != githubv4.PullRequestReviewStatePending {
+				errText := fmt.Sprintf("The latest review, found at %s is not pending", review.URL)
+				return mcp.NewToolResultError(errText), nil
+			}
+
+			// Prepare the mutation
+			var deletePullRequestReviewMutation struct {
+				DeletePullRequestReview struct {
+					PullRequestReview struct {
+						ID githubv4.ID // We don't need this, but a selector is required or GQL complains.
+					}
+				} `graphql:"deletePullRequestReview(input: $input)"`
+			}
+
+			if err := client.Mutate(
+				ctx,
+				&deletePullRequestReviewMutation,
+				githubv4.DeletePullRequestReviewInput{
+					PullRequestReviewID: &review.ID,
+				},
+				nil,
+			); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Return nothing, just indicate success for the time being.
+			// In future, we may want to return the review ID, but for the moment, we're not leaking
+			// API implementation details to the LLM.
+			return mcp.NewToolResultText(""), nil
+		}
+}
+
+// newGQLString like takes something that approximates a string (of which there are many types in shurcooL/githubv4)
+// and constructs a pointer to it, or nil if the string is empty. This is extremely useful because when we parse
+// params from the MCP request, we need to convert them to types that are pointers of type def strings and it's
+// not possible to take a pointer of an anonymous value e.g. &githubv4.String("foo").
+func newGQLStringlike[T ~string](s string) *T {
+	if s == "" {
+		return nil
+	}
+	stringlike := T(s)
+	return &stringlike
 }

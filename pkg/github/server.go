@@ -3,6 +3,7 @@ package github
 import (
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/google/go-github/v69/github"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -68,21 +69,22 @@ func requiredParam[T comparable](r mcp.CallToolRequest, p string) (T, error) {
 	var zero T
 
 	// Check if the parameter is present in the request
-	if _, ok := r.Params.Arguments[p]; !ok {
+	param, ok := r.Params.Arguments[p]
+	if !ok {
 		return zero, fmt.Errorf("missing required parameter: %s", p)
 	}
 
 	// Check if the parameter is of the expected type
-	if _, ok := r.Params.Arguments[p].(T); !ok {
+	typedParam, ok := param.(T)
+	if !ok {
 		return zero, fmt.Errorf("parameter %s is not of type %T", p, zero)
 	}
 
-	if r.Params.Arguments[p].(T) == zero {
+	if typedParam == zero {
 		return zero, fmt.Errorf("missing required parameter: %s", p)
-
 	}
 
-	return r.Params.Arguments[p].(T), nil
+	return typedParam, nil
 }
 
 // RequiredInt is a helper function that can be used to fetch a requested parameter from the request.
@@ -98,6 +100,26 @@ func RequiredInt(r mcp.CallToolRequest, p string) (int, error) {
 	return int(v), nil
 }
 
+// RequiredInt32Param is a helper function that can be used to fetch a requested parameter from the request.
+// It does the following checks:
+// 1. Checks if the parameter is present in the request.
+// 2. Checks if the parameter is of the expected type.
+// 3. Checks if the parameter is not empty, i.e: non-zero value
+// 4. Checks if the parameter is within the int32 range
+func RequiredInt32Param(r mcp.CallToolRequest, p string) (int32, error) {
+	v, err := RequiredInt(r, p)
+	if err != nil {
+		return 0, err
+	}
+
+	// Check if the parameter is within the int32 range
+	if v < math.MinInt32 || v > math.MaxInt32 {
+		return 0, fmt.Errorf("parameter %s is out of int32 range", p)
+	}
+
+	return int32(v), nil
+}
+
 // OptionalParam is a helper function that can be used to fetch a requested parameter from the request.
 // It does the following checks:
 // 1. Checks if the parameter is present in the request, if not, it returns its zero-value
@@ -106,16 +128,18 @@ func OptionalParam[T any](r mcp.CallToolRequest, p string) (T, error) {
 	var zero T
 
 	// Check if the parameter is present in the request
-	if _, ok := r.Params.Arguments[p]; !ok {
+	param, ok := r.Params.Arguments[p]
+	if !ok {
 		return zero, nil
 	}
 
 	// Check if the parameter is of the expected type
-	if _, ok := r.Params.Arguments[p].(T); !ok {
+	typedParam, ok := param.(T)
+	if !ok {
 		return zero, fmt.Errorf("parameter %s is not of type %T, is %T", p, zero, r.Params.Arguments[p])
 	}
 
-	return r.Params.Arguments[p].(T), nil
+	return typedParam, nil
 }
 
 // OptionalIntParam is a helper function that can be used to fetch a requested parameter from the request.
@@ -128,6 +152,25 @@ func OptionalIntParam(r mcp.CallToolRequest, p string) (int, error) {
 		return 0, err
 	}
 	return int(v), nil
+}
+
+// OptionalInt32Param is a helper function that can be used to fetch a requested parameter from the request.
+// It does the following checks:
+// 1. Checks if the parameter is present in the request, if not, it returns its zero-value
+// 2. If it is present, it checks if the parameter is of the expected type
+// 3. Checks if the parameter is within the int32 range
+func OptionalInt32Param(r mcp.CallToolRequest, p string) (int32, error) {
+	v, err := OptionalIntParam(r, p)
+	if err != nil {
+		return 0, err
+	}
+
+	// Check if the parameter is within the int32 range
+	if v < math.MinInt32 || v > math.MaxInt32 {
+		return 0, fmt.Errorf("parameter %s is out of int32 range", p)
+	}
+
+	return int32(v), nil
 }
 
 // OptionalIntParamWithDefault is a helper function that can be used to fetch a requested parameter from the request
