@@ -581,6 +581,14 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `secret_type`: The secret types to be filtered for in a comma-separated list (string, optional)
   - `resolution`: The resolution status (string, optional)
 
+### Notifications
+
+- **list_notifications** - List notifications for a GitHub user
+
+  - `page`: Page number (number, optional, default: 1)
+  - `per_page`: Number of records per page (number, optional, default: 30)
+  - `all`: Whether to fetch all notifications, including read ones (boolean, optional, default: false)
+
 ## Resources
 
 ### Repository Content
