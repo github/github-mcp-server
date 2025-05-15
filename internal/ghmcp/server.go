@@ -15,7 +15,9 @@ import (
 	gogithub "github.com/google/go-github/v69/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/shurcooL/githubv4"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/oauth2"
 )
 
 type MCPServerConfig struct {
@@ -86,11 +88,21 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 		return ghClient, nil // closing over client
 	}
 
+	getGQLClient := func(_ context.Context) (*githubv4.Client, error) {
+		// TODO: Enterprise support
+		src := oauth2.StaticTokenSource(
+			&oauth2.Token{AccessToken: cfg.Token},
+		)
+		httpClient := oauth2.NewClient(context.Background(), src)
+		return githubv4.NewClient(httpClient), nil
+	}
+
 	// Create default toolsets
 	toolsets, err := github.InitToolsets(
 		enabledToolsets,
 		cfg.ReadOnly,
 		getClient,
+		getGQLClient,
 		cfg.Translator,
 	)
 	if err != nil {

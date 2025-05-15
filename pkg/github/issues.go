@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/google/go-github/v69/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/shurcooL/githubv4"
 )
 
 // GetIssue creates a tool to get details of a specific issue in a GitHub repository.
@@ -708,6 +710,166 @@ func GetIssueComments(getClient GetClientFn, t translations.TranslationHelperFun
 			}
 
 			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
+// AssignCopilotToIssue creates a tool to assign a Copilot to an issue.
+// Note that this tool will not work on GHES where this feature is unsupported. In future, we should not expose this
+// tool if the configured host does not support it.
+func AssignCopilotToIssue(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+	return mcp.NewTool("assign_copilot_to_issue",
+			mcp.WithDescription(t("TOOL_ASSIGN_COPILOT_TO_ISSUE_DESCRIPTION", "Assign a Copilot to a specific issue in a GitHub repository.")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_ASSIGN_COPILOT_TO_ISSUE_USER_TITLE", "Assign Copilot to issue"),
+				ReadOnlyHint: toBoolPtr(false),
+			}),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithNumber("issueNumber",
+				mcp.Required(),
+				mcp.Description("Issue number"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := requiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			repo, err := requiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			issueNumber, err := RequiredInt(request, "issueNumber")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			if issueNumber < math.MinInt32 || issueNumber > math.MaxInt32 {
+				return mcp.NewToolResultError(fmt.Sprintf("issueNumber %d overflows int32", issueNumber)), nil
+			}
+
+			client, err := getGQLClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			// First we need to get a list of assignable actors
+			type botAssignee struct {
+				ID       githubv4.ID
+				Login    string
+				TypeName string `graphql:"__typename"`
+			}
+
+			type suggestedActorsQuery struct {
+				Repository struct {
+					SuggestedActors struct {
+						Nodes []struct {
+							Bot botAssignee `graphql:"... on Bot"`
+						}
+						PageInfo struct {
+							HasNextPage bool
+							EndCursor   string
+						}
+					} `graphql:"suggestedActors(first: 100, after: $endCursor, capabilities: CAN_BE_ASSIGNED)"`
+				} `graphql:"repository(owner: $owner, name: $name)"`
+			}
+
+			variables := map[string]any{
+				"owner":     githubv4.String(owner),
+				"name":      githubv4.String(repo),
+				"endCursor": (*githubv4.String)(nil),
+			}
+
+			var copilotAssignee *botAssignee
+			for {
+				var query suggestedActorsQuery
+				err := client.Query(ctx, &query, variables)
+				if err != nil {
+					return nil, err
+				}
+
+				for _, node := range query.Repository.SuggestedActors.Nodes {
+					if node.Bot.Login == "copilot-swe-agent" {
+						copilotAssignee = &node.Bot
+						break
+					}
+				}
+
+				if !query.Repository.SuggestedActors.PageInfo.HasNextPage {
+					break
+				}
+				variables["endCursor"] = githubv4.String(query.Repository.SuggestedActors.PageInfo.EndCursor)
+			}
+
+			if copilotAssignee == nil {
+				return mcp.NewToolResultError("Copilot was not found as a suggested assignee"), nil
+			}
+
+			// Next let's get the GQL Node ID and current assignees for this issue
+			// because the only way to assign copilot is to use replaceActorsForAssignable.
+			var getIssueQuery struct {
+				Repository struct {
+					Issue struct {
+						ID        githubv4.ID
+						Assignees struct {
+							Nodes []struct {
+								ID githubv4.ID
+							}
+						} `graphql:"assignees(first: 100)"`
+					} `graphql:"issue(number: $number)"`
+				} `graphql:"repository(owner: $owner, name: $name)"`
+			}
+
+			variables = map[string]any{
+				"owner":  githubv4.String(owner),
+				"name":   githubv4.String(repo),
+				"number": githubv4.Int(issueNumber), //nolint:gosec // G115: issueNumber is guaranteed to fit into int32
+			}
+
+			if err := client.Query(ctx, &getIssueQuery, variables); err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get issue ID: %v", err)), nil
+			}
+
+			// Then, get all the current assignees because the only way to assign copilot is to use replaceActorsForAssignable
+			// which replaces all assignees.
+			var assignCopilotMutation struct {
+				ReplaceActorsForAssignable struct {
+					Typename string `graphql:"__typename"`
+				} `graphql:"replaceActorsForAssignable(input: $input)"`
+			}
+
+			type ReplaceActorsForAssignableInput struct {
+				AssignableID githubv4.ID   `json:"assignableId"`
+				ActorIDs     []githubv4.ID `json:"actorIds"`
+			}
+
+			actorIDs := make([]githubv4.ID, len(getIssueQuery.Repository.Issue.Assignees.Nodes)+1)
+			for i, node := range getIssueQuery.Repository.Issue.Assignees.Nodes {
+				actorIDs[i] = node.ID
+			}
+			actorIDs[len(getIssueQuery.Repository.Issue.Assignees.Nodes)] = copilotAssignee.ID
+
+			if err := client.Mutate(
+				ctx,
+				&assignCopilotMutation,
+				ReplaceActorsForAssignableInput{
+					AssignableID: getIssueQuery.Repository.Issue.ID,
+					ActorIDs:     actorIDs,
+				},
+				nil,
+			); err != nil {
+				return nil, fmt.Errorf("failed to replace actors for assignable: %w", err)
+			}
+
+			// Return empty string for success
+			return mcp.NewToolResultText(""), nil
 		}
 }
 
