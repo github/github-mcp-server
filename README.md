@@ -145,14 +145,15 @@ The GitHub MCP Server supports enabling or disabling specific groups of function
 
 The following sets of tools are available (all are on by default):
 
-| Toolset                 | Description                                                   |
-| ----------------------- | ------------------------------------------------------------- |
-| `repos`                 | Repository-related tools (file operations, branches, commits) |
-| `issues`                | Issue-related tools (create, read, update, comment)           |
-| `users`                 | Anything relating to GitHub Users                             |
-| `pull_requests`         | Pull request operations (create, merge, review)               |
-| `code_security`         | Code scanning alerts and security features                    |
-| `experiments`           | Experimental features (not considered stable)                 |
+| Toolset         | Description                                                   |
+| --------------- | ------------------------------------------------------------- |
+| `repos`         | Repository-related tools (file operations, branches, commits) |
+| `issues`        | Issue-related tools (create, read, update, comment)           |
+| `users`         | Anything relating to GitHub Users                             |
+| `pull_requests` | Pull request operations (create, merge, review)               |
+| `code_security` | Code scanning alerts and security features                    |
+| `organizations` | Organization-related tools (list, get)                        |
+| `experiments`   | Experimental features (not considered stable)                 |
 
 #### Specifying Toolsets
 
@@ -289,6 +290,16 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
 
 - **get_me** - Get details of the authenticated user
   - No parameters required
+
+### Organizations
+
+- **list_organizations** - List organizations the authenticated user is a member of
+
+  - `page`: Page number (number, optional)
+  - `perPage`: Results per page (number, optional)
+
+- **get_organization** - Get information about an organization
+  - `org`: Organization name (string, required)
 
 ### Issues
 
