@@ -16,8 +16,73 @@ automation and interaction capabilities for developers and tools.
 
 1. To run the server in a container, you will need to have [Docker](https://www.docker.com/) installed.
 2. Once Docker is installed, you will also need to ensure Docker is running. The image is public; if you get errors on pull, you may have an expired token and need to `docker logout ghcr.io`.
-3. Lastly you will need to [Create a GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new).
-The MCP server can use many of the GitHub APIs, so enable the permissions that you feel comfortable granting your AI tools (to learn more about access tokens, please check out the [documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)).
+3. [Create a GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new).
+   Each tool requires specific permissions to function. See the [Required Token Permissions](#required-token-permissions) section below for details.
+   The MCP server can use many of the GitHub APIs, so enable the permissions that you feel comfortable granting your AI tools (to learn more about access tokens, please check out the [documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)).
+
+## Required Token Permissions
+
+Each tool requires specific GitHub Personal Access Token permissions to function. Below are the required permissions for each tool category:
+
+### Users
+- **get_me**
+  - Required permissions:
+    - `read:user` - Read access to profile info
+
+### Issues
+- **get_issue**, **get_issue_comments**, **list_issues**
+  - Required permissions:
+    - `repo` - Full control of private repositories (for private repos)
+    - `public_repo` - Access public repositories (for public repos)
+
+- **create_issue**, **add_issue_comment**, **update_issue**
+  - Required permissions:
+    - `repo` - Full control of private repositories (for private repos)
+    - `public_repo` - Access public repositories (for public repos)
+    - `write:discussion` - Write access to repository discussions (if using discussions)
+
+- **add_sub_issue**, **get_sub_issues**
+  - Required permissions:
+    - `repo` - Full control of private repositories (for private repos)
+    - `public_repo` - Access public repositories (for public repos)
+
+### Pull Requests
+- **get_pull_request**, **list_pull_requests**, **get_pull_request_files**, **get_pull_request_status**
+  - Required permissions:
+    - `repo` - Full control of private repositories (for private repos)
+    - `public_repo` - Access public repositories (for public repos)
+
+- **merge_pull_request**, **update_pull_request_branch**, **create_pull_request**, **update_pull_request**
+  - Required permissions:
+    - `repo` - Full control of private repositories (for private repos)
+    - `public_repo` - Access public repositories (for public repos)
+    - `write:discussion` - Write access to repository discussions (if using discussions)
+
+### Repositories
+- **get_file_contents**, **search_repositories**, **list_commits**
+  - Required permissions:
+    - `repo` - Full control of private repositories (for private repos)
+    - `public_repo` - Access public repositories (for public repos)
+
+- **create_or_update_file**, **push_files**, **create_repository**, **fork_repository**, **create_branch**
+  - Required permissions:
+    - `repo` - Full control of private repositories (for private repos)
+    - `public_repo` - Access public repositories (for public repos)
+    - `delete_repo` - Delete repositories (if needed)
+
+### Search
+- **search_code**, **search_users**
+  - Required permissions:
+    - No special permissions required for public data
+    - `repo` - Required for searching private repositories
+
+### Code Scanning
+- **get_code_scanning_alert**, **list_code_scanning_alerts**
+  - Required permissions:
+    - `security_events` - Read and write security events
+    - `repo` - Full control of private repositories (for private repos)
+
+Note: For organization repositories, additional organization-specific permissions may be required.
 
 ## Installation
 
@@ -60,7 +125,6 @@ For manual installation, add the following JSON block to your User Settings (JSO
 
 Optionally, you can add a similar example (i.e. without the mcp key) to a file called `.vscode/mcp.json` in your workspace. This will allow you to share the configuration with others.
 
-
 ```json
 {
   "inputs": [
@@ -88,7 +152,6 @@ Optionally, you can add a similar example (i.e. without the mcp key) to a file c
     }
   }
 }
-
 ```
 
 More about using MCP server tools in VS Code's [agent mode documentation](https://code.visualstudio.com/docs/copilot/chat/mcp-servers).
@@ -320,6 +383,19 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `issue_number`: Issue number (number, required)
   - `body`: Comment text (string, required)
 
+- **add_sub_issue** - Add a sub-issue to an existing issue
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `parent_issue_number`: Parent issue number (number, required)
+  - `child_issue_number`: Child issue number to add as sub-issue (number, required)
+
+- **get_sub_issues** - Get sub-issues of an issue
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `issue_number`: Issue number (number, required)
+
 - **list_issues** - List and filter repository issues
 
   - `owner`: Repository owner (string, required)
@@ -476,12 +552,6 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `branch`: Branch name (string, optional)
   - `sha`: File SHA if updating (string, optional)
 
-- **list_branches** - List branches in a GitHub repository
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `page`: Page number (number, optional)
-  - `perPage`: Results per page (number, optional)
-
 - **push_files** - Push multiple files in a single commit
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
@@ -519,7 +589,7 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `branch`: New branch name (string, required)
   - `sha`: SHA to create branch from (string, required)
 
-- **list_commits** - Get a list of commits of a branch in a repository
+- **list_commits** - Gets commits of a branch in a repository
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `sha`: Branch name, tag, or commit SHA (string, optional)
@@ -527,12 +597,7 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `page`: Page number (number, optional)
   - `perPage`: Results per page (number, optional)
 
-- **get_commit** - Get details for a commit from a repository
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `sha`: Commit SHA, branch name, or tag name (string, required)
-  - `page`: Page number, for files in the commit (number, optional)
-  - `perPage`: Results per page, for files in the commit (number, optional)
+### Search
 
 - **search_code** - Search for code across GitHub repositories
   - `query`: Search query (string, required)
