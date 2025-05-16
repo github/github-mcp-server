@@ -15,6 +15,66 @@ automation and interaction capabilities for developers and tools.
 ## Prerequisites
 
 1. To run the server in a container, you will need to have [Docker](https://www.docker.com/) installed.
+
+## Required Token Permissions
+
+Each tool requires specific GitHub Personal Access Token permissions to function. Below are the required permissions for each tool category:
+
+### Users
+- **get_me**
+  - Required permissions:
+    - `read:user` - Read access to profile info
+
+### Issues
+- **get_issue**, **get_issue_comments**, **list_issues**
+  - Required permissions:
+    - `repo` - Full control of private repositories (for private repos)
+    - `public_repo` - Access public repositories (for public repos)
+
+- **create_issue**, **add_issue_comment**, **update_issue**
+  - Required permissions:
+    - `repo` - Full control of private repositories (for private repos)
+    - `public_repo` - Access public repositories (for public repos)
+    - `write:discussion` - Write access to repository discussions (if using discussions)
+
+### Pull Requests
+- **get_pull_request**, **list_pull_requests**, **get_pull_request_files**, **get_pull_request_status**
+  - Required permissions:
+    - `repo` - Full control of private repositories (for private repos)
+    - `public_repo` - Access public repositories (for public repos)
+
+- **merge_pull_request**, **update_pull_request_branch**, **create_pull_request**, **update_pull_request**
+  - Required permissions:
+    - `repo` - Full control of private repositories (for private repos)
+    - `public_repo` - Access public repositories (for public repos)
+    - `write:discussion` - Write access to repository discussions (if using discussions)
+
+### Repositories
+- **get_file_contents**, **search_repositories**, **list_commits**
+  - Required permissions:
+    - `repo` - Full control of private repositories (for private repos)
+    - `public_repo` - Access public repositories (for public repos)
+
+- **create_or_update_file**, **push_files**, **create_repository**, **fork_repository**, **create_branch**
+  - Required permissions:
+    - `repo` - Full control of private repositories (for private repos)
+    - `public_repo` - Access public repositories (for public repos)
+    - `delete_repo` - Delete repositories (if needed)
+
+### Search
+- **search_code**, **search_users**
+  - Required permissions:
+    - No special permissions required for public data
+    - `repo` - Required for searching private repositories
+
+### Code Scanning
+- **get_code_scanning_alert**, **list_code_scanning_alerts**
+  - Required permissions:
+    - `security_events` - Read and write security events
+    - `repo` - Full control of private repositories (for private repos)
+
+Note: For organization repositories, additional organization-specific permissions may be required.
+
 2. Once Docker is installed, you will also need to ensure Docker is running. The image is public; if you get errors on pull, you may have an expired token and need to `docker logout ghcr.io`.
 3. Lastly you will need to [Create a GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new).
 The MCP server can use many of the GitHub APIs, so enable the permissions that you feel comfortable granting your AI tools (to learn more about access tokens, please check out the [documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)).
@@ -519,13 +579,15 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `branch`: New branch name (string, required)
   - `sha`: SHA to create branch from (string, required)
 
-- **list_commits** - Get a list of commits of a branch in a repository
+- **list_commits** - Gets commits of a branch in a repository
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `sha`: Branch name, tag, or commit SHA (string, optional)
   - `path`: Only commits containing this file path (string, optional)
   - `page`: Page number (number, optional)
   - `perPage`: Results per page (number, optional)
+
+### Search
 
 - **get_commit** - Get details for a commit from a repository
   - `owner`: Repository owner (string, required)
@@ -641,3 +703,4 @@ The exported Go API of this module should currently be considered unstable, and 
 ## License
 
 This project is licensed under the terms of the MIT open source license. Please refer to [MIT](./LICENSE) for the full terms.
+

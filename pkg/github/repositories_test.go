@@ -126,6 +126,81 @@ func Test_GetFileContents(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to get file contents",
 		},
+		{
+			name: "begin/end with file (base64)",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposContentsByOwnerByRepoByPath,
+					expectQueryParams(t, map[string]string{}).andThen(
+						mockResponse(t, http.StatusOK, &github.RepositoryContent{
+							Type:     github.Ptr("file"),
+							Name:     github.Ptr("test.txt"),
+							Path:     github.Ptr("test.txt"),
+							Content:  github.Ptr("SGVsbG8KQmFyCkJheg=="), // Base64 for "Hello\nBar\nBaz"
+							Encoding: github.Ptr("base64"),
+						}),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+				"path":  "test.txt",
+				"begin": 2,
+				"end":   3,
+			},
+			expectError: false,
+			expectedResult: &github.RepositoryContent{
+				Content:  github.Ptr("QmFyCkJheg=="), // Base64 for "Bar\nBaz"
+				Encoding: github.Ptr("base64"),
+			},
+		},
+		{
+			name: "begin/end with directory (should error)",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposContentsByOwnerByRepoByPath,
+					expectQueryParams(t, map[string]string{}).andThen(
+						mockResponse(t, http.StatusOK, []*github.RepositoryContent{{Type: github.Ptr("file"), Name: github.Ptr("foo.txt"), Path: github.Ptr("foo.txt")}}),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+				"path":  "src",
+				"begin": 1,
+				"end":   2,
+			},
+			expectError:    true,
+			expectedErrMsg: "Cannot use 'begin' or 'end' with a directory path",
+		},
+		{
+			name: "file with non-base64 encoding",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposContentsByOwnerByRepoByPath,
+					expectQueryParams(t, map[string]string{}).andThen(
+						mockResponse(t, http.StatusOK, &github.RepositoryContent{
+							Type:     github.Ptr("file"),
+							Name:     github.Ptr("plain.txt"),
+							Path:     github.Ptr("plain.txt"),
+							Content:  github.Ptr("Hello\nWorld\nTest"),
+							Encoding: github.Ptr("utf-8"),
+						}),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+				"path":  "plain.txt",
+				"begin": 2,
+				"end":   3,
+			},
+			expectError:    false,
+			expectedResult: "World\nTest",
+		},
 	}
 
 	for _, tc := range tests {
