@@ -49,6 +49,7 @@ func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn,
 			toolsets.NewServerTool(CreateIssue(getClient, t)),
 			toolsets.NewServerTool(AddIssueComment(getClient, t)),
 			toolsets.NewServerTool(UpdateIssue(getClient, t)),
+			toolsets.NewServerTool(AssignCopilotToIssue(getClient, t)),
 		)
 	users := toolsets.NewToolset("users", "GitHub User related tools").
 		AddReadTools(

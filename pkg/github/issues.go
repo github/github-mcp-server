@@ -734,3 +734,71 @@ func parseISOTimestamp(timestamp string) (time.Time, error) {
 	// Return error with supported formats
 	return time.Time{}, fmt.Errorf("invalid ISO 8601 timestamp: %s (supported formats: YYYY-MM-DDThh:mm:ssZ or YYYY-MM-DD)", timestamp)
 }
+
+// AssignCopilotToIssue creates a tool to assign Copilot to an issue in a GitHub repository.
+func AssignCopilotToIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("assign_copilot_to_issue",
+			mcp.WithDescription(t("TOOL_ASSIGN_COPILOT_TO_ISSUE_DESCRIPTION", "Assign GitHub Copilot to an issue for automated assistance.")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_ASSIGN_COPILOT_TO_ISSUE_USER_TITLE", "Assign Copilot to issue"),
+				ReadOnlyHint: toBoolPtr(false),
+			}),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithNumber("issue_number",
+				mcp.Required(),
+				mcp.Description("Issue number to assign Copilot to"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := requiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			repo, err := requiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			issueNumber, err := RequiredInt(request, "issue_number")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			assignees := []string{"github-copilot[bot]"}
+			issueRequest := &github.IssueRequest{
+				Assignees: &assignees,
+			}
+
+			updatedIssue, resp, err := client.Issues.Edit(ctx, owner, repo, issueNumber, issueRequest)
+			if err != nil {
+				return nil, fmt.Errorf("failed to assign copilot to issue: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to assign copilot to issue: %s", string(body))), nil
+			}
+
+			r, err := json.Marshal(updatedIssue)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}

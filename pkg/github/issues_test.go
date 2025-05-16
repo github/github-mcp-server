@@ -1130,3 +1130,91 @@ func Test_GetIssueComments(t *testing.T) {
 		})
 	}
 }
+
+func Test_AssignCopilotToIssue(t *testing.T) {
+	mockClient := github.NewClient(nil)
+	tool, _ := AssignCopilotToIssue(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "assign_copilot_to_issue", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "issue_number"})
+
+	mockIssue := &github.Issue{
+		Number:    github.Ptr(42),
+		Title:     github.Ptr("Test Issue"),
+		Assignees: []*github.User{{Login: github.Ptr("github-copilot[bot]")}},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedIssue  *github.Issue
+		expectedErrMsg string
+	}{
+		{
+			name: "successful copilot assignment",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
+					mockResponse(t, http.StatusOK, mockIssue),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectError:   false,
+			expectedIssue: mockIssue,
+		},
+		{
+			name: "copilot assignment fails",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusUnprocessableEntity)
+						_, _ = w.Write([]byte(`{"message": "Invalid request"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(999),
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to assign copilot to issue",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := github.NewClient(tc.mockedClient)
+			_, handler := AssignCopilotToIssue(stubGetClientFn(client), translations.NullTranslationHelper)
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(context.Background(), request)
+
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			textContent := getTextResult(t, result)
+			var returnedIssue github.Issue
+			err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
+			require.NoError(t, err)
+			assert.Equal(t, *tc.expectedIssue.Number, *returnedIssue.Number)
+			if assert.NotEmpty(t, returnedIssue.Assignees) {
+				assert.Equal(t, "github-copilot[bot]", *returnedIssue.Assignees[0].Login)
+			}
+		})
+	}
+}
