@@ -457,6 +457,7 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `state`: New state ('open' or 'closed') (string, optional)
   - `base`: New base branch name (string, optional)
   - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
+  - `reviewers`: GitHub usernames to request reviews from (string[], optional)
 
 - **request_copilot_review** - Request a GitHub Copilot review for a pull request (experimental; subject to GitHub API support)
 

@@ -141,6 +141,7 @@ func Test_UpdatePullRequest(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "state")
 	assert.Contains(t, tool.InputSchema.Properties, "base")
 	assert.Contains(t, tool.InputSchema.Properties, "maintainer_can_modify")
+	assert.Contains(t, tool.InputSchema.Properties, "reviewers")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber"})
 
 	// Setup mock PR for success case
@@ -160,6 +161,23 @@ func Test_UpdatePullRequest(t *testing.T) {
 		Number: github.Ptr(42),
 		Title:  github.Ptr("Test PR"),
 		State:  github.Ptr("closed"), // State updated
+	}
+
+	// Mock PR for when there are no updates but we still need a response
+	mockNoUpdatePR := &github.PullRequest{
+		Number: github.Ptr(42),
+		Title:  github.Ptr("Test PR"),
+		State:  github.Ptr("open"),
+	}
+
+	mockPRWithReviewers := &github.PullRequest{
+		Number: github.Ptr(42),
+		Title:  github.Ptr("Test PR"),
+		State:  github.Ptr("open"),
+		RequestedReviewers: []*github.User{
+			{Login: github.Ptr("reviewer1")},
+			{Login: github.Ptr("reviewer2")},
+		},
 	}
 
 	tests := []struct {
@@ -220,8 +238,40 @@ func Test_UpdatePullRequest(t *testing.T) {
 			expectedPR:  mockClosedPR,
 		},
 		{
-			name:         "no update parameters provided",
-			mockedClient: mock.NewMockedHTTPClient(), // No API call expected
+			name: "successful PR update with reviewers",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposPullsByOwnerByRepoByPullNumber,
+					&github.PullRequest{
+						Number: github.Ptr(42),
+						Title:  github.Ptr("Test PR"),
+						State:  github.Ptr("open"),
+					},
+				),
+				// Mock for RequestReviewers call, returning the PR with reviewers
+				mock.WithRequestMatch(
+					mock.PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber,
+					mockPRWithReviewers,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"reviewers":  []interface{}{"reviewer1", "reviewer2"},
+			},
+			expectError: false,
+			expectedPR:  mockPRWithReviewers,
+		},
+		{
+			name: "no update parameters provided",
+			mockedClient: mock.NewMockedHTTPClient(
+				// Mock a response for the GET PR request in case of no updates
+				mock.WithRequestMatch(
+					mock.GetReposPullsByOwnerByRepoByPullNumber,
+					mockNoUpdatePR,
+				),
+			),
 			requestArgs: map[string]interface{}{
 				"owner":      "owner",
 				"repo":       "repo",
@@ -250,6 +300,32 @@ func Test_UpdatePullRequest(t *testing.T) {
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to update pull request",
+		},
+		{
+			name: "request reviewers fails",
+			mockedClient: mock.NewMockedHTTPClient(
+				// First it gets the PR (no fields to update)
+				mock.WithRequestMatch(
+					mock.GetReposPullsByOwnerByRepoByPullNumber,
+					mockNoUpdatePR,
+				),
+				// Then reviewer request fails
+				mock.WithRequestMatchHandler(
+					mock.PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusUnprocessableEntity)
+						_, _ = w.Write([]byte(`{"message": "Invalid reviewers"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"reviewers":  []interface{}{"invalid-user"},
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to request reviewers",
 		},
 	}
 
@@ -303,6 +379,26 @@ func Test_UpdatePullRequest(t *testing.T) {
 			}
 			if tc.expectedPR.MaintainerCanModify != nil {
 				assert.Equal(t, *tc.expectedPR.MaintainerCanModify, *returnedPR.MaintainerCanModify)
+			}
+
+			// Check reviewers if they exist in the expected PR
+			if tc.expectedPR.RequestedReviewers != nil && len(tc.expectedPR.RequestedReviewers) > 0 {
+				assert.NotNil(t, returnedPR.RequestedReviewers)
+				assert.Equal(t, len(tc.expectedPR.RequestedReviewers), len(returnedPR.RequestedReviewers))
+
+				// Create maps of reviewer logins for easy comparison
+				expectedReviewers := make(map[string]bool)
+				for _, reviewer := range tc.expectedPR.RequestedReviewers {
+					expectedReviewers[*reviewer.Login] = true
+				}
+
+				actualReviewers := make(map[string]bool)
+				for _, reviewer := range returnedPR.RequestedReviewers {
+					actualReviewers[*reviewer.Login] = true
+				}
+
+				// Compare the maps
+				assert.Equal(t, expectedReviewers, actualReviewers)
 			}
 		})
 	}
