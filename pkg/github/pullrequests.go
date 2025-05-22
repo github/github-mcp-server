@@ -1643,7 +1643,7 @@ func MarkPullRequestReadyForReview(getGQLClient GetGQLClientFn, t translations.T
 			// Get the GraphQL client
 			client, err := getGQLClient(ctx)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub GraphQL client: %w", err)
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get GitHub GraphQL client: %v", err)), nil
 			}
 
 			// First, we need to get the GraphQL ID of the pull request
@@ -1656,13 +1656,13 @@ func MarkPullRequestReadyForReview(getGQLClient GetGQLClientFn, t translations.T
 				} `graphql:"repository(owner: $owner, name: $repo)"`
 			}
 
-			variables := map[string]any{
+			vars := map[string]any{
 				"owner": githubv4.String(params.Owner),
 				"repo":  githubv4.String(params.Repo),
 				"prNum": githubv4.Int(params.PullNumber),
 			}
 
-			if err := client.Query(ctx, &getPullRequestQuery, variables); err != nil {
+			if err := client.Query(ctx, &getPullRequestQuery, vars); err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request: %v", err)), nil
 			}
 
@@ -1675,7 +1675,7 @@ func MarkPullRequestReadyForReview(getGQLClient GetGQLClientFn, t translations.T
 			var markReadyForReviewMutation struct {
 				MarkPullRequestReadyForReview struct {
 					PullRequest struct {
-						ID githubv4.ID // We don't need this, but a selector is required or GQL complains
+						ID githubv4.ID // Required by GraphQL schema, but not used in response
 					}
 				} `graphql:"markPullRequestReadyForReview(input: $input)"`
 			}
