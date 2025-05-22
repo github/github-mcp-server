@@ -1607,3 +1607,87 @@ func newGQLIntPtr(i *int32) *githubv4.Int {
 	gi := githubv4.Int(*i)
 	return &gi
 }
+
+// MarkPullRequestReadyForReview creates a tool to mark a draft pull request as ready for review.
+// This uses the GraphQL API because the REST API does not support changing a PR from draft to ready-for-review.
+func MarkPullRequestReadyForReview(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+	return mcp.NewTool("mark_pr_ready_for_review",
+			mcp.WithDescription(t("TOOL_MARK_PR_READY_FOR_REVIEW_DESCRIPTION", "Mark a draft pull request as ready for review. Use this to change a pull request from draft state to ready for review.")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_MARK_PR_READY_FOR_REVIEW_USER_TITLE", "Mark pull request ready for review"),
+				ReadOnlyHint: toBoolPtr(false),
+			}),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithNumber("pullNumber",
+				mcp.Required(),
+				mcp.Description("Pull request number"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			var params struct {
+				Owner      string
+				Repo       string
+				PullNumber int32
+			}
+			if err := mapstructure.Decode(request.Params.Arguments, &params); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Get the GraphQL client
+			client, err := getGQLClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub GraphQL client: %w", err)
+			}
+
+			// First, we need to get the GraphQL ID of the pull request
+			var getPullRequestQuery struct {
+				Repository struct {
+					PullRequest struct {
+						ID      githubv4.ID
+						IsDraft githubv4.Boolean
+					} `graphql:"pullRequest(number: $prNum)"`
+				} `graphql:"repository(owner: $owner, name: $repo)"`
+			}
+
+			variables := map[string]any{
+				"owner": githubv4.String(params.Owner),
+				"repo":  githubv4.String(params.Repo),
+				"prNum": githubv4.Int(params.PullNumber),
+			}
+
+			if err := client.Query(ctx, &getPullRequestQuery, variables); err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request: %v", err)), nil
+			}
+
+			// Check if the PR is already in non-draft state
+			if !getPullRequestQuery.Repository.PullRequest.IsDraft {
+				return mcp.NewToolResultText("Pull request is already marked as ready for review"), nil
+			}
+
+			// Now we can mark the PR as ready for review using the GraphQL mutation
+			var markReadyForReviewMutation struct {
+				MarkPullRequestReadyForReview struct {
+					PullRequest struct {
+						ID githubv4.ID // We don't need this, but a selector is required or GQL complains
+					}
+				} `graphql:"markPullRequestReadyForReview(input: $input)"`
+			}
+
+			input := githubv4.MarkPullRequestReadyForReviewInput{
+				PullRequestID: getPullRequestQuery.Repository.PullRequest.ID,
+			}
+
+			if err := client.Mutate(ctx, &markReadyForReviewMutation, input, nil); err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to mark pull request as ready for review: %v", err)), nil
+			}
+
+			return mcp.NewToolResultText("Pull request successfully marked as ready for review"), nil
+		}
+}

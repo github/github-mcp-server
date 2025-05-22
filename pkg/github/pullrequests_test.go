@@ -2291,3 +2291,228 @@ func getLatestPendingReviewQuery(p getLatestPendingReviewQueryParams) githubv4mo
 		),
 	)
 }
+
+func TestMarkPullRequestReadyForReview(t *testing.T) {
+	t.Parallel()
+
+	// Verify tool definition once
+	mockClient := githubv4.NewClient(nil)
+	tool, _ := MarkPullRequestReadyForReview(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "mark_pr_ready_for_review", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber"})
+
+	tests := []struct {
+		name               string
+		mockedClient       *http.Client
+		requestArgs        map[string]any
+		expectToolError    bool
+		expectedToolErrMsg string
+		prIsDraft          bool
+	}{
+		{
+			name: "successful mark ready for review",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							PullRequest struct {
+								ID      githubv4.ID
+								IsDraft githubv4.Boolean
+							} `graphql:"pullRequest(number: $prNum)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner": githubv4.String("owner"),
+						"repo":  githubv4.String("repo"),
+						"prNum": githubv4.Int(42),
+					},
+					githubv4mock.DataResponse(
+						map[string]any{
+							"repository": map[string]any{
+								"pullRequest": map[string]any{
+									"id":      "PR_kwDODKw3uc6WYN1T",
+									"isDraft": true,
+								},
+							},
+						},
+					),
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						MarkPullRequestReadyForReview struct {
+							PullRequest struct {
+								ID githubv4.ID
+							}
+						} `graphql:"markPullRequestReadyForReview(input: $input)"`
+					}{},
+					githubv4.MarkPullRequestReadyForReviewInput{
+						PullRequestID: githubv4.ID("PR_kwDODKw3uc6WYN1T"),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectToolError: false,
+			prIsDraft:       true,
+		},
+		{
+			name: "PR already ready for review",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							PullRequest struct {
+								ID      githubv4.ID
+								IsDraft githubv4.Boolean
+							} `graphql:"pullRequest(number: $prNum)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner": githubv4.String("owner"),
+						"repo":  githubv4.String("repo"),
+						"prNum": githubv4.Int(42),
+					},
+					githubv4mock.DataResponse(
+						map[string]any{
+							"repository": map[string]any{
+								"pullRequest": map[string]any{
+									"id":      "PR_kwDODKw3uc6WYN1T",
+									"isDraft": false,
+								},
+							},
+						},
+					),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectToolError: false,
+			prIsDraft:       false,
+		},
+		{
+			name: "failure to get pull request",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							PullRequest struct {
+								ID      githubv4.ID
+								IsDraft githubv4.Boolean
+							} `graphql:"pullRequest(number: $prNum)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner": githubv4.String("owner"),
+						"repo":  githubv4.String("repo"),
+						"prNum": githubv4.Int(42),
+					},
+					githubv4mock.ErrorResponse("expected test failure"),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "failed to get pull request: expected test failure",
+		},
+		{
+			name: "failure to mark ready for review",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							PullRequest struct {
+								ID      githubv4.ID
+								IsDraft githubv4.Boolean
+							} `graphql:"pullRequest(number: $prNum)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner": githubv4.String("owner"),
+						"repo":  githubv4.String("repo"),
+						"prNum": githubv4.Int(42),
+					},
+					githubv4mock.DataResponse(
+						map[string]any{
+							"repository": map[string]any{
+								"pullRequest": map[string]any{
+									"id":      "PR_kwDODKw3uc6WYN1T",
+									"isDraft": true,
+								},
+							},
+						},
+					),
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						MarkPullRequestReadyForReview struct {
+							PullRequest struct {
+								ID githubv4.ID
+							}
+						} `graphql:"markPullRequestReadyForReview(input: $input)"`
+					}{},
+					githubv4.MarkPullRequestReadyForReviewInput{
+						PullRequestID: githubv4.ID("PR_kwDODKw3uc6WYN1T"),
+					},
+					nil,
+					githubv4mock.ErrorResponse("expected test failure"),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "failed to mark pull request as ready for review: expected test failure",
+			prIsDraft:          true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Setup client with mock
+			client := githubv4.NewClient(tc.mockedClient)
+			_, handler := MarkPullRequestReadyForReview(stubGetGQLClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+			require.NoError(t, err)
+
+			textContent := getTextResult(t, result)
+
+			if tc.expectToolError {
+				require.True(t, result.IsError)
+				assert.Contains(t, textContent.Text, tc.expectedToolErrMsg)
+				return
+			}
+
+			// Check for the appropriate success message
+			if tc.prIsDraft {
+				require.Equal(t, "Pull request successfully marked as ready for review", textContent.Text)
+			} else {
+				require.Equal(t, "Pull request is already marked as ready for review", textContent.Text)
+			}
+		})
+	}
+}
