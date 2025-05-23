@@ -46,6 +46,9 @@ func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn,
 			toolsets.NewServerTool(SearchIssues(getClient, t)),
 			toolsets.NewServerTool(ListIssues(getClient, t)),
 			toolsets.NewServerTool(GetIssueComments(getClient, t)),
+			toolsets.NewServerTool(GetIssueTimeline(getClient, t)),
+			toolsets.NewServerTool(GetIssueEvents(getClient, t)),
+			toolsets.NewServerTool(GetIssueEvent(getClient, t)),
 		).
 		AddWriteTools(
 			toolsets.NewServerTool(CreateIssue(getClient, t)),
