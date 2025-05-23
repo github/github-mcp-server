@@ -219,6 +219,41 @@ docker run -i --rm \
   ghcr.io/github/github-mcp-server
 ```
 
+## Content Filtering
+
+The GitHub MCP Server includes a content filtering feature that removes invisible characters and hidden content from GitHub issues, PRs, and comments. This helps prevent potential security risks and ensures better readability of content.
+
+### What Gets Filtered
+
+- **Invisible Unicode Characters**: Zero-width spaces, zero-width joiners, zero-width non-joiners, bidirectional marks, and other invisible Unicode characters
+- **HTML Comments**: Comments that might contain hidden information
+- **Hidden HTML Elements**: Script, style, iframe, and other potentially dangerous HTML elements
+- **Collapsed Sections**: Details/summary elements that might hide content
+- **Very Small Text**: Content with extremely small font size
+
+### Controlling Content Filtering
+
+Content filtering is enabled by default. You can disable it using the `--disable-content-filtering` flag:
+
+```bash
+github-mcp-server --disable-content-filtering
+```
+
+Or using the environment variable:
+
+```bash
+GITHUB_DISABLE_CONTENT_FILTERING=1 github-mcp-server
+```
+
+When using Docker, you can set the environment variable:
+
+```bash
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_DISABLE_CONTENT_FILTERING=1 \
+  ghcr.io/github/github-mcp-server
+```
+
 ## GitHub Enterprise Server
 
 The flag `--gh-host` and the environment variable `GITHUB_HOST` can be used to set
