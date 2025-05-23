@@ -2292,19 +2292,26 @@ func getLatestPendingReviewQuery(p getLatestPendingReviewQueryParams) githubv4mo
 	)
 }
 
-func TestMarkPullRequestReadyForReview(t *testing.T) {
+func TestSetPRStatus(t *testing.T) {
 	t.Parallel()
 
 	// Verify tool definition once
 	mockClient := githubv4.NewClient(nil)
-	tool, _ := MarkPullRequestReadyForReview(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := SetPRStatus(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
 
-	assert.Equal(t, "mark_pr_ready_for_review", tool.Name)
+	assert.Equal(t, "set_pr_status", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber"})
+	assert.Contains(t, tool.InputSchema.Properties, "status")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber", "status"})
+
+	// Verify enum validation for status parameter
+	statusProperty := tool.InputSchema.Properties["status"].(map[string]any)
+	assert.Contains(t, statusProperty, "enum")
+	enumValues := statusProperty["enum"].([]string)
+	assert.ElementsMatch(t, enumValues, []string{"draft", "ready_for_review"})
 
 	tests := []struct {
 		name               string
@@ -2312,10 +2319,10 @@ func TestMarkPullRequestReadyForReview(t *testing.T) {
 		requestArgs        map[string]any
 		expectToolError    bool
 		expectedToolErrMsg string
-		prIsDraft          bool
+		expectedMessage    string
 	}{
 		{
-			name: "successful mark ready for review",
+			name: "successful draft to ready conversion",
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
 					struct {
@@ -2361,12 +2368,103 @@ func TestMarkPullRequestReadyForReview(t *testing.T) {
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
+				"status":     "ready_for_review",
 			},
 			expectToolError: false,
-			prIsDraft:       true,
+			expectedMessage: "Pull request successfully marked as ready for review",
 		},
 		{
-			name: "PR already ready for review",
+			name: "successful ready to draft conversion",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							PullRequest struct {
+								ID      githubv4.ID
+								IsDraft githubv4.Boolean
+							} `graphql:"pullRequest(number: $prNum)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner": githubv4.String("owner"),
+						"repo":  githubv4.String("repo"),
+						"prNum": githubv4.Int(42),
+					},
+					githubv4mock.DataResponse(
+						map[string]any{
+							"repository": map[string]any{
+								"pullRequest": map[string]any{
+									"id":      "PR_kwDODKw3uc6WYN1T",
+									"isDraft": false,
+								},
+							},
+						},
+					),
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						ConvertPullRequestToDraft struct {
+							PullRequest struct {
+								ID githubv4.ID
+							}
+						} `graphql:"convertPullRequestToDraft(input: $input)"`
+					}{},
+					githubv4.ConvertPullRequestToDraftInput{
+						PullRequestID: githubv4.ID("PR_kwDODKw3uc6WYN1T"),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"status":     "draft",
+			},
+			expectToolError: false,
+			expectedMessage: "Pull request successfully converted to draft",
+		},
+		{
+			name: "no change - already draft",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							PullRequest struct {
+								ID      githubv4.ID
+								IsDraft githubv4.Boolean
+							} `graphql:"pullRequest(number: $prNum)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner": githubv4.String("owner"),
+						"repo":  githubv4.String("repo"),
+						"prNum": githubv4.Int(42),
+					},
+					githubv4mock.DataResponse(
+						map[string]any{
+							"repository": map[string]any{
+								"pullRequest": map[string]any{
+									"id":      "PR_kwDODKw3uc6WYN1T",
+									"isDraft": true,
+								},
+							},
+						},
+					),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"status":     "draft",
+			},
+			expectToolError: false,
+			expectedMessage: "Pull request is already in draft state",
+		},
+		{
+			name: "no change - already ready",
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
 					struct {
@@ -2398,12 +2496,25 @@ func TestMarkPullRequestReadyForReview(t *testing.T) {
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
+				"status":     "ready_for_review",
 			},
 			expectToolError: false,
-			prIsDraft:       false,
+			expectedMessage: "Pull request is already marked as ready for review",
 		},
 		{
-			name: "failure to get pull request",
+			name:         "invalid status enum",
+			mockedClient: githubv4mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"status":     "invalid_status",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "status must be either 'draft' or 'ready_for_review'",
+		},
+		{
+			name: "GraphQL query failure",
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
 					struct {
@@ -2417,21 +2528,22 @@ func TestMarkPullRequestReadyForReview(t *testing.T) {
 					map[string]any{
 						"owner": githubv4.String("owner"),
 						"repo":  githubv4.String("repo"),
-						"prNum": githubv4.Int(42),
+						"prNum": githubv4.Int(999),
 					},
-					githubv4mock.ErrorResponse("expected test failure"),
+					githubv4mock.ErrorResponse("pull request not found"),
 				),
 			),
 			requestArgs: map[string]any{
 				"owner":      "owner",
 				"repo":       "repo",
-				"pullNumber": float64(42),
+				"pullNumber": float64(999),
+				"status":     "ready_for_review",
 			},
 			expectToolError:    true,
-			expectedToolErrMsg: "failed to get pull request: expected test failure",
+			expectedToolErrMsg: "failed to get pull request: pull request not found",
 		},
 		{
-			name: "failure to mark ready for review",
+			name: "GraphQL mutation failure - mark ready",
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
 					struct {
@@ -2470,17 +2582,69 @@ func TestMarkPullRequestReadyForReview(t *testing.T) {
 						PullRequestID: githubv4.ID("PR_kwDODKw3uc6WYN1T"),
 					},
 					nil,
-					githubv4mock.ErrorResponse("expected test failure"),
+					githubv4mock.ErrorResponse("insufficient permissions"),
 				),
 			),
 			requestArgs: map[string]any{
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
+				"status":     "ready_for_review",
 			},
 			expectToolError:    true,
-			expectedToolErrMsg: "failed to mark pull request as ready for review: expected test failure",
-			prIsDraft:          true,
+			expectedToolErrMsg: "failed to mark pull request as ready for review: insufficient permissions",
+		},
+		{
+			name: "GraphQL mutation failure - convert to draft",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							PullRequest struct {
+								ID      githubv4.ID
+								IsDraft githubv4.Boolean
+							} `graphql:"pullRequest(number: $prNum)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner": githubv4.String("owner"),
+						"repo":  githubv4.String("repo"),
+						"prNum": githubv4.Int(42),
+					},
+					githubv4mock.DataResponse(
+						map[string]any{
+							"repository": map[string]any{
+								"pullRequest": map[string]any{
+									"id":      "PR_kwDODKw3uc6WYN1T",
+									"isDraft": false,
+								},
+							},
+						},
+					),
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						ConvertPullRequestToDraft struct {
+							PullRequest struct {
+								ID githubv4.ID
+							}
+						} `graphql:"convertPullRequestToDraft(input: $input)"`
+					}{},
+					githubv4.ConvertPullRequestToDraftInput{
+						PullRequestID: githubv4.ID("PR_kwDODKw3uc6WYN1T"),
+					},
+					nil,
+					githubv4mock.ErrorResponse("insufficient permissions"),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"status":     "draft",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "failed to convert pull request to draft: insufficient permissions",
 		},
 	}
 
@@ -2490,7 +2654,7 @@ func TestMarkPullRequestReadyForReview(t *testing.T) {
 
 			// Setup client with mock
 			client := githubv4.NewClient(tc.mockedClient)
-			_, handler := MarkPullRequestReadyForReview(stubGetGQLClientFn(client), translations.NullTranslationHelper)
+			_, handler := SetPRStatus(stubGetGQLClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -2507,12 +2671,9 @@ func TestMarkPullRequestReadyForReview(t *testing.T) {
 				return
 			}
 
-			// Check for the appropriate success message
-			if tc.prIsDraft {
-				require.Equal(t, "Pull request successfully marked as ready for review", textContent.Text)
-			} else {
-				require.Equal(t, "Pull request is already marked as ready for review", textContent.Text)
-			}
+			// Verify success message
+			require.False(t, result.IsError)
+			assert.Equal(t, tc.expectedMessage, textContent.Text)
 		})
 	}
 }
