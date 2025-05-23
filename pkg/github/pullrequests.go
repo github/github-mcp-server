@@ -1608,13 +1608,13 @@ func newGQLIntPtr(i *int32) *githubv4.Int {
 	return &gi
 }
 
-// MarkPullRequestReadyForReview creates a tool to mark a draft pull request as ready for review.
-// This uses the GraphQL API because the REST API does not support changing a PR from draft to ready-for-review.
-func MarkPullRequestReadyForReview(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
-	return mcp.NewTool("mark_pr_ready_for_review",
-			mcp.WithDescription(t("TOOL_MARK_PR_READY_FOR_REVIEW_DESCRIPTION", "Mark a draft pull request as ready for review. Use this to change a pull request from draft state to ready for review.")),
+// SetPRStatus creates a tool to set pull request status between draft and ready-for-review states.
+// This uses the GraphQL API because the REST API does not support changing PR draft status.
+func SetPRStatus(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+	return mcp.NewTool("set_pr_status",
+			mcp.WithDescription(t("TOOL_SET_PR_STATUS_DESCRIPTION", "Set pull request status between draft and ready-for-review states. Use this to change a pull request from draft to ready-for-review or vice versa.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_MARK_PR_READY_FOR_REVIEW_USER_TITLE", "Mark pull request ready for review"),
+				Title:        t("TOOL_SET_PR_STATUS_USER_TITLE", "Set pull request status"),
 				ReadOnlyHint: toBoolPtr(false),
 			}),
 			mcp.WithString("owner",
@@ -1629,15 +1629,26 @@ func MarkPullRequestReadyForReview(getGQLClient GetGQLClientFn, t translations.T
 				mcp.Required(),
 				mcp.Description("Pull request number"),
 			),
+			mcp.WithString("status",
+				mcp.Required(),
+				mcp.Description("Target status for the pull request"),
+				mcp.Enum("draft", "ready_for_review"),
+			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			var params struct {
 				Owner      string
 				Repo       string
 				PullNumber int32
+				Status     string
 			}
 			if err := mapstructure.Decode(request.Params.Arguments, &params); err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Validate status parameter
+			if params.Status != "draft" && params.Status != "ready_for_review" {
+				return mcp.NewToolResultError("status must be either 'draft' or 'ready_for_review'"), nil
 			}
 
 			// Get the GraphQL client
@@ -1646,7 +1657,7 @@ func MarkPullRequestReadyForReview(getGQLClient GetGQLClientFn, t translations.T
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get GitHub GraphQL client: %v", err)), nil
 			}
 
-			// First, we need to get the GraphQL ID of the pull request
+			// First, we need to get the GraphQL ID of the pull request and its current status
 			var getPullRequestQuery struct {
 				Repository struct {
 					PullRequest struct {
@@ -1666,28 +1677,57 @@ func MarkPullRequestReadyForReview(getGQLClient GetGQLClientFn, t translations.T
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request: %v", err)), nil
 			}
 
-			// Check if the PR is already in non-draft state
-			if !getPullRequestQuery.Repository.PullRequest.IsDraft {
-				return mcp.NewToolResultText("Pull request is already marked as ready for review"), nil
+			currentIsDraft := bool(getPullRequestQuery.Repository.PullRequest.IsDraft)
+			targetIsDraft := params.Status == "draft"
+
+			// Check if the PR is already in the target state
+			if currentIsDraft == targetIsDraft {
+				if targetIsDraft {
+					return mcp.NewToolResultText("Pull request is already in draft state"), nil
+				} else {
+					return mcp.NewToolResultText("Pull request is already marked as ready for review"), nil
+				}
 			}
 
-			// Now we can mark the PR as ready for review using the GraphQL mutation
-			var markReadyForReviewMutation struct {
-				MarkPullRequestReadyForReview struct {
-					PullRequest struct {
-						ID githubv4.ID // Required by GraphQL schema, but not used in response
-					}
-				} `graphql:"markPullRequestReadyForReview(input: $input)"`
-			}
+			// Perform the appropriate mutation based on target status
+			if targetIsDraft {
+				// Convert to draft
+				var convertToDraftMutation struct {
+					ConvertPullRequestToDraft struct {
+						PullRequest struct {
+							ID githubv4.ID // Required by GraphQL schema, but not used in response
+						}
+					} `graphql:"convertPullRequestToDraft(input: $input)"`
+				}
 
-			input := githubv4.MarkPullRequestReadyForReviewInput{
-				PullRequestID: getPullRequestQuery.Repository.PullRequest.ID,
-			}
+				input := githubv4.ConvertPullRequestToDraftInput{
+					PullRequestID: getPullRequestQuery.Repository.PullRequest.ID,
+				}
 
-			if err := client.Mutate(ctx, &markReadyForReviewMutation, input, nil); err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("failed to mark pull request as ready for review: %v", err)), nil
-			}
+				if err := client.Mutate(ctx, &convertToDraftMutation, input, nil); err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("failed to convert pull request to draft: %v", err)), nil
+				}
 
-			return mcp.NewToolResultText("Pull request successfully marked as ready for review"), nil
+				return mcp.NewToolResultText("Pull request successfully converted to draft"), nil
+			} else {
+				// Mark as ready for review
+				var markReadyForReviewMutation struct {
+					MarkPullRequestReadyForReview struct {
+						PullRequest struct {
+							ID githubv4.ID // Required by GraphQL schema, but not used in response
+						}
+					} `graphql:"markPullRequestReadyForReview(input: $input)"`
+				}
+
+				input := githubv4.MarkPullRequestReadyForReviewInput{
+					PullRequestID: getPullRequestQuery.Repository.PullRequest.ID,
+				}
+
+				if err := client.Mutate(ctx, &markReadyForReviewMutation, input, nil); err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("failed to mark pull request as ready for review: %v", err)), nil
+				}
+
+				return mcp.NewToolResultText("Pull request successfully marked as ready for review"), nil
+			}
 		}
 }
