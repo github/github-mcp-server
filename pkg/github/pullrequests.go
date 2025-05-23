@@ -16,7 +16,7 @@ import (
 )
 
 // GetPullRequest creates a tool to get details of a specific pull request.
-func GetPullRequest(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+func GetPullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("get_pull_request",
 			mcp.WithDescription(t("TOOL_GET_PULL_REQUEST_DESCRIPTION", "Get details of a specific pull request in a GitHub repository.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -66,6 +66,13 @@ func GetPullRequest(getClient GetClientFn, t translations.TranslationHelperFunc)
 					return nil, fmt.Errorf("failed to read response body: %w", err)
 				}
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request: %s", string(body))), nil
+			}
+
+			// Check if content filtering is enabled and user has push access
+			if pr.User != nil && pr.User.Login != nil {
+				if !ShouldIncludeContent(ctx, *pr.User.Login, getGQLClient) {
+					return mcp.NewToolResultError("Content from this user is filtered due to lack of push access to the trusted repository"), nil
+				}
 			}
 
 			r, err := json.Marshal(pr)
@@ -314,7 +321,7 @@ func UpdatePullRequest(getClient GetClientFn, t translations.TranslationHelperFu
 }
 
 // ListPullRequests creates a tool to list and filter repository pull requests.
-func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+func ListPullRequests(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("list_pull_requests",
 			mcp.WithDescription(t("TOOL_LIST_PULL_REQUESTS_DESCRIPTION", "List pull requests in a GitHub repository.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -414,6 +421,21 @@ func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFun
 			}
 
 			r, err := json.Marshal(prs)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			// Filter pull requests based on user permissions
+			var filteredPRs []*github.PullRequest
+			for _, pr := range prs {
+				if pr.User != nil && pr.User.Login != nil {
+					if ShouldIncludeContent(ctx, *pr.User.Login, getGQLClient) {
+						filteredPRs = append(filteredPRs, pr)
+					}
+				}
+			}
+
+			r, err = json.Marshal(filteredPRs)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -730,7 +752,7 @@ func UpdatePullRequestBranch(getClient GetClientFn, t translations.TranslationHe
 }
 
 // GetPullRequestComments creates a tool to get the review comments on a pull request.
-func GetPullRequestComments(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+func GetPullRequestComments(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("get_pull_request_comments",
 			mcp.WithDescription(t("TOOL_GET_PULL_REQUEST_COMMENTS_DESCRIPTION", "Get comments for a specific pull request.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -788,7 +810,17 @@ func GetPullRequestComments(getClient GetClientFn, t translations.TranslationHel
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request comments: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(comments)
+			// Filter comments based on user permissions
+			var filteredComments []*github.PullRequestComment
+			for _, comment := range comments {
+				if comment.User != nil && comment.User.Login != nil {
+					if ShouldIncludeContent(ctx, *comment.User.Login, getGQLClient) {
+						filteredComments = append(filteredComments, comment)
+					}
+				}
+			}
+
+			r, err := json.Marshal(filteredComments)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -798,7 +830,7 @@ func GetPullRequestComments(getClient GetClientFn, t translations.TranslationHel
 }
 
 // GetPullRequestReviews creates a tool to get the reviews on a pull request.
-func GetPullRequestReviews(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+func GetPullRequestReviews(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("get_pull_request_reviews",
 			mcp.WithDescription(t("TOOL_GET_PULL_REQUEST_REVIEWS_DESCRIPTION", "Get reviews for a specific pull request.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -850,7 +882,17 @@ func GetPullRequestReviews(getClient GetClientFn, t translations.TranslationHelp
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request reviews: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(reviews)
+			// Filter reviews based on user permissions
+			var filteredReviews []*github.PullRequestReview
+			for _, review := range reviews {
+				if review.User != nil && review.User.Login != nil {
+					if ShouldIncludeContent(ctx, *review.User.Login, getGQLClient) {
+						filteredReviews = append(filteredReviews, review)
+					}
+				}
+			}
+
+			r, err := json.Marshal(filteredReviews)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}

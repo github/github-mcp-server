@@ -43,11 +43,17 @@ type MCPServerConfig struct {
 	// ReadOnly indicates if we should only offer read-only tools
 	ReadOnly bool
 
+	// TrustedRepo is a repository in the format "owner/repo" used to limit content
+	// to users with push access to the specified repo
+	TrustedRepo string
+
 	// Translator provides translated text for the server tooling
 	Translator translations.TranslationHelperFunc
 }
 
 func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
+	ctx := context.Background()
+
 	apiHost, err := parseAPIHost(cfg.Host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
@@ -112,6 +118,15 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 		return gqlClient, nil // closing over client
 	}
 
+	// Initialize the content filter if a trusted repo is specified
+	if cfg.TrustedRepo != "" {
+		var err error
+		ctx, err = github.InitContentFilter(ctx, cfg.TrustedRepo, getGQLClient)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize content filter: %w", err)
+		}
+	}
+
 	// Create default toolsets
 	toolsets, err := github.InitToolsets(
 		enabledToolsets,
@@ -169,6 +184,10 @@ type StdioServerConfig struct {
 
 	// Path to the log file if not stderr
 	LogFilePath string
+
+	// TrustedRepo is a repository in the format "owner/repo" used to limit content
+	// to users with push access to the specified repo
+	TrustedRepo string
 }
 
 // RunStdioServer is not concurrent safe.
@@ -186,6 +205,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		EnabledToolsets: cfg.EnabledToolsets,
 		DynamicToolsets: cfg.DynamicToolsets,
 		ReadOnly:        cfg.ReadOnly,
+		TrustedRepo:     cfg.TrustedRepo,
 		Translator:      t,
 	})
 	if err != nil {

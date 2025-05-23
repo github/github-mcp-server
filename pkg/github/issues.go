@@ -18,7 +18,7 @@ import (
 )
 
 // GetIssue creates a tool to get details of a specific issue in a GitHub repository.
-func GetIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func GetIssue(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("get_issue",
 			mcp.WithDescription(t("TOOL_GET_ISSUE_DESCRIPTION", "Get details of a specific issue in a GitHub repository.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -68,6 +68,13 @@ func GetIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (tool
 					return nil, fmt.Errorf("failed to read response body: %w", err)
 				}
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get issue: %s", string(body))), nil
+			}
+
+			// Check if content filtering is enabled and user has push access
+			if issue.User != nil && issue.User.Login != nil {
+				if !ShouldIncludeContent(ctx, *issue.User.Login, getGQLClient) {
+					return mcp.NewToolResultError("Content from this user is filtered due to lack of push access to the trusted repository"), nil
+				}
 			}
 
 			r, err := json.Marshal(issue)
@@ -154,7 +161,7 @@ func AddIssueComment(getClient GetClientFn, t translations.TranslationHelperFunc
 }
 
 // SearchIssues creates a tool to search for issues and pull requests.
-func SearchIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func SearchIssues(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("search_issues",
 			mcp.WithDescription(t("TOOL_SEARCH_ISSUES_DESCRIPTION", "Search for issues in GitHub repositories.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -232,7 +239,24 @@ func SearchIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (
 				return mcp.NewToolResultError(fmt.Sprintf("failed to search issues: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(result)
+			// Filter issues based on user permissions
+			var filteredIssues []*github.Issue
+			for _, issue := range result.Issues {
+				if issue.User != nil && issue.User.Login != nil {
+					if ShouldIncludeContent(ctx, *issue.User.Login, getGQLClient) {
+						filteredIssues = append(filteredIssues, issue)
+					}
+				}
+			}
+
+			// Create a new result with filtered issues
+			filteredResult := &github.IssuesSearchResult{
+				Total:             github.Int(len(filteredIssues)),
+				IncompleteResults: result.IncompleteResults,
+				Issues:            filteredIssues,
+			}
+
+			r, err := json.Marshal(filteredResult)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -364,7 +388,7 @@ func CreateIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 }
 
 // ListIssues creates a tool to list and filter repository issues
-func ListIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func ListIssues(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("list_issues",
 			mcp.WithDescription(t("TOOL_LIST_ISSUES_DESCRIPTION", "List issues in a GitHub repository.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -476,7 +500,17 @@ func ListIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 				return mcp.NewToolResultError(fmt.Sprintf("failed to list issues: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(issues)
+			// Filter issues based on user permissions
+			var filteredIssues []*github.Issue
+			for _, issue := range issues {
+				if issue.User != nil && issue.User.Login != nil {
+					if ShouldIncludeContent(ctx, *issue.User.Login, getGQLClient) {
+						filteredIssues = append(filteredIssues, issue)
+					}
+				}
+			}
+
+			r, err := json.Marshal(filteredIssues)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal issues: %w", err)
 			}
@@ -632,7 +666,7 @@ func UpdateIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 }
 
 // GetIssueComments creates a tool to get comments for a GitHub issue.
-func GetIssueComments(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func GetIssueComments(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("get_issue_comments",
 			mcp.WithDescription(t("TOOL_GET_ISSUE_COMMENTS_DESCRIPTION", "Get comments for a specific issue in a GitHub repository.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -705,7 +739,17 @@ func GetIssueComments(getClient GetClientFn, t translations.TranslationHelperFun
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get issue comments: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(comments)
+			// Filter comments based on user permissions
+			var filteredComments []*github.IssueComment
+			for _, comment := range comments {
+				if comment.User != nil && comment.User.Login != nil {
+					if ShouldIncludeContent(ctx, *comment.User.Login, getGQLClient) {
+						filteredComments = append(filteredComments, comment)
+					}
+				}
+			}
+
+			r, err := json.Marshal(filteredComments)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
