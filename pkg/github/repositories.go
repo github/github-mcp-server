@@ -556,6 +556,132 @@ func ForkRepository(getClient GetClientFn, t translations.TranslationHelperFunc)
 		}
 }
 
+// IsRepositoryStarred creates a tool to check if a repository is starred by the authenticated user.
+func IsRepositoryStarred(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("is_repository_starred",
+			mcp.WithDescription(t("TOOL_IS_REPOSITORY_STARRED_DESCRIPTION", "Check if a GitHub repository is starred by the authenticated user")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_IS_REPOSITORY_STARRED_USER_TITLE", "Check if repository is starred"),
+				ReadOnlyHint: toBoolPtr(true),
+			}),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := requiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			repo, err := requiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			isStarred, resp, err := client.Activity.IsStarred(ctx, owner, repo)
+			if err != nil && resp == nil {
+				return nil, fmt.Errorf("failed to check if repository is starred: %w", err)
+			}
+			if resp != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
+
+			return mcp.NewToolResultText(fmt.Sprintf(`{"is_starred": %t}`, isStarred)), nil
+		}
+}
+
+// ToggleRepositoryStar creates a tool to star or unstar a repository.
+func ToggleRepositoryStar(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("toggle_repository_star",
+			mcp.WithDescription(t("TOOL_TOGGLE_REPOSITORY_STAR_DESCRIPTION", "Star or unstar a GitHub repository with your account")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_TOGGLE_REPOSITORY_STAR_USER_TITLE", "Star/unstar repository"),
+				ReadOnlyHint: toBoolPtr(false),
+			}),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithString("star",
+				mcp.Required(),
+				mcp.Description("'true' to star, 'false' to unstar the repository"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := requiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			repo, err := requiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			starStr, err := requiredParam[string](request, "star")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			var star bool
+			switch starStr {
+			case "true":
+				star = true
+			case "false":
+				star = false
+			default:
+				return mcp.NewToolResultError("parameter 'star' must be exactly 'true' or 'false'"), nil
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			var resp *github.Response
+			var action string
+
+			if star {
+				resp, err = client.Activity.Star(ctx, owner, repo)
+				action = "star"
+			} else {
+				resp, err = client.Activity.Unstar(ctx, owner, repo)
+				action = "unstar"
+			}
+
+			if err != nil {
+				return nil, fmt.Errorf("failed to %s repository: %w", action, err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusNoContent {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to %s repository: %s", action, string(body))), nil
+			}
+
+			resultAction := "starred"
+			if !star {
+				resultAction = "unstarred"
+			}
+			return mcp.NewToolResultText(fmt.Sprintf("Successfully %s repository %s/%s", resultAction, owner, repo)), nil
+		}
+}
+
 // DeleteFile creates a tool to delete a file in a GitHub repository.
 // This tool uses a more roundabout way of deleting a file than just using the client.Repositories.DeleteFile.
 // This is because REST file deletion endpoint (and client.Repositories.DeleteFile) don't add commit signing to the deletion commit,

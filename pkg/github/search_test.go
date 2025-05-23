@@ -311,6 +311,212 @@ func Test_SearchCode(t *testing.T) {
 	}
 }
 
+func Test_ListStarredRepositories(t *testing.T) {
+	// Verify tool definition
+	mockClient := github.NewClient(nil)
+	tool, _ := ListStarredRepositories(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "list_starred_repositories", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "sort")
+	assert.Contains(t, tool.InputSchema.Properties, "direction")
+	assert.Contains(t, tool.InputSchema.Properties, "page")
+	assert.Contains(t, tool.InputSchema.Properties, "perPage")
+	assert.Empty(t, tool.InputSchema.Required) // No required parameters
+
+	// Setup mock starred repositories results
+	mockStarredRepos := []*github.StarredRepository{
+		{
+			StarredAt: &github.Timestamp{},
+			Repository: &github.Repository{
+				ID:              github.Ptr(int64(12345)),
+				Name:            github.Ptr("repo-1"),
+				FullName:        github.Ptr("owner/repo-1"),
+				HTMLURL:         github.Ptr("https://github.com/owner/repo-1"),
+				Description:     github.Ptr("Test repository 1"),
+				StargazersCount: github.Ptr(100),
+				Language:        github.Ptr("Go"),
+				Fork:            github.Ptr(false),
+			},
+		},
+		{
+			StarredAt: &github.Timestamp{},
+			Repository: &github.Repository{
+				ID:              github.Ptr(int64(67890)),
+				Name:            github.Ptr("repo-2"),
+				FullName:        github.Ptr("owner/repo-2"),
+				HTMLURL:         github.Ptr("https://github.com/owner/repo-2"),
+				Description:     github.Ptr("Test repository 2"),
+				StargazersCount: github.Ptr(50),
+				Language:        github.Ptr("JavaScript"),
+				Fork:            github.Ptr(true),
+			},
+		},
+	}
+
+	type SimplifiedRepo struct {
+		FullName        string `json:"full_name,omitempty"`
+		HTMLURL         string `json:"html_url,omitempty"`
+		Description     string `json:"description,omitempty"`
+		StargazersCount int    `json:"stargazers_count,omitempty"`
+		Language        string `json:"language,omitempty"`
+	}
+
+	type SimplifiedStarredRepo struct {
+		StarredAt  *github.Timestamp `json:"starred_at,omitempty"`
+		Repository SimplifiedRepo    `json:"repository,omitempty"`
+	}
+
+	expectedFilteredRepos := []SimplifiedStarredRepo{
+		{
+			StarredAt: &github.Timestamp{},
+			Repository: SimplifiedRepo{
+				FullName:        "owner/repo-1",
+				HTMLURL:         "https://github.com/owner/repo-1",
+				Description:     "Test repository 1",
+				StargazersCount: 100,
+				Language:        "Go",
+			},
+		},
+		{
+			StarredAt: &github.Timestamp{},
+			Repository: SimplifiedRepo{
+				FullName:        "owner/repo-2",
+				HTMLURL:         "https://github.com/owner/repo-2",
+				Description:     "Test repository 2",
+				StargazersCount: 50,
+				Language:        "JavaScript",
+			},
+		},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedResult []SimplifiedStarredRepo
+		expectedErrMsg string
+	}{
+		{
+			name: "successful starred repositories list with all parameters",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetUserStarred,
+					expectQueryParams(t, map[string]string{
+						"sort":      "created",
+						"direction": "desc",
+						"page":      "2",
+						"per_page":  "10",
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockStarredRepos),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"sort":      "created",
+				"direction": "desc",
+				"page":      float64(2),
+				"perPage":   float64(10),
+			},
+			expectError:    false,
+			expectedResult: expectedFilteredRepos,
+		},
+		{
+			name: "list starred repositories with default parameters",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetUserStarred,
+					expectQueryParams(t, map[string]string{
+						"page":     "1",
+						"per_page": "30",
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockStarredRepos),
+					),
+				),
+			),
+			requestArgs:    map[string]interface{}{},
+			expectError:    false,
+			expectedResult: expectedFilteredRepos,
+		},
+		{
+			name: "list starred repositories with sort only",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetUserStarred,
+					expectQueryParams(t, map[string]string{
+						"sort":     "updated",
+						"page":     "1",
+						"per_page": "30",
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockStarredRepos),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"sort": "updated",
+			},
+			expectError:    false,
+			expectedResult: expectedFilteredRepos,
+		},
+		{
+			name: "list starred repositories fails",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetUserStarred,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusUnauthorized)
+						_, _ = w.Write([]byte(`{"message": "Requires authentication"}`))
+					}),
+				),
+			),
+			requestArgs:    map[string]interface{}{},
+			expectError:    true,
+			expectedErrMsg: "failed to list starred repositories",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := ListStarredRepositories(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Parse the result and get the text content if no error
+			textContent := getTextResult(t, result)
+
+			// Unmarshal and verify the result
+			var returnedResult []SimplifiedStarredRepo
+			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
+			require.NoError(t, err)
+			assert.Len(t, returnedResult, len(tc.expectedResult))
+
+			for i, repo := range returnedResult {
+				assert.Equal(t, tc.expectedResult[i].Repository.FullName, repo.Repository.FullName)
+				assert.Equal(t, tc.expectedResult[i].Repository.HTMLURL, repo.Repository.HTMLURL)
+				assert.Equal(t, tc.expectedResult[i].Repository.Description, repo.Repository.Description)
+				assert.Equal(t, tc.expectedResult[i].Repository.StargazersCount, repo.Repository.StargazersCount)
+				assert.Equal(t, tc.expectedResult[i].Repository.Language, repo.Repository.Language)
+			}
+		})
+	}
+}
+
 func Test_SearchUsers(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)

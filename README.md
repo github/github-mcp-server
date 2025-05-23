@@ -496,6 +496,15 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `page`: Page number (number, optional)
   - `perPage`: Results per page (number, optional)
 
+- **is_repository_starred** - Check if a repository is starred by the authenticated user
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **toggle_repository_star** - Star or unstar a repository for the authenticated user
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `star`: True to star, false to unstar the repository (boolean, required)
+
 - **create_repository** - Create a new GitHub repository
   - `name`: Repository name (string, required)
   - `description`: Repository description (string, optional)
@@ -547,6 +556,12 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `q`: Search query (string, required)
   - `sort`: Sort field (string, optional)
   - `order`: Sort order (string, optional)
+  - `page`: Page number (number, optional)
+  - `perPage`: Results per page (number, optional)
+
+- **list_starred_repositories** - List repositories starred by the authenticated user
+  - `sort`: How to sort the results ('created' or 'updated') (string, optional)
+  - `direction`: Direction to sort ('asc' or 'desc') (string, optional)
   - `page`: Page number (number, optional)
   - `perPage`: Results per page (number, optional)
 
