@@ -77,9 +77,9 @@ func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn,
 			// Reviews
 			toolsets.NewServerTool(CreateAndSubmitPullRequestReview(getGQLClient, t)),
 			toolsets.NewServerTool(CreatePendingPullRequestReview(getGQLClient, t)),
-			toolsets.NewServerTool(AddPullRequestReviewCommentToPendingReview(getGQLClient, t)),
 			toolsets.NewServerTool(SubmitPendingPullRequestReview(getGQLClient, t)),
 			toolsets.NewServerTool(DeletePendingPullRequestReview(getGQLClient, t)),
+			toolsets.NewServerTool(PrReviewCommentPending(getGQLClient, t)),
 		)
 	codeSecurity := toolsets.NewToolset("code_security", "Code security related tools, such as GitHub Code Scanning").
 		AddReadTools(
@@ -101,7 +101,7 @@ func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn,
 			toolsets.NewServerTool(DismissNotification(getClient, t)),
 			toolsets.NewServerTool(MarkAllNotificationsRead(getClient, t)),
 			toolsets.NewServerTool(ManageNotificationSubscription(getClient, t)),
-			toolsets.NewServerTool(ManageRepositoryNotificationSubscription(getClient, t)),
+			toolsets.NewServerTool(RepoNotificationSub(getClient, t)),
 		)
 
 	// Keep experiments alive so the system doesn't error out when it's always enabled

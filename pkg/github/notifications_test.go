@@ -279,11 +279,11 @@ func Test_ManageNotificationSubscription(t *testing.T) {
 	}
 }
 
-func Test_ManageRepositoryNotificationSubscription(t *testing.T) {
+func Test_RepoNotificationSub(t *testing.T) {
 	// Verify tool definition and schema
 	mockClient := github.NewClient(nil)
-	tool, _ := ManageRepositoryNotificationSubscription(stubGetClientFn(mockClient), translations.NullTranslationHelper)
-	assert.Equal(t, "manage_repository_notification_subscription", tool.Name)
+	tool, _ := RepoNotificationSub(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	assert.Equal(t, "repo_notification_sub", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
@@ -396,7 +396,7 @@ func Test_ManageRepositoryNotificationSubscription(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ManageRepositoryNotificationSubscription(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := RepoNotificationSub(stubGetClientFn(client), translations.NullTranslationHelper)
 			request := createMCPRequest(tc.requestArgs)
 			result, err := handler(context.Background(), request)
 

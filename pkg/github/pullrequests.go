@@ -1048,11 +1048,11 @@ func CreatePendingPullRequestReview(getGQLClient GetGQLClientFn, t translations.
 }
 
 // AddPullRequestReviewCommentToPendingReview creates a tool to add a comment to a pull request review.
-func AddPullRequestReviewCommentToPendingReview(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
-	return mcp.NewTool("add_pull_request_review_comment_to_pending_review",
-			mcp.WithDescription(t("TOOL_ADD_PULL_REQUEST_REVIEW_COMMENT_TO_PENDING_REVIEW_DESCRIPTION", "Add a comment to the requester's latest pending pull request review, a pending review needs to already exist to call this (check with the user if not sure). If you are using the LINE subjectType, use the get_line_number_in_pull_request_file tool to get an exact line number before commenting.")),
+func PrReviewCommentPending(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+	return mcp.NewTool("pr_review_comment_pending",
+			mcp.WithDescription(t("TOOL_PR_REVIEW_COMMENT_PENDING_DESCRIPTION", "Add a comment to the requester's latest pending pull request review, a pending review needs to already exist to call this (check with the user if not sure). If you are using the LINE subjectType, use the get_line_number_in_pull_request_file tool to get an exact line number before commenting.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_ADD_PULL_REQUEST_REVIEW_COMMENT_TO_PENDING_REVIEW_USER_TITLE", "Add comment to the requester's latest pending pull request review"),
+				Title:        t("TOOL_PR_REVIEW_COMMENT_PENDING_USER_TITLE", "Add comment to the requester's latest pending pull request review"),
 				ReadOnlyHint: toBoolPtr(false),
 			}),
 			// Ideally, for performance sake this would just accept the pullRequestReviewID. However, we would need to
