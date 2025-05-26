@@ -450,11 +450,11 @@ func ListIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 				opts.Since = timestamp
 			}
 
-			if page, ok := request.Params.Arguments["page"].(float64); ok {
+			if page, ok := request.GetArguments()["page"].(float64); ok {
 				opts.Page = int(page)
 			}
 
-			if perPage, ok := request.Params.Arguments["perPage"].(float64); ok {
+			if perPage, ok := request.GetArguments()["perPage"].(float64); ok {
 				opts.PerPage = int(perPage)
 			}
 

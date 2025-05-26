@@ -109,12 +109,12 @@ func mockResponse(t *testing.T, code int, body interface{}) http.HandlerFunc {
 }
 
 // createMCPRequest is a helper function to create a MCP request with the given arguments.
-func createMCPRequest(args map[string]any) mcp.CallToolRequest {
+func createMCPRequest(args any) mcp.CallToolRequest {
 	return mcp.CallToolRequest{
 		Params: struct {
-			Name      string         `json:"name"`
-			Arguments map[string]any `json:"arguments,omitempty"`
-			Meta      *mcp.Meta      `json:"_meta,omitempty"`
+			Name      string    `json:"name"`
+			Arguments any       `json:"arguments,omitempty"`
+			Meta      *mcp.Meta `json:"_meta,omitempty"`
 		}{
 			Arguments: args,
 		},

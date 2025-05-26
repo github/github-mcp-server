@@ -869,7 +869,7 @@ func PushFiles(getClient GetClientFn, t translations.TranslationHelperFunc) (too
 			}
 
 			// Parse files parameter - this should be an array of objects with path and content
-			filesObj, ok := request.Params.Arguments["files"].([]interface{})
+			filesObj, ok := request.GetArguments()["files"].([]interface{})
 			if !ok {
 				return mcp.NewToolResultError("files parameter must be an array of objects with path and content"), nil
 			}
