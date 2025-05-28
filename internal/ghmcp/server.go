@@ -47,7 +47,7 @@ type MCPServerConfig struct {
 	Translator translations.TranslationHelperFunc
 }
 
-func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
+func NewMCPServer(cfg MCPServerConfig) (*github.GitHubMCPServer, error) {
 	apiHost, err := parseAPIHost(cfg.Host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
@@ -91,8 +91,6 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 		OnBeforeInitialize: []server.OnBeforeInitializeFunc{beforeInit},
 	}
 
-	ghServer := github.NewServer(cfg.Version, server.WithHooks(hooks))
-
 	enabledToolsets := cfg.EnabledToolsets
 	if cfg.DynamicToolsets {
 		// filter "all" from the enabled toolsets
@@ -112,6 +110,8 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 		return gqlClient, nil // closing over client
 	}
 
+	ghServer := github.NewGitHubServer(cfg.Version, getClient, server.WithHooks(hooks))
+
 	// Create default toolsets
 	toolsets, err := github.InitToolsets(
 		enabledToolsets,
@@ -125,15 +125,15 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 	}
 
 	context := github.InitContextToolset(getClient, cfg.Translator)
-	github.RegisterResources(ghServer, getClient, cfg.Translator)
+	github.RegisterResources(ghServer.MCPServer, getClient, cfg.Translator)
 
 	// Register the tools with the server
-	toolsets.RegisterTools(ghServer)
-	context.RegisterTools(ghServer)
+	toolsets.RegisterTools(ghServer.MCPServer)
+	context.RegisterTools(ghServer.MCPServer)
 
 	if cfg.DynamicToolsets {
-		dynamic := github.InitDynamicToolset(ghServer, toolsets, cfg.Translator)
-		dynamic.RegisterTools(ghServer)
+		dynamic := github.InitDynamicToolset(ghServer.MCPServer, toolsets, cfg.Translator)
+		dynamic.RegisterTools(ghServer.MCPServer)
 	}
 
 	return ghServer, nil
@@ -192,7 +192,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		return fmt.Errorf("failed to create MCP server: %w", err)
 	}
 
-	stdioServer := server.NewStdioServer(ghServer)
+	stdioServer := github.NewCompletionAwareStdioServer(ghServer.GetMCPServer(), ghServer.GetCompletionHandler())
 
 	logrusLogger := logrus.New()
 	if cfg.LogFilePath != "" {

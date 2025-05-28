@@ -1,6 +1,7 @@
 package github
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,6 +29,93 @@ func NewServer(version string, opts ...server.ServerOption) *server.MCPServer {
 		opts...,
 	)
 	return s
+}
+
+// GitHubMCPServer wraps the base MCP server to add completion support
+type GitHubMCPServer struct {
+	*server.MCPServer
+	completionHandler CompletionHandlerFunc
+}
+
+// GetMCPServer returns the underlying MCP server for compatibility
+func (s *GitHubMCPServer) GetMCPServer() *server.MCPServer {
+	return s.MCPServer
+}
+
+// GetCompletionHandler returns the completion handler
+func (s *GitHubMCPServer) GetCompletionHandler() CompletionHandlerFunc {
+	return s.completionHandler
+}
+
+// NewGitHubServer creates a new GitHub MCP server with completion support
+func NewGitHubServer(version string, getClient GetClientFn, opts ...server.ServerOption) *GitHubMCPServer {
+	baseServer := NewServer(version, opts...)
+	
+	return &GitHubMCPServer{
+		MCPServer:         baseServer,
+		completionHandler: RepositoryCompletionHandler(getClient),
+	}
+}
+
+// HandleMessage overrides the base HandleMessage to add completion support
+func (s *GitHubMCPServer) HandleMessage(ctx context.Context, message json.RawMessage) mcp.JSONRPCMessage {
+	// Parse the message to check for completion requests
+	var baseMessage struct {
+		JSONRPC string        `json:"jsonrpc"`
+		Method  mcp.MCPMethod `json:"method"`
+		ID      any           `json:"id,omitempty"`
+	}
+
+	if err := json.Unmarshal(message, &baseMessage); err != nil {
+		return s.MCPServer.HandleMessage(ctx, message)
+	}
+
+	// Handle completion requests
+	if string(baseMessage.Method) == "completion/complete" {
+		return s.handleCompletion(ctx, baseMessage.ID, message)
+	}
+
+	// Delegate to base server for all other requests
+	return s.MCPServer.HandleMessage(ctx, message)
+}
+
+// handleCompletion processes completion requests
+func (s *GitHubMCPServer) handleCompletion(ctx context.Context, id any, message json.RawMessage) mcp.JSONRPCMessage {
+	var request mcp.CompleteRequest
+	if err := json.Unmarshal(message, &request); err != nil {
+		return createErrorResponse(id, mcp.INVALID_REQUEST, "Failed to parse completion request")
+	}
+
+	result, err := s.completionHandler(ctx, request)
+	if err != nil {
+		return createErrorResponse(id, mcp.INTERNAL_ERROR, fmt.Sprintf("Completion failed: %v", err))
+	}
+
+	return createResponse(id, *result)
+}
+
+// Helper functions for JSON-RPC responses
+func createErrorResponse(id any, code int, message string) mcp.JSONRPCMessage {
+	return mcp.JSONRPCError{
+		JSONRPC: mcp.JSONRPC_VERSION,
+		ID:      mcp.NewRequestId(id),
+		Error: struct {
+			Code int `json:"code"`
+			Message string `json:"message"`
+			Data any `json:"data,omitempty"`
+		}{
+			Code:    code,
+			Message: message,
+		},
+	}
+}
+
+func createResponse(id any, result any) mcp.JSONRPCMessage {
+	return mcp.JSONRPCResponse{
+		JSONRPC: mcp.JSONRPC_VERSION,
+		ID:      mcp.NewRequestId(id),
+		Result:  result,
+	}
 }
 
 // OptionalParamOK is a helper function that can be used to fetch a requested parameter from the request.

@@ -182,7 +182,7 @@ func setupMCPClient(t *testing.T, options ...clientOption) *mcpClient.Client {
 		require.NoError(t, err, "expected to construct MCP server successfully")
 
 		t.Log("Starting In Process MCP client...")
-		client, err = mcpClient.NewInProcessClient(ghServer)
+		client, err = mcpClient.NewInProcessClient(ghServer.GetMCPServer())
 		require.NoError(t, err, "expected to create in-process client successfully")
 	}
 

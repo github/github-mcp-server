@@ -1,0 +1,14 @@
+[
+  {
+    "sha": "6dcb09b5b57875f334f61aebed695e2e4193db5e",
+    "commit": {
+      "message": "Initial commit"
+    }
+  },
+  {
+    "sha": "1234567890abcdef1234567890abcdef12345678", 
+    "commit": {
+      "message": "Add new feature"
+    }
+  }
+]

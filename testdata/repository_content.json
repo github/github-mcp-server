@@ -1,0 +1,17 @@
+[
+  {
+    "name": "README.md",
+    "type": "file",
+    "path": "README.md"
+  },
+  {
+    "name": "src",
+    "type": "dir",
+    "path": "src"
+  },
+  {
+    "name": "package.json",
+    "type": "file",
+    "path": "package.json"
+  }
+]

@@ -1,0 +1,12 @@
+[
+  {
+    "number": 1,
+    "title": "Test PR",
+    "state": "open"
+  },
+  {
+    "number": 2,
+    "title": "Another PR",
+    "state": "closed"
+  }
+]
