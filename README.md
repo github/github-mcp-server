@@ -667,6 +667,32 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
     - `prNumber`: Pull request number (string, required)
     - `path`: File or directory path (string, optional)
 
+## Gists
+
+### list_gists
+- **Description**: List gists for a user.
+- **Parameters**:
+  - `username` (string, optional): GitHub username (omit for authenticated user's gists).
+  - `since` (string, optional): Only gists updated after this time (ISO 8601 timestamp).
+  - `page` (number, optional): Page number.
+  - `perPage` (number, optional): Results per page.
+
+### create_gist
+- **Description**: Create a new gist.
+- **Parameters**:
+  - `description` (string, optional): Description of the gist.
+  - `filename` (string, required): Filename for gist file
+  - `content` (string, required): Content for gist file
+  - `public` (boolean, optional): Whether the gist is public (default: false).
+
+### update_gist
+- **Description**: Update an existing gist.
+- **Parameters**:
+  - `gist_id` (string, required): ID of the gist to update.
+  - `description` (string, optional): Updated description of the gist.
+  - `filename` (string, required): Filename to update or create.
+  - `content` (string, required): Content for the file.
+
 ## Library Usage
 
 The exported Go API of this module should currently be considered unstable, and subject to breaking changes. In the future, we may offer stability; please file an issue if there is a use case where this would be valuable.
