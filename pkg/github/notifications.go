@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -93,16 +94,16 @@ func ListNotifications(getClient GetClientFn, t translations.TranslationHelperFu
 			}
 
 			// Parse time parameters if provided
-			if since != "" {
-				sinceTime, err := time.Parse(time.RFC3339, since)
+			if since != "" && strings.TrimSpace(since) != "" {
+				sinceTime, err := time.Parse(time.RFC3339, strings.TrimSpace(since))
 				if err != nil {
 					return mcp.NewToolResultError(fmt.Sprintf("invalid since time format, should be RFC3339/ISO8601: %v", err)), nil
 				}
 				opts.Since = sinceTime
 			}
 
-			if before != "" {
-				beforeTime, err := time.Parse(time.RFC3339, before)
+			if before != "" && strings.TrimSpace(before) != "" {
+				beforeTime, err := time.Parse(time.RFC3339, strings.TrimSpace(before))
 				if err != nil {
 					return mcp.NewToolResultError(fmt.Sprintf("invalid before time format, should be RFC3339/ISO8601: %v", err)), nil
 				}
@@ -242,8 +243,8 @@ func MarkAllNotificationsRead(getClient GetClientFn, t translations.TranslationH
 			}
 
 			var lastReadTime time.Time
-			if lastReadAt != "" {
-				lastReadTime, err = time.Parse(time.RFC3339, lastReadAt)
+			if lastReadAt != "" && strings.TrimSpace(lastReadAt) != "" {
+				lastReadTime, err = time.Parse(time.RFC3339, strings.TrimSpace(lastReadAt))
 				if err != nil {
 					return mcp.NewToolResultError(fmt.Sprintf("invalid lastReadAt time format, should be RFC3339/ISO8601: %v", err)), nil
 				}
