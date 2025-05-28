@@ -69,7 +69,14 @@ func GetPullRequest(getClient GetClientFn, t translations.TranslationHelperFunc)
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(pr)
+			// Apply content filtering
+			filterCfg := &ContentFilteringConfig{
+				DisableContentFiltering: false, // Default to enabled
+			}
+			// TODO: Pass server configuration through client context once it's available
+			filteredPR := FilterPullRequest(pr, filterCfg)
+
+			r, err := json.Marshal(filteredPR)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -414,7 +421,14 @@ func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFun
 				return mcp.NewToolResultError(fmt.Sprintf("failed to list pull requests: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(prs)
+			// Apply content filtering
+			filterCfg := &ContentFilteringConfig{
+				DisableContentFiltering: false, // Default to enabled
+			}
+			// TODO: Pass server configuration through client context once it's available
+			filteredPRs := FilterPullRequests(prs, filterCfg)
+
+			r, err := json.Marshal(filteredPRs)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -789,7 +803,14 @@ func GetPullRequestComments(getClient GetClientFn, t translations.TranslationHel
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request comments: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(comments)
+			// Apply content filtering
+			filterCfg := &ContentFilteringConfig{
+				DisableContentFiltering: false, // Default to enabled
+			}
+			// TODO: Pass server configuration through client context once it's available
+			filteredComments := FilterPullRequestComments(comments, filterCfg)
+
+			r, err := json.Marshal(filteredComments)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -851,7 +872,14 @@ func GetPullRequestReviews(getClient GetClientFn, t translations.TranslationHelp
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request reviews: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(reviews)
+			// Apply content filtering
+			filterCfg := &ContentFilteringConfig{
+				DisableContentFiltering: false, // Default to enabled
+			}
+			// TODO: Pass server configuration through client context once it's available
+			filteredReviews := FilterPullRequestReviews(reviews, filterCfg)
+
+			r, err := json.Marshal(filteredReviews)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}

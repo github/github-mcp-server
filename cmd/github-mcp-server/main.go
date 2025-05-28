@@ -44,15 +44,16 @@ var (
 			}
 
 			stdioServerConfig := ghmcp.StdioServerConfig{
-				Version:              version,
-				Host:                 viper.GetString("host"),
-				Token:                token,
-				EnabledToolsets:      enabledToolsets,
-				DynamicToolsets:      viper.GetBool("dynamic_toolsets"),
-				ReadOnly:             viper.GetBool("read-only"),
-				ExportTranslations:   viper.GetBool("export-translations"),
-				EnableCommandLogging: viper.GetBool("enable-command-logging"),
-				LogFilePath:          viper.GetString("log-file"),
+				Version:                 version,
+				Host:                    viper.GetString("host"),
+				Token:                   token,
+				EnabledToolsets:         enabledToolsets,
+				DynamicToolsets:         viper.GetBool("dynamic_toolsets"),
+				ReadOnly:                viper.GetBool("read-only"),
+				DisableContentFiltering: viper.GetBool("disable-content-filtering"),
+				ExportTranslations:      viper.GetBool("export-translations"),
+				EnableCommandLogging:    viper.GetBool("enable-command-logging"),
+				LogFilePath:             viper.GetString("log-file"),
 			}
 
 			return ghmcp.RunStdioServer(stdioServerConfig)
@@ -73,6 +74,7 @@ func init() {
 	rootCmd.PersistentFlags().Bool("enable-command-logging", false, "When enabled, the server will log all command requests and responses to the log file")
 	rootCmd.PersistentFlags().Bool("export-translations", false, "Save translations to a JSON file")
 	rootCmd.PersistentFlags().String("gh-host", "", "Specify the GitHub hostname (for GitHub Enterprise etc.)")
+	rootCmd.PersistentFlags().Bool("disable-content-filtering", false, "Disable filtering of invisible characters and hidden content from GitHub issues, PRs, and comments")
 
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
@@ -82,6 +84,7 @@ func init() {
 	_ = viper.BindPFlag("enable-command-logging", rootCmd.PersistentFlags().Lookup("enable-command-logging"))
 	_ = viper.BindPFlag("export-translations", rootCmd.PersistentFlags().Lookup("export-translations"))
 	_ = viper.BindPFlag("host", rootCmd.PersistentFlags().Lookup("gh-host"))
+	_ = viper.BindPFlag("disable-content-filtering", rootCmd.PersistentFlags().Lookup("disable-content-filtering"))
 
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)

@@ -70,7 +70,14 @@ func GetIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (tool
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get issue: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(issue)
+			// Apply content filtering
+			filterCfg := &ContentFilteringConfig{
+				DisableContentFiltering: false, // Default to enabled
+			}
+			// TODO: Pass server configuration through client context once it's available
+			filteredIssue := FilterIssue(issue, filterCfg)
+
+			r, err := json.Marshal(filteredIssue)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal issue: %w", err)
 			}
@@ -230,6 +237,21 @@ func SearchIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (
 					return nil, fmt.Errorf("failed to read response body: %w", err)
 				}
 				return mcp.NewToolResultError(fmt.Sprintf("failed to search issues: %s", string(body))), nil
+			}
+
+			// Apply content filtering
+			filterCfg := &ContentFilteringConfig{
+				DisableContentFiltering: false, // Default to enabled
+			}
+			// TODO: Pass server configuration through client context once it's available
+			
+			// Apply filtering to both issues and pull requests in the search results
+			if result.Issues != nil {
+				filteredItems := make([]*github.Issue, len(result.Issues))
+				for i, issue := range result.Issues {
+					filteredItems[i] = FilterIssue(issue, filterCfg)
+				}
+				result.Issues = filteredItems
 			}
 
 			r, err := json.Marshal(result)
@@ -476,7 +498,14 @@ func ListIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 				return mcp.NewToolResultError(fmt.Sprintf("failed to list issues: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(issues)
+			// Apply content filtering
+			filterCfg := &ContentFilteringConfig{
+				DisableContentFiltering: false, // Default to enabled
+			}
+			// TODO: Pass server configuration through client context once it's available
+			filteredIssues := FilterIssues(issues, filterCfg)
+
+			r, err := json.Marshal(filteredIssues)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal issues: %w", err)
 			}
@@ -705,7 +734,14 @@ func GetIssueComments(getClient GetClientFn, t translations.TranslationHelperFun
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get issue comments: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(comments)
+			// Apply content filtering
+			filterCfg := &ContentFilteringConfig{
+				DisableContentFiltering: false, // Default to enabled
+			}
+			// TODO: Pass server configuration through client context once it's available
+			filteredComments := FilterIssueComments(comments, filterCfg)
+
+			r, err := json.Marshal(filteredComments)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}

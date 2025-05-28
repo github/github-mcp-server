@@ -10,9 +10,24 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// NewServer creates a new GitHub MCP server with the specified GH client and logger.
+// ServerConfig holds configuration for the GitHub MCP server
+type ServerConfig struct {
+	// Version of the server
+	Version string
 
+	// DisableContentFiltering disables filtering of invisible characters and hidden content
+	DisableContentFiltering bool
+}
+
+// NewServer creates a new GitHub MCP server with the specified GH client and logger.
 func NewServer(version string, opts ...server.ServerOption) *server.MCPServer {
+	return NewServerWithConfig(ServerConfig{
+		Version: version,
+	}, opts...)
+}
+
+// NewServerWithConfig creates a new GitHub MCP server with the specified configuration and options.
+func NewServerWithConfig(cfg ServerConfig, opts ...server.ServerOption) *server.MCPServer {
 	// Add default options
 	defaultOpts := []server.ServerOption{
 		server.WithToolCapabilities(true),
@@ -24,7 +39,7 @@ func NewServer(version string, opts ...server.ServerOption) *server.MCPServer {
 	// Create a new MCP server
 	s := server.NewMCPServer(
 		"github-mcp-server",
-		version,
+		cfg.Version,
 		opts...,
 	)
 	return s

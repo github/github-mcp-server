@@ -43,6 +43,9 @@ type MCPServerConfig struct {
 	// ReadOnly indicates if we should only offer read-only tools
 	ReadOnly bool
 
+	// DisableContentFiltering disables filtering of invisible characters and hidden content
+	DisableContentFiltering bool
+
 	// Translator provides translated text for the server tooling
 	Translator translations.TranslationHelperFunc
 }
@@ -91,7 +94,10 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 		OnBeforeInitialize: []server.OnBeforeInitializeFunc{beforeInit},
 	}
 
-	ghServer := github.NewServer(cfg.Version, server.WithHooks(hooks))
+	ghServer := github.NewServerWithConfig(github.ServerConfig{
+		Version:                 cfg.Version,
+		DisableContentFiltering: cfg.DisableContentFiltering,
+	}, server.WithHooks(hooks))
 
 	enabledToolsets := cfg.EnabledToolsets
 	if cfg.DynamicToolsets {
@@ -160,6 +166,9 @@ type StdioServerConfig struct {
 	// ReadOnly indicates if we should only register read-only tools
 	ReadOnly bool
 
+	// DisableContentFiltering disables filtering of invisible characters and hidden content
+	DisableContentFiltering bool
+
 	// ExportTranslations indicates if we should export translations
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#i18n--overriding-descriptions
 	ExportTranslations bool
@@ -180,13 +189,14 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	t, dumpTranslations := translations.TranslationHelper()
 
 	ghServer, err := NewMCPServer(MCPServerConfig{
-		Version:         cfg.Version,
-		Host:            cfg.Host,
-		Token:           cfg.Token,
-		EnabledToolsets: cfg.EnabledToolsets,
-		DynamicToolsets: cfg.DynamicToolsets,
-		ReadOnly:        cfg.ReadOnly,
-		Translator:      t,
+		Version:                  cfg.Version,
+		Host:                     cfg.Host,
+		Token:                    cfg.Token,
+		EnabledToolsets:          cfg.EnabledToolsets,
+		DynamicToolsets:          cfg.DynamicToolsets,
+		ReadOnly:                 cfg.ReadOnly,
+		DisableContentFiltering:  cfg.DisableContentFiltering,
+		Translator:               t,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)
