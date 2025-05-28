@@ -86,6 +86,11 @@ func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn,
 			toolsets.NewServerTool(GetCodeScanningAlert(getClient, t)),
 			toolsets.NewServerTool(ListCodeScanningAlerts(getClient, t)),
 		)
+	actions := toolsets.NewToolset("actions", "GitHub Actions related tools").
+		AddWriteTools(
+			toolsets.NewServerTool(RunWorkflow(getClient, t)),
+		)
+
 	secretProtection := toolsets.NewToolset("secret_protection", "Secret protection related tools, such as GitHub Secret Scanning").
 		AddReadTools(
 			toolsets.NewServerTool(GetSecretScanningAlert(getClient, t)),
@@ -113,6 +118,7 @@ func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn,
 	tsg.AddToolset(users)
 	tsg.AddToolset(pullRequests)
 	tsg.AddToolset(codeSecurity)
+	tsg.AddToolset(actions)
 	tsg.AddToolset(secretProtection)
 	tsg.AddToolset(notifications)
 	tsg.AddToolset(experiments)
