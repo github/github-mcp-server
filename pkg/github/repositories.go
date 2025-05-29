@@ -408,6 +408,90 @@ func CreateRepository(getClient GetClientFn, t translations.TranslationHelperFun
 		}
 }
 
+// UpdateRepository update the metadata for GitHub repository
+func UpdateRepository(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("update_repository",
+			mcp.WithDescription(t("TOOL_UPDATE_REPOSITORY_DESCRIPTION", "Update a GitHub repository's metadata")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_UPDATE_REPOSITORY_USER_TITLE", "Update repository"),
+				ReadOnlyHint: toBoolPtr(false),
+			}),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner (username or organization)"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithString("name",
+				mcp.Description("The name to change the repository to"),
+			),
+			mcp.WithString("description",
+				mcp.Description("A short description of the repository"),
+			),
+			mcp.WithString("default_branch",
+				mcp.Description("The default branch of the repository"),
+			),
+			mcp.WithBoolean("archived",
+				mcp.Description("Whether to archive this repository"),
+			),
+			mcp.WithBoolean("allow_forking",
+				mcp.Description("Whether to allow forking this repository"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			var paramsErr error
+			var owner, repo, name, description, defaultBranch string
+			var archived, allowForking bool
+
+			owner, paramsErr = requiredParam[string](request, "owner")
+			repo, paramsErr = requiredParam[string](request, "repo")
+			name, paramsErr = OptionalParam[string](request, "name")
+			description, paramsErr = OptionalParam[string](request, "description")
+			defaultBranch, paramsErr = OptionalParam[string](request, "default_branch")
+			archived, paramsErr = OptionalParam[bool](request, "archived")
+			allowForking, paramsErr = OptionalParam[bool](request, "allow_forking")
+
+			if paramsErr != nil {
+				return mcp.NewToolResultError(paramsErr.Error()), nil
+			}
+
+			repoObj := &github.Repository{
+				Name:          github.Ptr(name),
+				Description:   github.Ptr(description),
+				DefaultBranch: github.Ptr(defaultBranch),
+				Archived:      github.Ptr(archived),
+				AllowForking:  github.Ptr(allowForking),
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+			updatedRepo, resp, err := client.Repositories.Edit(ctx, owner, repo, repoObj)
+			if err != nil {
+				return nil, fmt.Errorf("failed to update repository: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to update repository: %s", string(body))), nil
+			}
+
+			r, err := json.Marshal(updatedRepo)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
 // GetFileContents creates a tool to get the contents of a file or directory from a GitHub repository.
 func GetFileContents(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("get_file_contents",

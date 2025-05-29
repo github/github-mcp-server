@@ -464,6 +464,99 @@ func Test_CreateBranch(t *testing.T) {
 	}
 }
 
+func Test_UpdateRepository(t *testing.T) {
+	mockClient := github.NewClient(nil)
+	tool, _ := UpdateRepository(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "update_repository", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "name")
+	assert.Contains(t, tool.InputSchema.Properties, "description")
+	assert.Contains(t, tool.InputSchema.Properties, "default_branch")
+	assert.Contains(t, tool.InputSchema.Properties, "archived")
+	assert.Contains(t, tool.InputSchema.Properties, "allow_forking")
+
+	mockRepo := &github.Repository{
+		ID:            github.Ptr(int64(123456)),
+		Name:          github.Ptr("new-repo"),
+		FullName:      github.Ptr("owner/repo"),
+		DefaultBranch: github.Ptr("main"),
+		Archived:      github.Ptr(true),
+		AllowForking:  github.Ptr(true),
+		Description:   github.Ptr("new description"),
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedRepo   *github.Repository
+		expectedErrMsg string
+	}{
+		{
+			name: "successful repository update",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PatchReposByOwnerByRepo,
+					mockResponse(t, http.StatusOK, mockRepo),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":          "owner",
+				"repo":           "repo",
+				"name":           "new-repo",
+				"description":    "new description",
+				"default_branch": "new-branch",
+				"archived":       true,
+				"allow_forking":  true,
+			},
+			expectError:  false,
+			expectedRepo: mockRepo,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := UpdateRepository(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Parse the result and get the text content if no error
+			textContent := getTextResult(t, result)
+
+			// Unmarshal and verify the result
+			var returnedRepo github.Repository
+			err = json.Unmarshal([]byte(textContent.Text), &returnedRepo)
+			require.NoError(t, err)
+			assert.Equal(t, *tc.expectedRepo.ID, *returnedRepo.ID)
+			assert.Equal(t, *tc.expectedRepo.Name, *returnedRepo.Name)
+			assert.Equal(t, *tc.expectedRepo.FullName, *returnedRepo.FullName)
+			assert.Equal(t, *tc.expectedRepo.DefaultBranch, *returnedRepo.DefaultBranch)
+			assert.Equal(t, *tc.expectedRepo.Archived, *returnedRepo.Archived)
+			assert.Equal(t, *tc.expectedRepo.AllowForking, *returnedRepo.AllowForking)
+			assert.Equal(t, *tc.expectedRepo.Description, *returnedRepo.Description)
+		})
+	}
+}
+
 func Test_GetCommit(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
