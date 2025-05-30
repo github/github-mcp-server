@@ -22,5 +22,7 @@ FROM gcr.io/distroless/base-debian12
 WORKDIR /server
 # Copy the binary from the build stage
 COPY --from=build /bin/github-mcp-server .
-# Command to run the server
-CMD ["./github-mcp-server", "stdio"]
+# Set the entrypoint to the server binary
+ENTRYPOINT ["/server/github-mcp-server"]
+# Default arguments for ENTRYPOINT
+CMD ["stdio"]
