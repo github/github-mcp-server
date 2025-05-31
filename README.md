@@ -149,6 +149,7 @@ The following sets of tools are available (all are on by default):
 | ----------------------- | ------------------------------------------------------------- |
 | `repos`                 | Repository-related tools (file operations, branches, commits) |
 | `issues`                | Issue-related tools (create, read, update, comment)           |
+| `discussions`           | GitHub Discussions tools (list, get, comments, categories)    |
 | `users`                 | Anything relating to GitHub Users                             |
 | `pull_requests`         | Pull request operations (create, merge, review)               |
 | `code_security`         | Code scanning alerts and security features                    |
@@ -613,6 +614,32 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `owner`: The account owner of the repository (string, required)
   - `repo`: The name of the repository (string, required)
   - `action`: Action to perform: `ignore`, `watch`, or `delete` (string, required)
+
+### Discussions
+ 
+- **list_discussions** - List discussions for a repository
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `categoryId`: Filter by category ID (string, optional)
+  - `since`: Filter by date (ISO 8601 timestamp) (string, optional)
+  - `first`: Pagination - Number of records to retrieve (number, optional)
+  - `after`: Pagination - Cursor to start with (string, optional)
+  - `sort`: Sort by ('CREATED_AT', 'UPDATED_AT') (string, optional)
+  - `direction`: Sort direction ('ASC', 'DESC') (string, optional)
+
+- **get_discussion** - Get a specific discussion by ID
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `discussionNumber`: Discussion number (required)
+
+- **get_discussion_comments** - Get comments from a discussion
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `discussionNumber`: Discussion number (required)
+
+- **list_discussion_categories** - List discussion categories for a repository, with their IDs and names
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
 
 ## Resources
 
