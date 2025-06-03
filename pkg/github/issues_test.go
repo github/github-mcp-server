@@ -36,6 +36,9 @@ func Test_GetIssue(t *testing.T) {
 		Body:    github.Ptr("This is a test issue"),
 		State:   github.Ptr("open"),
 		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
+		User: &github.User{
+			Login: github.Ptr("testuser"),
+		},
 	}
 
 	tests := []struct {
