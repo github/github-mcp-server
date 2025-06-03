@@ -266,6 +266,104 @@ func AddSubIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 		}
 }
 
+// ListSubIssues creates a tool to list sub-issues for a GitHub issue.
+func ListSubIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("list_sub_issues",
+			mcp.WithDescription(t("TOOL_LIST_SUB_ISSUES_DESCRIPTION", "List sub-issues for a specific issue in a GitHub repository.")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_LIST_SUB_ISSUES_USER_TITLE", "List sub-issues"),
+				ReadOnlyHint: toBoolPtr(true),
+			}),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithNumber("issue_number",
+				mcp.Required(),
+				mcp.Description("Issue number"),
+			),
+			mcp.WithNumber("page",
+				mcp.Description("Page number for pagination (default: 1)"),
+			),
+			mcp.WithNumber("per_page",
+				mcp.Description("Number of results per page (max 100, default: 30)"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := requiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			repo, err := requiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			issueNumber, err := RequiredInt(request, "issue_number")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			page, err := OptionalIntParamWithDefault(request, "page", 1)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			perPage, err := OptionalIntParamWithDefault(request, "per_page", 30)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			// Since the go-github library might not have sub-issues support yet,
+			// we'll make a direct HTTP request using the client's HTTP client
+			url := fmt.Sprintf("%srepos/%s/%s/issues/%d/sub_issues?page=%d&per_page=%d",
+				client.BaseURL.String(), owner, repo, issueNumber, page, perPage)
+			req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create request: %w", err)
+			}
+
+			req.Header.Set("Accept", "application/vnd.github+json")
+			req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+			// Use the same authentication as the GitHub client
+			httpClient := client.Client()
+			resp, err := httpClient.Do(req)
+			if err != nil {
+				return nil, fmt.Errorf("failed to list sub-issues: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read response body: %w", err)
+			}
+
+			if resp.StatusCode != http.StatusOK {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to list sub-issues: %s", string(body))), nil
+			}
+
+			// Parse and re-marshal to ensure consistent formatting
+			var result interface{}
+			if err := json.Unmarshal(body, &result); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+			}
+
+			r, err := json.Marshal(result)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
 // SearchIssues creates a tool to search for issues and pull requests.
 func SearchIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("search_issues",
