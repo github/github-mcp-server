@@ -2120,3 +2120,267 @@ func Test_ListSubIssues(t *testing.T) {
 		})
 	}
 }
+
+func Test_RemoveSubIssue(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := RemoveSubIssue(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "remove_sub_issue", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.Properties, "sub_issue_id")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "issue_number", "sub_issue_id"})
+
+	// Setup mock issue for success case (matches GitHub API response format - the updated parent issue)
+	mockIssue := &github.Issue{
+		Number:  github.Ptr(42),
+		Title:   github.Ptr("Parent Issue"),
+		Body:    github.Ptr("This is the parent issue after sub-issue removal"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
+		User: &github.User{
+			Login: github.Ptr("testuser"),
+		},
+		Labels: []*github.Label{
+			{
+				Name:        github.Ptr("enhancement"),
+				Color:       github.Ptr("84b6eb"),
+				Description: github.Ptr("New feature or request"),
+			},
+		},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedIssue  *github.Issue
+		expectedErrMsg string
+	}{
+		{
+			name: "successful sub-issue removal",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/issues/42/sub_issue",
+						Method:  "DELETE",
+					},
+					expectRequestBody(t, map[string]interface{}{
+						"sub_issue_id": float64(123),
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockIssue),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"sub_issue_id": float64(123),
+			},
+			expectError:   false,
+			expectedIssue: mockIssue,
+		},
+		{
+			name: "parent issue not found",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/issues/999/sub_issue",
+						Method:  "DELETE",
+					},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(999),
+				"sub_issue_id": float64(123),
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to remove sub-issue",
+		},
+		{
+			name: "sub-issue not found",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/issues/42/sub_issue",
+						Method:  "DELETE",
+					},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Sub-issue not found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"sub_issue_id": float64(999),
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to remove sub-issue",
+		},
+		{
+			name: "bad request - invalid sub_issue_id",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/issues/42/sub_issue",
+						Method:  "DELETE",
+					},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusBadRequest)
+						_, _ = w.Write([]byte(`{"message": "Invalid sub_issue_id"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"sub_issue_id": float64(-1),
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to remove sub-issue",
+		},
+		{
+			name: "repository not found",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/nonexistent/repo/issues/42/sub_issue",
+						Method:  "DELETE",
+					},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "nonexistent",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"sub_issue_id": float64(123),
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to remove sub-issue",
+		},
+		{
+			name: "insufficient permissions",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/issues/42/sub_issue",
+						Method:  "DELETE",
+					},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusForbidden)
+						_, _ = w.Write([]byte(`{"message": "Must have write access to repository"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"sub_issue_id": float64(123),
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to remove sub-issue",
+		},
+		{
+			name: "missing required parameter owner",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/issues/42/sub_issue",
+						Method:  "DELETE",
+					},
+					mockResponse(t, http.StatusOK, mockIssue),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"sub_issue_id": float64(123),
+			},
+			expectError:    false,
+			expectedErrMsg: "missing required parameter: owner",
+		},
+		{
+			name: "missing required parameter sub_issue_id",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/issues/42/sub_issue",
+						Method:  "DELETE",
+					},
+					mockResponse(t, http.StatusOK, mockIssue),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectError:    false,
+			expectedErrMsg: "missing required parameter: sub_issue_id",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := RemoveSubIssue(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			if tc.expectedErrMsg != "" {
+				require.NotNil(t, result)
+				textContent := getTextResult(t, result)
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Parse the result and get the text content if no error
+			textContent := getTextResult(t, result)
+
+			// Unmarshal and verify the result
+			var returnedIssue github.Issue
+			err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
+			require.NoError(t, err)
+			assert.Equal(t, *tc.expectedIssue.Number, *returnedIssue.Number)
+			assert.Equal(t, *tc.expectedIssue.Title, *returnedIssue.Title)
+			assert.Equal(t, *tc.expectedIssue.Body, *returnedIssue.Body)
+			assert.Equal(t, *tc.expectedIssue.State, *returnedIssue.State)
+			assert.Equal(t, *tc.expectedIssue.HTMLURL, *returnedIssue.HTMLURL)
+			assert.Equal(t, *tc.expectedIssue.User.Login, *returnedIssue.User.Login)
+		})
+	}
+}
