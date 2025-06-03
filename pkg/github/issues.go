@@ -223,7 +223,8 @@ func AddSubIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 				return nil, fmt.Errorf("failed to marshal request body: %w", err)
 			}
 
-			url := fmt.Sprintf("https://api.github.com/repos/%s/%s/issues/%d/sub_issues", owner, repo, issueNumber)
+			url := fmt.Sprintf("%srepos/%s/%s/issues/%d/sub_issues",
+				client.BaseURL.String(), owner, repo, issueNumber)
 			req, err := http.NewRequestWithContext(ctx, "POST", url, strings.NewReader(string(reqBodyBytes)))
 			if err != nil {
 				return nil, fmt.Errorf("failed to create request: %w", err)
