@@ -57,6 +57,10 @@ func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn,
 		AddReadTools(
 			toolsets.NewServerTool(SearchUsers(getClient, t)),
 		)
+	orgs := toolsets.NewToolset("orgs", "GitHub Organization related tools").
+		AddReadTools(
+			toolsets.NewServerTool(SearchOrgs(getClient, t)),
+		)
 	pullRequests := toolsets.NewToolset("pull_requests", "GitHub Pull Request related tools").
 		AddReadTools(
 			toolsets.NewServerTool(GetPullRequest(getClient, t)),
@@ -111,6 +115,7 @@ func InitToolsets(passedToolsets []string, readOnly bool, getClient GetClientFn,
 	tsg.AddToolset(repos)
 	tsg.AddToolset(issues)
 	tsg.AddToolset(users)
+	tsg.AddToolset(orgs)
 	tsg.AddToolset(pullRequests)
 	tsg.AddToolset(codeSecurity)
 	tsg.AddToolset(secretProtection)

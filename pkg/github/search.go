@@ -159,96 +159,135 @@ type MinimalSearchUsersResult struct {
 	Items             []MinimalUser `json:"items"`
 }
 
+func userOrOrgHandler(accountType string, getClient GetClientFn) server.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		query, err := requiredParam[string](request, "q")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		sort, err := OptionalParam[string](request, "sort")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		order, err := OptionalParam[string](request, "order")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		pagination, err := OptionalPaginationParams(request)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		opts := &github.SearchOptions{
+			Sort:  sort,
+			Order: order,
+			ListOptions: github.ListOptions{
+				PerPage: pagination.perPage,
+				Page:    pagination.page,
+			},
+		}
+
+		client, err := getClient(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+		}
+
+		searchQuery := "type:" + accountType + " " + query
+		result, resp, err := client.Search.Users(ctx, searchQuery, opts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to search %ss: %w", accountType, err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != 200 {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read response body: %w", err)
+			}
+			return mcp.NewToolResultError(fmt.Sprintf("failed to search %ss: %s", accountType, string(body))), nil
+		}
+
+		minimalUsers := make([]MinimalUser, 0, len(result.Users))
+
+		for _, user := range result.Users {
+			if user.Login != nil {
+				mu := MinimalUser{Login: *user.Login}
+				if user.ID != nil {
+					mu.ID = *user.ID
+				}
+				if user.HTMLURL != nil {
+					mu.ProfileURL = *user.HTMLURL
+				}
+				if user.AvatarURL != nil {
+					mu.AvatarURL = *user.AvatarURL
+				}
+				minimalUsers = append(minimalUsers, mu)
+			}
+		}
+		minimalResp := &MinimalSearchUsersResult{
+			TotalCount:        result.GetTotal(),
+			IncompleteResults: result.GetIncompleteResults(),
+			Items:             minimalUsers,
+		}
+		if result.Total != nil {
+			minimalResp.TotalCount = *result.Total
+		}
+		if result.IncompleteResults != nil {
+			minimalResp.IncompleteResults = *result.IncompleteResults
+		}
+
+		r, err := json.Marshal(minimalResp)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal response: %w", err)
+		}
+		return mcp.NewToolResultText(string(r)), nil
+	}
+}
+
 // SearchUsers creates a tool to search for GitHub users.
 func SearchUsers(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("search_users",
-			mcp.WithDescription(t("TOOL_SEARCH_USERS_DESCRIPTION", "Search for GitHub users")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_SEARCH_USERS_USER_TITLE", "Search users"),
-				ReadOnlyHint: toBoolPtr(true),
-			}),
-			mcp.WithString("q",
-				mcp.Required(),
-				mcp.Description("Search query using GitHub users search syntax"),
-			),
-			mcp.WithString("sort",
-				mcp.Description("Sort field by category"),
-				mcp.Enum("followers", "repositories", "joined"),
-			),
-			mcp.WithString("order",
-				mcp.Description("Sort order"),
-				mcp.Enum("asc", "desc"),
-			),
-			WithPagination(),
+		mcp.WithDescription(t("TOOL_SEARCH_USERS_DESCRIPTION", "Search for GitHub users exclusively")),
+		mcp.WithToolAnnotation(mcp.ToolAnnotation{
+			Title:        t("TOOL_SEARCH_USERS_USER_TITLE", "Search users"),
+			ReadOnlyHint: toBoolPtr(true),
+		}),
+		mcp.WithString("q",
+			mcp.Required(),
+			mcp.Description("Search query using GitHub users search syntax scoped to type:user"),
 		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			query, err := requiredParam[string](request, "q")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			sort, err := OptionalParam[string](request, "sort")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			order, err := OptionalParam[string](request, "order")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			pagination, err := OptionalPaginationParams(request)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
+		mcp.WithString("sort",
+			mcp.Description("Sort field by category"),
+			mcp.Enum("followers", "repositories", "joined"),
+		),
+		mcp.WithString("order",
+			mcp.Description("Sort order"),
+			mcp.Enum("asc", "desc"),
+		),
+		WithPagination(),
+	), userOrOrgHandler("user", getClient)
+}
 
-			opts := &github.SearchOptions{
-				Sort:  sort,
-				Order: order,
-				ListOptions: github.ListOptions{
-					PerPage: pagination.perPage,
-					Page:    pagination.page,
-				},
-			}
-
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-
-			result, resp, err := client.Search.Users(ctx, "type:user "+query, opts)
-			if err != nil {
-				return nil, fmt.Errorf("failed to search users: %w", err)
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != 200 {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to search users: %s", string(body))), nil
-			}
-
-			minimalUsers := make([]MinimalUser, 0, len(result.Users))
-			for _, user := range result.Users {
-				mu := MinimalUser{
-					Login:      user.GetLogin(),
-					ID:         user.GetID(),
-					ProfileURL: user.GetHTMLURL(),
-					AvatarURL:  user.GetAvatarURL(),
-				}
-
-				minimalUsers = append(minimalUsers, mu)
-			}
-
-			minimalResp := MinimalSearchUsersResult{
-				TotalCount:        result.GetTotal(),
-				IncompleteResults: result.GetIncompleteResults(),
-				Items:             minimalUsers,
-			}
-
-			r, err := json.Marshal(minimalResp)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-			return mcp.NewToolResultText(string(r)), nil
-		}
+// SearchOrgs creates a tool to search for GitHub organizations.
+func SearchOrgs(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("search_orgs",
+		mcp.WithDescription(t("TOOL_SEARCH_ORGS_DESCRIPTION", "Search for GitHub organizations exclusively")),
+		mcp.WithToolAnnotation(mcp.ToolAnnotation{
+			Title:        t("TOOL_SEARCH_ORGS_USER_TITLE", "Search organizations"),
+			ReadOnlyHint: toBoolPtr(true),
+		}),
+		mcp.WithString("q",
+			mcp.Required(),
+			mcp.Description("Search query using GitHub organizations search syntax scoped to type:org"),
+		),
+		mcp.WithString("sort",
+			mcp.Description("Sort field by category"),
+			mcp.Enum("followers", "repositories", "joined"),
+		),
+		mcp.WithString("order",
+			mcp.Description("Sort order"),
+			mcp.Enum("asc", "desc"),
+		),
+		WithPagination(),
+	), userOrOrgHandler("org", getClient)
 }
