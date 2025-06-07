@@ -1963,3 +1963,177 @@ func Test_GetTag(t *testing.T) {
 		})
 	}
 }
+
+func Test_ListReleases(t *testing.T) {
+	mockClient := github.NewClient(nil)
+	tool, _ := ListReleases(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "list_releases", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
+
+	mockReleases := []*github.RepositoryRelease{
+		{
+			ID:      github.Ptr(int64(1)),
+			TagName: github.Ptr("v1.0.0"),
+			Name:    github.Ptr("First Release"),
+		},
+		{
+			ID:      github.Ptr(int64(2)),
+			TagName: github.Ptr("v0.9.0"),
+			Name:    github.Ptr("Beta Release"),
+		},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedResult []*github.RepositoryRelease
+		expectedErrMsg string
+	}{
+		{
+			name: "successful releases list",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposReleasesByOwnerByRepo,
+					mockReleases,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			expectError:    false,
+			expectedResult: mockReleases,
+		},
+		{
+			name: "releases list fails",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposReleasesByOwnerByRepo,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to list releases",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := github.NewClient(tc.mockedClient)
+			_, handler := ListReleases(stubGetClientFn(client), translations.NullTranslationHelper)
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(context.Background(), request)
+
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			textContent := getTextResult(t, result)
+			var returnedReleases []*github.RepositoryRelease
+			err = json.Unmarshal([]byte(textContent.Text), &returnedReleases)
+			require.NoError(t, err)
+			assert.Len(t, returnedReleases, len(tc.expectedResult))
+			for i, rel := range returnedReleases {
+				assert.Equal(t, *tc.expectedResult[i].TagName, *rel.TagName)
+			}
+		})
+	}
+}
+
+func Test_GetLatestRelease(t *testing.T) {
+	mockClient := github.NewClient(nil)
+	tool, _ := GetLatestRelease(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "get_latest_release", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
+
+	mockRelease := &github.RepositoryRelease{
+		ID:      github.Ptr(int64(1)),
+		TagName: github.Ptr("v1.0.0"),
+		Name:    github.Ptr("First Release"),
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedResult *github.RepositoryRelease
+		expectedErrMsg string
+	}{
+		{
+			name: "successful latest release fetch",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposReleasesLatestByOwnerByRepo,
+					mockRelease,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			expectError:    false,
+			expectedResult: mockRelease,
+		},
+		{
+			name: "latest release fetch fails",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposReleasesLatestByOwnerByRepo,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to get latest release",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := github.NewClient(tc.mockedClient)
+			_, handler := GetLatestRelease(stubGetClientFn(client), translations.NullTranslationHelper)
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(context.Background(), request)
+
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			textContent := getTextResult(t, result)
+			var returnedRelease github.RepositoryRelease
+			err = json.Unmarshal([]byte(textContent.Text), &returnedRelease)
+			require.NoError(t, err)
+			assert.Equal(t, *tc.expectedResult.TagName, *returnedRelease.TagName)
+		})
+	}
+}
