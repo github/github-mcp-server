@@ -491,6 +491,14 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `page`: Page number (number, optional)
   - `perPage`: Results per page (number, optional)
 
+- **assign_copilot_to_issue** - Assign Copilot to a specific issue in a GitHub repository
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `issueNumber`: Issue number (number, required)
+  - _Note_: This tool can help with creating a Pull Request with source code changes to resolve the issue. More information can be found at [GitHub Copilot documentation](https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot)
+
+
 ### Pull Requests
 
 - **get_pull_request** - Get details of a specific pull request
@@ -549,6 +557,12 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `repo`: Repository name (string, required)
   - `pullNumber`: Pull request number (number, required)
 
+- **get_pull_request_diff** - Get the diff of a pull request
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `pullNumber`: Pull request number (number, required)
+
 - **create_pull_request_review** - Create a review on a pull request review
 
   - `owner`: Repository owner (string, required)
@@ -560,6 +574,53 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `comments`: Line-specific comments array of objects to place comments on pull request changes (array, optional)
     - For inline comments: provide `path`, `position` (or `line`), and `body`
     - For multi-line comments: provide `path`, `start_line`, `line`, optional `side`/`start_side`, and `body`
+
+- **create_pending_pull_request_review** - Create a pending review for a pull request that can be submitted later
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `commitID`: SHA of commit to review (string, optional)
+
+- **add_pull_request_review_comment_to_pending_review** - Add a comment to the requester's latest pending pull request review
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `path`: The relative path to the file that necessitates a comment (string, required)
+  - `body`: The text of the review comment (string, required)
+  - `subjectType`: The level at which the comment is targeted (string, required)
+    - Enum: "FILE", "LINE"
+  - `line`: The line of the blob in the pull request diff that the comment applies to (number, optional)
+  - `side`: The side of the diff to comment on (string, optional)
+    - Enum: "LEFT", "RIGHT"
+  - `startLine`: For multi-line comments, the first line of the range (number, optional)
+  - `startSide`: For multi-line comments, the starting side of the diff (string, optional)
+    - Enum: "LEFT", "RIGHT"
+
+- **submit_pending_pull_request_review** - Submit the requester's latest pending pull request review
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `event`: The event to perform (string, required)
+    - Enum: "APPROVE", "REQUEST_CHANGES", "COMMENT"
+  - `body`: The text of the review comment (string, optional)
+
+- **delete_pending_pull_request_review** - Delete the requester's latest pending pull request review
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `pullNumber`: Pull request number (number, required)
+
+- **create_and_submit_pull_request_review** - Create and submit a review for a pull request without review comments
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `body`: Review comment text (string, required)
+  - `event`: Review action ('APPROVE', 'REQUEST_CHANGES', 'COMMENT') (string, required)
+  - `commitID`: SHA of commit to review (string, optional)
 
 - **create_pull_request** - Create a new pull request
 
@@ -615,6 +676,13 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `content`: File content (string, required)
   - `branch`: Branch name (string, optional)
   - `sha`: File SHA if updating (string, optional)
+
+- **delete_file** - Delete a file from a GitHub repository
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `path`: Path to the file to delete (string, required)
+  - `message`: Commit message (string, required)
+  - `branch`: Branch to delete the file from (string, required)
 
 - **list_branches** - List branches in a GitHub repository
   - `owner`: Repository owner (string, required)
@@ -674,6 +742,17 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `page`: Page number, for files in the commit (number, optional)
   - `perPage`: Results per page, for files in the commit (number, optional)
 
+- **get_tag** - Get details about a specific git tag in a GitHub repository
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `tag`: Tag name (string, required)
+
+- **list_tags** - List git tags in a GitHub repository
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `page`: Page number (number, optional)
+  - `perPage`: Results per page (number, optional)
+
 - **search_code** - Search for code across GitHub repositories
   - `query`: Search query (string, required)
   - `sort`: Sort field (string, optional)
@@ -731,7 +810,6 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `repo`: Optional repository name (string)
   - `page`: Page number (number, optional)
   - `perPage`: Results per page (number, optional)
-
 
 - **get_notification_details** – Get detailed information for a specific GitHub notification
   - `notificationID`: The ID of the notification (string, required)
