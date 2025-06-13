@@ -111,6 +111,26 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(ManageRepositoryNotificationSubscription(getClient, t)),
 		)
 
+	actions := toolsets.NewToolset("actions", "GitHub Actions workflows and CI/CD operations").
+		AddReadTools(
+			toolsets.NewServerTool(ListWorkflows(getClient, t)),
+			toolsets.NewServerTool(ListWorkflowRuns(getClient, t)),
+			toolsets.NewServerTool(GetWorkflowRun(getClient, t)),
+			toolsets.NewServerTool(GetWorkflowRunLogs(getClient, t)),
+			toolsets.NewServerTool(ListWorkflowJobs(getClient, t)),
+			toolsets.NewServerTool(GetJobLogs(getClient, t)),
+			toolsets.NewServerTool(ListWorkflowRunArtifacts(getClient, t)),
+			toolsets.NewServerTool(DownloadWorkflowRunArtifact(getClient, t)),
+			toolsets.NewServerTool(GetWorkflowRunUsage(getClient, t)),
+		).
+		AddWriteTools(
+			toolsets.NewServerTool(RunWorkflow(getClient, t)),
+			toolsets.NewServerTool(RerunWorkflowRun(getClient, t)),
+			toolsets.NewServerTool(RerunFailedJobs(getClient, t)),
+			toolsets.NewServerTool(CancelWorkflowRun(getClient, t)),
+			toolsets.NewServerTool(DeleteWorkflowRunLogs(getClient, t)),
+		)
+
 	// Keep experiments alive so the system doesn't error out when it's always enabled
 	experiments := toolsets.NewToolset("experiments", "Experimental features that are not considered stable yet")
 
@@ -125,6 +145,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(issues)
 	tsg.AddToolset(users)
 	tsg.AddToolset(pullRequests)
+	tsg.AddToolset(actions)
 	tsg.AddToolset(codeSecurity)
 	tsg.AddToolset(secretProtection)
 	tsg.AddToolset(notifications)

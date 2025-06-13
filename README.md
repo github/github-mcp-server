@@ -265,6 +265,7 @@ The following sets of tools are available (all are on by default):
 
 | Toolset                 | Description                                                   |
 | ----------------------- | ------------------------------------------------------------- |
+| `actions`               | GitHub Actions workflows and CI/CD operations                |
 | `context`               | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |
 | `code_security`         | Code scanning alerts and security features                    |
 | `issues`                | Issue-related tools (create, read, update, comment)           |
@@ -283,12 +284,12 @@ To specify toolsets you want available to the LLM, you can pass an allow-list in
 1. **Using Command Line Argument**:
 
    ```bash
-   github-mcp-server --toolsets repos,issues,pull_requests,code_security
+   github-mcp-server --toolsets repos,issues,pull_requests,actions,code_security
    ```
 
 2. **Using Environment Variable**:
    ```bash
-   GITHUB_TOOLSETS="repos,issues,pull_requests,code_security" ./github-mcp-server
+   GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security" ./github-mcp-server
    ```
 
 The environment variable `GITHUB_TOOLSETS` takes precedence over the command line argument if both are provided.
@@ -300,7 +301,7 @@ When using Docker, you can pass the toolsets as environment variables:
 ```bash
 docker run -i --rm \
   -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
-  -e GITHUB_TOOLSETS="repos,issues,pull_requests,code_security,experiments" \
+  -e GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security,experiments" \
   ghcr.io/github/github-mcp-server
 ```
 
@@ -689,6 +690,110 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `order`: Sort order (string, optional)
   - `page`: Page number (number, optional)
   - `perPage`: Results per page (number, optional)
+
+### Actions
+
+- **list_workflows** - List workflows in a repository
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `page`: Page number (number, optional)
+  - `perPage`: Results per page (number, optional)
+
+- **list_workflow_runs** - List workflow runs for a specific workflow
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `workflow_id`: Workflow ID or filename (string, required)
+  - `branch`: Filter by branch name (string, optional)
+  - `event`: Filter by event type (string, optional)
+  - `status`: Filter by run status (string, optional)
+  - `page`: Page number (number, optional)
+  - `perPage`: Results per page (number, optional)
+
+- **run_workflow** - Trigger a workflow via workflow_dispatch event
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `workflow_id`: Workflow ID or filename (string, required)
+  - `ref`: Git reference (branch, tag, or SHA) (string, required)
+  - `inputs`: Input parameters for the workflow (object, optional)
+
+- **get_workflow_run** - Get details of a specific workflow run
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `run_id`: Workflow run ID (number, required)
+
+- **get_workflow_run_logs** - Download logs for a workflow run
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `run_id`: Workflow run ID (number, required)
+
+- **list_workflow_jobs** - List jobs for a workflow run
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `run_id`: Workflow run ID (number, required)
+  - `filter`: Filter by job status (string, optional)
+  - `page`: Page number (number, optional)
+  - `perPage`: Results per page (number, optional)
+
+- **get_job_logs** - Download logs for a specific workflow job or efficiently get all failed job logs for a workflow run
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `job_id`: Job ID (number, required for single job logs)
+  - `run_id`: Workflow run ID (number, required when using failed_only)
+  - `failed_only`: When true, gets logs for all failed jobs in run_id (boolean, optional)
+  - `return_content`: Returns actual log content instead of URLs (boolean, optional)
+
+- **rerun_workflow_run** - Re-run an entire workflow
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `run_id`: Workflow run ID (number, required)
+  - `enable_debug_logging`: Enable debug logging for the re-run (boolean, optional)
+
+- **rerun_failed_jobs** - Re-run only the failed jobs in a workflow run
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `run_id`: Workflow run ID (number, required)
+  - `enable_debug_logging`: Enable debug logging for the re-run (boolean, optional)
+
+- **cancel_workflow_run** - Cancel a running workflow
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `run_id`: Workflow run ID (number, required)
+
+- **list_workflow_run_artifacts** - List artifacts from a workflow run
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `run_id`: Workflow run ID (number, required)
+  - `page`: Page number (number, optional)
+  - `perPage`: Results per page (number, optional)
+
+- **download_workflow_run_artifact** - Get download URL for a specific artifact
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `artifact_id`: Artifact ID (number, required)
+
+- **delete_workflow_run_logs** - Delete logs for a workflow run
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `run_id`: Workflow run ID (number, required)
+
+- **get_workflow_run_usage** - Get usage metrics for a workflow run
+
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `run_id`: Workflow run ID (number, required)
 
 ### Code Scanning
 
