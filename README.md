@@ -232,6 +232,28 @@ More about using MCP server tools in VS Code's [agent mode documentation](https:
 }
 ```
 
+### Usage with Claude Code
+
+```sh
+claude mcp add-json github '
+{
+  "command": "docker",
+  "args": [
+    "run",
+    "-i",
+    "--rm",
+    "-e",
+    "GITHUB_PERSONAL_ACCESS_TOKEN",
+    "ghcr.io/github/github-mcp-server"
+  ],
+  "env": {
+    "GITHUB_PERSONAL_ACCESS_TOKEN": "<YOUR_TOKEN>"
+  }
+}
+'
+```
+
+
 ### Build from source
 
 If you don't have Docker, you can use `go build` to build the binary in the
