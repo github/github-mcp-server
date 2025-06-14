@@ -58,6 +58,33 @@ var (
 			return ghmcp.RunStdioServer(stdioServerConfig)
 		},
 	}
+
+	multiUserCmd = &cobra.Command{
+		Use:   "multi-user",
+		Short: "Start multi-user HTTP server (experimental)",
+		Long:  `Start a streamable HTTP server that supports per-request GitHub authentication tokens for multi-user scenarios.`,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			port := viper.GetInt("port")
+			if port == 0 {
+				port = 8080 // default
+			}
+
+			var enabledToolsets []string
+			if err := viper.UnmarshalKey("toolsets", &enabledToolsets); err != nil {
+				return fmt.Errorf("failed to unmarshal toolsets: %w", err)
+			}
+
+			multiUserConfig := ghmcp.MultiUserHTTPServerConfig{
+				Version:         version,
+				Host:            viper.GetString("host"),
+				EnabledToolsets: enabledToolsets,
+				DynamicToolsets: viper.GetBool("dynamic_toolsets"),
+				ReadOnly:        viper.GetBool("read-only"),
+				Port:            port,
+			}
+			return ghmcp.RunMultiUserHTTPServer(multiUserConfig)
+		},
+	}
 )
 
 func init() {
@@ -73,6 +100,7 @@ func init() {
 	rootCmd.PersistentFlags().Bool("enable-command-logging", false, "When enabled, the server will log all command requests and responses to the log file")
 	rootCmd.PersistentFlags().Bool("export-translations", false, "Save translations to a JSON file")
 	rootCmd.PersistentFlags().String("gh-host", "", "Specify the GitHub hostname (for GitHub Enterprise etc.)")
+	rootCmd.PersistentFlags().Int("port", 8080, "Port to bind the HTTP server to (multi-user mode)")
 
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
@@ -82,9 +110,11 @@ func init() {
 	_ = viper.BindPFlag("enable-command-logging", rootCmd.PersistentFlags().Lookup("enable-command-logging"))
 	_ = viper.BindPFlag("export-translations", rootCmd.PersistentFlags().Lookup("export-translations"))
 	_ = viper.BindPFlag("host", rootCmd.PersistentFlags().Lookup("gh-host"))
+	_ = viper.BindPFlag("port", rootCmd.PersistentFlags().Lookup("port"))
 
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)
+	rootCmd.AddCommand(multiUserCmd)
 }
 
 func initConfig() {
