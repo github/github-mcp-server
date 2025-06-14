@@ -3,6 +3,7 @@ module github.com/github/github-mcp-server
 go 1.23.7
 
 require (
+	github.com/bradleyfalzon/ghinstallation/v2 v2.16.0
 	github.com/google/go-github/v72 v72.0.0
 	github.com/josephburnett/jd v1.9.2
 	github.com/mark3labs/mcp-go v0.31.0
@@ -16,6 +17,8 @@ require (
 require (
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/swag v0.21.1 // indirect
+	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
+	github.com/google/go-github/v62 v62.0.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect

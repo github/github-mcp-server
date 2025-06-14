@@ -2,6 +2,7 @@ package ghmcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -9,9 +10,11 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 
+	"github.com/bradleyfalzon/ghinstallation/v2"
 	"github.com/github/github-mcp-server/pkg/github"
 	mcplog "github.com/github/github-mcp-server/pkg/log"
 	"github.com/github/github-mcp-server/pkg/raw"
@@ -21,7 +24,19 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/shurcooL/githubv4"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
+
+// AuthConfig represents authentication configuration
+type AuthConfig struct {
+	// Personal Access Token authentication
+	Token string
+
+	// GitHub App authentication
+	AppID          string
+	InstallationID string
+	PrivateKeyPEM  string
+}
 
 type MCPServerConfig struct {
 	// Version of the server
@@ -30,8 +45,8 @@ type MCPServerConfig struct {
 	// GitHub Host to target for API requests (e.g. github.com or github.enterprise.com)
 	Host string
 
-	// GitHub Token to authenticate with the GitHub API
-	Token string
+	// Authentication configuration
+	Auth AuthConfig
 
 	// EnabledToolsets is a list of toolsets to enable
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration
@@ -48,37 +63,165 @@ type MCPServerConfig struct {
 	Translator translations.TranslationHelperFunc
 }
 
+// authMethod represents the authentication method being used
+type authMethod int
+
+const (
+	authToken authMethod = iota
+	authGitHubApp
+)
+
+// getAuthMethod determines which authentication method to use based on the config
+func (cfg *MCPServerConfig) getAuthMethod() (authMethod, error) {
+	hasToken := cfg.Auth.Token != ""
+	hasApp := cfg.Auth.AppID != "" && cfg.Auth.InstallationID != "" && cfg.Auth.PrivateKeyPEM != ""
+
+	if hasToken && hasApp {
+		return 0, fmt.Errorf("cannot specify both token and GitHub App authentication")
+	}
+
+	if !hasToken && !hasApp {
+		return 0, fmt.Errorf("must specify either token or GitHub App authentication")
+	}
+
+	if hasToken {
+		return authToken, nil
+	}
+
+	return authGitHubApp, nil
+}
+
+// createGitHubAppTransport creates an authenticated transport for GitHub App
+func (cfg *MCPServerConfig) createGitHubAppTransport() (http.RoundTripper, error) {
+	appID, err := strconv.ParseInt(cfg.Auth.AppID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid app ID: %w", err)
+	}
+
+	installationID, err := strconv.ParseInt(cfg.Auth.InstallationID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid installation ID: %w", err)
+	}
+
+	transport, err := ghinstallation.New(
+		http.DefaultTransport,
+		appID,
+		installationID,
+		[]byte(cfg.Auth.PrivateKeyPEM),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GitHub App transport: %w", err)
+	}
+
+	return transport, nil
+}
+
+// BuildAuthConfig creates an AuthConfig based on environment variables and flags
+func BuildAuthConfig() (AuthConfig, error) {
+	var authConfig AuthConfig
+
+	// Check for Personal Access Token
+	token := viper.GetString("personal_access_token")
+
+	// Check for GitHub App credentials
+	appID := viper.GetString("app_id")
+	installationID := viper.GetString("installation_id")
+	privateKeyPEM := viper.GetString("private_key_pem")
+
+	// Determine authentication method
+	hasToken := token != ""
+	hasApp := appID != "" && installationID != "" && privateKeyPEM != ""
+
+	if !hasToken && !hasApp {
+		return authConfig, errors.New("authentication required: set GITHUB_PERSONAL_ACCESS_TOKEN or GitHub App credentials (GITHUB_APP_ID, GITHUB_INSTALLATION_ID, and GITHUB_PRIVATE_KEY_PEM)")
+	}
+
+	if hasToken && hasApp {
+		return authConfig, errors.New("cannot specify both personal access token and GitHub App authentication")
+	}
+
+	if hasToken {
+		authConfig.Token = token
+	} else {
+		authConfig.AppID = appID
+		authConfig.InstallationID = installationID
+		authConfig.PrivateKeyPEM = privateKeyPEM
+	}
+
+	return authConfig, nil
+}
+
 func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 	apiHost, err := parseAPIHost(cfg.Host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
 	}
 
+	authMethod, err := cfg.getAuthMethod()
+	if err != nil {
+		return nil, fmt.Errorf("authentication configuration error: %w", err)
+	}
+
+	// Create HTTP client based on authentication method
+	var httpClient *http.Client
+	var userAgent string
+
+	switch authMethod {
+	case authToken:
+		// Use token-based authentication
+		httpClient = &http.Client{
+			Transport: &bearerAuthTransport{
+				transport: http.DefaultTransport,
+				token:     cfg.Auth.Token,
+			},
+		}
+		userAgent = fmt.Sprintf("github-mcp-server/%s", cfg.Version)
+
+	case authGitHubApp:
+		// Use GitHub App authentication
+		transport, err := cfg.createGitHubAppTransport()
+		if err != nil {
+			return nil, err
+		}
+
+		httpClient = &http.Client{Transport: transport}
+		userAgent = fmt.Sprintf("github-mcp-server/%s (GitHub App)", cfg.Version)
+	}
+
 	// Construct our REST client
-	restClient := gogithub.NewClient(nil).WithAuthToken(cfg.Token)
-	restClient.UserAgent = fmt.Sprintf("github-mcp-server/%s", cfg.Version)
+	var restClient *gogithub.Client
+	if authMethod == authToken {
+		restClient = gogithub.NewClient(nil).WithAuthToken(cfg.Auth.Token)
+	} else {
+		restClient = gogithub.NewClient(httpClient)
+	}
+
+	restClient.UserAgent = userAgent
 	restClient.BaseURL = apiHost.baseRESTURL
 	restClient.UploadURL = apiHost.uploadURL
 
 	// Construct our GraphQL client
-	// We're using NewEnterpriseClient here unconditionally as opposed to NewClient because we already
-	// did the necessary API host parsing so that github.com will return the correct URL anyway.
-	gqlHTTPClient := &http.Client{
-		Transport: &bearerAuthTransport{
-			transport: http.DefaultTransport,
-			token:     cfg.Token,
-		},
-	} // We're going to wrap the Transport later in beforeInit
+	gqlHTTPClient := &http.Client{Transport: httpClient.Transport}
 	gqlClient := githubv4.NewEnterpriseClient(apiHost.graphqlURL.String(), gqlHTTPClient)
 
 	// When a client send an initialize request, update the user agent to include the client info.
 	beforeInit := func(_ context.Context, _ any, message *mcp.InitializeRequest) {
-		userAgent := fmt.Sprintf(
-			"github-mcp-server/%s (%s/%s)",
-			cfg.Version,
-			message.Params.ClientInfo.Name,
-			message.Params.ClientInfo.Version,
-		)
+		var userAgent string
+		if authMethod == authGitHubApp {
+			userAgent = fmt.Sprintf(
+				"github-mcp-server/%s (%s/%s) (GitHub App)",
+				cfg.Version,
+				message.Params.ClientInfo.Name,
+				message.Params.ClientInfo.Version,
+			)
+		} else {
+			userAgent = fmt.Sprintf(
+				"github-mcp-server/%s (%s/%s)",
+				cfg.Version,
+				message.Params.ClientInfo.Name,
+				message.Params.ClientInfo.Version,
+			)
+		}
 
 		restClient.UserAgent = userAgent
 
@@ -147,8 +290,8 @@ type StdioServerConfig struct {
 	// GitHub Host to target for API requests (e.g. github.com or github.enterprise.com)
 	Host string
 
-	// GitHub Token to authenticate with the GitHub API
-	Token string
+	// Authentication configuration
+	Auth AuthConfig
 
 	// EnabledToolsets is a list of toolsets to enable
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration
@@ -183,7 +326,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	ghServer, err := NewMCPServer(MCPServerConfig{
 		Version:         cfg.Version,
 		Host:            cfg.Host,
-		Token:           cfg.Token,
+		Auth:            cfg.Auth,
 		EnabledToolsets: cfg.EnabledToolsets,
 		DynamicToolsets: cfg.DynamicToolsets,
 		ReadOnly:        cfg.ReadOnly,

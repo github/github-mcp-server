@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
@@ -29,9 +28,10 @@ var (
 		Short: "Start stdio server",
 		Long:  `Start a server that communicates via standard input/output streams using JSON-RPC messages.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			token := viper.GetString("personal_access_token")
-			if token == "" {
-				return errors.New("GITHUB_PERSONAL_ACCESS_TOKEN not set")
+			// Validate authentication configuration
+			authConfig, err := ghmcp.BuildAuthConfig()
+			if err != nil {
+				return err
 			}
 
 			// If you're wondering why we're not using viper.GetStringSlice("toolsets"),
@@ -46,7 +46,7 @@ var (
 			stdioServerConfig := ghmcp.StdioServerConfig{
 				Version:              version,
 				Host:                 viper.GetString("host"),
-				Token:                token,
+				Auth:                 authConfig,
 				EnabledToolsets:      enabledToolsets,
 				DynamicToolsets:      viper.GetBool("dynamic_toolsets"),
 				ReadOnly:             viper.GetBool("read-only"),
@@ -74,7 +74,12 @@ func init() {
 	rootCmd.PersistentFlags().Bool("export-translations", false, "Save translations to a JSON file")
 	rootCmd.PersistentFlags().String("gh-host", "", "Specify the GitHub hostname (for GitHub Enterprise etc.)")
 
-	// Bind flag to viper
+	// Add GitHub App authentication flags
+	rootCmd.PersistentFlags().String("app-id", "", "GitHub App ID")
+	rootCmd.PersistentFlags().String("installation-id", "", "GitHub App Installation ID")
+	rootCmd.PersistentFlags().String("private-key-pem", "", "GitHub App private key PEM content")
+
+	// Bind flags to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
 	_ = viper.BindPFlag("dynamic_toolsets", rootCmd.PersistentFlags().Lookup("dynamic-toolsets"))
 	_ = viper.BindPFlag("read-only", rootCmd.PersistentFlags().Lookup("read-only"))
@@ -82,6 +87,11 @@ func init() {
 	_ = viper.BindPFlag("enable-command-logging", rootCmd.PersistentFlags().Lookup("enable-command-logging"))
 	_ = viper.BindPFlag("export-translations", rootCmd.PersistentFlags().Lookup("export-translations"))
 	_ = viper.BindPFlag("host", rootCmd.PersistentFlags().Lookup("gh-host"))
+
+	// Bind GitHub App flags to viper
+	_ = viper.BindPFlag("app_id", rootCmd.PersistentFlags().Lookup("app-id"))
+	_ = viper.BindPFlag("installation_id", rootCmd.PersistentFlags().Lookup("installation-id"))
+	_ = viper.BindPFlag("private_key_pem", rootCmd.PersistentFlags().Lookup("private-key-pem"))
 
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)

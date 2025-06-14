@@ -133,6 +133,16 @@ See [Remote Server Documentation](docs/remote-server.md) on how to pass addition
 3. Lastly you will need to [Create a GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new).
 The MCP server can use many of the GitHub APIs, so enable the permissions that you feel comfortable granting your AI tools (to learn more about access tokens, please check out the [documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)).
 
+## Authentication
+GitHub personal access token can be substituted with GitHub App authentication using the environment variables:
+GITHUB_APP_ID + GITHUB_INSTALLATION_ID + GITHUB_PRIVATE_KEY_PEM instead of GITHUB_PERSONAL_ACCESS_TOKEN
+
+1. Create a GitHub App in your account or organization
+2. Configure the app with the desired permissions
+3. Install the app in your organization (or on specific repositories)
+4. Generate and download a private key for the app
+4. Note your App ID and Installation ID (found in the app settings)
+
 ## Installation
 
 ### Usage with VS Code
