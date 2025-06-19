@@ -684,6 +684,14 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `private`: Whether the repository is private (boolean, optional)
   - `autoInit`: Auto-initialize with README (boolean, optional)
 
+- **create_repository_using_template** - Create a new GitHub repository using a repository template
+  - `templateOwner`: Template repository owner (string, required)
+  - `templateName`: Template repository name (string, required)
+  - `name`: Repository name (string, required)
+  - `description`: Repository description (string, optional)
+  - `private`: Whether the repository is private (boolean, optional)
+  - `includeAllBranches`: Should include all branches from the template repository (boolean, optional)
+
 - **get_file_contents** - Get contents of a file or directory
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
