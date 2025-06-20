@@ -20,7 +20,8 @@ The remote GitHub MCP Server is hosted by GitHub and provides the easiest method
 
 ## Prerequisites
 
-1. An MCP host that supports the latest MCP specification and remote servers, such as [VS Code](https://code.visualstudio.com/).
+1. An **MCP host** that supports the latest MCP specification and remote servers, such as [VS Code](https://code.visualstudio.com/).
+2. **GitHub Copilot authentication**: The remote GitHub MCP Server is hosted at `api.githubcopilot.com` and requires GitHub Copilot authentication. Ensure you have a GitHub Copilot subscription and are properly authenticated.
 
 ## Installation
 
