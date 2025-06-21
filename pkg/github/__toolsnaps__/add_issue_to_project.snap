@@ -1,0 +1,25 @@
+{
+  "annotations": {
+    "title": "Add issue to project",
+    "readOnlyHint": false
+  },
+  "description": "Add an issue to a project",
+  "inputSchema": {
+    "properties": {
+      "issue_id": {
+        "description": "Issue node ID",
+        "type": "string"
+      },
+      "project_id": {
+        "description": "Project ID",
+        "type": "string"
+      }
+    },
+    "required": [
+      "project_id",
+      "issue_id"
+    ],
+    "type": "object"
+  },
+  "name": "add_issue_to_project"
+}

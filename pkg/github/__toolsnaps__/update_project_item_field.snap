@@ -1,0 +1,34 @@
+{
+  "annotations": {
+    "title": "Update project item field",
+    "readOnlyHint": false
+  },
+  "description": "Update a project item field",
+  "inputSchema": {
+    "properties": {
+      "field_id": {
+        "description": "Field ID",
+        "type": "string"
+      },
+      "item_id": {
+        "description": "Item ID",
+        "type": "string"
+      },
+      "project_id": {
+        "description": "Project ID",
+        "type": "string"
+      },
+      "text_value": {
+        "description": "Text value",
+        "type": "string"
+      }
+    },
+    "required": [
+      "project_id",
+      "item_id",
+      "field_id"
+    ],
+    "type": "object"
+  },
+  "name": "update_project_item_field"
+}

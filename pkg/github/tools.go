@@ -88,6 +88,19 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(SubmitPendingPullRequestReview(getGQLClient, t)),
 			toolsets.NewServerTool(DeletePendingPullRequestReview(getGQLClient, t)),
 		)
+	projects := toolsets.NewToolset("projects", "GitHub Projects V2 management tools").
+		AddReadTools(
+			toolsets.NewServerTool(ListProjects(getGQLClient, t)),
+			toolsets.NewServerTool(GetProjectFields(getGQLClient, t)),
+			toolsets.NewServerTool(GetProjectItems(getGQLClient, t)),
+		).
+		AddWriteTools(
+			toolsets.NewServerTool(CreateProjectIssue(getGQLClient, t)),
+			toolsets.NewServerTool(AddIssueToProject(getGQLClient, t)),
+			toolsets.NewServerTool(UpdateProjectItemField(getGQLClient, t)),
+			toolsets.NewServerTool(CreateDraftIssue(getGQLClient, t)),
+			toolsets.NewServerTool(DeleteProjectItem(getGQLClient, t)),
+		)
 	codeSecurity := toolsets.NewToolset("code_security", "Code security related tools, such as GitHub Code Scanning").
 		AddReadTools(
 			toolsets.NewServerTool(GetCodeScanningAlert(getClient, t)),
@@ -145,6 +158,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(issues)
 	tsg.AddToolset(users)
 	tsg.AddToolset(pullRequests)
+	tsg.AddToolset(projects)
 	tsg.AddToolset(actions)
 	tsg.AddToolset(codeSecurity)
 	tsg.AddToolset(secretProtection)

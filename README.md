@@ -271,6 +271,7 @@ The following sets of tools are available (all are on by default):
 | `issues`                | Issue-related tools (create, read, update, comment)           |
 | `notifications`         | GitHub Notifications related tools                            |
 | `pull_requests`         | Pull request operations (create, merge, review)               |
+| `projects`              | Manage GitHub Projects V2                                      |
 | `repos`                 | Repository-related tools (file operations, branches, commits) |
 | `secret_protection`     | Secret protection related tools, such as GitHub Secret Scanning |
 | `users`                 | Anything relating to GitHub Users                             |
@@ -639,6 +640,47 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `repo`: Repository name (string, required)
   - `pullNumber`: Pull request number (number, required)
   - _Note_: Currently, this tool will only work for github.com
+
+### Projects
+
+- **list_projects** - List projects for a user or organization
+  - `owner`: Owner login (string, required)
+  - `owner_type`: Owner type ('user' or 'organization', optional)
+
+- **get_project_fields** - Get fields for a project
+  - `owner`: Owner login (string, required)
+  - `owner_type`: Owner type ('user' or 'organization', optional)
+  - `number`: Project number (number, required)
+
+- **get_project_items** - Get items for a project
+  - `owner`: Owner login (string, required)
+  - `owner_type`: Owner type ('user' or 'organization', optional)
+  - `number`: Project number (number, required)
+
+- **create_project_issue** - Create a new issue in a repository
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `title`: Issue title (string, required)
+  - `body`: Issue body (string, optional)
+
+- **add_issue_to_project** - Add an issue to a project
+  - `project_id`: Project node ID (string, required)
+  - `issue_id`: Issue node ID (string, required)
+
+- **update_project_item_field** - Update a project item field value
+  - `project_id`: Project node ID (string, required)
+  - `item_id`: Item node ID (string, required)
+  - `field_id`: Field node ID (string, required)
+  - `text_value`: New text value (string, optional)
+
+- **create_draft_issue** - Create a draft issue in a project
+  - `project_id`: Project node ID (string, required)
+  - `title`: Draft issue title (string, required)
+  - `body`: Draft issue body (string, optional)
+
+- **delete_project_item** - Delete an item from a project
+  - `project_id`: Project node ID (string, required)
+  - `item_id`: Item node ID (string, required)
 
 ### Repositories
 
