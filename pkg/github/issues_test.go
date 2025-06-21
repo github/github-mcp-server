@@ -401,6 +401,7 @@ func Test_CreateIssue(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "assignees")
 	assert.Contains(t, tool.InputSchema.Properties, "labels")
 	assert.Contains(t, tool.InputSchema.Properties, "milestone")
+	assert.Contains(t, tool.InputSchema.Properties, "type")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "title"})
 
 	// Setup mock issue for success case
@@ -413,6 +414,7 @@ func Test_CreateIssue(t *testing.T) {
 		Assignees: []*github.User{{Login: github.Ptr("user1")}, {Login: github.Ptr("user2")}},
 		Labels:    []*github.Label{{Name: github.Ptr("bug")}, {Name: github.Ptr("help wanted")}},
 		Milestone: &github.Milestone{Number: github.Ptr(5)},
+		Type:      &github.IssueType{Name: github.Ptr("Bug")},
 	}
 
 	tests := []struct {
@@ -434,6 +436,7 @@ func Test_CreateIssue(t *testing.T) {
 						"labels":    []any{"bug", "help wanted"},
 						"assignees": []any{"user1", "user2"},
 						"milestone": float64(5),
+						"type":      "Bug",
 					}).andThen(
 						mockResponse(t, http.StatusCreated, mockIssue),
 					),
@@ -447,6 +450,7 @@ func Test_CreateIssue(t *testing.T) {
 				"assignees": []any{"user1", "user2"},
 				"labels":    []any{"bug", "help wanted"},
 				"milestone": float64(5),
+				"type":      "Bug",
 			},
 			expectError:   false,
 			expectedIssue: mockIssue,
@@ -540,6 +544,10 @@ func Test_CreateIssue(t *testing.T) {
 
 			if tc.expectedIssue.Body != nil {
 				assert.Equal(t, *tc.expectedIssue.Body, *returnedIssue.Body)
+			}
+
+			if tc.expectedIssue.Type != nil {
+				assert.Equal(t, *tc.expectedIssue.Type.Name, *returnedIssue.Type.Name)
 			}
 
 			// Check assignees if expected
@@ -755,6 +763,7 @@ func Test_UpdateIssue(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "labels")
 	assert.Contains(t, tool.InputSchema.Properties, "assignees")
 	assert.Contains(t, tool.InputSchema.Properties, "milestone")
+	assert.Contains(t, tool.InputSchema.Properties, "type")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "issue_number"})
 
 	// Setup mock issue for success case
@@ -767,6 +776,7 @@ func Test_UpdateIssue(t *testing.T) {
 		Assignees: []*github.User{{Login: github.Ptr("assignee1")}, {Login: github.Ptr("assignee2")}},
 		Labels:    []*github.Label{{Name: github.Ptr("bug")}, {Name: github.Ptr("priority")}},
 		Milestone: &github.Milestone{Number: github.Ptr(5)},
+		Type:      &github.IssueType{Name: github.Ptr("Bug")},
 	}
 
 	tests := []struct {
@@ -789,6 +799,7 @@ func Test_UpdateIssue(t *testing.T) {
 						"labels":    []any{"bug", "priority"},
 						"assignees": []any{"assignee1", "assignee2"},
 						"milestone": float64(5),
+						"type":      "Bug",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockIssue),
 					),
@@ -804,6 +815,7 @@ func Test_UpdateIssue(t *testing.T) {
 				"labels":       []any{"bug", "priority"},
 				"assignees":    []any{"assignee1", "assignee2"},
 				"milestone":    float64(5),
+				"type":         "Bug",
 			},
 			expectError:   false,
 			expectedIssue: mockIssue,
@@ -815,9 +827,10 @@ func Test_UpdateIssue(t *testing.T) {
 					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
 					mockResponse(t, http.StatusOK, &github.Issue{
 						Number:  github.Ptr(123),
-						Title:   github.Ptr("Only Title Updated"),
+						Title:   github.Ptr("Updated Issue Title"),
 						HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
 						State:   github.Ptr("open"),
+						Type:    &github.IssueType{Name: github.Ptr("Feature")},
 					}),
 				),
 			),
@@ -825,14 +838,16 @@ func Test_UpdateIssue(t *testing.T) {
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(123),
-				"title":        "Only Title Updated",
+				"title":        "Updated Issue Title",
+				"type":         "Feature",
 			},
 			expectError: false,
 			expectedIssue: &github.Issue{
 				Number:  github.Ptr(123),
-				Title:   github.Ptr("Only Title Updated"),
+				Title:   github.Ptr("Updated Issue Title"),
 				HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
 				State:   github.Ptr("open"),
+				Type:    &github.IssueType{Name: github.Ptr("Feature")},
 			},
 		},
 		{
@@ -919,6 +934,10 @@ func Test_UpdateIssue(t *testing.T) {
 
 			if tc.expectedIssue.Body != nil {
 				assert.Equal(t, *tc.expectedIssue.Body, *returnedIssue.Body)
+			}
+
+			if tc.expectedIssue.Type != nil {
+				assert.Equal(t, *tc.expectedIssue.Type.Name, *returnedIssue.Type.Name)
 			}
 
 			// Check assignees if expected
