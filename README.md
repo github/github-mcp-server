@@ -431,6 +431,16 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
 - **get_me** - Get details of the authenticated user
   - No parameters required
 
+- **list_users_public_ssh_keys** - "Lists the public SSH keys for the authenticated user's GitHub account
+  - No parameters required
+
+- **get_users_public_ssh_key** - View extended details for a single public SSH key
+  - `key_id`: Key Id (number, required)
+
+- **add_users_public_ssh_key** - Adds a public SSH key to the authenticated user's GitHub account
+  - `title`: Title of the key (string, optional)
+  - `key`: Public key contents (string, required)
+
 ### Issues
 
 - **get_issue** - Gets the contents of an issue within a repository
