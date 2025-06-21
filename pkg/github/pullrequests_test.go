@@ -1668,6 +1668,141 @@ func Test_RequestCopilotReview(t *testing.T) {
 	}
 }
 
+func Test_UpdatePullRequestComment(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := UpdatePullRequestComment(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "update_pull_request_comment", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "commentId")
+	assert.Contains(t, tool.InputSchema.Properties, "body")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "commentId", "body"})
+
+	// Setup mock comment for success case
+	mockUpdatedComment := &github.PullRequestComment{
+		ID:        github.Ptr(int64(456)),
+		Body:      github.Ptr("Updated comment text here"),
+		HTMLURL:   github.Ptr("https://github.com/owner/repo/pull/1#discussion_r456"),
+		Path:      github.Ptr("file1.txt"),
+		UpdatedAt: &github.Timestamp{Time: time.Now()},
+		User: &github.User{
+			Login: github.Ptr("testuser"),
+		},
+	}
+
+	tests := []struct {
+		name            string
+		mockedClient    *http.Client
+		requestArgs     map[string]interface{}
+		expectError     bool
+		expectedComment *github.PullRequestComment
+		expectedErrMsg  string
+	}{
+		{
+			name: "successful update",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PatchReposPullsCommentsByOwnerByRepoByCommentId,
+					expectRequestBody(t, map[string]any{
+						"body": "Updated comment text here",
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockUpdatedComment),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":     "testowner",
+				"repo":      "testrepo",
+				"commentId": float64(456),
+				"body":      "Updated comment text here",
+			},
+			expectError:     false,
+			expectedComment: mockUpdatedComment,
+		},
+		{
+			name: "missing required parameters",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.PatchReposPullsCommentsByOwnerByRepoByCommentId,
+					mockUpdatedComment,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "testowner",
+				"repo":  "testrepo",
+				// Missing commentId and body
+			},
+			expectError:    true,
+			expectedErrMsg: "missing required parameter: commentId",
+		},
+		{
+			name: "http error",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PatchReposPullsCommentsByOwnerByRepoByCommentId,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusBadRequest)
+						_, _ = w.Write([]byte(`{"message": "Bad Request"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":     "testowner",
+				"repo":      "testrepo",
+				"commentId": float64(456),
+				"body":      "Invalid body", // Changed this to a non-empty string
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to update pull request comment",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := github.NewClient(tc.mockedClient)
+			_, handler := UpdatePullRequestComment(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			if tc.expectError {
+				if err != nil {
+					// For HTTP errors, the handler returns an error
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				} else {
+					// For validation errors, the handler returns a result with IsError=true
+					require.NoError(t, err)
+					textContent := getTextResult(t, result)
+					require.True(t, result.IsError)
+					assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			textContent := getTextResult(t, result)
+
+			// Parse the result for success case
+			require.False(t, result.IsError)
+
+			var returnedComment *github.PullRequestComment
+			err = json.Unmarshal([]byte(textContent.Text), &returnedComment)
+			require.NoError(t, err)
+
+			// Verify comment details
+			assert.Equal(t, *tc.expectedComment.ID, *returnedComment.ID)
+			assert.Equal(t, *tc.expectedComment.Body, *returnedComment.Body)
+			assert.Equal(t, *tc.expectedComment.HTMLURL, *returnedComment.HTMLURL)
+		})
+	}
+}
+
 func TestCreatePendingPullRequestReview(t *testing.T) {
 	t.Parallel()
 

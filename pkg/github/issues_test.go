@@ -1131,6 +1131,140 @@ func Test_GetIssueComments(t *testing.T) {
 	}
 }
 
+func Test_UpdateIssueComment(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := UpdateIssueComment(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "update_issue_comment", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "commentId")
+	assert.Contains(t, tool.InputSchema.Properties, "body")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "commentId", "body"})
+
+	// Setup mock comment for success case
+	mockUpdatedComment := &github.IssueComment{
+		ID:        github.Ptr(int64(789)),
+		Body:      github.Ptr("Updated issue comment text"),
+		HTMLURL:   github.Ptr("https://github.com/owner/repo/issues/1#issuecomment-789"),
+		UpdatedAt: &github.Timestamp{Time: time.Now()},
+		User: &github.User{
+			Login: github.Ptr("testuser"),
+		},
+	}
+
+	tests := []struct {
+		name            string
+		mockedClient    *http.Client
+		requestArgs     map[string]interface{}
+		expectError     bool
+		expectedComment *github.IssueComment
+		expectedErrMsg  string
+	}{
+		{
+			name: "successful update",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PatchReposIssuesCommentsByOwnerByRepoByCommentId,
+					expectRequestBody(t, map[string]any{
+						"body": "Updated issue comment text",
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockUpdatedComment),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":     "testowner",
+				"repo":      "testrepo",
+				"commentId": float64(789),
+				"body":      "Updated issue comment text",
+			},
+			expectError:     false,
+			expectedComment: mockUpdatedComment,
+		},
+		{
+			name: "missing required parameters",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.PatchReposIssuesCommentsByOwnerByRepoByCommentId,
+					mockUpdatedComment,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "testowner",
+				"repo":  "testrepo",
+				// Missing commentId and body
+			},
+			expectError:    true,
+			expectedErrMsg: "missing required parameter: commentId",
+		},
+		{
+			name: "http error",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PatchReposIssuesCommentsByOwnerByRepoByCommentId,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":     "testowner",
+				"repo":      "testrepo",
+				"commentId": float64(789),
+				"body":      "New comment text",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to update issue comment",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := github.NewClient(tc.mockedClient)
+			_, handler := UpdateIssueComment(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			if tc.expectError {
+				if err != nil {
+					// For HTTP errors, the handler returns an error
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				} else {
+					// For validation errors, the handler returns a result with IsError=true
+					require.NoError(t, err)
+					textContent := getTextResult(t, result)
+					require.True(t, result.IsError)
+					assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			textContent := getTextResult(t, result)
+
+			// Parse the result for success case
+			require.False(t, result.IsError)
+
+			var returnedComment *github.IssueComment
+			err = json.Unmarshal([]byte(textContent.Text), &returnedComment)
+			require.NoError(t, err)
+
+			// Verify comment details
+			assert.Equal(t, *tc.expectedComment.ID, *returnedComment.ID)
+			assert.Equal(t, *tc.expectedComment.Body, *returnedComment.Body)
+			assert.Equal(t, *tc.expectedComment.HTMLURL, *returnedComment.HTMLURL)
+		})
+	}
+}
+
 func TestAssignCopilotToIssue(t *testing.T) {
 	t.Parallel()
 
@@ -1524,7 +1658,6 @@ func TestAssignCopilotToIssue(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-
 			t.Parallel()
 			// Setup client with mock
 			client := githubv4.NewClient(tc.mockedClient)
