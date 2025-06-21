@@ -532,6 +532,7 @@ func GetPullRequestFiles(getClient GetClientFn, t translations.TranslationHelper
 				mcp.Required(),
 				mcp.Description("Pull request number"),
 			),
+			WithPagination(),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](request, "owner")
@@ -546,12 +547,19 @@ func GetPullRequestFiles(getClient GetClientFn, t translations.TranslationHelper
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+			pagination, err := OptionalPaginationParams(request)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
 
 			client, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			opts := &github.ListOptions{}
+			opts := &github.ListOptions{
+				PerPage: pagination.perPage,
+				Page:    pagination.page,
+			}
 			files, resp, err := client.PullRequests.ListFiles(ctx, owner, repo, pullNumber, opts)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get pull request files: %w", err)

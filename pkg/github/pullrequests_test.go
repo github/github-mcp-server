@@ -568,6 +568,8 @@ func Test_GetPullRequestFiles(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
+	assert.Contains(t, tool.InputSchema.Properties, "page")
+	assert.Contains(t, tool.InputSchema.Properties, "perPage")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber"})
 
 	// Setup mock PR files for success case
@@ -610,6 +612,24 @@ func Test_GetPullRequestFiles(t *testing.T) {
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
+			},
+			expectError:   false,
+			expectedFiles: mockFiles,
+		},
+		{
+			name: "successful files fetch with pagination",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposPullsFilesByOwnerByRepoByPullNumber,
+					mockFiles,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"page":       float64(2),
+				"perPage":    float64(10),
 			},
 			expectError:   false,
 			expectedFiles: mockFiles,
