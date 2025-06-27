@@ -53,12 +53,16 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(SearchIssues(getClient, t)),
 			toolsets.NewServerTool(ListIssues(getClient, t)),
 			toolsets.NewServerTool(GetIssueComments(getClient, t)),
+			toolsets.NewServerTool(ListSubIssues(getClient, t)),
 		).
 		AddWriteTools(
 			toolsets.NewServerTool(CreateIssue(getClient, t)),
 			toolsets.NewServerTool(AddIssueComment(getClient, t)),
 			toolsets.NewServerTool(UpdateIssue(getClient, t)),
 			toolsets.NewServerTool(AssignCopilotToIssue(getGQLClient, t)),
+			toolsets.NewServerTool(AddSubIssue(getClient, t)),
+			toolsets.NewServerTool(RemoveSubIssue(getClient, t)),
+			toolsets.NewServerTool(ReprioritizeSubIssue(getClient, t)),
 		).AddPrompts(toolsets.NewServerPrompt(AssignCodingAgentPrompt(t)))
 	users := toolsets.NewToolset("users", "GitHub User related tools").
 		AddReadTools(
