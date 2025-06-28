@@ -795,6 +795,7 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `repo`: Repository name (string, required)
   - `state`: New state (string, optional)
   - `title`: New title (string, optional)
+  - `reviewers`: GitHub usernames to request reviews from (string[], optional)
 
 - **update_pull_request_branch** - Update pull request branch
   - `expectedHeadSha`: The expected SHA of the pull request's HEAD ref (string, optional)
