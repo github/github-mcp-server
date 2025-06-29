@@ -849,6 +849,7 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `sha`: Commit SHA, branch name, or tag name (string, required)
 
 - **get_file_contents** - Get file or directory contents
+  - `include_sha`: Whether to return file metadata (including SHA, size, type) instead of raw content (boolean, optional)
   - `owner`: Repository owner (username or organization) (string, required)
   - `path`: Path to file/directory (directories must end with a slash '/') (string, required)
   - `ref`: Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head` (string, optional)

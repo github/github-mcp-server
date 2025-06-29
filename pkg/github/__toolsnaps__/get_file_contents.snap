@@ -3,7 +3,7 @@
     "title": "Get file or directory contents",
     "readOnlyHint": true
   },
-  "description": "Get the contents of a file or directory from a GitHub repository",
+  "description": "Get the contents of a file or directory from a GitHub repository. Set `include_sha` to `true` to return file metadata (including SHA, size, type) instead of raw content.",
   "inputSchema": {
     "properties": {
       "owner": {
@@ -25,6 +25,10 @@
       "sha": {
         "description": "Accepts optional git sha, if sha is specified it will be used instead of ref",
         "type": "string"
+      },
+      "include_sha": {
+        "description": "Whether to return file metadata (including SHA, size, type) instead of raw content",
+        "type": "boolean"
       }
     },
     "required": [
