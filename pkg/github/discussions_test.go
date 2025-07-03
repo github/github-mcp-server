@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/github/github-mcp-server/internal/githubv4mock"
-	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/SchulteDev/github_github-mcp-server/internal/githubv4mock"
+	"github.com/SchulteDev/github_github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v72/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"

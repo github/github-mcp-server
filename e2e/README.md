@@ -73,7 +73,7 @@ Running the tests:
     --- PASS: TestE2E/Initialize (0.09s)
     --- FAIL: TestE2E/CallTool_get_me (0.46s)
 FAIL
-FAIL    github.com/github/github-mcp-server/e2e 1.433s
+FAIL    github.com/SchulteDev/github_github-mcp-server/e2e 1.433s
 FAIL
 ```
 

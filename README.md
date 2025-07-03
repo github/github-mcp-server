@@ -16,7 +16,7 @@ automation and interaction capabilities for developers and tools.
 
 [![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%22%7D) [![Install in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install_Server-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%22%7D&quality=insiders)
 
-The remote GitHub MCP Server is hosted by GitHub and provides the easiest method for getting up and running. If your MCP host does not support remote MCP servers, don't worry! You can use the [local version of the GitHub MCP Server](https://github.com/github/github-mcp-server?tab=readme-ov-file#local-github-mcp-server) instead.
+The remote GitHub MCP Server is hosted by GitHub and provides the easiest method for getting up and running. If your MCP host does not support remote MCP servers, don't worry! You can use the [local version of the GitHub MCP Server](https://github.com/SchulteDev/github_github-mcp-server?tab=readme-ov-file#local-github-mcp-server) instead.
 
 ## Prerequisites
 
@@ -234,8 +234,43 @@ More about using MCP server tools in VS Code's [agent mode documentation](https:
 
 ### Build from source
 
-If you don't have Docker, you can use `go build` to build the binary in the
-`cmd/github-mcp-server` directory, and use the `github-mcp-server stdio` command with the `GITHUB_PERSONAL_ACCESS_TOKEN` environment variable set to your token. To specify the output location of the build, use the `-o` flag. You should configure your server to use the built executable as its `command`. For example:
+If you don't have Docker, you have several options:
+
+#### Option 1: Run directly from source (Recommended)
+
+You can run the server directly from source using `go run`:
+
+```bash
+GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> go run github.com/SchulteDev/github_github-mcp-server@latest stdio
+```
+
+Or configure your MCP host to use `go run`:
+
+```JSON
+{
+  "mcp": {
+    "servers": {
+      "github": {
+        "command": "go",
+        "args": ["run", "github.com/SchulteDev/github_github-mcp-server@latest", "stdio"],
+        "env": {
+          "GITHUB_PERSONAL_ACCESS_TOKEN": "<YOUR_TOKEN>"
+        }
+      }
+    }
+  }
+}
+```
+
+#### Option 2: Build and install
+
+You can build the binary and use the built executable:
+
+```bash
+go build -o github-mcp-server github.com/SchulteDev/github_github-mcp-server@latest
+```
+
+Then configure your server to use the built executable:
 
 ```JSON
 {

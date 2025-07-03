@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"context"
@@ -9,10 +9,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/github/github-mcp-server/pkg/github"
-	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/github/github-mcp-server/pkg/toolsets"
-	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/SchulteDev/github_github-mcp-server/pkg/github"
+	"github.com/SchulteDev/github_github-mcp-server/pkg/raw"
+	"github.com/SchulteDev/github_github-mcp-server/pkg/toolsets"
+	"github.com/SchulteDev/github_github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v72/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/shurcooL/githubv4"
@@ -29,7 +29,7 @@ var generateDocsCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(generateDocsCmd)
+	RootCmd.AddCommand(generateDocsCmd)
 }
 
 // mockGetClient returns a mock GitHub client for documentation generation
