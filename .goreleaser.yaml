@@ -14,7 +14,6 @@ builds:
       - linux
       - windows
       - darwin
-    main: .
 
 archives:
   - formats: tar.gz
