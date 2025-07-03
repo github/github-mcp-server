@@ -22,7 +22,7 @@ jobs:
         go-version-file: 'go.mod'
 
     - name: Build docs generator
-      run: go build -o github-mcp-server .
+      run: go build .
 
     - name: Generate documentation
       run: ./github-mcp-server generate-docs
