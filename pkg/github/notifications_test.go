@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/SchulteDev/github_github-mcp-server/internal/toolsnaps"
+	"github.com/SchulteDev/github_github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v72/github"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"

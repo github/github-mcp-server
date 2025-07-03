@@ -9,12 +9,12 @@ builds:
   - env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+      - -s -w -X github.com/SchulteDev/github_github-mcp-server/cmd/github-mcp-server.version={{.Version}} -X github.com/SchulteDev/github_github-mcp-server/cmd/github-mcp-server.commit={{.Commit}} -X github.com/SchulteDev/github_github-mcp-server/cmd/github-mcp-server.date={{.Date}}
     goos:
       - linux
       - windows
       - darwin
-    main: ./cmd/github-mcp-server
+    main: .
 
 archives:
   - formats: tar.gz
