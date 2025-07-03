@@ -13,7 +13,7 @@ RUN --mount=type=cache,target=/var/cache/apk \
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=bind,target=. \
-    CGO_ENABLED=0 go build -ldflags="-s -w -X github.com/github/github-mcp-server/cmd/github-mcp-server.version=${VERSION} -X github.com/github/github-mcp-server/cmd/github-mcp-server.commit=$(git rev-parse HEAD) -X github.com/github/github-mcp-server/cmd/github-mcp-server.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    CGO_ENABLED=0 go build -ldflags="-s -w -X cmd.version=${VERSION} -X cmd.commit=$(git rev-parse HEAD) -X cmd.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     -o /bin/github-mcp-server .
 
 # Make a stage to run the app
