@@ -1,4 +1,4 @@
-module github.com/SchulteDev/github_github-mcp-server
+module github.com/github/github-mcp-server
 
 go 1.24.4
 

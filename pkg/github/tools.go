@@ -3,9 +3,9 @@ package github
 import (
 	"context"
 
-	"github.com/SchulteDev/github_github-mcp-server/pkg/raw"
-	"github.com/SchulteDev/github_github-mcp-server/pkg/toolsets"
-	"github.com/SchulteDev/github_github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/pkg/raw"
+	"github.com/github/github-mcp-server/pkg/toolsets"
+	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v72/github"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/shurcooL/githubv4"

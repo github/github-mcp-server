@@ -9,7 +9,7 @@ builds:
   - env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/SchulteDev/github_github-mcp-server/cmd/github-mcp-server.version={{.Version}} -X github.com/SchulteDev/github_github-mcp-server/cmd/github-mcp-server.commit={{.Commit}} -X github.com/SchulteDev/github_github-mcp-server/cmd/github-mcp-server.date={{.Date}}
+      - -s -w -X github.com/github/github-mcp-server/cmd/github-mcp-server.version={{.Version}} -X github.com/github/github-mcp-server/cmd/github-mcp-server.commit={{.Commit}} -X github.com/github/github-mcp-server/cmd/github-mcp-server.date={{.Date}}
     goos:
       - linux
       - windows

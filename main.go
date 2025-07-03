@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	cmd "github.com/SchulteDev/github_github-mcp-server/cmd/github-mcp-server"
+	cmd "github.com/github/github-mcp-server/cmd/github-mcp-server"
 )
 
 func main() {
