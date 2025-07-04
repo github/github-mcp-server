@@ -30,6 +30,13 @@
         "description": "Repository name",
         "type": "string"
       },
+      "reviewers": {
+        "description": "GitHub usernames to request reviews from",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
       "state": {
         "description": "New state",
         "enum": [
