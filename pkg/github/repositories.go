@@ -449,7 +449,7 @@ func CreateRepository(getClient GetClientFn, t translations.TranslationHelperFun
 // GetFileContents creates a tool to get the contents of a file or directory from a GitHub repository.
 func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("get_file_contents",
-			mcp.WithDescription(t("TOOL_GET_FILE_CONTENTS_DESCRIPTION", "Get the contents of a file or directory from a GitHub repository")),
+			mcp.WithDescription(t("TOOL_GET_FILE_CONTENTS_DESCRIPTION", "Get the contents of a file or directory from a GitHub repository. Set `include_sha` to `true` to return file metadata (including SHA, size, type) instead of raw content.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:        t("TOOL_GET_FILE_CONTENTS_USER_TITLE", "Get file or directory contents"),
 				ReadOnlyHint: ToBoolPtr(true),
@@ -472,6 +472,9 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 			mcp.WithString("sha",
 				mcp.Description("Accepts optional git sha, if sha is specified it will be used instead of ref"),
 			),
+			mcp.WithBoolean("include_sha",
+				mcp.Description("Whether to return file metadata (including SHA, size, type) instead of raw content"),
+			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](request, "owner")
@@ -491,6 +494,10 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 			sha, err := OptionalParam[string](request, "sha")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			includeSha, err := OptionalParam[bool](request, "include_sha")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -522,7 +529,8 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 			rawOpts.Ref = ref
 
 			// If the path is (most likely) not to be a directory, we will first try to get the raw content from the GitHub raw content API.
-			if path != "" && !strings.HasSuffix(path, "/") {
+			// Skip raw content if include_sha is true
+			if !includeSha && path != "" && !strings.HasSuffix(path, "/") {
 
 				rawClient, err := getRawClient(ctx)
 				if err != nil {
@@ -588,28 +596,44 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 			if sha != "" {
 				ref = sha
 			}
-			if strings.HasSuffix(path, "/") {
-				opts := &github.RepositoryContentGetOptions{Ref: ref}
-				_, dirContent, resp, err := client.Repositories.GetContents(ctx, owner, repo, path, opts)
+			// Try to get file/directory contents using GitHub API
+			opts := &github.RepositoryContentGetOptions{Ref: ref}
+			fileContent, dirContent, resp, err := client.Repositories.GetContents(ctx, owner, repo, path, opts)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to get file contents",
+					resp,
+					err,
+				), nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != 200 {
+				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return mcp.NewToolResultError("failed to get file contents"), nil
+					return mcp.NewToolResultError("failed to read response body"), nil
 				}
-				defer func() { _ = resp.Body.Close() }()
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get file contents: %s", string(body))), nil
+			}
 
-				if resp.StatusCode != 200 {
-					body, err := io.ReadAll(resp.Body)
-					if err != nil {
-						return mcp.NewToolResultError("failed to read response body"), nil
-					}
-					return mcp.NewToolResultError(fmt.Sprintf("failed to get file contents: %s", string(body))), nil
-				}
-
+			// Handle directory contents
+			if dirContent != nil {
 				r, err := json.Marshal(dirContent)
 				if err != nil {
-					return mcp.NewToolResultError("failed to marshal response"), nil
+					return mcp.NewToolResultError("failed to marshal directory contents"), nil
 				}
 				return mcp.NewToolResultText(string(r)), nil
 			}
+
+			// Handle file contents
+			if fileContent != nil {
+				r, err := json.Marshal(fileContent)
+				if err != nil {
+					return mcp.NewToolResultError("failed to marshal file contents"), nil
+				}
+				return mcp.NewToolResultText(string(r)), nil
+			}
+
 			return mcp.NewToolResultError("Failed to get file contents. The path does not point to a file or directory, or the file does not exist in the repository."), nil
 		}
 }

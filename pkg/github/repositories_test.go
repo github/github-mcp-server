@@ -33,10 +33,24 @@ func Test_GetFileContents(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "path")
 	assert.Contains(t, tool.InputSchema.Properties, "ref")
 	assert.Contains(t, tool.InputSchema.Properties, "sha")
+	assert.Contains(t, tool.InputSchema.Properties, "include_sha")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "path"})
 
 	// Mock response for raw content
 	mockRawContent := []byte("# Test Repository\n\nThis is a test repository.")
+
+	// Setup mock file content for include_sha test
+	mockFileContent := &github.RepositoryContent{
+		Type:        github.Ptr("file"),
+		Name:        github.Ptr("README.md"),
+		Path:        github.Ptr("README.md"),
+		SHA:         github.Ptr("abc123"),
+		Size:        github.Ptr(42),
+		HTMLURL:     github.Ptr("https://github.com/owner/repo/blob/main/README.md"),
+		DownloadURL: github.Ptr("https://raw.githubusercontent.com/owner/repo/main/README.md"),
+		Content:     github.Ptr(base64.StdEncoding.EncodeToString(mockRawContent)),
+		Encoding:    github.Ptr("base64"),
+	}
 
 	// Setup mock directory content for success case
 	mockDirContent := []*github.RepositoryContent{
@@ -141,6 +155,68 @@ func Test_GetFileContents(t *testing.T) {
 			expectedResult: mockDirContent,
 		},
 		{
+			name: "successful file metadata fetch with include_sha",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposContentsByOwnerByRepoByPath,
+					expectQueryParams(t, map[string]string{"ref": "refs/heads/main"}).andThen(
+						mockResponse(t, http.StatusOK, mockFileContent),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":       "owner",
+				"repo":        "repo",
+				"path":        "README.md",
+				"ref":         "refs/heads/main",
+				"include_sha": true,
+			},
+			expectError:    false,
+			expectedResult: mockFileContent,
+		},
+		{
+			name: "successful text content fetch with include_sha false",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					raw.GetRawReposContentsByOwnerByRepoByBranchByPath,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.Header().Set("Content-Type", "text/markdown")
+						_, _ = w.Write(mockRawContent)
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":       "owner",
+				"repo":        "repo",
+				"path":        "README.md",
+				"ref":         "refs/heads/main",
+				"include_sha": false,
+			},
+			expectError: false,
+			expectedResult: mcp.TextResourceContents{
+				URI:      "repo://owner/repo/refs/heads/main/contents/README.md",
+				Text:     "# Test Repository\n\nThis is a test repository.",
+				MIMEType: "text/markdown",
+			},
+		},
+		{
+			name: "successful directory metadata fetch with include_sha",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposContentsByOwnerByRepoByPath,
+					mockResponse(t, http.StatusOK, mockDirContent),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":       "owner",
+				"repo":        "repo",
+				"path":        "src/",
+				"include_sha": true,
+			},
+			expectError:    false,
+			expectedResult: mockDirContent,
+		},
+		{
 			name: "content fetch fails",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
@@ -165,7 +241,8 @@ func Test_GetFileContents(t *testing.T) {
 				"ref":   "refs/heads/main",
 			},
 			expectError:    false,
-			expectedResult: mcp.NewToolResultError("Failed to get file contents. The path does not point to a file or directory, or the file does not exist in the repository."),
+			expectedResult: nil,
+			expectedErrMsg: "failed to get file contents",
 		},
 	}
 
@@ -190,6 +267,17 @@ func Test_GetFileContents(t *testing.T) {
 			}
 
 			require.NoError(t, err)
+
+			// Check for tool errors (API errors that return as tool results)
+			if tc.expectedErrMsg != "" {
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			// Process successful results
+			require.False(t, result.IsError)
 			// Use the correct result helper based on the expected type
 			switch expected := tc.expectedResult.(type) {
 			case mcp.TextResourceContents:
@@ -210,9 +298,19 @@ func Test_GetFileContents(t *testing.T) {
 					assert.Equal(t, *expected[i].Path, *content.Path)
 					assert.Equal(t, *expected[i].Type, *content.Type)
 				}
-			case mcp.TextContent:
-				textContent := getErrorResult(t, result)
-				require.Equal(t, textContent, expected)
+			case *github.RepositoryContent:
+				// File metadata fetch returns a text result (JSON object)
+				textContent := getTextResult(t, result)
+				var returnedContent github.RepositoryContent
+				err = json.Unmarshal([]byte(textContent.Text), &returnedContent)
+				require.NoError(t, err)
+				assert.Equal(t, *expected.Name, *returnedContent.Name)
+				assert.Equal(t, *expected.Path, *returnedContent.Path)
+				assert.Equal(t, *expected.SHA, *returnedContent.SHA)
+				assert.Equal(t, *expected.Size, *returnedContent.Size)
+				if expected.Content != nil {
+					assert.Equal(t, *expected.Content, *returnedContent.Content)
+				}
 			}
 		})
 	}
