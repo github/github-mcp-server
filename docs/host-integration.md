@@ -64,7 +64,7 @@ flowchart LR
   - **Local MCP Server**: An MCP Server running locally, side-by-side with the Application.
   - **Remote MCP Server**: An MCP Server running remotely, accessed via the internet.  Most Remote MCP Servers require authentication via OAuth.
 
-For more detail, see the [official MCP specification](https://modelcontextprotocol.io/specification/draft).
+For more detail, see the [official MCP specification](https://modelcontextprotocol.io/specification/2025-06-18).
 
 > [!NOTE]
 > GitHub offers both a Local MCP Server and a Remote MCP Server.
@@ -84,7 +84,7 @@ For the Remote GitHub MCP Server, the recommended way to obtain a valid access t
 > The Remote GitHub MCP Server itself does not provide Authentication services.
 > Your client application must obtain valid GitHub access tokens through one of the supported methods.
 
-The expected flow for obtaining a valid access token via OAuth is depicted in the [MCP Specification](https://modelcontextprotocol.io/specification/draft/basic/authorization#authorization-flow-steps).  For convenience, we've embedded a copy of the authorization flow below.  Please study it carefully as the remainder of this document is written with this flow in mind.
+The expected flow for obtaining a valid access token via OAuth is depicted in the [MCP Specification](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization#authorization-flow-steps).  For convenience, we've embedded a copy of the authorization flow below.  Please study it carefully as the remainder of this document is written with this flow in mind.
 
 ```mermaid
 sequenceDiagram
