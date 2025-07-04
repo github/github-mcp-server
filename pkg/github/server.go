@@ -175,7 +175,9 @@ func OptionalStringArrayParam(r mcp.CallToolRequest, p string) ([]string, error)
 }
 
 // WithPagination returns a ToolOption that adds "page" and "perPage" parameters to the tool.
-// The "page" parameter is optional, min 1. The "perPage" parameter is optional, min 1, max 100.
+// The "page" parameter is optional, min 1.
+// The "perPage" parameter is optional, min 1, max 100. If unset, defaults to 30.
+// https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api
 func WithPagination() mcp.ToolOption {
 	return func(tool *mcp.Tool) {
 		mcp.WithNumber("page",
@@ -184,7 +186,7 @@ func WithPagination() mcp.ToolOption {
 		)(tool)
 
 		mcp.WithNumber("perPage",
-			mcp.Description("Results per page for pagination (min 1, max 100)"),
+			mcp.Description("Results per page for pagination (min 1, max 100). If unset, defaults to 30."),
 			mcp.Min(1),
 			mcp.Max(100),
 		)(tool)

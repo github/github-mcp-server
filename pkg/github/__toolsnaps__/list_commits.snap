@@ -7,7 +7,7 @@
   "inputSchema": {
     "properties": {
       "author": {
-        "description": "Author username or email address",
+        "description": "Author username or email address to filter commits by",
         "type": "string"
       },
       "owner": {
@@ -20,7 +20,7 @@
         "type": "number"
       },
       "perPage": {
-        "description": "Results per page for pagination (min 1, max 100)",
+        "description": "Results per page for pagination (min 1, max 100). If unset, defaults to 30.",
         "maximum": 100,
         "minimum": 1,
         "type": "number"
@@ -30,7 +30,7 @@
         "type": "string"
       },
       "sha": {
-        "description": "The commit SHA, branch name, or tag name to list commits from. If not specified, defaults to the repository's default branch.",
+        "description": "Commit SHA, branch or tag name to list commits of. If not provided, uses the default branch of the repository. If a commit SHA is provided, will list commits up to that SHA.",
         "type": "string"
       }
     },

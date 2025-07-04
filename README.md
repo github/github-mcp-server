@@ -479,14 +479,14 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `filter`: Filters jobs by their completed_at timestamp (string, optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100). If unset, defaults to 30. (number, optional)
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)
 
 - **list_workflow_run_artifacts** - List workflow artifacts
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100). If unset, defaults to 30. (number, optional)
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)
 
@@ -496,7 +496,7 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `event`: Returns workflow runs for a specific event type (string, optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100). If unset, defaults to 30. (number, optional)
   - `repo`: Repository name (string, required)
   - `status`: Returns workflow runs with the check run status (string, optional)
   - `workflow_id`: The workflow ID or workflow file name (string, required)
@@ -504,7 +504,7 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
 - **list_workflows** - List workflows
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100). If unset, defaults to 30. (number, optional)
   - `repo`: Repository name (string, required)
 
 - **rerun_failed_jobs** - Rerun failed jobs
@@ -633,7 +633,7 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `issue_number`: Issue number (number, required)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100). If unset, defaults to 30. (number, optional)
   - `repo`: Repository name (string, required)
 
 - **list_issues** - List issues
@@ -641,7 +641,7 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `labels`: Filter by labels (string[], optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100). If unset, defaults to 30. (number, optional)
   - `repo`: Repository name (string, required)
   - `since`: Filter by date (ISO 8601 timestamp) (string, optional)
   - `sort`: Sort order (string, optional)
@@ -651,7 +651,7 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `order`: Sort order (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only notifications for this repository are listed. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100). If unset, defaults to 30. (number, optional)
   - `query`: Search query using GitHub issues search syntax (string, required)
   - `repo`: Optional repository name. If provided with owner, only notifications for this repository are listed. (string, optional)
   - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
@@ -685,7 +685,7 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `filter`: Filter notifications to, use default unless specified. Read notifications are ones that have already been acknowledged by the user. Participating notifications are those that the user is directly involved in, such as issues or pull requests they have commented on or created. (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only notifications for this repository are listed. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100). If unset, defaults to 30. (number, optional)
   - `repo`: Optional repository name. If provided with owner, only notifications for this repository are listed. (string, optional)
   - `since`: Only show notifications updated after the given time (ISO 8601 format) (string, optional)
 
@@ -712,7 +712,7 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
 - **search_orgs** - Search organizations
   - `order`: Sort order (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100). If unset, defaults to 30. (number, optional)
   - `query`: Search query using GitHub organizations search syntax scoped to type:org (string, required)
   - `sort`: Sort field by category (string, optional)
 
@@ -781,7 +781,7 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
 - **get_pull_request_files** - Get pull request files
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100). If unset, defaults to 30. (number, optional)
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
@@ -801,7 +801,7 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `head`: Filter by head user/org and branch (string, optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100). If unset, defaults to 30. (number, optional)
   - `repo`: Repository name (string, required)
   - `sort`: Sort by (string, optional)
   - `state`: Filter by state (string, optional)
@@ -823,7 +823,7 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `order`: Sort order (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only notifications for this repository are listed. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100). If unset, defaults to 30. (number, optional)
   - `query`: Search query using GitHub pull request search syntax (string, required)
   - `repo`: Optional repository name. If provided with owner, only notifications for this repository are listed. (string, optional)
   - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
@@ -893,7 +893,7 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
 - **get_commit** - Get commit details
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100). If unset, defaults to 30. (number, optional)
   - `repo`: Repository name (string, required)
   - `sha`: Commit SHA, branch name, or tag name (string, required)
 
@@ -902,7 +902,7 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `path`: Path to file/directory (directories must end with a slash '/') (string, required)
   - `ref`: Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head` (string, optional)
   - `repo`: Repository name (string, required)
-  - `sha`: Accepts optional git sha, if sha is specified it will be used instead of ref (string, optional)
+  - `sha`: Accepts optional commit SHA. If specified, it will be used instead of ref (string, optional)
 
 - **get_tag** - Get tag details
   - `owner`: Repository owner (string, required)
@@ -912,21 +912,21 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
 - **list_branches** - List branches
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100). If unset, defaults to 30. (number, optional)
   - `repo`: Repository name (string, required)
 
 - **list_commits** - List commits
-  - `author`: Author username or email address (string, optional)
+  - `author`: Author username or email address to filter commits by (string, optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100). If unset, defaults to 30. (number, optional)
   - `repo`: Repository name (string, required)
-  - `sha`: The commit SHA, branch name, or tag name to list commits from. If not specified, defaults to the repository's default branch. (string, optional)
+  - `sha`: Commit SHA, branch or tag name to list commits of. If not provided, uses the default branch of the repository. If a commit SHA is provided, will list commits up to that SHA. (string, optional)
 
 - **list_tags** - List tags
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100). If unset, defaults to 30. (number, optional)
   - `repo`: Repository name (string, required)
 
 - **push_files** - Push files to repository
@@ -939,13 +939,13 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
 - **search_code** - Search code
   - `order`: Sort order (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100). If unset, defaults to 30. (number, optional)
   - `q`: Search query using GitHub code search syntax (string, required)
   - `sort`: Sort field ('indexed' only) (string, optional)
 
 - **search_repositories** - Search repositories
   - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100). If unset, defaults to 30. (number, optional)
   - `query`: Search query (string, required)
 
 </details>
@@ -975,7 +975,7 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
 - **search_users** - Search users
   - `order`: Sort order (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100). If unset, defaults to 30. (number, optional)
   - `query`: Search query using GitHub users search syntax scoped to type:user (string, required)
   - `sort`: Sort field by category (string, optional)
 
