@@ -11,6 +11,7 @@ import (
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v72/github"
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/shurcooL/githubv4"
 
 	"github.com/migueleliasweb/go-github-mock/src/mock"
@@ -2589,4 +2590,226 @@ func getLatestPendingReviewQuery(p getLatestPendingReviewQueryParams) githubv4mo
 			},
 		),
 	)
+}
+
+func Test_GetPullRequestDiff(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := GetPullRequestDiff(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	
+	assert.Equal(t, "get_pull_request_diff", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
+	assert.Contains(t, tool.InputSchema.Properties, "fileList")
+	assert.Contains(t, tool.InputSchema.Properties, "files")
+	assert.Contains(t, tool.InputSchema.Properties, "pathPrefix")
+	assert.Contains(t, tool.InputSchema.Properties, "page")
+	assert.Contains(t, tool.InputSchema.Properties, "perPage")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber"})
+
+	// Test fileList mode with pagination
+	t.Run("fileList mode with pagination", func(t *testing.T) {
+		mockFiles := []*github.CommitFile{
+			{
+				Filename:  github.Ptr("src/main.go"),
+				Additions: github.Ptr(10),
+				Deletions: github.Ptr(5),
+				Changes:   github.Ptr(15),
+				Status:    github.Ptr("modified"),
+			},
+			{
+				Filename:  github.Ptr("src/utils.go"),
+				Additions: github.Ptr(20),
+				Deletions: github.Ptr(0),
+				Changes:   github.Ptr(20),
+				Status:    github.Ptr("added"),
+			},
+		}
+
+		mockedHTTPClient := mock.NewMockedHTTPClient(
+			mock.WithRequestMatch(
+				mock.GetReposPullsFilesByOwnerByRepoByPullNumber,
+				mockFiles,
+			),
+		)
+		mockClient := github.NewClient(mockedHTTPClient)
+		
+		_, handler := GetPullRequestDiff(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+		result, err := handler(context.Background(), mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Arguments: map[string]interface{}{
+					"owner":      "testowner",
+					"repo":       "testrepo",
+					"pullNumber": 42,
+					"fileList":   true,
+					"page":       1,
+					"perPage":    30,
+				},
+			},
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		
+		var response map[string]interface{}
+		err = json.Unmarshal([]byte(result.Content[0].(mcp.TextContent).Text), &response)
+		require.NoError(t, err)
+		
+		assert.Contains(t, response, "files")
+		assert.Contains(t, response, "pagination")
+		
+		files := response["files"].([]interface{})
+		assert.Len(t, files, 2)
+		
+		pagination := response["pagination"].(map[string]interface{})
+		assert.Equal(t, float64(1), pagination["page"])
+		assert.Equal(t, float64(30), pagination["perPage"])
+	})
+
+	// Test with path prefix filter
+	t.Run("fileList mode with path prefix", func(t *testing.T) {
+		mockFiles := []*github.CommitFile{
+			{
+				Filename:  github.Ptr("src/main.go"),
+				Additions: github.Ptr(10),
+				Deletions: github.Ptr(5),
+				Changes:   github.Ptr(15),
+				Status:    github.Ptr("modified"),
+			},
+			{
+				Filename:  github.Ptr("docs/README.md"),
+				Additions: github.Ptr(5),
+				Deletions: github.Ptr(0),
+				Changes:   github.Ptr(5),
+				Status:    github.Ptr("added"),
+			},
+		}
+
+		mockedHTTPClient := mock.NewMockedHTTPClient(
+			mock.WithRequestMatch(
+				mock.GetReposPullsFilesByOwnerByRepoByPullNumber,
+				mockFiles,
+			),
+		)
+		mockClient := github.NewClient(mockedHTTPClient)
+		
+		_, handler := GetPullRequestDiff(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+		result, err := handler(context.Background(), mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Arguments: map[string]interface{}{
+					"owner":      "testowner",
+					"repo":       "testrepo",
+					"pullNumber": 42,
+					"fileList":   true,
+					"pathPrefix": "src/",
+				},
+			},
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		
+		var response map[string]interface{}
+		err = json.Unmarshal([]byte(result.Content[0].(mcp.TextContent).Text), &response)
+		require.NoError(t, err)
+		
+		files := response["files"].([]interface{})
+		assert.Len(t, files, 1) // Only src/main.go should be included
+	})
+
+	// Test specific files diff
+	t.Run("specific files diff", func(t *testing.T) {
+		mockFiles := []*github.CommitFile{
+			{
+				Filename:  github.Ptr("src/main.go"),
+				Additions: github.Ptr(10),
+				Deletions: github.Ptr(5),
+				Changes:   github.Ptr(15),
+				Status:    github.Ptr("modified"),
+				Patch:     github.Ptr("@@ -1,5 +1,10 @@\n package main\n \n import \"fmt\"\n+import \"log\"\n \n func main() {"),
+			},
+			{
+				Filename:  github.Ptr("src/utils.go"),
+				Additions: github.Ptr(20),
+				Deletions: github.Ptr(0),
+				Changes:   github.Ptr(20),
+				Status:    github.Ptr("added"),
+				Patch:     github.Ptr("@@ -0,0 +1,20 @@\n+package main\n+\n+func helper() string {"),
+			},
+		}
+
+		mockedHTTPClient := mock.NewMockedHTTPClient(
+			mock.WithRequestMatch(
+				mock.GetReposPullsFilesByOwnerByRepoByPullNumber,
+				mockFiles,
+			),
+		)
+		mockClient := github.NewClient(mockedHTTPClient)
+		
+		_, handler := GetPullRequestDiff(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+		result, err := handler(context.Background(), mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Arguments: map[string]interface{}{
+					"owner":      "testowner",
+					"repo":       "testrepo",
+					"pullNumber": 42,
+					"files":      []string{"src/main.go"},
+				},
+			},
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		
+		diff := result.Content[0].(mcp.TextContent).Text
+		assert.Contains(t, diff, "src/main.go")
+		assert.Contains(t, diff, "import \"log\"")
+		assert.NotContains(t, diff, "src/utils.go")
+	})
+
+	// Test full diff (default behavior)
+	t.Run("full diff", func(t *testing.T) {
+		expectedDiff := `diff --git a/src/main.go b/src/main.go
+index abcd123..efgh456 100644
+--- a/src/main.go
++++ b/src/main.go
+@@ -1,5 +1,10 @@
+ package main
+ 
+ import "fmt"
++import "log"
+ 
+ func main() {`
+
+		mockedHTTPClient := mock.NewMockedHTTPClient(
+			mock.WithRequestMatchHandler(
+				mock.GetReposPullsByOwnerByRepoByPullNumber,
+				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+					w.WriteHeader(http.StatusOK)
+					_, _ = w.Write([]byte(expectedDiff))
+				}),
+			),
+		)
+		mockClient := github.NewClient(mockedHTTPClient)
+		
+		_, handler := GetPullRequestDiff(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+		result, err := handler(context.Background(), mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Arguments: map[string]interface{}{
+					"owner":      "testowner",
+					"repo":       "testrepo",
+					"pullNumber": 42,
+				},
+			},
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		
+		diff := result.Content[0].(mcp.TextContent).Text
+		assert.Equal(t, expectedDiff, diff)
+	})
 }

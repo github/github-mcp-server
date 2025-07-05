@@ -3,12 +3,32 @@
     "title": "Get pull request diff",
     "readOnlyHint": true
   },
-  "description": "Get the diff of a pull request.",
+  "description": "Get the diff of a pull request. Supports pagination through file filtering to handle large PRs.",
   "inputSchema": {
     "properties": {
+      "fileList": {
+        "description": "If true, only return the list of changed files without diffs",
+        "type": "boolean"
+      },
+      "files": {
+        "description": "List of specific files to include in the diff (e.g., ['src/main.go', 'README.md'])",
+        "type": "array"
+      },
       "owner": {
         "description": "Repository owner",
         "type": "string"
+      },
+      "page": {
+        "description": "Page number for file-based pagination (when used with fileList)",
+        "type": "number"
+      },
+      "pathPrefix": {
+        "description": "Only include files with this path prefix (e.g., 'src/' or 'docs/')",
+        "type": "string"
+      },
+      "perPage": {
+        "description": "Number of files per page (max 100, default 30) when using fileList",
+        "type": "number"
       },
       "pullNumber": {
         "description": "Pull request number",

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/google/go-github/v72/github"
@@ -1574,7 +1575,7 @@ func DeletePendingPullRequestReview(getGQLClient GetGQLClientFn, t translations.
 
 func GetPullRequestDiff(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("get_pull_request_diff",
-			mcp.WithDescription(t("TOOL_GET_PULL_REQUEST_DIFF_DESCRIPTION", "Get the diff of a pull request.")),
+			mcp.WithDescription(t("TOOL_GET_PULL_REQUEST_DIFF_DESCRIPTION", "Get the diff of a pull request. Supports pagination through file filtering to handle large PRs.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:        t("TOOL_GET_PULL_REQUEST_DIFF_USER_TITLE", "Get pull request diff"),
 				ReadOnlyHint: ToBoolPtr(true),
@@ -1591,12 +1592,32 @@ func GetPullRequestDiff(getClient GetClientFn, t translations.TranslationHelperF
 				mcp.Required(),
 				mcp.Description("Pull request number"),
 			),
+			mcp.WithBoolean("fileList",
+				mcp.Description("If true, only return the list of changed files without diffs"),
+			),
+			mcp.WithArray("files",
+				mcp.Description("List of specific files to include in the diff (e.g., ['src/main.go', 'README.md'])"),
+			),
+			mcp.WithString("pathPrefix",
+				mcp.Description("Only include files with this path prefix (e.g., 'src/' or 'docs/')"),
+			),
+			mcp.WithNumber("page",
+				mcp.Description("Page number for file-based pagination (when used with fileList)"),
+			),
+			mcp.WithNumber("perPage",
+				mcp.Description("Number of files per page (max 100, default 30) when using fileList"),
+			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			var params struct {
 				Owner      string
 				Repo       string
 				PullNumber int32
+				FileList   bool
+				Files      []string
+				PathPrefix string
+				Page       int
+				PerPage    int
 			}
 			if err := mapstructure.Decode(request.Params.Arguments, &params); err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
@@ -1607,6 +1628,122 @@ func GetPullRequestDiff(getClient GetClientFn, t translations.TranslationHelperF
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get GitHub client: %v", err)), nil
 			}
 
+			// If fileList is requested, return paginated file list
+			if params.FileList {
+				perPage := params.PerPage
+				if perPage == 0 {
+					perPage = 30
+				}
+				if perPage > 100 {
+					perPage = 100
+				}
+				page := params.Page
+				if page == 0 {
+					page = 1
+				}
+
+				opts := &github.ListOptions{
+					PerPage: perPage,
+					Page:    page,
+				}
+				files, resp, err := client.PullRequests.ListFiles(ctx, params.Owner, params.Repo, int(params.PullNumber), opts)
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx,
+						"failed to get pull request files",
+						resp,
+						err,
+					), nil
+				}
+				defer func() { _ = resp.Body.Close() }()
+
+				// Filter by path prefix if specified
+				if params.PathPrefix != "" {
+					var filtered []*github.CommitFile
+					for _, file := range files {
+						if file.Filename != nil && strings.HasPrefix(*file.Filename, params.PathPrefix) {
+							filtered = append(filtered, file)
+						}
+					}
+					files = filtered
+				}
+
+				result := map[string]interface{}{
+					"files": files,
+					"pagination": map[string]interface{}{
+						"page":       page,
+						"perPage":    perPage,
+						"totalPages": resp.LastPage,
+						"hasNext":    resp.NextPage > 0,
+						"hasPrev":    resp.PrevPage > 0,
+					},
+				}
+				
+				r, err := json.Marshal(result)
+				if err != nil {
+					return nil, fmt.Errorf("failed to marshal response: %w", err)
+				}
+				return mcp.NewToolResultText(string(r)), nil
+			}
+
+			// If specific files are requested, get individual file diffs
+			if len(params.Files) > 0 || params.PathPrefix != "" {
+				// First, get all changed files
+				var allFiles []*github.CommitFile
+				opts := &github.ListOptions{PerPage: 100}
+				for {
+					files, resp, err := client.PullRequests.ListFiles(ctx, params.Owner, params.Repo, int(params.PullNumber), opts)
+					if err != nil {
+						return ghErrors.NewGitHubAPIErrorResponse(ctx,
+							"failed to get pull request files",
+							resp,
+							err,
+						), nil
+					}
+					allFiles = append(allFiles, files...)
+					if resp.NextPage == 0 {
+						break
+					}
+					opts.Page = resp.NextPage
+				}
+
+				// Filter files based on criteria
+				var filteredFiles []*github.CommitFile
+				if len(params.Files) > 0 {
+					fileMap := make(map[string]bool)
+					for _, f := range params.Files {
+						fileMap[f] = true
+					}
+					for _, file := range allFiles {
+						if file.Filename != nil && fileMap[*file.Filename] {
+							filteredFiles = append(filteredFiles, file)
+						}
+					}
+				} else if params.PathPrefix != "" {
+					for _, file := range allFiles {
+						if file.Filename != nil && strings.HasPrefix(*file.Filename, params.PathPrefix) {
+							filteredFiles = append(filteredFiles, file)
+						}
+					}
+				}
+
+				// Build a partial diff from the filtered files
+				var diffBuilder strings.Builder
+				for _, file := range filteredFiles {
+					if file.Patch != nil {
+						diffBuilder.WriteString(fmt.Sprintf("diff --git a/%s b/%s\n", *file.Filename, *file.Filename))
+						if file.Status != nil {
+							diffBuilder.WriteString(fmt.Sprintf("--- a/%s\n", *file.Filename))
+							diffBuilder.WriteString(fmt.Sprintf("+++ b/%s\n", *file.Filename))
+						}
+						diffBuilder.WriteString(*file.Patch)
+						diffBuilder.WriteString("\n")
+					}
+				}
+
+				return mcp.NewToolResultText(diffBuilder.String()), nil
+			}
+
+			// Default behavior: get full diff (with warning for large PRs)
 			raw, resp, err := client.PullRequests.GetRaw(
 				ctx,
 				params.Owner,

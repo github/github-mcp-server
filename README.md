@@ -777,6 +777,11 @@ export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
+  - `fileList`: If true, only return the list of changed files without diffs (boolean, optional)
+  - `files`: List of specific files to include in the diff (e.g., ['src/main.go', 'README.md']) (array, optional)
+  - `pathPrefix`: Only include files with this path prefix (e.g., 'src/' or 'docs/') (string, optional)
+  - `page`: Page number for file-based pagination (when used with fileList) (number, optional)
+  - `perPage`: Number of files per page (max 100, default 30) when using fileList (number, optional)
 
 - **get_pull_request_files** - Get pull request files
   - `owner`: Repository owner (string, required)
