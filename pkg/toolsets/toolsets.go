@@ -29,6 +29,18 @@ func NewToolsetDoesNotExistError(name string) *ToolsetDoesNotExistError {
 	return &ToolsetDoesNotExistError{Name: name}
 }
 
+// createToolWithPrefixedName creates a new tool with the same properties as the original but with a prefixed name
+func createToolWithPrefixedName(original mcp.Tool, prefix string) mcp.Tool {
+	// Create a new tool with the prefixed name and copy all properties
+	newTool := mcp.Tool{
+		Name:        prefix + original.Name,
+		Description: original.Description,
+		InputSchema: original.InputSchema,
+		Annotations: original.Annotations,
+	}
+	return newTool
+}
+
 func NewServerTool(tool mcp.Tool, handler server.ToolHandlerFunc) server.ServerTool {
 	return server.ServerTool{Tool: tool, Handler: handler}
 }
@@ -80,15 +92,29 @@ func (t *Toolset) GetAvailableTools() []server.ServerTool {
 }
 
 func (t *Toolset) RegisterTools(s *server.MCPServer) {
+	t.RegisterToolsWithPrefix(s, "")
+}
+
+func (t *Toolset) RegisterToolsWithPrefix(s *server.MCPServer, prefix string) {
 	if !t.Enabled {
 		return
 	}
 	for _, tool := range t.readTools {
-		s.AddTool(tool.Tool, tool.Handler)
+		toolToRegister := tool.Tool
+		if prefix != "" {
+			// Create a new tool with the prefixed name
+			toolToRegister = createToolWithPrefixedName(tool.Tool, prefix)
+		}
+		s.AddTool(toolToRegister, tool.Handler)
 	}
 	if !t.readOnly {
 		for _, tool := range t.writeTools {
-			s.AddTool(tool.Tool, tool.Handler)
+			toolToRegister := tool.Tool
+			if prefix != "" {
+				// Create a new tool with the prefixed name
+				toolToRegister = createToolWithPrefixedName(tool.Tool, prefix)
+			}
+			s.AddTool(toolToRegister, tool.Handler)
 		}
 	}
 }
@@ -239,8 +265,12 @@ func (tg *ToolsetGroup) EnableToolset(name string) error {
 }
 
 func (tg *ToolsetGroup) RegisterAll(s *server.MCPServer) {
+	tg.RegisterAllWithPrefix(s, "")
+}
+
+func (tg *ToolsetGroup) RegisterAllWithPrefix(s *server.MCPServer, prefix string) {
 	for _, toolset := range tg.Toolsets {
-		toolset.RegisterTools(s)
+		toolset.RegisterToolsWithPrefix(s, prefix)
 		toolset.RegisterResourcesTemplates(s)
 		toolset.RegisterPrompts(s)
 	}
