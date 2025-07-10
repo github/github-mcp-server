@@ -240,6 +240,9 @@ func CreateIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 			mcp.WithNumber("milestone",
 				mcp.Description("Milestone number"),
 			),
+			mcp.WithString("type",
+				mcp.Description("Type of this issue"),
+			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](request, "owner")
@@ -284,6 +287,12 @@ func CreateIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 				milestoneNum = &milestone
 			}
 
+			// Get optional type
+			issueType, err := OptionalParam[string](request, "type")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
 			// Create the issue request
 			issueRequest := &github.IssueRequest{
 				Title:     github.Ptr(title),
@@ -291,6 +300,7 @@ func CreateIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 				Assignees: &assignees,
 				Labels:    &labels,
 				Milestone: milestoneNum,
+				Type:      &issueType,
 			}
 
 			client, err := getClient(ctx)
@@ -491,6 +501,9 @@ func UpdateIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 			mcp.WithNumber("milestone",
 				mcp.Description("New milestone number"),
 			),
+			mcp.WithString("type",
+				mcp.Description("New issue type"),
+			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](request, "owner")
@@ -559,6 +572,15 @@ func UpdateIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 			if milestone != 0 {
 				milestoneNum := milestone
 				issueRequest.Milestone = &milestoneNum
+			}
+
+			// Get issue type
+			issueType, err := OptionalParam[string](request, "type")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			if issueType != "" {
+				issueRequest.Type = github.Ptr(issueType)
 			}
 
 			client, err := getClient(ctx)
