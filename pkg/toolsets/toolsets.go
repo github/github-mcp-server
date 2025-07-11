@@ -29,18 +29,6 @@ func NewToolsetDoesNotExistError(name string) *ToolsetDoesNotExistError {
 	return &ToolsetDoesNotExistError{Name: name}
 }
 
-// createToolWithPrefixedName creates a new tool with the same properties as the original but with a prefixed name
-func createToolWithPrefixedName(original mcp.Tool, prefix string) mcp.Tool {
-	// Create a new tool with the prefixed name and copy all properties
-	newTool := mcp.Tool{
-		Name:        prefix + original.Name,
-		Description: original.Description,
-		InputSchema: original.InputSchema,
-		Annotations: original.Annotations,
-	}
-	return newTool
-}
-
 func NewServerTool(tool mcp.Tool, handler server.ToolHandlerFunc) server.ServerTool {
 	return server.ServerTool{Tool: tool, Handler: handler}
 }
@@ -96,12 +84,11 @@ func (t *Toolset) RegisterTools(s *server.MCPServer, prefix string) {
 		return
 	}
 	registerToolWithPrefix := func(tool server.ServerTool) {
-		toolToRegister := tool.Tool
 		if prefix != "" {
 			// Create a new tool with the prefixed name
-			toolToRegister = createToolWithPrefixedName(tool.Tool, prefix)
+			tool.Tool.Name = prefix + tool.Tool.Name
 		}
-		s.AddTool(toolToRegister, tool.Handler)
+		s.AddTool(tool.Tool, tool.Handler)
 	}
 
 	for _, tool := range t.readTools {
