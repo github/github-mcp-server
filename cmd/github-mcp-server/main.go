@@ -92,6 +92,8 @@ func init() {
 func initConfig() {
 	// Initialize Viper configuration
 	viper.SetEnvPrefix("github")
+	// Replace hyphens with underscores in environment variable names
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
 
 }
