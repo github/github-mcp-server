@@ -91,11 +91,7 @@ func (t *Toolset) GetAvailableTools() []server.ServerTool {
 	return append(t.readTools, t.writeTools...)
 }
 
-func (t *Toolset) RegisterTools(s *server.MCPServer) {
-	t.RegisterToolsWithPrefix(s, "")
-}
-
-func (t *Toolset) RegisterToolsWithPrefix(s *server.MCPServer, prefix string) {
+func (t *Toolset) RegisterTools(s *server.MCPServer, prefix string) {
 	if !t.Enabled {
 		return
 	}
@@ -264,13 +260,9 @@ func (tg *ToolsetGroup) EnableToolset(name string) error {
 	return nil
 }
 
-func (tg *ToolsetGroup) RegisterAll(s *server.MCPServer) {
-	tg.RegisterAllWithPrefix(s, "")
-}
-
-func (tg *ToolsetGroup) RegisterAllWithPrefix(s *server.MCPServer, prefix string) {
+func (tg *ToolsetGroup) RegisterAll(s *server.MCPServer, prefix string) {
 	for _, toolset := range tg.Toolsets {
-		toolset.RegisterToolsWithPrefix(s, prefix)
+		toolset.RegisterTools(s, prefix)
 		toolset.RegisterResourcesTemplates(s)
 		toolset.RegisterPrompts(s)
 	}

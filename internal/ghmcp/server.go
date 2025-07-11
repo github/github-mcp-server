@@ -146,11 +146,11 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 	}
 
 	// Register all mcp functionality with the server
-	tsg.RegisterAllWithPrefix(ghServer, cfg.ToolPrefix)
+	tsg.RegisterAll(ghServer, cfg.ToolPrefix)
 
 	if cfg.DynamicToolsets {
 		dynamic := github.InitDynamicToolset(ghServer, tsg, cfg.Translator)
-		dynamic.RegisterToolsWithPrefix(ghServer, cfg.ToolPrefix)
+		dynamic.RegisterTools(ghServer, cfg.ToolPrefix)
 	}
 
 	return ghServer, nil
