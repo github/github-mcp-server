@@ -77,6 +77,20 @@ func Test_GetFileContents(t *testing.T) {
 					}),
 				),
 				mock.WithRequestMatchHandler(
+					mock.GetReposContentsByOwnerByRepoByPath,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						fileContent := &github.RepositoryContent{
+							Name: github.Ptr("README.md"),
+							Path: github.Ptr("README.md"),
+							SHA:  github.Ptr("abc123"),
+							Type: github.Ptr("file"),
+						}
+						contentBytes, _ := json.Marshal(fileContent)
+						_, _ = w.Write(contentBytes)
+					}),
+				),
+				mock.WithRequestMatchHandler(
 					raw.GetRawReposContentsByOwnerByRepoByBranchByPath,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.Header().Set("Content-Type", "text/markdown")
@@ -92,7 +106,7 @@ func Test_GetFileContents(t *testing.T) {
 			},
 			expectError: false,
 			expectedResult: mcp.TextResourceContents{
-				URI:      "repo://owner/repo/refs/heads/main/contents/README.md",
+				URI:      "repo://owner/repo/sha/abc123/contents/README.md",
 				Text:     "# Test Repository\n\nThis is a test repository.",
 				MIMEType: "text/markdown",
 			},
@@ -105,6 +119,20 @@ func Test_GetFileContents(t *testing.T) {
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusOK)
 						_, _ = w.Write([]byte(`{"ref": "refs/heads/main", "object": {"sha": ""}}`))
+					}),
+				),
+				mock.WithRequestMatchHandler(
+					mock.GetReposContentsByOwnerByRepoByPath,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						fileContent := &github.RepositoryContent{
+							Name: github.Ptr("test.png"),
+							Path: github.Ptr("test.png"),
+							SHA:  github.Ptr("def456"),
+							Type: github.Ptr("file"),
+						}
+						contentBytes, _ := json.Marshal(fileContent)
+						_, _ = w.Write(contentBytes)
 					}),
 				),
 				mock.WithRequestMatchHandler(
@@ -123,7 +151,7 @@ func Test_GetFileContents(t *testing.T) {
 			},
 			expectError: false,
 			expectedResult: mcp.BlobResourceContents{
-				URI:      "repo://owner/repo/refs/heads/main/contents/test.png",
+				URI:      "repo://owner/repo/sha/def456/contents/test.png",
 				Blob:     base64.StdEncoding.EncodeToString(mockRawContent),
 				MIMEType: "image/png",
 			},
