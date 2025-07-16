@@ -13,7 +13,7 @@ Some packages may only be included on certain architectures or operating systems
  - [github.com/go-openapi/swag](https://pkg.go.dev/github.com/go-openapi/swag) ([Apache-2.0](https://github.com/go-openapi/swag/blob/v0.21.1/LICENSE))
  - [github.com/go-viper/mapstructure/v2](https://pkg.go.dev/github.com/go-viper/mapstructure/v2) ([MIT](https://github.com/go-viper/mapstructure/blob/v2.3.0/LICENSE))
  - [github.com/google/go-github/v71/github](https://pkg.go.dev/github.com/google/go-github/v71/github) ([BSD-3-Clause](https://github.com/google/go-github/blob/v71.0.0/LICENSE))
- - [github.com/google/go-github/v72/github](https://pkg.go.dev/github.com/google/go-github/v72/github) ([BSD-3-Clause](https://github.com/google/go-github/blob/v72.0.0/LICENSE))
+ - [github.com/google/go-github/v73/github](https://pkg.go.dev/github.com/google/go-github/v73/github) ([BSD-3-Clause](https://github.com/google/go-github/blob/v73.0.0/LICENSE))
  - [github.com/google/go-querystring/query](https://pkg.go.dev/github.com/google/go-querystring/query) ([BSD-3-Clause](https://github.com/google/go-querystring/blob/v1.1.0/LICENSE))
  - [github.com/google/uuid](https://pkg.go.dev/github.com/google/uuid) ([BSD-3-Clause](https://github.com/google/uuid/blob/v1.6.0/LICENSE))
  - [github.com/gorilla/mux](https://pkg.go.dev/github.com/gorilla/mux) ([BSD-3-Clause](https://github.com/gorilla/mux/blob/v1.8.0/LICENSE))
