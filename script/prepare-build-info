@@ -19,8 +19,8 @@ if [ -n "${GITHUB_ACTIONS:-}" ]; then
   fi
 else
   # Local/Docker context
-  COMMIT=$(git rev-parse HEAD 2>/dev/null || echo 'unknown')
-  VERSION="dev"
+  COMMIT=$(git rev-parse HEAD 2>/dev/null || echo 'unknown commit')
+  VERSION=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'unknown version')
 fi
 
 # Write build info files

@@ -11,10 +11,10 @@ RUN --mount=type=cache,target=/var/cache/apk \
 # go build automatically download required module dependencies to /go/pkg/mod
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    --mount=type=bind,target=. \
+    --mount=type=bind,target=.,rw \
     script/prepare-build-info && \
     CGO_ENABLED=0 go build -ldflags="-s -w" \
-    -o /bin/github-mcp-server cmd/github-mcp-server/main.go
+    -o /bin/github-mcp-server ./cmd/github-mcp-server
 
 # Make a stage to run the app
 FROM gcr.io/distroless/base-debian12
