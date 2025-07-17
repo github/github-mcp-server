@@ -1,0 +1,29 @@
+
+#!/bin/sh
+set -eu
+
+mkdir -p cmd/github-mcp-server/build_info
+
+BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+if [ -n "${GITHUB_ACTIONS:-}" ]; then
+  # GitHub Actions context
+  COMMIT="${GITHUB_SHA}"
+
+  if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+    VERSION="${GITHUB_REF_NAME}"
+  elif [ "${GITHUB_EVENT_NAME}" = "push" ]; then
+    VERSION="${GITHUB_REF_NAME}-${GITHUB_SHA}"
+  else
+    VERSION="pr-${GITHUB_EVENT_PULL_REQUEST_NUMBER}"
+  fi
+else
+  # Local/Docker context
+  COMMIT=$(git rev-parse HEAD 2>/dev/null || echo 'unknown')
+  VERSION="dev"
+fi
+
+# Write build info files
+echo "${COMMIT}" > cmd/github-mcp-server/build_info/commit.txt
+echo "${BUILD_DATE}" > cmd/github-mcp-server/build_info/date.txt
+echo "${VERSION}" > cmd/github-mcp-server/build_info/version.txt

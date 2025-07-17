@@ -29,16 +29,7 @@ jobs:
         run: script/test
 
       - name: Prepare build_info files
-        shell: bash
-        run: |
-          BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          mkdir -p cmd/github-mcp-server/build_info
-          echo "${{ github.sha }}" > cmd/github-mcp-server/build_info/commit.txt
-          echo "$BUILD_DATE" > cmd/github-mcp-server/build_info/date.txt
-          if [ "${{ github.event_name }}" = "push" ]; then
-            echo "${{ github.ref_name }}" > cmd/github-mcp-server/build_info/version.txt
-          else
-            echo "pr-${{ github.event.pull_request.number }}" > cmd/github-mcp-server/build_info/version.txt
-          fi
+        run: script/prepare-build-info
+
       - name: Build
         run: go build -v ./cmd/github-mcp-server
