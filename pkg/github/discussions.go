@@ -13,6 +13,81 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+type DiscussionFragment struct {
+	Number    githubv4.Int
+	Title     githubv4.String
+	CreatedAt githubv4.DateTime
+	UpdatedAt githubv4.DateTime
+	Author    struct {
+		Login githubv4.String
+	}
+	Category struct {
+		Name githubv4.String
+	} `graphql:"category"`
+	URL githubv4.String `graphql:"url"`
+}
+
+type BasicNoOrder struct {
+	Repository struct {
+		Discussions struct {
+			Nodes []DiscussionFragment
+		} `graphql:"discussions(first: 100)"`
+	} `graphql:"repository(owner: $owner, name: $repo)"`
+}
+
+type BasicWithOrder struct {
+	Repository struct {
+		Discussions struct {
+			Nodes []DiscussionFragment
+		} `graphql:"discussions(first: 100, orderBy: { field: $orderByField, direction: $orderByDirection })"`
+	} `graphql:"repository(owner: $owner, name: $repo)"`
+}
+
+type WithCategoryAndOrder struct {
+	Repository struct {
+		Discussions struct {
+			Nodes []DiscussionFragment
+		} `graphql:"discussions(first: 100, categoryId: $categoryId, orderBy: { field: $orderByField, direction: $orderByDirection })"`
+	} `graphql:"repository(owner: $owner, name: $repo)"`
+}
+
+type WithCategoryNoOrder struct {
+	Repository struct {
+		Discussions struct {
+			Nodes []DiscussionFragment
+		} `graphql:"discussions(first: 100, categoryId: $categoryId)"`
+	} `graphql:"repository(owner: $owner, name: $repo)"`
+}
+
+func fragmentToDiscussion(fragment DiscussionFragment) *github.Discussion {
+	return &github.Discussion{
+		Number:    github.Ptr(int(fragment.Number)),
+		Title:     github.Ptr(string(fragment.Title)),
+		HTMLURL:   github.Ptr(string(fragment.URL)),
+		CreatedAt: &github.Timestamp{Time: fragment.CreatedAt.Time},
+		UpdatedAt: &github.Timestamp{Time: fragment.UpdatedAt.Time},
+		User: &github.User{
+			Login: github.Ptr(string(fragment.Author.Login)),
+		},
+		DiscussionCategory: &github.DiscussionCategory{
+			Name: github.Ptr(string(fragment.Category.Name)),
+		},
+	}
+}
+
+func getQueryType(useOrdering bool, categoryID *githubv4.ID) any {
+	if categoryID != nil && useOrdering {
+		return &WithCategoryAndOrder{}
+	}
+	if categoryID != nil && !useOrdering {
+		return &WithCategoryNoOrder{}
+	}
+	if categoryID == nil && useOrdering {
+		return &BasicWithOrder{}
+	}
+	return &BasicNoOrder{}
+}
+
 func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("list_discussions",
 			mcp.WithDescription(t("TOOL_LIST_DISCUSSIONS_DESCRIPTION", "List discussions for a repository")),
@@ -31,9 +106,16 @@ func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelp
 			mcp.WithString("category",
 				mcp.Description("Optional filter by discussion category ID. If provided, only discussions with this category are listed."),
 			),
+			mcp.WithString("orderBy",
+				mcp.Description("Order discussions by field. If provided, the 'direction' also needs to be provided."),
+				mcp.Enum("CREATED_AT", "UPDATED_AT"),
+			),
+			mcp.WithString("direction",
+				mcp.Description("Order direction."),
+				mcp.Enum("ASC", "DESC"),
+			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			// Required params
 			owner, err := RequiredParam[string](request, "owner")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
@@ -43,8 +125,17 @@ func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelp
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			// Optional params
 			category, err := OptionalParam[string](request, "category")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			orderBy, err := OptionalParam[string](request, "orderBy")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			direction, err := OptionalParam[string](request, "direction")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -54,95 +145,60 @@ func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelp
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil
 			}
 
-			// If category filter is specified, use it as the category ID for server-side filtering
 			var categoryID *githubv4.ID
 			if category != "" {
 				id := githubv4.ID(category)
 				categoryID = &id
 			}
 
-			// Now execute the discussions query
-			var discussions []*github.Discussion
+			vars := map[string]interface{}{
+				"owner": githubv4.String(owner),
+				"repo":  githubv4.String(repo),
+			}
+
+			// this is an extra check in case the tool description is misinterpreted, because
+			// we shouldn't use ordering unless both a 'field' and 'direction' are provided
+			useOrdering := orderBy != "" && direction != ""
+			if useOrdering {
+				vars["orderByField"] = githubv4.DiscussionOrderField(orderBy)
+				vars["orderByDirection"] = githubv4.OrderDirection(direction)
+			}
+
 			if categoryID != nil {
-				// Query with category filter (server-side filtering)
-				var query struct {
-					Repository struct {
-						Discussions struct {
-							Nodes []struct {
-								Number    githubv4.Int
-								Title     githubv4.String
-								CreatedAt githubv4.DateTime
-								Category  struct {
-									Name githubv4.String
-								} `graphql:"category"`
-								URL githubv4.String `graphql:"url"`
-							}
-						} `graphql:"discussions(first: 100, categoryId: $categoryId)"`
-					} `graphql:"repository(owner: $owner, name: $repo)"`
-				}
-				vars := map[string]interface{}{
-					"owner":      githubv4.String(owner),
-					"repo":       githubv4.String(repo),
-					"categoryId": *categoryID,
-				}
-				if err := client.Query(ctx, &query, vars); err != nil {
-					return mcp.NewToolResultError(err.Error()), nil
+				vars["categoryId"] = *categoryID
+			}
+
+			var discussions []*github.Discussion
+			discussionQuery := getQueryType(useOrdering, categoryID)
+
+			if err := client.Query(ctx, discussionQuery, vars); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// we need to check what user inputs we received at runtime, and use the
+			// most appropriate query based on that
+			switch queryType := discussionQuery.(type) {
+			case *WithCategoryAndOrder:
+				for _, node := range queryType.Repository.Discussions.Nodes {
+					discussions = append(discussions, fragmentToDiscussion(node))
 				}
 
-				// Map nodes to GitHub Discussion objects
-				for _, n := range query.Repository.Discussions.Nodes {
-					di := &github.Discussion{
-						Number:    github.Ptr(int(n.Number)),
-						Title:     github.Ptr(string(n.Title)),
-						HTMLURL:   github.Ptr(string(n.URL)),
-						CreatedAt: &github.Timestamp{Time: n.CreatedAt.Time},
-						DiscussionCategory: &github.DiscussionCategory{
-							Name: github.Ptr(string(n.Category.Name)),
-						},
-					}
-					discussions = append(discussions, di)
-				}
-			} else {
-				// Query without category filter
-				var query struct {
-					Repository struct {
-						Discussions struct {
-							Nodes []struct {
-								Number    githubv4.Int
-								Title     githubv4.String
-								CreatedAt githubv4.DateTime
-								Category  struct {
-									Name githubv4.String
-								} `graphql:"category"`
-								URL githubv4.String `graphql:"url"`
-							}
-						} `graphql:"discussions(first: 100)"`
-					} `graphql:"repository(owner: $owner, name: $repo)"`
-				}
-				vars := map[string]interface{}{
-					"owner": githubv4.String(owner),
-					"repo":  githubv4.String(repo),
-				}
-				if err := client.Query(ctx, &query, vars); err != nil {
-					return mcp.NewToolResultError(err.Error()), nil
+			case *WithCategoryNoOrder:
+				for _, node := range queryType.Repository.Discussions.Nodes {
+					discussions = append(discussions, fragmentToDiscussion(node))
 				}
 
-				// Map nodes to GitHub Discussion objects
-				for _, n := range query.Repository.Discussions.Nodes {
-					di := &github.Discussion{
-						Number:    github.Ptr(int(n.Number)),
-						Title:     github.Ptr(string(n.Title)),
-						HTMLURL:   github.Ptr(string(n.URL)),
-						CreatedAt: &github.Timestamp{Time: n.CreatedAt.Time},
-						DiscussionCategory: &github.DiscussionCategory{
-							Name: github.Ptr(string(n.Category.Name)),
-						},
-					}
-					discussions = append(discussions, di)
+			case *BasicWithOrder:
+				for _, node := range queryType.Repository.Discussions.Nodes {
+					discussions = append(discussions, fragmentToDiscussion(node))
+				}
+
+			case *BasicNoOrder:
+				for _, node := range queryType.Repository.Discussions.Nodes {
+					discussions = append(discussions, fragmentToDiscussion(node))
 				}
 			}
 
-			// Marshal and return
 			out, err := json.Marshal(discussions)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal discussions: %w", err)

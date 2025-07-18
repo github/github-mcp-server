@@ -462,6 +462,8 @@ The following sets of tools are available (all are on by default):
 
 - **list_discussions** - List discussions
   - `category`: Optional filter by discussion category ID. If provided, only discussions with this category are listed. (string, optional)
+  - `direction`: Order direction. (string, optional)
+  - `orderBy`: Order discussions by field. If provided, the 'direction' also needs to be provided. (string, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
