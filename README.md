@@ -246,6 +246,28 @@ For a complete overview of all installation options, see our **[Installation Gui
 
 > **Note:** Any host application that supports local MCP servers should be able to access the local GitHub MCP server. However, the specific configuration process, syntax and stability of the integration will vary by host application. While many may follow a similar format to the examples above, this is not guaranteed. Please refer to your host application's documentation for the correct MCP configuration syntax and setup process.
 
+### Usage with Claude Code
+
+```sh
+claude mcp add-json github '
+{
+  "command": "docker",
+  "args": [
+    "run",
+    "-i",
+    "--rm",
+    "-e",
+    "GITHUB_PERSONAL_ACCESS_TOKEN",
+    "ghcr.io/github/github-mcp-server"
+  ],
+  "env": {
+    "GITHUB_PERSONAL_ACCESS_TOKEN": "<YOUR_TOKEN>"
+  }
+}
+'
+```
+
+
 ### Build from source
 
 If you don't have Docker, you can use `go build` to build the binary in the
