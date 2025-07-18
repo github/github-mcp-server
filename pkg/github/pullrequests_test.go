@@ -2137,10 +2137,10 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 
 	// Verify tool definition once
 	mockClient := githubv4.NewClient(nil)
-	tool, _ := AddPullRequestReviewCommentToPendingReview(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := AddCommentToPendingReview(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "add_pull_request_review_comment_to_pending_review", tool.Name)
+	assert.Equal(t, "add_comment_to_pending_review", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
@@ -2222,7 +2222,7 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 
 			// Setup client with mock
 			client := githubv4.NewClient(tc.mockedClient)
-			_, handler := AddPullRequestReviewCommentToPendingReview(stubGetGQLClientFn(client), translations.NullTranslationHelper)
+			_, handler := AddCommentToPendingReview(stubGetGQLClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)

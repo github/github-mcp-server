@@ -10,6 +10,17 @@ Contributions to this project are [released](https://help.github.com/articles/gi
 
 Please note that this project is released with a [Contributor Code of Conduct](CODE_OF_CONDUCT.md). By participating in this project you agree to abide by its terms.
 
+## What we're looking for
+
+We can't guarantee that every tool, feature, or pull request will be approved or merged. Our focus is on supporting high-quality, high-impact capabilities that advance agentic workflows and deliver clear value to developers.
+
+To increase the chances your request is accepted:
+* Include real use cases or examples that demonstrate practical value
+* If your request stalls, you can open a Discussion post and link to your issue or PR
+* We actively revisit requests that gain strong community engagement (👍s, comments, or evidence of real-world use)
+
+Thanks for contributing and for helping us build toolsets that are truly valuable!
+
 ## Prerequisites for running and testing code
 
 These are one time installations required to be able to test your changes locally as part of the pull request (PR) submission process.

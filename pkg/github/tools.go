@@ -89,7 +89,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			// Reviews
 			toolsets.NewServerTool(CreateAndSubmitPullRequestReview(getGQLClient, t)),
 			toolsets.NewServerTool(CreatePendingPullRequestReview(getGQLClient, t)),
-			toolsets.NewServerTool(AddPullRequestReviewCommentToPendingReview(getGQLClient, t)),
+			toolsets.NewServerTool(AddCommentToPendingReview(getGQLClient, t)),
 			toolsets.NewServerTool(SubmitPendingPullRequestReview(getGQLClient, t)),
 			toolsets.NewServerTool(DeletePendingPullRequestReview(getGQLClient, t)),
 		)

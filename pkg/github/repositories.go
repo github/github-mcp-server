@@ -507,6 +507,24 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 			// If the path is (most likely) not to be a directory, we will
 			// first try to get the raw content from the GitHub raw content API.
 			if path != "" && !strings.HasSuffix(path, "/") {
+				// First, get file info from Contents API to retrieve SHA
+				var fileSHA string
+				opts := &github.RepositoryContentGetOptions{Ref: ref}
+				fileContent, _, respContents, err := client.Repositories.GetContents(ctx, owner, repo, path, opts)
+				if respContents != nil {
+					defer func() { _ = respContents.Body.Close() }()
+				}
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx,
+						"failed to get file SHA",
+						respContents,
+						err,
+					), nil
+				}
+				if fileContent == nil || fileContent.SHA == nil {
+					return mcp.NewToolResultError("file content SHA is nil"), nil
+				}
+				fileSHA = *fileContent.SHA
 
 				rawClient, err := getRawClient(ctx)
 				if err != nil {
@@ -548,18 +566,28 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 					}
 
 					if strings.HasPrefix(contentType, "application") || strings.HasPrefix(contentType, "text") {
-						return mcp.NewToolResultResource("successfully downloaded text file", mcp.TextResourceContents{
+						result := mcp.TextResourceContents{
 							URI:      resourceURI,
 							Text:     string(body),
 							MIMEType: contentType,
-						}), nil
+						}
+						// Include SHA in the result metadata
+						if fileSHA != "" {
+							return mcp.NewToolResultResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)", fileSHA), result), nil
+						}
+						return mcp.NewToolResultResource("successfully downloaded text file", result), nil
 					}
 
-					return mcp.NewToolResultResource("successfully downloaded binary file", mcp.BlobResourceContents{
+					result := mcp.BlobResourceContents{
 						URI:      resourceURI,
 						Blob:     base64.StdEncoding.EncodeToString(body),
 						MIMEType: contentType,
-					}), nil
+					}
+					// Include SHA in the result metadata
+					if fileSHA != "" {
+						return mcp.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)", fileSHA), result), nil
+					}
+					return mcp.NewToolResultResource("successfully downloaded binary file", result), nil
 
 				}
 			}

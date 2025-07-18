@@ -77,6 +77,20 @@ func Test_GetFileContents(t *testing.T) {
 					}),
 				),
 				mock.WithRequestMatchHandler(
+					mock.GetReposContentsByOwnerByRepoByPath,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						fileContent := &github.RepositoryContent{
+							Name: github.Ptr("README.md"),
+							Path: github.Ptr("README.md"),
+							SHA:  github.Ptr("abc123"),
+							Type: github.Ptr("file"),
+						}
+						contentBytes, _ := json.Marshal(fileContent)
+						_, _ = w.Write(contentBytes)
+					}),
+				),
+				mock.WithRequestMatchHandler(
 					raw.GetRawReposContentsByOwnerByRepoByBranchByPath,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.Header().Set("Content-Type", "text/markdown")
@@ -105,6 +119,20 @@ func Test_GetFileContents(t *testing.T) {
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusOK)
 						_, _ = w.Write([]byte(`{"ref": "refs/heads/main", "object": {"sha": ""}}`))
+					}),
+				),
+				mock.WithRequestMatchHandler(
+					mock.GetReposContentsByOwnerByRepoByPath,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						fileContent := &github.RepositoryContent{
+							Name: github.Ptr("test.png"),
+							Path: github.Ptr("test.png"),
+							SHA:  github.Ptr("def456"),
+							Type: github.Ptr("file"),
+						}
+						contentBytes, _ := json.Marshal(fileContent)
+						_, _ = w.Write(contentBytes)
 					}),
 				),
 				mock.WithRequestMatchHandler(
