@@ -1,9 +1,8 @@
-package main
+package cmd
 
 import (
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/github/github-mcp-server/internal/ghmcp"
@@ -19,7 +18,7 @@ var commit = "commit"
 var date = "date"
 
 var (
-	rootCmd = &cobra.Command{
+	RootCmd = &cobra.Command{
 		Use:     "server",
 		Short:   "GitHub MCP Server",
 		Long:    `A GitHub MCP server that handles various tools and resources.`,
@@ -63,30 +62,30 @@ var (
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	rootCmd.SetGlobalNormalizationFunc(wordSepNormalizeFunc)
+	RootCmd.SetGlobalNormalizationFunc(wordSepNormalizeFunc)
 
-	rootCmd.SetVersionTemplate("{{.Short}}\n{{.Version}}\n")
+	RootCmd.SetVersionTemplate("{{.Short}}\n{{.Version}}\n")
 
 	// Add global flags that will be shared by all commands
-	rootCmd.PersistentFlags().StringSlice("toolsets", github.DefaultTools, "An optional comma separated list of groups of tools to allow, defaults to enabling all")
-	rootCmd.PersistentFlags().Bool("dynamic-toolsets", false, "Enable dynamic toolsets")
-	rootCmd.PersistentFlags().Bool("read-only", false, "Restrict the server to read-only operations")
-	rootCmd.PersistentFlags().String("log-file", "", "Path to log file")
-	rootCmd.PersistentFlags().Bool("enable-command-logging", false, "When enabled, the server will log all command requests and responses to the log file")
-	rootCmd.PersistentFlags().Bool("export-translations", false, "Save translations to a JSON file")
-	rootCmd.PersistentFlags().String("gh-host", "", "Specify the GitHub hostname (for GitHub Enterprise etc.)")
+	RootCmd.PersistentFlags().StringSlice("toolsets", github.DefaultTools, "An optional comma separated list of groups of tools to allow, defaults to enabling all")
+	RootCmd.PersistentFlags().Bool("dynamic-toolsets", false, "Enable dynamic toolsets")
+	RootCmd.PersistentFlags().Bool("read-only", false, "Restrict the server to read-only operations")
+	RootCmd.PersistentFlags().String("log-file", "", "Path to log file")
+	RootCmd.PersistentFlags().Bool("enable-command-logging", false, "When enabled, the server will log all command requests and responses to the log file")
+	RootCmd.PersistentFlags().Bool("export-translations", false, "Save translations to a JSON file")
+	RootCmd.PersistentFlags().String("gh-host", "", "Specify the GitHub hostname (for GitHub Enterprise etc.)")
 
 	// Bind flag to viper
-	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
-	_ = viper.BindPFlag("dynamic_toolsets", rootCmd.PersistentFlags().Lookup("dynamic-toolsets"))
-	_ = viper.BindPFlag("read-only", rootCmd.PersistentFlags().Lookup("read-only"))
-	_ = viper.BindPFlag("log-file", rootCmd.PersistentFlags().Lookup("log-file"))
-	_ = viper.BindPFlag("enable-command-logging", rootCmd.PersistentFlags().Lookup("enable-command-logging"))
-	_ = viper.BindPFlag("export-translations", rootCmd.PersistentFlags().Lookup("export-translations"))
-	_ = viper.BindPFlag("host", rootCmd.PersistentFlags().Lookup("gh-host"))
+	_ = viper.BindPFlag("toolsets", RootCmd.PersistentFlags().Lookup("toolsets"))
+	_ = viper.BindPFlag("dynamic_toolsets", RootCmd.PersistentFlags().Lookup("dynamic-toolsets"))
+	_ = viper.BindPFlag("read-only", RootCmd.PersistentFlags().Lookup("read-only"))
+	_ = viper.BindPFlag("log-file", RootCmd.PersistentFlags().Lookup("log-file"))
+	_ = viper.BindPFlag("enable-command-logging", RootCmd.PersistentFlags().Lookup("enable-command-logging"))
+	_ = viper.BindPFlag("export-translations", RootCmd.PersistentFlags().Lookup("export-translations"))
+	_ = viper.BindPFlag("host", RootCmd.PersistentFlags().Lookup("gh-host"))
 
 	// Add subcommands
-	rootCmd.AddCommand(stdioCmd)
+	RootCmd.AddCommand(stdioCmd)
 }
 
 func initConfig() {
@@ -94,13 +93,6 @@ func initConfig() {
 	viper.SetEnvPrefix("github")
 	viper.AutomaticEnv()
 
-}
-
-func main() {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(1)
-	}
 }
 
 func wordSepNormalizeFunc(_ *pflag.FlagSet, name string) pflag.NormalizedName {

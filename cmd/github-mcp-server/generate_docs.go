@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"context"
@@ -29,7 +29,7 @@ var generateDocsCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(generateDocsCmd)
+	RootCmd.AddCommand(generateDocsCmd)
 }
 
 // mockGetClient returns a mock GitHub client for documentation generation

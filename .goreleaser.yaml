@@ -9,12 +9,11 @@ builds:
   - env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+      - -s -w -X cmd.version={{.Version}} -X cmd.commit={{.Commit}} -X cmd.date={{.Date}}
     goos:
       - linux
       - windows
       - darwin
-    main: ./cmd/github-mcp-server
 
 archives:
   - formats: tar.gz
