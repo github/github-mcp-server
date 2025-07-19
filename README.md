@@ -287,6 +287,7 @@ The following sets of tools are available (all are on by default):
 | `dependabot` | Dependabot tools |
 | `discussions` | GitHub Discussions related tools |
 | `experiments` | Experimental features that are not considered stable yet |
+| `graphql` | GitHub GraphQL API tools for direct query execution |
 | `issues` | GitHub Issues related tools |
 | `notifications` | GitHub Notifications related tools |
 | `orgs` | GitHub Organization related tools |
@@ -465,6 +466,16 @@ The following sets of tools are available (all are on by default):
   - `category`: Optional filter by discussion category ID. If provided, only discussions with this category are listed. (string, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
+
+</details>
+
+<details>
+
+<summary>Graphql</summary>
+
+- **execute_graphql_query** - Execute GraphQL query
+  - `query`: The GraphQL query string to execute (string, required)
+  - `variables`: Variables for the GraphQL query (optional) (object, optional)
 
 </details>
 

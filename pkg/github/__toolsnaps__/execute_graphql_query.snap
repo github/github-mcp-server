@@ -1,0 +1,25 @@
+{
+  "annotations": {
+    "title": "Execute GraphQL query",
+    "readOnlyHint": false
+  },
+  "description": "Execute a GraphQL query against GitHub's API and return the results.",
+  "inputSchema": {
+    "properties": {
+      "query": {
+        "description": "The GraphQL query string to execute",
+        "type": "string"
+      },
+      "variables": {
+        "description": "Variables for the GraphQL query (optional)",
+        "properties": {},
+        "type": "object"
+      }
+    },
+    "required": [
+      "query"
+    ],
+    "type": "object"
+  },
+  "name": "execute_graphql_query"
+}
