@@ -280,6 +280,8 @@ func addCommandFromTool(toolsCmd *cobra.Command, tool *Tool, prettyPrint bool) {
 			}
 		case "number":
 			cmd.Flags().Float64(name, 0, description)
+		case "integer":
+			cmd.Flags().Int64(name, 0, description)
 		case "boolean":
 			cmd.Flags().Bool(name, false, description)
 		case "array":
@@ -317,6 +319,10 @@ func buildArgumentsMap(cmd *cobra.Command, tool *Tool) (map[string]interface{}, 
 			}
 		case "number":
 			if value, _ := cmd.Flags().GetFloat64(name); value != 0 {
+				arguments[name] = value
+			}
+		case "integer":
+			if value, _ := cmd.Flags().GetInt64(name); value != 0 {
 				arguments[name] = value
 			}
 		case "boolean":
