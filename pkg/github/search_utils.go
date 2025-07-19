@@ -56,8 +56,8 @@ func searchHandler(
 		Sort:  sort,
 		Order: order,
 		ListOptions: github.ListOptions{
-			Page:    pagination.page,
-			PerPage: pagination.perPage,
+			Page:    pagination.Page,
+			PerPage: pagination.PerPage,
 		},
 	}
 

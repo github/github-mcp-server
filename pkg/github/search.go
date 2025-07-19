@@ -39,8 +39,8 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 
 			opts := &github.SearchOptions{
 				ListOptions: github.ListOptions{
-					Page:    pagination.page,
-					PerPage: pagination.perPage,
+					Page:    pagination.Page,
+					PerPage: pagination.PerPage,
 				},
 			}
 
@@ -118,8 +118,8 @@ func SearchCode(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 				Sort:  sort,
 				Order: order,
 				ListOptions: github.ListOptions{
-					PerPage: pagination.perPage,
-					Page:    pagination.page,
+					PerPage: pagination.PerPage,
+					Page:    pagination.Page,
 				},
 			}
 
@@ -193,8 +193,8 @@ func userOrOrgHandler(accountType string, getClient GetClientFn) server.ToolHand
 			Sort:  sort,
 			Order: order,
 			ListOptions: github.ListOptions{
-				PerPage: pagination.perPage,
-				Page:    pagination.page,
+				PerPage: pagination.PerPage,
+				Page:    pagination.Page,
 			},
 		}
 

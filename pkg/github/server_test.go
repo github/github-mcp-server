@@ -489,8 +489,8 @@ func TestOptionalPaginationParams(t *testing.T) {
 			name:   "no pagination parameters, default values",
 			params: map[string]any{},
 			expected: PaginationParams{
-				page:    1,
-				perPage: 30,
+				Page:    1,
+				PerPage: 30,
 			},
 			expectError: false,
 		},
@@ -500,8 +500,8 @@ func TestOptionalPaginationParams(t *testing.T) {
 				"page": float64(2),
 			},
 			expected: PaginationParams{
-				page:    2,
-				perPage: 30,
+				Page:    2,
+				PerPage: 30,
 			},
 			expectError: false,
 		},
@@ -511,8 +511,8 @@ func TestOptionalPaginationParams(t *testing.T) {
 				"perPage": float64(50),
 			},
 			expected: PaginationParams{
-				page:    1,
-				perPage: 50,
+				Page:    1,
+				PerPage: 50,
 			},
 			expectError: false,
 		},
@@ -523,8 +523,8 @@ func TestOptionalPaginationParams(t *testing.T) {
 				"perPage": float64(50),
 			},
 			expected: PaginationParams{
-				page:    2,
-				perPage: 50,
+				Page:    2,
+				PerPage: 50,
 			},
 			expectError: false,
 		},

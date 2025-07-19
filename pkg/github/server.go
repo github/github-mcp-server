@@ -174,9 +174,7 @@ func OptionalStringArrayParam(r mcp.CallToolRequest, p string) ([]string, error)
 	}
 }
 
-// WithPagination returns a ToolOption that adds "page" and "perPage" parameters to the tool.
-// The "page" parameter is optional, min 1.
-// The "perPage" parameter is optional, min 1, max 100. If unset, defaults to 30.
+// WithPagination adds REST API pagination parameters to a tool.
 // https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api
 func WithPagination() mcp.ToolOption {
 	return func(tool *mcp.Tool) {
@@ -193,12 +191,49 @@ func WithPagination() mcp.ToolOption {
 	}
 }
 
-type PaginationParams struct {
-	page    int
-	perPage int
+// WithUnifiedPagination adds REST API pagination parameters to a tool.
+// GraphQL tools will use this and convert page/perPage to GraphQL cursor parameters internally.
+func WithUnifiedPagination() mcp.ToolOption {
+	return func(tool *mcp.Tool) {
+		mcp.WithNumber("page",
+			mcp.Description("Page number for pagination (min 1)"),
+			mcp.Min(1),
+		)(tool)
+
+		mcp.WithNumber("perPage",
+			mcp.Description("Results per page for pagination (min 1, max 100)"),
+			mcp.Min(1),
+			mcp.Max(100),
+		)(tool)
+
+		mcp.WithString("after",
+			mcp.Description("Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs."),
+		)(tool)
+	}
 }
 
-// OptionalPaginationParams returns the "page" and "perPage" parameters from the request,
+// WithCursorPagination adds only cursor-based pagination parameters to a tool (no page parameter).
+func WithCursorPagination() mcp.ToolOption {
+	return func(tool *mcp.Tool) {
+		mcp.WithNumber("perPage",
+			mcp.Description("Results per page for pagination (min 1, max 100)"),
+			mcp.Min(1),
+			mcp.Max(100),
+		)(tool)
+
+		mcp.WithString("after",
+			mcp.Description("Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs."),
+		)(tool)
+	}
+}
+
+type PaginationParams struct {
+	Page    int
+	PerPage int
+	After   string
+}
+
+// OptionalPaginationParams returns the "page", "perPage", and "after" parameters from the request,
 // or their default values if not present, "page" default is 1, "perPage" default is 30.
 // In future, we may want to make the default values configurable, or even have this
 // function returned from `withPagination`, where the defaults are provided alongside
@@ -212,9 +247,85 @@ func OptionalPaginationParams(r mcp.CallToolRequest) (PaginationParams, error) {
 	if err != nil {
 		return PaginationParams{}, err
 	}
+	after, err := OptionalParam[string](r, "after")
+	if err != nil {
+		return PaginationParams{}, err
+	}
 	return PaginationParams{
-		page:    page,
-		perPage: perPage,
+		Page:    page,
+		PerPage: perPage,
+		After:   after,
+	}, nil
+}
+
+// OptionalCursorPaginationParams returns the "perPage" and "after" parameters from the request,
+// without the "page" parameter, suitable for cursor-based pagination only.
+func OptionalCursorPaginationParams(r mcp.CallToolRequest) (CursorPaginationParams, error) {
+	perPage, err := OptionalIntParamWithDefault(r, "perPage", 30)
+	if err != nil {
+		return CursorPaginationParams{}, err
+	}
+	after, err := OptionalParam[string](r, "after")
+	if err != nil {
+		return CursorPaginationParams{}, err
+	}
+	return CursorPaginationParams{
+		PerPage: perPage,
+		After:   after,
+	}, nil
+}
+
+type CursorPaginationParams struct {
+	PerPage int
+	After   string
+}
+
+// ToGraphQLParams converts cursor pagination parameters to GraphQL-specific parameters.
+func (p CursorPaginationParams) ToGraphQLParams() (GraphQLPaginationParams, error) {
+	if p.PerPage > 100 {
+		return GraphQLPaginationParams{}, fmt.Errorf("perPage value %d exceeds maximum of 100", p.PerPage)
+	}
+	if p.PerPage < 0 {
+		return GraphQLPaginationParams{}, fmt.Errorf("perPage value %d cannot be negative", p.PerPage)
+	}
+	first := int32(p.PerPage)
+
+	var after *string
+	if p.After != "" {
+		after = &p.After
+	}
+
+	return GraphQLPaginationParams{
+		First: &first,
+		After: after,
+	}, nil
+}
+
+type GraphQLPaginationParams struct {
+	First *int32
+	After *string
+}
+
+// ToGraphQLParams converts REST API pagination parameters to GraphQL-specific parameters.
+// This converts page/perPage to first parameter for GraphQL queries.
+// If After is provided, it takes precedence over page-based pagination.
+func (p PaginationParams) ToGraphQLParams() (GraphQLPaginationParams, error) {
+	if p.PerPage > 100 {
+		return GraphQLPaginationParams{}, fmt.Errorf("perPage value %d exceeds maximum of 100", p.PerPage)
+	}
+	if p.PerPage < 0 {
+		return GraphQLPaginationParams{}, fmt.Errorf("perPage value %d cannot be negative", p.PerPage)
+	}
+	first := int32(p.PerPage)
+
+	var after *string
+	if p.After != "" {
+		after = &p.After
+	}
+
+	return GraphQLPaginationParams{
+		First: &first,
+		After: after,
 	}, nil
 }
 

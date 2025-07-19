@@ -58,8 +58,8 @@ func GetCommit(getClient GetClientFn, t translations.TranslationHelperFunc) (too
 			}
 
 			opts := &github.ListOptions{
-				Page:    pagination.page,
-				PerPage: pagination.perPage,
+				Page:    pagination.Page,
+				PerPage: pagination.PerPage,
 			}
 
 			client, err := getClient(ctx)
@@ -139,7 +139,7 @@ func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 			// Set default perPage to 30 if not provided
-			perPage := pagination.perPage
+			perPage := pagination.PerPage
 			if perPage == 0 {
 				perPage = 30
 			}
@@ -147,7 +147,7 @@ func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 				SHA:    sha,
 				Author: author,
 				ListOptions: github.ListOptions{
-					Page:    pagination.page,
+					Page:    pagination.Page,
 					PerPage: perPage,
 				},
 			}
@@ -217,8 +217,8 @@ func ListBranches(getClient GetClientFn, t translations.TranslationHelperFunc) (
 
 			opts := &github.BranchListOptions{
 				ListOptions: github.ListOptions{
-					Page:    pagination.page,
-					PerPage: pagination.perPage,
+					Page:    pagination.Page,
+					PerPage: pagination.PerPage,
 				},
 			}
 
@@ -1198,8 +1198,8 @@ func ListTags(getClient GetClientFn, t translations.TranslationHelperFunc) (tool
 			}
 
 			opts := &github.ListOptions{
-				Page:    pagination.page,
-				PerPage: pagination.perPage,
+				Page:    pagination.Page,
+				PerPage: pagination.PerPage,
 			}
 
 			client, err := getClient(ctx)

@@ -403,8 +403,8 @@ func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFun
 				Sort:      sort,
 				Direction: direction,
 				ListOptions: github.ListOptions{
-					PerPage: pagination.perPage,
-					Page:    pagination.page,
+					PerPage: pagination.PerPage,
+					Page:    pagination.Page,
 				},
 			}
 
@@ -622,8 +622,8 @@ func GetPullRequestFiles(getClient GetClientFn, t translations.TranslationHelper
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 			opts := &github.ListOptions{
-				PerPage: pagination.perPage,
-				Page:    pagination.page,
+				PerPage: pagination.PerPage,
+				Page:    pagination.Page,
 			}
 			files, resp, err := client.PullRequests.ListFiles(ctx, owner, repo, pullNumber, opts)
 			if err != nil {

@@ -88,8 +88,8 @@ func ListNotifications(getClient GetClientFn, t translations.TranslationHelperFu
 				All:           filter == FilterIncludeRead,
 				Participating: filter == FilterOnlyParticipating,
 				ListOptions: github.ListOptions{
-					Page:    paginationParams.page,
-					PerPage: paginationParams.perPage,
+					Page:    paginationParams.Page,
+					PerPage: paginationParams.PerPage,
 				},
 			}
 
