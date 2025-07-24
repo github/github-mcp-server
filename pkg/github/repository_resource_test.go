@@ -208,6 +208,68 @@ func Test_repositoryResourceContentsHandler(t *testing.T) {
 			}},
 		},
 		{
+			name: "successful text content fetch (pr with path)",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposPullsByOwnerByRepoByPullNumber,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.Header().Set("Content-Type", "application/json")
+						_, err := w.Write([]byte(`{"head": {"sha": "def456"}}`))
+						require.NoError(t, err)
+					}),
+				),
+				mock.WithRequestMatchHandler(
+					raw.GetRawReposContentsByOwnerByRepoBySHAByPath,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.Header().Set("Content-Type", "application/javascript")
+						_, err := w.Write([]byte("console.log('Hello from PR');"))
+						require.NoError(t, err)
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":    []string{"owner"},
+				"repo":     []string{"repo"},
+				"path":     []string{"src", "main.js"},
+				"prNumber": []string{"123"},
+			},
+			expectedResult: []mcp.TextResourceContents{{
+				Text:     "console.log('Hello from PR');",
+				MIMEType: "application/javascript",
+				URI:      "",
+			}},
+		},
+		{
+			name: "pr not found error",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposPullsByOwnerByRepoByPullNumber,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":    []string{"owner"},
+				"repo":     []string{"repo"},
+				"path":     []string{"README.md"},
+				"prNumber": []string{"999"},
+			},
+			expectError: "failed to get pull request",
+		},
+		{
+			name: "invalid pr number",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner":    []string{"owner"},
+				"repo":     []string{"repo"},
+				"path":     []string{"README.md"},
+				"prNumber": []string{"invalid"},
+			},
+			expectError: "invalid pull request number",
+		},
+		{
 			name: "content fetch fails",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
@@ -277,4 +339,10 @@ func Test_GetRepositoryResourceTagContent(t *testing.T) {
 	mockRawClient := raw.NewClient(github.NewClient(nil), &url.URL{})
 	tmpl, _ := GetRepositoryResourceTagContent(nil, stubGetRawClientFn(mockRawClient), translations.NullTranslationHelper)
 	require.Equal(t, "repo://{owner}/{repo}/refs/tags/{tag}/contents{/path*}", tmpl.URITemplate.Raw())
+}
+
+func Test_GetRepositoryResourcePrContent(t *testing.T) {
+	mockRawClient := raw.NewClient(github.NewClient(nil), &url.URL{})
+	tmpl, _ := GetRepositoryResourcePrContent(nil, stubGetRawClientFn(mockRawClient), translations.NullTranslationHelper)
+	require.Equal(t, "repo://{owner}/{repo}/refs/pull/{prNumber}/head/contents{/path*}", tmpl.URITemplate.Raw())
 }

@@ -880,6 +880,116 @@ The following sets of tools are available (all are on by default):
 </details>
 <!-- END AUTOMATED TOOLS -->
 
+## Resources
+
+The GitHub MCP Server provides MCP resources that allow AI tools to access repository content as context. Resources use URI templates to specify what content to retrieve.
+
+### Repository Content Resources
+
+Access files and directories from repositories using these resource templates:
+
+#### Main Branch Content
+```
+repo://{owner}/{repo}/contents{/path*}
+```
+Access files from the default branch of a repository.
+
+**Example:**
+```
+repo://microsoft/vscode/contents/README.md
+repo://facebook/react/contents/packages/react/src/React.js
+```
+
+#### Branch Content
+```
+repo://{owner}/{repo}/refs/heads/{branch}/contents{/path*}
+```
+Access files from a specific branch.
+
+**Example:**
+```
+repo://microsoft/vscode/refs/heads/main/contents/src/vs/code/electron-main/main.ts
+repo://facebook/react/refs/heads/canary/contents/package.json
+```
+
+#### Tag Content
+```
+repo://{owner}/{repo}/refs/tags/{tag}/contents{/path*}
+```
+Access files from a specific tag or release.
+
+**Example:**
+```
+repo://microsoft/vscode/refs/tags/1.85.0/contents/CHANGELOG.md
+repo://facebook/react/refs/tags/v18.2.0/contents/packages/react/package.json
+```
+
+#### Commit Content
+```
+repo://{owner}/{repo}/sha/{sha}/contents{/path*}
+```
+Access files from a specific commit.
+
+**Example:**
+```
+repo://microsoft/vscode/sha/a1b2c3d4e5f6/contents/src/main.ts
+repo://facebook/react/sha/abc123def456/contents/packages/react/index.js
+```
+
+#### Pull Request Content
+```
+repo://{owner}/{repo}/refs/pull/{prNumber}/head/contents{/path*}
+```
+Access files from a pull request's head branch. This is particularly useful for reviewing code changes, analyzing new features, or providing feedback on pull requests.
+
+**Example:**
+```
+repo://microsoft/vscode/refs/pull/123/head/contents/src/vs/editor/editor.api.ts
+repo://facebook/react/refs/pull/456/head/contents/packages/react-dom/src/client/ReactDOM.js
+```
+
+**Use Cases for Pull Request Resources:**
+- **Code Review**: Access modified files to provide automated code review feedback
+- **Documentation Analysis**: Review documentation changes in pull requests
+- **Test Coverage**: Examine test files to understand coverage for new features
+- **Configuration Changes**: Review changes to CI/CD workflows or configuration files
+- **Impact Analysis**: Analyze how changes affect different parts of the codebase
+
+### Resource Parameters
+
+- **`owner`** (required): Repository owner (username or organization name)
+- **`repo`** (required): Repository name
+- **`path`** (optional): File or directory path within the repository
+  - Supports nested paths: `src/components/Button/Button.tsx`
+  - Supports files with special characters: `docs/how-to-use-@scoped-packages.md`
+  - Must be a file path (directories are not supported for content access)
+
+### Supported File Types
+
+Resources automatically detect file types and return appropriate content:
+
+- **Text files**: `.md`, `.js`, `.ts`, `.py`, `.go`, `.java`, `.cpp`, etc. - returned as text
+- **Configuration files**: `.json`, `.yaml`, `.toml`, `.xml`, etc. - returned as text
+- **Binary files**: `.png`, `.jpg`, `.pdf`, `.zip`, etc. - returned as base64-encoded blobs
+
+### Error Handling
+
+Resources will return appropriate errors for:
+- Repository not found or access denied
+- Branch, tag, or commit not found
+- Pull request not found or access denied
+- File or path not found
+- Invalid parameters
+
+### Tips for Using Resources
+
+1. **Be specific with paths**: Always provide the full path to the file you want
+2. **Check permissions**: Ensure your GitHub token has access to the repository and content
+3. **Handle different file types**: Text files return as `text`, binary files as base64 `blob`
+4. **For Pull Requests**: The resource accesses the latest state of the PR's head branch
+
+For detailed information about Pull Request resources, see [Pull Request Resources Documentation](docs/pr-resources.md).
+
 ### Additional Tools in Remote Github MCP Server
 
 <details>
