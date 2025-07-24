@@ -249,8 +249,43 @@ For a complete overview of all installation options, see our **[Installation Gui
 
 ### Build from source
 
-If you don't have Docker, you can use `go build` to build the binary in the
-`cmd/github-mcp-server` directory, and use the `github-mcp-server stdio` command with the `GITHUB_PERSONAL_ACCESS_TOKEN` environment variable set to your token. To specify the output location of the build, use the `-o` flag. You should configure your server to use the built executable as its `command`. For example:
+If you don't have Docker, you have several options:
+
+#### Option 1: Run directly from source (Recommended)
+
+You can run the server directly from source using `go run`:
+
+```bash
+GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> go run github.com/github/github-mcp-server@latest stdio
+```
+
+Or configure your MCP host to use `go run`:
+
+```JSON
+{
+  "mcp": {
+    "servers": {
+      "github": {
+        "command": "go",
+        "args": ["run", "github.com/github/github-mcp-server@latest", "stdio"],
+        "env": {
+          "GITHUB_PERSONAL_ACCESS_TOKEN": "<YOUR_TOKEN>"
+        }
+      }
+    }
+  }
+}
+```
+
+#### Option 2: Build and install
+
+You can build the binary and use the built executable:
+
+```bash
+go build -o github-mcp-server github.com/github/github-mcp-server@latest
+```
+
+Then configure your server to use the built executable:
 
 ```JSON
 {
