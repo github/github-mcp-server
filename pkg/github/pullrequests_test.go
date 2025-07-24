@@ -2590,3 +2590,168 @@ func getLatestPendingReviewQuery(p getLatestPendingReviewQueryParams) githubv4mo
 		),
 	)
 }
+
+func TestAddReplyToPullRequestComment(t *testing.T) {
+	t.Parallel()
+
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := AddReplyToPullRequestComment(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "add_reply_to_pull_request_comment", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
+	assert.Contains(t, tool.InputSchema.Properties, "commentId")
+	assert.Contains(t, tool.InputSchema.Properties, "body")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber", "commentId", "body"})
+
+	// Setup mock reply comment for success case
+	mockReplyComment := &github.PullRequestComment{
+		ID:        github.Ptr(int64(456)),
+		Body:      github.Ptr("This is a reply to the comment"),
+		InReplyTo: github.Ptr(int64(123)),
+		HTMLURL:   github.Ptr("https://github.com/owner/repo/pull/42#discussion_r456"),
+		User: &github.User{
+			Login: github.Ptr("responder"),
+		},
+		CreatedAt: &github.Timestamp{Time: time.Now()},
+		UpdatedAt: &github.Timestamp{Time: time.Now()},
+	}
+
+	tests := []struct {
+		name               string
+		mockedClient       *http.Client
+		requestArgs        map[string]interface{}
+		expectToolError    bool
+		expectedToolErrMsg string
+	}{
+		{
+			name: "successful reply to pull request comment",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PostReposPullsCommentsByOwnerByRepoByPullNumber,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusCreated)
+						responseData, _ := json.Marshal(mockReplyComment)
+						_, _ = w.Write(responseData)
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"commentId":  float64(123),
+				"body":       "This is a reply to the comment",
+			},
+		},
+		{
+			name: "missing required parameter owner",
+			requestArgs: map[string]interface{}{
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"commentId":  float64(123),
+				"body":       "This is a reply to the comment",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: owner",
+		},
+		{
+			name: "missing required parameter repo",
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"pullNumber": float64(42),
+				"commentId":  float64(123),
+				"body":       "This is a reply to the comment",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: repo",
+		},
+		{
+			name: "missing required parameter pullNumber",
+			requestArgs: map[string]interface{}{
+				"owner":     "owner",
+				"repo":      "repo",
+				"commentId": float64(123),
+				"body":      "This is a reply to the comment",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: pullNumber",
+		},
+		{
+			name: "missing required parameter commentId",
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"body":       "This is a reply to the comment",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: commentId",
+		},
+		{
+			name: "missing required parameter body",
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"commentId":  float64(123),
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "missing required parameter: body",
+		},
+		{
+			name: "API error when adding reply",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PostReposPullsCommentsByOwnerByRepoByPullNumber,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"commentId":  float64(123),
+				"body":       "This is a reply to the comment",
+			},
+			expectToolError:    true,
+			expectedToolErrMsg: "failed to add reply to pull request comment",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := AddReplyToPullRequestComment(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+			require.NoError(t, err)
+
+			if tc.expectToolError {
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedToolErrMsg)
+				return
+			}
+
+			// Parse the result and verify it's not an error
+			require.False(t, result.IsError)
+			textContent := getTextResult(t, result)
+			assert.Contains(t, textContent.Text, "This is a reply to the comment")
+		})
+	}
+}
