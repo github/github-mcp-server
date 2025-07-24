@@ -802,8 +802,9 @@ func ListIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			if since != "" {
-				timestamp, err := parseISOTimestamp(since)
+			// Enhanced validation: handle empty strings, whitespace, and null values
+			if since != "" && strings.TrimSpace(since) != "" {
+				timestamp, err := parseISOTimestamp(strings.TrimSpace(since))
 				if err != nil {
 					return mcp.NewToolResultError(fmt.Sprintf("failed to list issues: %s", err.Error())), nil
 				}
@@ -1263,6 +1264,8 @@ type ReplaceActorsForAssignableInput struct {
 // Returns the parsed time or an error if parsing fails.
 // Example formats supported: "2023-01-15T14:30:00Z", "2023-01-15"
 func parseISOTimestamp(timestamp string) (time.Time, error) {
+	// Trim whitespace and check for empty string
+	timestamp = strings.TrimSpace(timestamp)
 	if timestamp == "" {
 		return time.Time{}, fmt.Errorf("empty timestamp")
 	}
