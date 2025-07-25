@@ -16,14 +16,15 @@ import (
 // SearchRepositories creates a tool to search for GitHub repositories.
 func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("search_repositories",
-			mcp.WithDescription(t("TOOL_SEARCH_REPOSITORIES_DESCRIPTION", "Search for GitHub repositories")),
+			mcp.WithDescription(t("TOOL_SEARCH_REPOSITORIES_DESCRIPTION", "Find GitHub repositories by name, description, readme, topics, or other metadata. Perfect for discovering projects, finding examples, or locating specific repositories across GitHub.")),
+
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:        t("TOOL_SEARCH_REPOSITORIES_USER_TITLE", "Search repositories"),
 				ReadOnlyHint: ToBoolPtr(true),
 			}),
 			mcp.WithString("query",
 				mcp.Required(),
-				mcp.Description("Search query"),
+				mcp.Description("Repository search query. Examples: 'machine learning in:name stars:>1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering."),
 			),
 			WithPagination(),
 		),
@@ -78,20 +79,20 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 // SearchCode creates a tool to search for code across GitHub repositories.
 func SearchCode(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("search_code",
-			mcp.WithDescription(t("TOOL_SEARCH_CODE_DESCRIPTION", "Search for code across GitHub repositories")),
+			mcp.WithDescription(t("TOOL_SEARCH_CODE_DESCRIPTION", "Fast and precise code search across ALL GitHub repositories using GitHub's native search engine. Best for finding exact symbols, functions, classes, or specific code patterns.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:        t("TOOL_SEARCH_CODE_USER_TITLE", "Search code"),
 				ReadOnlyHint: ToBoolPtr(true),
 			}),
 			mcp.WithString("query",
 				mcp.Required(),
-				mcp.Description("Search query using GitHub code search syntax"),
+				mcp.Description("Search query using GitHub's powerful code search syntax. Examples: 'content:Skill language:Java org:github', 'NOT is:archived language:Python OR language:go'. Supports exact matching, language filters, path filters, and more."),
 			),
 			mcp.WithString("sort",
 				mcp.Description("Sort field ('indexed' only)"),
 			),
 			mcp.WithString("order",
-				mcp.Description("Sort order"),
+				mcp.Description("Sort order for results"),
 				mcp.Enum("asc", "desc"),
 			),
 			WithPagination(),
@@ -258,17 +259,17 @@ func userOrOrgHandler(accountType string, getClient GetClientFn) server.ToolHand
 // SearchUsers creates a tool to search for GitHub users.
 func SearchUsers(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("search_users",
-		mcp.WithDescription(t("TOOL_SEARCH_USERS_DESCRIPTION", "Search for GitHub users exclusively")),
+		mcp.WithDescription(t("TOOL_SEARCH_USERS_DESCRIPTION", "Find GitHub users by username, real name, or other profile information. Useful for locating developers, contributors, or team members.")),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:        t("TOOL_SEARCH_USERS_USER_TITLE", "Search users"),
 			ReadOnlyHint: ToBoolPtr(true),
 		}),
 		mcp.WithString("query",
 			mcp.Required(),
-			mcp.Description("Search query using GitHub users search syntax scoped to type:user"),
+			mcp.Description("User search query. Examples: 'john smith', 'location:seattle', 'followers:>100'. Search is automatically scoped to type:user."),
 		),
 		mcp.WithString("sort",
-			mcp.Description("Sort field by category"),
+			mcp.Description("Sort users by number of followers or repositories, or when the person joined GitHub."),
 			mcp.Enum("followers", "repositories", "joined"),
 		),
 		mcp.WithString("order",
@@ -282,14 +283,15 @@ func SearchUsers(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 // SearchOrgs creates a tool to search for GitHub organizations.
 func SearchOrgs(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("search_orgs",
-		mcp.WithDescription(t("TOOL_SEARCH_ORGS_DESCRIPTION", "Search for GitHub organizations exclusively")),
+		mcp.WithDescription(t("TOOL_SEARCH_ORGS_DESCRIPTION", "Find GitHub organizations by name, location, or other organization metadata. Ideal for discovering companies, open source foundations, or teams.")),
+
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:        t("TOOL_SEARCH_ORGS_USER_TITLE", "Search organizations"),
 			ReadOnlyHint: ToBoolPtr(true),
 		}),
 		mcp.WithString("query",
 			mcp.Required(),
-			mcp.Description("Search query using GitHub organizations search syntax scoped to type:org"),
+			mcp.Description("Organization search query. Examples: 'microsoft', 'location:california', 'created:>=2025-01-01'. Search is automatically scoped to type:org."),
 		),
 		mcp.WithString("sort",
 			mcp.Description("Sort field by category"),

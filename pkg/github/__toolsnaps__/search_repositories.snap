@@ -3,7 +3,7 @@
     "title": "Search repositories",
     "readOnlyHint": true
   },
-  "description": "Search for GitHub repositories",
+  "description": "Find GitHub repositories by name, description, readme, topics, or other metadata. Perfect for discovering projects, finding examples, or locating specific repositories across GitHub.",
   "inputSchema": {
     "properties": {
       "page": {
@@ -18,7 +18,7 @@
         "type": "number"
       },
       "query": {
-        "description": "Search query",
+        "description": "Repository search query. Examples: 'machine learning in:name stars:\u003e1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering.",
         "type": "string"
       }
     },

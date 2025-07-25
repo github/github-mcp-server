@@ -3,7 +3,7 @@
     "title": "Search users",
     "readOnlyHint": true
   },
-  "description": "Search for GitHub users exclusively",
+  "description": "Find GitHub users by username, real name, or other profile information. Useful for locating developers, contributors, or team members.",
   "inputSchema": {
     "properties": {
       "order": {
@@ -26,11 +26,11 @@
         "type": "number"
       },
       "query": {
-        "description": "Search query using GitHub users search syntax scoped to type:user",
+        "description": "User search query. Examples: 'john smith', 'location:seattle', 'followers:\u003e100'. Search is automatically scoped to type:user.",
         "type": "string"
       },
       "sort": {
-        "description": "Sort field by category",
+        "description": "Sort users by number of followers or repositories, or when the person joined GitHub.",
         "enum": [
           "followers",
           "repositories",
