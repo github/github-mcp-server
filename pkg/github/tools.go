@@ -63,7 +63,11 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(AddSubIssue(getClient, t)),
 			toolsets.NewServerTool(RemoveSubIssue(getClient, t)),
 			toolsets.NewServerTool(ReprioritizeSubIssue(getClient, t)),
-		).AddPrompts(toolsets.NewServerPrompt(AssignCodingAgentPrompt(t)))
+		).AddPrompts(
+		toolsets.NewServerPrompt(AssignCodingAgentPrompt(t)),
+		toolsets.NewServerPrompt(IssueInvestigationWorkflowPrompt(t)),
+		toolsets.NewServerPrompt(IssueToFixWorkflowPrompt(t)),
+	)
 	users := toolsets.NewToolset("users", "GitHub User related tools").
 		AddReadTools(
 			toolsets.NewServerTool(SearchUsers(getClient, t)),
@@ -96,7 +100,9 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(AddCommentToPendingReview(getGQLClient, t)),
 			toolsets.NewServerTool(SubmitPendingPullRequestReview(getGQLClient, t)),
 			toolsets.NewServerTool(DeletePendingPullRequestReview(getGQLClient, t)),
-		)
+		).AddPrompts(
+		toolsets.NewServerPrompt(PullRequestReviewWorkflowPrompt(t)),
+	)
 	codeSecurity := toolsets.NewToolset("code_security", "Code security related tools, such as GitHub Code Scanning").
 		AddReadTools(
 			toolsets.NewServerTool(GetCodeScanningAlert(getClient, t)),
@@ -123,7 +129,9 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(MarkAllNotificationsRead(getClient, t)),
 			toolsets.NewServerTool(ManageNotificationSubscription(getClient, t)),
 			toolsets.NewServerTool(ManageRepositoryNotificationSubscription(getClient, t)),
-		)
+		).AddPrompts(
+		toolsets.NewServerPrompt(NotificationTriageWorkflowPrompt(t)),
+	)
 
 	discussions := toolsets.NewToolset("discussions", "GitHub Discussions related tools").
 		AddReadTools(
