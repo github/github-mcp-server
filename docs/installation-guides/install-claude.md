@@ -43,12 +43,8 @@ Claude Code CLI provides command-line access to Claude with MCP server integrati
 Run the following command to add the GitHub MCP server using Docker:
 
 ```bash
-claude mcp add github -- docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server
-```
-
-Then set the environment variable:
-```bash
-claude mcp update github -e GITHUB_PERSONAL_ACCESS_TOKEN=your_github_pat
+claude mcp add github -e GITHUB_PERSONAL_ACCESS_TOKEN=your_github_pat -- \
+  docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN=your_github_pat ghcr.io/github/github-mcp-server
 ```
 
 Or as a single command with the token inline:
