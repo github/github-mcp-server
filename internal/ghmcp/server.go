@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/github"
@@ -250,6 +251,239 @@ func RunStdioServer(cfg StdioServerConfig) error {
 
 	return nil
 }
+
+type WebServerConfig struct {
+	// Port to serve the web interface on
+	Port string
+}
+
+// RunWebServer starts a simple HTTP server with a login page
+func RunWebServer(cfg WebServerConfig) error {
+	// Create app context
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	mux := http.NewServeMux()
+
+	// Serve the login page
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte(loginPageHTML))
+	})
+
+	// Serve basic CSS
+	mux.HandleFunc("/style.css", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/css")
+		_, _ = w.Write([]byte(loginPageCSS))
+	})
+
+	// Handle login form submission (just echo back for now)
+	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		username := r.FormValue("username")
+		_ = r.FormValue("password") // password not used in this basic implementation
+
+		// For now, just display a simple response
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprintf(w, `
+			<html>
+			<head>
+				<title>Login Attempt</title>
+				<link rel="stylesheet" href="/style.css">
+			</head>
+			<body>
+				<div class="container">
+					<h1>Login Attempt</h1>
+					<p>Username: %s</p>
+					<p>Password: ***</p>
+					<p><em>Note: This is just a UI mockup. No actual authentication is performed.</em></p>
+					<a href="/">Back to Login</a>
+				</div>
+			</body>
+			</html>
+		`, username)
+	})
+
+	server := &http.Server{
+		Addr:              ":" + cfg.Port,
+		Handler:           mux,
+		ReadHeaderTimeout: 30 * time.Second, // 30 seconds, prevents Slowloris attacks
+	}
+
+	// Start server in a goroutine
+	errC := make(chan error, 1)
+	go func() {
+		fmt.Printf("Starting web server on http://localhost:%s\n", cfg.Port)
+		errC <- server.ListenAndServe()
+	}()
+
+	// Wait for shutdown signal
+	select {
+	case <-ctx.Done():
+		fmt.Println("Shutting down web server...")
+		return server.Shutdown(context.Background())
+	case err := <-errC:
+		if err != nil && err != http.ErrServerClosed {
+			return fmt.Errorf("error running web server: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// loginPageHTML contains the HTML for the simple login page
+const loginPageHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub MCP Server - Login</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="login-form">
+            <h1>GitHub MCP Server</h1>
+            <h2>Login</h2>
+            <form action="/login" method="post">
+                <div class="form-group">
+                    <label for="username">Username:</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <button type="submit" class="login-btn">Login</button>
+            </form>
+            <p class="note">This is a basic login interface for future authentication features.</p>
+        </div>
+    </div>
+</body>
+</html>`
+
+// loginPageCSS contains the CSS styling for the login page
+const loginPageCSS = `
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background-color: #f6f8fa;
+    color: #24292f;
+    line-height: 1.5;
+}
+
+.container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.login-form {
+    background: white;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    padding: 32px;
+    box-shadow: 0 8px 24px rgba(140, 149, 159, 0.2);
+    max-width: 400px;
+    width: 100%;
+}
+
+h1 {
+    text-align: center;
+    margin-bottom: 8px;
+    color: #0969da;
+    font-size: 24px;
+}
+
+h2 {
+    text-align: center;
+    margin-bottom: 24px;
+    color: #656d76;
+    font-size: 20px;
+    font-weight: normal;
+}
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+input[type="text"],
+input[type="password"] {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.2s;
+}
+
+input[type="text"]:focus,
+input[type="password"]:focus {
+    outline: none;
+    border-color: #0969da;
+    box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.1);
+}
+
+.login-btn {
+    width: 100%;
+    background-color: #238636;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.login-btn:hover {
+    background-color: #2ea043;
+}
+
+.login-btn:active {
+    background-color: #1a7f37;
+}
+
+.note {
+    text-align: center;
+    margin-top: 24px;
+    font-size: 12px;
+    color: #656d76;
+    font-style: italic;
+}
+
+a {
+    color: #0969da;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+`
 
 type apiHost struct {
 	baseRESTURL *url.URL
