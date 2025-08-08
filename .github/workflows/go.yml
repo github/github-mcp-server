@@ -1,5 +1,5 @@
 name: Build and Test Go Project
-on: [push, pull_request]
+on: [ push, pull_request ]
 
 permissions:
   contents: read
@@ -9,7 +9,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
 
     runs-on: ${{ matrix.os }}
 
@@ -27,6 +27,9 @@ jobs:
 
       - name: Run unit tests
         run: script/test
+
+      - name: Prepare build_info files
+        run: script/prepare-build-info
 
       - name: Build
         run: go build -v ./cmd/github-mcp-server
