@@ -162,6 +162,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	contextTools := toolsets.NewToolset("context", "Tools that provide context about the current user and GitHub context you are operating in").
 		AddReadTools(
 			toolsets.NewServerTool(GetMe(getClient, t)),
+			toolsets.NewServerTool(GetTeams(getClient, getGQLClient, t)),
 		)
 
 	gists := toolsets.NewToolset("gists", "GitHub Gist related tools").
