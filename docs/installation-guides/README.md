@@ -7,6 +7,7 @@ This directory contains detailed installation instructions for the GitHub MCP Se
 - **[Claude Applications](install-claude.md)** - Installation guide for Claude Web, Claude Desktop and Claude Code CLI
 - **[Cursor](install-cursor.md)** - Installation guide for Cursor IDE
 - **[Windsurf](install-windsurf.md)** - Installation guide for Windsurf IDE
+- **[Gemini CLI](install-gemini.md)** - Installation guide for Gemini CLI
 
 ## Support by Host Application
 
