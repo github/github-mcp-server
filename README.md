@@ -240,7 +240,8 @@ For other MCP host applications, please refer to our installation guides:
 
 - **[GitHub Copilot in other IDEs](/docs/installation-guides/install-other-copilot-ides.md)** - Installation for JetBrains, Visual Studio, Eclipse, and Xcode with GitHub Copilot
 - **[Claude Code & Claude Desktop](docs/installation-guides/install-claude.md)** - Installation guide for Claude Code and Claude Desktop
-- **[Cursor](docs/installation-guides/install-cursor.md)** - Installation guide for Cursor IDE  
+- **[Cursor](docs/installation-guides/install-cursor.md)** - Installation guide for Cursor IDE
+- **[Google Gemini CLI](docs/installation-guides/install-gemini-cli.md)** - Installation guide for Google Gemini CLI
 - **[Windsurf](docs/installation-guides/install-windsurf.md)** - Installation guide for Windsurf IDE
 
 For a complete overview of all installation options, see our **[Installation Guides Index](docs/installation-guides/installation-guides.md)**.
