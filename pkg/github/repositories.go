@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/raw"
@@ -96,7 +97,7 @@ func GetCommit(getClient GetClientFn, t translations.TranslationHelperFunc) (too
 // ListCommits creates a tool to get commits of a branch in a repository.
 func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("list_commits",
-			mcp.WithDescription(t("TOOL_LIST_COMMITS_DESCRIPTION", "Get list of commits of a branch in a GitHub repository. Returns at least 30 results per page by default, but can return more if specified using the perPage parameter (up to 100).")),
+			mcp.WithDescription(t("TOOL_LIST_COMMITS_DESCRIPTION", "Get list of commits of a branch in a GitHub repository. Can be filtered by author, date range (since/until), or file path. Returns at least 30 results per page by default, but can return more if specified using the perPage parameter (up to 100).")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:        t("TOOL_LIST_COMMITS_USER_TITLE", "List commits"),
 				ReadOnlyHint: ToBoolPtr(true),
@@ -114,6 +115,15 @@ func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 			),
 			mcp.WithString("author",
 				mcp.Description("Author username or email address to filter commits by"),
+			),
+			mcp.WithString("since",
+				mcp.Description("Only return commits after this date (ISO 8601 format, e.g., '2024-01-01T00:00:00Z')"),
+			),
+			mcp.WithString("until",
+				mcp.Description("Only return commits before this date (ISO 8601 format, e.g., '2024-12-31T23:59:59Z')"),
+			),
+			mcp.WithString("path",
+				mcp.Description("Only return commits that touch the specified file path"),
 			),
 			WithPagination(),
 		),
@@ -134,6 +144,18 @@ func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+			since, err := OptionalParam[string](request, "since")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			until, err := OptionalParam[string](request, "until")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			path, err := OptionalParam[string](request, "path")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
 			pagination, err := OptionalPaginationParams(request)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
@@ -143,13 +165,33 @@ func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 			if perPage == 0 {
 				perPage = 30
 			}
+
 			opts := &github.CommitsListOptions{
 				SHA:    sha,
 				Author: author,
+				Path:   path,
 				ListOptions: github.ListOptions{
 					Page:    pagination.Page,
 					PerPage: perPage,
 				},
+			}
+
+			// Parse since time if provided
+			if since != "" {
+				sinceTime, err := time.Parse(time.RFC3339, since)
+				if err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("invalid since date format (use ISO 8601/RFC3339): %s", err.Error())), nil
+				}
+				opts.Since = sinceTime
+			}
+
+			// Parse until time if provided
+			if until != "" {
+				untilTime, err := time.Parse(time.RFC3339, until)
+				if err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("invalid until date format (use ISO 8601/RFC3339): %s", err.Error())), nil
+				}
+				opts.Until = untilTime
 			}
 
 			client, err := getClient(ctx)
