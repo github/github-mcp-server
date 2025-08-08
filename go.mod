@@ -7,7 +7,6 @@ require (
 	github.com/josephburnett/jd v1.9.2
 	github.com/mark3labs/mcp-go v0.32.0
 	github.com/migueleliasweb/go-github-mock v1.3.0
-	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.10.0
