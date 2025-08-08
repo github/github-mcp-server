@@ -1791,6 +1791,7 @@ func Test_CreatePullRequest(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "base")
 	assert.Contains(t, tool.InputSchema.Properties, "draft")
 	assert.Contains(t, tool.InputSchema.Properties, "maintainer_can_modify")
+	assert.Contains(t, tool.InputSchema.Properties, "reviewers")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "title", "head", "base"})
 
 	// Setup mock PR for success case
@@ -1884,6 +1885,49 @@ func Test_CreatePullRequest(t *testing.T) {
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to create pull request",
+		},
+		{
+			name: "successful PR creation with reviewers",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PostReposPullsByOwnerByRepo,
+					expectRequestBody(t, map[string]interface{}{
+						"title":                 "Test PR with reviewers",
+						"body":                  "This PR has reviewers",
+						"head":                  "feature-branch",
+						"base":                  "main",
+						"draft":                 false,
+						"maintainer_can_modify": true,
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockPR),
+					),
+				),
+				mock.WithRequestMatchHandler(
+					mock.PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber,
+					expectRequestBody(t, map[string]interface{}{
+						"reviewers": []interface{}{"reviewer1", "reviewer2"},
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockPR),
+					),
+				),
+				mock.WithRequestMatch(
+					mock.GetReposPullsByOwnerByRepoByPullNumber,
+					mockPR,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":                 "owner",
+				"repo":                  "repo",
+				"title":                 "Test PR with reviewers",
+				"body":                  "This PR has reviewers",
+				"head":                  "feature-branch",
+				"base":                  "main",
+				"draft":                 false,
+				"maintainer_can_modify": true,
+				"reviewers":             []string{"reviewer1", "reviewer2"},
+			},
+			expectError: false,
+			expectedPR:  mockPR,
 		},
 	}
 
