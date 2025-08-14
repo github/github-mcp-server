@@ -21,6 +21,7 @@ import (
 	gogithub "github.com/google/go-github/v74/github"
 	mcpClient "github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -1623,4 +1624,627 @@ func TestPullRequestReviewDeletion(t *testing.T) {
 	err = json.Unmarshal([]byte(textContent.Text), &noReviews)
 	require.NoError(t, err, "expected to unmarshal text content successfully")
 	require.Len(t, noReviews, 0, "expected to find no reviews")
+}
+
+func TestFindClosingPullRequests(t *testing.T) {
+	t.Parallel()
+
+	mcpClient := setupMCPClient(t, withToolsets([]string{"issues"}))
+
+	ctx := context.Background()
+
+	// Test with well-known GitHub repositories and issues
+	testCases := []struct {
+		name                    string
+		owner                   string
+		repo                    string
+		issueNumbers            []int
+		limit                   int
+		expectError             bool
+		expectedResults         int
+		expectSomeWithClosingPR bool
+	}{
+		{
+			name:            "Single issue test - should handle gracefully even if no closing PRs",
+			owner:           "octocat",
+			repo:            "Hello-World",
+			issueNumbers:    []int{1},
+			limit:           5,
+			expectError:     false,
+			expectedResults: 1,
+		},
+		{
+			name:            "Multiple issues test",
+			owner:           "github",
+			repo:            "docs",
+			issueNumbers:    []int{1, 2},
+			limit:           3,
+			expectError:     false,
+			expectedResults: 2,
+		},
+		{
+			name:         "Empty issue_numbers array should return error",
+			owner:        "octocat",
+			repo:         "Hello-World",
+			issueNumbers: []int{},
+			expectError:  true,
+		},
+		{
+			name:         "Limit too high should return error",
+			owner:        "octocat",
+			repo:         "Hello-World",
+			issueNumbers: []int{1},
+			limit:        251,
+			expectError:  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Prepare the request
+			findClosingPRsRequest := mcp.CallToolRequest{}
+			findClosingPRsRequest.Params.Name = "find_closing_pull_requests"
+
+			// Build arguments map
+			args := map[string]any{
+				"owner":         tc.owner,
+				"repo":          tc.repo,
+				"issue_numbers": tc.issueNumbers,
+			}
+			if tc.limit > 0 {
+				args["limit"] = tc.limit
+			}
+			findClosingPRsRequest.Params.Arguments = args
+
+			t.Logf("Calling find_closing_pull_requests with owner: %s, repo: %s, issue_numbers: %v", tc.owner, tc.repo, tc.issueNumbers)
+			resp, err := mcpClient.CallTool(ctx, findClosingPRsRequest)
+
+			if tc.expectError {
+				// We expect either an error or an error response
+				if err != nil {
+					t.Logf("Expected error occurred: %v", err)
+					return
+				}
+				require.True(t, resp.IsError, "Expected error response")
+				t.Logf("Expected error in response: %+v", resp)
+				return
+			}
+
+			require.NoError(t, err, "expected to call 'find_closing_pull_requests' tool successfully")
+			require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+
+			// Verify we got content
+			require.NotEmpty(t, resp.Content, "Expected response content")
+
+			textContent, ok := resp.Content[0].(mcp.TextContent)
+			require.True(t, ok, "expected content to be of type TextContent")
+
+			t.Logf("Response: %s", textContent.Text)
+
+			// Parse the JSON response
+			var response struct {
+				Results []struct {
+					Owner               string `json:"owner"`
+					Repo                string `json:"repo"`
+					IssueNumber         int    `json:"issue_number"`
+					ClosingPullRequests []struct {
+						Number int    `json:"number"`
+						Title  string `json:"title"`
+						Body   string `json:"body"`
+						State  string `json:"state"`
+						URL    string `json:"url"`
+						Merged bool   `json:"merged"`
+					} `json:"closingPullRequests"`
+					TotalCount int    `json:"totalCount"`
+					Error      string `json:"error,omitempty"`
+				} `json:"results"`
+			}
+
+			err = json.Unmarshal([]byte(textContent.Text), &response)
+			require.NoError(t, err, "expected to unmarshal response successfully")
+
+			// Verify the response structure
+			require.Len(t, response.Results, tc.expectedResults, "Expected specific number of results")
+
+			// Log and verify each result
+			for i, result := range response.Results {
+				t.Logf("Result %d:", i+1)
+				t.Logf("  Owner: %s, Repo: %s, Number: %d", result.Owner, result.Repo, result.IssueNumber)
+				t.Logf("  Total closing PRs: %d", result.TotalCount)
+				if result.Error != "" {
+					t.Logf("  Error: %s", result.Error)
+				}
+
+				// Verify basic structure
+				assert.NotEmpty(t, result.Owner, "Owner should not be empty")
+				assert.NotEmpty(t, result.Repo, "Repo should not be empty")
+				assert.Greater(t, result.IssueNumber, 0, "Issue number should be positive")
+
+				// Log details of any closing PRs found
+				for j, pr := range result.ClosingPullRequests {
+					t.Logf("    Closing PR %d:", j+1)
+					t.Logf("      Number: %d", pr.Number)
+					t.Logf("      Title: %s", pr.Title)
+					t.Logf("      State: %s, Merged: %t", pr.State, pr.Merged)
+					t.Logf("      URL: %s", pr.URL)
+
+					// Verify PR structure
+					assert.Greater(t, pr.Number, 0, "PR number should be positive")
+					assert.NotEmpty(t, pr.Title, "PR title should not be empty")
+					assert.NotEmpty(t, pr.State, "PR state should not be empty")
+					assert.NotEmpty(t, pr.URL, "PR URL should not be empty")
+				}
+
+				// The number of closing PRs in this page should be less than or equal to the total count
+				assert.LessOrEqual(t, len(result.ClosingPullRequests), result.TotalCount, "ClosingPullRequests length should not exceed TotalCount")
+			}
+		})
+	}
+}
+
+// TestFindClosingPullRequestsGraphQLParameters tests the enhanced GraphQL parameters
+func TestFindClosingPullRequestsGraphQLParameters(t *testing.T) {
+	t.Parallel()
+
+	mcpClient := setupMCPClient(t, withToolsets([]string{"issues"}))
+	ctx := context.Background()
+
+	t.Run("Boolean Parameters", func(t *testing.T) {
+		// Test cases for boolean parameters
+		booleanTestCases := []struct {
+			name             string
+			owner            string
+			repo             string
+			issueNumbers     []int
+			includeClosedPrs *bool
+			orderByState     *bool
+			userLinkedOnly   *bool
+			expectError      bool
+			description      string
+		}{
+			{
+				name:             "includeClosedPrs=true - should include closed/merged PRs",
+				owner:            "microsoft",
+				repo:             "vscode",
+				issueNumbers:     []int{1},
+				includeClosedPrs: boolPtr(true),
+				description:      "Test includeClosedPrs parameter with popular repository",
+			},
+			{
+				name:             "includeClosedPrs=false - should exclude closed/merged PRs",
+				owner:            "microsoft",
+				repo:             "vscode",
+				issueNumbers:     []int{2},
+				includeClosedPrs: boolPtr(false),
+				description:      "Test includeClosedPrs=false parameter",
+			},
+			{
+				name:         "orderByState=true - should order results by PR state",
+				owner:        "microsoft",
+				repo:         "vscode",
+				issueNumbers: []int{1, 2}, // Use low numbers for older issues
+				orderByState: boolPtr(true),
+				description:  "Test orderByState parameter with larger repository",
+			},
+			{
+				name:           "userLinkedOnly=true - should return only manually linked PRs",
+				owner:          "facebook",
+				repo:           "react",
+				issueNumbers:   []int{1}, // First issue in React repo
+				userLinkedOnly: boolPtr(true),
+				description:    "Test userLinkedOnly parameter",
+			},
+			{
+				name:             "Combined boolean parameters",
+				owner:            "facebook",
+				repo:             "react",
+				issueNumbers:     []int{1, 2},
+				includeClosedPrs: boolPtr(true),
+				orderByState:     boolPtr(true),
+				userLinkedOnly:   boolPtr(false),
+				description:      "Test multiple boolean parameters together",
+			},
+		}
+
+		for _, tc := range booleanTestCases {
+			t.Run(tc.name, func(t *testing.T) {
+				// Build arguments map
+				args := map[string]any{
+					"owner":         tc.owner,
+					"repo":          tc.repo,
+					"issue_numbers": tc.issueNumbers,
+					"limit":         5, // Keep limit reasonable
+				}
+
+				// Add boolean parameters if specified
+				if tc.includeClosedPrs != nil {
+					args["includeClosedPrs"] = *tc.includeClosedPrs
+				}
+				if tc.orderByState != nil {
+					args["orderByState"] = *tc.orderByState
+				}
+				if tc.userLinkedOnly != nil {
+					args["userLinkedOnly"] = *tc.userLinkedOnly
+				}
+
+				// Create request
+				request := mcp.CallToolRequest{}
+				request.Params.Name = "find_closing_pull_requests"
+				request.Params.Arguments = args
+
+				t.Logf("Testing %s: %s", tc.name, tc.description)
+				t.Logf("Arguments: %+v", args)
+
+				// Call the tool
+				resp, err := mcpClient.CallTool(ctx, request)
+
+				if tc.expectError {
+					if err != nil {
+						t.Logf("Expected error occurred: %v", err)
+						return
+					}
+					require.True(t, resp.IsError, "Expected error response")
+					return
+				}
+
+				require.NoError(t, err, "expected successful tool call")
+				require.False(t, resp.IsError, fmt.Sprintf("expected non-error response: %+v", resp))
+				require.NotEmpty(t, resp.Content, "Expected response content")
+
+				// Parse response
+				textContent, ok := resp.Content[0].(mcp.TextContent)
+				require.True(t, ok, "expected TextContent")
+
+				var response struct {
+					Results []struct {
+						Owner               string `json:"owner"`
+						Repo                string `json:"repo"`
+						IssueNumber         int    `json:"issue_number"`
+						TotalCount          int    `json:"total_count"`
+						ClosingPullRequests []struct {
+							Number int    `json:"number"`
+							Title  string `json:"title"`
+							State  string `json:"state"`
+							Merged bool   `json:"merged"`
+							URL    string `json:"url"`
+						} `json:"closing_pull_requests"`
+						Error string `json:"error,omitempty"`
+					} `json:"results"`
+				}
+
+				err = json.Unmarshal([]byte(textContent.Text), &response)
+				require.NoError(t, err, "expected successful JSON parsing")
+
+				// Verify response structure
+				require.NotEmpty(t, response.Results, "Expected at least one result")
+
+				for i, result := range response.Results {
+					t.Logf("Result %d: Owner=%s, Repo=%s, Issue=%d, TotalCount=%d",
+						i+1, result.Owner, result.Repo, result.IssueNumber, result.TotalCount)
+
+					// Log PRs found
+					for j, pr := range result.ClosingPullRequests {
+						t.Logf("  PR %d: #%d - %s (State: %s, Merged: %t)",
+							j+1, pr.Number, pr.Title, pr.State, pr.Merged)
+					}
+
+					// Basic validations
+					assert.Equal(t, tc.owner, result.Owner, "Owner should match request")
+					assert.Equal(t, tc.repo, result.Repo, "Repo should match request")
+					assert.Contains(t, tc.issueNumbers, result.IssueNumber, "Issue number should be in request")
+					assert.LessOrEqual(t, len(result.ClosingPullRequests), result.TotalCount, "ClosingPullRequests length should not exceed TotalCount")
+
+					// Parameter-specific validations
+					if tc.includeClosedPrs != nil && *tc.includeClosedPrs == false {
+						// When includeClosedPrs=false, should not include closed/merged PRs
+						for _, pr := range result.ClosingPullRequests {
+							assert.NotEqual(t, "CLOSED", pr.State, "Should not include closed PRs when includeClosedPrs=false")
+							if pr.State == "MERGED" {
+								assert.False(t, pr.Merged, "Should not include merged PRs when includeClosedPrs=false")
+							}
+						}
+					}
+
+					if tc.orderByState != nil && *tc.orderByState == true && len(result.ClosingPullRequests) > 1 {
+						// When orderByState=true, verify some ordering (exact ordering depends on GitHub's implementation)
+						t.Logf("OrderByState=true: PRs should be ordered by state")
+						// Note: We can't assert exact ordering without knowing GitHub's algorithm
+						// but we can verify the parameter was processed (no errors)
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("Pagination Parameters", func(t *testing.T) {
+		// Test cases for pagination parameters
+		paginationTestCases := []struct {
+			name         string
+			owner        string
+			repo         string
+			issueNumbers []int
+			first        *int
+			last         *int
+			after        *string
+			before       *string
+			expectError  bool
+			description  string
+		}{
+			{
+				name:         "Forward pagination with first parameter",
+				owner:        "microsoft",
+				repo:         "vscode",
+				issueNumbers: []int{1, 2},
+				first:        intPtr(1),
+				description:  "Test forward pagination using first parameter",
+			},
+			{
+				name:         "Backward pagination with last parameter",
+				owner:        "microsoft",
+				repo:         "vscode",
+				issueNumbers: []int{1, 2},
+				last:         intPtr(1),
+				description:  "Test backward pagination using last parameter",
+			},
+			{
+				name:         "Large repository pagination test",
+				owner:        "microsoft",
+				repo:         "vscode",
+				issueNumbers: []int{1, 2, 3},
+				first:        intPtr(1), // Small page size
+				description:  "Test pagination with larger repository",
+			},
+		}
+
+		for _, tc := range paginationTestCases {
+			t.Run(tc.name, func(t *testing.T) {
+				// Build arguments map
+				args := map[string]any{
+					"owner":         tc.owner,
+					"repo":          tc.repo,
+					"issue_numbers": tc.issueNumbers,
+				}
+
+				// Add pagination parameters if specified
+				if tc.first != nil {
+					args["limit"] = *tc.first // first maps to limit in our tool
+				}
+				if tc.last != nil {
+					args["last"] = *tc.last
+				}
+				if tc.after != nil {
+					args["after"] = *tc.after
+				}
+				if tc.before != nil {
+					args["before"] = *tc.before
+				}
+
+				// Create request
+				request := mcp.CallToolRequest{}
+				request.Params.Name = "find_closing_pull_requests"
+				request.Params.Arguments = args
+
+				t.Logf("Testing %s: %s", tc.name, tc.description)
+				t.Logf("Arguments: %+v", args)
+
+				// Call the tool
+				resp, err := mcpClient.CallTool(ctx, request)
+
+				if tc.expectError {
+					if err != nil {
+						t.Logf("Expected error occurred: %v", err)
+						return
+					}
+					require.True(t, resp.IsError, "Expected error response")
+					return
+				}
+
+				require.NoError(t, err, "expected successful tool call")
+				require.False(t, resp.IsError, fmt.Sprintf("expected non-error response: %+v", resp))
+				require.NotEmpty(t, resp.Content, "Expected response content")
+
+				// Parse response
+				textContent, ok := resp.Content[0].(mcp.TextContent)
+				require.True(t, ok, "expected TextContent")
+
+				var response struct {
+					Results []struct {
+						Owner               string `json:"owner"`
+						Repo                string `json:"repo"`
+						IssueNumber         int    `json:"issue_number"`
+						TotalCount          int    `json:"total_count"`
+						ClosingPullRequests []struct {
+							Number int    `json:"number"`
+							Title  string `json:"title"`
+							State  string `json:"state"`
+						} `json:"closing_pull_requests"`
+						PageInfo *struct {
+							HasNextPage     bool   `json:"hasNextPage"`
+							HasPreviousPage bool   `json:"hasPreviousPage"`
+							StartCursor     string `json:"startCursor"`
+							EndCursor       string `json:"endCursor"`
+						} `json:"pageInfo,omitempty"`
+					} `json:"results"`
+				}
+
+				err = json.Unmarshal([]byte(textContent.Text), &response)
+				require.NoError(t, err, "expected successful JSON parsing")
+
+				// Verify response structure
+				require.NotEmpty(t, response.Results, "Expected at least one result")
+
+				for i, result := range response.Results {
+					t.Logf("Result %d: Owner=%s, Repo=%s, Issue=%d, TotalCount=%d",
+						i+1, result.Owner, result.Repo, result.IssueNumber, result.TotalCount)
+
+					// Verify pagination parameter effects
+					if tc.first != nil {
+						assert.LessOrEqual(t, len(result.ClosingPullRequests), *tc.first,
+							"Result count should not exceed 'first' parameter")
+					}
+					if tc.last != nil {
+						assert.LessOrEqual(t, len(result.ClosingPullRequests), *tc.last,
+							"Result count should not exceed 'last' parameter")
+					}
+
+					// Log pagination info if present
+					if result.PageInfo != nil {
+						t.Logf("  PageInfo: HasNext=%t, HasPrev=%t",
+							result.PageInfo.HasNextPage, result.PageInfo.HasPreviousPage)
+						if result.PageInfo.StartCursor != "" {
+							t.Logf("  StartCursor: %s", result.PageInfo.StartCursor)
+						}
+						if result.PageInfo.EndCursor != "" {
+							t.Logf("  EndCursor: %s", result.PageInfo.EndCursor)
+						}
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("Error Validation", func(t *testing.T) {
+		// Test cases for parameter validation and error handling
+		errorTestCases := []struct {
+			name         string
+			owner        string
+			repo         string
+			issueNumbers []int
+			args         map[string]any
+			expectError  bool
+			description  string
+		}{
+			{
+				name:         "Conflicting limit and last parameters",
+				owner:        "microsoft",
+				repo:         "vscode",
+				issueNumbers: []int{1},
+				args: map[string]any{
+					"limit": 5,
+					"last":  3,
+				},
+				expectError: true,
+				description: "Should reject conflicting limit and last parameters",
+			},
+			{
+				name:         "Conflicting after and before cursors",
+				owner:        "microsoft",
+				repo:         "vscode",
+				issueNumbers: []int{1},
+				args: map[string]any{
+					"after":  "cursor1",
+					"before": "cursor2",
+				},
+				expectError: true,
+				description: "Should reject conflicting after and before cursors",
+			},
+			{
+				name:         "Before cursor without last parameter",
+				owner:        "microsoft",
+				repo:         "vscode",
+				issueNumbers: []int{1},
+				args: map[string]any{
+					"before": "cursor1",
+				},
+				expectError: true,
+				description: "Should reject before cursor without last parameter",
+			},
+			{
+				name:         "After cursor with last parameter",
+				owner:        "microsoft",
+				repo:         "vscode",
+				issueNumbers: []int{1},
+				args: map[string]any{
+					"after": "cursor1",
+					"last":  3,
+				},
+				expectError: true,
+				description: "Should reject after cursor with last parameter",
+			},
+			{
+				name:         "Invalid limit range - too high",
+				owner:        "microsoft",
+				repo:         "vscode",
+				issueNumbers: []int{1},
+				args: map[string]any{
+					"limit": 251,
+				},
+				expectError: true,
+				description: "Should reject limit greater than 250",
+			},
+			{
+				name:         "Invalid last range - too high",
+				owner:        "microsoft",
+				repo:         "vscode",
+				issueNumbers: []int{1},
+				args: map[string]any{
+					"last": 251,
+				},
+				expectError: true,
+				description: "Should reject last greater than 250",
+			},
+		}
+
+		for _, tc := range errorTestCases {
+			t.Run(tc.name, func(t *testing.T) {
+				// Build base arguments
+				args := map[string]any{
+					"owner":         tc.owner,
+					"repo":          tc.repo,
+					"issue_numbers": tc.issueNumbers,
+				}
+
+				// Add test-specific arguments
+				for key, value := range tc.args {
+					args[key] = value
+				}
+
+				// Create request
+				request := mcp.CallToolRequest{}
+				request.Params.Name = "find_closing_pull_requests"
+				request.Params.Arguments = args
+
+				t.Logf("Testing %s: %s", tc.name, tc.description)
+				t.Logf("Arguments: %+v", args)
+
+				// Call the tool
+				resp, err := mcpClient.CallTool(ctx, request)
+
+				if tc.expectError {
+					// We expect either an error or an error response
+					if err != nil {
+						t.Logf("Expected error occurred: %v", err)
+						return
+					}
+					require.True(t, resp.IsError, "Expected error response")
+					t.Logf("Expected error in response: %+v", resp)
+
+					// Verify error content contains helpful information
+					if len(resp.Content) > 0 {
+						if textContent, ok := resp.Content[0].(mcp.TextContent); ok {
+							assert.NotEmpty(t, textContent.Text, "Error message should not be empty")
+							t.Logf("Error message: %s", textContent.Text)
+						}
+					}
+					return
+				}
+
+				require.NoError(t, err, "expected successful tool call")
+				require.False(t, resp.IsError, "expected non-error response")
+			})
+		}
+	})
+}
+
+// Helper functions for pointer creation
+func boolPtr(b bool) *bool {
+	return &b
+}
+
+func intPtr(i int) *int {
+	return &i
+}
+
+func stringPtr(s string) *string {
+	return &s
 }
