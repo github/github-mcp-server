@@ -1099,3 +1099,48 @@ The exported Go API of this module should currently be considered unstable, and 
 ## License
 
 This project is licensed under the terms of the MIT open source license. Please refer to [MIT](./LICENSE) for the full terms.
+
+## Multi-User HTTP Mode (Experimental)
+
+The GitHub MCP Server supports a multi-user HTTP mode for enterprise and cloud scenarios. In this mode, the server does **not** require a global GitHub token at startup. Instead, each HTTP request must include a GitHub token in the `Authorization` header:
+
+- The token is **never** passed as a tool parameter or exposed to the agent/model.
+- The server extracts the token from the `Authorization` header for each request and creates GitHub clients per request using token-aware client factories.
+- Optimized for performance: single MCP server instance with per-request authentication.
+- This enables secure, scalable, and multi-tenant deployments.
+
+### Usage
+
+Start the server in multi-user mode on a configurable port (default: 8080):
+
+```bash
+./github-mcp-server multi-user --port 8080
+```
+
+#### Example HTTP Request
+
+```http
+POST /v1/mcp HTTP/1.1
+Host: localhost:8080
+Authorization: Bearer <your-github-token>
+Content-Type: application/json
+
+{ ...MCP request body... }
+```
+
+- The `Authorization` header is **required** for every request.
+- The server will return 401 Unauthorized if the header is missing.
+
+### Security Note
+- The agent and model never see the token value.
+- This is the recommended and secure approach for HTTP APIs.
+
+### Use Cases
+- Multi-tenant SaaS
+- Shared enterprise deployments
+- Web integrations where each user authenticates with their own GitHub token
+
+### Backward Compatibility
+- Single-user `stdio` and HTTP modes are still supported and unchanged.
+
+---
