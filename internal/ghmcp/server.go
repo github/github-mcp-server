@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/github"
@@ -115,12 +116,40 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 		}
 	}
 
-	getClient := func(_ context.Context) (*gogithub.Client, error) {
-		return restClient, nil // closing over client
+	getClient := func(ctx context.Context) (*gogithub.Client, error) {
+		if tokenVal := ctx.Value(githubTokenKey{}); tokenVal != nil {
+			if token, ok := tokenVal.(string); ok && token != "" {
+				client := gogithub.NewClient(nil).WithAuthToken(token)
+				client.UserAgent = restClient.UserAgent
+				client.BaseURL = apiHost.baseRESTURL
+				client.UploadURL = apiHost.uploadURL
+				return client, nil
+			}
+		}
+		return restClient, nil
 	}
 
-	getGQLClient := func(_ context.Context) (*githubv4.Client, error) {
-		return gqlClient, nil // closing over client
+	getGQLClient := func(ctx context.Context) (*githubv4.Client, error) {
+		if tokenVal := ctx.Value(githubTokenKey{}); tokenVal != nil {
+			if token, ok := tokenVal.(string); ok && token != "" {
+				httpClient := &http.Client{
+					Transport: &bearerAuthTransport{
+						transport: http.DefaultTransport,
+						token:     token,
+					},
+				}
+				if gqlHTTPClient.Transport != nil {
+					if uaTransport, ok := gqlHTTPClient.Transport.(*userAgentTransport); ok {
+						httpClient.Transport = &userAgentTransport{
+							transport: httpClient.Transport,
+							agent:     uaTransport.agent,
+						}
+					}
+				}
+				return githubv4.NewEnterpriseClient(apiHost.graphqlURL.String(), httpClient), nil
+			}
+		}
+		return gqlClient, nil
 	}
 
 	getRawClient := func(ctx context.Context) (*raw.Client, error) {
@@ -131,7 +160,6 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 		return raw.NewClient(client, apiHost.rawURL), nil // closing over client
 	}
 
-	// Create default toolsets
 	tsg := github.DefaultToolsetGroup(cfg.ReadOnly, getClient, getGQLClient, getRawClient, cfg.Translator)
 	err = tsg.EnableToolsets(enabledToolsets)
 
@@ -139,7 +167,6 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 		return nil, fmt.Errorf("failed to enable toolsets: %w", err)
 	}
 
-	// Register all mcp functionality with the server
 	tsg.RegisterAll(ghServer)
 
 	if cfg.DynamicToolsets {
@@ -148,6 +175,21 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 	}
 
 	return ghServer, nil
+}
+
+type githubTokenKey struct{}
+
+type HTTPServerConfig struct {
+	Version              string
+	Host                 string
+	Token                string
+	EnabledToolsets      []string
+	DynamicToolsets      bool
+	ReadOnly             bool
+	ExportTranslations   bool
+	EnableCommandLogging bool
+	LogFilePath          string
+	Port                 int
 }
 
 type StdioServerConfig struct {
@@ -180,6 +222,76 @@ type StdioServerConfig struct {
 
 	// Path to the log file if not stderr
 	LogFilePath string
+}
+
+func RunHTTPServer(cfg HTTPServerConfig) error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	t, dumpTranslations := translations.TranslationHelper()
+
+	ghServer, err := NewMCPServer(MCPServerConfig{
+		Version:         cfg.Version,
+		Host:            cfg.Host,
+		Token:           cfg.Token,
+		EnabledToolsets: cfg.EnabledToolsets,
+		DynamicToolsets: cfg.DynamicToolsets,
+		ReadOnly:        cfg.ReadOnly,
+		Translator:      t,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create MCP server: %w", err)
+	}
+
+	logrusLogger := logrus.New()
+	if cfg.LogFilePath != "" {
+		file, err := os.OpenFile(cfg.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+		if err != nil {
+			return fmt.Errorf("failed to open log file: %w", err)
+		}
+
+		logrusLogger.SetLevel(logrus.DebugLevel)
+		logrusLogger.SetOutput(file)
+	}
+
+	httpOptions := []server.StreamableHTTPOption{
+		server.WithLogger(logrusLogger),
+		server.WithHeartbeatInterval(30 * time.Second),
+		server.WithHTTPContextFunc(extractTokenFromAuthHeader),
+	}
+
+	httpServer := server.NewStreamableHTTPServer(ghServer, httpOptions...)
+
+	if cfg.ExportTranslations {
+		dumpTranslations()
+	}
+
+	addr := fmt.Sprintf(":%d", cfg.Port)
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: httpServer,
+	}
+
+	_, _ = fmt.Fprintf(os.Stderr, "GitHub MCP Server running on HTTP at %s\n", addr)
+
+	errC := make(chan error, 1)
+	go func() {
+		errC <- srv.ListenAndServe()
+	}()
+
+	select {
+	case <-ctx.Done():
+		logrusLogger.Infof("shutting down server...")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return srv.Shutdown(shutdownCtx)
+	case err := <-errC:
+		if err != nil && err != http.ErrServerClosed {
+			return fmt.Errorf("error running server: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // RunStdioServer is not concurrent safe.
@@ -413,4 +525,13 @@ func (t *bearerAuthTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	req = req.Clone(req.Context())
 	req.Header.Set("Authorization", "Bearer "+t.token)
 	return t.transport.RoundTrip(req)
+}
+
+func extractTokenFromAuthHeader(ctx context.Context, r *http.Request) context.Context {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
+		token := strings.TrimPrefix(authHeader, "Bearer ")
+		return context.WithValue(ctx, githubTokenKey{}, token)
+	}
+	return ctx
 }

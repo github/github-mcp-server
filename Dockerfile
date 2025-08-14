@@ -22,6 +22,9 @@ FROM gcr.io/distroless/base-debian12
 WORKDIR /server
 # Copy the binary from the build stage
 COPY --from=build /bin/github-mcp-server .
+
+EXPOSE 8080
+
 # Set the entrypoint to the server binary
 ENTRYPOINT ["/server/github-mcp-server"]
 # Default arguments for ENTRYPOINT

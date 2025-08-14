@@ -26,6 +26,34 @@ var (
 		Version: fmt.Sprintf("Version: %s\nCommit: %s\nBuild Date: %s", version, commit, date),
 	}
 
+	httpCmd = &cobra.Command{
+		Use:   "http",
+		Short: "Start HTTP server",
+		Long:  `Start a server that communicates via HTTP using the MCP protocol.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			token := viper.GetString("personal_access_token")
+
+			var enabledToolsets []string
+			if err := viper.UnmarshalKey("toolsets", &enabledToolsets); err != nil {
+				return fmt.Errorf("failed to unmarshal toolsets: %w", err)
+			}
+
+			httpServerConfig := ghmcp.HTTPServerConfig{
+				Version:              version,
+				Host:                 viper.GetString("host"),
+				Token:                token,
+				EnabledToolsets:      enabledToolsets,
+				DynamicToolsets:      viper.GetBool("dynamic_toolsets"),
+				ReadOnly:             viper.GetBool("read-only"),
+				ExportTranslations:   viper.GetBool("export-translations"),
+				EnableCommandLogging: viper.GetBool("enable-command-logging"),
+				LogFilePath:          viper.GetString("log-file"),
+				Port:                 viper.GetInt("port"),
+			}
+			return ghmcp.RunHTTPServer(httpServerConfig)
+		},
+	}
+
 	stdioCmd = &cobra.Command{
 		Use:   "stdio",
 		Short: "Start stdio server",
@@ -87,6 +115,10 @@ func init() {
 
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)
+	rootCmd.AddCommand(httpCmd)
+
+	httpCmd.Flags().Int("port", 8080, "Port to listen on for HTTP server")
+	_ = viper.BindPFlag("port", httpCmd.Flags().Lookup("port"))
 }
 
 func initConfig() {
