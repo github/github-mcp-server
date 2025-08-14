@@ -120,6 +120,12 @@ func CreatePullRequest(getClient GetClientFn, t translations.TranslationHelperFu
 			mcp.WithBoolean("maintainer_can_modify",
 				mcp.Description("Allow maintainer edits"),
 			),
+			mcp.WithArray("reviewers",
+				mcp.Description("GitHub usernames to request reviews from"),
+				mcp.Items(map[string]interface{}{
+					"type": "string",
+				}),
+			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](request, "owner")
@@ -158,6 +164,12 @@ func CreatePullRequest(getClient GetClientFn, t translations.TranslationHelperFu
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
+			// Handle reviewers parameter
+			reviewers, err := OptionalStringArrayParam(request, "reviewers")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
 			newPR := &github.NewPullRequest{
 				Title: github.Ptr(title),
 				Head:  github.Ptr(head),
@@ -191,6 +203,46 @@ func CreatePullRequest(getClient GetClientFn, t translations.TranslationHelperFu
 					return nil, fmt.Errorf("failed to read response body: %w", err)
 				}
 				return mcp.NewToolResultError(fmt.Sprintf("failed to create pull request: %s", string(body))), nil
+			}
+
+			// Request reviewers if provided
+			if len(reviewers) > 0 {
+				reviewersRequest := github.ReviewersRequest{
+					Reviewers: reviewers,
+				}
+
+				_, reviewResp, err := client.PullRequests.RequestReviewers(ctx, owner, repo, *pr.Number, reviewersRequest)
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx,
+						"failed to request reviewers",
+						reviewResp,
+						err,
+					), nil
+				}
+				defer func() {
+					if reviewResp != nil && reviewResp.Body != nil {
+						_ = reviewResp.Body.Close()
+					}
+				}()
+
+				if reviewResp.StatusCode != http.StatusCreated && reviewResp.StatusCode != http.StatusOK {
+					body, err := io.ReadAll(reviewResp.Body)
+					if err != nil {
+						return nil, fmt.Errorf("failed to read response body: %w", err)
+					}
+					return mcp.NewToolResultError(fmt.Sprintf("failed to request reviewers: %s", string(body))), nil
+				}
+
+				// Refresh PR data to include reviewers
+				pr, resp, err = client.PullRequests.Get(ctx, owner, repo, *pr.Number)
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx,
+						"failed to get updated pull request",
+						resp,
+						err,
+					), nil
+				}
+				defer func() { _ = resp.Body.Close() }()
 			}
 
 			r, err := json.Marshal(pr)
