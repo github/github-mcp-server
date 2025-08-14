@@ -1,0 +1,29 @@
+{
+  "annotations": {
+    "title": "Create draft issue",
+    "readOnlyHint": false
+  },
+  "description": "Create a draft issue in a project",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "Issue body",
+        "type": "string"
+      },
+      "project_id": {
+        "description": "Project ID",
+        "type": "string"
+      },
+      "title": {
+        "description": "Issue title",
+        "type": "string"
+      }
+    },
+    "required": [
+      "project_id",
+      "title"
+    ],
+    "type": "object"
+  },
+  "name": "create_draft_issue"
+}
