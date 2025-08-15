@@ -2629,3 +2629,186 @@ func Test_resolveGitReference(t *testing.T) {
 		})
 	}
 }
+
+func Test_ListRepositoryContributors(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := ListRepositoryContributors(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "list_repository_contributors", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "page")
+	assert.Contains(t, tool.InputSchema.Properties, "perPage")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
+
+	// Setup mock contributors for success case
+	mockContributors := []*github.Contributor{
+		{
+			Login:             github.Ptr("user1"),
+			ID:                github.Int64(1),
+			NodeID:            github.Ptr("MDQ6VXNlcjE="),
+			AvatarURL:         github.Ptr("https://github.com/images/error/user1_happy.gif"),
+			GravatarID:        github.Ptr(""),
+			URL:               github.Ptr("https://api.github.com/users/user1"),
+			HTMLURL:           github.Ptr("https://github.com/user1"),
+			FollowersURL:      github.Ptr("https://api.github.com/users/user1/followers"),
+			FollowingURL:      github.Ptr("https://api.github.com/users/user1/following{/other_user}"),
+			GistsURL:          github.Ptr("https://api.github.com/users/user1/gists{/gist_id}"),
+			StarredURL:        github.Ptr("https://api.github.com/users/user1/starred{/owner}{/repo}"),
+			SubscriptionsURL:  github.Ptr("https://api.github.com/users/user1/subscriptions"),
+			OrganizationsURL:  github.Ptr("https://api.github.com/users/user1/orgs"),
+			ReposURL:          github.Ptr("https://api.github.com/users/user1/repos"),
+			EventsURL:         github.Ptr("https://api.github.com/users/user1/events{/privacy}"),
+			ReceivedEventsURL: github.Ptr("https://api.github.com/users/user1/received_events"),
+			Type:              github.Ptr("User"),
+			SiteAdmin:         github.Bool(false),
+			Contributions:     github.Int(42),
+		},
+		{
+			Login:             github.Ptr("user2"),
+			ID:                github.Int64(2),
+			NodeID:            github.Ptr("MDQ6VXNlcjI="),
+			AvatarURL:         github.Ptr("https://github.com/images/error/user2_happy.gif"),
+			GravatarID:        github.Ptr(""),
+			URL:               github.Ptr("https://api.github.com/users/user2"),
+			HTMLURL:           github.Ptr("https://github.com/user2"),
+			FollowersURL:      github.Ptr("https://api.github.com/users/user2/followers"),
+			FollowingURL:      github.Ptr("https://api.github.com/users/user2/following{/other_user}"),
+			GistsURL:          github.Ptr("https://api.github.com/users/user2/gists{/gist_id}"),
+			StarredURL:        github.Ptr("https://api.github.com/users/user2/starred{/owner}{/repo}"),
+			SubscriptionsURL:  github.Ptr("https://api.github.com/users/user2/subscriptions"),
+			OrganizationsURL:  github.Ptr("https://api.github.com/users/user2/orgs"),
+			ReposURL:          github.Ptr("https://api.github.com/users/user2/repos"),
+			EventsURL:         github.Ptr("https://api.github.com/users/user2/events{/privacy}"),
+			ReceivedEventsURL: github.Ptr("https://api.github.com/users/user2/received_events"),
+			Type:              github.Ptr("User"),
+			SiteAdmin:         github.Bool(false),
+			Contributions:     github.Int(15),
+		},
+	}
+
+	tests := []struct {
+		name                string
+		mockedClient        *http.Client
+		requestArgs         map[string]interface{}
+		expectError         bool
+		expectedContributors []*github.Contributor
+		expectedErrMsg      string
+	}{
+		{
+			name: "successful contributors fetch with default params",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposContributorsByOwnerByRepo,
+					mockContributors,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			expectError:         false,
+			expectedContributors: mockContributors,
+		},
+		{
+			name: "successful contributors fetch with pagination",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposContributorsByOwnerByRepo,
+					expectQueryParams(t, map[string]string{
+						"page":     "2",
+						"per_page": "50",
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockContributors),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":    "owner",
+				"repo":     "repo",
+				"page":     float64(2),
+				"perPage":  float64(50),
+			},
+			expectError:         false,
+			expectedContributors: mockContributors,
+		},
+		{
+			name: "missing required parameter owner",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]interface{}{
+				"repo": "repo",
+			},
+			expectError:    true,
+			expectedErrMsg: "missing required parameter: owner",
+		},
+		{
+			name: "missing required parameter repo",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+			},
+			expectError:    true,
+			expectedErrMsg: "missing required parameter: repo",
+		},
+		{
+			name: "GitHub API error",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposContributorsByOwnerByRepo,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to list contributors for repository: owner/repo",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := ListRepositoryContributors(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError {
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+
+			// Parse the result and get the text content if no error
+			textContent := getTextResult(t, result)
+
+			// Unmarshal and verify the result
+			var returnedContributors []*github.Contributor
+			err = json.Unmarshal([]byte(textContent.Text), &returnedContributors)
+			require.NoError(t, err)
+			assert.Len(t, returnedContributors, len(tc.expectedContributors))
+			for i, contributor := range returnedContributors {
+				assert.Equal(t, tc.expectedContributors[i].GetLogin(), contributor.GetLogin())
+				assert.Equal(t, tc.expectedContributors[i].GetContributions(), contributor.GetContributions())
+			}
+		})
+	}
+}

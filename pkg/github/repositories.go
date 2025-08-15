@@ -183,6 +183,76 @@ func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 		}
 }
 
+// ListRepositoryContributors creates a tool to get contributors of a repository.
+func ListRepositoryContributors(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("list_repository_contributors",
+			mcp.WithDescription(t("TOOL_LIST_REPOSITORY_CONTRIBUTORS_DESCRIPTION", "Get list of contributors for a GitHub repository. Returns at least 30 results per page by default, but can return more if specified using the perPage parameter (up to 100).")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_LIST_REPOSITORY_CONTRIBUTORS_USER_TITLE", "List repository contributors"),
+				ReadOnlyHint: ToBoolPtr(true),
+			}),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			WithPagination(),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := RequiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			repo, err := RequiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			pagination, err := OptionalPaginationParams(request)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			opts := &github.ListContributorsOptions{
+				ListOptions: github.ListOptions{
+					Page:    pagination.Page,
+					PerPage: pagination.PerPage,
+				},
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+			contributors, resp, err := client.Repositories.ListContributors(ctx, owner, repo, opts)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					fmt.Sprintf("failed to list contributors for repository: %s/%s", owner, repo),
+					resp,
+					err,
+				), nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to list contributors: %s", string(body))), nil
+			}
+
+			r, err := json.Marshal(contributors)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
 // ListBranches creates a tool to list branches in a GitHub repository.
 func ListBranches(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("list_branches",

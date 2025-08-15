@@ -244,7 +244,7 @@ For other MCP host applications, please refer to our installation guides:
 - **[Cursor](docs/installation-guides/install-cursor.md)** - Installation guide for Cursor IDE  
 - **[Windsurf](docs/installation-guides/install-windsurf.md)** - Installation guide for Windsurf IDE
 
-For a complete overview of all installation options, see our **[Installation Guides Index](docs/installation-guides/installation-guides.md)**.
+For a complete overview of all installation options, see our **[Installation Guides Index](docs/installation-guides)**.
 
 > **Note:** Any host application that supports local MCP servers should be able to access the local GitHub MCP server. However, the specific configuration process, syntax and stability of the integration will vary by host application. While many may follow a similar format to the examples above, this is not guaranteed. Please refer to your host application's documentation for the correct MCP configuration syntax and setup process.
 
@@ -864,6 +864,12 @@ The following sets of tools are available (all are on by default):
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
   - `sha`: Commit SHA, branch or tag name to list commits of. If not provided, uses the default branch of the repository. If a commit SHA is provided, will list commits up to that SHA. (string, optional)
+
+- **list_repository_contributors** - List repository contributors
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
 
 - **list_releases** - List releases
   - `owner`: Repository owner (string, required)

@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# Test script for list_repository_contributors function
+# Usage: ./script/list-repository-contributors <owner> <repo>
+
+if [ $# -ne 2 ]; then
+    echo "Usage: $0 <owner> <repo>"
+    echo "Example: $0 octocat Hello-World"
+    exit 1
+fi
+
+OWNER=$1
+REPO=$2
+
+echo "Testing list_repository_contributors for $OWNER/$REPO"
+
+echo "{\"jsonrpc\":\"2.0\",\"id\":1,\"params\":{\"name\":\"list_repository_contributors\",\"arguments\":{\"owner\":\"$OWNER\",\"repo\":\"$REPO\"}},\"method\":\"tools/call\"}" | go run cmd/github-mcp-server/main.go stdio | jq .
