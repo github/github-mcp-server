@@ -3,10 +3,17 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"runtime"
+	"runtime/debug"
+	"strings"
 	"testing"
 
+	buffer "github.com/github/github-mcp-server/pkg/buffer"
+	"github.com/github/github-mcp-server/pkg/profiler"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v74/github"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
@@ -1162,8 +1169,118 @@ func Test_GetJobLogs_WithContentReturnAndTailLines(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, float64(123), response["job_id"])
-	assert.Equal(t, float64(1), response["original_length"])
+	assert.Equal(t, float64(3), response["original_length"])
 	assert.Equal(t, expectedLogContent, response["logs_content"])
 	assert.Equal(t, "Job logs content retrieved successfully", response["message"])
 	assert.NotContains(t, response, "logs_url") // Should not have URL when returning content
+}
+
+func Test_GetJobLogs_WithContentReturnAndLargeTailLines(t *testing.T) {
+	logContent := "Line 1\nLine 2\nLine 3"
+	expectedLogContent := "Line 1\nLine 2\nLine 3"
+
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(logContent))
+	}))
+	defer testServer.Close()
+
+	mockedClient := mock.NewMockedHTTPClient(
+		mock.WithRequestMatchHandler(
+			mock.GetReposActionsJobsLogsByOwnerByRepoByJobId,
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Location", testServer.URL)
+				w.WriteHeader(http.StatusFound)
+			}),
+		),
+	)
+
+	client := github.NewClient(mockedClient)
+	_, handler := GetJobLogs(stubGetClientFn(client), translations.NullTranslationHelper)
+
+	request := createMCPRequest(map[string]any{
+		"owner":          "owner",
+		"repo":           "repo",
+		"job_id":         float64(123),
+		"return_content": true,
+		"tail_lines":     float64(100),
+	})
+
+	result, err := handler(context.Background(), request)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+	var response map[string]any
+	err = json.Unmarshal([]byte(textContent.Text), &response)
+	require.NoError(t, err)
+
+	assert.Equal(t, float64(123), response["job_id"])
+	assert.Equal(t, float64(3), response["original_length"])
+	assert.Equal(t, expectedLogContent, response["logs_content"])
+	assert.Equal(t, "Job logs content retrieved successfully", response["message"])
+	assert.NotContains(t, response, "logs_url")
+}
+
+func Test_MemoryUsage_SlidingWindow_vs_NoWindow(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping memory profiling test in short mode")
+	}
+
+	const logLines = 100000
+	const bufferSize = 1000
+	largeLogContent := strings.Repeat("log line with some content\n", logLines)
+
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(largeLogContent))
+	}))
+	defer testServer.Close()
+
+	os.Setenv("GITHUB_MCP_PROFILING_ENABLED", "true")
+	defer os.Unsetenv("GITHUB_MCP_PROFILING_ENABLED")
+
+	// Initialize the global profiler
+	profiler.InitFromEnv(nil)
+
+	ctx := context.Background()
+
+	debug.SetGCPercent(-1)
+	profile1, err1 := profiler.ProfileFuncWithMetrics(ctx, "sliding_window", func() (int, int64, error) {
+		resp1, err := http.Get(testServer.URL)
+		if err != nil {
+			return 0, 0, err
+		}
+		defer resp1.Body.Close()                                                                  //nolint:bodyclose // Response body is closed in downloadLogContent, but we need to return httpResp
+		content, totalLines, _, err := buffer.ProcessResponseAsRingBufferToEnd(resp1, bufferSize) //nolint:bodyclose
+		return totalLines, int64(len(content)), err
+	})
+	require.NoError(t, err1)
+
+	runtime.GC()
+	profile2, err2 := profiler.ProfileFuncWithMetrics(ctx, "no_window", func() (int, int64, error) {
+		resp2, err := http.Get(testServer.URL)
+		if err != nil {
+			return 0, 0, err
+		}
+		defer resp2.Body.Close() //nolint:bodyclose // Response body is closed in downloadLogContent, but we need to return httpResp
+		content, err := io.ReadAll(resp2.Body)
+		if err != nil {
+			return 0, 0, err
+		}
+		lines := strings.Split(string(content), "\n")
+		if len(lines) > bufferSize {
+			lines = lines[len(lines)-bufferSize:]
+		}
+		result := strings.Join(lines, "\n")
+		return len(strings.Split(string(content), "\n")), int64(len(result)), nil
+	})
+	require.NoError(t, err2)
+	debug.SetGCPercent(100)
+
+	assert.Greater(t, profile2.MemoryDelta, profile1.MemoryDelta,
+		"Sliding window should use less memory than reading all into memory")
+
+	t.Logf("Sliding window: %s", profile1.String())
+	t.Logf("No window: %s", profile2.String())
 }

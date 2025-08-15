@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
 
+	buffer "github.com/github/github-mcp-server/pkg/buffer"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/profiler"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v74/github"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -19,6 +20,7 @@ import (
 const (
 	DescriptionRepositoryOwner = "Repository owner"
 	DescriptionRepositoryName  = "Repository name"
+	maxJobLogLines             = 50000
 )
 
 // ListWorkflows creates a tool to list workflows in a repository
@@ -721,7 +723,7 @@ func getJobLogData(ctx context.Context, client *github.Client, owner, repo strin
 
 	if returnContent {
 		// Download and return the actual log content
-		content, originalLength, httpResp, err := downloadLogContent(url.String(), tailLines) //nolint:bodyclose // Response body is closed in downloadLogContent, but we need to return httpResp
+		content, originalLength, httpResp, err := downloadLogContent(ctx, url.String(), tailLines) //nolint:bodyclose // Response body is closed in downloadLogContent, but we need to return httpResp
 		if err != nil {
 			// To keep the return value consistent wrap the response as a GitHub Response
 			ghRes := &github.Response{
@@ -742,9 +744,11 @@ func getJobLogData(ctx context.Context, client *github.Client, owner, repo strin
 	return result, resp, nil
 }
 
-// downloadLogContent downloads the actual log content from a GitHub logs URL
-func downloadLogContent(logURL string, tailLines int) (string, int, *http.Response, error) {
-	httpResp, err := http.Get(logURL) //nolint:gosec // URLs are provided by GitHub API and are safe
+func downloadLogContent(ctx context.Context, logURL string, tailLines int) (string, int, *http.Response, error) {
+	prof := profiler.New(nil, profiler.IsProfilingEnabled())
+	finish := prof.Start(ctx, "log_buffer_processing")
+
+	httpResp, err := http.Get(logURL) //nolint:gosec
 	if err != nil {
 		return "", 0, httpResp, fmt.Errorf("failed to download logs: %w", err)
 	}
@@ -754,36 +758,29 @@ func downloadLogContent(logURL string, tailLines int) (string, int, *http.Respon
 		return "", 0, httpResp, fmt.Errorf("failed to download logs: HTTP %d", httpResp.StatusCode)
 	}
 
-	content, err := io.ReadAll(httpResp.Body)
+	if tailLines <= 0 {
+		tailLines = 1000
+	}
+
+	bufferSize := tailLines
+	if bufferSize > maxJobLogLines {
+		bufferSize = maxJobLogLines
+	}
+
+	processedInput, totalLines, httpResp, err := buffer.ProcessResponseAsRingBufferToEnd(httpResp, bufferSize)
 	if err != nil {
-		return "", 0, httpResp, fmt.Errorf("failed to read log content: %w", err)
+		return "", 0, httpResp, fmt.Errorf("failed to process log content: %w", err)
 	}
 
-	// Clean up and format the log content for better readability
-	logContent := strings.TrimSpace(string(content))
-
-	trimmedContent, lineCount := trimContent(logContent, tailLines)
-	return trimmedContent, lineCount, httpResp, nil
-}
-
-// trimContent trims the content to a maximum length and returns the trimmed content and an original length
-func trimContent(content string, tailLines int) (string, int) {
-	// Truncate to tail_lines if specified
-	lineCount := 0
-	if tailLines > 0 {
-
-		// Count backwards to find the nth newline from the end and a total number of lines
-		for i := len(content) - 1; i >= 0 && lineCount < tailLines; i-- {
-			if content[i] == '\n' {
-				lineCount++
-				// If we have reached the tailLines, trim the content
-				if lineCount == tailLines {
-					content = content[i+1:]
-				}
-			}
-		}
+	lines := strings.Split(processedInput, "\n")
+	if len(lines) > tailLines {
+		lines = lines[len(lines)-tailLines:]
 	}
-	return content, lineCount
+	finalResult := strings.Join(lines, "\n")
+
+	_ = finish(len(lines), int64(len(finalResult)))
+
+	return finalResult, totalLines, httpResp, nil
 }
 
 // RerunWorkflowRun creates a tool to re-run an entire workflow run
