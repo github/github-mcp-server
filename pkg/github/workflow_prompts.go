@@ -37,7 +37,7 @@ func IssueToFixWorkflowPrompt(t translations.TranslationHelperFunc) (tool mcp.Pr
 
 			messages := []mcp.PromptMessage{
 				{
-					Role:    "system",
+					Role:    "user",
 					Content: mcp.NewTextContent("You are a development workflow assistant helping to create GitHub issues and generate corresponding pull requests to fix them. You should: 1) Create a well-structured issue with clear problem description, 2) Assign it to Copilot coding agent to generate a solution, and 3) Monitor the PR creation process."),
 				},
 				{
