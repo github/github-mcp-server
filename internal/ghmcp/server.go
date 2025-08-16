@@ -45,6 +45,9 @@ type MCPServerConfig struct {
 	// ReadOnly indicates if we should only offer read-only tools
 	ReadOnly bool
 
+	// ToolPrefix is an optional prefix to add to all tool names (e.g. "github_")
+	ToolPrefix string
+
 	// Translator provides translated text for the server tooling
 	Translator translations.TranslationHelperFunc
 }
@@ -140,11 +143,11 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 	}
 
 	// Register all mcp functionality with the server
-	tsg.RegisterAll(ghServer)
+	tsg.RegisterAll(ghServer, cfg.ToolPrefix)
 
 	if cfg.DynamicToolsets {
 		dynamic := github.InitDynamicToolset(ghServer, tsg, cfg.Translator)
-		dynamic.RegisterTools(ghServer)
+		dynamic.RegisterTools(ghServer, cfg.ToolPrefix)
 	}
 
 	return ghServer, nil
@@ -170,6 +173,9 @@ type StdioServerConfig struct {
 
 	// ReadOnly indicates if we should only register read-only tools
 	ReadOnly bool
+
+	// ToolPrefix is an optional prefix to add to all tool names (e.g. "github_")
+	ToolPrefix string
 
 	// ExportTranslations indicates if we should export translations
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#i18n--overriding-descriptions
@@ -197,6 +203,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		EnabledToolsets: cfg.EnabledToolsets,
 		DynamicToolsets: cfg.DynamicToolsets,
 		ReadOnly:        cfg.ReadOnly,
+		ToolPrefix:      cfg.ToolPrefix,
 		Translator:      t,
 	})
 	if err != nil {
