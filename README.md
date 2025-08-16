@@ -204,6 +204,8 @@ Optionally, you can add a similar example (i.e. without the mcp key) to a file c
 <summary><b>Example JSON block without the MCP key included</b></summary>
 <br>
 
+Keep in mind that the [Docker Engine](https://docs.docker.com/engine/)/[Docker Desktop](https://www.docker.com/products/docker-desktop/) must be running in the background before starting the Claude Desktop App on Windows.
+
 ```json
 {
   "inputs": [
