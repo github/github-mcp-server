@@ -693,6 +693,7 @@ The following sets of tools are available (all are on by default):
   - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
+  - `reviewers`: GitHub usernames to request reviews from (string[], optional)
   - `title`: PR title (string, required)
 
 - **delete_pending_pull_request_review** - Delete the requester's latest pending pull request review
