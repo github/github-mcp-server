@@ -536,6 +536,18 @@ The following sets of tools are available (all are on by default):
   - `title`: Issue title (string, required)
   - `type`: Type of this issue (string, optional)
 
+- **find_closing_pull_requests** - Find closing pull requests
+  - `after`: Cursor for forward pagination (use with first/limit) (string, optional)
+  - `before`: Cursor for backward pagination (use with last) (string, optional)
+  - `includeClosedPrs`: Include closed/merged pull requests in results (default: false) (boolean, optional)
+  - `issue_numbers`: Array of issue numbers within the specified repository (number[], required)
+  - `last`: Number of results from end for backward pagination (max: 250) (number, optional)
+  - `limit`: Maximum number of closing PRs to return per issue (default: 100, max: 250) (number, optional)
+  - `orderByState`: Order results by pull request state (default: false) (boolean, optional)
+  - `owner`: The owner of the repository (string, required)
+  - `repo`: The name of the repository (string, required)
+  - `userLinkedOnly`: Return only manually linked pull requests (default: false) (boolean, optional)
+
 - **get_issue** - Get issue details
   - `issue_number`: The number of the issue (number, required)
   - `owner`: The owner of the repository (string, required)
