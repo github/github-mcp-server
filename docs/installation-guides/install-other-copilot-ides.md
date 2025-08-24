@@ -256,7 +256,14 @@ After setup:
 4. Copilot can now access GitHub data and perform repository operations
 
 ---
-
+{
+  "servers": {
+    "github": {
+      "url": "https://api.githubcopilot.com/mcp/",
+      "authorization_token": "Bearer YOUR_GITHUB_PAT"
+    }
+  }
+}
 ## Troubleshooting
 
 - **Connection issues**: Verify GitHub PAT permissions and IDE version compatibility
