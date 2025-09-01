@@ -114,14 +114,11 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 					Items:             minimalRepos,
 				}
 
-				var err error
 				r, err = json.Marshal(minimalResult)
 				if err != nil {
 					return nil, fmt.Errorf("failed to marshal minimal response: %w", err)
 				}
 			} else {
-				// Return full GitHub API response
-				var err error
 				r, err = json.Marshal(result)
 				if err != nil {
 					return nil, fmt.Errorf("failed to marshal full response: %w", err)
