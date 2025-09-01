@@ -7,6 +7,7 @@
   "inputSchema": {
     "properties": {
       "include_diff": {
+        "default": true,
         "description": "Whether to include file diffs and stats in the response. Default is true.",
         "type": "boolean"
       },
