@@ -737,9 +737,33 @@ func Test_ListCommits(t *testing.T) {
 				},
 			},
 			Author: &github.User{
-				Login: github.Ptr("testuser"),
+				Login:     github.Ptr("testuser"),
+				ID:        github.Ptr(int64(12345)),
+				HTMLURL:   github.Ptr("https://github.com/testuser"),
+				AvatarURL: github.Ptr("https://github.com/testuser.png"),
 			},
 			HTMLURL: github.Ptr("https://github.com/owner/repo/commit/abc123def456"),
+			Stats: &github.CommitStats{
+				Additions: github.Ptr(10),
+				Deletions: github.Ptr(5),
+				Total:     github.Ptr(15),
+			},
+			Files: []*github.CommitFile{
+				{
+					Filename:  github.Ptr("src/main.go"),
+					Status:    github.Ptr("modified"),
+					Additions: github.Ptr(8),
+					Deletions: github.Ptr(3),
+					Changes:   github.Ptr(11),
+				},
+				{
+					Filename:  github.Ptr("README.md"),
+					Status:    github.Ptr("added"),
+					Additions: github.Ptr(2),
+					Deletions: github.Ptr(2),
+					Changes:   github.Ptr(4),
+				},
+			},
 		},
 		{
 			SHA: github.Ptr("def456abc789"),
@@ -752,9 +776,26 @@ func Test_ListCommits(t *testing.T) {
 				},
 			},
 			Author: &github.User{
-				Login: github.Ptr("anotheruser"),
+				Login:     github.Ptr("anotheruser"),
+				ID:        github.Ptr(int64(67890)),
+				HTMLURL:   github.Ptr("https://github.com/anotheruser"),
+				AvatarURL: github.Ptr("https://github.com/anotheruser.png"),
 			},
 			HTMLURL: github.Ptr("https://github.com/owner/repo/commit/def456abc789"),
+			Stats: &github.CommitStats{
+				Additions: github.Ptr(20),
+				Deletions: github.Ptr(10),
+				Total:     github.Ptr(30),
+			},
+			Files: []*github.CommitFile{
+				{
+					Filename:  github.Ptr("src/utils.go"),
+					Status:    github.Ptr("added"),
+					Additions: github.Ptr(20),
+					Deletions: github.Ptr(10),
+					Changes:   github.Ptr(30),
+				},
+			},
 		},
 	}
 
@@ -875,16 +916,23 @@ func Test_ListCommits(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
-			var returnedCommits []*github.RepositoryCommit
+			var returnedCommits []MinimalCommit
 			err = json.Unmarshal([]byte(textContent.Text), &returnedCommits)
 			require.NoError(t, err)
 			assert.Len(t, returnedCommits, len(tc.expectedCommits))
 			for i, commit := range returnedCommits {
-				assert.Equal(t, *tc.expectedCommits[i].Author, *commit.Author)
-				assert.Equal(t, *tc.expectedCommits[i].SHA, *commit.SHA)
-				assert.Equal(t, *tc.expectedCommits[i].Commit.Message, *commit.Commit.Message)
-				assert.Equal(t, *tc.expectedCommits[i].Author.Login, *commit.Author.Login)
-				assert.Equal(t, *tc.expectedCommits[i].HTMLURL, *commit.HTMLURL)
+				assert.Equal(t, tc.expectedCommits[i].GetSHA(), commit.SHA)
+				assert.Equal(t, tc.expectedCommits[i].GetHTMLURL(), commit.HTMLURL)
+				if tc.expectedCommits[i].Commit != nil {
+					assert.Equal(t, tc.expectedCommits[i].Commit.GetMessage(), commit.Commit.Message)
+				}
+				if tc.expectedCommits[i].Author != nil {
+					assert.Equal(t, tc.expectedCommits[i].Author.GetLogin(), commit.Author.Login)
+				}
+
+				// Files and stats are never included in list_commits
+				assert.Nil(t, commit.Files)
+				assert.Nil(t, commit.Stats)
 			}
 		})
 	}
@@ -1077,7 +1125,6 @@ func Test_CreateRepository(t *testing.T) {
 		Description: github.Ptr("Test repository"),
 		Private:     github.Ptr(true),
 		HTMLURL:     github.Ptr("https://github.com/testuser/test-repo"),
-		CloneURL:    github.Ptr("https://github.com/testuser/test-repo.git"),
 		CreatedAt:   &github.Timestamp{Time: time.Now()},
 		Owner: &github.User{
 			Login: github.Ptr("testuser"),
@@ -1192,17 +1239,13 @@ func Test_CreateRepository(t *testing.T) {
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
-			var returnedRepo github.Repository
+			// Unmarshal and verify the minimal result
+			var returnedRepo MinimalResponse
 			err = json.Unmarshal([]byte(textContent.Text), &returnedRepo)
 			assert.NoError(t, err)
 
 			// Verify repository details
-			assert.Equal(t, *tc.expectedRepo.Name, *returnedRepo.Name)
-			assert.Equal(t, *tc.expectedRepo.Description, *returnedRepo.Description)
-			assert.Equal(t, *tc.expectedRepo.Private, *returnedRepo.Private)
-			assert.Equal(t, *tc.expectedRepo.HTMLURL, *returnedRepo.HTMLURL)
-			assert.Equal(t, *tc.expectedRepo.Owner.Login, *returnedRepo.Owner.Login)
+			assert.Equal(t, tc.expectedRepo.GetHTMLURL(), returnedRepo.URL)
 		})
 	}
 }
