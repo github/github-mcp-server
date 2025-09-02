@@ -42,7 +42,7 @@ The simplest way is to use GitHub's hosted MCP server:
             "httpUrl": "https://api.githubcopilot.com/mcp/",
             "trust": true,
             "headers": {
-                "Authorization": "$GITHUB_PAT"
+                "Authorization": "Bearer $GITHUB_PAT"
             }
         }
     }
@@ -151,9 +151,6 @@ To verify that the GitHub MCP server has been configured, start Gemini CLI in yo
     gemini --debug "test command"
     ```
 
-## Important Notes
+## References
 
-- **Official repository**: [github/github-mcp-server](https://github.com/github/github-mcp-server)
-- **Docker image**: `ghcr.io/github/github-mcp-server` (official and supported)
-- **Gemini CLI specifics**: Uses `mcpServers` key, supports both global and project configurations
-- **Remote server method**: Preferred approach using GitHub's hosted MCP server at `https://api.githubcopilot.com/mcp/`
+- Gemini CLI Docs > [MCP Configuration Structure](https://google-gemini.github.io/gemini-cli/docs/tools/mcp-server.html#configuration-structure)
