@@ -393,7 +393,7 @@ func CreateOrUpdateFile(getClient GetClientFn, t translations.TranslationHelperF
 // CreateRepository creates a tool to create a new GitHub repository.
 func CreateRepository(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("create_repository",
-			mcp.WithDescription(t("TOOL_CREATE_REPOSITORY_DESCRIPTION", "Create a new GitHub repository in your account")),
+			mcp.WithDescription(t("TOOL_CREATE_REPOSITORY_DESCRIPTION", "Create a new GitHub repository in your account or specified organization")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:        t("TOOL_CREATE_REPOSITORY_USER_TITLE", "Create repository"),
 				ReadOnlyHint: ToBoolPtr(false),
@@ -404,6 +404,9 @@ func CreateRepository(getClient GetClientFn, t translations.TranslationHelperFun
 			),
 			mcp.WithString("description",
 				mcp.Description("Repository description"),
+			),
+			mcp.WithString("organization",
+				mcp.Description("Organization to create the repository in (omit to create in your personal account)"),
 			),
 			mcp.WithBoolean("private",
 				mcp.Description("Whether repo should be private"),
@@ -418,6 +421,10 @@ func CreateRepository(getClient GetClientFn, t translations.TranslationHelperFun
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 			description, err := OptionalParam[string](request, "description")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			organization, err := OptionalParam[string](request, "organization")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -441,7 +448,7 @@ func CreateRepository(getClient GetClientFn, t translations.TranslationHelperFun
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			createdRepo, resp, err := client.Repositories.Create(ctx, "", repo)
+			createdRepo, resp, err := client.Repositories.Create(ctx, organization, repo)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to create repository",

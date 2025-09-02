@@ -1115,6 +1115,7 @@ func Test_CreateRepository(t *testing.T) {
 	assert.NotEmpty(t, tool.Description)
 	assert.Contains(t, tool.InputSchema.Properties, "name")
 	assert.Contains(t, tool.InputSchema.Properties, "description")
+	assert.Contains(t, tool.InputSchema.Properties, "organization")
 	assert.Contains(t, tool.InputSchema.Properties, "private")
 	assert.Contains(t, tool.InputSchema.Properties, "autoInit")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"name"})
@@ -1162,6 +1163,34 @@ func Test_CreateRepository(t *testing.T) {
 				"description": "Test repository",
 				"private":     true,
 				"autoInit":    true,
+			},
+			expectError:  false,
+			expectedRepo: mockRepo,
+		},
+		{
+			name: "successful repository creation in organization",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/orgs/testorg/repos",
+						Method:  "POST",
+					},
+					expectRequestBody(t, map[string]interface{}{
+						"name":        "test-repo",
+						"description": "Test repository",
+						"private":     false,
+						"auto_init":   true,
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockRepo),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"name":         "test-repo",
+				"description":  "Test repository",
+				"organization": "testorg",
+				"private":      false,
+				"autoInit":     true,
 			},
 			expectError:  false,
 			expectedRepo: mockRepo,
