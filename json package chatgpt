@@ -1,0 +1,31 @@
+{
+  "name": "bettermanproject",
+  "version": "1.0.0",
+  "description": "The Better Man Project - Firebase + Tailwind + React web app",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "firebase": "^11.6.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "tailwindcss": "^3.4.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.35"
+  },
+  "keywords": [
+    "bettermanproject",
+    "firebase",
+    "tailwind",
+    "react",
+    "vite"
+  ],
+  "author": "Britton Claunch",
+  "license": "MIT"
+}
