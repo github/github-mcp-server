@@ -148,21 +148,78 @@ func Test_SearchRepositories(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
-			var returnedResult github.RepositoriesSearchResult
+			var returnedResult MinimalSearchRepositoriesResult
 			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
 			require.NoError(t, err)
-			assert.Equal(t, *tc.expectedResult.Total, *returnedResult.Total)
-			assert.Equal(t, *tc.expectedResult.IncompleteResults, *returnedResult.IncompleteResults)
-			assert.Len(t, returnedResult.Repositories, len(tc.expectedResult.Repositories))
-			for i, repo := range returnedResult.Repositories {
-				assert.Equal(t, *tc.expectedResult.Repositories[i].ID, *repo.ID)
-				assert.Equal(t, *tc.expectedResult.Repositories[i].Name, *repo.Name)
-				assert.Equal(t, *tc.expectedResult.Repositories[i].FullName, *repo.FullName)
-				assert.Equal(t, *tc.expectedResult.Repositories[i].HTMLURL, *repo.HTMLURL)
+			assert.Equal(t, *tc.expectedResult.Total, returnedResult.TotalCount)
+			assert.Equal(t, *tc.expectedResult.IncompleteResults, returnedResult.IncompleteResults)
+			assert.Len(t, returnedResult.Items, len(tc.expectedResult.Repositories))
+			for i, repo := range returnedResult.Items {
+				assert.Equal(t, *tc.expectedResult.Repositories[i].ID, repo.ID)
+				assert.Equal(t, *tc.expectedResult.Repositories[i].Name, repo.Name)
+				assert.Equal(t, *tc.expectedResult.Repositories[i].FullName, repo.FullName)
+				assert.Equal(t, *tc.expectedResult.Repositories[i].HTMLURL, repo.HTMLURL)
 			}
 
 		})
 	}
+}
+
+func Test_SearchRepositories_FullOutput(t *testing.T) {
+	mockSearchResult := &github.RepositoriesSearchResult{
+		Total:             github.Ptr(1),
+		IncompleteResults: github.Ptr(false),
+		Repositories: []*github.Repository{
+			{
+				ID:              github.Ptr(int64(12345)),
+				Name:            github.Ptr("test-repo"),
+				FullName:        github.Ptr("owner/test-repo"),
+				HTMLURL:         github.Ptr("https://github.com/owner/test-repo"),
+				Description:     github.Ptr("Test repository"),
+				StargazersCount: github.Ptr(100),
+			},
+		},
+	}
+
+	mockedClient := mock.NewMockedHTTPClient(
+		mock.WithRequestMatchHandler(
+			mock.GetSearchRepositories,
+			expectQueryParams(t, map[string]string{
+				"q":        "golang test",
+				"page":     "1",
+				"per_page": "30",
+			}).andThen(
+				mockResponse(t, http.StatusOK, mockSearchResult),
+			),
+		),
+	)
+
+	client := github.NewClient(mockedClient)
+	_, handlerTest := SearchRepositories(stubGetClientFn(client), translations.NullTranslationHelper)
+
+	request := createMCPRequest(map[string]interface{}{
+		"query":          "golang test",
+		"minimal_output": false,
+	})
+
+	result, err := handlerTest(context.Background(), request)
+
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+
+	// Unmarshal as full GitHub API response
+	var returnedResult github.RepositoriesSearchResult
+	err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
+	require.NoError(t, err)
+
+	// Verify it's the full API response, not minimal
+	assert.Equal(t, *mockSearchResult.Total, *returnedResult.Total)
+	assert.Equal(t, *mockSearchResult.IncompleteResults, *returnedResult.IncompleteResults)
+	assert.Len(t, returnedResult.Repositories, 1)
+	assert.Equal(t, *mockSearchResult.Repositories[0].ID, *returnedResult.Repositories[0].ID)
+	assert.Equal(t, *mockSearchResult.Repositories[0].Name, *returnedResult.Repositories[0].Name)
 }
 
 func Test_SearchCode(t *testing.T) {

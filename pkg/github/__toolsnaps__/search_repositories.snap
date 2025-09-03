@@ -6,6 +6,11 @@
   "description": "Find GitHub repositories by name, description, readme, topics, or other metadata. Perfect for discovering projects, finding examples, or locating specific repositories across GitHub.",
   "inputSchema": {
     "properties": {
+      "minimal_output": {
+        "default": true,
+        "description": "Return minimal repository information (default: true). When false, returns full GitHub API repository objects.",
+        "type": "boolean"
+      },
       "page": {
         "description": "Page number for pagination (min 1)",
         "minimum": 1,

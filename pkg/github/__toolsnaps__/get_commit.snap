@@ -6,6 +6,11 @@
   "description": "Get details for a commit from a GitHub repository",
   "inputSchema": {
     "properties": {
+      "include_diff": {
+        "default": true,
+        "description": "Whether to include file diffs and stats in the response. Default is true.",
+        "type": "boolean"
+      },
       "owner": {
         "description": "Repository owner",
         "type": "string"

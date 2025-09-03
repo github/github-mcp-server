@@ -321,23 +321,12 @@ func Test_CreateGist(t *testing.T) {
 			// Parse the result and get the text content
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
-			var gist *github.Gist
+			// Unmarshal and verify the minimal result
+			var gist MinimalResponse
 			err = json.Unmarshal([]byte(textContent.Text), &gist)
 			require.NoError(t, err)
 
-			assert.Equal(t, *tc.expectedGist.ID, *gist.ID)
-			assert.Equal(t, *tc.expectedGist.Description, *gist.Description)
-			assert.Equal(t, *tc.expectedGist.HTMLURL, *gist.HTMLURL)
-			assert.Equal(t, *tc.expectedGist.Public, *gist.Public)
-
-			// Verify file content
-			for filename, expectedFile := range tc.expectedGist.Files {
-				actualFile, exists := gist.Files[filename]
-				assert.True(t, exists)
-				assert.Equal(t, *expectedFile.Filename, *actualFile.Filename)
-				assert.Equal(t, *expectedFile.Content, *actualFile.Content)
-			}
+			assert.Equal(t, tc.expectedGist.GetHTMLURL(), gist.URL)
 		})
 	}
 }
@@ -486,22 +475,12 @@ func Test_UpdateGist(t *testing.T) {
 			// Parse the result and get the text content
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
-			var gist *github.Gist
-			err = json.Unmarshal([]byte(textContent.Text), &gist)
+			// Unmarshal and verify the minimal result
+			var updateResp MinimalResponse
+			err = json.Unmarshal([]byte(textContent.Text), &updateResp)
 			require.NoError(t, err)
 
-			assert.Equal(t, *tc.expectedGist.ID, *gist.ID)
-			assert.Equal(t, *tc.expectedGist.Description, *gist.Description)
-			assert.Equal(t, *tc.expectedGist.HTMLURL, *gist.HTMLURL)
-
-			// Verify file content
-			for filename, expectedFile := range tc.expectedGist.Files {
-				actualFile, exists := gist.Files[filename]
-				assert.True(t, exists)
-				assert.Equal(t, *expectedFile.Filename, *actualFile.Filename)
-				assert.Equal(t, *expectedFile.Content, *actualFile.Content)
-			}
+			assert.Equal(t, tc.expectedGist.GetHTMLURL(), updateResp.URL)
 		})
 	}
 }
