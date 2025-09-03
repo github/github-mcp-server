@@ -548,6 +548,25 @@ The following sets of tools are available (all are on by default):
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
+- **get_issue_event** - Get an issue event
+  - `event_id`: Event ID (number, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **get_issue_events** - Get issue events
+  - `issue_number`: Issue number (number, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
+
+- **get_issue_timeline** - Get issue timeline
+  - `issue_number`: Issue number (number, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
+
 - **list_issue_types** - List available issue types
   - `owner`: The organization owner of the repository (string, required)
 
