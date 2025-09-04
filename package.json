@@ -1,0 +1,25 @@
+{
+  "name": "better-man-project",
+  "version": "1.0.0",
+  "description": "A Christian men's ministry website with devotionals, Bible study, and spiritual growth resources",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx http-server public -p 8000 -c-1",
+    "dev": "npx http-server public -p 8000 -c-1",
+    "build": "echo 'Build complete - static files are ready in public directory'"
+  },
+  "keywords": [
+    "christian",
+    "ministry",
+    "devotionals",
+    "bible-study",
+    "men",
+    "faith"
+  ],
+  "author": "Better Man Project",
+  "license": "MIT",
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  },
+  "dependencies": {}
+}
