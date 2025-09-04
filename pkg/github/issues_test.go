@@ -236,6 +236,131 @@ func Test_AddIssueComment(t *testing.T) {
 	}
 }
 
+func Test_EditIssueComment(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := EditIssueComment(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "edit_issue_comment", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "comment_id")
+	assert.Contains(t, tool.InputSchema.Properties, "body")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "comment_id", "body"})
+
+	// Setup mock comment for success case
+	mockEditedComment := &github.IssueComment{
+		ID:   github.Ptr(int64(123)),
+		Body: github.Ptr("This is the edited comment"),
+		User: &github.User{
+			Login: github.Ptr("testuser"),
+		},
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42#issuecomment-123"),
+	}
+
+	tests := []struct {
+		name            string
+		mockedClient    *http.Client
+		requestArgs     map[string]interface{}
+		expectError     bool
+		expectedComment *github.IssueComment
+		expectedErrMsg  string
+	}{
+		{
+			name: "successful comment edit",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PatchReposIssuesCommentsByOwnerByRepoByCommentId,
+					mockResponse(t, http.StatusOK, mockEditedComment),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"comment_id": float64(123),
+				"body":       "This is the edited comment",
+			},
+			expectError:     false,
+			expectedComment: mockEditedComment,
+		},
+		{
+			name: "comment edit fails",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PatchReposIssuesCommentsByOwnerByRepoByCommentId,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Comment not found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"comment_id": float64(999),
+				"body":       "This is the edited comment",
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to edit comment:",
+		},
+		{
+			name:         "missing body parameter",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"comment_id": float64(123),
+			},
+			expectError:    false,
+			expectedErrMsg: "missing required parameter: body",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := EditIssueComment(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			if tc.expectedErrMsg != "" {
+				require.NotNil(t, result)
+				textContent := getTextResult(t, result)
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Parse the result and get the text content if no error
+			textContent := getTextResult(t, result)
+
+			// Parse JSON from result
+			var returnedComment github.IssueComment
+			err = json.Unmarshal([]byte(textContent.Text), &returnedComment)
+			require.NoError(t, err)
+			assert.Equal(t, *tc.expectedComment.ID, *returnedComment.ID)
+			assert.Equal(t, *tc.expectedComment.Body, *returnedComment.Body)
+			assert.Equal(t, *tc.expectedComment.User.Login, *returnedComment.User.Login)
+
+		})
+	}
+}
+
 func Test_SearchIssues(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
