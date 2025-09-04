@@ -23,6 +23,10 @@
         "description": "Repository name",
         "type": "string"
       },
+      "return_resource_links": {
+        "description": "Return ResourceLinks instead of file content - useful for large files or when you want to reference the file for later access",
+        "type": "boolean"
+      },
       "sha": {
         "description": "Accepts optional commit SHA. If specified, it will be used instead of ref",
         "type": "string"
