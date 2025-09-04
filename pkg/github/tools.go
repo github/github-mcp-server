@@ -114,6 +114,11 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(GetSecretScanningAlert(getClient, t)),
 			toolsets.NewServerTool(ListSecretScanningAlerts(getClient, t)),
 		)
+	globalSecurityAdvisories := toolsets.NewToolset("global_security_advisories", "Global security advisories from the GitHub Advisory Database").
+		AddReadTools(
+			toolsets.NewServerTool(ListGlobalSecurityAdvisories(getClient, t)),
+			toolsets.NewServerTool(GetGlobalSecurityAdvisory(getClient, t)),
+		)
 	dependabot := toolsets.NewToolset("dependabot", "Dependabot tools").
 		AddReadTools(
 			toolsets.NewServerTool(GetDependabotAlert(getClient, t)),
@@ -197,6 +202,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(actions)
 	tsg.AddToolset(codeSecurity)
 	tsg.AddToolset(secretProtection)
+	tsg.AddToolset(globalSecurityAdvisories)
 	tsg.AddToolset(dependabot)
 	tsg.AddToolset(notifications)
 	tsg.AddToolset(experiments)
