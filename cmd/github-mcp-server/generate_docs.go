@@ -64,7 +64,7 @@ func generateReadmeDocs(readmePath string) error {
 	t, _ := translations.TranslationHelper()
 
 	// Create toolset group with mock clients
-	tsg := github.DefaultToolsetGroup(false, mockGetClient, mockGetGQLClient, mockGetRawClient, t)
+	tsg := github.DefaultToolsetGroup(false, mockGetClient, mockGetGQLClient, mockGetRawClient, t, 5000)
 
 	// Generate toolsets documentation
 	toolsetsDoc := generateToolsetsDoc(tsg)
@@ -302,7 +302,7 @@ func generateRemoteToolsetsDoc() string {
 	t, _ := translations.TranslationHelper()
 
 	// Create toolset group with mock clients
-	tsg := github.DefaultToolsetGroup(false, mockGetClient, mockGetGQLClient, mockGetRawClient, t)
+	tsg := github.DefaultToolsetGroup(false, mockGetClient, mockGetGQLClient, mockGetRawClient, t, 5000)
 
 	// Generate table header
 	buf.WriteString("| Name           | Description                                      | API URL                                               | 1-Click Install (VS Code)                                                                                                                                                                                                 | Read-only Link                                                                                                 | 1-Click Read-only Install (VS Code)                                                                                                                                                                                                 |\n")

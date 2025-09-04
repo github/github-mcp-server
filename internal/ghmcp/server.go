@@ -47,6 +47,9 @@ type MCPServerConfig struct {
 
 	// Translator provides translated text for the server tooling
 	Translator translations.TranslationHelperFunc
+
+	// Content window size
+	ContentWindowSize int
 }
 
 const stdioServerLogPrefix = "stdioserver"
@@ -132,7 +135,7 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 	}
 
 	// Create default toolsets
-	tsg := github.DefaultToolsetGroup(cfg.ReadOnly, getClient, getGQLClient, getRawClient, cfg.Translator)
+	tsg := github.DefaultToolsetGroup(cfg.ReadOnly, getClient, getGQLClient, getRawClient, cfg.Translator, cfg.ContentWindowSize)
 	err = tsg.EnableToolsets(enabledToolsets)
 
 	if err != nil {
@@ -180,6 +183,9 @@ type StdioServerConfig struct {
 
 	// Path to the log file if not stderr
 	LogFilePath string
+
+	// Content window size
+	ContentWindowSize int
 }
 
 // RunStdioServer is not concurrent safe.
@@ -191,13 +197,14 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	t, dumpTranslations := translations.TranslationHelper()
 
 	ghServer, err := NewMCPServer(MCPServerConfig{
-		Version:         cfg.Version,
-		Host:            cfg.Host,
-		Token:           cfg.Token,
-		EnabledToolsets: cfg.EnabledToolsets,
-		DynamicToolsets: cfg.DynamicToolsets,
-		ReadOnly:        cfg.ReadOnly,
-		Translator:      t,
+		Version:           cfg.Version,
+		Host:              cfg.Host,
+		Token:             cfg.Token,
+		EnabledToolsets:   cfg.EnabledToolsets,
+		DynamicToolsets:   cfg.DynamicToolsets,
+		ReadOnly:          cfg.ReadOnly,
+		Translator:        t,
+		ContentWindowSize: cfg.ContentWindowSize,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)

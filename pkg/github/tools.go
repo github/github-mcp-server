@@ -16,7 +16,7 @@ type GetGQLClientFn func(context.Context) (*githubv4.Client, error)
 
 var DefaultTools = []string{"all"}
 
-func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetGQLClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) *toolsets.ToolsetGroup {
+func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetGQLClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc, contentWindowSize int) *toolsets.ToolsetGroup {
 	tsg := toolsets.NewToolsetGroup(readOnly)
 
 	// Define all available features with their default state (disabled)
@@ -34,6 +34,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(GetTag(getClient, t)),
 			toolsets.NewServerTool(ListReleases(getClient, t)),
 			toolsets.NewServerTool(GetLatestRelease(getClient, t)),
+			toolsets.NewServerTool(GetReleaseByTag(getClient, t)),
 		).
 		AddWriteTools(
 			toolsets.NewServerTool(CreateOrUpdateFile(getClient, t)),
@@ -147,7 +148,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(GetWorkflowRun(getClient, t)),
 			toolsets.NewServerTool(GetWorkflowRunLogs(getClient, t)),
 			toolsets.NewServerTool(ListWorkflowJobs(getClient, t)),
-			toolsets.NewServerTool(GetJobLogs(getClient, t)),
+			toolsets.NewServerTool(GetJobLogs(getClient, t, contentWindowSize)),
 			toolsets.NewServerTool(ListWorkflowRunArtifacts(getClient, t)),
 			toolsets.NewServerTool(DownloadWorkflowRunArtifact(getClient, t)),
 			toolsets.NewServerTool(GetWorkflowRunUsage(getClient, t)),
@@ -158,6 +159,14 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(RerunFailedJobs(getClient, t)),
 			toolsets.NewServerTool(CancelWorkflowRun(getClient, t)),
 			toolsets.NewServerTool(DeleteWorkflowRunLogs(getClient, t)),
+		)
+
+	securityAdvisories := toolsets.NewToolset("security_advisories", "Security advisories related tools").
+		AddReadTools(
+			toolsets.NewServerTool(ListGlobalSecurityAdvisories(getClient, t)),
+			toolsets.NewServerTool(GetGlobalSecurityAdvisory(getClient, t)),
+			toolsets.NewServerTool(ListRepositorySecurityAdvisories(getClient, t)),
+			toolsets.NewServerTool(ListOrgRepositorySecurityAdvisories(getClient, t)),
 		)
 
 	// Keep experiments alive so the system doesn't error out when it's always enabled
@@ -194,6 +203,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(experiments)
 	tsg.AddToolset(discussions)
 	tsg.AddToolset(gists)
+	tsg.AddToolset(securityAdvisories)
 
 	return tsg
 }
