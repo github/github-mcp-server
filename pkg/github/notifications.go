@@ -448,7 +448,6 @@ func ManageRepositoryNotificationSubscription(getClient GetClientFn, t translati
 			),
 			mcp.WithString("repo",
 				mcp.Required(),
-				mcp.Description("The name of the repository."),
 			),
 			mcp.WithString("action",
 				mcp.Required(),

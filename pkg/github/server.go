@@ -13,8 +13,19 @@ import (
 // NewServer creates a new GitHub MCP server with the specified GH client and logger.
 
 func NewServer(version string, opts ...server.ServerOption) *server.MCPServer {
+	const instructions = `GitHub MCP Server - Provides tools for GitHub operations for things like pull requests, issues, repositories, and more.
+		When using this MCP Server, keep in mind these common arguments used across many tools:
+		• "owner" - Repository owner (username or organization)
+		• "repo" - Repository name
+		• "page" - Page number for pagination (min: 1)
+		• "perPage" - Results per page (min: 1, max: 100)
+
+		Also keep in mind the following:
+		- If you need information about the user to use a tool and you are not sure what to provide, you can use the "get_current_user" tool to get details about the authenticated user.
+		`
 	// Add default options
 	defaultOpts := []server.ServerOption{
+		server.WithInstructions(instructions),
 		server.WithToolCapabilities(true),
 		server.WithResourceCapabilities(true, true),
 		server.WithLogging(),
@@ -194,12 +205,10 @@ func OptionalStringArrayParam(r mcp.CallToolRequest, p string) ([]string, error)
 func WithPagination() mcp.ToolOption {
 	return func(tool *mcp.Tool) {
 		mcp.WithNumber("page",
-			mcp.Description("Page number for pagination (min 1)"),
 			mcp.Min(1),
 		)(tool)
 
 		mcp.WithNumber("perPage",
-			mcp.Description("Results per page for pagination (min 1, max 100)"),
 			mcp.Min(1),
 			mcp.Max(100),
 		)(tool)
@@ -211,12 +220,10 @@ func WithPagination() mcp.ToolOption {
 func WithUnifiedPagination() mcp.ToolOption {
 	return func(tool *mcp.Tool) {
 		mcp.WithNumber("page",
-			mcp.Description("Page number for pagination (min 1)"),
 			mcp.Min(1),
 		)(tool)
 
 		mcp.WithNumber("perPage",
-			mcp.Description("Results per page for pagination (min 1, max 100)"),
 			mcp.Min(1),
 			mcp.Max(100),
 		)(tool)
@@ -231,7 +238,6 @@ func WithUnifiedPagination() mcp.ToolOption {
 func WithCursorPagination() mcp.ToolOption {
 	return func(tool *mcp.Tool) {
 		mcp.WithNumber("perPage",
-			mcp.Description("Results per page for pagination (min 1, max 100)"),
 			mcp.Min(1),
 			mcp.Max(100),
 		)(tool)
