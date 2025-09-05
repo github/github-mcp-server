@@ -848,6 +848,7 @@ func CreateIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 				Assignees: &assignees,
 				Labels:    &labels,
 				Milestone: milestoneNum,
+				Type:      &issueType,
 			}
 
 			if issueType != "" {
