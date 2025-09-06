@@ -193,7 +193,12 @@ func CreatePullRequest(getClient GetClientFn, t translations.TranslationHelperFu
 				return mcp.NewToolResultError(fmt.Sprintf("failed to create pull request: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(pr)
+			// Return minimal response with just essential information
+			minimalResponse := MinimalResponse{
+				URL: pr.GetHTMLURL(),
+			}
+
+			r, err := json.Marshal(minimalResponse)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -464,7 +469,12 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 				}
 			}()
 
-			r, err := json.Marshal(finalPR)
+			// Return minimal response with just essential information
+			minimalResponse := MinimalResponse{
+				URL: finalPR.GetHTMLURL(),
+			}
+
+			r, err := json.Marshal(minimalResponse)
 			if err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("Failed to marshal response: %v", err)), nil
 			}
