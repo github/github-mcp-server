@@ -1,4 +1,4 @@
-FROM golang:1.24.4-alpine AS build
+FROM golang:1.25.0-alpine AS build
 ARG VERSION="dev"
 
 # Set the working directory
