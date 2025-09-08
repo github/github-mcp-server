@@ -980,7 +980,7 @@ func GetPullRequestReviewComments(getClient GetClientFn, t translations.Translat
 	return mcp.NewTool("get_pull_request_review_comments",
 			mcp.WithDescription(t("TOOL_GET_PULL_REQUEST_REVIEW_COMMENTS_DESCRIPTION", "Get pull request review comments. They are comments made on a portion of the unified diff during a pull request review. These are different from commit comments and issue comments in a pull request.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_GET_PULL_REQUEST_REVIEW_COMMENTS_USER_TITLE", "Get pull request comments"),
+				Title:        t("TOOL_GET_PULL_REQUEST_REVIEW_COMMENTS_USER_TITLE", "Get pull request review comments"),
 				ReadOnlyHint: ToBoolPtr(true),
 			}),
 			mcp.WithString("owner",
@@ -1023,7 +1023,7 @@ func GetPullRequestReviewComments(getClient GetClientFn, t translations.Translat
 			comments, resp, err := client.PullRequests.ListComments(ctx, owner, repo, pullNumber, opts)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get pull request comments",
+					"failed to get pull request review comments",
 					resp,
 					err,
 				), nil
@@ -1035,7 +1035,7 @@ func GetPullRequestReviewComments(getClient GetClientFn, t translations.Translat
 				if err != nil {
 					return nil, fmt.Errorf("failed to read response body: %w", err)
 				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request comments: %s", string(body))), nil
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request review comments: %s", string(body))), nil
 			}
 
 			r, err := json.Marshal(comments)

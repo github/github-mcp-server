@@ -1636,7 +1636,7 @@ func Test_GetPullRequestComments(t *testing.T) {
 				"pullNumber": float64(999),
 			},
 			expectError:    true,
-			expectedErrMsg: "failed to get pull request comments",
+			expectedErrMsg: "failed to get pull request review comments",
 		},
 	}
 

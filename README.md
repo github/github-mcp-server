@@ -713,7 +713,7 @@ The following sets of tools are available (all are on by default):
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
-- **get_pull_request_review_comments** - Get pull request comments
+- **get_pull_request_review_comments** - Get pull request review comments
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
