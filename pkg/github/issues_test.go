@@ -712,39 +712,12 @@ func Test_CreateIssue(t *testing.T) {
 			require.NoError(t, err)
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
-			var returnedIssue github.Issue
+			// Unmarshal and verify the minimal result
+			var returnedIssue MinimalResponse
 			err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 			require.NoError(t, err)
 
-			assert.Equal(t, *tc.expectedIssue.Number, *returnedIssue.Number)
-			assert.Equal(t, *tc.expectedIssue.Title, *returnedIssue.Title)
-			assert.Equal(t, *tc.expectedIssue.State, *returnedIssue.State)
-			assert.Equal(t, *tc.expectedIssue.HTMLURL, *returnedIssue.HTMLURL)
-
-			if tc.expectedIssue.Body != nil {
-				assert.Equal(t, *tc.expectedIssue.Body, *returnedIssue.Body)
-			}
-
-			if tc.expectedIssue.Type != nil {
-				assert.Equal(t, *tc.expectedIssue.Type.Name, *returnedIssue.Type.Name)
-			}
-
-			// Check assignees if expected
-			if len(tc.expectedIssue.Assignees) > 0 {
-				assert.Equal(t, len(tc.expectedIssue.Assignees), len(returnedIssue.Assignees))
-				for i, assignee := range returnedIssue.Assignees {
-					assert.Equal(t, *tc.expectedIssue.Assignees[i].Login, *assignee.Login)
-				}
-			}
-
-			// Check labels if expected
-			if len(tc.expectedIssue.Labels) > 0 {
-				assert.Equal(t, len(tc.expectedIssue.Labels), len(returnedIssue.Labels))
-				for i, label := range returnedIssue.Labels {
-					assert.Equal(t, *tc.expectedIssue.Labels[i].Name, *label.Name)
-				}
-			}
+			assert.Equal(t, tc.expectedIssue.GetHTMLURL(), returnedIssue.URL)
 		})
 	}
 }
@@ -1233,45 +1206,12 @@ func Test_UpdateIssue(t *testing.T) {
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
-			var returnedIssue github.Issue
-			err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
+			// Unmarshal and verify the minimal result
+			var updateResp MinimalResponse
+			err = json.Unmarshal([]byte(textContent.Text), &updateResp)
 			require.NoError(t, err)
 
-			assert.Equal(t, *tc.expectedIssue.Number, *returnedIssue.Number)
-			assert.Equal(t, *tc.expectedIssue.Title, *returnedIssue.Title)
-			assert.Equal(t, *tc.expectedIssue.State, *returnedIssue.State)
-			assert.Equal(t, *tc.expectedIssue.HTMLURL, *returnedIssue.HTMLURL)
-
-			if tc.expectedIssue.Body != nil {
-				assert.Equal(t, *tc.expectedIssue.Body, *returnedIssue.Body)
-			}
-
-			if tc.expectedIssue.Type != nil {
-				assert.Equal(t, *tc.expectedIssue.Type.Name, *returnedIssue.Type.Name)
-			}
-
-			// Check assignees if expected
-			if len(tc.expectedIssue.Assignees) > 0 {
-				assert.Len(t, returnedIssue.Assignees, len(tc.expectedIssue.Assignees))
-				for i, assignee := range returnedIssue.Assignees {
-					assert.Equal(t, *tc.expectedIssue.Assignees[i].Login, *assignee.Login)
-				}
-			}
-
-			// Check labels if expected
-			if len(tc.expectedIssue.Labels) > 0 {
-				assert.Len(t, returnedIssue.Labels, len(tc.expectedIssue.Labels))
-				for i, label := range returnedIssue.Labels {
-					assert.Equal(t, *tc.expectedIssue.Labels[i].Name, *label.Name)
-				}
-			}
-
-			// Check milestone if expected
-			if tc.expectedIssue.Milestone != nil {
-				assert.NotNil(t, returnedIssue.Milestone)
-				assert.Equal(t, *tc.expectedIssue.Milestone.Number, *returnedIssue.Milestone.Number)
-			}
+			assert.Equal(t, tc.expectedIssue.GetHTMLURL(), updateResp.URL)
 		})
 	}
 }
