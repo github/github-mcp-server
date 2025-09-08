@@ -975,12 +975,12 @@ func UpdatePullRequestBranch(getClient GetClientFn, t translations.TranslationHe
 		}
 }
 
-// GetPullRequestComments creates a tool to get the review comments on a pull request.
-func GetPullRequestComments(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
-	return mcp.NewTool("get_pull_request_comments",
-			mcp.WithDescription(t("TOOL_GET_PULL_REQUEST_COMMENTS_DESCRIPTION", "Get comments for a specific pull request.")),
+// GetPullRequestReviewComments creates a tool to get the review comments on a pull request.
+func GetPullRequestReviewComments(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+	return mcp.NewTool("get_pull_request_review_comments",
+			mcp.WithDescription(t("TOOL_GET_PULL_REQUEST_REVIEW_COMMENTS_DESCRIPTION", "Get pull request review comments. They are comments made on a portion of the unified diff during a pull request review. These are different from commit comments and issue comments in a pull request.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_GET_PULL_REQUEST_COMMENTS_USER_TITLE", "Get pull request comments"),
+				Title:        t("TOOL_GET_PULL_REQUEST_REVIEW_COMMENTS_USER_TITLE", "Get pull request comments"),
 				ReadOnlyHint: ToBoolPtr(true),
 			}),
 			mcp.WithString("owner",
