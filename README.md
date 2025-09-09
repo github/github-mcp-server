@@ -36,7 +36,7 @@ Alternatively, to manually configure VS Code, choose the appropriate JSON block 
 <tr><th align=left colspan=2>VS Code (version 1.101 or greater)</th></tr>
 <tr valign=top>
 <td>
-  
+
 ```json
 {
   "servers": {
@@ -85,12 +85,6 @@ Alternatively, to manually configure VS Code, choose the appropriate JSON block 
 - **[Windsurf](/docs/installation-guides/install-windsurf.md)** - Installation guide for Windsurf IDE
 
 > **Note:** Each MCP host application needs to configure a GitHub App or OAuth App to support remote access via OAuth. Any host application that supports remote MCP servers should support the remote GitHub server with PAT authentication. Configuration details and support levels vary by host. Make sure to refer to the host application's documentation for more info.
-
-> ⚠️ **Public Preview Status:** The **remote** GitHub MCP Server is currently in Public Preview. During preview, access may be gated depending on authentication type and surface:
->
-> - OAuth: Subject to GitHub Copilot Editor Preview Policy until GA
-> - PAT: Controlled via your organization's PAT policies
-> - MCP Servers in Copilot policy: Enables/disables access to all MCP servers in VS Code, with other Copilot editors migrating to this policy in the coming months.
 
 ### Configuration
 
@@ -253,7 +247,7 @@ For other MCP host applications, please refer to our installation guides:
 - **[Cursor](docs/installation-guides/install-cursor.md)** - Installation guide for Cursor IDE
 - **[Windsurf](docs/installation-guides/install-windsurf.md)** - Installation guide for Windsurf IDE
 
-For a complete overview of all installation options, see our **[Installation Guides Index](docs/installation-guides/installation-guides.md)**.
+For a complete overview of all installation options, see our **[Installation Guides Index](docs/installation-guides)**.
 
 > **Note:** Any host application that supports local MCP servers should be able to access the local GitHub MCP server. However, the specific configuration process, syntax and stability of the integration will vary by host application. While many may follow a similar format to the examples above, this is not guaranteed. Please refer to your host application's documentation for the correct MCP configuration syntax and setup process.
 
@@ -289,24 +283,23 @@ _Toolsets are not limited to Tools. Relevant MCP Resources and Prompts are also 
 The following sets of tools are available (all are on by default):
 
 <!-- START AUTOMATED TOOLSETS -->
-
-| Toolset             | Description                                                                                                         |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `context`           | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |
-| `actions`           | GitHub Actions workflows and CI/CD operations                                                                       |
-| `code_security`     | Code security related tools, such as GitHub Code Scanning                                                           |
-| `dependabot`        | Dependabot tools                                                                                                    |
-| `discussions`       | GitHub Discussions related tools                                                                                    |
-| `experiments`       | Experimental features that are not considered stable yet                                                            |
-| `gists`             | GitHub Gist related tools                                                                                           |
-| `issues`            | GitHub Issues related tools                                                                                         |
-| `notifications`     | GitHub Notifications related tools                                                                                  |
-| `orgs`              | GitHub Organization related tools                                                                                   |
-| `pull_requests`     | GitHub Pull Request related tools                                                                                   |
-| `repos`             | GitHub Repository related tools                                                                                     |
-| `secret_protection` | Secret protection related tools, such as GitHub Secret Scanning                                                     |
-| `users`             | GitHub User related tools                                                                                           |
-
+| Toolset                 | Description                                                   |
+| ----------------------- | ------------------------------------------------------------- |
+| `context`               | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |
+| `actions` | GitHub Actions workflows and CI/CD operations |
+| `code_security` | Code security related tools, such as GitHub Code Scanning |
+| `dependabot` | Dependabot tools |
+| `discussions` | GitHub Discussions related tools |
+| `experiments` | Experimental features that are not considered stable yet |
+| `gists` | GitHub Gist related tools |
+| `issues` | GitHub Issues related tools |
+| `notifications` | GitHub Notifications related tools |
+| `orgs` | GitHub Organization related tools |
+| `pull_requests` | GitHub Pull Request related tools |
+| `repos` | GitHub Repository related tools |
+| `secret_protection` | Secret protection related tools, such as GitHub Secret Scanning |
+| `security_advisories` | Security advisories related tools |
+| `users` | GitHub User related tools |
 <!-- END AUTOMATED TOOLSETS -->
 
 ## Tools
@@ -756,12 +749,6 @@ The following sets of tools are available (all are on by default):
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
-- **get_pull_request_comments** - Get pull request comments
-
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
 - **get_pull_request_diff** - Get pull request diff
 
   - `owner`: Repository owner (string, required)
@@ -773,6 +760,11 @@ The following sets of tools are available (all are on by default):
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
+- **get_pull_request_review_comments** - Get pull request review comments
+  - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
@@ -880,6 +872,7 @@ The following sets of tools are available (all are on by default):
   - `autoInit`: Initialize with README (boolean, optional)
   - `description`: Repository description (string, optional)
   - `name`: Repository name (string, required)
+  - `organization`: Organization to create the repository in (omit to create in your personal account) (string, optional)
   - `private`: Whether repo should be private (boolean, optional)
 
 - **delete_file** - Delete file
@@ -895,9 +888,7 @@ The following sets of tools are available (all are on by default):
   - `organization`: Organization to fork to (string, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
-
-- **get_commit** - Get commit details
-
+  - `include_diff`: Whether to include file diffs and stats in the response. Default is true. (boolean, optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -915,6 +906,11 @@ The following sets of tools are available (all are on by default):
 - **get_latest_release** - Get latest release
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
+
+- **get_release_by_tag** - Get a release by tag name
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `tag`: Tag name (e.g., 'v1.0.0') (string, required)
 
 - **get_tag** - Get tag details
 
@@ -968,6 +964,7 @@ The following sets of tools are available (all are on by default):
   - `sort`: Sort field ('indexed' only) (string, optional)
 
 - **search_repositories** - Search repositories
+  - `minimal_output`: Return minimal repository information (default: true). When false, returns full GitHub API repository objects. (boolean, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Repository search query. Examples: 'machine learning in:name stars:>1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering. (string, required)
@@ -990,6 +987,41 @@ The following sets of tools are available (all are on by default):
   - `resolution`: Filter by resolution (string, optional)
   - `secret_type`: A comma-separated list of secret types to return. All default secret patterns are returned. To return generic patterns, pass the token name(s) in the parameter. (string, optional)
   - `state`: Filter by state (string, optional)
+
+</details>
+
+<details>
+
+<summary>Security Advisories</summary>
+
+- **get_global_security_advisory** - Get a global security advisory
+  - `ghsaId`: GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx). (string, required)
+
+- **list_global_security_advisories** - List global security advisories
+  - `affects`: Filter advisories by affected package or version (e.g. "package1,package2@1.0.0"). (string, optional)
+  - `cveId`: Filter by CVE ID. (string, optional)
+  - `cwes`: Filter by Common Weakness Enumeration IDs (e.g. ["79", "284", "22"]). (string[], optional)
+  - `ecosystem`: Filter by package ecosystem. (string, optional)
+  - `ghsaId`: Filter by GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx). (string, optional)
+  - `isWithdrawn`: Whether to only return withdrawn advisories. (boolean, optional)
+  - `modified`: Filter by publish or update date or date range (ISO 8601 date or range). (string, optional)
+  - `published`: Filter by publish date or date range (ISO 8601 date or range). (string, optional)
+  - `severity`: Filter by severity. (string, optional)
+  - `type`: Advisory type. (string, optional)
+  - `updated`: Filter by update date or date range (ISO 8601 date or range). (string, optional)
+
+- **list_org_repository_security_advisories** - List org repository security advisories
+  - `direction`: Sort direction. (string, optional)
+  - `org`: The organization login. (string, required)
+  - `sort`: Sort field. (string, optional)
+  - `state`: Filter by advisory state. (string, optional)
+
+- **list_repository_security_advisories** - List repository security advisories
+  - `direction`: Sort direction. (string, optional)
+  - `owner`: The owner of the repository. (string, required)
+  - `repo`: The name of the repository. (string, required)
+  - `sort`: Sort field. (string, optional)
+  - `state`: Filter by advisory state. (string, optional)
 
 </details>
 

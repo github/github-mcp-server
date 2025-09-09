@@ -33,6 +33,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(GetTag(getClient, t)),
 			toolsets.NewServerTool(ListReleases(getClient, t)),
 			toolsets.NewServerTool(GetLatestRelease(getClient, t)),
+			toolsets.NewServerTool(GetReleaseByTag(getClient, t)),
 		).
 		AddWriteTools(
 			toolsets.NewServerTool(CreateOrUpdateFile(getClient, t)),
@@ -85,7 +86,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(GetPullRequestFiles(getClient, t)),
 			toolsets.NewServerTool(SearchPullRequests(getClient, t)),
 			toolsets.NewServerTool(GetPullRequestStatus(getClient, t)),
-			toolsets.NewServerTool(GetPullRequestComments(getClient, t)),
+			toolsets.NewServerTool(GetPullRequestReviewComments(getClient, t)),
 			toolsets.NewServerTool(GetPullRequestReviews(getClient, t)),
 			toolsets.NewServerTool(GetPullRequestDiff(getClient, t)),
 		).
@@ -175,6 +176,14 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(DeleteWorkflowRunLogs(getClient, t)),
 		)
 
+	securityAdvisories := toolsets.NewToolset("security_advisories", "Security advisories related tools").
+		AddReadTools(
+			toolsets.NewServerTool(ListGlobalSecurityAdvisories(getClient, t)),
+			toolsets.NewServerTool(GetGlobalSecurityAdvisory(getClient, t)),
+			toolsets.NewServerTool(ListRepositorySecurityAdvisories(getClient, t)),
+			toolsets.NewServerTool(ListOrgRepositorySecurityAdvisories(getClient, t)),
+		)
+
 	// Keep experiments alive so the system doesn't error out when it's always enabled
 	experiments := toolsets.NewToolset("experiments", "Experimental features that are not considered stable yet")
 
@@ -210,6 +219,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(experiments)
 	tsg.AddToolset(discussions)
 	tsg.AddToolset(gists)
+	tsg.AddToolset(securityAdvisories)
 
 	return tsg
 }
