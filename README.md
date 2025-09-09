@@ -591,13 +591,14 @@ The following sets of tools are available (all are on by default):
 - **update_issue** - Edit issue
   - `assignees`: New assignees (string[], optional)
   - `body`: New description (string, optional)
+  - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
   - `issue_number`: Issue number to update (number, required)
   - `labels`: New labels (string[], optional)
   - `milestone`: New milestone number (number, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `state`: New state (string, optional)
-  - `state_reason`: Reason for the state change, ignored unless state is changed. (string, optional)
+  - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
   - `title`: New title (string, optional)
   - `type`: New issue type (string, optional)
 

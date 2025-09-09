@@ -18,6 +18,25 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+// Custom GraphQL structs for closing issues as duplicate
+// These extend the githubv4 library which is missing this functionality
+
+// Local definition matching GitHub's GraphQL schema for closing issues
+type CloseIssueInput struct {
+	IssueID          githubv4.ID             `json:"issueId"`
+	ClientMutationID *githubv4.String        `json:"clientMutationId,omitempty"`
+	StateReason      *IssueClosedStateReason `json:"stateReason,omitempty"`
+	DuplicateIssueID *githubv4.ID            `json:"duplicateIssueId,omitempty"`
+}
+
+type IssueClosedStateReason string
+
+const (
+	IssueClosedStateReasonCompleted  IssueClosedStateReason = "COMPLETED"
+	IssueClosedStateReasonDuplicate  IssueClosedStateReason = "DUPLICATE"
+	IssueClosedStateReasonNotPlanned IssueClosedStateReason = "NOT_PLANNED"
+)
+
 // IssueFragment represents a fragment of an issue node in the GraphQL API.
 type IssueFragment struct {
 	Number     githubv4.Int
@@ -1099,7 +1118,7 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 }
 
 // UpdateIssue creates a tool to update an existing issue in a GitHub repository.
-func UpdateIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func UpdateIssue(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("update_issue",
 			mcp.WithDescription(t("TOOL_UPDATE_ISSUE_DESCRIPTION", "Update an existing issue in a GitHub repository.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -1129,8 +1148,11 @@ func UpdateIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 				mcp.Enum("open", "closed"),
 			),
 			mcp.WithString("state_reason",
-				mcp.Description("Reason for the state change, ignored unless state is changed."),
+				mcp.Description("Reason for the state change. Ignored unless state is changed."),
 				mcp.Enum("completed", "not_planned", "duplicate", "reopened"),
+			),
+			mcp.WithNumber("duplicate_of",
+				mcp.Description("Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'."),
 			),
 			mcp.WithArray("labels",
 				mcp.Description("New labels"),
@@ -1171,6 +1193,8 @@ func UpdateIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 
 			// Create the issue request with only provided fields
 			issueRequest := &github.IssueRequest{}
+			restUpdateNeeded := false
+			gqlUpdateNeeded := false
 
 			// Set optional parameters if provided
 			title, err := OptionalParam[string](request, "title")
@@ -1179,6 +1203,7 @@ func UpdateIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 			}
 			if title != "" {
 				issueRequest.Title = github.Ptr(title)
+				restUpdateNeeded = true
 			}
 
 			body, err := OptionalParam[string](request, "body")
@@ -1187,22 +1212,37 @@ func UpdateIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 			}
 			if body != "" {
 				issueRequest.Body = github.Ptr(body)
+				restUpdateNeeded = true
 			}
 
+			// Handle state and state_reason parameters
 			state, err := OptionalParam[string](request, "state")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
-			}
-			if state != "" {
-				issueRequest.State = github.Ptr(state)
 			}
 
 			stateReason, err := OptionalParam[string](request, "state_reason")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			if stateReason != "" {
-				issueRequest.StateReason = github.Ptr(stateReason)
+
+			// If closing as duplicate, use GraphQL API, otherwise use REST API for state changes
+			if stateReason == "duplicate" {
+				gqlUpdateNeeded = true
+			} else {
+				if state != "" {
+					issueRequest.State = github.Ptr(state)
+					restUpdateNeeded = true
+				}
+				if stateReason != "" {
+					issueRequest.StateReason = github.Ptr(stateReason)
+					restUpdateNeeded = true
+				}
+			}
+
+			duplicateOf, err := OptionalIntParam(request, "duplicate_of")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
 			}
 
 			// Get labels
@@ -1212,6 +1252,7 @@ func UpdateIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 			}
 			if len(labels) > 0 {
 				issueRequest.Labels = &labels
+				restUpdateNeeded = true
 			}
 
 			// Get assignees
@@ -1221,6 +1262,7 @@ func UpdateIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 			}
 			if len(assignees) > 0 {
 				issueRequest.Assignees = &assignees
+				restUpdateNeeded = true
 			}
 
 			milestone, err := OptionalIntParam(request, "milestone")
@@ -1230,6 +1272,7 @@ func UpdateIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 			if milestone != 0 {
 				milestoneNum := milestone
 				issueRequest.Milestone = &milestoneNum
+				restUpdateNeeded = true
 			}
 
 			// Get issue type
@@ -1239,34 +1282,117 @@ func UpdateIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 			}
 			if issueType != "" {
 				issueRequest.Type = github.Ptr(issueType)
+				restUpdateNeeded = true
 			}
 
+			if !restUpdateNeeded && !gqlUpdateNeeded {
+				return mcp.NewToolResultError("No update parameters provided."), nil
+			}
+
+			// Handle REST API updates (title, body, state, labels, assignees, milestone, type, state_reason except "duplicate")
+			if restUpdateNeeded {
+				client, err := getClient(ctx)
+				if err != nil {
+					return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+				}
+
+				_, resp, err := client.Issues.Edit(ctx, owner, repo, issueNumber, issueRequest)
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx,
+						"failed to update issue",
+						resp,
+						err,
+					), nil
+				}
+				defer func() { _ = resp.Body.Close() }()
+
+				if resp.StatusCode != http.StatusOK {
+					body, err := io.ReadAll(resp.Body)
+					if err != nil {
+						return nil, fmt.Errorf("failed to read response body: %w", err)
+					}
+					return mcp.NewToolResultError(fmt.Sprintf("failed to update issue: %s", string(body))), nil
+				}
+			}
+
+			// Handle GraphQL API updates (state_reason = "duplicate")
+			if gqlUpdateNeeded {
+				if duplicateOf == 0 {
+					return mcp.NewToolResultError("duplicate_of must be provided when state_reason is 'duplicate'"), nil
+				}
+
+				gqlClient, err := getGQLClient(ctx)
+				if err != nil {
+					return nil, fmt.Errorf("failed to get GraphQL client: %w", err)
+				}
+
+				var issueQuery struct {
+					Repository struct {
+						Issue struct {
+							ID githubv4.ID
+						} `graphql:"issue(number: $issueNumber)"`
+						DuplicateIssue struct {
+							ID githubv4.ID
+						} `graphql:"duplicateIssue: issue(number: $duplicateNumber)"`
+					} `graphql:"repository(owner: $owner, name: $repo)"`
+				}
+
+				err = gqlClient.Query(ctx, &issueQuery, map[string]interface{}{
+					"owner":           githubv4.String(owner),
+					"repo":            githubv4.String(repo),
+					"issueNumber":     githubv4.Int(issueNumber), // #nosec G115 - issue numbers are always small positive integers
+					"duplicateNumber": githubv4.Int(duplicateOf), // #nosec G115 - issue numbers are always small positive integers
+				})
+				if err != nil {
+					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to find issues", err), nil
+				}
+
+				var mutation struct {
+					CloseIssue struct {
+						Issue struct {
+							ID     githubv4.ID
+							Number githubv4.Int
+							URL    githubv4.String
+							State  githubv4.String
+						}
+					} `graphql:"closeIssue(input: $input)"`
+				}
+
+				duplicateStateReason := IssueClosedStateReasonDuplicate
+				err = gqlClient.Mutate(ctx, &mutation, CloseIssueInput{
+					IssueID:          issueQuery.Repository.Issue.ID,
+					StateReason:      &duplicateStateReason,
+					DuplicateIssueID: &issueQuery.Repository.DuplicateIssue.ID,
+				}, nil)
+				if err != nil {
+					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to close issue as duplicate", err), nil
+				}
+			}
+
+			// Get the final state of the issue to return
 			client, err := getClient(ctx)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+				return nil, err
 			}
-			updatedIssue, resp, err := client.Issues.Edit(ctx, owner, repo, issueNumber, issueRequest)
-			if err != nil {
-				return nil, fmt.Errorf("failed to update issue: %w", err)
-			}
-			defer func() { _ = resp.Body.Close() }()
 
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to update issue: %s", string(body))), nil
+			finalIssue, resp, err := client.Issues.Get(ctx, owner, repo, issueNumber)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "Failed to get issue", resp, err), nil
 			}
+			defer func() {
+				if resp != nil && resp.Body != nil {
+					_ = resp.Body.Close()
+				}
+			}()
 
 			// Return minimal response with just essential information
 			minimalResponse := MinimalResponse{
-				URL: updatedIssue.GetHTMLURL(),
+				URL: finalIssue.GetHTMLURL(),
 			}
 
 			r, err := json.Marshal(minimalResponse)
 			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
+				return mcp.NewToolResultError(fmt.Sprintf("Failed to marshal response: %v", err)), nil
 			}
 
 			return mcp.NewToolResultText(string(r)), nil
