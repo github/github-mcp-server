@@ -597,6 +597,7 @@ The following sets of tools are available (all are on by default):
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `state`: New state (string, optional)
+  - `state_reason`: Reason for the state change, ignored unless state is changed. (string, optional)
   - `title`: New title (string, optional)
   - `type`: New issue type (string, optional)
 

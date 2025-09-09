@@ -1044,6 +1044,7 @@ func Test_UpdateIssue(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "title")
 	assert.Contains(t, tool.InputSchema.Properties, "body")
 	assert.Contains(t, tool.InputSchema.Properties, "state")
+	assert.Contains(t, tool.InputSchema.Properties, "state_reason")
 	assert.Contains(t, tool.InputSchema.Properties, "labels")
 	assert.Contains(t, tool.InputSchema.Properties, "assignees")
 	assert.Contains(t, tool.InputSchema.Properties, "milestone")
@@ -1173,6 +1174,41 @@ func Test_UpdateIssue(t *testing.T) {
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to update issue",
+		},
+		{
+			name: "close issue as not planned",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
+					expectRequestBody(t, map[string]any{
+						"state":        "closed",
+						"state_reason": "not_planned",
+					}).andThen(
+						mockResponse(t, http.StatusOK, &github.Issue{
+							Number:      github.Ptr(123),
+							Title:       github.Ptr("Test Issue"),
+							HTMLURL:     github.Ptr("https://github.com/owner/repo/issues/123"),
+							State:       github.Ptr("closed"),
+							StateReason: github.Ptr("not_planned"),
+						}),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				"state":        "closed",
+				"state_reason": "not_planned",
+			},
+			expectError: false,
+			expectedIssue: &github.Issue{
+				Number:      github.Ptr(123),
+				Title:       github.Ptr("Test Issue"),
+				HTMLURL:     github.Ptr("https://github.com/owner/repo/issues/123"),
+				State:       github.Ptr("closed"),
+				StateReason: github.Ptr("not_planned"),
+			},
 		},
 	}
 

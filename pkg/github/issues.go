@@ -1128,6 +1128,10 @@ func UpdateIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 				mcp.Description("New state"),
 				mcp.Enum("open", "closed"),
 			),
+			mcp.WithString("state_reason",
+				mcp.Description("Reason for the state change, ignored unless state is changed."),
+				mcp.Enum("completed", "not_planned", "duplicate", "reopened"),
+			),
 			mcp.WithArray("labels",
 				mcp.Description("New labels"),
 				mcp.Items(
@@ -1191,6 +1195,14 @@ func UpdateIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 			}
 			if state != "" {
 				issueRequest.State = github.Ptr(state)
+			}
+
+			stateReason, err := OptionalParam[string](request, "state_reason")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			if stateReason != "" {
+				issueRequest.StateReason = github.Ptr(stateReason)
 			}
 
 			// Get labels
