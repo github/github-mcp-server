@@ -1234,6 +1234,19 @@ func Test_UpdateIssue(t *testing.T) {
 			expectError:    false, // Error is returned in the result, not as Go error
 			expectedErrMsg: "No update parameters provided.",
 		},
+		{
+			name:         "state_reason without state should fail",
+			mockedClient: mock.NewMockedHTTPClient(), // No API calls expected
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				// No state provided
+				"state_reason": "not_planned",
+			},
+			expectError:    true,
+			expectedErrMsg: "state_reason can only be used when state is also provided",
+		},
 	}
 
 	for _, tc := range tests {
@@ -1379,6 +1392,7 @@ func Test_UpdateIssue_CloseAsDuplicate(t *testing.T) {
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(123),
+				"state":        "closed",
 				"state_reason": "duplicate",
 				// Missing duplicate_of
 			},
@@ -1412,6 +1426,7 @@ func Test_UpdateIssue_CloseAsDuplicate(t *testing.T) {
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(123),
+				"state":        "closed",
 				"state_reason": "duplicate",
 				"duplicate_of": float64(999),
 			},

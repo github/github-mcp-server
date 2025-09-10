@@ -1226,18 +1226,26 @@ func UpdateIssue(getClient GetClientFn, getGQLClient GetGQLClientFn, t translati
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			// If closing as duplicate, use GraphQL API, otherwise use REST API for state changes
-			if stateReason == "duplicate" {
+			// Validate state_reason usage
+			if stateReason != "" && state == "" {
+				return mcp.NewToolResultError("state_reason can only be used when state is also provided"), nil
+			}
+			if state == "open" && stateReason != "" && stateReason != "reopened" {
+				return mcp.NewToolResultError("when state is 'open', state_reason can only be 'reopened'"), nil
+			}
+			if state == "closed" && stateReason != "" && stateReason != "completed" && stateReason != "not_planned" && stateReason != "duplicate" {
+				return mcp.NewToolResultError("when state is 'closed', state_reason can only be 'completed', 'not_planned', or 'duplicate'"), nil
+			}
+
+			// Use GraphQL for duplicate closure, REST for everything else
+			if state == "closed" && stateReason == "duplicate" {
 				gqlUpdateNeeded = true
-			} else {
-				if state != "" {
-					issueRequest.State = github.Ptr(state)
-					restUpdateNeeded = true
-				}
+			} else if state != "" {
+				issueRequest.State = github.Ptr(state)
 				if stateReason != "" {
 					issueRequest.StateReason = github.Ptr(stateReason)
-					restUpdateNeeded = true
 				}
+				restUpdateNeeded = true
 			}
 
 			duplicateOf, err := OptionalIntParam(request, "duplicate_of")
