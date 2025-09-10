@@ -255,7 +255,7 @@ func UpdateGist(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 			}
 
 			minimalResponse := MinimalResponse{
-				ID:  updatedGist.GetID(),
+				ID:  fmt.Sprintf("%s", updatedGist.GetID()),
 				URL: updatedGist.GetHTMLURL(),
 			}
 
