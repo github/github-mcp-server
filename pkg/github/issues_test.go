@@ -1033,7 +1033,8 @@ func Test_ListIssues(t *testing.T) {
 func Test_UpdateIssue(t *testing.T) {
 	// Verify tool definition
 	mockClient := github.NewClient(nil)
-	tool, _ := UpdateIssue(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	mockGQLClient := githubv4.NewClient(nil)
+	tool, _ := UpdateIssue(stubGetClientFn(mockClient), stubGetGQLClientFn(mockGQLClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "update_issue", tool.Name)
@@ -1045,23 +1046,40 @@ func Test_UpdateIssue(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "body")
 	assert.Contains(t, tool.InputSchema.Properties, "state")
 	assert.Contains(t, tool.InputSchema.Properties, "state_reason")
+	assert.Contains(t, tool.InputSchema.Properties, "duplicate_of")
 	assert.Contains(t, tool.InputSchema.Properties, "labels")
 	assert.Contains(t, tool.InputSchema.Properties, "assignees")
 	assert.Contains(t, tool.InputSchema.Properties, "milestone")
 	assert.Contains(t, tool.InputSchema.Properties, "type")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "issue_number"})
 
-	// Setup mock issue for success case
-	mockIssue := &github.Issue{
-		Number:    github.Ptr(123),
-		Title:     github.Ptr("Updated Issue Title"),
-		Body:      github.Ptr("Updated issue description"),
-		State:     github.Ptr("closed"),
-		HTMLURL:   github.Ptr("https://github.com/owner/repo/issues/123"),
-		Assignees: []*github.User{{Login: github.Ptr("assignee1")}, {Login: github.Ptr("assignee2")}},
-		Labels:    []*github.Label{{Name: github.Ptr("bug")}, {Name: github.Ptr("priority")}},
-		Milestone: &github.Milestone{Number: github.Ptr(5)},
-		Type:      &github.IssueType{Name: github.Ptr("Bug")},
+	// Setup mock issues for various test scenarios
+	mockUpdatedIssue := &github.Issue{
+		Number:      github.Ptr(123),
+		Title:       github.Ptr("Updated Issue Title"),
+		Body:        github.Ptr("Updated issue description"),
+		State:       github.Ptr("closed"),
+		StateReason: github.Ptr("completed"),
+		HTMLURL:     github.Ptr("https://github.com/owner/repo/issues/123"),
+		Assignees:   []*github.User{{Login: github.Ptr("assignee1")}, {Login: github.Ptr("assignee2")}},
+		Labels:      []*github.Label{{Name: github.Ptr("bug")}, {Name: github.Ptr("priority")}},
+		Milestone:   &github.Milestone{Number: github.Ptr(5)},
+		Type:        &github.IssueType{Name: github.Ptr("Bug")},
+	}
+
+	mockClosedNotPlannedIssue := &github.Issue{
+		Number:      github.Ptr(123),
+		Title:       github.Ptr("Issue Title"),
+		State:       github.Ptr("closed"),
+		StateReason: github.Ptr("not_planned"),
+		HTMLURL:     github.Ptr("https://github.com/owner/repo/issues/123"),
+	}
+
+	mockClosedIssue := &github.Issue{
+		Number:  github.Ptr(123),
+		Title:   github.Ptr("Issue Title"),
+		State:   github.Ptr("closed"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
 	}
 
 	tests := []struct {
@@ -1077,17 +1095,22 @@ func Test_UpdateIssue(t *testing.T) {
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
 					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
-					expectRequestBody(t, map[string]any{
-						"title":     "Updated Issue Title",
-						"body":      "Updated issue description",
-						"state":     "closed",
-						"labels":    []any{"bug", "priority"},
-						"assignees": []any{"assignee1", "assignee2"},
-						"milestone": float64(5),
-						"type":      "Bug",
+					expectRequestBody(t, map[string]interface{}{
+						"title":        "Updated Issue Title",
+						"body":         "Updated issue description",
+						"state":        "closed",
+						"state_reason": "completed",
+						"labels":       []any{"bug", "priority"},
+						"assignees":    []any{"assignee1", "assignee2"},
+						"milestone":    float64(5),
+						"type":         "Bug",
 					}).andThen(
-						mockResponse(t, http.StatusOK, mockIssue),
+						mockResponse(t, http.StatusOK, mockUpdatedIssue),
 					),
+				),
+				mock.WithRequestMatch(
+					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
+					mockUpdatedIssue,
 				),
 			),
 			requestArgs: map[string]interface{}{
@@ -1097,43 +1120,14 @@ func Test_UpdateIssue(t *testing.T) {
 				"title":        "Updated Issue Title",
 				"body":         "Updated issue description",
 				"state":        "closed",
+				"state_reason": "completed",
 				"labels":       []any{"bug", "priority"},
 				"assignees":    []any{"assignee1", "assignee2"},
 				"milestone":    float64(5),
 				"type":         "Bug",
 			},
 			expectError:   false,
-			expectedIssue: mockIssue,
-		},
-		{
-			name: "update issue with minimal fields",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusOK, &github.Issue{
-						Number:  github.Ptr(123),
-						Title:   github.Ptr("Updated Issue Title"),
-						HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
-						State:   github.Ptr("open"),
-						Type:    &github.IssueType{Name: github.Ptr("Feature")},
-					}),
-				),
-			),
-			requestArgs: map[string]interface{}{
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(123),
-				"title":        "Updated Issue Title",
-				"type":         "Feature",
-			},
-			expectError: false,
-			expectedIssue: &github.Issue{
-				Number:  github.Ptr(123),
-				Title:   github.Ptr("Updated Issue Title"),
-				HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
-				State:   github.Ptr("open"),
-				Type:    &github.IssueType{Name: github.Ptr("Feature")},
-			},
+			expectedIssue: mockUpdatedIssue,
 		},
 		{
 			name: "update issue fails with not found",
@@ -1180,18 +1174,16 @@ func Test_UpdateIssue(t *testing.T) {
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
 					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
-					expectRequestBody(t, map[string]any{
+					expectRequestBody(t, map[string]interface{}{
 						"state":        "closed",
 						"state_reason": "not_planned",
 					}).andThen(
-						mockResponse(t, http.StatusOK, &github.Issue{
-							Number:      github.Ptr(123),
-							Title:       github.Ptr("Test Issue"),
-							HTMLURL:     github.Ptr("https://github.com/owner/repo/issues/123"),
-							State:       github.Ptr("closed"),
-							StateReason: github.Ptr("not_planned"),
-						}),
+						mockResponse(t, http.StatusOK, mockClosedNotPlannedIssue),
 					),
+				),
+				mock.WithRequestMatch(
+					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
+					mockClosedNotPlannedIssue,
 				),
 			),
 			requestArgs: map[string]interface{}{
@@ -1201,14 +1193,46 @@ func Test_UpdateIssue(t *testing.T) {
 				"state":        "closed",
 				"state_reason": "not_planned",
 			},
-			expectError: false,
-			expectedIssue: &github.Issue{
-				Number:      github.Ptr(123),
-				Title:       github.Ptr("Test Issue"),
-				HTMLURL:     github.Ptr("https://github.com/owner/repo/issues/123"),
-				State:       github.Ptr("closed"),
-				StateReason: github.Ptr("not_planned"),
+			expectError:   false,
+			expectedIssue: mockClosedNotPlannedIssue,
+		},
+		{
+			name: "close issue without state_reason",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
+					expectRequestBody(t, map[string]interface{}{
+						"state": "closed",
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockClosedIssue),
+					),
+				),
+				mock.WithRequestMatch(
+					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
+					mockClosedIssue,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				"state":        "closed",
+				// No state_reason provided
 			},
+			expectError:   false,
+			expectedIssue: mockClosedIssue,
+		},
+		{
+			name:         "no update parameters provided",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				// No update fields
+			},
+			expectError:    false, // Error is returned in the result, not as Go error
+			expectedErrMsg: "No update parameters provided.",
 		},
 	}
 
@@ -1216,7 +1240,7 @@ func Test_UpdateIssue(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := UpdateIssue(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := UpdateIssue(stubGetClientFn(client), stubGetGQLClientFn(githubv4.NewClient(nil)), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1225,21 +1249,210 @@ func Test_UpdateIssue(t *testing.T) {
 			result, err := handler(context.Background(), request)
 
 			// Verify results
-			if tc.expectError {
-				if err != nil {
-					assert.Contains(t, err.Error(), tc.expectedErrMsg)
-				} else {
-					// For errors returned as part of the result, not as an error
-					require.NotNil(t, result)
-					textContent := getTextResult(t, result)
-					assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+			if tc.expectError || tc.expectedErrMsg != "" {
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				if tc.expectedErrMsg != "" {
+					assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
 				}
 				return
 			}
 
 			require.NoError(t, err)
+			require.False(t, result.IsError)
 
-			// Parse the result and get the text content if no error
+			// Parse the result and get the text content
+			textContent := getTextResult(t, result)
+
+			// Unmarshal and verify the minimal result
+			var updateResp MinimalResponse
+			err = json.Unmarshal([]byte(textContent.Text), &updateResp)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.expectedIssue.GetHTMLURL(), updateResp.URL)
+		})
+	}
+}
+
+func Test_UpdateIssue_CloseAsDuplicate(t *testing.T) {
+	// Setup mock issue for success case
+	mockClosedDuplicateIssue := &github.Issue{
+		Number:      github.Ptr(123),
+		Title:       github.Ptr("Issue Title"),
+		Body:        github.Ptr("Issue description"),
+		State:       github.Ptr("closed"),
+		StateReason: github.Ptr("duplicate"),
+		HTMLURL:     github.Ptr("https://github.com/owner/repo/issues/123"),
+	}
+
+	// GraphQL response data for successful queries
+	successfulQueryResponse := githubv4mock.DataResponse(map[string]any{
+		"repository": map[string]any{
+			"issue": map[string]any{
+				"id": "I_kwDOA0xdyM50BPaO",
+			},
+			"duplicateIssue": map[string]any{
+				"id": "I_kwDOA0xdyM50BPbP",
+			},
+		},
+	})
+
+	successfulMutationResponse := githubv4mock.DataResponse(map[string]any{
+		"closeIssue": map[string]any{
+			"issue": map[string]any{
+				"id":     "I_kwDOA0xdyM50BPaO",
+				"number": 123,
+				"url":    "https://github.com/owner/repo/issues/123",
+				"state":  "CLOSED",
+			},
+		},
+	})
+
+	duplicateStateReason := IssueClosedStateReasonDuplicate
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedIssue  *github.Issue
+		expectedErrMsg string
+	}{
+		{
+			name: "successful close as duplicate",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							Issue struct {
+								ID githubv4.ID
+							} `graphql:"issue(number: $issueNumber)"`
+							DuplicateIssue struct {
+								ID githubv4.ID
+							} `graphql:"duplicateIssue: issue(number: $duplicateNumber)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner":           githubv4.String("owner"),
+						"repo":            githubv4.String("repo"),
+						"issueNumber":     githubv4.Int(123),
+						"duplicateNumber": githubv4.Int(456),
+					},
+					successfulQueryResponse,
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						CloseIssue struct {
+							Issue struct {
+								ID     githubv4.ID
+								Number githubv4.Int
+								URL    githubv4.String
+								State  githubv4.String
+							}
+						} `graphql:"closeIssue(input: $input)"`
+					}{},
+					CloseIssueInput{
+						IssueID:          "I_kwDOA0xdyM50BPaO",
+						StateReason:      &duplicateStateReason,
+						DuplicateIssueID: githubv4.NewID("I_kwDOA0xdyM50BPbP"),
+					},
+					nil,
+					successfulMutationResponse,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				"state":        "closed",
+				"state_reason": "duplicate",
+				"duplicate_of": float64(456),
+			},
+			expectError:   false,
+			expectedIssue: mockClosedDuplicateIssue,
+		},
+		{
+			name:         "fail to close as duplicate - duplicate_of missing",
+			mockedClient: mock.NewMockedHTTPClient(), // No API call expected
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				"state_reason": "duplicate",
+				// Missing duplicate_of
+			},
+			expectError:    true,
+			expectedErrMsg: "duplicate_of must be provided when state_reason is 'duplicate'",
+		},
+		{
+			name: "fail to close as duplicate - duplicate issue not found",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							Issue struct {
+								ID githubv4.ID
+							} `graphql:"issue(number: $issueNumber)"`
+							DuplicateIssue struct {
+								ID githubv4.ID
+							} `graphql:"duplicateIssue: issue(number: $duplicateNumber)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner":           githubv4.String("owner"),
+						"repo":            githubv4.String("repo"),
+						"issueNumber":     githubv4.Int(123),
+						"duplicateNumber": githubv4.Int(999),
+					},
+					githubv4mock.ErrorResponse("Could not resolve to an Issue with the number of 999."),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				"state_reason": "duplicate",
+				"duplicate_of": float64(999),
+			},
+			expectError:    true,
+			expectedErrMsg: "Failed to find issues",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Mock both GraphQL and the final REST API GET call
+			restClient := github.NewClient(mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
+					mockClosedDuplicateIssue,
+				),
+			))
+			mockGQLClient := githubv4.NewClient(tc.mockedClient)
+			_, handler := UpdateIssue(stubGetClientFn(restClient), stubGetGQLClientFn(mockGQLClient), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError || tc.expectedErrMsg != "" {
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				if tc.expectedErrMsg != "" {
+					assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+
+			// Parse the result and get the text content
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the minimal result

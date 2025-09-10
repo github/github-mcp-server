@@ -18,10 +18,8 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
-// Custom GraphQL structs for closing issues as duplicate
-// These extend the githubv4 library which is missing this functionality
-
-// Local definition matching GitHub's GraphQL schema for closing issues
+// CloseIssueInput represents the input for closing an issue via the GraphQL API.
+// Used to extend the functionality of the githubv4 library to support closing issues as duplicates.
 type CloseIssueInput struct {
 	IssueID          githubv4.ID             `json:"issueId"`
 	ClientMutationID *githubv4.String        `json:"clientMutationId,omitempty"`
@@ -29,6 +27,8 @@ type CloseIssueInput struct {
 	DuplicateIssueID *githubv4.ID            `json:"duplicateIssueId,omitempty"`
 }
 
+// IssueClosedStateReason represents the reason an issue was closed.
+// Used to extend the functionality of the githubv4 library to support closing issues as duplicates.
 type IssueClosedStateReason string
 
 const (
