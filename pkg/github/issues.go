@@ -893,6 +893,7 @@ func CreateIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 
 			// Return minimal response with just essential information
 			minimalResponse := MinimalResponse{
+				ID:  fmt.Sprintf("%d", issue.GetID()),
 				URL: issue.GetHTMLURL(),
 			}
 
@@ -1395,6 +1396,7 @@ func UpdateIssue(getClient GetClientFn, getGQLClient GetGQLClientFn, t translati
 
 			// Return minimal response with just essential information
 			minimalResponse := MinimalResponse{
+				ID:  fmt.Sprintf("%d", finalIssue.GetID()),
 				URL: finalIssue.GetHTMLURL(),
 			}
 

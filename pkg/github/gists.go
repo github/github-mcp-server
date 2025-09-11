@@ -166,6 +166,7 @@ func CreateGist(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 			}
 
 			minimalResponse := MinimalResponse{
+				ID:  createdGist.GetID(),
 				URL: createdGist.GetHTMLURL(),
 			}
 
@@ -254,6 +255,7 @@ func UpdateGist(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 			}
 
 			minimalResponse := MinimalResponse{
+				ID:  updatedGist.GetID(),
 				URL: updatedGist.GetHTMLURL(),
 			}
 

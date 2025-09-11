@@ -468,6 +468,7 @@ func CreateRepository(getClient GetClientFn, t translations.TranslationHelperFun
 
 			// Return minimal response with just essential information
 			minimalResponse := MinimalResponse{
+				ID:  fmt.Sprintf("%d", createdRepo.GetID()),
 				URL: createdRepo.GetHTMLURL(),
 			}
 
@@ -744,6 +745,7 @@ func ForkRepository(getClient GetClientFn, t translations.TranslationHelperFunc)
 
 			// Return minimal response with just essential information
 			minimalResponse := MinimalResponse{
+				ID:  fmt.Sprintf("%d", forkedRepo.GetID()),
 				URL: forkedRepo.GetHTMLURL(),
 			}
 
