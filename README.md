@@ -881,6 +881,13 @@ The following sets of tools are available (all are on by default):
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
+- **list_starred_repositories** - List starred repositories
+  - `direction`: The direction to sort the results by. (string, optional)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `sort`: How to sort the results. Can be either 'created' (when the repository was starred) or 'updated' (when the repository was last pushed to). (string, optional)
+  - `username`: Username to list starred repositories for. If not provided, lists starred repositories for the authenticated user. (string, optional)
+
 - **push_files** - Push files to repository
   - `branch`: Branch to push to (string, required)
   - `files`: Array of file objects to push, each object with path (string) and content (string) (object[], required)
@@ -900,6 +907,14 @@ The following sets of tools are available (all are on by default):
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Repository search query. Examples: 'machine learning in:name stars:>1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering. (string, required)
+
+- **star_repository** - Star repository
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **unstar_repository** - Unstar repository
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
 
 </details>
 
