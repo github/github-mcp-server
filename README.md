@@ -701,11 +701,6 @@ The following sets of tools are available (all are on by default):
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
-- **get_pull_request_comments** - Get pull request comments
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
 - **get_pull_request_diff** - Get pull request diff
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
@@ -715,6 +710,11 @@ The following sets of tools are available (all are on by default):
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
+- **get_pull_request_review_comments** - Get pull request review comments
+  - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
