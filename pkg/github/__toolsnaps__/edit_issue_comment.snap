@@ -1,0 +1,35 @@
+{
+  "annotations": {
+    "title": "Edit issue comment",
+    "readOnlyHint": false
+  },
+  "description": "Edit an existing comment on a GitHub issue.",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "New comment text content",
+        "type": "string"
+      },
+      "comment_id": {
+        "description": "The ID of the comment to edit",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "comment_id",
+      "body"
+    ],
+    "type": "object"
+  },
+  "name": "edit_issue_comment"
+}
