@@ -108,7 +108,12 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		AddReadTools(
 			toolsets.NewServerTool(GetCodeScanningAlert(getClient, t)),
 			toolsets.NewServerTool(ListCodeScanningAlerts(getClient, t)),
+			toolsets.NewServerTool(ListOrgCodeScanningAlerts(getClient, t)),
+		).
+		AddWriteTools(
+			toolsets.NewServerTool(UpdateCodeScanningAlert(getClient, t)),
 		)
+
 	secretProtection := toolsets.NewToolset("secret_protection", "Secret protection related tools, such as GitHub Secret Scanning").
 		AddReadTools(
 			toolsets.NewServerTool(GetSecretScanningAlert(getClient, t)),
