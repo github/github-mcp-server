@@ -1466,7 +1466,7 @@ func UpdateIssue(getClient GetClientFn, getGQLClient GetGQLClientFn, t translati
 
 			r, err := json.Marshal(minimalResponse)
 			if err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("Failed to marshal response: %v", err)), nil
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
 			return mcp.NewToolResultText(string(r)), nil
