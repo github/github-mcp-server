@@ -507,6 +507,9 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 			mcp.WithString("sha",
 				mcp.Description("Accepts optional commit SHA. If specified, it will be used instead of ref"),
 			),
+			mcp.WithBoolean("return_resource_links",
+				mcp.Description("Return ResourceLinks instead of file content - useful for large files or when you want to reference the file for later access"),
+			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](request, "owner")
@@ -528,6 +531,15 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 			sha, err := OptionalParam[string](request, "sha")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
+			}
+			returnResourceLinks, err := OptionalParam[bool](request, "return_resource_links")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Handle ResourceLink request
+			if returnResourceLinks {
+				return handleFileContentsResourceLink(owner, repo, path, ref, sha)
 			}
 
 			client, err := getClient(ctx)
@@ -1682,4 +1694,74 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 
 	sha = reference.GetObject().GetSHA()
 	return &raw.ContentOpts{Ref: ref, SHA: sha}, nil
+}
+
+// handleFileContentsResourceLink creates a ResourceLink for file content
+func handleFileContentsResourceLink(owner, repo, path, ref, sha string) (*mcp.CallToolResult, error) {
+	// Ensure path starts with / for consistency
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
+	}
+
+	// Determine the appropriate resource URI based on the parameters provided
+	var resourceURI string
+	var description string
+
+	switch {
+	case sha != "":
+		resourceURI = fmt.Sprintf("repo://%s/%s/sha/%s/contents%s", owner, repo, sha, path)
+		description = fmt.Sprintf("File content for %s at commit %s in %s/%s", path, sha[:8], owner, repo)
+	case ref != "":
+		// Handle different ref types
+		switch {
+		case strings.HasPrefix(ref, "refs/heads/"):
+			branch := strings.TrimPrefix(ref, "refs/heads/")
+			resourceURI = fmt.Sprintf("repo://%s/%s/refs/heads/%s/contents%s", owner, repo, branch, path)
+			description = fmt.Sprintf("File content for %s on branch %s in %s/%s", path, branch, owner, repo)
+		case strings.HasPrefix(ref, "refs/tags/"):
+			tag := strings.TrimPrefix(ref, "refs/tags/")
+			resourceURI = fmt.Sprintf("repo://%s/%s/refs/tags/%s/contents%s", owner, repo, tag, path)
+			description = fmt.Sprintf("File content for %s at tag %s in %s/%s", path, tag, owner, repo)
+		case strings.HasPrefix(ref, "refs/pull/") && strings.HasSuffix(ref, "/head"):
+			// Extract PR number from refs/pull/{number}/head
+			prNumber := strings.TrimSuffix(strings.TrimPrefix(ref, "refs/pull/"), "/head")
+			resourceURI = fmt.Sprintf("repo://%s/%s/pulls/%s/contents%s", owner, repo, prNumber, path)
+			description = fmt.Sprintf("File content for %s in PR #%s in %s/%s", path, prNumber, owner, repo)
+		default:
+			// Generic ref handling - try to clean it up
+			cleanRef := strings.TrimPrefix(ref, "refs/")
+			resourceURI = fmt.Sprintf("repo://%s/%s/refs/%s/contents%s", owner, repo, cleanRef, path)
+			description = fmt.Sprintf("File content for %s at ref %s in %s/%s", path, ref, owner, repo)
+		}
+	default:
+		// Default branch/HEAD
+		resourceURI = fmt.Sprintf("repo://%s/%s/contents%s", owner, repo, path)
+		description = fmt.Sprintf("File content for %s in %s/%s", path, owner, repo)
+	}
+
+	resourceLink := mcp.ResourceLink{
+		URI:         resourceURI,
+		Description: description,
+	}
+
+	result := map[string]any{
+		"message":      "File content available via ResourceLink",
+		"path":         path,
+		"resource_uri": resourceLink.URI,
+	}
+
+	r, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			mcp.TextContent{
+				Type: "text",
+				Text: string(r),
+			},
+			resourceLink,
+		},
+	}, nil
 }

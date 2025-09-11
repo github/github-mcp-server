@@ -282,6 +282,108 @@ func Test_GetFileContents(t *testing.T) {
 	}
 }
 
+func Test_GetFileContents_ResourceLinks(t *testing.T) {
+	// Test ResourceLink functionality for GetFileContents
+	mockClient := github.NewClient(nil)
+	mockRawClient := raw.NewClient(mockClient, &url.URL{Scheme: "https", Host: "raw.githubusercontent.com", Path: "/"})
+	_, handler := GetFileContents(stubGetClientFn(mockClient), stubGetRawClientFn(mockRawClient), translations.NullTranslationHelper)
+
+	tests := []struct {
+		name         string
+		requestArgs  map[string]interface{}
+		expectedURI  string
+		expectedDesc string
+	}{
+		{
+			name: "default branch file",
+			requestArgs: map[string]interface{}{
+				"owner":                 "github",
+				"repo":                  "github-mcp-server",
+				"path":                  "README.md",
+				"return_resource_links": true,
+			},
+			expectedURI:  "repo://github/github-mcp-server/contents/README.md",
+			expectedDesc: "File content for /README.md in github/github-mcp-server",
+		},
+		{
+			name: "specific commit SHA",
+			requestArgs: map[string]interface{}{
+				"owner":                 "github",
+				"repo":                  "github-mcp-server",
+				"path":                  "src/main.go",
+				"sha":                   "abc123def456",
+				"return_resource_links": true,
+			},
+			expectedURI:  "repo://github/github-mcp-server/sha/abc123def456/contents/src/main.go",
+			expectedDesc: "File content for /src/main.go at commit abc123de in github/github-mcp-server",
+		},
+		{
+			name: "specific branch",
+			requestArgs: map[string]interface{}{
+				"owner":                 "github",
+				"repo":                  "github-mcp-server",
+				"path":                  "docs/api.md",
+				"ref":                   "refs/heads/feature-branch",
+				"return_resource_links": true,
+			},
+			expectedURI:  "repo://github/github-mcp-server/refs/heads/feature-branch/contents/docs/api.md",
+			expectedDesc: "File content for /docs/api.md on branch feature-branch in github/github-mcp-server",
+		},
+		{
+			name: "specific tag",
+			requestArgs: map[string]interface{}{
+				"owner":                 "github",
+				"repo":                  "github-mcp-server",
+				"path":                  "VERSION",
+				"ref":                   "refs/tags/v1.0.0",
+				"return_resource_links": true,
+			},
+			expectedURI:  "repo://github/github-mcp-server/refs/tags/v1.0.0/contents/VERSION",
+			expectedDesc: "File content for /VERSION at tag v1.0.0 in github/github-mcp-server",
+		},
+		{
+			name: "pull request ref",
+			requestArgs: map[string]interface{}{
+				"owner":                 "github",
+				"repo":                  "github-mcp-server",
+				"path":                  "CHANGES.md",
+				"ref":                   "refs/pull/123/head",
+				"return_resource_links": true,
+			},
+			expectedURI:  "repo://github/github-mcp-server/pulls/123/contents/CHANGES.md",
+			expectedDesc: "File content for /CHANGES.md in PR #123 in github/github-mcp-server",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify success
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			require.False(t, result.IsError)
+			require.Len(t, result.Content, 2)
+
+			// Verify text content (message)
+			textContent, ok := result.Content[0].(mcp.TextContent)
+			require.True(t, ok, "First content should be text")
+			assert.Equal(t, "text", textContent.Type)
+			assert.Contains(t, textContent.Text, "File content available via ResourceLink")
+
+			// Verify ResourceLink
+			resourceLink, ok := result.Content[1].(mcp.ResourceLink)
+			require.True(t, ok, "Second content should be ResourceLink")
+			assert.Equal(t, tc.expectedURI, resourceLink.URI)
+			assert.Equal(t, tc.expectedDesc, resourceLink.Description)
+		})
+	}
+}
+
 func Test_ForkRepository(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)

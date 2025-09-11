@@ -324,6 +324,7 @@ The following sets of tools are available (all are on by default):
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `return_content`: Returns actual log content instead of URLs (boolean, optional)
+  - `return_resource_links`: Returns MCP ResourceLinks for accessing logs instead of direct content or URLs (boolean, optional)
   - `run_id`: Workflow run ID (required when using failed_only) (number, optional)
   - `tail_lines`: Number of lines to return from the end of the log (number, optional)
 
@@ -839,6 +840,7 @@ The following sets of tools are available (all are on by default):
   - `path`: Path to file/directory (directories must end with a slash '/') (string, optional)
   - `ref`: Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head` (string, optional)
   - `repo`: Repository name (string, required)
+  - `return_resource_links`: Return ResourceLinks instead of file content - useful for large files or when you want to reference the file for later access (boolean, optional)
   - `sha`: Accepts optional commit SHA. If specified, it will be used instead of ref (string, optional)
 
 - **get_latest_release** - Get latest release

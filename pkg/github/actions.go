@@ -558,6 +558,9 @@ func GetJobLogs(getClient GetClientFn, t translations.TranslationHelperFunc, con
 			mcp.WithBoolean("return_content",
 				mcp.Description("Returns actual log content instead of URLs"),
 			),
+			mcp.WithBoolean("return_resource_links",
+				mcp.Description("Returns MCP ResourceLinks for accessing logs instead of direct content or URLs"),
+			),
 			mcp.WithNumber("tail_lines",
 				mcp.Description("Number of lines to return from the end of the log"),
 				mcp.DefaultNumber(500),
@@ -590,6 +593,10 @@ func GetJobLogs(getClient GetClientFn, t translations.TranslationHelperFunc, con
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+			returnResourceLinks, err := OptionalParam[bool](request, "return_resource_links")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
 			tailLines, err := OptionalIntParam(request, "tail_lines")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
@@ -612,12 +619,24 @@ func GetJobLogs(getClient GetClientFn, t translations.TranslationHelperFunc, con
 				return mcp.NewToolResultError("job_id is required when failed_only is false"), nil
 			}
 
+			// Validate that only one return mode is selected
+			returnModes := []bool{returnContent, returnResourceLinks}
+			activeModes := 0
+			for _, mode := range returnModes {
+				if mode {
+					activeModes++
+				}
+			}
+			if activeModes > 1 {
+				return mcp.NewToolResultError("Only one of return_content or return_resource_links can be true"), nil
+			}
+
 			if failedOnly && runID > 0 {
 				// Handle failed-only mode: get logs for all failed jobs in the workflow run
-				return handleFailedJobLogs(ctx, client, owner, repo, int64(runID), returnContent, tailLines, contentWindowSize)
+				return handleFailedJobLogs(ctx, client, owner, repo, int64(runID), returnContent, returnResourceLinks, tailLines, contentWindowSize)
 			} else if jobID > 0 {
 				// Handle single job mode
-				return handleSingleJobLogs(ctx, client, owner, repo, int64(jobID), returnContent, tailLines, contentWindowSize)
+				return handleSingleJobLogs(ctx, client, owner, repo, int64(jobID), returnContent, returnResourceLinks, tailLines, contentWindowSize)
 			}
 
 			return mcp.NewToolResultError("Either job_id must be provided for single job logs, or run_id with failed_only=true for failed job logs"), nil
@@ -625,7 +644,7 @@ func GetJobLogs(getClient GetClientFn, t translations.TranslationHelperFunc, con
 }
 
 // handleFailedJobLogs gets logs for all failed jobs in a workflow run
-func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo string, runID int64, returnContent bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, error) {
+func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo string, runID int64, returnContent bool, returnResourceLinks bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, error) {
 	// First, get all jobs for the workflow run
 	jobs, resp, err := client.Actions.ListWorkflowJobs(ctx, owner, repo, runID, &github.ListWorkflowJobsOptions{
 		Filter: "latest",
@@ -652,6 +671,33 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 		}
 		r, _ := json.Marshal(result)
 		return mcp.NewToolResultText(string(r)), nil
+	}
+
+	if returnResourceLinks {
+		// Return ResourceLinks for all failed job logs
+		var content []mcp.Content
+
+		// Add summary text
+		summaryText := fmt.Sprintf("Found %d failed jobs in workflow run %d. ResourceLinks provided below for accessing individual job logs.", len(failedJobs), runID)
+		content = append(content, mcp.TextContent{
+			Type: "text",
+			Text: summaryText,
+		})
+
+		// Add ResourceLinks for each failed job
+		for _, job := range failedJobs {
+			resourceLink := mcp.ResourceLink{
+				URI:         fmt.Sprintf("actions://%s/%s/jobs/%d/logs", owner, repo, job.GetID()),
+				Name:        fmt.Sprintf("failed-job-%d-logs", job.GetID()),
+				Description: fmt.Sprintf("Logs for failed job: %s (ID: %d)", job.GetName(), job.GetID()),
+				MIMEType:    "text/plain",
+			}
+			content = append(content, resourceLink)
+		}
+
+		return &mcp.CallToolResult{
+			Content: content,
+		}, nil
 	}
 
 	// Collect logs for all failed jobs
@@ -690,7 +736,38 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 }
 
 // handleSingleJobLogs gets logs for a single job
-func handleSingleJobLogs(ctx context.Context, client *github.Client, owner, repo string, jobID int64, returnContent bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, error) {
+func handleSingleJobLogs(ctx context.Context, client *github.Client, owner, repo string, jobID int64, returnContent bool, returnResourceLinks bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, error) {
+	if returnResourceLinks {
+		// Return a ResourceLink for the job logs
+		resourceLink := mcp.ResourceLink{
+			URI:         fmt.Sprintf("actions://%s/%s/jobs/%d/logs", owner, repo, jobID),
+			Name:        fmt.Sprintf("job-%d-logs", jobID),
+			Description: fmt.Sprintf("Complete logs for job %d", jobID),
+			MIMEType:    "text/plain",
+		}
+
+		result := map[string]any{
+			"message":      "Job logs available via ResourceLink",
+			"job_id":       jobID,
+			"resource_uri": resourceLink.URI,
+		}
+
+		r, err := json.Marshal(result)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal response: %w", err)
+		}
+
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				mcp.TextContent{
+					Type: "text",
+					Text: string(r),
+				},
+				resourceLink,
+			},
+		}, nil
+	}
+
 	jobResult, resp, err := getJobLogData(ctx, client, owner, repo, jobID, "", returnContent, tailLines, contentWindowSize)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get job logs", resp, err), nil

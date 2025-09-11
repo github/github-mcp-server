@@ -158,6 +158,10 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(RerunFailedJobs(getClient, t)),
 			toolsets.NewServerTool(CancelWorkflowRun(getClient, t)),
 			toolsets.NewServerTool(DeleteWorkflowRunLogs(getClient, t)),
+		).
+		AddResourceTemplates(
+			toolsets.NewServerResourceTemplate(GetWorkflowRunLogsResource(getClient, t)),
+			toolsets.NewServerResourceTemplate(GetJobLogsResource(getClient, t)),
 		)
 
 	securityAdvisories := toolsets.NewToolset("security_advisories", "Security advisories related tools").
