@@ -57,8 +57,7 @@
         "enum": [
           "completed",
           "not_planned",
-          "duplicate",
-          "reopened"
+          "duplicate"
         ],
         "type": "string"
       },
