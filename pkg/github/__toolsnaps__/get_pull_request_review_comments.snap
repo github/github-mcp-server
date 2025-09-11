@@ -1,9 +1,9 @@
 {
   "annotations": {
-    "title": "Get pull request comments",
+    "title": "Get pull request review comments",
     "readOnlyHint": true
   },
-  "description": "Get comments for a specific pull request.",
+  "description": "Get pull request review comments. They are comments made on a portion of the unified diff during a pull request review. These are different from commit comments and issue comments in a pull request.",
   "inputSchema": {
     "properties": {
       "owner": {
@@ -26,5 +26,5 @@
     ],
     "type": "object"
   },
-  "name": "get_pull_request_comments"
+  "name": "get_pull_request_review_comments"
 }
