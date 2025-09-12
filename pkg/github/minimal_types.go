@@ -31,7 +31,6 @@ type MinimalRepository struct {
 	OpenIssues    int      `json:"open_issues_count"`
 	UpdatedAt     string   `json:"updated_at,omitempty"`
 	CreatedAt     string   `json:"created_at,omitempty"`
-	StarredAt     string   `json:"starred_at,omitempty"`
 	Topics        []string `json:"topics,omitempty"`
 	Private       bool     `json:"private"`
 	Fork          bool     `json:"fork"`

@@ -1791,9 +1791,6 @@ func ListStarredRepositories(getClient GetClientFn, t translations.TranslationHe
 				if repo.UpdatedAt != nil {
 					minimalRepo.UpdatedAt = repo.UpdatedAt.Format("2006-01-02T15:04:05Z")
 				}
-				if starredRepo.StarredAt != nil {
-					minimalRepo.StarredAt = starredRepo.StarredAt.Format("2006-01-02T15:04:05Z")
-				}
 
 				minimalRepos = append(minimalRepos, minimalRepo)
 			}

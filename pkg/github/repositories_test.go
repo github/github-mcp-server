@@ -3017,7 +3017,6 @@ func Test_ListStarredRepositories(t *testing.T) {
 				if tc.expectedCount > 0 {
 					assert.Equal(t, "awesome-repo", returnedRepos[0].Name)
 					assert.Equal(t, "owner/awesome-repo", returnedRepos[0].FullName)
-					assert.NotEmpty(t, returnedRepos[0].StarredAt)
 				}
 			}
 		})

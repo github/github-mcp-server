@@ -875,18 +875,18 @@ The following sets of tools are available (all are on by default):
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
-- **list_tags** - List tags
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-
 - **list_starred_repositories** - List starred repositories
   - `direction`: The direction to sort the results by. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `sort`: How to sort the results. Can be either 'created' (when the repository was starred) or 'updated' (when the repository was last pushed to). (string, optional)
   - `username`: Username to list starred repositories for. If not provided, lists starred repositories for the authenticated user. (string, optional)
+
+- **list_tags** - List tags
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
 
 - **push_files** - Push files to repository
   - `branch`: Branch to push to (string, required)
