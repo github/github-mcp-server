@@ -1054,6 +1054,18 @@ func Test_UpdateIssue(t *testing.T) {
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "issue_number"})
 
 	// Mock issues for reuse across test cases
+	mockBaseIssue := &github.Issue{
+		Number:    github.Ptr(123),
+		Title:     github.Ptr("Title"),
+		Body:      github.Ptr("Description"),
+		State:     github.Ptr("open"),
+		HTMLURL:   github.Ptr("https://github.com/owner/repo/issues/123"),
+		Assignees: []*github.User{{Login: github.Ptr("assignee1")}, {Login: github.Ptr("assignee2")}},
+		Labels:    []*github.Label{{Name: github.Ptr("bug")}, {Name: github.Ptr("priority")}},
+		Milestone: &github.Milestone{Number: github.Ptr(5)},
+		Type:      &github.IssueType{Name: github.Ptr("Bug")},
+	}
+
 	mockUpdatedIssue := &github.Issue{
 		Number:      github.Ptr(123),
 		Title:       github.Ptr("Updated Title"),
@@ -1068,10 +1080,11 @@ func Test_UpdateIssue(t *testing.T) {
 	}
 
 	mockReopenedIssue := &github.Issue{
-		Number:  github.Ptr(123),
-		Title:   github.Ptr("Issue Title"),
-		State:   github.Ptr("open"),
-		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
+		Number:      github.Ptr(123),
+		Title:       github.Ptr("Title"),
+		State:       github.Ptr("open"),
+		StateReason: github.Ptr("reopened"),
+		HTMLURL:     github.Ptr("https://github.com/owner/repo/issues/123"),
 	}
 
 	// Mock GraphQL responses for reuse across test cases
@@ -1139,10 +1152,6 @@ func Test_UpdateIssue(t *testing.T) {
 						mockResponse(t, http.StatusOK, mockUpdatedIssue),
 					),
 				),
-				mock.WithRequestMatch(
-					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
-					mockUpdatedIssue,
-				),
 			),
 			mockedGQLClient: githubv4mock.NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
@@ -1180,8 +1189,8 @@ func Test_UpdateIssue(t *testing.T) {
 			name: "close issue as duplicate",
 			mockedRESTClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatch(
-					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
-					mockUpdatedIssue,
+					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
+					mockBaseIssue,
 				),
 			),
 			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
@@ -1239,8 +1248,8 @@ func Test_UpdateIssue(t *testing.T) {
 			name: "reopen issue",
 			mockedRESTClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatch(
-					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
-					mockReopenedIssue,
+					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
+					mockBaseIssue,
 				),
 			),
 			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
@@ -1287,8 +1296,13 @@ func Test_UpdateIssue(t *testing.T) {
 			expectedIssue: mockReopenedIssue,
 		},
 		{
-			name:             "main issue not found when trying to close it",
-			mockedRESTClient: mock.NewMockedHTTPClient(),
+			name: "main issue not found when trying to close it",
+			mockedRESTClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
+					mockBaseIssue,
+				),
+			),
 			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
 					struct {
@@ -1317,8 +1331,13 @@ func Test_UpdateIssue(t *testing.T) {
 			expectedErrMsg: "Failed to find issues",
 		},
 		{
-			name:             "duplicate issue not found when closing as duplicate",
-			mockedRESTClient: mock.NewMockedHTTPClient(),
+			name: "duplicate issue not found when closing as duplicate",
+			mockedRESTClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
+					mockBaseIssue,
+				),
+			),
 			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
 					struct {
@@ -1377,10 +1396,6 @@ func Test_UpdateIssue(t *testing.T) {
 						}),
 					),
 				),
-				mock.WithRequestMatch(
-					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
-					mockUpdatedIssue,
-				),
 			),
 			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
@@ -1438,31 +1453,6 @@ func Test_UpdateIssue(t *testing.T) {
 			},
 			expectError:   false,
 			expectedIssue: mockUpdatedIssue,
-		},
-		{
-			name:             "no update params provided",
-			mockedRESTClient: mock.NewMockedHTTPClient(),
-			mockedGQLClient:  githubv4mock.NewMockedHTTPClient(),
-			requestArgs: map[string]interface{}{
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(123),
-			},
-			expectError:    true,
-			expectedErrMsg: "No update parameters provided.",
-		},
-		{
-			name:             "state_reason without state should fail",
-			mockedRESTClient: mock.NewMockedHTTPClient(),
-			mockedGQLClient:  githubv4mock.NewMockedHTTPClient(),
-			requestArgs: map[string]interface{}{
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(123),
-				"state_reason": "not_planned",
-			},
-			expectError:    true,
-			expectedErrMsg: "state_reason can only be used when state is also provided",
 		},
 		{
 			name:             "duplicate_of without duplicate state_reason should fail",

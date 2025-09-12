@@ -88,17 +88,14 @@ func fetchIssueIDs(ctx context.Context, gqlClient *githubv4.Client, owner, repo 
 }
 
 // getCloseStateReason converts a string state reason to the appropriate enum value
-func getCloseStateReason(stateReason string) *IssueClosedStateReason {
+func getCloseStateReason(stateReason string) IssueClosedStateReason {
 	switch stateReason {
 	case "not_planned":
-		reason := IssueClosedStateReasonNotPlanned
-		return &reason
+		return IssueClosedStateReasonNotPlanned
 	case "duplicate":
-		reason := IssueClosedStateReasonDuplicate
-		return &reason
+		return IssueClosedStateReasonDuplicate
 	default: // Default to "completed" for empty or "completed" values
-		reason := IssueClosedStateReasonCompleted
-		return &reason
+		return IssueClosedStateReasonCompleted
 	}
 }
 
@@ -1259,7 +1256,6 @@ func UpdateIssue(getClient GetClientFn, getGQLClient GetGQLClientFn, t translati
 
 			// Create the issue request with only provided fields
 			issueRequest := &github.IssueRequest{}
-			hasNonStateUpdates := false
 
 			// Set optional parameters if provided
 			title, err := OptionalParam[string](request, "title")
@@ -1268,7 +1264,6 @@ func UpdateIssue(getClient GetClientFn, getGQLClient GetGQLClientFn, t translati
 			}
 			if title != "" {
 				issueRequest.Title = github.Ptr(title)
-				hasNonStateUpdates = true
 			}
 
 			body, err := OptionalParam[string](request, "body")
@@ -1277,7 +1272,6 @@ func UpdateIssue(getClient GetClientFn, getGQLClient GetGQLClientFn, t translati
 			}
 			if body != "" {
 				issueRequest.Body = github.Ptr(body)
-				hasNonStateUpdates = true
 			}
 
 			// Get labels
@@ -1287,7 +1281,6 @@ func UpdateIssue(getClient GetClientFn, getGQLClient GetGQLClientFn, t translati
 			}
 			if len(labels) > 0 {
 				issueRequest.Labels = &labels
-				hasNonStateUpdates = true
 			}
 
 			// Get assignees
@@ -1297,7 +1290,6 @@ func UpdateIssue(getClient GetClientFn, getGQLClient GetGQLClientFn, t translati
 			}
 			if len(assignees) > 0 {
 				issueRequest.Assignees = &assignees
-				hasNonStateUpdates = true
 			}
 
 			milestone, err := OptionalIntParam(request, "milestone")
@@ -1307,7 +1299,6 @@ func UpdateIssue(getClient GetClientFn, getGQLClient GetGQLClientFn, t translati
 			if milestone != 0 {
 				milestoneNum := milestone
 				issueRequest.Milestone = &milestoneNum
-				hasNonStateUpdates = true
 			}
 
 			// Get issue type
@@ -1317,7 +1308,6 @@ func UpdateIssue(getClient GetClientFn, getGQLClient GetGQLClientFn, t translati
 			}
 			if issueType != "" {
 				issueRequest.Type = github.Ptr(issueType)
-				hasNonStateUpdates = true
 			}
 
 			// Handle state, state_reason and duplicateOf parameters
@@ -1330,9 +1320,6 @@ func UpdateIssue(getClient GetClientFn, getGQLClient GetGQLClientFn, t translati
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			if stateReason != "" && state == "" {
-				return mcp.NewToolResultError("state_reason can only be used when state is also provided"), nil
-			}
 
 			duplicateOf, err := OptionalIntParam(request, "duplicate_of")
 			if err != nil {
@@ -1342,35 +1329,28 @@ func UpdateIssue(getClient GetClientFn, getGQLClient GetGQLClientFn, t translati
 				return mcp.NewToolResultError("duplicate_of can only be used when state_reason is 'duplicate'"), nil
 			}
 
-			// Determine if there were any updates at all
-			if !hasNonStateUpdates && state == "" {
-				return mcp.NewToolResultError("No update parameters provided."), nil
+			// Use REST API for non-state updates
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			// Use REST API for non-state updates
-			if hasNonStateUpdates {
-				client, err := getClient(ctx)
-				if err != nil {
-					return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-				}
+			updatedIssue, resp, err := client.Issues.Edit(ctx, owner, repo, issueNumber, issueRequest)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to update issue",
+					resp,
+					err,
+				), nil
+			}
+			defer func() { _ = resp.Body.Close() }()
 
-				_, resp, err := client.Issues.Edit(ctx, owner, repo, issueNumber, issueRequest)
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return ghErrors.NewGitHubAPIErrorResponse(ctx,
-						"failed to update issue",
-						resp,
-						err,
-					), nil
+					return nil, fmt.Errorf("failed to read response body: %w", err)
 				}
-				defer func() { _ = resp.Body.Close() }()
-
-				if resp.StatusCode != http.StatusOK {
-					body, err := io.ReadAll(resp.Body)
-					if err != nil {
-						return nil, fmt.Errorf("failed to read response body: %w", err)
-					}
-					return mcp.NewToolResultError(fmt.Sprintf("failed to update issue: %s", string(body))), nil
-				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to update issue: %s", string(body))), nil
 			}
 
 			// Use GraphQL API for state updates
@@ -1391,7 +1371,6 @@ func UpdateIssue(getClient GetClientFn, getGQLClient GetGQLClientFn, t translati
 					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to find issues", err), nil
 				}
 
-				// Do all logic
 				switch state {
 				case "open":
 					// Use ReopenIssue mutation for opening
@@ -1425,9 +1404,10 @@ func UpdateIssue(getClient GetClientFn, getGQLClient GetGQLClientFn, t translati
 						} `graphql:"closeIssue(input: $input)"`
 					}
 
+					stateReasonValue := getCloseStateReason(stateReason)
 					closeInput := CloseIssueInput{
 						IssueID:     issueID,
-						StateReason: getCloseStateReason(stateReason),
+						StateReason: &stateReasonValue,
 					}
 
 					// Set duplicate issue ID if needed
@@ -1442,26 +1422,10 @@ func UpdateIssue(getClient GetClientFn, getGQLClient GetGQLClientFn, t translati
 				}
 			}
 
-			// Get the final state of the issue to return
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, err
-			}
-
-			finalIssue, resp, err := client.Issues.Get(ctx, owner, repo, issueNumber)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx, "Failed to get issue", resp, err), nil
-			}
-			defer func() {
-				if resp != nil && resp.Body != nil {
-					_ = resp.Body.Close()
-				}
-			}()
-
 			// Return minimal response with just essential information
 			minimalResponse := MinimalResponse{
-				ID:  fmt.Sprintf("%d", finalIssue.GetID()),
-				URL: finalIssue.GetHTMLURL(),
+				ID:  fmt.Sprintf("%d", updatedIssue.GetID()),
+				URL: updatedIssue.GetHTMLURL(),
 			}
 
 			r, err := json.Marshal(minimalResponse)
