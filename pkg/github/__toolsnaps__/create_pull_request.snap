@@ -3,7 +3,7 @@
     "title": "Open new pull request",
     "readOnlyHint": false
   },
-  "description": "Create a new pull request in a GitHub repository.",
+  "description": "Create a new pull request in a GitHub repository. If there is a PULL_REQUEST_TEMPLATE.md file in the repository, consider using it as a reference for the pull request description to follow repository conventions.",
   "inputSchema": {
     "properties": {
       "base": {
