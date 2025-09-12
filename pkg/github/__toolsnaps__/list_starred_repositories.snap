@@ -3,7 +3,7 @@
     "title": "List starred repositories",
     "readOnlyHint": true
   },
-  "description": "List repositories starred by the authenticated user or a specified user",
+  "description": "List starred repositories",
   "inputSchema": {
     "properties": {
       "direction": {
@@ -34,7 +34,7 @@
         "type": "string"
       },
       "username": {
-        "description": "Username to list starred repositories for. If not provided, lists starred repositories for the authenticated user.",
+        "description": "Username to list starred repositories for. Defaults to the authenticated user.",
         "type": "string"
       }
     },

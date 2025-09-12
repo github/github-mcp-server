@@ -1687,13 +1687,13 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 // ListStarredRepositories creates a tool to list starred repositories for the authenticated user or a specified user.
 func ListStarredRepositories(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("list_starred_repositories",
-			mcp.WithDescription(t("TOOL_LIST_STARRED_REPOSITORIES_DESCRIPTION", "List repositories starred by the authenticated user or a specified user")),
+			mcp.WithDescription(t("TOOL_LIST_STARRED_REPOSITORIES_DESCRIPTION", "List starred repositories")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:        t("TOOL_LIST_STARRED_REPOSITORIES_USER_TITLE", "List starred repositories"),
 				ReadOnlyHint: ToBoolPtr(true),
 			}),
 			mcp.WithString("username",
-				mcp.Description("Username to list starred repositories for. If not provided, lists starred repositories for the authenticated user."),
+				mcp.Description("Username to list starred repositories for. Defaults to the authenticated user."),
 			),
 			mcp.WithString("sort",
 				mcp.Description("How to sort the results. Can be either 'created' (when the repository was starred) or 'updated' (when the repository was last pushed to)."),
