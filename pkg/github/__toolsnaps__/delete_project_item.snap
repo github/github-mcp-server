@@ -1,0 +1,25 @@
+{
+  "annotations": {
+    "title": "Delete project item",
+    "readOnlyHint": false
+  },
+  "description": "Delete a project item",
+  "inputSchema": {
+    "properties": {
+      "item_id": {
+        "description": "Item ID",
+        "type": "string"
+      },
+      "project_id": {
+        "description": "Project ID",
+        "type": "string"
+      }
+    },
+    "required": [
+      "project_id",
+      "item_id"
+    ],
+    "type": "object"
+  },
+  "name": "delete_project_item"
+}
