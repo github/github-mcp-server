@@ -40,7 +40,7 @@ The simplest way is to use GitHub's hosted MCP server:
     "mcpServers": {
         "github": {
             "httpUrl": "https://api.githubcopilot.com/mcp/",
-            "trust": true,
+            "trust": false,
             "headers": {
                 "Authorization": "Bearer $GITHUB_PAT"
             }
