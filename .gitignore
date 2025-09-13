@@ -1,5 +1,6 @@
 .idea
 cmd/github-mcp-server/github-mcp-server
+cmd/github-mcp-server/build_info/*.txt
 
 # VSCode
 .vscode/*

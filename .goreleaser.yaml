@@ -4,12 +4,16 @@ before:
   hooks:
     - go mod tidy
     - go generate ./...
+    - mkdir -p cmd/github-mcp-server/build_info
+    - echo "{{.Commit}}" > cmd/github-mcp-server/build_info/commit.txt
+    - echo "{{.Date}}" > cmd/github-mcp-server/build_info/date.txt
+    - echo "{{.Version}}" > cmd/github-mcp-server/build_info/version.txt
 
 builds:
   - env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+      - -s -w
     goos:
       - linux
       - windows

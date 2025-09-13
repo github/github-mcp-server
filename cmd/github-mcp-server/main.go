@@ -13,17 +13,12 @@ import (
 	"github.com/spf13/viper"
 )
 
-// These variables are set by the build process using ldflags.
-var version = "version"
-var commit = "commit"
-var date = "date"
-
 var (
 	rootCmd = &cobra.Command{
 		Use:     "server",
 		Short:   "GitHub MCP Server",
 		Long:    `A GitHub MCP server that handles various tools and resources.`,
-		Version: fmt.Sprintf("Version: %s\nCommit: %s\nBuild Date: %s", version, commit, date),
+		Version: buildInfo.String(),
 	}
 
 	stdioCmd = &cobra.Command{
@@ -46,7 +41,7 @@ var (
 			}
 
 			stdioServerConfig := ghmcp.StdioServerConfig{
-				Version:              version,
+				Version:              buildInfo.version,
 				Host:                 viper.GetString("host"),
 				Token:                token,
 				EnabledToolsets:      enabledToolsets,

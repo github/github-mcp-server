@@ -10,7 +10,7 @@
             "request": "launch",
             "mode": "auto",
             "cwd": "${workspaceFolder}",
-            "program": "cmd/github-mcp-server/main.go",
+            "program": "./cmd/github-mcp-server",
             "args": ["stdio"],
             "console": "integratedTerminal",
         },
@@ -20,7 +20,7 @@
             "request": "launch",
             "mode": "auto",
             "cwd": "${workspaceFolder}",
-            "program": "cmd/github-mcp-server/main.go",
+            "program": "./cmd/github-mcp-server",
             "args": ["stdio", "--read-only"],
             "console": "integratedTerminal",
         }
