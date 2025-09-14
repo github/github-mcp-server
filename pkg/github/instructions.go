@@ -1,9 +1,17 @@
 package github
 
-import "strings"
+import (
+	"os"
+	"strings"
+)
 
 // GenerateInstructions creates server instructions based on enabled toolsets
 func GenerateInstructions(enabledToolsets []string) string {
+	// For testing - add a flag to disable instructions
+	if os.Getenv("DISABLE_INSTRUCTIONS") == "true" {
+		return "" // Baseline mode
+	}
+	
 	var instructions []string
 	
 	// Core instruction - always included if context toolset enabled
