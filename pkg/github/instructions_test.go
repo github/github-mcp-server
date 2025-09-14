@@ -15,7 +15,11 @@ func TestGenerateInstructions(t *testing.T) {
 		{
 			name:            "empty toolsets",
 			enabledToolsets: []string{},
-			expectedEmpty:   true,
+			expectedContains: []string{
+				"GitHub MCP Server provides GitHub API tools",
+				"prefer 'search_*' tools over 'list_*' tools",
+				"context windows",
+			},
 		},
 		{
 			name:            "only context toolset",

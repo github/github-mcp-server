@@ -35,13 +35,16 @@ func GenerateInstructions(enabledToolsets []string) string {
 		instructions = append(instructions, "For repository operations: Check workflow status before major changes using 'list_workflow_runs'.")
 	}
 	
-	// Only add base instruction if we have specific instructions
-	if len(instructions) > 0 {
-		baseInstruction := "GitHub MCP Server provides GitHub API tools. Common parameters: 'owner' (repo owner), 'repo' (repo name), 'page'/'perPage' (pagination)."
-		instructions = append([]string{baseInstruction}, instructions...)
-	}
+	// Always add base instructions - they provide universal value
+	baseInstruction := "GitHub MCP Server provides GitHub API tools. Common parameters: 'owner' (repo owner), 'repo' (repo name), 'page'/'perPage' (pagination)."
 	
-	return strings.Join(instructions, " ")
+	// Add context management instruction for all configurations
+	contextInstruction := "GitHub API responses can overflow context windows. Strategy: 1) Always prefer 'search_*' tools over 'list_*' tools when possible - search tools return filtered results, 2) Process large datasets in batches rather than all at once, 3) For summarization tasks, fetch minimal data first, then drill down into specifics, 4) When analyzing multiple items (issues, PRs, etc), process in groups of 5-10 to manage context."
+	
+	allInstructions := []string{baseInstruction, contextInstruction}
+	allInstructions = append(allInstructions, instructions...)
+	
+	return strings.Join(allInstructions, " ")
 }
 
 // getToolsetInstructions returns specific instructions for individual toolsets

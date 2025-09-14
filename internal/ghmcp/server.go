@@ -118,13 +118,11 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 
 	// Generate instructions based on enabled toolsets
 	instructions := github.GenerateInstructions(enabledToolsets)
-	var serverOpts []server.ServerOption
-	if instructions != "" {
-		serverOpts = append(serverOpts, server.WithInstructions(instructions))
-	}
-	serverOpts = append(serverOpts, server.WithHooks(hooks))
-
-	ghServer := github.NewServer(cfg.Version, serverOpts...)
+	
+	ghServer := github.NewServer(cfg.Version, 
+		server.WithInstructions(instructions),
+		server.WithHooks(hooks),
+	)
 
 	getClient := func(_ context.Context) (*gogithub.Client, error) {
 		return restClient, nil // closing over client
