@@ -17,7 +17,8 @@ func TestGenerateInstructions(t *testing.T) {
 			enabledToolsets: []string{},
 			expectedContains: []string{
 				"GitHub MCP Server provides GitHub API tools",
-				"prefer 'search_*' tools over 'list_*' tools",
+				"Use 'list_*' tools for broad, simple retrieval",
+				"Use 'search_*' tools for targeted queries",
 				"context windows",
 			},
 		},

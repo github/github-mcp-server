@@ -19,7 +19,7 @@ func GenerateInstructions(enabledToolsets []string) string {
 	}
 	
 	// Base instruction with context management
-	baseInstruction := "The GitHub MCP Server provides GitHub API tools. GitHub API responses can overflow context windows. Strategy: 1) Always prefer 'search_*' tools over 'list_*' tools when possible - search tools return filtered results, 2) Process large datasets in batches rather than all at once, 3) For summarization tasks, fetch minimal data first, then drill down into specifics, 4) When analyzing multiple items (issues, PRs, etc), process in groups of 5-10 to manage context."
+	baseInstruction := "The GitHub MCP Server provides GitHub API tools. Tool selection guidance: Use 'list_*' tools for broad, simple retrieval and pagination of all items of a type (e.g., all issues, all PRs, all branches) with basic filtering. Use 'search_*' tools for targeted queries with specific criteria, keywords, or complex filters (e.g., issues with certain text, PRs by author, code containing functions). Context management: 1) GitHub API responses can overflow context windows, 2) Process large datasets in batches of 5-10 items, 3) For summarization tasks, fetch minimal data first, then drill down into specifics."
 	
 	allInstructions := []string{baseInstruction}
 	allInstructions = append(allInstructions, instructions...)
