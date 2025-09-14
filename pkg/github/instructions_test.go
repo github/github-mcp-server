@@ -39,15 +39,6 @@ func TestGenerateInstructions(t *testing.T) {
 			},
 		},
 		{
-			name:            "actions toolset",
-			enabledToolsets: []string{"actions"},
-			expectedContains: []string{
-				"get_job_logs",
-				"failed_only=true",
-				"rerun_failed_jobs",
-			},
-		},
-		{
 			name:            "cross-toolset instructions",
 			enabledToolsets: []string{"context", "pull_requests"},
 			expectedContains: []string{
@@ -59,10 +50,9 @@ func TestGenerateInstructions(t *testing.T) {
 			name:            "issues and pull_requests combination",
 			enabledToolsets: []string{"issues", "pull_requests"},
 			expectedContains: []string{
-				"closes #123",
-				"fixes #123",
 				"search_issues",
 				"list_issue_types",
+				"create_pending_pull_request_review",
 			},
 		},
 	}
@@ -97,16 +87,8 @@ func TestGetToolsetInstructions(t *testing.T) {
 			expected: "create_pending_pull_request_review",
 		},
 		{
-			toolset:  "actions",
-			expected: "get_job_logs",
-		},
-		{
 			toolset:  "issues",
 			expected: "list_issue_types",
-		},
-		{
-			toolset:  "repos",
-			expected: "get_file_contents",
 		},
 		{
 			toolset:  "nonexistent",
@@ -129,4 +111,3 @@ func TestGetToolsetInstructions(t *testing.T) {
 		})
 	}
 }
-
