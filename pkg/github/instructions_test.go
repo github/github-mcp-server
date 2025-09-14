@@ -48,22 +48,11 @@ func TestGenerateInstructions(t *testing.T) {
 			},
 		},
 		{
-			name:            "security toolsets",
-			enabledToolsets: []string{"code_security", "secret_protection", "dependabot"},
-			expectedContains: []string{
-				"Security alert priority",
-				"secret_scanning",
-				"dependabot",
-				"code_scanning",
-			},
-		},
-		{
 			name:            "cross-toolset instructions",
 			enabledToolsets: []string{"context", "pull_requests"},
 			expectedContains: []string{
 				"get_me",
-				"get_teams",
-				"get_team_members",
+				"create_pending_pull_request_review",
 			},
 		},
 		{
@@ -141,45 +130,3 @@ func TestGetToolsetInstructions(t *testing.T) {
 	}
 }
 
-func TestHasAnySecurityToolset(t *testing.T) {
-	tests := []struct {
-		name     string
-		toolsets []string
-		expected bool
-	}{
-		{
-			name:     "no security toolsets",
-			toolsets: []string{"repos", "issues"},
-			expected: false,
-		},
-		{
-			name:     "has code_security",
-			toolsets: []string{"repos", "code_security"},
-			expected: true,
-		},
-		{
-			name:     "has secret_protection",
-			toolsets: []string{"secret_protection", "issues"},
-			expected: true,
-		},
-		{
-			name:     "has dependabot",
-			toolsets: []string{"dependabot"},
-			expected: true,
-		},
-		{
-			name:     "has all security toolsets",
-			toolsets: []string{"code_security", "secret_protection", "dependabot"},
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := hasAnySecurityToolset(tt.toolsets)
-			if result != tt.expected {
-				t.Errorf("Expected %v for toolsets %v, but got %v", tt.expected, tt.toolsets, result)
-			}
-		})
-	}
-}

@@ -19,28 +19,14 @@ func GenerateInstructions(enabledToolsets []string) string {
 	}
 	
 	// Cross-toolset conditional instructions
-	if contains(enabledToolsets, "pull_requests") && contains(enabledToolsets, "context") {
-		instructions = append(instructions, "For team workflows: Use 'get_teams' and 'get_team_members' before assigning PR reviewers.")
-	}
-	
-	if hasAnySecurityToolset(enabledToolsets) {
-		instructions = append(instructions, "Security alert priority: secret_scanning → dependabot → code_scanning alerts.")
-	}
-	
 	if contains(enabledToolsets, "issues") && contains(enabledToolsets, "pull_requests") {
 		instructions = append(instructions, "Link issues to PRs using 'closes #123' or 'fixes #123' in PR descriptions.")
 	}
 	
-	if contains(enabledToolsets, "repos") && contains(enabledToolsets, "actions") {
-		instructions = append(instructions, "For repository operations: Check workflow status before major changes using 'list_workflow_runs'.")
-	}
+	// Base instruction with context management
+	baseInstruction := "The GitHub MCP Server provides GitHub API tools. GitHub API responses can overflow context windows. Strategy: 1) Always prefer 'search_*' tools over 'list_*' tools when possible - search tools return filtered results, 2) Process large datasets in batches rather than all at once, 3) For summarization tasks, fetch minimal data first, then drill down into specifics, 4) When analyzing multiple items (issues, PRs, etc), process in groups of 5-10 to manage context."
 	
-	baseInstruction := "The GitHub MCP Server provides GitHub API tools."
-	
-	// Add context management instruction for all configurations
-	contextInstruction := " GitHub API responses can overflow context windows. Strategy: 1) Always prefer 'search_*' tools over 'list_*' tools when possible - search tools return filtered results, 2) Process large datasets in batches rather than all at once, 3) For summarization tasks, fetch minimal data first, then drill down into specifics, 4) When analyzing multiple items (issues, PRs, etc), process in groups of 5-10 to manage context."
-	
-	allInstructions := []string{baseInstruction, contextInstruction}
+	allInstructions := []string{baseInstruction}
 	allInstructions = append(allInstructions, instructions...)
 	
 	return strings.Join(allInstructions, " ")
@@ -68,16 +54,6 @@ func getToolsetInstructions(toolset string) string {
 	}
 }
 
-// hasAnySecurityToolset checks if any security-related toolsets are enabled
-func hasAnySecurityToolset(toolsets []string) bool {
-	securityToolsets := []string{"code_security", "secret_protection", "dependabot"}
-	for _, security := range securityToolsets {
-		if contains(toolsets, security) {
-			return true
-		}
-	}
-	return false
-}
 
 // contains checks if a slice contains a specific string
 func contains(slice []string, item string) bool {
