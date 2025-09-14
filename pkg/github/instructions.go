@@ -39,7 +39,7 @@ func GenerateInstructions(enabledToolsets []string) string {
 func getToolsetInstructions(toolset string) string {
 	switch toolset {
 	case "pull_requests":
-		return "PR review workflow: Use 'create_pending_pull_request_review' → 'add_comment_to_pending_review' → 'submit_pending_pull_request_review' for complex reviews with line-specific comments."
+		return "PR review workflow: Always use 'create_pending_pull_request_review' → 'add_comment_to_pending_review' → 'submit_pending_pull_request_review' for complex reviews with line-specific comments."
 	case "issues":
 		return "Issue workflow: Check 'list_issue_types' first for organizations to use proper issue types. Use 'search_issues' before creating new issues to avoid duplicates. Always set 'state_reason' when closing issues."
 	case "notifications":
