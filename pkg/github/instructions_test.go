@@ -39,7 +39,33 @@ func TestGenerateInstructions(t *testing.T) {
 			},
 		},
 		{
-			name:            "cross-toolset instructions",
+			name:            "issues toolset",
+			enabledToolsets: []string{"issues"},
+			expectedContains: []string{
+				"search_issues",
+				"list_issue_types",
+				"state_reason",
+			},
+		},
+		{
+			name:            "notifications toolset",
+			enabledToolsets: []string{"notifications"},
+			expectedContains: []string{
+				"participating",
+				"mark_all_notifications_read",
+				"repository filters",
+			},
+		},
+		{
+			name:            "discussions toolset",
+			enabledToolsets: []string{"discussions"},
+			expectedContains: []string{
+				"list_discussion_categories",
+				"Filter by category",
+			},
+		},
+		{
+			name:            "multiple toolsets (context + pull_requests)",
 			enabledToolsets: []string{"context", "pull_requests"},
 			expectedContains: []string{
 				"get_me",
@@ -47,7 +73,7 @@ func TestGenerateInstructions(t *testing.T) {
 			},
 		},
 		{
-			name:            "issues and pull_requests combination",
+			name:            "multiple toolsets (issues + pull_requests)",
 			enabledToolsets: []string{"issues", "pull_requests"},
 			expectedContains: []string{
 				"search_issues",
@@ -89,6 +115,14 @@ func TestGetToolsetInstructions(t *testing.T) {
 		{
 			toolset:  "issues",
 			expected: "list_issue_types",
+		},
+		{
+			toolset:  "notifications",
+			expected: "participating",
+		},
+		{
+			toolset:  "discussions",
+			expected: "list_discussion_categories",
 		},
 		{
 			toolset:  "nonexistent",
