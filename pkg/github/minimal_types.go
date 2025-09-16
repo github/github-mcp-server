@@ -110,6 +110,7 @@ type MinimalBranch struct {
 // Success is implicit in the HTTP response status, and all other information
 // can be derived from the URL or fetched separately if needed.
 type MinimalResponse struct {
+	ID  string `json:"id"`
 	URL string `json:"url"`
 }
 
