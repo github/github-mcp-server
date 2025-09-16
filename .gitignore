@@ -15,3 +15,6 @@ bin/
 
 # macOS
 .DS_Store
+
+# binary
+github-mcp-server
