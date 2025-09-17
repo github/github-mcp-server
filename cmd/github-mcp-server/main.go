@@ -60,6 +60,18 @@ var (
 			return ghmcp.RunStdioServer(stdioServerConfig)
 		},
 	}
+
+	listToolsCmd = &cobra.Command{
+		Use:   "list-tools",
+		Short: "List available MCP tools grouped by toolset",
+		Long:  `Display all registered MCP tools, grouped by toolset.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Println("TODO: Implement list-tools functionality")
+			fmt.Println("This is a proof of concept for the list-tools command.")
+			fmt.Println("Would display all available MCP tools grouped by toolset.")
+			return nil
+		},
+	}
 )
 
 func init() {
@@ -90,6 +102,7 @@ func init() {
 
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)
+	rootCmd.AddCommand(listToolsCmd)
 }
 
 func initConfig() {
