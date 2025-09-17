@@ -1,0 +1,34 @@
+{
+  "annotations": {
+    "title": "Create issue",
+    "readOnlyHint": false
+  },
+  "description": "Create a new issue",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "Issue body",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "title": {
+        "description": "Issue title",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "title"
+    ],
+    "type": "object"
+  },
+  "name": "create_project_issue"
+}

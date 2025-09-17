@@ -1,0 +1,33 @@
+{
+  "annotations": {
+    "title": "Get project fields",
+    "readOnlyHint": true
+  },
+  "description": "Get fields for a project",
+  "inputSchema": {
+    "properties": {
+      "number": {
+        "description": "Project number",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Owner login",
+        "type": "string"
+      },
+      "owner_type": {
+        "description": "Owner type",
+        "enum": [
+          "user",
+          "organization"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "number"
+    ],
+    "type": "object"
+  },
+  "name": "get_project_fields"
+}
