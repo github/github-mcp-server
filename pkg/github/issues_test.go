@@ -272,7 +272,7 @@ func Test_UpdateIssueComment(t *testing.T) {
 			name: "successful comment update",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
-					mock.PatchReposIssuesCommentsByOwnerByRepoByIssueNumber,
+					mock.PatchReposIssuesCommentsByOwnerByRepoByCommentId,
 					mockResponse(t, http.StatusOK, mockComment),
 				),
 			),
@@ -289,7 +289,7 @@ func Test_UpdateIssueComment(t *testing.T) {
 			name: "comment update fails",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
-					mock.PatchReposIssuesCommentsByOwnerByRepoByIssueNumber,
+					mock.PatchReposIssuesCommentsByOwnerByRepoByCommentId,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusUnprocessableEntity)
 						_, _ = w.Write([]byte(`{"message": "Invalid request"}`))
@@ -326,10 +326,18 @@ func Test_UpdateIssueComment(t *testing.T) {
 				return
 			}
 
+			if tc.expectedErrMsg != "" {
+				require.NotNil(t, result)
+				textContent := getTextResult(t, result)
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				return
+			}
+
 			require.NoError(t, err)
 
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
+			fmt.Println("textContent", textContent)
 
 			// Unmarshal and verify the result
 			var returnedComment github.IssueComment
