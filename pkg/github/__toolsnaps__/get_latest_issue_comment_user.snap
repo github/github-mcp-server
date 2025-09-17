@@ -1,0 +1,46 @@
+{
+  "annotations": {
+    "title": "Get latest issue comment by user",
+    "readOnlyHint": true
+  },
+  "description": "Get the latest comments by a specific user on a specific issue in a GitHub repository.",
+  "inputSchema": {
+    "properties": {
+      "issue_number": {
+        "description": "Issue number",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "page": {
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "user": {
+        "description": "User",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "issue_number",
+      "user"
+    ],
+    "type": "object"
+  },
+  "name": "get_latest_issue_comment_user"
+}
