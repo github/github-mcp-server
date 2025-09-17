@@ -3224,3 +3224,150 @@ func Test_ListIssueTypes(t *testing.T) {
 		})
 	}
 }
+
+func Test_GetLatestIssueCommentUser(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := GetLatestIssueCommentUser(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "get_latest_issue_comment_user", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.Properties, "user")
+	assert.Contains(t, tool.InputSchema.Properties, "page")
+	assert.Contains(t, tool.InputSchema.Properties, "perPage")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "issue_number", "user"})
+
+	// Setup mock comments for success case
+	mockComments := []*github.IssueComment{{
+		ID:   github.Ptr(int64(123)),
+		Body: github.Ptr("This is the first comment"),
+		User: &github.User{
+			Login: github.Ptr("user1"),
+		},
+		CreatedAt: &github.Timestamp{Time: time.Now().Add(-time.Hour * 24)},
+		UpdatedAt: &github.Timestamp{Time: time.Now().Add(-time.Hour * 24)},
+	},
+		{
+			ID:   github.Ptr(int64(123)),
+			Body: github.Ptr("This is the first comment"),
+			User: &github.User{
+				Login: github.Ptr("user2"),
+			},
+			CreatedAt: &github.Timestamp{Time: time.Now().Add(-time.Hour * 24)},
+			UpdatedAt: &github.Timestamp{Time: time.Now().Add(-time.Hour * 24)},
+		},
+	}
+
+	tests := []struct {
+		name             string
+		mockedClient     *http.Client
+		requestArgs      map[string]interface{}
+		expectError      bool
+		expectedComments []*github.IssueComment
+		expectedErrMsg   string
+	}{
+		{
+			name: "successful comment retrieval",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposIssuesCommentsByOwnerByRepoByIssueNumber,
+					mockComments,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"user":         "user1",
+			},
+			expectError:      false,
+			expectedComments: mockComments,
+		},
+		{
+			name: "successful comment retrieval with pagination",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposIssuesCommentsByOwnerByRepoByIssueNumber,
+					expectQueryParams(t, map[string]string{
+						"page":     "2",
+						"per_page": "10",
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockComments),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"page":         float64(2),
+				"perPage":      float64(10),
+				"user":         "user1",
+			},
+			expectError:      false,
+			expectedComments: mockComments,
+		},
+		{
+			name: "comment retrieval fails",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposIssuesCommentsByOwnerByRepoByIssueNumber,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusUnprocessableEntity)
+						_, _ = w.Write([]byte(`{"message": "Invalid request"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"user":         "",
+			},
+			expectError:    false,
+			expectedErrMsg: "missing required parameter: user",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := GetLatestIssueCommentUser(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			if tc.expectedErrMsg != "" {
+				require.NotNil(t, result)
+				textContent := getTextResult(t, result)
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			textContent := getTextResult(t, result)
+
+			// Unmarshal and verify the result
+			var returnedComments *github.IssueComment
+			err = json.Unmarshal([]byte(textContent.Text), &returnedComments)
+			require.NoError(t, err)
+			assert.Equal(t, *tc.expectedComments[0].Body, *returnedComments.Body)
+			assert.Equal(t, *tc.expectedComments[0].User.Login, *returnedComments.User.Login)
+		})
+	}
+}
