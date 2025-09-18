@@ -3,8 +3,17 @@
 ## Prerequisites
 
 1. Google Gemini CLI installed (see [official Gemini CLI documentation](https://github.com/google-gemini/gemini-cli))
-2. [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new) with appropriate scopes
-3. For local installation: [Docker](https://www.docker.com/) installed and running
+2. When using the Remote server (Recommended), one of the following:
+   - a [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new) with appropriate scopes.
+
+   - an Client ID + Secret pair from [an OAuth App you registered on
+     GitHub](https://github.com/settings/developers). If you use this option,
+     it's important to set the callback URL for this app to the URL Gemini CLI
+     uses: http://localhost:7777/oauth/callback .
+
+3. For local installation:
+   - [Docker](https://www.docker.com/) or [Podman](https://podman.io/) installed and running
+   - a [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new) with appropriate scopes.
 
 <details>
 <summary><b>Storing Your PAT Securely</b></summary>
@@ -32,7 +41,7 @@ After securely storing your PAT, you can add the GitHub MCP server configuration
 
 ### Method 1: Remote Server (Recommended)
 
-The simplest way is to use GitHub's hosted MCP server:
+The simplest way is to use GitHub's hosted MCP server. You can use it with a PAT:
 
 ```json
 // ~/.gemini/settings.json
@@ -48,6 +57,27 @@ The simplest way is to use GitHub's hosted MCP server:
     }
 }
 ```
+
+or with OAuth:
+
+```json
+// ~/.gemini/settings.json
+{
+    "mcpServers": {
+        "github": {
+            "httpUrl": "https://api.githubcopilot.com/mcp/",
+            "trust": true,
+            "oauth": {
+              "enabled": true,
+              "clientId": "your-own-client-ID",
+              "clientSecret": "your-own-client-Secret"
+            }
+        }
+    }
+}
+```
+
+
 
 ### Method 2: Local Docker
 
@@ -99,6 +129,14 @@ Then, replacing `/path/to/binary` with the actual path to your binary, configure
 ## Verification
 
 To verify that the GitHub MCP server has been configured, start Gemini CLI in your terminal with `gemini`, then:
+
+0. **Only if you are using OAuth**: Authenticate to the GitHub Copilot server:
+
+    ```
+    /mcp auth github
+    ```
+
+    Replace "github" in the above with whatever you called the server in your `mcpServers` list.
 
 1. **Check MCP server status**:
 
