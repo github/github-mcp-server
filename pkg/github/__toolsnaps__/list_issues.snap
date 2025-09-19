@@ -29,7 +29,8 @@
         "description": "Order issues by field. If provided, the 'direction' also needs to be provided.",
         "enum": [
           "CREATED_AT",
-          "UPDATED_AT"
+          "UPDATED_AT",
+          "COMMENTS"
         ],
         "type": "string"
       },

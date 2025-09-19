@@ -1,0 +1,17 @@
+{
+  "annotations": {
+    "title": "Get teams",
+    "readOnlyHint": true
+  },
+  "description": "Get details of the teams the user is a member of. Limited to organizations accessible with current credentials",
+  "inputSchema": {
+    "properties": {
+      "user": {
+        "description": "Username to get teams for. If not provided, uses the authenticated user.",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "name": "get_teams"
+}

@@ -1,0 +1,30 @@
+{
+  "annotations": {
+    "title": "Get a release by tag name",
+    "readOnlyHint": true
+  },
+  "description": "Get a specific release by its tag name in a GitHub repository",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "tag": {
+        "description": "Tag name (e.g., 'v1.0.0')",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "tag"
+    ],
+    "type": "object"
+  },
+  "name": "get_release_by_tag"
+}

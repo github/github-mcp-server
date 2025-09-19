@@ -39,6 +39,10 @@
       "title": {
         "description": "Issue title",
         "type": "string"
+      },
+      "type": {
+        "description": "Type of this issue",
+        "type": "string"
       }
     },
     "required": [
