@@ -1080,7 +1080,7 @@ When using Docker, you can pass the read-only mode as an environment variable:
 ```bash
 docker run -i --rm \
   -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
-  -e GITHUB_READ_ONLY=1 \
+  -e GITHUB_READ-ONLY=1 \
   ghcr.io/github/github-mcp-server
 ```
 
