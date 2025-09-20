@@ -486,6 +486,9 @@ The following sets of tools are available (all are on by default):
   - `filename`: Filename for simple single-file gist creation (string, required)
   - `public`: Whether the gist is public (boolean, optional)
 
+- **get_gist** - Get Gist Content 
+  - `gist_id`: unique ID for the gist (string, required)
+
 - **list_gists** - List Gists
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
