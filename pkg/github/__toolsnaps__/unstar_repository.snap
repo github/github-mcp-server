@@ -1,18 +1,14 @@
 {
   "annotations": {
-    "title": "Get pull request comments",
-    "readOnlyHint": true
+    "title": "Unstar repository",
+    "readOnlyHint": false
   },
-  "description": "Get comments for a specific pull request.",
+  "description": "Unstar a GitHub repository",
   "inputSchema": {
     "properties": {
       "owner": {
         "description": "Repository owner",
         "type": "string"
-      },
-      "pullNumber": {
-        "description": "Pull request number",
-        "type": "number"
       },
       "repo": {
         "description": "Repository name",
@@ -21,10 +17,9 @@
     },
     "required": [
       "owner",
-      "repo",
-      "pullNumber"
+      "repo"
     ],
     "type": "object"
   },
-  "name": "get_pull_request_comments"
+  "name": "unstar_repository"
 }

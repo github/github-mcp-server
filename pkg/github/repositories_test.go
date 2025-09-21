@@ -6,13 +6,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v73/github"
+	"github.com/google/go-github/v74/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
@@ -736,9 +737,33 @@ func Test_ListCommits(t *testing.T) {
 				},
 			},
 			Author: &github.User{
-				Login: github.Ptr("testuser"),
+				Login:     github.Ptr("testuser"),
+				ID:        github.Ptr(int64(12345)),
+				HTMLURL:   github.Ptr("https://github.com/testuser"),
+				AvatarURL: github.Ptr("https://github.com/testuser.png"),
 			},
 			HTMLURL: github.Ptr("https://github.com/owner/repo/commit/abc123def456"),
+			Stats: &github.CommitStats{
+				Additions: github.Ptr(10),
+				Deletions: github.Ptr(5),
+				Total:     github.Ptr(15),
+			},
+			Files: []*github.CommitFile{
+				{
+					Filename:  github.Ptr("src/main.go"),
+					Status:    github.Ptr("modified"),
+					Additions: github.Ptr(8),
+					Deletions: github.Ptr(3),
+					Changes:   github.Ptr(11),
+				},
+				{
+					Filename:  github.Ptr("README.md"),
+					Status:    github.Ptr("added"),
+					Additions: github.Ptr(2),
+					Deletions: github.Ptr(2),
+					Changes:   github.Ptr(4),
+				},
+			},
 		},
 		{
 			SHA: github.Ptr("def456abc789"),
@@ -751,9 +776,26 @@ func Test_ListCommits(t *testing.T) {
 				},
 			},
 			Author: &github.User{
-				Login: github.Ptr("anotheruser"),
+				Login:     github.Ptr("anotheruser"),
+				ID:        github.Ptr(int64(67890)),
+				HTMLURL:   github.Ptr("https://github.com/anotheruser"),
+				AvatarURL: github.Ptr("https://github.com/anotheruser.png"),
 			},
 			HTMLURL: github.Ptr("https://github.com/owner/repo/commit/def456abc789"),
+			Stats: &github.CommitStats{
+				Additions: github.Ptr(20),
+				Deletions: github.Ptr(10),
+				Total:     github.Ptr(30),
+			},
+			Files: []*github.CommitFile{
+				{
+					Filename:  github.Ptr("src/utils.go"),
+					Status:    github.Ptr("added"),
+					Additions: github.Ptr(20),
+					Deletions: github.Ptr(10),
+					Changes:   github.Ptr(30),
+				},
+			},
 		},
 	}
 
@@ -874,16 +916,23 @@ func Test_ListCommits(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
-			var returnedCommits []*github.RepositoryCommit
+			var returnedCommits []MinimalCommit
 			err = json.Unmarshal([]byte(textContent.Text), &returnedCommits)
 			require.NoError(t, err)
 			assert.Len(t, returnedCommits, len(tc.expectedCommits))
 			for i, commit := range returnedCommits {
-				assert.Equal(t, *tc.expectedCommits[i].Author, *commit.Author)
-				assert.Equal(t, *tc.expectedCommits[i].SHA, *commit.SHA)
-				assert.Equal(t, *tc.expectedCommits[i].Commit.Message, *commit.Commit.Message)
-				assert.Equal(t, *tc.expectedCommits[i].Author.Login, *commit.Author.Login)
-				assert.Equal(t, *tc.expectedCommits[i].HTMLURL, *commit.HTMLURL)
+				assert.Equal(t, tc.expectedCommits[i].GetSHA(), commit.SHA)
+				assert.Equal(t, tc.expectedCommits[i].GetHTMLURL(), commit.HTMLURL)
+				if tc.expectedCommits[i].Commit != nil {
+					assert.Equal(t, tc.expectedCommits[i].Commit.GetMessage(), commit.Commit.Message)
+				}
+				if tc.expectedCommits[i].Author != nil {
+					assert.Equal(t, tc.expectedCommits[i].Author.GetLogin(), commit.Author.Login)
+				}
+
+				// Files and stats are never included in list_commits
+				assert.Nil(t, commit.Files)
+				assert.Nil(t, commit.Stats)
 			}
 		})
 	}
@@ -1066,6 +1115,7 @@ func Test_CreateRepository(t *testing.T) {
 	assert.NotEmpty(t, tool.Description)
 	assert.Contains(t, tool.InputSchema.Properties, "name")
 	assert.Contains(t, tool.InputSchema.Properties, "description")
+	assert.Contains(t, tool.InputSchema.Properties, "organization")
 	assert.Contains(t, tool.InputSchema.Properties, "private")
 	assert.Contains(t, tool.InputSchema.Properties, "autoInit")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"name"})
@@ -1076,7 +1126,6 @@ func Test_CreateRepository(t *testing.T) {
 		Description: github.Ptr("Test repository"),
 		Private:     github.Ptr(true),
 		HTMLURL:     github.Ptr("https://github.com/testuser/test-repo"),
-		CloneURL:    github.Ptr("https://github.com/testuser/test-repo.git"),
 		CreatedAt:   &github.Timestamp{Time: time.Now()},
 		Owner: &github.User{
 			Login: github.Ptr("testuser"),
@@ -1114,6 +1163,34 @@ func Test_CreateRepository(t *testing.T) {
 				"description": "Test repository",
 				"private":     true,
 				"autoInit":    true,
+			},
+			expectError:  false,
+			expectedRepo: mockRepo,
+		},
+		{
+			name: "successful repository creation in organization",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/orgs/testorg/repos",
+						Method:  "POST",
+					},
+					expectRequestBody(t, map[string]interface{}{
+						"name":        "test-repo",
+						"description": "Test repository",
+						"private":     false,
+						"auto_init":   true,
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockRepo),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"name":         "test-repo",
+				"description":  "Test repository",
+				"organization": "testorg",
+				"private":      false,
+				"autoInit":     true,
 			},
 			expectError:  false,
 			expectedRepo: mockRepo,
@@ -1191,17 +1268,13 @@ func Test_CreateRepository(t *testing.T) {
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
-			var returnedRepo github.Repository
+			// Unmarshal and verify the minimal result
+			var returnedRepo MinimalResponse
 			err = json.Unmarshal([]byte(textContent.Text), &returnedRepo)
 			assert.NoError(t, err)
 
 			// Verify repository details
-			assert.Equal(t, *tc.expectedRepo.Name, *returnedRepo.Name)
-			assert.Equal(t, *tc.expectedRepo.Description, *returnedRepo.Description)
-			assert.Equal(t, *tc.expectedRepo.Private, *returnedRepo.Private)
-			assert.Equal(t, *tc.expectedRepo.HTMLURL, *returnedRepo.HTMLURL)
-			assert.Equal(t, *tc.expectedRepo.Owner.Login, *returnedRepo.Owner.Login)
+			assert.Equal(t, tc.expectedRepo.GetHTMLURL(), returnedRepo.URL)
 		})
 	}
 }
@@ -2113,6 +2186,344 @@ func Test_GetTag(t *testing.T) {
 	}
 }
 
+func Test_ListReleases(t *testing.T) {
+	mockClient := github.NewClient(nil)
+	tool, _ := ListReleases(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "list_releases", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
+
+	mockReleases := []*github.RepositoryRelease{
+		{
+			ID:      github.Ptr(int64(1)),
+			TagName: github.Ptr("v1.0.0"),
+			Name:    github.Ptr("First Release"),
+		},
+		{
+			ID:      github.Ptr(int64(2)),
+			TagName: github.Ptr("v0.9.0"),
+			Name:    github.Ptr("Beta Release"),
+		},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedResult []*github.RepositoryRelease
+		expectedErrMsg string
+	}{
+		{
+			name: "successful releases list",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposReleasesByOwnerByRepo,
+					mockReleases,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			expectError:    false,
+			expectedResult: mockReleases,
+		},
+		{
+			name: "releases list fails",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposReleasesByOwnerByRepo,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to list releases",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := github.NewClient(tc.mockedClient)
+			_, handler := ListReleases(stubGetClientFn(client), translations.NullTranslationHelper)
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(context.Background(), request)
+
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			textContent := getTextResult(t, result)
+			var returnedReleases []*github.RepositoryRelease
+			err = json.Unmarshal([]byte(textContent.Text), &returnedReleases)
+			require.NoError(t, err)
+			assert.Len(t, returnedReleases, len(tc.expectedResult))
+			for i, rel := range returnedReleases {
+				assert.Equal(t, *tc.expectedResult[i].TagName, *rel.TagName)
+			}
+		})
+	}
+}
+func Test_GetLatestRelease(t *testing.T) {
+	mockClient := github.NewClient(nil)
+	tool, _ := GetLatestRelease(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "get_latest_release", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
+
+	mockRelease := &github.RepositoryRelease{
+		ID:      github.Ptr(int64(1)),
+		TagName: github.Ptr("v1.0.0"),
+		Name:    github.Ptr("First Release"),
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedResult *github.RepositoryRelease
+		expectedErrMsg string
+	}{
+		{
+			name: "successful latest release fetch",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposReleasesLatestByOwnerByRepo,
+					mockRelease,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			expectError:    false,
+			expectedResult: mockRelease,
+		},
+		{
+			name: "latest release fetch fails",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposReleasesLatestByOwnerByRepo,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to get latest release",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := github.NewClient(tc.mockedClient)
+			_, handler := GetLatestRelease(stubGetClientFn(client), translations.NullTranslationHelper)
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(context.Background(), request)
+
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			textContent := getTextResult(t, result)
+			var returnedRelease github.RepositoryRelease
+			err = json.Unmarshal([]byte(textContent.Text), &returnedRelease)
+			require.NoError(t, err)
+			assert.Equal(t, *tc.expectedResult.TagName, *returnedRelease.TagName)
+		})
+	}
+}
+
+func Test_GetReleaseByTag(t *testing.T) {
+	mockClient := github.NewClient(nil)
+	tool, _ := GetReleaseByTag(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "get_release_by_tag", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "tag")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "tag"})
+
+	mockRelease := &github.RepositoryRelease{
+		ID:      github.Ptr(int64(1)),
+		TagName: github.Ptr("v1.0.0"),
+		Name:    github.Ptr("Release v1.0.0"),
+		Body:    github.Ptr("This is the first stable release."),
+		Assets: []*github.ReleaseAsset{
+			{
+				ID:   github.Ptr(int64(1)),
+				Name: github.Ptr("release-v1.0.0.tar.gz"),
+			},
+		},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedResult *github.RepositoryRelease
+		expectedErrMsg string
+	}{
+		{
+			name: "successful release by tag fetch",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposReleasesTagsByOwnerByRepoByTag,
+					mockRelease,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+				"tag":   "v1.0.0",
+			},
+			expectError:    false,
+			expectedResult: mockRelease,
+		},
+		{
+			name:         "missing owner parameter",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]interface{}{
+				"repo": "repo",
+				"tag":  "v1.0.0",
+			},
+			expectError:    false, // Returns tool error, not Go error
+			expectedErrMsg: "missing required parameter: owner",
+		},
+		{
+			name:         "missing repo parameter",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"tag":   "v1.0.0",
+			},
+			expectError:    false, // Returns tool error, not Go error
+			expectedErrMsg: "missing required parameter: repo",
+		},
+		{
+			name:         "missing tag parameter",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			expectError:    false, // Returns tool error, not Go error
+			expectedErrMsg: "missing required parameter: tag",
+		},
+		{
+			name: "release by tag not found",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposReleasesTagsByOwnerByRepoByTag,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+				"tag":   "v999.0.0",
+			},
+			expectError:    false, // API errors return tool errors, not Go errors
+			expectedErrMsg: "failed to get release by tag: v999.0.0",
+		},
+		{
+			name: "server error",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposReleasesTagsByOwnerByRepoByTag,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusInternalServerError)
+						_, _ = w.Write([]byte(`{"message": "Internal Server Error"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+				"tag":   "v1.0.0",
+			},
+			expectError:    false, // API errors return tool errors, not Go errors
+			expectedErrMsg: "failed to get release by tag: v1.0.0",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := github.NewClient(tc.mockedClient)
+			_, handler := GetReleaseByTag(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			request := createMCPRequest(tc.requestArgs)
+
+			result, err := handler(context.Background(), request)
+
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+
+			if tc.expectedErrMsg != "" {
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.False(t, result.IsError)
+
+			textContent := getTextResult(t, result)
+
+			var returnedRelease github.RepositoryRelease
+			err = json.Unmarshal([]byte(textContent.Text), &returnedRelease)
+			require.NoError(t, err)
+
+			assert.Equal(t, *tc.expectedResult.ID, *returnedRelease.ID)
+			assert.Equal(t, *tc.expectedResult.TagName, *returnedRelease.TagName)
+			assert.Equal(t, *tc.expectedResult.Name, *returnedRelease.Name)
+			if tc.expectedResult.Body != nil {
+				assert.Equal(t, *tc.expectedResult.Body, *returnedRelease.Body)
+			}
+			if len(tc.expectedResult.Assets) > 0 {
+				require.Len(t, returnedRelease.Assets, len(tc.expectedResult.Assets))
+				assert.Equal(t, *tc.expectedResult.Assets[0].Name, *returnedRelease.Assets[0].Name)
+			}
+		})
+	}
+}
+
 func Test_filterPaths(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -2212,69 +2623,571 @@ func Test_resolveGitReference(t *testing.T) {
 	ctx := context.Background()
 	owner := "owner"
 	repo := "repo"
-	mockedClient := mock.NewMockedHTTPClient(
-		mock.WithRequestMatchHandler(
-			mock.GetReposByOwnerByRepo,
-			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte(`{"name": "repo", "default_branch": "main"}`))
-			}),
-		),
-		mock.WithRequestMatchHandler(
-			mock.GetReposGitRefByOwnerByRepoByRef,
-			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte(`{"ref": "refs/heads/main", "object": {"sha": "123sha456"}}`))
-			}),
-		),
-	)
 
 	tests := []struct {
 		name           string
 		ref            string
 		sha            string
+		mockSetup      func() *http.Client
 		expectedOutput *raw.ContentOpts
+		expectError    bool
+		errorContains  string
 	}{
 		{
 			name: "sha takes precedence over ref",
 			ref:  "refs/heads/main",
 			sha:  "123sha456",
+			mockSetup: func() *http.Client {
+				// No API calls should be made when SHA is provided
+				return mock.NewMockedHTTPClient()
+			},
 			expectedOutput: &raw.ContentOpts{
 				SHA: "123sha456",
 			},
+			expectError: false,
 		},
 		{
 			name: "use default branch if ref and sha both empty",
 			ref:  "",
 			sha:  "",
+			mockSetup: func() *http.Client {
+				return mock.NewMockedHTTPClient(
+					mock.WithRequestMatchHandler(
+						mock.GetReposByOwnerByRepo,
+						http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+							w.WriteHeader(http.StatusOK)
+							_, _ = w.Write([]byte(`{"name": "repo", "default_branch": "main"}`))
+						}),
+					),
+					mock.WithRequestMatchHandler(
+						mock.GetReposGitRefByOwnerByRepoByRef,
+						http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+							assert.Contains(t, r.URL.Path, "/git/ref/heads/main")
+							w.WriteHeader(http.StatusOK)
+							_, _ = w.Write([]byte(`{"ref": "refs/heads/main", "object": {"sha": "main-sha"}}`))
+						}),
+					),
+				)
+			},
 			expectedOutput: &raw.ContentOpts{
 				Ref: "refs/heads/main",
-				SHA: "123sha456",
+				SHA: "main-sha",
 			},
+			expectError: false,
 		},
 		{
-			name: "get SHA from ref",
-			ref:  "refs/heads/main",
+			name: "fully qualified ref passed through unchanged",
+			ref:  "refs/heads/feature-branch",
 			sha:  "",
+			mockSetup: func() *http.Client {
+				return mock.NewMockedHTTPClient(
+					mock.WithRequestMatchHandler(
+						mock.GetReposGitRefByOwnerByRepoByRef,
+						http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+							assert.Contains(t, r.URL.Path, "/git/ref/heads/feature-branch")
+							w.WriteHeader(http.StatusOK)
+							_, _ = w.Write([]byte(`{"ref": "refs/heads/feature-branch", "object": {"sha": "feature-sha"}}`))
+						}),
+					),
+				)
+			},
+			expectedOutput: &raw.ContentOpts{
+				Ref: "refs/heads/feature-branch",
+				SHA: "feature-sha",
+			},
+			expectError: false,
+		},
+		{
+			name: "short branch name resolves to refs/heads/",
+			ref:  "main",
+			sha:  "",
+			mockSetup: func() *http.Client {
+				return mock.NewMockedHTTPClient(
+					mock.WithRequestMatchHandler(
+						mock.GetReposGitRefByOwnerByRepoByRef,
+						http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+							if strings.Contains(r.URL.Path, "/git/ref/heads/main") {
+								w.WriteHeader(http.StatusOK)
+								_, _ = w.Write([]byte(`{"ref": "refs/heads/main", "object": {"sha": "main-sha"}}`))
+							} else {
+								t.Errorf("Unexpected path: %s", r.URL.Path)
+								w.WriteHeader(http.StatusNotFound)
+							}
+						}),
+					),
+				)
+			},
 			expectedOutput: &raw.ContentOpts{
 				Ref: "refs/heads/main",
-				SHA: "123sha456",
+				SHA: "main-sha",
 			},
+			expectError: false,
+		},
+		{
+			name: "short tag name falls back to refs/tags/ when branch not found",
+			ref:  "v1.0.0",
+			sha:  "",
+			mockSetup: func() *http.Client {
+				return mock.NewMockedHTTPClient(
+					mock.WithRequestMatchHandler(
+						mock.GetReposGitRefByOwnerByRepoByRef,
+						http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+							switch {
+							case strings.Contains(r.URL.Path, "/git/ref/heads/v1.0.0"):
+								w.WriteHeader(http.StatusNotFound)
+								_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+							case strings.Contains(r.URL.Path, "/git/ref/tags/v1.0.0"):
+								w.WriteHeader(http.StatusOK)
+								_, _ = w.Write([]byte(`{"ref": "refs/tags/v1.0.0", "object": {"sha": "tag-sha"}}`))
+							default:
+								t.Errorf("Unexpected path: %s", r.URL.Path)
+								w.WriteHeader(http.StatusNotFound)
+							}
+						}),
+					),
+				)
+			},
+			expectedOutput: &raw.ContentOpts{
+				Ref: "refs/tags/v1.0.0",
+				SHA: "tag-sha",
+			},
+			expectError: false,
+		},
+		{
+			name: "heads/ prefix gets refs/ prepended",
+			ref:  "heads/feature-branch",
+			sha:  "",
+			mockSetup: func() *http.Client {
+				return mock.NewMockedHTTPClient(
+					mock.WithRequestMatchHandler(
+						mock.GetReposGitRefByOwnerByRepoByRef,
+						http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+							assert.Contains(t, r.URL.Path, "/git/ref/heads/feature-branch")
+							w.WriteHeader(http.StatusOK)
+							_, _ = w.Write([]byte(`{"ref": "refs/heads/feature-branch", "object": {"sha": "feature-sha"}}`))
+						}),
+					),
+				)
+			},
+			expectedOutput: &raw.ContentOpts{
+				Ref: "refs/heads/feature-branch",
+				SHA: "feature-sha",
+			},
+			expectError: false,
+		},
+		{
+			name: "tags/ prefix gets refs/ prepended",
+			ref:  "tags/v1.0.0",
+			sha:  "",
+			mockSetup: func() *http.Client {
+				return mock.NewMockedHTTPClient(
+					mock.WithRequestMatchHandler(
+						mock.GetReposGitRefByOwnerByRepoByRef,
+						http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+							assert.Contains(t, r.URL.Path, "/git/ref/tags/v1.0.0")
+							w.WriteHeader(http.StatusOK)
+							_, _ = w.Write([]byte(`{"ref": "refs/tags/v1.0.0", "object": {"sha": "tag-sha"}}`))
+						}),
+					),
+				)
+			},
+			expectedOutput: &raw.ContentOpts{
+				Ref: "refs/tags/v1.0.0",
+				SHA: "tag-sha",
+			},
+			expectError: false,
+		},
+		{
+			name: "invalid short name that doesn't exist as branch or tag",
+			ref:  "nonexistent",
+			sha:  "",
+			mockSetup: func() *http.Client {
+				return mock.NewMockedHTTPClient(
+					mock.WithRequestMatchHandler(
+						mock.GetReposGitRefByOwnerByRepoByRef,
+						http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+							// Both branch and tag attempts should return 404
+							w.WriteHeader(http.StatusNotFound)
+							_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+						}),
+					),
+				)
+			},
+			expectError:   true,
+			errorContains: "could not resolve ref \"nonexistent\" as a branch or a tag",
+		},
+		{
+			name: "fully qualified pull request ref",
+			ref:  "refs/pull/123/head",
+			sha:  "",
+			mockSetup: func() *http.Client {
+				return mock.NewMockedHTTPClient(
+					mock.WithRequestMatchHandler(
+						mock.GetReposGitRefByOwnerByRepoByRef,
+						http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+							assert.Contains(t, r.URL.Path, "/git/ref/pull/123/head")
+							w.WriteHeader(http.StatusOK)
+							_, _ = w.Write([]byte(`{"ref": "refs/pull/123/head", "object": {"sha": "pr-sha"}}`))
+						}),
+					),
+				)
+			},
+			expectedOutput: &raw.ContentOpts{
+				Ref: "refs/pull/123/head",
+				SHA: "pr-sha",
+			},
+			expectError: false,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
-			client := github.NewClient(mockedClient)
+			client := github.NewClient(tc.mockSetup())
 			opts, err := resolveGitReference(ctx, client, owner, repo, tc.ref, tc.sha)
+
+			if tc.expectError {
+				require.Error(t, err)
+				if tc.errorContains != "" {
+					assert.Contains(t, err.Error(), tc.errorContains)
+				}
+				return
+			}
+
 			require.NoError(t, err)
+			require.NotNil(t, opts)
 
 			if tc.expectedOutput.SHA != "" {
 				assert.Equal(t, tc.expectedOutput.SHA, opts.SHA)
 			}
 			if tc.expectedOutput.Ref != "" {
 				assert.Equal(t, tc.expectedOutput.Ref, opts.Ref)
+			}
+		})
+	}
+}
+
+func Test_ListStarredRepositories(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := ListStarredRepositories(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "list_starred_repositories", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "username")
+	assert.Contains(t, tool.InputSchema.Properties, "sort")
+	assert.Contains(t, tool.InputSchema.Properties, "direction")
+	assert.Contains(t, tool.InputSchema.Properties, "page")
+	assert.Contains(t, tool.InputSchema.Properties, "perPage")
+	assert.Empty(t, tool.InputSchema.Required) // All parameters are optional
+
+	// Setup mock starred repositories
+	starredAt := time.Now().Add(-24 * time.Hour)
+	updatedAt := time.Now().Add(-2 * time.Hour)
+	mockStarredRepos := []*github.StarredRepository{
+		{
+			StarredAt: &github.Timestamp{Time: starredAt},
+			Repository: &github.Repository{
+				ID:              github.Ptr(int64(12345)),
+				Name:            github.Ptr("awesome-repo"),
+				FullName:        github.Ptr("owner/awesome-repo"),
+				Description:     github.Ptr("An awesome repository"),
+				HTMLURL:         github.Ptr("https://github.com/owner/awesome-repo"),
+				Language:        github.Ptr("Go"),
+				StargazersCount: github.Ptr(100),
+				ForksCount:      github.Ptr(25),
+				OpenIssuesCount: github.Ptr(5),
+				UpdatedAt:       &github.Timestamp{Time: updatedAt},
+				Private:         github.Ptr(false),
+				Fork:            github.Ptr(false),
+				Archived:        github.Ptr(false),
+				DefaultBranch:   github.Ptr("main"),
+			},
+		},
+		{
+			StarredAt: &github.Timestamp{Time: starredAt.Add(-12 * time.Hour)},
+			Repository: &github.Repository{
+				ID:              github.Ptr(int64(67890)),
+				Name:            github.Ptr("cool-project"),
+				FullName:        github.Ptr("user/cool-project"),
+				Description:     github.Ptr("A very cool project"),
+				HTMLURL:         github.Ptr("https://github.com/user/cool-project"),
+				Language:        github.Ptr("Python"),
+				StargazersCount: github.Ptr(500),
+				ForksCount:      github.Ptr(75),
+				OpenIssuesCount: github.Ptr(10),
+				UpdatedAt:       &github.Timestamp{Time: updatedAt.Add(-1 * time.Hour)},
+				Private:         github.Ptr(false),
+				Fork:            github.Ptr(true),
+				Archived:        github.Ptr(false),
+				DefaultBranch:   github.Ptr("master"),
+			},
+		},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedErrMsg string
+		expectedCount  int
+	}{
+		{
+			name: "successful list for authenticated user",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetUserStarred,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write(mock.MustMarshal(mockStarredRepos))
+					}),
+				),
+			),
+			requestArgs:   map[string]interface{}{},
+			expectError:   false,
+			expectedCount: 2,
+		},
+		{
+			name: "successful list for specific user",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetUsersStarredByUsername,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write(mock.MustMarshal(mockStarredRepos))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"username": "testuser",
+			},
+			expectError:   false,
+			expectedCount: 2,
+		},
+		{
+			name: "list fails",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetUserStarred,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			),
+			requestArgs:    map[string]interface{}{},
+			expectError:    true,
+			expectedErrMsg: "failed to list starred repositories",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := ListStarredRepositories(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError {
+				require.NotNil(t, result)
+				textResult, ok := result.Content[0].(mcp.TextContent)
+				require.True(t, ok, "Expected text content")
+				assert.Contains(t, textResult.Text, tc.expectedErrMsg)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+
+				// Parse the result and get the text content
+				textContent := getTextResult(t, result)
+
+				// Unmarshal and verify the result
+				var returnedRepos []MinimalRepository
+				err = json.Unmarshal([]byte(textContent.Text), &returnedRepos)
+				require.NoError(t, err)
+
+				assert.Len(t, returnedRepos, tc.expectedCount)
+				if tc.expectedCount > 0 {
+					assert.Equal(t, "awesome-repo", returnedRepos[0].Name)
+					assert.Equal(t, "owner/awesome-repo", returnedRepos[0].FullName)
+				}
+			}
+		})
+	}
+}
+
+func Test_StarRepository(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := StarRepository(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "star_repository", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedErrMsg string
+	}{
+		{
+			name: "successful star",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PutUserStarredByOwnerByRepo,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNoContent)
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "testowner",
+				"repo":  "testrepo",
+			},
+			expectError: false,
+		},
+		{
+			name: "star fails",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PutUserStarredByOwnerByRepo,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "testowner",
+				"repo":  "nonexistent",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to star repository",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := StarRepository(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError {
+				require.NotNil(t, result)
+				textResult, ok := result.Content[0].(mcp.TextContent)
+				require.True(t, ok, "Expected text content")
+				assert.Contains(t, textResult.Text, tc.expectedErrMsg)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+
+				// Parse the result and get the text content
+				textContent := getTextResult(t, result)
+				assert.Contains(t, textContent.Text, "Successfully starred repository")
+			}
+		})
+	}
+}
+
+func Test_UnstarRepository(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := UnstarRepository(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "unstar_repository", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedErrMsg string
+	}{
+		{
+			name: "successful unstar",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.DeleteUserStarredByOwnerByRepo,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNoContent)
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "testowner",
+				"repo":  "testrepo",
+			},
+			expectError: false,
+		},
+		{
+			name: "unstar fails",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.DeleteUserStarredByOwnerByRepo,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "testowner",
+				"repo":  "nonexistent",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to unstar repository",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := UnstarRepository(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError {
+				require.NotNil(t, result)
+				textResult, ok := result.Content[0].(mcp.TextContent)
+				require.True(t, ok, "Expected text content")
+				assert.Contains(t, textResult.Text, tc.expectedErrMsg)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+
+				// Parse the result and get the text content
+				textContent := getTextResult(t, result)
+				assert.Contains(t, textContent.Text, "Successfully unstarred repository")
 			}
 		})
 	}

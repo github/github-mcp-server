@@ -15,7 +15,7 @@
         "type": "string"
       },
       "owner": {
-        "description": "Optional repository owner. If provided with repo, only notifications for this repository are listed.",
+        "description": "Optional repository owner. If provided with repo, only issues for this repository are listed.",
         "type": "string"
       },
       "page": {
@@ -34,7 +34,7 @@
         "type": "string"
       },
       "repo": {
-        "description": "Optional repository name. If provided with owner, only notifications for this repository are listed.",
+        "description": "Optional repository name. If provided with owner, only issues for this repository are listed.",
         "type": "string"
       },
       "sort": {

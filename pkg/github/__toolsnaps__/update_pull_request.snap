@@ -14,6 +14,10 @@
         "description": "New description",
         "type": "string"
       },
+      "draft": {
+        "description": "Mark pull request as draft (true) or ready for review (false)",
+        "type": "boolean"
+      },
       "maintainer_can_modify": {
         "description": "Allow maintainer edits",
         "type": "boolean"
@@ -29,6 +33,13 @@
       "repo": {
         "description": "Repository name",
         "type": "string"
+      },
+      "reviewers": {
+        "description": "GitHub usernames to request reviews from",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
       },
       "state": {
         "description": "New state",

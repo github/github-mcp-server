@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/google/go-github/v73/github"
+	"github.com/google/go-github/v74/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 )

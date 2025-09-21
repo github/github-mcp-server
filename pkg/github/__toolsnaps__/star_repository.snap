@@ -1,0 +1,25 @@
+{
+  "annotations": {
+    "title": "Star repository",
+    "readOnlyHint": false
+  },
+  "description": "Star a GitHub repository",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "star_repository"
+}

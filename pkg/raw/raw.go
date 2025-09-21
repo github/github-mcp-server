@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
-	gogithub "github.com/google/go-github/v73/github"
+	gogithub "github.com/google/go-github/v74/github"
 )
 
 // GetRawClientFn is a function type that returns a RawClient instance.

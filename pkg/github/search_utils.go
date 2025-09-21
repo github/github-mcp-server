@@ -6,10 +6,34 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 
-	"github.com/google/go-github/v73/github"
+	"github.com/google/go-github/v74/github"
 	"github.com/mark3labs/mcp-go/mcp"
 )
+
+func hasFilter(query, filterType string) bool {
+	// Match filter at start of string, after whitespace, or after non-word characters like '('
+	pattern := fmt.Sprintf(`(^|\s|\W)%s:\S+`, regexp.QuoteMeta(filterType))
+	matched, _ := regexp.MatchString(pattern, query)
+	return matched
+}
+
+func hasSpecificFilter(query, filterType, filterValue string) bool {
+	// Match specific filter:value at start, after whitespace, or after non-word characters
+	// End with word boundary, whitespace, or non-word characters like ')'
+	pattern := fmt.Sprintf(`(^|\s|\W)%s:%s($|\s|\W)`, regexp.QuoteMeta(filterType), regexp.QuoteMeta(filterValue))
+	matched, _ := regexp.MatchString(pattern, query)
+	return matched
+}
+
+func hasRepoFilter(query string) bool {
+	return hasFilter(query, "repo")
+}
+
+func hasTypeFilter(query string) bool {
+	return hasFilter(query, "type")
+}
 
 func searchHandler(
 	ctx context.Context,
@@ -22,7 +46,10 @@ func searchHandler(
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	query = fmt.Sprintf("is:%s %s", searchType, query)
+
+	if !hasSpecificFilter(query, "is", searchType) {
+		query = fmt.Sprintf("is:%s %s", searchType, query)
+	}
 
 	owner, err := OptionalParam[string](request, "owner")
 	if err != nil {
@@ -34,7 +61,7 @@ func searchHandler(
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	if owner != "" && repo != "" {
+	if owner != "" && repo != "" && !hasRepoFilter(query) {
 		query = fmt.Sprintf("repo:%s/%s %s", owner, repo, query)
 	}
 

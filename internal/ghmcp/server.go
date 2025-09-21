@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -17,11 +18,10 @@ import (
 	mcplog "github.com/github/github-mcp-server/pkg/log"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
-	gogithub "github.com/google/go-github/v73/github"
+	gogithub "github.com/google/go-github/v74/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/shurcooL/githubv4"
-	"github.com/sirupsen/logrus"
 )
 
 type MCPServerConfig struct {
@@ -47,7 +47,12 @@ type MCPServerConfig struct {
 
 	// Translator provides translated text for the server tooling
 	Translator translations.TranslationHelperFunc
+
+	// Content window size
+	ContentWindowSize int
 }
+
+const stdioServerLogPrefix = "stdioserver"
 
 func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 	apiHost, err := parseAPIHost(cfg.Host)
@@ -130,7 +135,7 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 	}
 
 	// Create default toolsets
-	tsg := github.DefaultToolsetGroup(cfg.ReadOnly, getClient, getGQLClient, getRawClient, cfg.Translator)
+	tsg := github.DefaultToolsetGroup(cfg.ReadOnly, getClient, getGQLClient, getRawClient, cfg.Translator, cfg.ContentWindowSize)
 	err = tsg.EnableToolsets(enabledToolsets)
 
 	if err != nil {
@@ -178,6 +183,9 @@ type StdioServerConfig struct {
 
 	// Path to the log file if not stderr
 	LogFilePath string
+
+	// Content window size
+	ContentWindowSize int
 }
 
 // RunStdioServer is not concurrent safe.
@@ -189,13 +197,14 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	t, dumpTranslations := translations.TranslationHelper()
 
 	ghServer, err := NewMCPServer(MCPServerConfig{
-		Version:         cfg.Version,
-		Host:            cfg.Host,
-		Token:           cfg.Token,
-		EnabledToolsets: cfg.EnabledToolsets,
-		DynamicToolsets: cfg.DynamicToolsets,
-		ReadOnly:        cfg.ReadOnly,
-		Translator:      t,
+		Version:           cfg.Version,
+		Host:              cfg.Host,
+		Token:             cfg.Token,
+		EnabledToolsets:   cfg.EnabledToolsets,
+		DynamicToolsets:   cfg.DynamicToolsets,
+		ReadOnly:          cfg.ReadOnly,
+		Translator:        t,
+		ContentWindowSize: cfg.ContentWindowSize,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)
@@ -203,17 +212,22 @@ func RunStdioServer(cfg StdioServerConfig) error {
 
 	stdioServer := server.NewStdioServer(ghServer)
 
-	logrusLogger := logrus.New()
+	var slogHandler slog.Handler
+	var logOutput io.Writer
 	if cfg.LogFilePath != "" {
 		file, err := os.OpenFile(cfg.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 		if err != nil {
 			return fmt.Errorf("failed to open log file: %w", err)
 		}
-
-		logrusLogger.SetLevel(logrus.DebugLevel)
-		logrusLogger.SetOutput(file)
+		logOutput = file
+		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelDebug})
+	} else {
+		logOutput = os.Stderr
+		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelInfo})
 	}
-	stdLogger := log.New(logrusLogger.Writer(), "stdioserver", 0)
+	logger := slog.New(slogHandler)
+	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "dynamicToolsets", cfg.DynamicToolsets, "readOnly", cfg.ReadOnly)
+	stdLogger := log.New(logOutput, stdioServerLogPrefix, 0)
 	stdioServer.SetErrorLogger(stdLogger)
 
 	if cfg.ExportTranslations {
@@ -227,7 +241,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		in, out := io.Reader(os.Stdin), io.Writer(os.Stdout)
 
 		if cfg.EnableCommandLogging {
-			loggedIO := mcplog.NewIOLogger(in, out, logrusLogger)
+			loggedIO := mcplog.NewIOLogger(in, out, logger)
 			in, out = loggedIO, loggedIO
 		}
 		// enable GitHub errors in the context
@@ -241,9 +255,10 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	// Wait for shutdown signal
 	select {
 	case <-ctx.Done():
-		logrusLogger.Infof("shutting down server...")
+		logger.Info("shutting down server", "signal", "context done")
 	case err := <-errC:
 		if err != nil {
+			logger.Error("error running server", "error", err)
 			return fmt.Errorf("error running server: %w", err)
 		}
 	}

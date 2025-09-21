@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/google/go-github/v73/github"
+	"github.com/google/go-github/v74/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -139,6 +139,21 @@ func OptionalIntParamWithDefault(r mcp.CallToolRequest, p string, d int) (int, e
 		return 0, err
 	}
 	if v == 0 {
+		return d, nil
+	}
+	return v, nil
+}
+
+// OptionalBoolParamWithDefault is a helper function that can be used to fetch a requested parameter from the request
+// similar to optionalBoolParam, but it also takes a default value.
+func OptionalBoolParamWithDefault(r mcp.CallToolRequest, p string, d bool) (bool, error) {
+	args := r.GetArguments()
+	_, ok := args[p]
+	v, err := OptionalParam[bool](r, p)
+	if err != nil {
+		return false, err
+	}
+	if !ok {
 		return d, nil
 	}
 	return v, nil

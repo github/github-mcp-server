@@ -3,11 +3,11 @@
     "title": "Search code",
     "readOnlyHint": true
   },
-  "description": "Search for code across GitHub repositories",
+  "description": "Fast and precise code search across ALL GitHub repositories using GitHub's native search engine. Best for finding exact symbols, functions, classes, or specific code patterns.",
   "inputSchema": {
     "properties": {
       "order": {
-        "description": "Sort order",
+        "description": "Sort order for results",
         "enum": [
           "asc",
           "desc"
@@ -26,7 +26,7 @@
         "type": "number"
       },
       "query": {
-        "description": "Search query using GitHub code search syntax",
+        "description": "Search query using GitHub's powerful code search syntax. Examples: 'content:Skill language:Java org:github', 'NOT is:archived language:Python OR language:go', 'repo:github/github-mcp-server'. Supports exact matching, language filters, path filters, and more.",
         "type": "string"
       },
       "sort": {

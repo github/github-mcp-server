@@ -10,7 +10,7 @@ import (
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v73/github"
+	"github.com/google/go-github/v74/github"
 	"github.com/shurcooL/githubv4"
 
 	"github.com/migueleliasweb/go-github-mock/src/mock"
@@ -137,7 +137,7 @@ func Test_GetPullRequest(t *testing.T) {
 func Test_UpdatePullRequest(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := UpdatePullRequest(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := UpdatePullRequest(stubGetClientFn(mockClient), stubGetGQLClientFn(githubv4.NewClient(nil)), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "update_pull_request", tool.Name)
@@ -145,11 +145,13 @@ func Test_UpdatePullRequest(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
+	assert.Contains(t, tool.InputSchema.Properties, "draft")
 	assert.Contains(t, tool.InputSchema.Properties, "title")
 	assert.Contains(t, tool.InputSchema.Properties, "body")
 	assert.Contains(t, tool.InputSchema.Properties, "state")
 	assert.Contains(t, tool.InputSchema.Properties, "base")
 	assert.Contains(t, tool.InputSchema.Properties, "maintainer_can_modify")
+	assert.Contains(t, tool.InputSchema.Properties, "reviewers")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber"})
 
 	// Setup mock PR for success case
@@ -160,6 +162,7 @@ func Test_UpdatePullRequest(t *testing.T) {
 		HTMLURL:             github.Ptr("https://github.com/owner/repo/pull/42"),
 		Body:                github.Ptr("Updated test PR body."),
 		MaintainerCanModify: github.Ptr(false),
+		Draft:               github.Ptr(false),
 		Base: &github.PullRequestBranch{
 			Ref: github.Ptr("develop"),
 		},
@@ -169,6 +172,17 @@ func Test_UpdatePullRequest(t *testing.T) {
 		Number: github.Ptr(42),
 		Title:  github.Ptr("Test PR"),
 		State:  github.Ptr("closed"), // State updated
+	}
+
+	// Mock PR for when there are no updates but we still need a response
+	mockPRWithReviewers := &github.PullRequest{
+		Number: github.Ptr(42),
+		Title:  github.Ptr("Test PR"),
+		State:  github.Ptr("open"),
+		RequestedReviewers: []*github.User{
+			{Login: github.Ptr("reviewer1")},
+			{Login: github.Ptr("reviewer2")},
+		},
 	}
 
 	tests := []struct {
@@ -194,6 +208,10 @@ func Test_UpdatePullRequest(t *testing.T) {
 						mockResponse(t, http.StatusOK, mockUpdatedPR),
 					),
 				),
+				mock.WithRequestMatch(
+					mock.GetReposPullsByOwnerByRepoByPullNumber,
+					mockUpdatedPR,
+				),
 			),
 			requestArgs: map[string]interface{}{
 				"owner":                 "owner",
@@ -218,6 +236,10 @@ func Test_UpdatePullRequest(t *testing.T) {
 						mockResponse(t, http.StatusOK, mockClosedPR),
 					),
 				),
+				mock.WithRequestMatch(
+					mock.GetReposPullsByOwnerByRepoByPullNumber,
+					mockClosedPR,
+				),
 			),
 			requestArgs: map[string]interface{}{
 				"owner":      "owner",
@@ -227,6 +249,53 @@ func Test_UpdatePullRequest(t *testing.T) {
 			},
 			expectError: false,
 			expectedPR:  mockClosedPR,
+		},
+		{
+			name: "successful PR update with reviewers",
+			mockedClient: mock.NewMockedHTTPClient(
+				// Mock for RequestReviewers call, returning the PR with reviewers
+				mock.WithRequestMatch(
+					mock.PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber,
+					mockPRWithReviewers,
+				),
+				mock.WithRequestMatch(
+					mock.GetReposPullsByOwnerByRepoByPullNumber,
+					mockPRWithReviewers,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"reviewers":  []interface{}{"reviewer1", "reviewer2"},
+			},
+			expectError: false,
+			expectedPR:  mockPRWithReviewers,
+		},
+		{
+			name: "successful PR update (title only)",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PatchReposPullsByOwnerByRepoByPullNumber,
+					expectRequestBody(t, map[string]interface{}{
+						"title": "Updated Test PR Title",
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockUpdatedPR),
+					),
+				),
+				mock.WithRequestMatch(
+					mock.GetReposPullsByOwnerByRepoByPullNumber,
+					mockUpdatedPR,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"title":      "Updated Test PR Title",
+			},
+			expectError: false,
+			expectedPR:  mockUpdatedPR,
 		},
 		{
 			name:         "no update parameters provided",
@@ -260,13 +329,34 @@ func Test_UpdatePullRequest(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to update pull request",
 		},
+		{
+			name: "request reviewers fails",
+			mockedClient: mock.NewMockedHTTPClient(
+				// Then reviewer request fails
+				mock.WithRequestMatchHandler(
+					mock.PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusUnprocessableEntity)
+						_, _ = w.Write([]byte(`{"message": "Invalid reviewers"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"reviewers":  []interface{}{"invalid-user"},
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to request reviewers",
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := UpdatePullRequest(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := UpdatePullRequest(stubGetClientFn(client), stubGetGQLClientFn(githubv4.NewClient(nil)), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -291,27 +381,193 @@ func Test_UpdatePullRequest(t *testing.T) {
 			// Parse the result and get the text content
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the successful result
-			var returnedPR github.PullRequest
-			err = json.Unmarshal([]byte(textContent.Text), &returnedPR)
+			// Unmarshal and verify the minimal result
+			var updateResp MinimalResponse
+			err = json.Unmarshal([]byte(textContent.Text), &updateResp)
 			require.NoError(t, err)
-			assert.Equal(t, *tc.expectedPR.Number, *returnedPR.Number)
-			if tc.expectedPR.Title != nil {
-				assert.Equal(t, *tc.expectedPR.Title, *returnedPR.Title)
+			assert.Equal(t, tc.expectedPR.GetHTMLURL(), updateResp.URL)
+		})
+	}
+}
+
+func Test_UpdatePullRequest_Draft(t *testing.T) {
+	// Setup mock PR for success case
+	mockUpdatedPR := &github.PullRequest{
+		Number:              github.Ptr(42),
+		Title:               github.Ptr("Test PR Title"),
+		State:               github.Ptr("open"),
+		HTMLURL:             github.Ptr("https://github.com/owner/repo/pull/42"),
+		Body:                github.Ptr("Test PR body."),
+		MaintainerCanModify: github.Ptr(false),
+		Draft:               github.Ptr(false), // Updated to ready for review
+		Base: &github.PullRequestBranch{
+			Ref: github.Ptr("main"),
+		},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedPR     *github.PullRequest
+		expectedErrMsg string
+	}{
+		{
+			name: "successful draft update to ready for review",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							PullRequest struct {
+								ID      githubv4.ID
+								IsDraft githubv4.Boolean
+							} `graphql:"pullRequest(number: $prNum)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner": githubv4.String("owner"),
+						"repo":  githubv4.String("repo"),
+						"prNum": githubv4.Int(42),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"pullRequest": map[string]any{
+								"id":      "PR_kwDOA0xdyM50BPaO",
+								"isDraft": true, // Current state is draft
+							},
+						},
+					}),
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						MarkPullRequestReadyForReview struct {
+							PullRequest struct {
+								ID      githubv4.ID
+								IsDraft githubv4.Boolean
+							}
+						} `graphql:"markPullRequestReadyForReview(input: $input)"`
+					}{},
+					githubv4.MarkPullRequestReadyForReviewInput{
+						PullRequestID: "PR_kwDOA0xdyM50BPaO",
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"markPullRequestReadyForReview": map[string]any{
+							"pullRequest": map[string]any{
+								"id":      "PR_kwDOA0xdyM50BPaO",
+								"isDraft": false,
+							},
+						},
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"draft":      false,
+			},
+			expectError: false,
+			expectedPR:  mockUpdatedPR,
+		},
+		{
+			name: "successful convert pull request to draft",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							PullRequest struct {
+								ID      githubv4.ID
+								IsDraft githubv4.Boolean
+							} `graphql:"pullRequest(number: $prNum)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner": githubv4.String("owner"),
+						"repo":  githubv4.String("repo"),
+						"prNum": githubv4.Int(42),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"pullRequest": map[string]any{
+								"id":      "PR_kwDOA0xdyM50BPaO",
+								"isDraft": false, // Current state is draft
+							},
+						},
+					}),
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						ConvertPullRequestToDraft struct {
+							PullRequest struct {
+								ID      githubv4.ID
+								IsDraft githubv4.Boolean
+							}
+						} `graphql:"convertPullRequestToDraft(input: $input)"`
+					}{},
+					githubv4.ConvertPullRequestToDraftInput{
+						PullRequestID: "PR_kwDOA0xdyM50BPaO",
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"convertPullRequestToDraft": map[string]any{
+							"pullRequest": map[string]any{
+								"id":      "PR_kwDOA0xdyM50BPaO",
+								"isDraft": true,
+							},
+						},
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"draft":      true,
+			},
+			expectError: false,
+			expectedPR:  mockUpdatedPR,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// For draft-only tests, we need to mock both GraphQL and the final REST GET call
+			restClient := github.NewClient(mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposPullsByOwnerByRepoByPullNumber,
+					mockUpdatedPR,
+				),
+			))
+			gqlClient := githubv4.NewClient(tc.mockedClient)
+
+			_, handler := UpdatePullRequest(stubGetClientFn(restClient), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+
+			request := createMCPRequest(tc.requestArgs)
+
+			result, err := handler(context.Background(), request)
+
+			if tc.expectError || tc.expectedErrMsg != "" {
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				if tc.expectedErrMsg != "" {
+					assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				}
+				return
 			}
-			if tc.expectedPR.Body != nil {
-				assert.Equal(t, *tc.expectedPR.Body, *returnedPR.Body)
-			}
-			if tc.expectedPR.State != nil {
-				assert.Equal(t, *tc.expectedPR.State, *returnedPR.State)
-			}
-			if tc.expectedPR.Base != nil && tc.expectedPR.Base.Ref != nil {
-				assert.NotNil(t, returnedPR.Base)
-				assert.Equal(t, *tc.expectedPR.Base.Ref, *returnedPR.Base.Ref)
-			}
-			if tc.expectedPR.MaintainerCanModify != nil {
-				assert.Equal(t, *tc.expectedPR.MaintainerCanModify, *returnedPR.MaintainerCanModify)
-			}
+
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+
+			textContent := getTextResult(t, result)
+
+			// Unmarshal and verify the minimal result
+			var updateResp MinimalResponse
+			err = json.Unmarshal([]byte(textContent.Text), &updateResp)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedPR.GetHTMLURL(), updateResp.URL)
 		})
 	}
 }
@@ -734,6 +990,77 @@ func Test_SearchPullRequests(t *testing.T) {
 			),
 			requestArgs: map[string]interface{}{
 				"query": "is:pr repo:owner/repo is:open",
+			},
+			expectError:    false,
+			expectedResult: mockSearchResult,
+		},
+		{
+			name: "query with existing is:pr filter - no duplication",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetSearchIssues,
+					expectQueryParams(
+						t,
+						map[string]string{
+							"q":        "is:pr repo:github/github-mcp-server is:open draft:false",
+							"page":     "1",
+							"per_page": "30",
+						},
+					).andThen(
+						mockResponse(t, http.StatusOK, mockSearchResult),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"query": "is:pr repo:github/github-mcp-server is:open draft:false",
+			},
+			expectError:    false,
+			expectedResult: mockSearchResult,
+		},
+		{
+			name: "query with existing repo: filter and conflicting owner/repo params - uses query filter",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetSearchIssues,
+					expectQueryParams(
+						t,
+						map[string]string{
+							"q":        "is:pr repo:github/github-mcp-server author:octocat",
+							"page":     "1",
+							"per_page": "30",
+						},
+					).andThen(
+						mockResponse(t, http.StatusOK, mockSearchResult),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"query": "repo:github/github-mcp-server author:octocat",
+				"owner": "different-owner",
+				"repo":  "different-repo",
+			},
+			expectError:    false,
+			expectedResult: mockSearchResult,
+		},
+		{
+			name: "complex query with existing is:pr filter and OR operators",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetSearchIssues,
+					expectQueryParams(
+						t,
+						map[string]string{
+							"q":        "is:pr repo:github/github-mcp-server (label:bug OR label:enhancement OR label:feature)",
+							"page":     "1",
+							"per_page": "30",
+						},
+					).andThen(
+						mockResponse(t, http.StatusOK, mockSearchResult),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"query": "is:pr repo:github/github-mcp-server (label:bug OR label:enhancement OR label:feature)",
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
@@ -1228,10 +1555,10 @@ func Test_UpdatePullRequestBranch(t *testing.T) {
 func Test_GetPullRequestComments(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := GetPullRequestComments(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := GetPullRequestReviewComments(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "get_pull_request_comments", tool.Name)
+	assert.Equal(t, "get_pull_request_review_comments", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
@@ -1309,7 +1636,7 @@ func Test_GetPullRequestComments(t *testing.T) {
 				"pullNumber": float64(999),
 			},
 			expectError:    true,
-			expectedErrMsg: "failed to get pull request comments",
+			expectedErrMsg: "failed to get pull request review comments",
 		},
 	}
 
@@ -1317,7 +1644,7 @@ func Test_GetPullRequestComments(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetPullRequestComments(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := GetPullRequestReviewComments(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1625,18 +1952,11 @@ func Test_CreatePullRequest(t *testing.T) {
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
-			var returnedPR github.PullRequest
+			// Unmarshal and verify the minimal result
+			var returnedPR MinimalResponse
 			err = json.Unmarshal([]byte(textContent.Text), &returnedPR)
 			require.NoError(t, err)
-			assert.Equal(t, *tc.expectedPR.Number, *returnedPR.Number)
-			assert.Equal(t, *tc.expectedPR.Title, *returnedPR.Title)
-			assert.Equal(t, *tc.expectedPR.State, *returnedPR.State)
-			assert.Equal(t, *tc.expectedPR.HTMLURL, *returnedPR.HTMLURL)
-			assert.Equal(t, *tc.expectedPR.Head.SHA, *returnedPR.Head.SHA)
-			assert.Equal(t, *tc.expectedPR.Base.Ref, *returnedPR.Base.Ref)
-			assert.Equal(t, *tc.expectedPR.Body, *returnedPR.Body)
-			assert.Equal(t, *tc.expectedPR.User.Login, *returnedPR.User.Login)
+			assert.Equal(t, tc.expectedPR.GetHTMLURL(), returnedPR.URL)
 		})
 	}
 }

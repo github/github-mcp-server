@@ -3,9 +3,14 @@
     "title": "Search repositories",
     "readOnlyHint": true
   },
-  "description": "Search for GitHub repositories",
+  "description": "Find GitHub repositories by name, description, readme, topics, or other metadata. Perfect for discovering projects, finding examples, or locating specific repositories across GitHub.",
   "inputSchema": {
     "properties": {
+      "minimal_output": {
+        "default": true,
+        "description": "Return minimal repository information (default: true). When false, returns full GitHub API repository objects.",
+        "type": "boolean"
+      },
       "page": {
         "description": "Page number for pagination (min 1)",
         "minimum": 1,
@@ -18,7 +23,7 @@
         "type": "number"
       },
       "query": {
-        "description": "Search query",
+        "description": "Repository search query. Examples: 'machine learning in:name stars:\u003e1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering.",
         "type": "string"
       }
     },
