@@ -1,0 +1,28 @@
+{
+  "annotations": {
+    "title": "List projects",
+    "readOnlyHint": true
+  },
+  "description": "List Projects for a user or organization",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Owner login (user or organization)",
+        "type": "string"
+      },
+      "owner_type": {
+        "description": "Owner type",
+        "enum": [
+          "user",
+          "organization"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner"
+    ],
+    "type": "object"
+  },
+  "name": "list_projects"
+}
