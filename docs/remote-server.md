@@ -45,10 +45,45 @@ These toolsets are only available in the remote GitHub MCP Server and are not in
 | -------------------- | --------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Copilot coding agent | Perform task with GitHub Copilot coding agent | https://api.githubcopilot.com/mcp/x/copilot | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-copilot&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fcopilot%22%7D) | [read-only](https://api.githubcopilot.com/mcp/x/copilot/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-copilot&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fcopilot%2Freadonly%22%7D) |
 
-### Headers
+### Optional Headers
 
-You can configure toolsets and readonly mode by providing HTTP headers in your server configuration.
+The Remote GitHub MCP server has optional headers equivalent to the Local server env vars:
 
-The headers are:
-- `X-MCP-Toolsets=<toolset>,<toolset>...`
-- `X-MCP-Readonly=true`
+- `X-MCP-Toolsets`: Comma-separated list of toolsets to enable. E.g. "repos,issues".
+    - Equivalent to `GITHUB_TOOLSETS` env var for Local server.
+    - If the list is empty, default toolsets will be used. If a bad toolset is provided, the server will fail to start and emit a 400 bad request status. Whitespace is ignored.
+- `X-MCP-Readonly`: Enables only "read" tools.
+    - Equivalent to `GITHUB_READ_ONLY` env var for Local server.
+    - If this header is empty, "false", "f", "no", "n", "0", or "off" (ignoring whitespace and case), it will be interpreted as false. All other values are interpreted as true.
+
+Example:
+
+```json
+{
+    "type": "http",
+    "url": "https://api.githubcopilot.com/mcp/",
+    "headers": {
+        "X-MCP-Toolsets": "repos,issues",
+        "X-MCP-Readonly": "true"
+    }
+}
+```
+
+### URL Path Parameters
+
+The Remote GitHub MCP server also supports the URL path parameters:
+
+- `/x/{toolset}`
+- `/x/{toolset}/readonly`
+- `/readonly`
+
+Note: `{toolset}` can only been a single toolset, not a comma-separated list. To combine multiple toolsets, use the `X-MCP-Toolsets` header instead.
+
+Example:
+
+```json
+{
+    "type": "http",
+    "url": "https://api.githubcopilot.com/mcp/x/issues/readonly"
+}
+```

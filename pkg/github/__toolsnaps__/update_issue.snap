@@ -17,6 +17,10 @@
         "description": "New description",
         "type": "string"
       },
+      "duplicate_of": {
+        "description": "Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'.",
+        "type": "number"
+      },
       "issue_number": {
         "description": "Issue number to update",
         "type": "number"
@@ -45,6 +49,15 @@
         "enum": [
           "open",
           "closed"
+        ],
+        "type": "string"
+      },
+      "state_reason": {
+        "description": "Reason for the state change. Ignored unless state is changed.",
+        "enum": [
+          "completed",
+          "not_planned",
+          "duplicate"
         ],
         "type": "string"
       },
