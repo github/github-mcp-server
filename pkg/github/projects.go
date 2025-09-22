@@ -114,16 +114,16 @@ func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (
 }
 
 type ListProjectsOptions struct {
-	// A cursor, as given in the Link header. If specified, the query only searches for events after this cursor.
-	After string `url:"after,omitempty"`
-
 	// A cursor, as given in the Link header. If specified, the query only searches for events before this cursor.
 	Before string `url:"before,omitempty"`
+
+	// A cursor, as given in the Link header. If specified, the query only searches for events after this cursor.
+	After string `url:"after,omitempty"`
 
 	// For paginated result sets, the number of results to include per page.
 	PerPage int `url:"per_page,omitempty"`
 
-	// Q is an optional query string to filter/search projects (when supported).
+	// Query Limit results to projects of the specified type.
 	Query string `url:"q,omitempty"`
 }
 
