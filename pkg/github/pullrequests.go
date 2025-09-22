@@ -195,6 +195,7 @@ func CreatePullRequest(getClient GetClientFn, t translations.TranslationHelperFu
 
 			// Return minimal response with just essential information
 			minimalResponse := MinimalResponse{
+				ID:  fmt.Sprintf("%d", pr.GetID()),
 				URL: pr.GetHTMLURL(),
 			}
 
@@ -471,6 +472,7 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 
 			// Return minimal response with just essential information
 			minimalResponse := MinimalResponse{
+				ID:  fmt.Sprintf("%d", finalPR.GetID()),
 				URL: finalPR.GetHTMLURL(),
 			}
 

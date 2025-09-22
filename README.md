@@ -591,12 +591,14 @@ The following sets of tools are available (all are on by default):
 - **update_issue** - Edit issue
   - `assignees`: New assignees (string[], optional)
   - `body`: New description (string, optional)
+  - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
   - `issue_number`: Issue number to update (number, required)
   - `labels`: New labels (string[], optional)
   - `milestone`: New milestone number (number, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `state`: New state (string, optional)
+  - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
   - `title`: New title (string, optional)
   - `type`: New issue type (string, optional)
 
@@ -875,6 +877,13 @@ The following sets of tools are available (all are on by default):
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
+- **list_starred_repositories** - List starred repositories
+  - `direction`: The direction to sort the results by. (string, optional)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `sort`: How to sort the results. Can be either 'created' (when the repository was starred) or 'updated' (when the repository was last pushed to). (string, optional)
+  - `username`: Username to list starred repositories for. Defaults to the authenticated user. (string, optional)
+
 - **list_tags** - List tags
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -900,6 +909,14 @@ The following sets of tools are available (all are on by default):
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Repository search query. Examples: 'machine learning in:name stars:>1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering. (string, required)
+
+- **star_repository** - Star repository
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **unstar_repository** - Unstar repository
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
 
 </details>
 
