@@ -20,7 +20,7 @@ on:
 
 jobs:
   # ========================================================================================================================================
-  #     Prerequesite: Create a .slsa-goreleaser.yml in the root directory of your project.
+  #     Prerequisite: Create a .slsa-goreleaser.yml in the root directory of your project.
   #       See format in https://github.com/slsa-framework/slsa-github-generator/blob/main/internal/builders/go/README.md#configuration-file
   #=========================================================================================================================================
   build:
