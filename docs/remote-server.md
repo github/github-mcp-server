@@ -49,7 +49,7 @@ These toolsets are only available in the remote GitHub MCP Server and are not in
 
 The Remote GitHub MCP server has optional headers equivalent to the Local server env vars:
 
-- `X-MCP-Toolsets`: Comma-separated list of toolsets to enable. E.g. "repos,issue".
+- `X-MCP-Toolsets`: Comma-separated list of toolsets to enable. E.g. "repos,issues".
     - Equivalent to `GITHUB_TOOLSETS` env var for Local server.
     - If the list is empty, default toolsets will be used. If a bad toolset is provided, the server will fail to start and emit a 400 bad request status. Whitespace is ignored.
 - `X-MCP-Readonly`: Enables only "read" tools.
@@ -60,10 +60,10 @@ Example:
 
 ```json
 {
-    "type": "https",
+    "type": "http",
     "url": "https://api.githubcopilot.com/mcp/",
     "headers": {
-        "X-MCP-Toolsets": "issues",
+        "X-MCP-Toolsets": "repos,issues",
         "X-MCP-Readonly": "true"
     }
 }
@@ -81,7 +81,7 @@ Example:
 
 ```json
 {
-    "type": "https",
+    "type": "http",
     "url": "https://api.githubcopilot.com/mcp/x/issues/readonly"
 }
 ```
