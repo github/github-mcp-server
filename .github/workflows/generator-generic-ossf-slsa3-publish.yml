@@ -23,7 +23,8 @@ jobs:
       digests: ${{ steps.hash.outputs.digests }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.1.0 # Pin to v4.1.0 release
+        # commit: 2c4e7e5d8b6e6e5e7e2c4e7e5d8b6e6e5e7e2c4e7
 
       # ========================================================
       #
