@@ -77,6 +77,8 @@ The Remote GitHub MCP server also supports the URL path parameters:
 - `/x/{toolset}/readonly`
 - `/readonly`
 
+Note: `{toolset}` can only been a single toolset, not a comma-separated list. To combine multiple toolsets, use the `X-MCP-Toolsets` header instead.
+
 Example:
 
 ```json
