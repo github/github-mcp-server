@@ -27,7 +27,15 @@ func GenerateInstructions(enabledToolsets []string) string {
 	}
 	
 	// Base instruction with context management
-	baseInstruction := "The GitHub MCP Server provides GitHub API tools. Tool selection guidance: Use 'list_*' tools for broad, simple retrieval and pagination of all items of a type (e.g., all issues, all PRs, all branches) with basic filtering. Use 'search_*' tools for targeted queries with specific criteria, keywords, or complex filters (e.g., issues with certain text, PRs by author, code containing functions). Context management: 1) GitHub API responses can overflow context windows, 2) Process large datasets in batches of 5-10 items, 3) For summarization tasks, fetch minimal data first, then drill down into specifics."
+	baseInstruction := `The GitHub MCP Server provides tools to interact with GitHub platform. 
+	
+Tool selection guidance: 
+	1. Use 'list_*' tools for broad, simple retrieval and pagination of all items of a type (e.g., all issues, all PRs, all branches) with basic filtering. 
+	2. Use 'search_*' tools for targeted queries with specific criteria, keywords, or complex filters (e.g., issues with certain text, PRs by author, code containing functions). 
+	
+Context management: 
+	1. Use pagination whenever possible with batches of 5-10 items. 
+	2. Use minimal_output parameter set to true if the full information is not needed to accomplish a task.
 	
 	allInstructions := []string{baseInstruction}
 	allInstructions = append(allInstructions, instructions...)
@@ -39,13 +47,22 @@ func GenerateInstructions(enabledToolsets []string) string {
 func getToolsetInstructions(toolset string) string {
 	switch toolset {
 	case "pull_requests":
-		return "PR review workflow: Always use 'create_pending_pull_request_review' → 'add_comment_to_pending_review' → 'submit_pending_pull_request_review' for complex reviews with line-specific comments."
+		return `## Pull Requests
+		
+PR review workflow: Always use 'create_pending_pull_request_review' → 'add_comment_to_pending_review' → 'submit_pending_pull_request_review' for complex reviews with line-specific comments.
+`
 	case "issues":
-		return "Issue workflow: Check 'list_issue_types' first for organizations to use proper issue types. Use 'search_issues' before creating new issues to avoid duplicates. Always set 'state_reason' when closing issues."
+		return `## Issues
+		
+Check 'list_issue_types' first for organizations to use proper issue types. Use 'search_issues' before creating new issues to avoid duplicates. Always set 'state_reason' when closing issues.
+`
 	case "notifications":
 		return "Notifications: Filter by 'participating' for issues/PRs you're involved in. Use 'mark_all_notifications_read' with repository filters to avoid marking unrelated notifications."
 	case "discussions":
-		return "Discussions: Use 'list_discussion_categories' to understand available categories before creating discussions. Filter by category for better organization."
+		return `## Discussions 
+		
+		Use 'list_discussion_categories' to understand available categories before creating discussions. Filter by category for better organization.
+`
 	default:
 		return ""
 	}

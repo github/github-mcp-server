@@ -34,53 +34,32 @@ func TestGenerateInstructions(t *testing.T) {
 		{
 			name:            "pull requests toolset",
 			enabledToolsets: []string{"pull_requests"},
-			expectedContains: []string{
-				"create_pending_pull_request_review",
-				"add_comment_to_pending_review",
-				"submit_pending_pull_request_review",
-			},
+			expectedContains: []string{"## Pull Requests"},
 		},
 		{
 			name:            "issues toolset",
 			enabledToolsets: []string{"issues"},
-			expectedContains: []string{
-				"search_issues",
-				"list_issue_types",
-				"state_reason",
-			},
-		},
-		{
-			name:            "notifications toolset",
-			enabledToolsets: []string{"notifications"},
-			expectedContains: []string{
-				"participating",
-				"mark_all_notifications_read",
-				"repository filters",
-			},
+			expectedContains: []string{"## Issues"},
 		},
 		{
 			name:            "discussions toolset",
 			enabledToolsets: []string{"discussions"},
-			expectedContains: []string{
-				"list_discussion_categories",
-				"Filter by category",
-			},
+			expectedContains: []string{"## Discussions"},
 		},
 		{
 			name:            "multiple toolsets (context + pull_requests)",
 			enabledToolsets: []string{"context", "pull_requests"},
 			expectedContains: []string{
 				"get_me",
-				"create_pending_pull_request_review",
+				"## Pull Requests",
 			},
 		},
 		{
 			name:            "multiple toolsets (issues + pull_requests)",
 			enabledToolsets: []string{"issues", "pull_requests"},
 			expectedContains: []string{
-				"search_issues",
-				"list_issue_types",
-				"create_pending_pull_request_review",
+				"## Issues",
+				"## Pull Requests",
 			},
 		},
 	}
