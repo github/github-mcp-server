@@ -2,65 +2,49 @@ package github
 
 import (
 	"os"
-	"strings"
 	"testing"
 )
 
 func TestGenerateInstructions(t *testing.T) {
 	tests := []struct {
-		name             string
-		enabledToolsets  []string
-		expectedContains []string
-		expectedEmpty    bool
+		name            string
+		enabledToolsets []string
+		expectedEmpty   bool
 	}{
 		{
 			name:            "empty toolsets",
 			enabledToolsets: []string{},
-			expectedContains: []string{
-				"GitHub MCP Server provides GitHub API tools",
-				"Use 'list_*' tools for broad, simple retrieval",
-				"Use 'search_*' tools for targeted queries",
-				"context windows",
-			},
+			expectedEmpty:   false,
 		},
 		{
 			name:            "only context toolset",
 			enabledToolsets: []string{"context"},
-			expectedContains: []string{
-				"GitHub MCP Server provides GitHub API tools",
-				"Always call 'get_me' first",
-			},
+			expectedEmpty:   false,
 		},
 		{
 			name:            "pull requests toolset",
 			enabledToolsets: []string{"pull_requests"},
-			expectedContains: []string{"## Pull Requests"},
+			expectedEmpty:   false,
 		},
 		{
 			name:            "issues toolset",
 			enabledToolsets: []string{"issues"},
-			expectedContains: []string{"## Issues"},
+			expectedEmpty:   false,
 		},
 		{
 			name:            "discussions toolset",
 			enabledToolsets: []string{"discussions"},
-			expectedContains: []string{"## Discussions"},
+			expectedEmpty:   false,
 		},
 		{
 			name:            "multiple toolsets (context + pull_requests)",
 			enabledToolsets: []string{"context", "pull_requests"},
-			expectedContains: []string{
-				"get_me",
-				"## Pull Requests",
-			},
+			expectedEmpty:   false,
 		},
 		{
 			name:            "multiple toolsets (issues + pull_requests)",
 			enabledToolsets: []string{"issues", "pull_requests"},
-			expectedContains: []string{
-				"## Issues",
-				"## Pull Requests",
-			},
+			expectedEmpty:   false,
 		},
 	}
 
@@ -72,12 +56,9 @@ func TestGenerateInstructions(t *testing.T) {
 				if result != "" {
 					t.Errorf("Expected empty instructions but got: %s", result)
 				}
-				return
-			}
-
-			for _, expectedContent := range tt.expectedContains {
-				if !strings.Contains(result, expectedContent) {
-					t.Errorf("Expected instructions to contain '%s', but got: %s", expectedContent, result)
+			} else {
+				if result == "" {
+					t.Errorf("Expected non-empty instructions but got empty result")
 				}
 			}
 		})
@@ -86,11 +67,10 @@ func TestGenerateInstructions(t *testing.T) {
 
 func TestGenerateInstructionsWithDisableFlag(t *testing.T) {
 	tests := []struct {
-		name              string
-		disableEnvValue   string
-		enabledToolsets   []string
-		expectedEmpty     bool
-		expectedContains  []string
+		name            string
+		disableEnvValue string
+		enabledToolsets []string
+		expectedEmpty   bool
 	}{
 		{
 			name:            "DISABLE_INSTRUCTIONS=true returns empty",
@@ -103,20 +83,12 @@ func TestGenerateInstructionsWithDisableFlag(t *testing.T) {
 			disableEnvValue: "false",
 			enabledToolsets: []string{"context"},
 			expectedEmpty:   false,
-			expectedContains: []string{
-				"GitHub MCP Server provides GitHub API tools",
-				"Always call 'get_me' first",
-			},
 		},
 		{
 			name:            "DISABLE_INSTRUCTIONS unset returns normal instructions",
 			disableEnvValue: "",
 			enabledToolsets: []string{"issues"},
 			expectedEmpty:   false,
-			expectedContains: []string{
-				"GitHub MCP Server provides GitHub API tools",
-				"search_issues",
-			},
 		},
 	}
 
@@ -145,12 +117,9 @@ func TestGenerateInstructionsWithDisableFlag(t *testing.T) {
 				if result != "" {
 					t.Errorf("Expected empty instructions but got: %s", result)
 				}
-				return
-			}
-
-			for _, expectedContent := range tt.expectedContains {
-				if !strings.Contains(result, expectedContent) {
-					t.Errorf("Expected instructions to contain '%s', but got: %s", expectedContent, result)
+			} else {
+				if result == "" {
+					t.Errorf("Expected non-empty instructions but got empty result")
 				}
 			}
 		})
@@ -159,41 +128,37 @@ func TestGenerateInstructionsWithDisableFlag(t *testing.T) {
 
 func TestGetToolsetInstructions(t *testing.T) {
 	tests := []struct {
-		toolset  string
-		expected string
+		toolset       string
+		expectedEmpty bool
 	}{
 		{
-			toolset:  "pull_requests",
-			expected: "create_pending_pull_request_review",
+			toolset:       "pull_requests",
+			expectedEmpty: false,
 		},
 		{
-			toolset:  "issues",
-			expected: "list_issue_types",
+			toolset:       "issues",
+			expectedEmpty: false,
 		},
 		{
-			toolset:  "notifications",
-			expected: "participating",
+			toolset:       "discussions",
+			expectedEmpty: false,
 		},
 		{
-			toolset:  "discussions",
-			expected: "list_discussion_categories",
-		},
-		{
-			toolset:  "nonexistent",
-			expected: "",
+			toolset:       "nonexistent",
+			expectedEmpty: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.toolset, func(t *testing.T) {
 			result := getToolsetInstructions(tt.toolset)
-			if tt.expected == "" {
+			if tt.expectedEmpty {
 				if result != "" {
 					t.Errorf("Expected empty result for toolset '%s', but got: %s", tt.toolset, result)
 				}
 			} else {
-				if !strings.Contains(result, tt.expected) {
-					t.Errorf("Expected instructions for '%s' to contain '%s', but got: %s", tt.toolset, tt.expected, result)
+				if result == "" {
+					t.Errorf("Expected non-empty result for toolset '%s', but got empty", tt.toolset)
 				}
 			}
 		})

@@ -2,6 +2,7 @@ package github
 
 import (
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -15,7 +16,7 @@ func GenerateInstructions(enabledToolsets []string) string {
 	var instructions []string
 	
 	// Core instruction - always included if context toolset enabled
-	if contains(enabledToolsets, "context") {
+	if slices.Contains(enabledToolsets, "context") {
 		instructions = append(instructions, "Always call 'get_me' first to understand current user permissions and context.")
 	}
 	
@@ -27,16 +28,16 @@ func GenerateInstructions(enabledToolsets []string) string {
 	}
 	
 	// Base instruction with context management
-	baseInstruction := `The GitHub MCP Server provides tools to interact with GitHub platform. 
-	
-Tool selection guidance: 
-	1. Use 'list_*' tools for broad, simple retrieval and pagination of all items of a type (e.g., all issues, all PRs, all branches) with basic filtering. 
-	2. Use 'search_*' tools for targeted queries with specific criteria, keywords, or complex filters (e.g., issues with certain text, PRs by author, code containing functions). 
-	
-Context management: 
-	1. Use pagination whenever possible with batches of 5-10 items. 
-	2. Use minimal_output parameter set to true if the full information is not needed to accomplish a task.
-	
+	baseInstruction := `The GitHub MCP Server provides tools to interact with GitHub platform.
+
+Tool selection guidance:
+	1. Use 'list_*' tools for broad, simple retrieval and pagination of all items of a type (e.g., all issues, all PRs, all branches) with basic filtering.
+	2. Use 'search_*' tools for targeted queries with specific criteria, keywords, or complex filters (e.g., issues with certain text, PRs by author, code containing functions).
+
+Context management:
+	1. Use pagination whenever possible with batches of 5-10 items.
+	2. Use minimal_output parameter set to true if the full information is not needed to accomplish a task.`
+
 	allInstructions := []string{baseInstruction}
 	allInstructions = append(allInstructions, instructions...)
 	
@@ -47,33 +48,13 @@ Context management:
 func getToolsetInstructions(toolset string) string {
 	switch toolset {
 	case "pull_requests":
-		return `## Pull Requests
-		
-PR review workflow: Always use 'create_pending_pull_request_review' → 'add_comment_to_pending_review' → 'submit_pending_pull_request_review' for complex reviews with line-specific comments.
-`
+		return "## Pull Requests\n\nPR review workflow: Always use 'create_pending_pull_request_review' → 'add_comment_to_pending_review' → 'submit_pending_pull_request_review' for complex reviews with line-specific comments."
 	case "issues":
-		return `## Issues
-		
-Check 'list_issue_types' first for organizations to use proper issue types. Use 'search_issues' before creating new issues to avoid duplicates. Always set 'state_reason' when closing issues.
-`
-	case "notifications":
-		return "Notifications: Filter by 'participating' for issues/PRs you're involved in. Use 'mark_all_notifications_read' with repository filters to avoid marking unrelated notifications."
+		return "## Issues\n\nCheck 'list_issue_types' first for organizations to use proper issue types. Use 'search_issues' before creating new issues to avoid duplicates. Always set 'state_reason' when closing issues."
 	case "discussions":
-		return `## Discussions 
-		
-		Use 'list_discussion_categories' to understand available categories before creating discussions. Filter by category for better organization.
-`
+		return "## Discussions\n\nUse 'list_discussion_categories' to understand available categories before creating discussions. Filter by category for better organization."
 	default:
 		return ""
 	}
 }
 
-// contains checks if a slice contains a specific string
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
-}
