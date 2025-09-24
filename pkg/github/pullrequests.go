@@ -19,12 +19,22 @@ import (
 
 // GetPullRequest creates a tool to get details of a specific pull request.
 func GetPullRequest(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
-	return mcp.NewTool("get_pull_request",
-			mcp.WithDescription(t("TOOL_GET_PULL_REQUEST_DESCRIPTION", "Get details of a specific pull request in a GitHub repository.")),
+	return mcp.NewTool("pull_request_read",
+			mcp.WithDescription(t("TOOL_PULL_REQUEST_READ_DESCRIPTION", "Get information on a specific pull request in GitHub repository.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_GET_PULL_REQUEST_USER_TITLE", "Get pull request details"),
+				Title:        t("TOOL_GET_PULL_REQUEST_USER_TITLE", "Get pull requests details."),
 				ReadOnlyHint: ToBoolPtr(true),
 			}),
+			mcp.WithString("method",
+				mcp.Required(),
+				mcp.Description(`Action to perform with pull requests in GitHub. 
+Possible options: 
+ 1. get - Get details of a specific pull request in a GitHub repository.
+ 2. get_diff	- Get the diff of a pull request.
+ 3. get_files - Get the files changed in a specific pull request.
+ 4. get_status - Get status of a pull request.
+`),
+			),
 			mcp.WithString("owner",
 				mcp.Required(),
 				mcp.Description("Repository owner"),
@@ -56,6 +66,8 @@ func GetPullRequest(getClient GetClientFn, t translations.TranslationHelperFunc)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
+
+
 			pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -1868,6 +1880,33 @@ func RequestCopilotReview(getClient GetClientFn, t translations.TranslationHelpe
 			// Return nothing on success, as there's not much value in returning the Pull Request itself
 			return mcp.NewToolResultText(""), nil
 		}
+}
+
+func GetPullRequest() {
+	pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to get pull request",
+			resp,
+			err,
+		), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request: %s", string(body))), nil
+	}
+
+	r, err := json.Marshal(pr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return mcp.NewToolResultText(string(r)), nil
 }
 
 // newGQLString like takes something that approximates a string (of which there are many types in shurcooL/githubv4)
