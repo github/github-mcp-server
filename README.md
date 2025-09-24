@@ -288,6 +288,7 @@ The following sets of tools are available (all are on by default):
 | `issues` | GitHub Issues related tools |
 | `notifications` | GitHub Notifications related tools |
 | `orgs` | GitHub Organization related tools |
+| `projects` | GitHub Projects related tools |
 | `pull_requests` | GitHub Pull Request related tools |
 | `repos` | GitHub Repository related tools |
 | `secret_protection` | Secret protection related tools, such as GitHub Secret Scanning |
@@ -650,6 +651,20 @@ The following sets of tools are available (all are on by default):
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Organization search query. Examples: 'microsoft', 'location:california', 'created:>=2025-01-01'. Search is automatically scoped to type:org. (string, required)
   - `sort`: Sort field by category (string, optional)
+
+</details>
+
+<details>
+
+<summary>Projects</summary>
+
+- **list_projects** - List projects
+  - `after`: Cursor for items after (forward pagination) (string, optional)
+  - `before`: Cursor for items before (backwards pagination) (string, optional)
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == organization it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
+  - `query`: Filter projects by a search query (matches title and description) (string, optional)
 
 </details>
 
