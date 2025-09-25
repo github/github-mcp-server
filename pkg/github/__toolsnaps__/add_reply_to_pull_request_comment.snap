@@ -1,0 +1,40 @@
+{
+  "annotations": {
+    "title": "Add reply to pull request comment",
+    "readOnlyHint": false
+  },
+  "description": "Add a reply to an existing pull request comment. This creates a new comment that is linked as a reply to the specified comment.",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "The text of the reply comment",
+        "type": "string"
+      },
+      "commentId": {
+        "description": "The ID of the comment to reply to",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "pullNumber": {
+        "description": "Pull request number",
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "pullNumber",
+      "commentId",
+      "body"
+    ],
+    "type": "object"
+  },
+  "name": "add_reply_to_pull_request_comment"
+}
