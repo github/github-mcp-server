@@ -1,0 +1,49 @@
+name: Publish to MCP Registry
+
+on:
+  push:
+    tags: ["v*"]  # Triggers on version tags like v1.0.0
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # Required for OIDC authentication
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Fetch tags
+        run: git fetch --tags
+
+      - name: Install MCP Publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/download/v1.0.0/mcp-publisher_1.0.0_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Update server.json version
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            # Use the tag that triggered the workflow
+            TAG_VERSION=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+            echo "Using triggered tag: ${{ github.ref_name }}"
+          else
+            # Fallback to latest tag (for manual triggers)
+            LATEST_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-.*)?$' | head -n 1)
+            if [ -z "$LATEST_TAG" ]; then
+              echo "❌ No release tag found. Cannot determine version."
+              exit 1
+            fi
+            TAG_VERSION=$(echo "$LATEST_TAG" | sed 's/^v//')
+            echo "Using latest tag: $LATEST_TAG"
+          fi
+          sed -i "s/\${VERSION}/$TAG_VERSION/g" server.json
+          echo "Updated server.json version to $TAG_VERSION"
+
+      - name: Login to MCP Registry
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish to MCP Registry
+        run: ./mcp-publisher publish
