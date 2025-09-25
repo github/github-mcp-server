@@ -81,16 +81,42 @@ claude mcp get github
 ### Prerequisites
 - Claude Desktop installed (latest version)
 - [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new)
-- [Docker](https://www.docker.com/) installed and running
-
-> **Note**: Claude Desktop supports MCP servers that are both local (stdio) and remote ("connectors"). Remote servers can generally be added via Settings → Connectors → "Add custom connector". However, the GitHub remote MCP server requires OAuth authentication through a registered GitHub App (or OAuth App), which is not currently supported. Use the local Docker setup instead.
+- For local setup: [Docker](https://www.docker.com/) installed and running
+- For remote setup: npm (Node.js) installed
 
 ### Configuration File Location
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 - **Linux**: `~/.config/Claude/claude_desktop_config.json`
 
-### Local Server Setup (Docker)
+### Remote Server Setup (Recommended - No Docker Required)
+
+This method uses the GitHub MCP remote server without requiring Docker:
+
+Add this configuration to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "https://api.githubcopilot.com/mcp",
+        "--header",
+        "Authorization: Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_PAT"
+      }
+    }
+  }
+}
+```
+
+> **Note**: Replace `YOUR_GITHUB_PAT` with your actual GitHub Personal Access Token. Ensure your token has the necessary `repo` scope permissions.
+
+### Local Server Setup (Docker - Alternative Method)
 
 Add this codeblock to your `claude_desktop_config.json`:
 
@@ -118,15 +144,15 @@ Add this codeblock to your `claude_desktop_config.json`:
 ### Manual Setup Steps
 1. Open Claude Desktop
 2. Go to Settings → Developer → Edit Config
-3. Paste the code block above in your configuration file
-4. If you're navigating to the configuration file outside of the app:
+3. Choose one of the two methods above (Remote Server recommended, or Docker for local setup)
+4. Paste the corresponding configuration in your `claude_desktop_config.json` file
+5. If you're navigating to the configuration file outside of the app:
    - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
    - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-5. Open the file in a text editor
-6. Paste one of the code blocks above, based on your chosen configuration (remote or local)
-7. Replace `YOUR_GITHUB_PAT` with your actual token or $GITHUB_PAT environment variable
-8. Save the file
-9. Restart Claude Desktop
+   - **Linux**: `~/.config/Claude/claude_desktop_config.json`
+6. Replace `YOUR_GITHUB_PAT` with your actual GitHub Personal Access Token
+7. Save the file
+8. Restart Claude Desktop
 
 ---
 
@@ -135,11 +161,16 @@ Add this codeblock to your `claude_desktop_config.json`:
 **Authentication Failed:**
 - Verify PAT has `repo` scope
 - Check token hasn't expired
+- Ensure the token is correctly placed in your configuration
 
-**Remote Server:**
+**Remote Server (Claude Desktop with npx mcp-remote):**
+- Verify URL: `https://api.githubcopilot.com/mcp`
+- Ensure npm is installed and accessible
+
+**Remote Server (Claude Code):**
 - Verify URL: `https://api.githubcopilot.com/mcp`
 
-**Docker Issues (Local Only):**
+**Docker Issues (Local Setup Only):**
 - Ensure Docker Desktop is running
 - Try: `docker pull ghcr.io/github/github-mcp-server`
 - If pull fails: `docker logout ghcr.io` then retry
