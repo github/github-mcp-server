@@ -105,8 +105,6 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 		},
 	}
 
-	ghServer := github.NewServer(cfg.Version, server.WithHooks(hooks))
-
 	enabledToolsets := cfg.EnabledToolsets
 	if cfg.DynamicToolsets {
 		// filter "all" from the enabled toolsets
@@ -117,6 +115,14 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 			}
 		}
 	}
+
+	// Generate instructions based on enabled toolsets
+	instructions := github.GenerateInstructions(enabledToolsets)
+	
+	ghServer := github.NewServer(cfg.Version, 
+		server.WithInstructions(instructions),
+		server.WithHooks(hooks),
+	)
 
 	getClient := func(_ context.Context) (*gogithub.Client, error) {
 		return restClient, nil // closing over client

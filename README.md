@@ -1017,6 +1017,17 @@ The following sets of tools are available (all are on by default):
 
 </details>
 
+<details>
+
+<summary>Copilot Spaces</summary>
+
+-   **get_copilot_space** - Get Copilot Space
+    -   `owner`: The owner of the space. (string, required)
+    -   `name`: The name of the space. (string, required)
+
+-   **list_copilot_spaces** - List Copilot Spaces
+</details>
+
 #### Specifying Toolsets
 
 To specify toolsets you want available to the LLM, you can pass an allow-list in two ways:
