@@ -1,3 +1,6 @@
+SearchRepositories
+pivots 
+hasRepoFilter
 package writeArgumentType
 retractable everything for now
 Test_GetWorkflowRun
