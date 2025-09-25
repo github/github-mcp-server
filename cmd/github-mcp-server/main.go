@@ -95,6 +95,7 @@ func init() {
 func initConfig() {
 	// Initialize Viper configuration
 	viper.SetEnvPrefix("github")
+	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
 
 }
