@@ -545,6 +545,22 @@ The following sets of tools are available (all are on by default):
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
+- **issue_label** - Manage issue labels - list, add, remove
+  - `issue_number`: Issue number - required for all operations to identify the specific issue (number, required)
+  - `labels`: Array of label names to add or remove. REQUIRED for 'add' and 'remove' operations, IGNORED for 'list' operation. (string[], optional)
+  - `method`: Operation to perform: 'list' (show current labels), 'add' (attach labels), 'remove' (detach labels) (string, required)
+  - `owner`: Repository owner (username or organization name) - required for all operations (string, required)
+  - `repo`: Repository name - required for all operations (string, required)
+
+- **labels** - Manage label operations - create, read, update, delete
+  - `color`: Label color as 6-character hex code without '#' prefix, e.g. 'f29513' for orange. REQUIRED for 'create', OPTIONAL for 'update'. (string, optional)
+  - `description`: Label description text. OPTIONAL for both 'create' and 'update' operations. (string, optional)
+  - `method`: Create/Read/Update/Delete a github label. (string, required)
+  - `name`: Label name. REQUIRED for: create, update, delete operations. OPTIONAL for: get operation (if omitted, lists all repository labels; if provided, gets specific label details). (string, optional)
+  - `new_name`: New name for the label (used only with 'update' method to rename a label) (string, optional)
+  - `owner`: Repository owner (username or organization name) (string, required)
+  - `repo`: Repository name (string, required)
+
 - **list_issue_types** - List available issue types
   - `owner`: The organization owner of the repository (string, required)
 
