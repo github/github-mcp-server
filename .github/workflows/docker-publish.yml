@@ -14,6 +14,13 @@ on:
     tags: ["v*.*.*"]
   pull_request:
     branches: ["main", "next"]
+  workflow_dispatch:
+    inputs:
+        description:
+          required: false
+          description: "Description of the run."
+          type: string
+          default: "Manual run"
 
 env:
   # Use docker.io for Docker Hub if empty

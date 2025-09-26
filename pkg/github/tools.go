@@ -193,6 +193,8 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	projects := toolsets.NewToolset("projects", "GitHub Projects related tools").
 		AddReadTools(
 			toolsets.NewServerTool(ListProjects(getClient, t)),
+			toolsets.NewServerTool(GetProject(getClient, t)),
+			toolsets.NewServerTool(ListProjectFields(getClient, t)),
 		)
 
 	// Add toolsets to the group
