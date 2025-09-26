@@ -658,10 +658,19 @@ The following sets of tools are available (all are on by default):
 
 <summary>Projects</summary>
 
+- **get_project** - Get project
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `project_number`: The project's number (number, required)
+
+- **list_project_fields** - List project fields
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
+  - `projectNumber`: The project's number. (string, required)
+
 - **list_projects** - List projects
-  - `after`: Cursor for items after (forward pagination) (string, optional)
-  - `before`: Cursor for items before (backwards pagination) (string, optional)
-  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == organization it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
   - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
   - `query`: Filter projects by a search query (matches title and description) (string, optional)
@@ -1015,6 +1024,17 @@ The following sets of tools are available (all are on by default):
     -   `title`: Title for the pull request that will be created (string, required)
     -   `base_ref`: Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch (string, optional)
 
+</details>
+
+<details>
+
+<summary>Copilot Spaces</summary>
+
+-   **get_copilot_space** - Get Copilot Space
+    -   `owner`: The owner of the space. (string, required)
+    -   `name`: The name of the space. (string, required)
+
+-   **list_copilot_spaces** - List Copilot Spaces
 </details>
 
 #### Specifying Toolsets
