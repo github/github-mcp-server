@@ -75,7 +75,6 @@ func Test_ListProjects(t *testing.T) {
 					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2", Method: http.MethodGet},
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						q := r.URL.Query()
-						// Assert query params present
 						if q.Get("per_page") == "50" && q.Get("q") == "roadmap" {
 							w.WriteHeader(http.StatusOK)
 							_, _ = w.Write(mock.MustMarshal(orgProjects))
@@ -142,7 +141,6 @@ func Test_ListProjects(t *testing.T) {
 				if tc.expectedErrMsg != "" {
 					assert.Contains(t, text, tc.expectedErrMsg)
 				}
-				// Parameter missing cases
 				if tc.name == "missing owner" {
 					assert.Contains(t, text, "missing required parameter: owner")
 				}
@@ -227,7 +225,7 @@ func Test_GetProject(t *testing.T) {
 				"owner_type":     "org",
 			},
 			expectError:    true,
-			expectedErrMsg: "failed to get project", // updated to match implementation
+			expectedErrMsg: "failed to get project",
 		},
 		{
 			name:         "missing project_number",
@@ -294,7 +292,6 @@ func Test_GetProject(t *testing.T) {
 }
 
 func Test_ListProjectFields(t *testing.T) {
-	// Verify tool definition & schema snapshot
 	mockClient := gh.NewClient(nil)
 	tool, _ := ListProjectFields(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -307,7 +304,6 @@ func Test_ListProjectFields(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "per_page")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "projectNumber"})
 
-	// Minimal field objects
 	orgFields := []map[string]any{
 		{"id": 101, "name": "Status", "dataType": "single_select"},
 	}

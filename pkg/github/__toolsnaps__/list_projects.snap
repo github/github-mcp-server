@@ -3,7 +3,7 @@
     "title": "List projects",
     "readOnlyHint": true
   },
-  "description": "List Projects for an user or org",
+  "description": "List Projects for a user or org",
   "inputSchema": {
     "properties": {
       "owner": {

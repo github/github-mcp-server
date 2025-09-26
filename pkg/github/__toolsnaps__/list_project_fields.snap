@@ -3,7 +3,7 @@
     "title": "List project fields",
     "readOnlyHint": true
   },
-  "description": "List Project fields for an user or org",
+  "description": "List Project fields for a user or org",
   "inputSchema": {
     "properties": {
       "owner": {

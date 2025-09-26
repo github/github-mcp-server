@@ -3,7 +3,7 @@
     "title": "Get project",
     "readOnlyHint": true
   },
-  "description": "Get Project for an user or org",
+  "description": "Get Project for a user or org",
   "inputSchema": {
     "properties": {
       "owner": {
