@@ -79,16 +79,24 @@ func (t *Toolset) GetAvailableTools() []server.ServerTool {
 	return append(t.readTools, t.writeTools...)
 }
 
-func (t *Toolset) RegisterTools(s *server.MCPServer) {
+func (t *Toolset) RegisterTools(s *server.MCPServer, prefix string) {
 	if !t.Enabled {
 		return
 	}
-	for _, tool := range t.readTools {
+	registerToolWithPrefix := func(tool server.ServerTool) {
+		if prefix != "" {
+			// Create a new tool with the prefixed name
+			tool.Tool.Name = prefix + tool.Tool.Name
+		}
 		s.AddTool(tool.Tool, tool.Handler)
+	}
+
+	for _, tool := range t.readTools {
+		registerToolWithPrefix(tool)
 	}
 	if !t.readOnly {
 		for _, tool := range t.writeTools {
-			s.AddTool(tool.Tool, tool.Handler)
+			registerToolWithPrefix(tool)
 		}
 	}
 }
@@ -238,9 +246,9 @@ func (tg *ToolsetGroup) EnableToolset(name string) error {
 	return nil
 }
 
-func (tg *ToolsetGroup) RegisterAll(s *server.MCPServer) {
+func (tg *ToolsetGroup) RegisterAll(s *server.MCPServer, prefix string) {
 	for _, toolset := range tg.Toolsets {
-		toolset.RegisterTools(s)
+		toolset.RegisterTools(s, prefix)
 		toolset.RegisterResourcesTemplates(s)
 		toolset.RegisterPrompts(s)
 	}
