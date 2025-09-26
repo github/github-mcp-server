@@ -533,11 +533,6 @@ The following sets of tools are available (all are on by default):
   - `title`: Issue title (string, required)
   - `type`: Type of this issue (string, optional)
 
-- **get_issue** - Get issue details
-  - `issue_number`: The number of the issue (number, required)
-  - `owner`: The owner of the repository (string, required)
-  - `repo`: The name of the repository (string, required)
-
 - **get_issue_comments** - Get issue comments
   - `issue_number`: Issue number (number, required)
   - `owner`: Repository owner (string, required)
@@ -545,19 +540,24 @@ The following sets of tools are available (all are on by default):
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
+- **issues_read** - List available issue types
+  - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. OPTIONAL for LIST operation. Ignore for SEARCH operation and GET operation. (string, optional)
+  - `issue_number`: The number of the issue. REQUIRED for GET operation. (number, optional)
+  - `labels`: Filter by labels. OPTIONAL for LIST operation. Ignore for SEARCH operation and GET operation. (string[], optional)
+  - `operation`: The operation to perform. This argument is REQUIRED for all operations. Choose between: GET, LIST, SEARCH. (string, required)
+  - `order`: Sort order. OPTIONAL for SEARCH operation. Ignore for LIST operation and GET operation. (string, optional)
+  - `orderBy`: Order issues by field. If provided, the 'direction' also needs to be provided. OPTIONAL for LIST operation. IGNORE for SEARCH operation and GET operation. (string, optional)
+  - `owner`: The owner of the repository. OPTIONAL for SEARCH operation. REQUIRED for LIST and GET operations. (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `query`: Search query using GitHub issues search syntax. REQUIRED for SEARCH operation. Ignore for LIST operation and GET operation. (string, optional)
+  - `repo`: The name of the repository. OPTIONAL for SEARCH operation. REQUIRED for LIST and GET operations. (string, optional)
+  - `since`: Filter by date (ISO 8601 timestamp). OPTIONAL for LIST operation Ignore for SEARCH operation and GET operation. (string, optional)
+  - `sort`: Sort field by number of matches of categories, defaults to best match. OPTIONAL for SEARCH operation. Ignore for LIST operation and GET operation. (string, optional)
+  - `state`: Filter by state, by default both open and closed issues are returned when not provided. OPTIONAL for LIST operation. Ignore for SEARCH operation and GET operation. (string, optional)
+
 - **list_issue_types** - List available issue types
   - `owner`: The organization owner of the repository (string, required)
-
-- **list_issues** - List issues
-  - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
-  - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
-  - `labels`: Filter by labels (string[], optional)
-  - `orderBy`: Order issues by field. If provided, the 'direction' also needs to be provided. (string, optional)
-  - `owner`: Repository owner (string, required)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-  - `since`: Filter by date (ISO 8601 timestamp) (string, optional)
-  - `state`: Filter by state, by default both open and closed issues are returned when not provided (string, optional)
 
 - **list_sub_issues** - List sub-issues
   - `issue_number`: Issue number (number, required)
@@ -579,15 +579,6 @@ The following sets of tools are available (all are on by default):
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `sub_issue_id`: The ID of the sub-issue to reprioritize. ID is not the same as issue number (number, required)
-
-- **search_issues** - Search issues
-  - `order`: Sort order (string, optional)
-  - `owner`: Optional repository owner. If provided with repo, only issues for this repository are listed. (string, optional)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `query`: Search query using GitHub issues search syntax (string, required)
-  - `repo`: Optional repository name. If provided with owner, only issues for this repository are listed. (string, optional)
-  - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
 
 - **update_issue** - Edit issue
   - `assignees`: New assignees (string[], optional)
