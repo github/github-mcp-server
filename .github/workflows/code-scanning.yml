@@ -63,7 +63,7 @@ jobs:
         with:
           language: ${{ matrix.language }}
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         if: matrix.language == 'go' && fromJSON(steps.resolve-environment.outputs.environment).configuration.go.version
         with:
           go-version: ${{ fromJSON(steps.resolve-environment.outputs.environment).configuration.go.version }}
