@@ -1,0 +1,126 @@
+{
+  "annotations": {
+    "title": "List global security advisories",
+    "readOnlyHint": true
+  },
+  "description": "List global security advisories from the GitHub Advisory Database.",
+  "inputSchema": {
+    "properties": {
+      "affects": {
+        "description": "If specified, only return advisories that affect any of package or package@version. A maximum of 1000 packages can be specified. Example: affects=package1,package2@1.0.0,package3@^2.0.0",
+        "type": "string"
+      },
+      "after": {
+        "description": "A cursor, as given in the Link header. If specified, the query only searches for results after this cursor.",
+        "type": "string"
+      },
+      "before": {
+        "description": "A cursor, as given in the Link header. If specified, the query only searches for results before this cursor.",
+        "type": "string"
+      },
+      "cve_id": {
+        "description": "If specified, only advisories with this CVE (Common Vulnerabilities and Exposures) identifier will be returned.",
+        "type": "string"
+      },
+      "cwes": {
+        "description": "If specified, only advisories with these CWEs will be returned. Multiple CWEs can be separated by commas. Example: cwes=79,284,22",
+        "type": "string"
+      },
+      "direction": {
+        "description": "The direction to sort the results by.",
+        "enum": [
+          "asc",
+          "desc"
+        ],
+        "type": "string"
+      },
+      "ecosystem": {
+        "description": "If specified, only advisories for this ecosystem will be returned.",
+        "enum": [
+          "rubygems",
+          "npm",
+          "pip",
+          "maven",
+          "nuget",
+          "composer",
+          "go",
+          "rust",
+          "erlang",
+          "actions",
+          "pub",
+          "other",
+          "swift"
+        ],
+        "type": "string"
+      },
+      "epss_percentage": {
+        "description": "If specified, only return advisories that have an EPSS percentage score that matches the provided value. The EPSS percentage represents the likelihood of a CVE being exploited.",
+        "type": "string"
+      },
+      "epss_percentile": {
+        "description": "If specified, only return advisories that have an EPSS percentile score that matches the provided value. The EPSS percentile represents the relative rank of the CVE's likelihood of being exploited compared to other CVEs.",
+        "type": "string"
+      },
+      "ghsa_id": {
+        "description": "If specified, only advisories with this GHSA (GitHub Security Advisory) identifier will be returned.",
+        "type": "string"
+      },
+      "is_withdrawn": {
+        "description": "Whether to only return advisories that have been withdrawn.",
+        "enum": [
+          "true",
+          "false"
+        ],
+        "type": "string"
+      },
+      "modified": {
+        "description": "If specified, only show advisories that were updated or published on a date or date range. Format: YYYY-MM-DD or YYYY-MM-DD..YYYY-MM-DD for range.",
+        "type": "string"
+      },
+      "per_page": {
+        "description": "The number of results per page (max 100). Default: 30",
+        "type": "number"
+      },
+      "published": {
+        "description": "If specified, only return advisories that were published on a date or date range. Format: YYYY-MM-DD or YYYY-MM-DD..YYYY-MM-DD for range.",
+        "type": "string"
+      },
+      "severity": {
+        "description": "If specified, only advisories with this severity will be returned.",
+        "enum": [
+          "unknown",
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "type": "string"
+      },
+      "sort": {
+        "description": "The property to sort the results by.",
+        "enum": [
+          "updated",
+          "published",
+          "epss_percentage",
+          "epss_percentile"
+        ],
+        "type": "string"
+      },
+      "type": {
+        "description": "If specified, only advisories of this type will be returned. By default, a request with no other parameters defined will only return reviewed advisories that are not malware.",
+        "enum": [
+          "reviewed",
+          "malware",
+          "unreviewed"
+        ],
+        "type": "string"
+      },
+      "updated": {
+        "description": "If specified, only return advisories that were updated on a date or date range. Format: YYYY-MM-DD or YYYY-MM-DD..YYYY-MM-DD for range.",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "name": "list_global_security_advisories"
+}
