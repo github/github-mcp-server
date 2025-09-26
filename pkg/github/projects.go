@@ -185,7 +185,7 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			projectNumber, err := RequiredParam[string](req, "projectNumber")
+			projectNumber, err := RequiredParam[int](req, "projectNumber")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -200,14 +200,13 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 
 			var url string
 			if ownerType == "org" {
-				url = fmt.Sprintf("orgs/%s/projectsV2/%s/fields", owner, projectNumber)
+				url = fmt.Sprintf("orgs/%s/projectsV2/%d/fields", owner, projectNumber)
 			} else {
-				url = fmt.Sprintf("users/%s/projectsV2/%s/fields", owner, projectNumber)
+				url = fmt.Sprintf("users/%s/projectsV2/%d/fields", owner, projectNumber)
 			}
 			projectFields := []projectV2Field{}
 
 			opts := listProjectsOptions{PerPage: perPage}
-
 			if perPage > 0 {
 				opts.PerPage = perPage
 			}
@@ -265,11 +264,15 @@ func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			projectNumber, err := RequiredParam[int64](req, "projectNumber")
+			projectNumber, err := RequiredParam[int](req, "projectNumber")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 			fieldID, err := RequiredParam[int64](req, "field_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			perPage, err := OptionalIntParamWithDefault(req, "per_page", 30)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -283,6 +286,15 @@ func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc
 				url = fmt.Sprintf("orgs/%s/projectsV2/%d/fields/%d", owner, projectNumber, fieldID)
 			} else {
 				url = fmt.Sprintf("users/%s/projectsV2/%d/fields/%d", owner, projectNumber, fieldID)
+			}
+
+			opts := listProjectsOptions{PerPage: perPage}
+			if perPage > 0 {
+				opts.PerPage = perPage
+			}
+			url, err = addOptions(url, opts)
+			if err != nil {
+				return nil, fmt.Errorf("failed to add options to request: %w", err)
 			}
 			projectField := projectV2Field{}
 

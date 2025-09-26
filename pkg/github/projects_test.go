@@ -330,7 +330,7 @@ func Test_ListProjectFields(t *testing.T) {
 			requestArgs: map[string]interface{}{
 				"owner":         "octo-org",
 				"owner_type":    "org",
-				"projectNumber": "123",
+				"projectNumber": 123,
 			},
 			expectedLength: 1,
 		},
@@ -354,7 +354,7 @@ func Test_ListProjectFields(t *testing.T) {
 			requestArgs: map[string]interface{}{
 				"owner":         "octocat",
 				"owner_type":    "user",
-				"projectNumber": "456",
+				"projectNumber": 456,
 				"per_page":      float64(50),
 			},
 			expectedLength: 1,
@@ -370,7 +370,7 @@ func Test_ListProjectFields(t *testing.T) {
 			requestArgs: map[string]interface{}{
 				"owner":         "octo-org",
 				"owner_type":    "org",
-				"projectNumber": "789",
+				"projectNumber": 789,
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to list projects",
@@ -380,7 +380,7 @@ func Test_ListProjectFields(t *testing.T) {
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"owner_type":    "org",
-				"projectNumber": "10",
+				"projectNumber": 10,
 			},
 			expectError: true,
 		},
@@ -389,7 +389,7 @@ func Test_ListProjectFields(t *testing.T) {
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"owner":         "octo-org",
-				"projectNumber": "10",
+				"projectNumber": 10,
 			},
 			expectError: true,
 		},
@@ -476,7 +476,7 @@ func Test_GetProjectField(t *testing.T) {
 			requestArgs: map[string]any{
 				"owner":         "octo-org",
 				"owner_type":    "org",
-				"projectNumber": int64(123),
+				"projectNumber": 123,
 				"field_id":      int64(101),
 			},
 			expectedID: 101,
@@ -492,7 +492,7 @@ func Test_GetProjectField(t *testing.T) {
 			requestArgs: map[string]any{
 				"owner":         "octocat",
 				"owner_type":    "user",
-				"projectNumber": int64(456),
+				"projectNumber": 456,
 				"field_id":      int64(202),
 			},
 			expectedID: 202,
@@ -508,7 +508,7 @@ func Test_GetProjectField(t *testing.T) {
 			requestArgs: map[string]any{
 				"owner":         "octo-org",
 				"owner_type":    "org",
-				"projectNumber": int64(789),
+				"projectNumber": 789,
 				"field_id":      int64(303),
 			},
 			expectError:    true,
@@ -519,7 +519,7 @@ func Test_GetProjectField(t *testing.T) {
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner_type":    "org",
-				"projectNumber": int64(10),
+				"projectNumber": 10,
 				"field_id":      int64(1),
 			},
 			expectError: true,
@@ -529,7 +529,7 @@ func Test_GetProjectField(t *testing.T) {
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":         "octo-org",
-				"projectNumber": int64(10),
+				"projectNumber": 10,
 				"field_id":      int64(1),
 			},
 			expectError: true,
@@ -550,7 +550,7 @@ func Test_GetProjectField(t *testing.T) {
 			requestArgs: map[string]any{
 				"owner":         "octo-org",
 				"owner_type":    "org",
-				"projectNumber": int64(10),
+				"projectNumber": 10,
 			},
 			expectError: true,
 		},
