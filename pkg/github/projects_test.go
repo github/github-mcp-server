@@ -439,3 +439,160 @@ func Test_ListProjectFields(t *testing.T) {
 		})
 	}
 }
+
+func Test_GetProjectField(t *testing.T) {
+	mockClient := gh.NewClient(nil)
+	tool, _ := GetProjectField(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "get_project_field", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "projectNumber")
+	assert.Contains(t, tool.InputSchema.Properties, "field_id")
+	assert.Contains(t, tool.InputSchema.Properties, "per_page")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "projectNumber", "field_id"})
+
+	orgField := map[string]any{"id": 101, "name": "Status", "dataType": "single_select"}
+	userField := map[string]any{"id": 202, "name": "Priority", "dataType": "single_select"}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]any
+		expectError    bool
+		expectedErrMsg string
+		expectedID     int
+	}{
+		{
+			name: "success organization field",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/fields/{field_id}", Method: http.MethodGet},
+					mockResponse(t, http.StatusOK, orgField),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":         "octo-org",
+				"owner_type":    "org",
+				"projectNumber": int64(123),
+				"field_id":      int64(101),
+			},
+			expectedID: 101,
+		},
+		{
+			name: "success user field",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/fields/{field_id}", Method: http.MethodGet},
+					mockResponse(t, http.StatusOK, userField),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":         "octocat",
+				"owner_type":    "user",
+				"projectNumber": int64(456),
+				"field_id":      int64(202),
+			},
+			expectedID: 202,
+		},
+		{
+			name: "api error",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/fields/{field_id}", Method: http.MethodGet},
+					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":         "octo-org",
+				"owner_type":    "org",
+				"projectNumber": int64(789),
+				"field_id":      int64(303),
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to get project field",
+		},
+		{
+			name:         "missing owner",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner_type":    "org",
+				"projectNumber": int64(10),
+				"field_id":      int64(1),
+			},
+			expectError: true,
+		},
+		{
+			name:         "missing owner_type",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner":         "octo-org",
+				"projectNumber": int64(10),
+				"field_id":      int64(1),
+			},
+			expectError: true,
+		},
+		{
+			name:         "missing projectNumber",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner":      "octo-org",
+				"owner_type": "org",
+				"field_id":   int64(1),
+			},
+			expectError: true,
+		},
+		{
+			name:         "missing field_id",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner":         "octo-org",
+				"owner_type":    "org",
+				"projectNumber": int64(10),
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := gh.NewClient(tc.mockedClient)
+			_, handler := GetProjectField(stubGetClientFn(client), translations.NullTranslationHelper)
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(context.Background(), request)
+
+			require.NoError(t, err)
+			if tc.expectError {
+				require.True(t, result.IsError)
+				text := getTextResult(t, result).Text
+				if tc.expectedErrMsg != "" {
+					assert.Contains(t, text, tc.expectedErrMsg)
+				}
+				if tc.name == "missing owner" {
+					assert.Contains(t, text, "missing required parameter: owner")
+				}
+				if tc.name == "missing owner_type" {
+					assert.Contains(t, text, "missing required parameter: owner_type")
+				}
+				if tc.name == "missing projectNumber" {
+					assert.Contains(t, text, "missing required parameter: projectNumber")
+				}
+				if tc.name == "missing field_id" {
+					assert.Contains(t, text, "missing required parameter: field_id")
+				}
+				return
+			}
+
+			require.False(t, result.IsError)
+			textContent := getTextResult(t, result)
+			var field map[string]any
+			err = json.Unmarshal([]byte(textContent.Text), &field)
+			require.NoError(t, err)
+			if tc.expectedID != 0 {
+				assert.Equal(t, float64(tc.expectedID), field["id"])
+			}
+		})
+	}
+}

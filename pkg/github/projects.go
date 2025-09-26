@@ -174,7 +174,7 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{Title: t("TOOL_LIST_PROJECT_FIELDS_USER_TITLE", "List project fields"), ReadOnlyHint: ToBoolPtr(true)}),
 			mcp.WithString("owner_type", mcp.Required(), mcp.Description("Owner type"), mcp.Enum("user", "org")),
 			mcp.WithString("owner", mcp.Required(), mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.")),
-			mcp.WithString("projectNumber", mcp.Required(), mcp.Description("The project's number.")),
+			mcp.WithNumber("projectNumber", mcp.Required(), mcp.Description("The project's number.")),
 			mcp.WithNumber("per_page", mcp.Description("Number of results per page (max 100, default: 30)")),
 		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](req, "owner")
@@ -239,6 +239,76 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 				return mcp.NewToolResultError(fmt.Sprintf("failed to list projects: %s", string(body))), nil
 			}
 			r, err := json.Marshal(projectFields)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
+func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("get_project_field",
+			mcp.WithDescription(t("TOOL_GET_PROJECT_FIELD_DESCRIPTION", "Get Project field for a user or org")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{Title: t("TOOL_GET_PROJECT_FIELD_USER_TITLE", "Get project field"), ReadOnlyHint: ToBoolPtr(true)}),
+			mcp.WithString("owner_type", mcp.Required(), mcp.Description("Owner type"), mcp.Enum("user", "org")),
+			mcp.WithString("owner", mcp.Required(), mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.")),
+			mcp.WithNumber("projectNumber", mcp.Required(), mcp.Description("The project's number.")),
+			mcp.WithNumber("field_id", mcp.Required(), mcp.Description("The field's id.")),
+			mcp.WithNumber("per_page", mcp.Description("Number of results per page (max 100, default: 30)")),
+		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := RequiredParam[string](req, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			ownerType, err := RequiredParam[string](req, "owner_type")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			projectNumber, err := RequiredParam[int64](req, "projectNumber")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			fieldID, err := RequiredParam[int64](req, "field_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			client, err := getClient(ctx)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			var url string
+			if ownerType == "org" {
+				url = fmt.Sprintf("orgs/%s/projectsV2/%d/fields/%d", owner, projectNumber, fieldID)
+			} else {
+				url = fmt.Sprintf("users/%s/projectsV2/%d/fields/%d", owner, projectNumber, fieldID)
+			}
+			projectField := projectV2Field{}
+
+			httpRequest, err := client.NewRequest("GET", url, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create request: %w", err)
+			}
+
+			resp, err := client.Do(ctx, httpRequest, &projectField)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to get project field",
+					resp,
+					err,
+				), nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get project field: %s", string(body))), nil
+			}
+			r, err := json.Marshal(projectField)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
