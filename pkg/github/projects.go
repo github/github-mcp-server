@@ -174,7 +174,7 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{Title: t("TOOL_LIST_PROJECT_FIELDS_USER_TITLE", "List project fields"), ReadOnlyHint: ToBoolPtr(true)}),
 			mcp.WithString("owner_type", mcp.Required(), mcp.Description("Owner type"), mcp.Enum("user", "org")),
 			mcp.WithString("owner", mcp.Required(), mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.")),
-			mcp.WithNumber("projectNumber", mcp.Required(), mcp.Description("The project's number.")),
+			mcp.WithNumber("project_number", mcp.Required(), mcp.Description("The project's number.")),
 			mcp.WithNumber("per_page", mcp.Description("Number of results per page (max 100, default: 30)")),
 		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](req, "owner")
@@ -185,7 +185,7 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			projectNumber, err := RequiredParam[int](req, "projectNumber")
+			projectNumber, err := RequiredInt(req, "project_number")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -252,7 +252,7 @@ func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{Title: t("TOOL_GET_PROJECT_FIELD_USER_TITLE", "Get project field"), ReadOnlyHint: ToBoolPtr(true)}),
 			mcp.WithString("owner_type", mcp.Required(), mcp.Description("Owner type"), mcp.Enum("user", "org")),
 			mcp.WithString("owner", mcp.Required(), mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.")),
-			mcp.WithNumber("projectNumber", mcp.Required(), mcp.Description("The project's number.")),
+			mcp.WithNumber("project_number", mcp.Required(), mcp.Description("The project's number.")),
 			mcp.WithNumber("field_id", mcp.Required(), mcp.Description("The field's id.")),
 			mcp.WithNumber("per_page", mcp.Description("Number of results per page (max 100, default: 30)")),
 		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -264,11 +264,11 @@ func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			projectNumber, err := RequiredParam[int](req, "projectNumber")
+			projectNumber, err := RequiredInt(req, "project_number")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			fieldID, err := RequiredParam[int64](req, "field_id")
+			fieldID, err := RequiredInt(req, "field_id")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}

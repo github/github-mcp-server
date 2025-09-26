@@ -22,7 +22,7 @@
         "description": "Number of results per page (max 100, default: 30)",
         "type": "number"
       },
-      "projectNumber": {
+      "project_number": {
         "description": "The project's number.",
         "type": "number"
       }
@@ -30,7 +30,7 @@
     "required": [
       "owner_type",
       "owner",
-      "projectNumber"
+      "project_number"
     ],
     "type": "object"
   },

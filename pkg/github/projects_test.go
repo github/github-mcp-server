@@ -300,9 +300,9 @@ func Test_ListProjectFields(t *testing.T) {
 	assert.NotEmpty(t, tool.Description)
 	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "projectNumber")
+	assert.Contains(t, tool.InputSchema.Properties, "project_number")
 	assert.Contains(t, tool.InputSchema.Properties, "per_page")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "projectNumber"})
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number"})
 
 	orgFields := []map[string]any{
 		{"id": 101, "name": "Status", "dataType": "single_select"},
@@ -328,9 +328,9 @@ func Test_ListProjectFields(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
-				"owner":         "octo-org",
-				"owner_type":    "org",
-				"projectNumber": 123,
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(123),
 			},
 			expectedLength: 1,
 		},
@@ -352,10 +352,10 @@ func Test_ListProjectFields(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
-				"owner":         "octocat",
-				"owner_type":    "user",
-				"projectNumber": 456,
-				"per_page":      float64(50),
+				"owner":          "octocat",
+				"owner_type":     "user",
+				"project_number": float64(456),
+				"per_page":       float64(50),
 			},
 			expectedLength: 1,
 		},
@@ -368,9 +368,9 @@ func Test_ListProjectFields(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
-				"owner":         "octo-org",
-				"owner_type":    "org",
-				"projectNumber": 789,
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(789),
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to list projects",
@@ -379,8 +379,8 @@ func Test_ListProjectFields(t *testing.T) {
 			name:         "missing owner",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
-				"owner_type":    "org",
-				"projectNumber": 10,
+				"owner_type":     "org",
+				"project_number": 10,
 			},
 			expectError: true,
 		},
@@ -388,13 +388,13 @@ func Test_ListProjectFields(t *testing.T) {
 			name:         "missing owner_type",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
-				"owner":         "octo-org",
-				"projectNumber": 10,
+				"owner":          "octo-org",
+				"project_number": 10,
 			},
 			expectError: true,
 		},
 		{
-			name:         "missing projectNumber",
+			name:         "missing project_number",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"owner":      "octo-org",
@@ -424,8 +424,8 @@ func Test_ListProjectFields(t *testing.T) {
 				if tc.name == "missing owner_type" {
 					assert.Contains(t, text, "missing required parameter: owner_type")
 				}
-				if tc.name == "missing projectNumber" {
-					assert.Contains(t, text, "missing required parameter: projectNumber")
+				if tc.name == "missing project_number" {
+					assert.Contains(t, text, "missing required parameter: project_number")
 				}
 				return
 			}
@@ -449,10 +449,10 @@ func Test_GetProjectField(t *testing.T) {
 	assert.NotEmpty(t, tool.Description)
 	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "projectNumber")
+	assert.Contains(t, tool.InputSchema.Properties, "project_number")
 	assert.Contains(t, tool.InputSchema.Properties, "field_id")
 	assert.Contains(t, tool.InputSchema.Properties, "per_page")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "projectNumber", "field_id"})
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number", "field_id"})
 
 	orgField := map[string]any{"id": 101, "name": "Status", "dataType": "single_select"}
 	userField := map[string]any{"id": 202, "name": "Priority", "dataType": "single_select"}
@@ -474,10 +474,10 @@ func Test_GetProjectField(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"owner":         "octo-org",
-				"owner_type":    "org",
-				"projectNumber": 123,
-				"field_id":      int64(101),
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(123),
+				"field_id":       float64(101),
 			},
 			expectedID: 101,
 		},
@@ -490,10 +490,10 @@ func Test_GetProjectField(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"owner":         "octocat",
-				"owner_type":    "user",
-				"projectNumber": 456,
-				"field_id":      int64(202),
+				"owner":          "octocat",
+				"owner_type":     "user",
+				"project_number": float64(456),
+				"field_id":       float64(202),
 			},
 			expectedID: 202,
 		},
@@ -506,10 +506,10 @@ func Test_GetProjectField(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"owner":         "octo-org",
-				"owner_type":    "org",
-				"projectNumber": 789,
-				"field_id":      int64(303),
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(789),
+				"field_id":       float64(303),
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to get project field",
@@ -518,9 +518,9 @@ func Test_GetProjectField(t *testing.T) {
 			name:         "missing owner",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
-				"owner_type":    "org",
-				"projectNumber": 10,
-				"field_id":      int64(1),
+				"owner_type":     "org",
+				"project_number": float64(10),
+				"field_id":       float64(1),
 			},
 			expectError: true,
 		},
@@ -528,19 +528,19 @@ func Test_GetProjectField(t *testing.T) {
 			name:         "missing owner_type",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
-				"owner":         "octo-org",
-				"projectNumber": 10,
-				"field_id":      int64(1),
+				"owner":          "octo-org",
+				"project_number": float64(10),
+				"field_id":       float64(1),
 			},
 			expectError: true,
 		},
 		{
-			name:         "missing projectNumber",
+			name:         "missing project_number",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":      "octo-org",
 				"owner_type": "org",
-				"field_id":   int64(1),
+				"field_id":   float64(1),
 			},
 			expectError: true,
 		},
@@ -548,9 +548,9 @@ func Test_GetProjectField(t *testing.T) {
 			name:         "missing field_id",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
-				"owner":         "octo-org",
-				"owner_type":    "org",
-				"projectNumber": 10,
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(10),
 			},
 			expectError: true,
 		},
@@ -576,8 +576,8 @@ func Test_GetProjectField(t *testing.T) {
 				if tc.name == "missing owner_type" {
 					assert.Contains(t, text, "missing required parameter: owner_type")
 				}
-				if tc.name == "missing projectNumber" {
-					assert.Contains(t, text, "missing required parameter: projectNumber")
+				if tc.name == "missing project_number" {
+					assert.Contains(t, text, "missing required parameter: project_number")
 				}
 				if tc.name == "missing field_id" {
 					assert.Contains(t, text, "missing required parameter: field_id")
