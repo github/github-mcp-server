@@ -1,0 +1,40 @@
+{
+  "annotations": {
+    "title": "Update issue comment",
+    "readOnlyHint": false
+  },
+  "description": "Update an existing comment on a specific issue in a GitHub repository.",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "New comment content",
+        "type": "string"
+      },
+      "comment_id": {
+        "description": "Comment's unique identifier",
+        "type": "string"
+      },
+      "issue_number": {
+        "description": "Target issue number",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "comment_id",
+      "issue_number",
+      "owner",
+      "repo",
+      "body"
+    ],
+    "type": "object"
+  },
+  "name": "update_issue_comment"
+}
