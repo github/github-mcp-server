@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1766,4 +1767,116 @@ func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) (tool mcp.Pro
 				Messages: messages,
 			}, nil
 		}
+}
+
+// UpdateIssueComment creates a tool to update an existing comment on an issue.
+func UpdateIssueComment(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("update_issue_comment",
+			mcp.WithDescription(t("TOOL_UPDATE_ISSUE_COMMENT_DESCRIPTION", "Update an existing comment on a specific issue in a GitHub repository.")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_UPDATE_ISSUE_COMMENT_USER_TITLE", "Update issue comment"),
+				ReadOnlyHint: ToBoolPtr(false),
+			}),
+			mcp.WithString("comment_id",
+				mcp.Required(),
+				mcp.Description("Comment's unique identifier"),
+			),
+			mcp.WithNumber("issue_number",
+				mcp.Required(),
+				mcp.Description("Target issue number"),
+			),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithString("body",
+				mcp.Required(),
+				mcp.Description("New comment content"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			commentID, err := RequiredParam[string](request, "comment_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			_, err = RequiredInt(request, "issue_number") // Validate but don't use
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			owner, err := RequiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			repo, err := RequiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			body, err := RequiredParam[string](request, "body")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Validate comment_id is a valid integer
+			commentIDInt64, err := parseCommentID(commentID)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("invalid comment_id: %s", err.Error())), nil
+			}
+
+			// Validate body is not empty
+			if strings.TrimSpace(body) == "" {
+				return mcp.NewToolResultError("body cannot be empty"), nil
+			}
+
+			comment := &github.IssueComment{
+				Body: github.Ptr(body),
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+			updatedComment, resp, err := client.Issues.EditComment(ctx, owner, repo, commentIDInt64, comment)
+			if err != nil {
+				return nil, fmt.Errorf("failed to update comment: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to update comment: %s", string(body))), nil
+			}
+
+			r, err := json.Marshal(updatedComment)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
+// parseCommentID parses a comment ID string to int64
+func parseCommentID(commentID string) (int64, error) {
+	if commentID == "" {
+		return 0, fmt.Errorf("comment ID cannot be empty")
+	}
+	
+	// Try to parse as int64
+	id, err := strconv.ParseInt(commentID, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("comment ID must be a valid integer")
+	}
+	
+	if id <= 0 {
+		return 0, fmt.Errorf("comment ID must be a positive integer")
+	}
+	
+	return id, nil
 }
