@@ -165,3 +165,4 @@ Add this codeblock to your `claude_desktop_config.json`:
   - `-s user`: Available across all projects
   - `-s project`: Shared via `.mcp.json` file
   - Default: `local` (current project only)
+ 
