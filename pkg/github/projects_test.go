@@ -985,12 +985,12 @@ func Test_AddProjectItem(t *testing.T) {
 						body, err := io.ReadAll(r.Body)
 						assert.NoError(t, err)
 						var payload struct {
-							ContentType string `json:"content_type"`
-							ContentID   int    `json:"content_id"`
+							Type string `json:"type"`
+							ID   int    `json:"id"`
 						}
 						assert.NoError(t, json.Unmarshal(body, &payload))
-						assert.Equal(t, "Issue", payload.ContentType)
-						assert.Equal(t, 9876, payload.ContentID)
+						assert.Equal(t, "Issue", payload.Type)
+						assert.Equal(t, 9876, payload.ID)
 						w.WriteHeader(http.StatusCreated)
 						_, _ = w.Write(mock.MustMarshal(orgItem))
 					}),
@@ -1016,12 +1016,12 @@ func Test_AddProjectItem(t *testing.T) {
 						body, err := io.ReadAll(r.Body)
 						assert.NoError(t, err)
 						var payload struct {
-							ContentType string `json:"content_type"`
-							ContentID   int    `json:"content_id"`
+							Type string `json:"type"`
+							ID   int    `json:"id"`
 						}
 						assert.NoError(t, json.Unmarshal(body, &payload))
-						assert.Equal(t, "PullRequest", payload.ContentType)
-						assert.Equal(t, 7654, payload.ContentID)
+						assert.Equal(t, "PullRequest", payload.Type)
+						assert.Equal(t, 7654, payload.ID)
 						w.WriteHeader(http.StatusOK)
 						_, _ = w.Write(mock.MustMarshal(userItem))
 					}),

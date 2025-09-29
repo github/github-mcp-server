@@ -523,8 +523,8 @@ func AddProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 			}
 
 			newProjectItem := &newProjectItem{
-				ContentID:   int64(itemID),
-				ContentType: toNewProjectType(itemType),
+				ID:   int64(itemID),
+				Type: toNewProjectType(itemType),
 			}
 			httpRequest, err := client.NewRequest("POST", projectsURL, newProjectItem)
 			if err != nil {
@@ -754,8 +754,8 @@ type newProjectV2Field struct {
 }
 
 type newProjectItem struct {
-	ContentID   int64  `json:"content_id,omitempty"`
-	ContentType string `json:"content_type,omitempty"`
+	ID   int64  `json:"id,omitempty"` // Issue or Pull Request ID to add to the project.
+	Type string `json:"type,omitempty"`
 }
 
 type projectV2Field struct {
