@@ -198,6 +198,9 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(GetProjectField(getClient, t)),
 			toolsets.NewServerTool(ListProjectItems(getClient, t)),
 			toolsets.NewServerTool(GetProjectItem(getClient, t)),
+		).
+		AddWriteTools(
+			toolsets.NewServerTool(AddProjectItem(getClient, t)),
 		)
 
 	// Add toolsets to the group

@@ -3,7 +3,9 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
@@ -924,6 +926,232 @@ func Test_GetProjectItem(t *testing.T) {
 			require.NoError(t, err)
 			if tc.expectedID != 0 {
 				assert.Equal(t, float64(tc.expectedID), item["id"])
+			}
+		})
+	}
+}
+
+func Test_AddProjectItem(t *testing.T) {
+	mockClient := gh.NewClient(nil)
+	tool, _ := AddProjectItem(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "add_project_item", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "project_number")
+	assert.Contains(t, tool.InputSchema.Properties, "item_type")
+	assert.Contains(t, tool.InputSchema.Properties, "item_id")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number", "item_type", "item_id"})
+
+	orgItem := map[string]any{
+		"id":           601,
+		"content_type": "Issue",
+		"creator": map[string]any{
+			"login":      "octocat",
+			"id":         1,
+			"html_url":   "https://github.com/octocat",
+			"avatar_url": "https://avatars.githubusercontent.com/u/1?v=4",
+		},
+	}
+
+	userItem := map[string]any{
+		"id":           701,
+		"content_type": "PullRequest",
+		"creator": map[string]any{
+			"login":      "hubot",
+			"id":         2,
+			"html_url":   "https://github.com/hubot",
+			"avatar_url": "https://avatars.githubusercontent.com/u/2?v=4",
+		},
+	}
+
+	tests := []struct {
+		name                 string
+		mockedClient         *http.Client
+		requestArgs          map[string]any
+		expectError          bool
+		expectedErrMsg       string
+		expectedID           int
+		expectedContentType  string
+		expectedCreatorLogin string
+	}{
+		{
+			name: "success organization issue",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodPost},
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						body, err := io.ReadAll(r.Body)
+						assert.NoError(t, err)
+						values, err := url.ParseQuery(string(body))
+						assert.NoError(t, err)
+						assert.Equal(t, "Issue", values.Get("type"))
+						assert.Equal(t, "9876", values.Get("id"))
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write(mock.MustMarshal(orgItem))
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(321),
+				"item_type":      "issue",
+				"item_id":        float64(9876),
+			},
+			expectedID:           601,
+			expectedContentType:  "Issue",
+			expectedCreatorLogin: "octocat",
+		},
+		{
+			name: "success user pull request",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/items", Method: http.MethodPost},
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						body, err := io.ReadAll(r.Body)
+						assert.NoError(t, err)
+						values, err := url.ParseQuery(string(body))
+						assert.NoError(t, err)
+						assert.Equal(t, "PullRequest", values.Get("type"))
+						assert.Equal(t, "7654", values.Get("id"))
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write(mock.MustMarshal(userItem))
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":          "octocat",
+				"owner_type":     "user",
+				"project_number": float64(222),
+				"item_type":      "pull_request",
+				"item_id":        float64(7654),
+			},
+			expectedID:           701,
+			expectedContentType:  "PullRequest",
+			expectedCreatorLogin: "hubot",
+		},
+		{
+			name: "api error",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodPost},
+					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(999),
+				"item_type":      "issue",
+				"item_id":        float64(8888),
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to add a project item",
+		},
+		{
+			name:         "missing owner",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner_type":     "org",
+				"project_number": float64(1),
+				"item_type":      "Issue",
+				"item_id":        float64(10),
+			},
+			expectError: true,
+		},
+		{
+			name:         "missing owner_type",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner":          "octo-org",
+				"project_number": float64(1),
+				"item_type":      "Issue",
+				"item_id":        float64(10),
+			},
+			expectError: true,
+		},
+		{
+			name:         "missing project_number",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner":      "octo-org",
+				"owner_type": "org",
+				"item_type":  "Issue",
+				"item_id":    float64(10),
+			},
+			expectError: true,
+		},
+		{
+			name:         "missing item_type",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(1),
+				"item_id":        float64(10),
+			},
+			expectError: true,
+		},
+		{
+			name:         "missing item_id",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(1),
+				"item_type":      "Issue",
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := gh.NewClient(tc.mockedClient)
+			_, handler := AddProjectItem(stubGetClientFn(client), translations.NullTranslationHelper)
+			request := createMCPRequest(tc.requestArgs)
+
+			result, err := handler(context.Background(), request)
+			require.NoError(t, err)
+
+			if tc.expectError {
+				require.True(t, result.IsError)
+				text := getTextResult(t, result).Text
+				if tc.expectedErrMsg != "" {
+					assert.Contains(t, text, tc.expectedErrMsg)
+				}
+				switch tc.name {
+				case "missing owner":
+					assert.Contains(t, text, "missing required parameter: owner")
+				case "missing owner_type":
+					assert.Contains(t, text, "missing required parameter: owner_type")
+				case "missing project_number":
+					assert.Contains(t, text, "missing required parameter: project_number")
+				case "missing item_type":
+					assert.Contains(t, text, "missing required parameter: item_type")
+				case "missing item_id":
+					assert.Contains(t, text, "missing required parameter: item_id")
+				}
+				return
+			}
+
+			require.False(t, result.IsError)
+			textContent := getTextResult(t, result)
+			var item map[string]any
+			require.NoError(t, json.Unmarshal([]byte(textContent.Text), &item))
+			if tc.expectedID != 0 {
+				assert.Equal(t, float64(tc.expectedID), item["id"])
+			}
+			if tc.expectedContentType != "" {
+				assert.Equal(t, tc.expectedContentType, item["content_type"])
+			}
+			if tc.expectedCreatorLogin != "" {
+				creator, ok := item["creator"].(map[string]any)
+				require.True(t, ok)
+				assert.Equal(t, tc.expectedCreatorLogin, creator["login"])
 			}
 		})
 	}
