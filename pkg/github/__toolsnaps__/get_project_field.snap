@@ -22,10 +22,6 @@
         ],
         "type": "string"
       },
-      "per_page": {
-        "description": "Number of results per page (max 100, default: 30)",
-        "type": "number"
-      },
       "project_number": {
         "description": "The project's number.",
         "type": "number"

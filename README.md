@@ -667,7 +667,6 @@ The following sets of tools are available (all are on by default):
   - `field_id`: The field's id. (number, required)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
-  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
   - `project_number`: The project's number. (number, required)
 
 - **get_project_item** - Get project item

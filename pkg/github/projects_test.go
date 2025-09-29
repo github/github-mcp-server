@@ -451,7 +451,6 @@ func Test_GetProjectField(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "project_number")
 	assert.Contains(t, tool.InputSchema.Properties, "field_id")
-	assert.Contains(t, tool.InputSchema.Properties, "per_page")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number", "field_id"})
 
 	orgField := map[string]any{"id": 101, "name": "Status", "dataType": "single_select"}

@@ -255,7 +255,6 @@ func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc
 			mcp.WithString("owner", mcp.Required(), mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.")),
 			mcp.WithNumber("project_number", mcp.Required(), mcp.Description("The project's number.")),
 			mcp.WithNumber("field_id", mcp.Required(), mcp.Description("The field's id.")),
-			mcp.WithNumber("per_page", mcp.Description("Number of results per page (max 100, default: 30)")),
 		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](req, "owner")
 			if err != nil {
@@ -273,10 +272,6 @@ func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			perPage, err := OptionalIntParamWithDefault(req, "per_page", 30)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
 			client, err := getClient(ctx)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
@@ -289,11 +284,6 @@ func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc
 				url = fmt.Sprintf("users/%s/projectsV2/%d/fields/%d", owner, projectNumber, fieldID)
 			}
 
-			opts := listProjectsOptions{PerPage: perPage}
-			url, err = addOptions(url, opts)
-			if err != nil {
-				return nil, fmt.Errorf("failed to add options to request: %w", err)
-			}
 			projectField := projectV2Field{}
 
 			httpRequest, err := client.NewRequest("GET", url, nil)
