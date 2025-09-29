@@ -12,21 +12,21 @@ func GenerateInstructions(enabledToolsets []string) string {
 	if os.Getenv("DISABLE_INSTRUCTIONS") == "true" {
 		return "" // Baseline mode
 	}
-	
+
 	var instructions []string
-	
+
 	// Core instruction - always included if context toolset enabled
 	if slices.Contains(enabledToolsets, "context") {
 		instructions = append(instructions, "Always call 'get_me' first to understand current user permissions and context.")
 	}
-	
+
 	// Individual toolset instructions
 	for _, toolset := range enabledToolsets {
 		if inst := getToolsetInstructions(toolset); inst != "" {
 			instructions = append(instructions, inst)
 		}
 	}
-	
+
 	// Base instruction with context management
 	baseInstruction := `The GitHub MCP Server provides tools to interact with GitHub platform.
 
@@ -40,7 +40,7 @@ Context management:
 
 	allInstructions := []string{baseInstruction}
 	allInstructions = append(allInstructions, instructions...)
-	
+
 	return strings.Join(allInstructions, " ")
 }
 
@@ -57,4 +57,3 @@ func getToolsetInstructions(toolset string) string {
 		return ""
 	}
 }
-
