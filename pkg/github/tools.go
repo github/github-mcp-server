@@ -106,6 +106,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(AddCommentToPendingReview(getGQLClient, t)),
 			toolsets.NewServerTool(SubmitPendingPullRequestReview(getGQLClient, t)),
 			toolsets.NewServerTool(DeletePendingPullRequestReview(getGQLClient, t)),
+			toolsets.NewServerTool(UpdatePullRequestReview(getClient, t)),
 		)
 	codeSecurity := toolsets.NewToolset("code_security", "Code security related tools, such as GitHub Code Scanning").
 		AddReadTools(

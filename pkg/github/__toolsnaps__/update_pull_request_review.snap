@@ -1,0 +1,52 @@
+{
+  "annotations": {
+    "title": "Update pull request review",
+    "readOnlyHint": false
+  },
+  "description": "Update an existing pull request review (body, event, commit ID).",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "New body text for the review",
+        "type": "string"
+      },
+      "commitID": {
+        "description": "SHA of commit to update the review against",
+        "type": "string"
+      },
+      "event": {
+        "description": "New review state",
+        "enum": [
+          "COMMENT",
+          "APPROVE",
+          "REQUEST_CHANGES"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "pullNumber": {
+        "description": "Pull request number",
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "reviewID": {
+        "description": "The ID of the review to update",
+        "type": "number"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "pullNumber",
+      "reviewID"
+    ],
+    "type": "object"
+  },
+  "name": "update_pull_request_review"
+}
