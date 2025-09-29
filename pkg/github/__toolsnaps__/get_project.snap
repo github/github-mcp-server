@@ -1,9 +1,9 @@
 {
   "annotations": {
-    "title": "List projects",
+    "title": "Get project",
     "readOnlyHint": true
   },
-  "description": "List Projects for a user or org",
+  "description": "Get Project for a user or org",
   "inputSchema": {
     "properties": {
       "owner": {
@@ -18,20 +18,17 @@
         ],
         "type": "string"
       },
-      "per_page": {
-        "description": "Number of results per page (max 100, default: 30)",
+      "project_number": {
+        "description": "The project's number",
         "type": "number"
-      },
-      "query": {
-        "description": "Filter projects by a search query (matches title and description)",
-        "type": "string"
       }
     },
     "required": [
+      "project_number",
       "owner_type",
       "owner"
     ],
     "type": "object"
   },
-  "name": "list_projects"
+  "name": "get_project"
 }
