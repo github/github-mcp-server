@@ -288,6 +288,7 @@ The following sets of tools are available (all are on by default):
 | `issues` | GitHub Issues related tools |
 | `notifications` | GitHub Notifications related tools |
 | `orgs` | GitHub Organization related tools |
+| `projects` | GitHub Projects related tools |
 | `pull_requests` | GitHub Pull Request related tools |
 | `repos` | GitHub Repository related tools |
 | `secret_protection` | Secret protection related tools, such as GitHub Secret Scanning |
@@ -591,12 +592,14 @@ The following sets of tools are available (all are on by default):
 - **update_issue** - Edit issue
   - `assignees`: New assignees (string[], optional)
   - `body`: New description (string, optional)
+  - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
   - `issue_number`: Issue number to update (number, required)
   - `labels`: New labels (string[], optional)
   - `milestone`: New milestone number (number, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `state`: New state (string, optional)
+  - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
   - `title`: New title (string, optional)
   - `type`: New issue type (string, optional)
 
@@ -653,6 +656,29 @@ The following sets of tools are available (all are on by default):
 
 <details>
 
+<summary>Projects</summary>
+
+- **get_project** - Get project
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `project_number`: The project's number (number, required)
+
+- **list_project_fields** - List project fields
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
+  - `projectNumber`: The project's number. (string, required)
+
+- **list_projects** - List projects
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
+  - `query`: Filter projects by a search query (matches title and description) (string, optional)
+
+</details>
+
+<details>
+
 <summary>Pull Requests</summary>
 
 - **add_comment_to_pending_review** - Add review comment to the requester's latest pending pull request review
@@ -701,11 +727,6 @@ The following sets of tools are available (all are on by default):
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
-- **get_pull_request_comments** - Get pull request comments
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
 - **get_pull_request_diff** - Get pull request diff
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
@@ -715,6 +736,11 @@ The following sets of tools are available (all are on by default):
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
+- **get_pull_request_review_comments** - Get pull request review comments
+  - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
@@ -885,6 +911,13 @@ The following sets of tools are available (all are on by default):
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
+- **list_starred_repositories** - List starred repositories
+  - `direction`: The direction to sort the results by. (string, optional)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `sort`: How to sort the results. Can be either 'created' (when the repository was starred) or 'updated' (when the repository was last pushed to). (string, optional)
+  - `username`: Username to list starred repositories for. Defaults to the authenticated user. (string, optional)
+
 - **list_tags** - List tags
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -910,6 +943,14 @@ The following sets of tools are available (all are on by default):
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Repository search query. Examples: 'machine learning in:name stars:>1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering. (string, required)
+
+- **star_repository** - Star repository
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **unstar_repository** - Unstar repository
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
 
 </details>
 
@@ -993,6 +1034,17 @@ The following sets of tools are available (all are on by default):
     -   `title`: Title for the pull request that will be created (string, required)
     -   `base_ref`: Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch (string, optional)
 
+</details>
+
+<details>
+
+<summary>Copilot Spaces</summary>
+
+-   **get_copilot_space** - Get Copilot Space
+    -   `owner`: The owner of the space. (string, required)
+    -   `name`: The name of the space. (string, required)
+
+-   **list_copilot_spaces** - List Copilot Spaces
 </details>
 
 #### Specifying Toolsets
