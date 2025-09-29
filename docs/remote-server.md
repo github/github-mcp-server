@@ -29,6 +29,7 @@ Below is a table of available toolsets for the remote GitHub MCP Server. Each to
 | Issues         | GitHub Issues related tools                      | https://api.githubcopilot.com/mcp/x/issues            | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-issues&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fissues%22%7D)                           | [read-only](https://api.githubcopilot.com/mcp/x/issues/readonly)                                               | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-issues&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fissues%2Freadonly%22%7D)                                                                            |
 | Notifications  | GitHub Notifications related tools               | https://api.githubcopilot.com/mcp/x/notifications     | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-notifications&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fnotifications%22%7D)             | [read-only](https://api.githubcopilot.com/mcp/x/notifications/readonly)                                        | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-notifications&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fnotifications%2Freadonly%22%7D)                                                              |
 | Organizations  | GitHub Organization related tools                | https://api.githubcopilot.com/mcp/x/orgs              | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-orgs&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Forgs%22%7D)                               | [read-only](https://api.githubcopilot.com/mcp/x/orgs/readonly)                                                 | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-orgs&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Forgs%2Freadonly%22%7D)                                                                                |
+| Projects       | GitHub Projects related tools                    | https://api.githubcopilot.com/mcp/x/projects          | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-projects&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fprojects%22%7D)                       | [read-only](https://api.githubcopilot.com/mcp/x/projects/readonly)                                             | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-projects&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fprojects%2Freadonly%22%7D)                                                                        |
 | Pull Requests  | GitHub Pull Request related tools                | https://api.githubcopilot.com/mcp/x/pull_requests     | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-pull_requests&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fpull_requests%22%7D)             | [read-only](https://api.githubcopilot.com/mcp/x/pull_requests/readonly)                                        | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-pull_requests&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fpull_requests%2Freadonly%22%7D)                                                              |
 | Repositories   | GitHub Repository related tools                  | https://api.githubcopilot.com/mcp/x/repos             | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-repos&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Frepos%22%7D)                             | [read-only](https://api.githubcopilot.com/mcp/x/repos/readonly)                                                | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-repos&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Frepos%2Freadonly%22%7D)                                                                              |
 | Secret Protection | Secret protection related tools, such as GitHub Secret Scanning | https://api.githubcopilot.com/mcp/x/secret_protection | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-secret_protection&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fsecret_protection%22%7D)     | [read-only](https://api.githubcopilot.com/mcp/x/secret_protection/readonly)                                    | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-secret_protection&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fsecret_protection%2Freadonly%22%7D)                                                      |
@@ -45,10 +46,45 @@ These toolsets are only available in the remote GitHub MCP Server and are not in
 | -------------------- | --------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Copilot coding agent | Perform task with GitHub Copilot coding agent | https://api.githubcopilot.com/mcp/x/copilot | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-copilot&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fcopilot%22%7D) | [read-only](https://api.githubcopilot.com/mcp/x/copilot/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-copilot&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fcopilot%2Freadonly%22%7D) |
 
-### Headers
+### Optional Headers
 
-You can configure toolsets and readonly mode by providing HTTP headers in your server configuration.
+The Remote GitHub MCP server has optional headers equivalent to the Local server env vars:
 
-The headers are:
-- `X-MCP-Toolsets=<toolset>,<toolset>...`
-- `X-MCP-Readonly=true`
+- `X-MCP-Toolsets`: Comma-separated list of toolsets to enable. E.g. "repos,issues".
+    - Equivalent to `GITHUB_TOOLSETS` env var for Local server.
+    - If the list is empty, default toolsets will be used. If a bad toolset is provided, the server will fail to start and emit a 400 bad request status. Whitespace is ignored.
+- `X-MCP-Readonly`: Enables only "read" tools.
+    - Equivalent to `GITHUB_READ_ONLY` env var for Local server.
+    - If this header is empty, "false", "f", "no", "n", "0", or "off" (ignoring whitespace and case), it will be interpreted as false. All other values are interpreted as true.
+
+Example:
+
+```json
+{
+    "type": "http",
+    "url": "https://api.githubcopilot.com/mcp/",
+    "headers": {
+        "X-MCP-Toolsets": "repos,issues",
+        "X-MCP-Readonly": "true"
+    }
+}
+```
+
+### URL Path Parameters
+
+The Remote GitHub MCP server also supports the URL path parameters:
+
+- `/x/{toolset}`
+- `/x/{toolset}/readonly`
+- `/readonly`
+
+Note: `{toolset}` can only been a single toolset, not a comma-separated list. To combine multiple toolsets, use the `X-MCP-Toolsets` header instead.
+
+Example:
+
+```json
+{
+    "type": "http",
+    "url": "https://api.githubcopilot.com/mcp/x/issues/readonly"
+}
+```

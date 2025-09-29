@@ -1,0 +1,64 @@
+name: Publish to MCP Registry
+
+on:
+  push:
+    tags: ["v*"]  # Triggers on version tags like v1.0.0
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # Required for OIDC authentication
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+        
+      - name: Fetch tags
+        run: |
+          if [[ "${{ github.ref_type }}" != "tag" ]]; then
+            git fetch --tags
+          else
+            echo "Skipping tag fetch - already on tag ${{ github.ref_name }}"
+          fi
+
+      - name: Install MCP Publisher
+        run: |
+          git clone --quiet https://github.com/modelcontextprotocol/registry publisher-repo
+          cd publisher-repo && make publisher > /dev/null && cd ..
+          cp publisher-repo/bin/mcp-publisher . && chmod +x mcp-publisher
+
+      - name: Update server.json version
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            TAG_VERSION=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+          else
+            LATEST_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-.*)?$' | head -n 1)
+            [ -z "$LATEST_TAG" ] && { echo "No release tag found"; exit 1; }
+            TAG_VERSION=$(echo "$LATEST_TAG" | sed 's/^v//')
+            echo "Using latest tag: $LATEST_TAG"
+          fi
+          sed -i "s/\${VERSION}/$TAG_VERSION/g" server.json
+          echo "Version: $TAG_VERSION"
+
+      - name: Validate configuration
+        run: |
+          python3 -m json.tool server.json > /dev/null && echo "Configuration valid" || exit 1
+
+      - name: Display final server.json
+        run: |
+          echo "Final server.json contents:"
+          cat server.json
+
+      - name: Login to MCP Registry (OIDC)
+        run: ./mcp-publisher login github-oidc
+
+      - name: Publish to MCP Registry
+        run: ./mcp-publisher publish

@@ -190,6 +190,16 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(UpdateGist(getClient, t)),
 		)
 
+	projects := toolsets.NewToolset("projects", "GitHub Projects related tools").
+		AddReadTools(
+			toolsets.NewServerTool(ListProjects(getClient, t)),
+			toolsets.NewServerTool(GetProject(getClient, t)),
+			toolsets.NewServerTool(ListProjectFields(getClient, t)),
+			toolsets.NewServerTool(GetProjectField(getClient, t)),
+			toolsets.NewServerTool(ListProjectItems(getClient, t)),
+			toolsets.NewServerTool(GetProjectItem(getClient, t)),
+		)
+
 	// Add toolsets to the group
 	tsg.AddToolset(contextTools)
 	tsg.AddToolset(repos)
@@ -206,6 +216,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(discussions)
 	tsg.AddToolset(gists)
 	tsg.AddToolset(securityAdvisories)
+	tsg.AddToolset(projects)
 
 	return tsg
 }

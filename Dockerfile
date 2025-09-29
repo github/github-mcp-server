@@ -18,6 +18,10 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 # Make a stage to run the app
 FROM gcr.io/distroless/base-debian12
+
+# Add required MCP server annotation
+LABEL io.modelcontextprotocol.server.name="io.github.github/github-mcp-server"
+
 # Set the working directory
 WORKDIR /server
 # Copy the binary from the build stage

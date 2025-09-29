@@ -14,6 +14,13 @@ on:
     tags: ["v*.*.*"]
   pull_request:
     branches: ["main", "next"]
+  workflow_dispatch:
+    inputs:
+        description:
+          required: false
+          description: "Description of the run."
+          type: string
+          default: "Manual run"
 
 env:
   # Use docker.io for Docker Hub if empty
@@ -39,7 +46,7 @@ jobs:
       # https://github.com/sigstore/cosign-installer
       - name: Install cosign
         if: github.event_name != 'pull_request'
-        uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 #v3.5.0
+        uses: sigstore/cosign-installer@d7543c93d881b35a8faa02e8e3605f69b7a1ce62 #v3.10.0
         with:
           cosign-release: "v2.2.4"
 
@@ -94,7 +101,7 @@ jobs:
       # https://github.com/docker/build-push-action
       - name: Build and push Docker image
         id: build-and-push
-        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
