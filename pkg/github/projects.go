@@ -34,7 +34,7 @@ func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			queryStr, err := OptionalParam[string](req, "query")
+			queryStr, err := OptionalParam[string](req, "q")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -329,6 +329,92 @@ func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc
 		}
 }
 
+func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("list_project_items",
+			mcp.WithDescription(t("TOOL_LIST_PROJECT_ITEMS_DESCRIPTION", "List Project items for a user or org")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{Title: t("TOOL_LIST_PROJECT_ITEMS_USER_TITLE", "List project items"), ReadOnlyHint: ToBoolPtr(true)}),
+			mcp.WithString("owner_type", mcp.Required(), mcp.Description("Owner type"), mcp.Enum("user", "org")),
+			mcp.WithString("owner", mcp.Required(), mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.")),
+			mcp.WithNumber("project_number", mcp.Required(), mcp.Description("The project's number.")),
+			mcp.WithString("query", mcp.Description("Search query to filter items")),
+			mcp.WithNumber("per_page", mcp.Description("Number of results per page (max 100, default: 30)")),
+		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := RequiredParam[string](req, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			ownerType, err := RequiredParam[string](req, "owner_type")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			projectNumber, err := RequiredInt(req, "project_number")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			perPage, err := OptionalIntParamWithDefault(req, "per_page", 30)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			queryStr, err := OptionalParam[string](req, "q")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			client, err := getClient(ctx)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			var url string
+			if ownerType == "org" {
+				url = fmt.Sprintf("orgs/%s/projectsV2/%d/items", owner, projectNumber)
+			} else {
+				url = fmt.Sprintf("users/%s/projectsV2/%d/items", owner, projectNumber)
+			}
+			projectItems := []projectV2Item{}
+
+			opts := listProjectsOptions{PerPage: perPage}
+			if queryStr != "" {
+				opts.Query = queryStr
+			}
+			if perPage > 0 {
+				opts.PerPage = perPage
+			}
+			url, err = addOptions(url, opts)
+			if err != nil {
+				return nil, fmt.Errorf("failed to add options to request: %w", err)
+			}
+
+			httpRequest, err := client.NewRequest("GET", url, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create request: %w", err)
+			}
+
+			resp, err := client.Do(ctx, httpRequest, &projectItems)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to list project items",
+					resp,
+					err,
+				), nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to list projects: %s", string(body))), nil
+			}
+			r, err := json.Marshal(projectItems)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
 type projectV2Field struct {
 	ID        *int64            `json:"id,omitempty"`         // The unique identifier for this field.
 	NodeID    string            `json:"node_id,omitempty"`    // The GraphQL node ID for this field.
@@ -338,6 +424,21 @@ type projectV2Field struct {
 	Options   []*any            `json:"options,omitempty"`    // Available options for single_select and multi_select fields.
 	CreatedAt *github.Timestamp `json:"created_at,omitempty"` // The time when this field was created.
 	UpdatedAt *github.Timestamp `json:"updated_at,omitempty"` // The time when this field was last updated.
+}
+
+type projectV2Item struct {
+	ID            *int64            `json:"id,omitempty"`
+	NodeID        *string           `json:"node_id,omitempty"`
+	ProjectNodeID *string           `json:"project_node_id,omitempty"`
+	ContentNodeID *string           `json:"content_node_id,omitempty"`
+	ProjectURL    *string           `json:"project_url,omitempty"`
+	ContentType   *string           `json:"content_type,omitempty"`
+	Creator       *github.User      `json:"creator,omitempty"`
+	CreatedAt     *github.Timestamp `json:"created_at,omitempty"`
+	UpdatedAt     *github.Timestamp `json:"updated_at,omitempty"`
+	ArchivedAt    *github.Timestamp `json:"archived_at,omitempty"`
+	ItemURL       *string           `json:"item_url,omitempty"`
+	Fields        []*projectV2Field `json:"fields,omitempty"`
 }
 
 type listProjectsOptions struct {
