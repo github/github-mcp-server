@@ -61,9 +61,6 @@ func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (
 			if queryStr != "" {
 				opts.Query = queryStr
 			}
-			if perPage > 0 {
-				opts.PerPage = perPage
-			}
 			url, err = addOptions(url, opts)
 			if err != nil {
 				return nil, fmt.Errorf("failed to add options to request: %w", err)
@@ -214,9 +211,6 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 			projectFields := []projectV2Field{}
 
 			opts := listProjectsOptions{PerPage: perPage}
-			if perPage > 0 {
-				opts.PerPage = perPage
-			}
 			url, err = addOptions(url, opts)
 			if err != nil {
 				return nil, fmt.Errorf("failed to add options to request: %w", err)
@@ -296,9 +290,6 @@ func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc
 			}
 
 			opts := listProjectsOptions{PerPage: perPage}
-			if perPage > 0 {
-				opts.PerPage = perPage
-			}
 			url, err = addOptions(url, opts)
 			if err != nil {
 				return nil, fmt.Errorf("failed to add options to request: %w", err)
@@ -382,9 +373,6 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 			opts := listProjectsOptions{PerPage: perPage}
 			if queryStr != "" {
 				opts.Query = queryStr
-			}
-			if perPage > 0 {
-				opts.PerPage = perPage
 			}
 			url, err = addOptions(url, opts)
 			if err != nil {

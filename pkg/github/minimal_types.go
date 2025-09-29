@@ -168,6 +168,7 @@ func convertToMinimalProject(fullProject *github.ProjectV2) *MinimalProject {
 		Number:           github.Ptr(fullProject.GetNumber()),
 		ShortDescription: github.Ptr(fullProject.GetShortDescription()),
 		DeletedBy:        convertToMinimalUser(fullProject.GetDeletedBy()),
+		Fields:           fullProject.Fields,
 	}
 }
 
