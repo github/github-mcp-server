@@ -1,9 +1,9 @@
 {
   "annotations": {
-    "title": "List project fields",
+    "title": "List project items",
     "readOnlyHint": true
   },
-  "description": "List Project fields for a user or org",
+  "description": "List Project items for a user or org",
   "inputSchema": {
     "properties": {
       "owner": {
@@ -25,6 +25,10 @@
       "project_number": {
         "description": "The project's number.",
         "type": "number"
+      },
+      "query": {
+        "description": "Search query to filter items",
+        "type": "string"
       }
     },
     "required": [
@@ -34,5 +38,5 @@
     ],
     "type": "object"
   },
-  "name": "list_project_fields"
+  "name": "list_project_items"
 }

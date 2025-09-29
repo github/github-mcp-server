@@ -663,11 +663,30 @@ The following sets of tools are available (all are on by default):
   - `owner_type`: Owner type (string, required)
   - `project_number`: The project's number (number, required)
 
+- **get_project_field** - Get project field
+  - `field_id`: The field's id. (number, required)
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `project_number`: The project's number. (number, required)
+
+- **get_project_item** - Get project item
+  - `item_id`: The item's ID. (number, required)
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `project_number`: The project's number. (number, required)
+
 - **list_project_fields** - List project fields
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
   - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
-  - `projectNumber`: The project's number. (string, required)
+  - `project_number`: The project's number. (number, required)
+
+- **list_project_items** - List project items
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
+  - `project_number`: The project's number. (number, required)
+  - `query`: Search query to filter items (string, optional)
 
 - **list_projects** - List projects
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
