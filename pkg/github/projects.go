@@ -223,7 +223,7 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 			resp, err := client.Do(ctx, httpRequest, &projectFields)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to list projects",
+					"failed to list project fields",
 					resp,
 					err,
 				), nil
@@ -235,7 +235,7 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 				if err != nil {
 					return nil, fmt.Errorf("failed to read response body: %w", err)
 				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to list projects: %s", string(body))), nil
+				return mcp.NewToolResultError(fmt.Sprintf("failed to list project fields: %s", string(body))), nil
 			}
 			r, err := json.Marshal(projectFields)
 			if err != nil {
@@ -404,9 +404,79 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 				if err != nil {
 					return nil, fmt.Errorf("failed to read response body: %w", err)
 				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to list projects: %s", string(body))), nil
+				return mcp.NewToolResultError(fmt.Sprintf("failed to list project items: %s", string(body))), nil
 			}
 			r, err := json.Marshal(projectItems)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
+func GetProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("get_project_item",
+			mcp.WithDescription(t("TOOL_GET_PROJECT_ITEM_DESCRIPTION", "Get a specific Project item for a user or org")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{Title: t("TOOL_GET_PROJECT_ITEM_USER_TITLE", "Get project item"), ReadOnlyHint: ToBoolPtr(true)}),
+			mcp.WithString("owner_type", mcp.Required(), mcp.Description("Owner type"), mcp.Enum("user", "org")),
+			mcp.WithString("owner", mcp.Required(), mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.")),
+			mcp.WithNumber("project_number", mcp.Required(), mcp.Description("The project's number.")),
+			mcp.WithNumber("item_id", mcp.Required(), mcp.Description("The item's ID.")),
+		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := RequiredParam[string](req, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			ownerType, err := RequiredParam[string](req, "owner_type")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			projectNumber, err := RequiredInt(req, "project_number")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			itemID, err := RequiredInt(req, "item_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			var url string
+			if ownerType == "org" {
+				url = fmt.Sprintf("orgs/%s/projectsV2/%d/items/%d", owner, projectNumber, itemID)
+			} else {
+				url = fmt.Sprintf("users/%s/projectsV2/%d/items/%d", owner, projectNumber, itemID)
+			}
+			projectItem := projectV2Item{}
+
+			httpRequest, err := client.NewRequest("GET", url, nil)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create request: %w", err)
+			}
+
+			resp, err := client.Do(ctx, httpRequest, &projectItem)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to get project item",
+					resp,
+					err,
+				), nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get project item: %s", string(body))), nil
+			}
+			r, err := json.Marshal(projectItem)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
