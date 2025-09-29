@@ -34,7 +34,7 @@ func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			queryStr, err := OptionalParam[string](req, "q")
+			queryStr, err := OptionalParam[string](req, "query")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -54,6 +54,7 @@ func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (
 				url = fmt.Sprintf("users/%s/projectsV2", owner)
 			}
 			projects := []github.ProjectV2{}
+			minimalProjects := []MinimalProject{}
 
 			opts := listProjectsOptions{PerPage: perPage}
 
@@ -83,6 +84,10 @@ func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (
 			}
 			defer func() { _ = resp.Body.Close() }()
 
+			for _, project := range projects {
+				minimalProjects = append(minimalProjects, *convertToMinimalProject(&project))
+			}
+
 			if resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
@@ -90,7 +95,7 @@ func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (
 				}
 				return mcp.NewToolResultError(fmt.Sprintf("failed to list projects: %s", string(body))), nil
 			}
-			r, err := json.Marshal(projects)
+			r, err := json.Marshal(minimalProjects)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -159,7 +164,9 @@ func GetProject(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 				}
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get project: %s", string(body))), nil
 			}
-			r, err := json.Marshal(project)
+
+			minimalProject := convertToMinimalProject(&project)
+			r, err := json.Marshal(minimalProject)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -355,7 +362,7 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			queryStr, err := OptionalParam[string](req, "q")
+			queryStr, err := OptionalParam[string](req, "query")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -406,7 +413,11 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 				}
 				return mcp.NewToolResultError(fmt.Sprintf("failed to list project items: %s", string(body))), nil
 			}
-			r, err := json.Marshal(projectItems)
+			minimalProjectItems := []MinimalProjectItem{}
+			for _, item := range projectItems {
+				minimalProjectItems = append(minimalProjectItems, *convertToMinimalProjectItem(&item))
+			}
+			r, err := json.Marshal(minimalProjectItems)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -476,7 +487,7 @@ func GetProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 				}
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get project item: %s", string(body))), nil
 			}
-			r, err := json.Marshal(projectItem)
+			r, err := json.Marshal(convertToMinimalProjectItem(&projectItem))
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
