@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
-    "net/http/httptest"
-	"net/url"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
@@ -2943,7 +2943,7 @@ func TestUpdatePullRequestReview(t *testing.T) {
 		srv := httptest.NewServer(mux)
 		defer srv.Close()
 
-		getClient := func(ctx context.Context) (*github.Client, error) {
+		getClient := func(_ context.Context) (*github.Client, error) {
 			c := github.NewClient(nil)
 			c.BaseURL = mustParseURL(srv.URL + "/")
 			return c, nil
@@ -2978,7 +2978,7 @@ func TestUpdatePullRequestReview(t *testing.T) {
 		srv := httptest.NewServer(mux)
 		defer srv.Close()
 
-		getClient := func(ctx context.Context) (*github.Client, error) {
+		getClient := func(_ context.Context) (*github.Client, error) {
 			c := github.NewClient(nil)
 			c.BaseURL = mustParseURL(srv.URL + "/")
 			return c, nil
