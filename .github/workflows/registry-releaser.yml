@@ -22,7 +22,12 @@ jobs:
           go-version: "stable"
         
       - name: Fetch tags
-        run: git fetch --tags
+        run: |
+          if [[ "${{ github.ref_type }}" != "tag" ]]; then
+            git fetch --tags
+          else
+            echo "Skipping tag fetch - already on tag ${{ github.ref_name }}"
+          fi
 
       - name: Install MCP Publisher
         run: |
@@ -46,6 +51,11 @@ jobs:
       - name: Validate configuration
         run: |
           python3 -m json.tool server.json > /dev/null && echo "Configuration valid" || exit 1
+
+      - name: Display final server.json
+        run: |
+          echo "Final server.json contents:"
+          cat server.json
 
       - name: Login to MCP Registry (OIDC)
         run: ./mcp-publisher login github-oidc
