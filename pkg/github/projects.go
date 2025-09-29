@@ -628,7 +628,7 @@ func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 			mcp.WithString("owner_type", mcp.Required(), mcp.Description("Owner type"), mcp.Enum("user", "org")),
 			mcp.WithString("owner", mcp.Required(), mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.")),
 			mcp.WithNumber("project_number", mcp.Required(), mcp.Description("The project's number.")),
-			mcp.WithNumber("item_id", mcp.Required(), mcp.Description("The numeric ID of the issue or pull request to update in the project.")),
+			mcp.WithNumber("item_id", mcp.Required(), mcp.Description("The numeric ID of the project item to update (not the issue or pull request ID).")),
 			mcp.WithArray("fields", mcp.Required(), mcp.Description("A list of field updates to apply.")),
 		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](req, "owner")
