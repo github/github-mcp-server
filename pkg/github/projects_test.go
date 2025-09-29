@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/url"
 	"testing"
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
@@ -985,11 +984,14 @@ func Test_AddProjectItem(t *testing.T) {
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						body, err := io.ReadAll(r.Body)
 						assert.NoError(t, err)
-						values, err := url.ParseQuery(string(body))
-						assert.NoError(t, err)
-						assert.Equal(t, "Issue", values.Get("type"))
-						assert.Equal(t, "9876", values.Get("id"))
-						w.WriteHeader(http.StatusOK)
+						var payload struct {
+							ContentType string `json:"content_type"`
+							ContentID   int    `json:"content_id"`
+						}
+						assert.NoError(t, json.Unmarshal(body, &payload))
+						assert.Equal(t, "Issue", payload.ContentType)
+						assert.Equal(t, 9876, payload.ContentID)
+						w.WriteHeader(http.StatusCreated)
 						_, _ = w.Write(mock.MustMarshal(orgItem))
 					}),
 				),
@@ -1013,10 +1015,13 @@ func Test_AddProjectItem(t *testing.T) {
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						body, err := io.ReadAll(r.Body)
 						assert.NoError(t, err)
-						values, err := url.ParseQuery(string(body))
-						assert.NoError(t, err)
-						assert.Equal(t, "PullRequest", values.Get("type"))
-						assert.Equal(t, "7654", values.Get("id"))
+						var payload struct {
+							ContentType string `json:"content_type"`
+							ContentID   int    `json:"content_id"`
+						}
+						assert.NoError(t, json.Unmarshal(body, &payload))
+						assert.Equal(t, "PullRequest", payload.ContentType)
+						assert.Equal(t, 7654, payload.ContentID)
 						w.WriteHeader(http.StatusOK)
 						_, _ = w.Write(mock.MustMarshal(userItem))
 					}),
