@@ -86,7 +86,17 @@ Alternatively, to manually configure VS Code, choose the appropriate JSON block 
 > **Note:** Each MCP host application needs to configure a GitHub App or OAuth App to support remote access via OAuth. Any host application that supports remote MCP servers should support the remote GitHub server with PAT authentication. Configuration details and support levels vary by host. Make sure to refer to the host application's documentation for more info.
 
 ### Configuration
-See [Remote Server Documentation](/docs/remote-server.md) on how to pass additional configuration settings to the remote GitHub MCP Server.
+
+#### Default toolset configuration
+
+The default configuration is:
+- context
+- repos
+- issues
+- pull_requests
+- users
+
+See [Remote Server Documentation](docs/remote-server.md) for full details on remote server configuration, toolsets, headers, and advanced usage. This file provides comprehensive instructions and examples for connecting, customizing, and installing the remote GitHub MCP Server in VS Code and other MCP hosts.
 
 ---
 
@@ -271,6 +281,50 @@ The GitHub MCP Server supports enabling or disabling specific groups of function
 
 _Toolsets are not limited to Tools. Relevant MCP Resources and Prompts are also included where applicable._
 
+The Local GitHub MCP Server follows the same [default toolset configuration](#default-toolset-configuration) as the remote version.
+
+#### Specifying Toolsets
+
+To specify toolsets you want available to the LLM, you can pass an allow-list in two ways:
+
+1. **Using Command Line Argument**:
+
+   ```bash
+   github-mcp-server --toolsets repos,issues,pull_requests,actions,code_security
+   ```
+
+2. **Using Environment Variable**:
+   ```bash
+   GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security" ./github-mcp-server
+   ```
+
+The environment variable `GITHUB_TOOLSETS` takes precedence over the command line argument if both are provided.
+
+### Using Toolsets With Docker
+
+When using Docker, you can pass the toolsets as environment variables:
+
+```bash
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security,experiments" \
+  ghcr.io/github/github-mcp-server
+```
+
+### The "all" Toolset
+
+The special toolset `all` can be provided to enable all available toolsets regardless of any other configuration:
+
+```bash
+./github-mcp-server --toolsets all
+```
+
+Or using the environment variable:
+
+```bash
+GITHUB_TOOLSETS="all" ./github-mcp-server
+```
+
 ### Available Toolsets
 
 The following sets of tools are available (all are on by default):
@@ -298,7 +352,6 @@ The following sets of tools are available (all are on by default):
 <!-- END AUTOMATED TOOLSETS -->
 
 ## Tools
-
 
 <!-- START AUTOMATED TOOLS -->
 <details>
@@ -1082,55 +1135,6 @@ The following sets of tools are available (all are on by default):
 
 -   **list_copilot_spaces** - List Copilot Spaces
 </details>
-
-#### Specifying Toolsets
-
-To specify toolsets you want available to the LLM, you can pass an allow-list in two ways:
-
-1. **Using Command Line Argument**:
-
-   ```bash
-   github-mcp-server --toolsets repos,issues,pull_requests,actions,code_security
-   ```
-
-2. **Using Environment Variable**:
-   ```bash
-   GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security" ./github-mcp-server
-   ```
-
-The environment variable `GITHUB_TOOLSETS` takes precedence over the command line argument if both are provided.
-
-The default configuration is:
-- context
-- repos
-- issues
-- pull_requests
-- users
-
-### Using Toolsets With Docker
-
-When using Docker, you can pass the toolsets as environment variables:
-
-```bash
-docker run -i --rm \
-  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
-  -e GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security,experiments" \
-  ghcr.io/github/github-mcp-server
-```
-
-### The "all" Toolset
-
-The special toolset `all` can be provided to enable all available toolsets regardless of any other configuration:
-
-```bash
-./github-mcp-server --toolsets all
-```
-
-Or using the environment variable:
-
-```bash
-GITHUB_TOOLSETS="all" ./github-mcp-server
-```
 
 ## Dynamic Tool Discovery
 
