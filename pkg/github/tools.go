@@ -14,7 +14,7 @@ import (
 type GetClientFn func(context.Context) (*github.Client, error)
 type GetGQLClientFn func(context.Context) (*githubv4.Client, error)
 
-var DefaultTools = []string{"all"}
+var DefaultTools = []string{"context", "repos", "issues", "pull_requests", "users"}
 
 func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetGQLClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc, contentWindowSize int) *toolsets.ToolsetGroup {
 	tsg := toolsets.NewToolsetGroup(readOnly)
@@ -34,7 +34,6 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(ListReleases(getClient, t)),
 			toolsets.NewServerTool(GetLatestRelease(getClient, t)),
 			toolsets.NewServerTool(GetReleaseByTag(getClient, t)),
-			toolsets.NewServerTool(ListStarredRepositories(getClient, t)),
 		).
 		AddWriteTools(
 			toolsets.NewServerTool(CreateOrUpdateFile(getClient, t)),
@@ -43,8 +42,6 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(CreateBranch(getClient, t)),
 			toolsets.NewServerTool(PushFiles(getClient, t)),
 			toolsets.NewServerTool(DeleteFile(getClient, t)),
-			toolsets.NewServerTool(StarRepository(getClient, t)),
-			toolsets.NewServerTool(UnstarRepository(getClient, t)),
 		).
 		AddResourceTemplates(
 			toolsets.NewServerResourceTemplate(GetRepositoryResourceContent(getClient, getRawClient, t)),
@@ -204,6 +201,14 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(DeleteProjectItem(getClient, t)),
 			toolsets.NewServerTool(UpdateProjectItem(getClient, t)),
 		)
+	stargazers := toolsets.NewToolset("stargazers", "GitHub Stargazers related tools").
+		AddReadTools(
+			toolsets.NewServerTool(ListStarredRepositories(getClient, t)),
+		).
+		AddWriteTools(
+			toolsets.NewServerTool(StarRepository(getClient, t)),
+			toolsets.NewServerTool(UnstarRepository(getClient, t)),
+		)
 
 	// Add toolsets to the group
 	tsg.AddToolset(contextTools)
@@ -222,6 +227,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(gists)
 	tsg.AddToolset(securityAdvisories)
 	tsg.AddToolset(projects)
+	tsg.AddToolset(stargazers)
 
 	return tsg
 }
