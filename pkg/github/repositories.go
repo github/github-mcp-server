@@ -363,6 +363,11 @@ func CreateOrUpdateFile(getClient GetClientFn, t translations.TranslationHelperF
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
+
+			// Validate repository access with enhanced error messages for organization repositories
+			if accessErr := ValidateRepositoryAccessWithEnhancedError(ctx, client, owner, repo); accessErr != nil {
+				return mcp.NewToolResultError(accessErr.Error()), nil
+			}
 			fileContent, resp, err := client.Repositories.CreateFile(ctx, owner, repo, path, opts)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -533,6 +538,11 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 			client, err := getClient(ctx)
 			if err != nil {
 				return mcp.NewToolResultError("failed to get GitHub client"), nil
+			}
+
+			// Validate repository access with enhanced error messages for organization repositories
+			if accessErr := ValidateRepositoryAccessWithEnhancedError(ctx, client, owner, repo); accessErr != nil {
+				return mcp.NewToolResultError(accessErr.Error()), nil
 			}
 
 			rawOpts, err := resolveGitReference(ctx, client, owner, repo, ref, sha)

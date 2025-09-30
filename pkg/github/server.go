@@ -1,6 +1,7 @@
 package github
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -340,4 +341,35 @@ func MarshalledTextResult(v any) *mcp.CallToolResult {
 	}
 
 	return mcp.NewToolResultText(string(data))
+}
+
+// ValidateRepositoryAccessWithEnhancedError checks repository access and provides enhanced error messages
+func ValidateRepositoryAccessWithEnhancedError(ctx context.Context, client *github.Client, owner, repo string) error {
+	if owner == "" || repo == "" {
+		return nil // Skip validation if parameters are empty
+	}
+
+	validator := NewOrganizationAccessValidator(client)
+	
+	// First check if this might be an organization repository
+	if !isLikelyUserAccount(owner) {
+		orgResult, err := validator.ValidateOrganizationAccess(ctx, owner)
+		if err == nil && !orgResult.HasAccess {
+			enhancedMsg := buildEnhancedMessage(orgResult.ErrorMessage, orgResult.Suggestions)
+			return fmt.Errorf("%s", enhancedMsg)
+		}
+	}
+
+	// Check specific repository access
+	repoResult, err := validator.ValidateRepositoryAccess(ctx, owner, repo)
+	if err != nil {
+		return err
+	}
+	
+	if !repoResult.HasAccess {
+		enhancedMsg := buildEnhancedMessage(repoResult.ErrorMessage, repoResult.Suggestions)
+		return fmt.Errorf("%s", enhancedMsg)
+	}
+
+	return nil
 }
