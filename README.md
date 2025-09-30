@@ -1100,6 +1100,13 @@ To specify toolsets you want available to the LLM, you can pass an allow-list in
 
 The environment variable `GITHUB_TOOLSETS` takes precedence over the command line argument if both are provided.
 
+The default configuration is:
+- context
+- repos
+- issues
+- pull_requests
+- users
+
 ### Using Toolsets With Docker
 
 When using Docker, you can pass the toolsets as environment variables:

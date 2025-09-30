@@ -404,7 +404,7 @@ func GenerateToolsetsHelp() string {
 
 	toolsetsHelp := fmt.Sprintf("Comma-separated list of tool groups to enable (no spaces).\n"+
 		"Default: %s\n"+
-		"Available: %s\n", defaultTools, availableTools)+
+		"Available: %s\n", defaultTools, availableTools) +
 		"To enable all tools, use \"all\"."
 	return toolsetsHelp
 }
