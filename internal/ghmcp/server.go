@@ -118,8 +118,8 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 
 	// Generate instructions based on enabled toolsets
 	instructions := github.GenerateInstructions(enabledToolsets)
-	
-	ghServer := github.NewServer(cfg.Version, 
+
+	ghServer := github.NewServer(cfg.Version,
 		server.WithInstructions(instructions),
 		server.WithHooks(hooks),
 	)
