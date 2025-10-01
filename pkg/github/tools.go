@@ -387,11 +387,12 @@ func GenerateToolsetsHelp() string {
 	currentLine := ""
 
 	for i, tool := range allTools {
-		if i == 0 {
+		switch {
+		case i == 0:
 			currentLine = tool.ID
-		} else if len(currentLine)+len(tool.ID)+2 <= maxLineLength {
+		case len(currentLine)+len(tool.ID)+2 <= maxLineLength:
 			currentLine += ", " + tool.ID
-		} else {
+		default:
 			availableToolsLines = append(availableToolsLines, currentLine)
 			currentLine = tool.ID
 		}
