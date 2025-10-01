@@ -621,15 +621,6 @@ func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 		}
 }
 
-type updateProjectItemOptions struct {
-	Fields []*newProjectV2Field `json:"fields,omitempty"`
-}
-
-type newProjectV2Field struct {
-	ID    *int64 `json:"id,omitempty"`
-	Value any    `json:"value,omitempty"`
-}
-
 type newProjectItem struct {
 	ID   int64  `json:"id,omitempty"` // Issue or Pull Request ID to add to the project.
 	Type string `json:"type,omitempty"`
