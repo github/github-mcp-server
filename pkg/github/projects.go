@@ -624,12 +624,44 @@ func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("update_project_item",
 			mcp.WithDescription(t("TOOL_UPDATE_PROJECT_ITEM_DESCRIPTION", "Update a specific Project item for a user or org")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{Title: t("TOOL_UPDATE_PROJECT_ITEM_USER_TITLE", "Update project item"), ReadOnlyHint: ToBoolPtr(false)}),
-			mcp.WithString("owner_type", mcp.Required(), mcp.Description("Owner type"), mcp.Enum("user", "org")),
-			mcp.WithString("owner", mcp.Required(), mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.")),
-			mcp.WithNumber("project_number", mcp.Required(), mcp.Description("The project's number.")),
-			mcp.WithNumber("item_id", mcp.Required(), mcp.Description("The numeric ID of the project item to update (not the issue or pull request ID).")),
-			mcp.WithArray("fields", mcp.Required(), mcp.Description("A list of field updates to apply.")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{Title: t("TOOL_UPDATE_PROJECT_ITEM_USER_TITLE", "Update project item"),
+				ReadOnlyHint: ToBoolPtr(false)},
+			),
+			mcp.WithString("owner_type",
+				mcp.Required(), mcp.Description("Owner type"), mcp.Enum("user", "org"),
+			),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive."),
+			),
+			mcp.WithNumber("project_number",
+				mcp.Required(), mcp.Description("The project's number."),
+			),
+			mcp.WithNumber("item_id",
+				mcp.Required(),
+				mcp.Description("The numeric ID of the project item to update (not the issue or pull request ID)."),
+			),
+			mcp.WithArray("fields",
+				mcp.Required(),
+				mcp.Description("A list of field updates to apply."),
+				mcp.Items(
+					map[string]interface{}{
+						"type":                 "object",
+						"additionalProperties": false,
+						"required":             []string{"id", "value"},
+						"properties": map[string]interface{}{
+							"id": map[string]interface{}{
+								"type":        "int",
+								"description": "ID of the project field",
+							},
+							"value": map[string]interface{}{
+								"type": "any",
+								// intentionally left without a specific JSON schema type to allow any value
+								"description": "value of the project field",
+							},
+						},
+					}),
+			),
 		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](req, "owner")
 			if err != nil {
@@ -651,16 +683,18 @@ func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			fieldsParam, ok := req.GetArguments()["fields"]
-			if !ok {
+
+			// Extract and validate fields parameter (required & non-empty)
+			args := req.GetArguments()
+			rawFields, present := args["fields"]
+			if !present {
 				return mcp.NewToolResultError("missing required parameter: fields"), nil
 			}
-
-			rawFields, ok := fieldsParam.([]any)
+			fields, ok := rawFields.([]interface{})
 			if !ok {
-				return mcp.NewToolResultError("parameter fields must be an array of objects"), nil
+				return mcp.NewToolResultError("fields parameter must be an array of objects with id and value"), nil
 			}
-			if len(rawFields) == 0 {
+			if len(fields) == 0 {
 				return mcp.NewToolResultError("fields must contain at least one field update"), nil
 			}
 
@@ -671,43 +705,32 @@ func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 				projectsURL = fmt.Sprintf("users/%s/projectsV2/%d/items/%d", owner, projectNumber, itemID)
 			}
 
-			updateFields := make([]*newProjectV2Field, 0, len(rawFields))
-			for idx, rawField := range rawFields {
-				fieldMap, ok := rawField.(map[string]any)
+			updateFields := make([]*newProjectV2Field, 0, len(fields))
+			for _, rawField := range fields {
+				m, ok := rawField.(map[string]any)
 				if !ok {
-					return mcp.NewToolResultError(fmt.Sprintf("fields[%d] must be an object", idx)), nil
+					return mcp.NewToolResultError("each element of fields must be an object"), nil
 				}
-
-				rawID, ok := fieldMap["id"]
+				idVal, ok := m["id"]
 				if !ok {
-					return mcp.NewToolResultError(fmt.Sprintf("fields[%d] is missing 'id'", idx)), nil
+					return mcp.NewToolResultError("each field update must include an 'id'"), nil
 				}
-
-				var fieldID int64
-				switch v := rawID.(type) {
+				var idInt64 int64
+				switch v := idVal.(type) {
 				case float64:
-					fieldID = int64(v)
+					idInt64 = int64(v)
+				case int:
+					idInt64 = int64(v)
 				case int64:
-					fieldID = v
-				case json.Number:
-					n, convErr := v.Int64()
-					if convErr != nil {
-						return mcp.NewToolResultError(fmt.Sprintf("fields[%d].id must be a numeric value", idx)), nil
-					}
-					fieldID = n
+					idInt64 = v
 				default:
-					return mcp.NewToolResultError(fmt.Sprintf("fields[%d].id must be a numeric value", idx)), nil
+					return mcp.NewToolResultError("field 'id' must be a number"), nil
 				}
-
-				value, ok := fieldMap["value"]
+				value, ok := m["value"]
 				if !ok {
-					return mcp.NewToolResultError(fmt.Sprintf("fields[%d] is missing 'value'", idx)), nil
+					return mcp.NewToolResultError("each field update must include a 'value'"), nil
 				}
-
-				updateFields = append(updateFields, &newProjectV2Field{
-					ID:    github.Ptr(fieldID),
-					Value: value,
-				})
+				updateFields = append(updateFields, &newProjectV2Field{ID: github.Ptr(idInt64), Value: value})
 			}
 
 			updateProjectItemOptions := &updateProjectItemOptions{Fields: updateFields}
@@ -749,8 +772,9 @@ type updateProjectItemOptions struct {
 }
 
 type newProjectV2Field struct {
-	ID    *int64 `json:"id,omitempty"`
-	Value any    `json:"value,omitempty"`
+	ID *int64 `json:"id,omitempty"`
+	// Value should be sent as explicit null if user supplies null, so do NOT use omitempty
+	Value any `json:"value"`
 }
 
 type newProjectItem struct {

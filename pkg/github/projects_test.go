@@ -1384,6 +1384,82 @@ func Test_UpdateProjectItem(t *testing.T) {
 			expectedCreatorLogin: "octocat",
 		},
 		{
+			name: "success organization multi-field update",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodPatch},
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						body, err := io.ReadAll(r.Body)
+						assert.NoError(t, err)
+						var payload struct {
+							Fields []struct {
+								ID    int         `json:"id"`
+								Value interface{} `json:"value"`
+							} `json:"fields"`
+						}
+						assert.NoError(t, json.Unmarshal(body, &payload))
+						assert.Len(t, payload.Fields, 2)
+						if len(payload.Fields) == 2 {
+							assert.Equal(t, 1111, payload.Fields[0].ID)
+							assert.Equal(t, "Backlog", payload.Fields[0].Value)
+							assert.Equal(t, 2222, payload.Fields[1].ID)
+							assert.Equal(t, 5.0, payload.Fields[1].Value) // JSON numbers -> float64
+						}
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write(mock.MustMarshal(orgUpdated))
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(9999),
+				"item_id":        float64(8888),
+				"fields": []any{
+					map[string]any{"id": float64(1111), "value": "Backlog"},
+					map[string]any{"id": float64(2222), "value": float64(5)},
+				},
+			},
+			expectedID:           801,
+			expectedCreatorLogin: "octocat",
+		},
+		{
+			name: "success organization update null value",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodPatch},
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						body, err := io.ReadAll(r.Body)
+						assert.NoError(t, err)
+						var raw map[string]any
+						assert.NoError(t, json.Unmarshal(body, &raw))
+						fieldsRaw, ok := raw["fields"].([]any)
+						assert.True(t, ok)
+						assert.Len(t, fieldsRaw, 1)
+						first, ok := fieldsRaw[0].(map[string]any)
+						assert.True(t, ok)
+						// Ensure key exists and is explicitly null (presence matters)
+						val, present := first["value"]
+						assert.True(t, present)
+						assert.Nil(t, val)
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write(mock.MustMarshal(orgUpdated))
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(1010),
+				"item_id":        float64(2020),
+				"fields": []any{
+					map[string]any{"id": float64(999), "value": nil},
+				},
+			},
+			expectedID:           801,
+			expectedCreatorLogin: "octocat",
+		},
+		{
 			name: "success user update",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
@@ -1501,6 +1577,36 @@ func Test_UpdateProjectItem(t *testing.T) {
 			},
 			expectError:    true,
 			expectedErrMsg: "fields must contain at least one field update",
+		},
+		{
+			name:         "field missing id",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(1),
+				"item_id":        float64(1),
+				"fields": []any{
+					map[string]any{"value": "X"},
+				},
+			},
+			expectError:    true,
+			expectedErrMsg: "each field update must include an 'id'",
+		},
+		{
+			name:         "field missing value",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(1),
+				"item_id":        float64(1),
+				"fields": []any{
+					map[string]any{"id": float64(55)},
+				},
+			},
+			expectError:    true,
+			expectedErrMsg: "each field update must include a 'value'",
 		},
 	}
 

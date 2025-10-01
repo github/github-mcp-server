@@ -8,6 +8,24 @@
     "properties": {
       "fields": {
         "description": "A list of field updates to apply.",
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "description": "ID of the project field",
+              "type": "int"
+            },
+            "value": {
+              "description": "value of the project field",
+              "type": "any"
+            }
+          },
+          "required": [
+            "id",
+            "value"
+          ],
+          "type": "object"
+        },
         "type": "array"
       },
       "item_id": {
