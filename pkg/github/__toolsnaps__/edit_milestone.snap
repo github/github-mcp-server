@@ -1,0 +1,50 @@
+{
+  "annotations": {
+    "title": "Edit milestone",
+    "readOnlyHint": false
+  },
+  "description": "Edit an existing milestone in a GitHub repository.",
+  "inputSchema": {
+    "properties": {
+      "description": {
+        "description": "New milestone description",
+        "type": "string"
+      },
+      "due_on": {
+        "description": "New milestone due date in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ)",
+        "type": "string"
+      },
+      "milestone_number": {
+        "description": "The number of the milestone to edit",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "state": {
+        "description": "New milestone state",
+        "enum": [
+          "open",
+          "closed"
+        ],
+        "type": "string"
+      },
+      "title": {
+        "description": "New milestone title",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "milestone_number"
+    ],
+    "type": "object"
+  },
+  "name": "edit_milestone"
+}
