@@ -42,7 +42,7 @@ const (
 // When duplicateOf is non-zero, it fetches both the main issue and duplicate issue IDs in a single query.
 func fetchIssueIDs(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueNumber int, duplicateOf int) (githubv4.ID, githubv4.ID, error) {
 	// Build query variables common to both cases
-	vars := map[string]interface{}{
+	vars := map[string]any{
 		"owner":       githubv4.String(owner),
 		"repo":        githubv4.String(repo),
 		"issueNumber": githubv4.Int(issueNumber), // #nosec G115 - issue numbers are always small positive integers
@@ -991,7 +991,7 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 			mcp.WithArray("labels",
 				mcp.Description("Filter by labels"),
 				mcp.Items(
-					map[string]interface{}{
+					map[string]any{
 						"type": "string",
 					},
 				),
@@ -1107,7 +1107,7 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil
 			}
 
-			vars := map[string]interface{}{
+			vars := map[string]any{
 				"owner":     githubv4.String(owner),
 				"repo":      githubv4.String(repo),
 				"states":    states,
@@ -1162,9 +1162,9 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 			}
 
 			// Create response with issues
-			response := map[string]interface{}{
+			response := map[string]any{
 				"issues": issues,
-				"pageInfo": map[string]interface{}{
+				"pageInfo": map[string]any{
 					"hasNextPage":     pageInfo.HasNextPage,
 					"hasPreviousPage": pageInfo.HasPreviousPage,
 					"startCursor":     string(pageInfo.StartCursor),
@@ -1209,7 +1209,7 @@ func UpdateIssue(getClient GetClientFn, getGQLClient GetGQLClientFn, t translati
 			mcp.WithArray("labels",
 				mcp.Description("New labels"),
 				mcp.Items(
-					map[string]interface{}{
+					map[string]any{
 						"type": "string",
 					},
 				),
@@ -1217,7 +1217,7 @@ func UpdateIssue(getClient GetClientFn, getGQLClient GetGQLClientFn, t translati
 			mcp.WithArray("assignees",
 				mcp.Description("New assignees"),
 				mcp.Items(
-					map[string]interface{}{
+					map[string]any{
 						"type": "string",
 					},
 				),
@@ -1765,5 +1765,535 @@ func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) (tool mcp.Pro
 			return &mcp.GetPromptResult{
 				Messages: messages,
 			}, nil
+		}
+}
+
+// Label Management
+
+// Label consolidates Create/Get/Update/Delete label operations into a single tool.
+func Labels(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+	return mcp.NewTool("labels",
+			mcp.WithDescription(t("TOOL_LABELS_DESCRIPTION", "Create, read, update, or delete repository labels in GitHub. Labels are organizational tags used to categorize and filter issues and pull requests. METHODS: 'create', 'get' - if label parameter name is omitted, lists all labels, 'update', 'delete'.")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_LABELS_TITLE", "Manage label operations - create, read, update, delete"),
+				ReadOnlyHint: ToBoolPtr(false),
+			}),
+			mcp.WithString("method",
+				mcp.Required(),
+				mcp.Description("Create/Read/Update/Delete a github label."),
+				mcp.Enum("create", "get", "update", "delete"),
+			),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner (username or organization name)"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithString("name",
+				mcp.Description("Label name. REQUIRED for: create, update, delete operations. OPTIONAL for: get operation (if omitted, lists all repository labels; if provided, gets specific label details)."),
+			),
+			mcp.WithString("new_name",
+				mcp.Description("New name for the label (used only with 'update' method to rename a label)"),
+			),
+			mcp.WithString("color",
+				mcp.Description("Label color as 6-character hex code without '#' prefix, e.g. 'f29513' for orange. REQUIRED for 'create', OPTIONAL for 'update'."),
+			),
+			mcp.WithString("description",
+				mcp.Description("Label description text. OPTIONAL for both 'create' and 'update' operations."),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			// Get and validate required parameters
+			method, err := RequiredParam[string](request, "method")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			method = strings.ToLower(method)
+
+			owner, err := RequiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			repo, err := RequiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Get optional parameters
+			name, _ := OptionalParam[string](request, "name")
+			newName, _ := OptionalParam[string](request, "new_name")
+			color, _ := OptionalParam[string](request, "color")
+			description, _ := OptionalParam[string](request, "description")
+
+			client, err := getGQLClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			// Helper function to get repository ID
+			getRepositoryID := func() (githubv4.ID, error) {
+				var repoQuery struct {
+					Repository struct {
+						ID githubv4.ID
+					} `graphql:"repository(owner: $owner, name: $repo)"`
+				}
+				vars := map[string]any{
+					"owner": githubv4.String(owner),
+					"repo":  githubv4.String(repo),
+				}
+				if err := client.Query(ctx, &repoQuery, vars); err != nil {
+					return "", err
+				}
+				return repoQuery.Repository.ID, nil
+			}
+
+			// Helper function to get label by name
+			getLabelByName := func(labelName string) (githubv4.ID, error) {
+				var query struct {
+					Repository struct {
+						Label struct {
+							ID   githubv4.ID
+							Name githubv4.String
+						} `graphql:"label(name: $name)"`
+					} `graphql:"repository(owner: $owner, name: $repo)"`
+				}
+				vars := map[string]any{
+					"owner": githubv4.String(owner),
+					"repo":  githubv4.String(repo),
+					"name":  githubv4.String(labelName),
+				}
+				if err := client.Query(ctx, &query, vars); err != nil {
+					return "", err
+				}
+				if query.Repository.Label.Name == "" {
+					return "", fmt.Errorf("label '%s' not found in %s/%s", labelName, owner, repo)
+				}
+				return query.Repository.Label.ID, nil
+			}
+
+			switch method {
+			case "create":
+				// Validate required params for create
+				if name == "" {
+					return mcp.NewToolResultError("name is required for create"), nil
+				}
+				if color == "" {
+					return mcp.NewToolResultError("color is required for create"), nil
+				}
+
+				// Get repository ID
+				repoID, err := getRepositoryID()
+				if err != nil {
+					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to find repository", err), nil
+				}
+
+				input := githubv4.CreateLabelInput{
+					RepositoryID: repoID,
+					Name:         githubv4.String(name),
+					Color:        githubv4.String(color),
+				}
+				if description != "" {
+					d := githubv4.String(description)
+					input.Description = &d
+				}
+
+				var mutation struct {
+					CreateLabel struct {
+						Label struct {
+							Name githubv4.String
+							ID   githubv4.ID
+						}
+					} `graphql:"createLabel(input: $input)"`
+				}
+
+				if err := client.Mutate(ctx, &mutation, input, nil); err != nil {
+					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to create label", err), nil
+				}
+
+				return mcp.NewToolResultText(fmt.Sprintf("label %s created successfully", mutation.CreateLabel.Label.Name)), nil
+
+			case "get":
+				if name != "" {
+					// Get specific label
+					var query struct {
+						Repository struct {
+							Label struct {
+								ID          githubv4.ID
+								Name        githubv4.String
+								Color       githubv4.String
+								Description githubv4.String
+							} `graphql:"label(name: $name)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}
+
+					vars := map[string]any{
+						"owner": githubv4.String(owner),
+						"repo":  githubv4.String(repo),
+						"name":  githubv4.String(name),
+					}
+
+					if err := client.Query(ctx, &query, vars); err != nil {
+						return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to find label", err), nil
+					}
+
+					if query.Repository.Label.Name == "" {
+						return mcp.NewToolResultError(fmt.Sprintf("label '%s' not found in %s/%s", name, owner, repo)), nil
+					}
+
+					label := map[string]any{
+						"id":          fmt.Sprintf("%v", query.Repository.Label.ID),
+						"name":        string(query.Repository.Label.Name),
+						"color":       string(query.Repository.Label.Color),
+						"description": string(query.Repository.Label.Description),
+					}
+
+					out, err := json.Marshal(label)
+					if err != nil {
+						return nil, fmt.Errorf("failed to marshal label: %w", err)
+					}
+
+					return mcp.NewToolResultText(string(out)), nil
+				} else {
+					// List all labels
+					var query struct {
+						Repository struct {
+							Labels struct {
+								Nodes []struct {
+									ID          githubv4.ID
+									Name        githubv4.String
+									Color       githubv4.String
+									Description githubv4.String
+								}
+								TotalCount githubv4.Int
+							} `graphql:"labels(first: 100)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}
+
+					vars := map[string]any{
+						"owner": githubv4.String(owner),
+						"repo":  githubv4.String(repo),
+					}
+
+					if err := client.Query(ctx, &query, vars); err != nil {
+						return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to list labels", err), nil
+					}
+
+					labels := make([]map[string]any, len(query.Repository.Labels.Nodes))
+					for i, labelNode := range query.Repository.Labels.Nodes {
+						labels[i] = map[string]any{
+							"id":          fmt.Sprintf("%v", labelNode.ID),
+							"name":        string(labelNode.Name),
+							"color":       string(labelNode.Color),
+							"description": string(labelNode.Description),
+						}
+					}
+
+					response := map[string]any{
+						"labels":     labels,
+						"totalCount": int(query.Repository.Labels.TotalCount),
+					}
+
+					out, err := json.Marshal(response)
+					if err != nil {
+						return nil, fmt.Errorf("failed to marshal labels: %w", err)
+					}
+
+					return mcp.NewToolResultText(string(out)), nil
+				}
+
+			case "update":
+				// Validate required params for update
+				if name == "" {
+					return mcp.NewToolResultError("name is required for update"), nil
+				}
+				if newName == "" && color == "" && description == "" {
+					return mcp.NewToolResultError("at least one of name, color or description parameters must be provided for update"), nil
+				}
+
+				// Get the label ID
+				labelID, err := getLabelByName(name)
+				if err != nil {
+					return mcp.NewToolResultError(err.Error()), nil
+				}
+
+				input := githubv4.UpdateLabelInput{
+					ID: labelID,
+				}
+				if newName != "" {
+					n := githubv4.String(newName)
+					input.Name = &n
+				}
+				if color != "" {
+					c := githubv4.String(color)
+					input.Color = &c
+				}
+				if description != "" {
+					d := githubv4.String(description)
+					input.Description = &d
+				}
+
+				var mutation struct {
+					UpdateLabel struct {
+						Label struct {
+							Name githubv4.String
+							ID   githubv4.ID
+						}
+					} `graphql:"updateLabel(input: $input)"`
+				}
+
+				if err := client.Mutate(ctx, &mutation, input, nil); err != nil {
+					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to update label", err), nil
+				}
+
+				return mcp.NewToolResultText(fmt.Sprintf("label %s updated successfully", mutation.UpdateLabel.Label.Name)), nil
+
+			case "delete":
+				// Validate required params for delete
+				if name == "" {
+					return mcp.NewToolResultError("name is required for delete"), nil
+				}
+
+				// Get the label ID
+				labelID, err := getLabelByName(name)
+				if err != nil {
+					return mcp.NewToolResultError(err.Error()), nil
+				}
+
+				input := githubv4.DeleteLabelInput{
+					ID: labelID,
+				}
+
+				var mutation struct {
+					DeleteLabel struct {
+						Typename githubv4.String `graphql:"__typename"`
+					} `graphql:"deleteLabel(input: $input)"`
+				}
+
+				if err := client.Mutate(ctx, &mutation, input, nil); err != nil {
+					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to delete label", err), nil
+				}
+
+				return mcp.NewToolResultText(fmt.Sprintf("label %s deleted successfully", name)), nil
+
+			default:
+				return mcp.NewToolResultError(fmt.Sprintf("unknown method: %s. Supported methods are: create, get, update, delete", method)), nil
+			}
+		}
+}
+
+// IssueLabel manages labels on GitHub issues with list, add, and remove operations.
+func IssueLabel(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+	return mcp.NewTool("issue_label",
+			mcp.WithDescription(t("TOOL_ISSUE_LABEL_DESCRIPTION", "Manage labels attached to specific GitHub issues. METHODS: 'list', 'add', 'remove'.")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_ISSUE_LABEL_TITLE", "Manage issue labels - list, add, remove"),
+				ReadOnlyHint: ToBoolPtr(false),
+			}),
+			mcp.WithString("method",
+				mcp.Required(),
+				mcp.Description("Operation to perform: 'list' (show current labels), 'add' (attach labels), 'remove' (detach labels)"),
+				mcp.Enum("list", "add", "remove"),
+			),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner (username or organization name) - required for all operations"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name - required for all operations"),
+			),
+			mcp.WithNumber("issue_number",
+				mcp.Required(),
+				mcp.Description("Issue number - required for all operations to identify the specific issue"),
+			),
+			mcp.WithArray("labels",
+				mcp.Description("Array of label names to add or remove. REQUIRED for 'add' and 'remove' operations, IGNORED for 'list' operation."),
+				mcp.Items(
+					map[string]any{
+						"type": "string",
+					},
+				),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			method, err := RequiredParam[string](request, "method")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			owner, err := RequiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			repo, err := RequiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			issueNumber, err := RequiredInt(request, "issue_number")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Normalize method
+			method = strings.ToLower(method)
+
+			// Get labels parameter for add/remove operations
+			labels, err := OptionalStringArrayParam(request, "labels")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			switch method {
+			case "list":
+				// Get current labels on the issue
+				issue, resp, err := client.Issues.Get(ctx, owner, repo, issueNumber)
+				if err != nil {
+					return nil, fmt.Errorf("failed to get issue: %w", err)
+				}
+				defer func() { _ = resp.Body.Close() }()
+
+				if resp.StatusCode != http.StatusOK {
+					body, err := io.ReadAll(resp.Body)
+					if err != nil {
+						return mcp.NewToolResultError("failed to read response body"), nil
+					}
+					return mcp.NewToolResultError(fmt.Sprintf("failed to get issue: %s", string(body))), nil
+				}
+
+				// Extract label information
+				issueLabels := make([]map[string]any, len(issue.Labels))
+				for i, label := range issue.Labels {
+					issueLabels[i] = map[string]any{
+						"id":          fmt.Sprintf("%d", label.GetID()),
+						"name":        label.GetName(),
+						"color":       label.GetColor(),
+						"description": label.GetDescription(),
+					}
+				}
+
+				response := map[string]any{
+					"labels":     issueLabels,
+					"totalCount": len(issueLabels),
+				}
+
+				out, err := json.Marshal(response)
+				if err != nil {
+					return nil, fmt.Errorf("failed to marshal response: %w", err)
+				}
+
+				return mcp.NewToolResultText(string(out)), nil
+
+			case "add":
+				// Validate labels parameter for add operation
+				if len(labels) == 0 {
+					return mcp.NewToolResultError("labels parameter is required for add operation"), nil
+				}
+
+				// Add labels to the issue
+				updatedLabels, resp, err := client.Issues.AddLabelsToIssue(ctx, owner, repo, issueNumber, labels)
+				if err != nil {
+					return nil, fmt.Errorf("failed to add labels to issue: %w", err)
+				}
+				defer func() { _ = resp.Body.Close() }()
+
+				if resp.StatusCode != http.StatusOK {
+					body, err := io.ReadAll(resp.Body)
+					if err != nil {
+						return mcp.NewToolResultError("failed to read response body"), nil
+					}
+					return mcp.NewToolResultError(fmt.Sprintf("failed to add labels to issue: %s", string(body))), nil
+				}
+
+				// Return the updated labels
+				issueLabels := make([]map[string]any, len(updatedLabels))
+				for i, label := range updatedLabels {
+					issueLabels[i] = map[string]any{
+						"id":          fmt.Sprintf("%d", label.GetID()),
+						"name":        label.GetName(),
+						"color":       label.GetColor(),
+						"description": label.GetDescription(),
+					}
+				}
+
+				response := map[string]any{
+					"labels":     issueLabels,
+					"totalCount": len(issueLabels),
+					"added":      labels,
+				}
+
+				out, err := json.Marshal(response)
+				if err != nil {
+					return nil, fmt.Errorf("failed to marshal response: %w", err)
+				}
+
+				return mcp.NewToolResultText(string(out)), nil
+
+			case "remove":
+				// Validate labels parameter for remove operation
+				if len(labels) == 0 {
+					return mcp.NewToolResultError("labels parameter is required for remove operation"), nil
+				}
+
+				// Remove labels from the issue
+				for _, labelName := range labels {
+					resp, err := client.Issues.RemoveLabelForIssue(ctx, owner, repo, issueNumber, labelName)
+					if err != nil {
+						return nil, fmt.Errorf("failed to remove label '%s' from issue: %w", labelName, err)
+					}
+					defer func() { _ = resp.Body.Close() }()
+
+					if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
+						body, err := io.ReadAll(resp.Body)
+						if err != nil {
+							return mcp.NewToolResultError("failed to read response body"), nil
+						}
+						return mcp.NewToolResultError(fmt.Sprintf("failed to remove label '%s' from issue: %s", labelName, string(body))), nil
+					}
+				}
+
+				// Get the updated issue to return current labels
+				issue, resp, err := client.Issues.Get(ctx, owner, repo, issueNumber)
+				if err != nil {
+					return nil, fmt.Errorf("failed to get updated issue: %w", err)
+				}
+				defer func() { _ = resp.Body.Close() }()
+
+				// Extract remaining label information
+				issueLabels := make([]map[string]any, len(issue.Labels))
+				for i, label := range issue.Labels {
+					issueLabels[i] = map[string]any{
+						"id":          fmt.Sprintf("%d", label.GetID()),
+						"name":        label.GetName(),
+						"color":       label.GetColor(),
+						"description": label.GetDescription(),
+					}
+				}
+
+				response := map[string]any{
+					"labels":     issueLabels,
+					"totalCount": len(issueLabels),
+					"removed":    labels,
+				}
+
+				out, err := json.Marshal(response)
+				if err != nil {
+					return nil, fmt.Errorf("failed to marshal response: %w", err)
+				}
+
+				return mcp.NewToolResultText(string(out)), nil
+
+			default:
+				return mcp.NewToolResultError(fmt.Sprintf("unknown method: %s. Supported methods are: list, add, remove", method)), nil
+			}
 		}
 }

@@ -70,6 +70,8 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(AddSubIssue(getClient, t)),
 			toolsets.NewServerTool(RemoveSubIssue(getClient, t)),
 			toolsets.NewServerTool(ReprioritizeSubIssue(getClient, t)),
+			toolsets.NewServerTool(Labels(getGQLClient, t)),
+			toolsets.NewServerTool(IssueLabel(getClient, t)),
 		).AddPrompts(
 		toolsets.NewServerPrompt(AssignCodingAgentPrompt(t)),
 		toolsets.NewServerPrompt(IssueToFixWorkflowPrompt(t)),
