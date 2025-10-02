@@ -281,18 +281,23 @@ The following sets of tools are available (all are on by default):
 | `context`               | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |
 | `actions` | GitHub Actions workflows and CI/CD operations |
 | `code_security` | Code security related tools, such as GitHub Code Scanning |
+| `contents` | Repository contents |
 | `dependabot` | Dependabot tools |
 | `discussions` | GitHub Discussions related tools |
 | `experiments` | Experimental features that are not considered stable yet |
 | `gists` | GitHub Gist related tools |
-| `issues` | GitHub Issues related tools |
+| `issues` | GitHub Issues |
 | `notifications` | GitHub Notifications related tools |
 | `orgs` | GitHub Organization related tools |
 | `projects` | GitHub Projects related tools |
-| `pull_requests` | GitHub Pull Request related tools |
-| `repos` | GitHub Repository related tools |
+| `pull_request_reviews` | Pull request review operations |
+| `pull_requests` | GitHub Pull Request operations |
+| `releases` | GitHub Repository releases/tags |
+| `repos` | GitHub Repository management |
 | `secret_protection` | Secret protection related tools, such as GitHub Secret Scanning |
 | `security_advisories` | Security advisories related tools |
+| `stargazers` | GitHub Starring related tools |
+| `sub_issues` | Sub-issue management |
 | `users` | GitHub User related tools |
 <!-- END AUTOMATED TOOLSETS -->
 
@@ -415,6 +420,42 @@ The following sets of tools are available (all are on by default):
 
 <details>
 
+<summary>Contents</summary>
+
+- **create_or_update_file** - Create or update file
+  - `branch`: Branch to create/update the file in (string, required)
+  - `content`: Content of the file (string, required)
+  - `message`: Commit message (string, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `path`: Path where to create/update the file (string, required)
+  - `repo`: Repository name (string, required)
+  - `sha`: Required if updating an existing file. The blob SHA of the file being replaced. (string, optional)
+
+- **delete_file** - Delete file
+  - `branch`: Branch to delete the file from (string, required)
+  - `message`: Commit message (string, required)
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `path`: Path to the file to delete (string, required)
+  - `repo`: Repository name (string, required)
+
+- **get_file_contents** - Get file or directory contents
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `path`: Path to file/directory (directories must end with a slash '/') (string, optional)
+  - `ref`: Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head` (string, optional)
+  - `repo`: Repository name (string, required)
+  - `sha`: Accepts optional commit SHA. If specified, it will be used instead of ref (string, optional)
+
+- **push_files** - Push files to repository
+  - `branch`: Branch to push to (string, required)
+  - `files`: Array of file objects to push, each object with path (string) and content (string) (object[], required)
+  - `message`: Commit message (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+</details>
+
+<details>
+
 <summary>Context</summary>
 
 - **get_me** - Get my user profile
@@ -511,13 +552,6 @@ The following sets of tools are available (all are on by default):
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
-- **add_sub_issue** - Add sub-issue
-  - `issue_number`: The number of the parent issue (number, required)
-  - `owner`: Repository owner (string, required)
-  - `replace_parent`: When true, replaces the sub-issue's current parent issue (boolean, optional)
-  - `repo`: Repository name (string, required)
-  - `sub_issue_id`: The ID of the sub-issue to add. ID is not the same as issue number (number, required)
-
 - **assign_copilot_to_issue** - Assign Copilot to issue
   - `issueNumber`: Issue number (number, required)
   - `owner`: Repository owner (string, required)
@@ -558,27 +592,6 @@ The following sets of tools are available (all are on by default):
   - `repo`: Repository name (string, required)
   - `since`: Filter by date (ISO 8601 timestamp) (string, optional)
   - `state`: Filter by state, by default both open and closed issues are returned when not provided (string, optional)
-
-- **list_sub_issues** - List sub-issues
-  - `issue_number`: Issue number (number, required)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (default: 1) (number, optional)
-  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
-  - `repo`: Repository name (string, required)
-
-- **remove_sub_issue** - Remove sub-issue
-  - `issue_number`: The number of the parent issue (number, required)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `sub_issue_id`: The ID of the sub-issue to remove. ID is not the same as issue number (number, required)
-
-- **reprioritize_sub_issue** - Reprioritize sub-issue
-  - `after_id`: The ID of the sub-issue to be prioritized after (either after_id OR before_id should be specified) (number, optional)
-  - `before_id`: The ID of the sub-issue to be prioritized before (either after_id OR before_id should be specified) (number, optional)
-  - `issue_number`: The number of the parent issue (number, required)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `sub_issue_id`: The ID of the sub-issue to reprioritize. ID is not the same as issue number (number, required)
 
 - **search_issues** - Search issues
   - `order`: Sort order (string, optional)
@@ -711,7 +724,7 @@ The following sets of tools are available (all are on by default):
 
 <details>
 
-<summary>Pull Requests</summary>
+<summary>Pull Request Reviews</summary>
 
 - **add_comment_to_pending_review** - Add review comment to the requester's latest pending pull request review
   - `body`: The text of the review comment (string, required)
@@ -739,6 +752,39 @@ The following sets of tools are available (all are on by default):
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
+- **delete_pending_pull_request_review** - Delete the requester's latest pending pull request review
+  - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
+- **get_pull_request_review_comments** - Get pull request review comments
+  - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
+- **get_pull_request_reviews** - Get pull request reviews
+  - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
+- **request_copilot_review** - Request Copilot review
+  - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
+- **submit_pending_pull_request_review** - Submit the requester's latest pending pull request review
+  - `body`: The text of the review comment (string, optional)
+  - `event`: The event to perform (string, required)
+  - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
+</details>
+
+<details>
+
+<summary>Pull Requests</summary>
+
 - **create_pull_request** - Open new pull request
   - `base`: Branch to merge into (string, required)
   - `body`: PR description (string, optional)
@@ -748,11 +794,6 @@ The following sets of tools are available (all are on by default):
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `title`: PR title (string, required)
-
-- **delete_pending_pull_request_review** - Delete the requester's latest pending pull request review
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
 
 - **get_pull_request** - Get pull request details
   - `owner`: Repository owner (string, required)
@@ -768,16 +809,6 @@ The following sets of tools are available (all are on by default):
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **get_pull_request_review_comments** - Get pull request review comments
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **get_pull_request_reviews** - Get pull request reviews
-  - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
@@ -805,11 +836,6 @@ The following sets of tools are available (all are on by default):
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
-- **request_copilot_review** - Request Copilot review
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
 - **search_pull_requests** - Search pull requests
   - `order`: Sort order (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only pull requests for this repository are listed. (string, optional)
@@ -818,13 +844,6 @@ The following sets of tools are available (all are on by default):
   - `query`: Search query using GitHub pull request search syntax (string, required)
   - `repo`: Optional repository name. If provided with owner, only pull requests for this repository are listed. (string, optional)
   - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
-
-- **submit_pending_pull_request_review** - Submit the requester's latest pending pull request review
-  - `body`: The text of the review comment (string, optional)
-  - `event`: The event to perform (string, required)
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
 
 - **update_pull_request** - Edit pull request
   - `base`: New base branch name (string, optional)
@@ -848,56 +867,7 @@ The following sets of tools are available (all are on by default):
 
 <details>
 
-<summary>Repositories</summary>
-
-- **create_branch** - Create branch
-  - `branch`: Name for new branch (string, required)
-  - `from_branch`: Source branch (defaults to repo default) (string, optional)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-
-- **create_or_update_file** - Create or update file
-  - `branch`: Branch to create/update the file in (string, required)
-  - `content`: Content of the file (string, required)
-  - `message`: Commit message (string, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `path`: Path where to create/update the file (string, required)
-  - `repo`: Repository name (string, required)
-  - `sha`: Required if updating an existing file. The blob SHA of the file being replaced. (string, optional)
-
-- **create_repository** - Create repository
-  - `autoInit`: Initialize with README (boolean, optional)
-  - `description`: Repository description (string, optional)
-  - `name`: Repository name (string, required)
-  - `organization`: Organization to create the repository in (omit to create in your personal account) (string, optional)
-  - `private`: Whether repo should be private (boolean, optional)
-
-- **delete_file** - Delete file
-  - `branch`: Branch to delete the file from (string, required)
-  - `message`: Commit message (string, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `path`: Path to the file to delete (string, required)
-  - `repo`: Repository name (string, required)
-
-- **fork_repository** - Fork repository
-  - `organization`: Organization to fork to (string, optional)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-
-- **get_commit** - Get commit details
-  - `include_diff`: Whether to include file diffs and stats in the response. Default is true. (boolean, optional)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-  - `sha`: Commit SHA, branch name, or tag name (string, required)
-
-- **get_file_contents** - Get file or directory contents
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `path`: Path to file/directory (directories must end with a slash '/') (string, optional)
-  - `ref`: Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head` (string, optional)
-  - `repo`: Repository name (string, required)
-  - `sha`: Accepts optional commit SHA. If specified, it will be used instead of ref (string, optional)
+<summary>Releases</summary>
 
 - **get_latest_release** - Get latest release
   - `owner`: Repository owner (string, required)
@@ -913,6 +883,50 @@ The following sets of tools are available (all are on by default):
   - `repo`: Repository name (string, required)
   - `tag`: Tag name (string, required)
 
+- **list_releases** - List releases
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
+
+- **list_tags** - List tags
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
+
+</details>
+
+<details>
+
+<summary>Repositories</summary>
+
+- **create_branch** - Create branch
+  - `branch`: Name for new branch (string, required)
+  - `from_branch`: Source branch (defaults to repo default) (string, optional)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **create_repository** - Create repository
+  - `autoInit`: Initialize with README (boolean, optional)
+  - `description`: Repository description (string, optional)
+  - `name`: Repository name (string, required)
+  - `organization`: Organization to create the repository in (omit to create in your personal account) (string, optional)
+  - `private`: Whether repo should be private (boolean, optional)
+
+- **fork_repository** - Fork repository
+  - `organization`: Organization to fork to (string, optional)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **get_commit** - Get commit details
+  - `include_diff`: Whether to include file diffs and stats in the response. Default is true. (boolean, optional)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
+  - `sha`: Commit SHA, branch name, or tag name (string, required)
+
 - **list_branches** - List branches
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -927,32 +941,6 @@ The following sets of tools are available (all are on by default):
   - `repo`: Repository name (string, required)
   - `sha`: Commit SHA, branch or tag name to list commits of. If not provided, uses the default branch of the repository. If a commit SHA is provided, will list commits up to that SHA. (string, optional)
 
-- **list_releases** - List releases
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-
-- **list_starred_repositories** - List starred repositories
-  - `direction`: The direction to sort the results by. (string, optional)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `sort`: How to sort the results. Can be either 'created' (when the repository was starred) or 'updated' (when the repository was last pushed to). (string, optional)
-  - `username`: Username to list starred repositories for. Defaults to the authenticated user. (string, optional)
-
-- **list_tags** - List tags
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-
-- **push_files** - Push files to repository
-  - `branch`: Branch to push to (string, required)
-  - `files`: Array of file objects to push, each object with path (string) and content (string) (object[], required)
-  - `message`: Commit message (string, required)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-
 - **search_code** - Search code
   - `order`: Sort order for results (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -965,14 +953,6 @@ The following sets of tools are available (all are on by default):
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Repository search query. Examples: 'machine learning in:name stars:>1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering. (string, required)
-
-- **star_repository** - Star repository
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-
-- **unstar_repository** - Unstar repository
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
 
 </details>
 
@@ -1031,6 +1011,61 @@ The following sets of tools are available (all are on by default):
 
 <details>
 
+<summary>Stargazers</summary>
+
+- **list_starred_repositories** - List starred repositories
+  - `direction`: The direction to sort the results by. (string, optional)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `sort`: How to sort the results. Can be either 'created' (when the repository was starred) or 'updated' (when the repository was last pushed to). (string, optional)
+  - `username`: Username to list starred repositories for. Defaults to the authenticated user. (string, optional)
+
+- **star_repository** - Star repository
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **unstar_repository** - Unstar repository
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+</details>
+
+<details>
+
+<summary>Sub Issues</summary>
+
+- **add_sub_issue** - Add sub-issue
+  - `issue_number`: The number of the parent issue (number, required)
+  - `owner`: Repository owner (string, required)
+  - `replace_parent`: When true, replaces the sub-issue's current parent issue (boolean, optional)
+  - `repo`: Repository name (string, required)
+  - `sub_issue_id`: The ID of the sub-issue to add. ID is not the same as issue number (number, required)
+
+- **list_sub_issues** - List sub-issues
+  - `issue_number`: Issue number (number, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (default: 1) (number, optional)
+  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
+  - `repo`: Repository name (string, required)
+
+- **remove_sub_issue** - Remove sub-issue
+  - `issue_number`: The number of the parent issue (number, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `sub_issue_id`: The ID of the sub-issue to remove. ID is not the same as issue number (number, required)
+
+- **reprioritize_sub_issue** - Reprioritize sub-issue
+  - `after_id`: The ID of the sub-issue to be prioritized after (either after_id OR before_id should be specified) (number, optional)
+  - `before_id`: The ID of the sub-issue to be prioritized before (either after_id OR before_id should be specified) (number, optional)
+  - `issue_number`: The number of the parent issue (number, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `sub_issue_id`: The ID of the sub-issue to reprioritize. ID is not the same as issue number (number, required)
+
+</details>
+
+<details>
+
 <summary>Users</summary>
 
 - **search_users** - Search users
@@ -1070,6 +1105,13 @@ The following sets of tools are available (all are on by default):
 </details>
 
 #### Specifying Toolsets
+
+The default configuration of enabled toolsets is:
+- context(should be part of every configuration)
+- users
+- content
+- repos
+- pull_requests
 
 To specify toolsets you want available to the LLM, you can pass an allow-list in two ways:
 

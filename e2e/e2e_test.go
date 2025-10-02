@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/github/github-mcp-server/internal/ghmcp"
-	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v74/github"
 	mcpClient "github.com/mark3labs/mcp-go/client"
@@ -141,9 +140,12 @@ func setupMCPClient(t *testing.T, options ...clientOption) *mcpClient.Client {
 		}
 
 		// Add toolsets environment variable to the Docker arguments
-		if len(opts.enabledToolsets) > 0 {
-			args = append(args, "-e", "GITHUB_TOOLSETS")
+		// Default to "all" if no specific toolsets are configured
+		enabledToolsets := opts.enabledToolsets
+		if len(enabledToolsets) == 0 {
+			enabledToolsets = []string{"all"}
 		}
+		args = append(args, "-e", "GITHUB_TOOLSETS")
 
 		// Add the image name
 		args = append(args, "github/e2e-github-mcp-server")
@@ -151,7 +153,7 @@ func setupMCPClient(t *testing.T, options ...clientOption) *mcpClient.Client {
 		// Construct the env vars for the MCP Client to execute docker with
 		dockerEnvVars := []string{
 			fmt.Sprintf("GITHUB_PERSONAL_ACCESS_TOKEN=%s", token),
-			fmt.Sprintf("GITHUB_TOOLSETS=%s", strings.Join(opts.enabledToolsets, ",")),
+			fmt.Sprintf("GITHUB_TOOLSETS=%s", strings.Join(enabledToolsets, ",")),
 		}
 
 		if host != "" {
@@ -168,8 +170,8 @@ func setupMCPClient(t *testing.T, options ...clientOption) *mcpClient.Client {
 		// not in scope for using the MCP server directly. This probably indicates that we should refactor
 		// so that there is a shared setup mechanism, but let's wait till we feel more friction.
 		enabledToolsets := opts.enabledToolsets
-		if enabledToolsets == nil {
-			enabledToolsets = github.DefaultTools
+		if len(enabledToolsets) == 0 {
+			enabledToolsets = []string{"all"}
 		}
 
 		ghServer, err := ghmcp.NewMCPServer(ghmcp.MCPServerConfig{
@@ -190,7 +192,7 @@ func setupMCPClient(t *testing.T, options ...clientOption) *mcpClient.Client {
 	})
 
 	// Initialize the client
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	request := mcp.InitializeRequest{}
