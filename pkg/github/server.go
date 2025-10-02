@@ -99,6 +99,19 @@ func RequiredInt(r mcp.CallToolRequest, p string) (int, error) {
 	return int(v), nil
 }
 
+// RequiredInt64 is a helper function that can be used to fetch a requested parameter from the request.
+// It does the following checks:
+// 1. Checks if the parameter is present in the request.
+// 2. Checks if the parameter is of the expected type.
+// 3. Checks if the parameter is not empty, i.e: non-zero value
+func RequiredInt64(r mcp.CallToolRequest, p string) (int64, error) {
+	v, err := RequiredParam[float64](r, p)
+	if err != nil {
+		return 0, err
+	}
+	return int64(v), nil
+}
+
 // OptionalParam is a helper function that can be used to fetch a requested parameter from the request.
 // It does the following checks:
 // 1. Checks if the parameter is present in the request, if not, it returns its zero-value
