@@ -5,6 +5,7 @@
   },
   "description": "List starred repositories",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "direction": {
         "description": "The direction to sort the results by.",
@@ -37,8 +38,7 @@
         "description": "Username to list starred repositories for. Defaults to the authenticated user.",
         "type": "string"
       }
-    },
-    "type": "object"
+    }
   },
   "name": "list_starred_repositories"
 }

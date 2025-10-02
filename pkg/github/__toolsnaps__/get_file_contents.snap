@@ -5,6 +5,7 @@
   },
   "description": "Get the contents of a file or directory from a GitHub repository",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "owner": {
         "description": "Repository owner (username or organization)",
@@ -31,8 +32,7 @@
     "required": [
       "owner",
       "repo"
-    ],
-    "type": "object"
+    ]
   },
   "name": "get_file_contents"
 }

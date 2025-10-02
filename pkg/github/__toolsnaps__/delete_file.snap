@@ -6,6 +6,7 @@
   },
   "description": "Delete a file from a GitHub repository",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "branch": {
         "description": "Branch to delete the file from",
@@ -34,8 +35,7 @@
       "path",
       "message",
       "branch"
-    ],
-    "type": "object"
+    ]
   },
   "name": "delete_file"
 }

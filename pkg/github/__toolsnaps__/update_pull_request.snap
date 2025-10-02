@@ -5,6 +5,7 @@
   },
   "description": "Update an existing pull request in a GitHub repository.",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "base": {
         "description": "New base branch name",
@@ -58,8 +59,7 @@
       "owner",
       "repo",
       "pullNumber"
-    ],
-    "type": "object"
+    ]
   },
   "name": "update_pull_request"
 }

@@ -5,6 +5,7 @@
   },
   "description": "Push multiple files to a GitHub repository in a single commit",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "branch": {
         "description": "Branch to push to",
@@ -51,8 +52,7 @@
       "branch",
       "files",
       "message"
-    ],
-    "type": "object"
+    ]
   },
   "name": "push_files"
 }

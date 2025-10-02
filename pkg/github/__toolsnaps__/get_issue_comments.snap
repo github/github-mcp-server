@@ -5,6 +5,7 @@
   },
   "description": "Get comments for a specific issue in a GitHub repository.",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "issue_number": {
         "description": "Issue number",
@@ -34,8 +35,7 @@
       "owner",
       "repo",
       "issue_number"
-    ],
-    "type": "object"
+    ]
   },
   "name": "get_issue_comments"
 }

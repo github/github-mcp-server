@@ -5,6 +5,7 @@
   },
   "description": "Create a new issue in a GitHub repository.",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "assignees": {
         "description": "Usernames to assign to this issue",
@@ -49,8 +50,7 @@
       "owner",
       "repo",
       "title"
-    ],
-    "type": "object"
+    ]
   },
   "name": "create_issue"
 }

@@ -5,6 +5,7 @@
   },
   "description": "Get list of commits of a branch in a GitHub repository. Returns at least 30 results per page by default, but can return more if specified using the perPage parameter (up to 100).",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "author": {
         "description": "Author username or email address to filter commits by",
@@ -37,8 +38,7 @@
     "required": [
       "owner",
       "repo"
-    ],
-    "type": "object"
+    ]
   },
   "name": "list_commits"
 }

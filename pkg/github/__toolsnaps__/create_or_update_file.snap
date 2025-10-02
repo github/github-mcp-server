@@ -5,6 +5,7 @@
   },
   "description": "Create or update a single file in a GitHub repository. If updating, you must provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "branch": {
         "description": "Branch to create/update the file in",
@@ -42,8 +43,7 @@
       "content",
       "message",
       "branch"
-    ],
-    "type": "object"
+    ]
   },
   "name": "create_or_update_file"
 }

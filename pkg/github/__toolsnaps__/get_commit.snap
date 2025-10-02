@@ -5,6 +5,7 @@
   },
   "description": "Get details for a commit from a GitHub repository",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "include_diff": {
         "default": true,
@@ -39,8 +40,7 @@
       "owner",
       "repo",
       "sha"
-    ],
-    "type": "object"
+    ]
   },
   "name": "get_commit"
 }

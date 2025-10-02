@@ -5,6 +5,7 @@
   },
   "description": "Delete a specific Project item for a user or org",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "item_id": {
         "description": "The internal project item ID to delete from the project (not the issue or pull request ID).",
@@ -32,8 +33,7 @@
       "owner",
       "project_number",
       "item_id"
-    ],
-    "type": "object"
+    ]
   },
   "name": "delete_project_item"
 }

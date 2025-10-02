@@ -5,6 +5,7 @@
   },
   "description": "Create and submit a review for a pull request without review comments.",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "body": {
         "description": "Review comment text",
@@ -42,8 +43,7 @@
       "pullNumber",
       "body",
       "event"
-    ],
-    "type": "object"
+    ]
   },
   "name": "create_and_submit_pull_request_review"
 }

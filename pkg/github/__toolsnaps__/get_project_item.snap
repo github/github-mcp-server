@@ -5,6 +5,7 @@
   },
   "description": "Get a specific Project item for a user or org",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "item_id": {
         "description": "The item's ID.",
@@ -32,8 +33,7 @@
       "owner",
       "project_number",
       "item_id"
-    ],
-    "type": "object"
+    ]
   },
   "name": "get_project_item"
 }

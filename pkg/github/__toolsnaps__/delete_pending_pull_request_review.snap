@@ -5,6 +5,7 @@
   },
   "description": "Delete the requester's latest pending pull request review. Use this after the user decides not to submit a pending review, if you don't know if they already created one then check first.",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "owner": {
         "description": "Repository owner",
@@ -23,8 +24,7 @@
       "owner",
       "repo",
       "pullNumber"
-    ],
-    "type": "object"
+    ]
   },
   "name": "delete_pending_pull_request_review"
 }

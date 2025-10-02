@@ -5,6 +5,7 @@
   },
   "description": "Mark all notifications as read",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "lastReadAt": {
         "description": "Describes the last point that notifications were checked (optional). Default: Now",
@@ -18,8 +19,7 @@
         "description": "Optional repository name. If provided with owner, only notifications for this repository are marked as read.",
         "type": "string"
       }
-    },
-    "type": "object"
+    }
   },
   "name": "mark_all_notifications_read"
 }

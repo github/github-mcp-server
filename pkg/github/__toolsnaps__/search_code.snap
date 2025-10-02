@@ -5,6 +5,7 @@
   },
   "description": "Fast and precise code search across ALL GitHub repositories using GitHub's native search engine. Best for finding exact symbols, functions, classes, or specific code patterns.",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "order": {
         "description": "Sort order for results",
@@ -36,8 +37,7 @@
     },
     "required": [
       "query"
-    ],
-    "type": "object"
+    ]
   },
   "name": "search_code"
 }

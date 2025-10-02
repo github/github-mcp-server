@@ -5,6 +5,7 @@
   },
   "description": "Create a new branch in a GitHub repository",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "branch": {
         "description": "Name for new branch",
@@ -27,8 +28,7 @@
       "owner",
       "repo",
       "branch"
-    ],
-    "type": "object"
+    ]
   },
   "name": "create_branch"
 }

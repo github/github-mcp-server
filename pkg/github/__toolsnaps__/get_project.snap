@@ -5,6 +5,7 @@
   },
   "description": "Get Project for a user or org",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "owner": {
         "description": "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.",
@@ -27,8 +28,7 @@
       "project_number",
       "owner_type",
       "owner"
-    ],
-    "type": "object"
+    ]
   },
   "name": "get_project"
 }

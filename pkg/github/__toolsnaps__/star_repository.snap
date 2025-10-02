@@ -5,6 +5,7 @@
   },
   "description": "Star a GitHub repository",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "owner": {
         "description": "Repository owner",
@@ -18,8 +19,7 @@
     "required": [
       "owner",
       "repo"
-    ],
-    "type": "object"
+    ]
   },
   "name": "star_repository"
 }

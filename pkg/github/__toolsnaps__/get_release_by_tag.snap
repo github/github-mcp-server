@@ -5,6 +5,7 @@
   },
   "description": "Get a specific release by its tag name in a GitHub repository",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "owner": {
         "description": "Repository owner",
@@ -23,8 +24,7 @@
       "owner",
       "repo",
       "tag"
-    ],
-    "type": "object"
+    ]
   },
   "name": "get_release_by_tag"
 }

@@ -5,6 +5,7 @@
   },
   "description": "Submit the requester's latest pending pull request review, normally this is a final step after creating a pending review, adding comments first, unless you know that the user already did the first two steps, you should check before calling this.",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "body": {
         "description": "The text of the review comment",
@@ -37,8 +38,7 @@
       "repo",
       "pullNumber",
       "event"
-    ],
-    "type": "object"
+    ]
   },
   "name": "submit_pending_pull_request_review"
 }

@@ -5,6 +5,7 @@
   },
   "description": "List sub-issues for a specific issue in a GitHub repository.",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "issue_number": {
         "description": "Issue number",
@@ -31,8 +32,7 @@
       "owner",
       "repo",
       "issue_number"
-    ],
-    "type": "object"
+    ]
   },
   "name": "list_sub_issues"
 }

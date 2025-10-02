@@ -5,6 +5,7 @@
   },
   "description": "List issues in a GitHub repository. For pagination, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter.",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "after": {
         "description": "Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs.",
@@ -64,8 +65,7 @@
     "required": [
       "owner",
       "repo"
-    ],
-    "type": "object"
+    ]
   },
   "name": "list_issues"
 }

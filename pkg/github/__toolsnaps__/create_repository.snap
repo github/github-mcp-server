@@ -5,6 +5,7 @@
   },
   "description": "Create a new GitHub repository in your account or specified organization",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "autoInit": {
         "description": "Initialize with README",
@@ -29,8 +30,7 @@
     },
     "required": [
       "name"
-    ],
-    "type": "object"
+    ]
   },
   "name": "create_repository"
 }

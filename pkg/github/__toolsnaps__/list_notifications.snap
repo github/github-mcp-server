@@ -5,6 +5,7 @@
   },
   "description": "Lists all GitHub notifications for the authenticated user, including unread notifications, mentions, review requests, assignments, and updates on issues or pull requests. Use this tool whenever the user asks what to work on next, requests a summary of their GitHub activity, wants to see pending reviews, or needs to check for new updates or tasks. This tool is the primary way to discover actionable items, reminders, and outstanding work on GitHub. Always call this tool when asked what to work on next, what is pending, or what needs attention in GitHub.",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "before": {
         "description": "Only show notifications updated before the given time (ISO 8601 format)",
@@ -42,8 +43,7 @@
         "description": "Only show notifications updated after the given time (ISO 8601 format)",
         "type": "string"
       }
-    },
-    "type": "object"
+    }
   },
   "name": "list_notifications"
 }

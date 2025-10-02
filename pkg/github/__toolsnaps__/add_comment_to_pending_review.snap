@@ -5,6 +5,7 @@
   },
   "description": "Add review comment to the requester's latest pending pull request review. A pending review needs to already exist to call this (check with the user if not sure).",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "body": {
         "description": "The text of the review comment",
@@ -66,8 +67,7 @@
       "path",
       "body",
       "subjectType"
-    ],
-    "type": "object"
+    ]
   },
   "name": "add_comment_to_pending_review"
 }

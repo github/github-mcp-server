@@ -5,6 +5,7 @@
   },
   "description": "Add a comment to a specific issue in a GitHub repository.",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "body": {
         "description": "Comment content",
@@ -28,8 +29,7 @@
       "repo",
       "issue_number",
       "body"
-    ],
-    "type": "object"
+    ]
   },
   "name": "add_issue_comment"
 }

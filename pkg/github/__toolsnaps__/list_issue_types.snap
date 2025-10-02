@@ -5,6 +5,7 @@
   },
   "description": "List supported issue types for repository owner (organization).",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "owner": {
         "description": "The organization owner of the repository",
@@ -13,8 +14,7 @@
     },
     "required": [
       "owner"
-    ],
-    "type": "object"
+    ]
   },
   "name": "list_issue_types"
 }

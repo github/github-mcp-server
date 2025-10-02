@@ -5,6 +5,7 @@
   },
   "description": "Update an existing issue in a GitHub repository.",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "assignees": {
         "description": "New assignees",
@@ -74,8 +75,7 @@
       "owner",
       "repo",
       "issue_number"
-    ],
-    "type": "object"
+    ]
   },
   "name": "update_issue"
 }

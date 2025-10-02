@@ -5,6 +5,7 @@
   },
   "description": "Add a specific Project item for a user or org",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "item_id": {
         "description": "The numeric ID of the issue or pull request to add to the project.",
@@ -41,8 +42,7 @@
       "project_number",
       "item_type",
       "item_id"
-    ],
-    "type": "object"
+    ]
   },
   "name": "add_project_item"
 }

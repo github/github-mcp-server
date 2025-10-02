@@ -5,6 +5,7 @@
   },
   "description": "List pull requests in a GitHub repository. If the user specifies an author, then DO NOT use this tool and use the search_pull_requests tool instead.",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "base": {
         "description": "Filter by base branch",
@@ -64,8 +65,7 @@
     "required": [
       "owner",
       "repo"
-    ],
-    "type": "object"
+    ]
   },
   "name": "list_pull_requests"
 }

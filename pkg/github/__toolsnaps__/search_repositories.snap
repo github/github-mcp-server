@@ -5,6 +5,7 @@
   },
   "description": "Find GitHub repositories by name, description, readme, topics, or other metadata. Perfect for discovering projects, finding examples, or locating specific repositories across GitHub.",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "minimal_output": {
         "default": true,
@@ -29,8 +30,7 @@
     },
     "required": [
       "query"
-    ],
-    "type": "object"
+    ]
   },
   "name": "search_repositories"
 }

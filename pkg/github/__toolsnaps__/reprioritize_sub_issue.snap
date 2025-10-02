@@ -5,6 +5,7 @@
   },
   "description": "Reprioritize a sub-issue to a different position in the parent issue's sub-issue list.",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "after_id": {
         "description": "The ID of the sub-issue to be prioritized after (either after_id OR before_id should be specified)",
@@ -36,8 +37,7 @@
       "repo",
       "issue_number",
       "sub_issue_id"
-    ],
-    "type": "object"
+    ]
   },
   "name": "reprioritize_sub_issue"
 }

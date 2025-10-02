@@ -5,6 +5,7 @@
   },
   "description": "Get details about a specific git tag in a GitHub repository",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "owner": {
         "description": "Repository owner",
@@ -23,8 +24,7 @@
       "owner",
       "repo",
       "tag"
-    ],
-    "type": "object"
+    ]
   },
   "name": "get_tag"
 }

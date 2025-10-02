@@ -5,6 +5,7 @@
   },
   "description": "Get details of a specific issue in a GitHub repository.",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "issue_number": {
         "description": "The number of the issue",
@@ -23,8 +24,7 @@
       "owner",
       "repo",
       "issue_number"
-    ],
-    "type": "object"
+    ]
   },
   "name": "get_issue"
 }

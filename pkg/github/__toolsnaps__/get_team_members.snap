@@ -5,6 +5,7 @@
   },
   "description": "Get member usernames of a specific team in an organization. Limited to organizations accessible with current credentials",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "org": {
         "description": "Organization login (owner) that contains the team.",
@@ -18,8 +19,7 @@
     "required": [
       "org",
       "team_slug"
-    ],
-    "type": "object"
+    ]
   },
   "name": "get_team_members"
 }

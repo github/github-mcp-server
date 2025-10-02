@@ -5,6 +5,7 @@
   },
   "description": "Create a new pull request in a GitHub repository.",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "base": {
         "description": "Branch to merge into",
@@ -45,8 +46,7 @@
       "title",
       "head",
       "base"
-    ],
-    "type": "object"
+    ]
   },
   "name": "create_pull_request"
 }

@@ -5,6 +5,7 @@
   },
   "description": "Remove a sub-issue from a parent issue in a GitHub repository.",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "issue_number": {
         "description": "The number of the parent issue",
@@ -28,8 +29,7 @@
       "repo",
       "issue_number",
       "sub_issue_id"
-    ],
-    "type": "object"
+    ]
   },
   "name": "remove_sub_issue"
 }

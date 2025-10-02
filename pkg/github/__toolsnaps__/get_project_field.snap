@@ -5,6 +5,7 @@
   },
   "description": "Get Project field for a user or org",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "field_id": {
         "description": "The field's id.",
@@ -32,8 +33,7 @@
       "owner",
       "project_number",
       "field_id"
-    ],
-    "type": "object"
+    ]
   },
   "name": "get_project_field"
 }

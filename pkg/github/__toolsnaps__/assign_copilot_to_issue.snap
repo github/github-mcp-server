@@ -6,6 +6,7 @@
   },
   "description": "Assign Copilot to a specific issue in a GitHub repository.\n\nThis tool can help with the following outcomes:\n- a Pull Request created with source code changes to resolve the issue\n\n\nMore information can be found at:\n- https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot\n",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "issueNumber": {
         "description": "Issue number",
@@ -24,8 +25,7 @@
       "owner",
       "repo",
       "issueNumber"
-    ],
-    "type": "object"
+    ]
   },
   "name": "assign_copilot_to_issue"
 }
