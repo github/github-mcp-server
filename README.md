@@ -12,6 +12,24 @@ The GitHub MCP Server connects AI tools directly to GitHub's platform. This give
 
 Built for developers who want to connect their AI tools to GitHub context and capabilities, from simple natural language queries to complex multi-step agent workflows.
 
+## 🏢 Enterprise & Organization Support
+
+GitHub MCP Server now includes enhanced support for **private organization repositories**, addressing common enterprise use cases:
+
+- **Organization Repository Access**: Seamlessly access private repositories within your organization
+- **Enhanced Error Handling**: Get clear, actionable error messages when access issues occur
+- **Token Validation**: Built-in tools to verify and troubleshoot authentication problems  
+- **Enterprise-Ready**: Supports organization token policies, SSO, and permission structures
+
+For detailed setup instructions and troubleshooting, see the [Organization Access Guide](docs/organization-access.md).
+
+### Quick Start for Organizations
+
+1. **Token Setup**: Use a classic personal access token with `repo` and `read:org` scopes
+2. **Organization Access**: Ensure you're a member and the org allows classic PATs
+3. **Validation**: Use the new `check_organization_access` tool to verify setup
+4. **Troubleshooting**: Enhanced error messages provide step-by-step guidance
+
 ---
 
 ## Remote GitHub MCP Server
@@ -973,6 +991,12 @@ The following sets of tools are available (all are on by default):
 - **unstar_repository** - Unstar repository
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
+
+- **check_organization_access** - Check organization access
+  - `organization`: Organization name to check access for (string, required)
+
+- **check_token_permissions** - Check token permissions
+  - No parameters required
 
 </details>
 
