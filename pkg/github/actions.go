@@ -686,6 +686,35 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
+	if returnContent {
+		// return mcp.NewToolResultResource("failed job logs", , nil
+
+		content := []mcp.Content{
+			mcp.TextContent{
+				Type: "text",
+				Text: "Failed job logs for workflow run " + strconv.FormatInt(runID, 10),
+			}}
+
+		for _, jobLog := range logResults {
+			log, err := json.Marshal(jobLog)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal job log: %w", err)
+			}
+
+			jobContent := mcp.EmbeddedResource{
+				Type: "resource",
+				Resource: mcp.TextResourceContents{
+					Text:     string(log),
+					MIMEType: "application/json",
+					URI:      "actions://" + owner + "/repo/" + repo + "/jobs/" + strconv.FormatInt(runID, 10) + "/failed_logs/" + strconv.FormatInt(jobLog["job_id"].(int64), 10) + ".json",
+				},
+			}
+			content = append(content, jobContent)
+		}
+		return &mcp.CallToolResult{
+			Content: content,
+		}, nil
+	}
 	return mcp.NewToolResultText(string(r)), nil
 }
 
