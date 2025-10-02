@@ -84,14 +84,9 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		)
 	pullRequests := toolsets.NewToolset("pull_requests", "GitHub Pull Request related tools").
 		AddReadTools(
-			toolsets.NewServerTool(GetPullRequest(getClient, t)),
+			toolsets.NewServerTool(PullRequestRead(getClient, t)),
 			toolsets.NewServerTool(ListPullRequests(getClient, t)),
-			toolsets.NewServerTool(GetPullRequestFiles(getClient, t)),
 			toolsets.NewServerTool(SearchPullRequests(getClient, t)),
-			toolsets.NewServerTool(GetPullRequestStatus(getClient, t)),
-			toolsets.NewServerTool(GetPullRequestReviewComments(getClient, t)),
-			toolsets.NewServerTool(GetPullRequestReviews(getClient, t)),
-			toolsets.NewServerTool(GetPullRequestDiff(getClient, t)),
 		).
 		AddWriteTools(
 			toolsets.NewServerTool(MergePullRequest(getClient, t)),
