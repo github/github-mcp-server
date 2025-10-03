@@ -29,6 +29,25 @@ jobs:
             echo "Skipping tag fetch - already on tag ${{ github.ref_name }}"
           fi
 
+      - name: Wait for Docker image
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            TAG="${{ github.ref_name }}"
+          else
+            TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+' | head -n1)
+          fi
+          IMAGE="ghcr.io/github/github-mcp-server:$TAG"
+          
+          for i in {1..6}; do
+            if docker manifest inspect "$IMAGE" &>/dev/null; then
+              echo "✅ Docker image ready: $TAG"
+              break
+            fi
+            [ $i -eq 6 ] && { echo "❌ Timeout waiting for $TAG after 3 minutes"; exit 1; }
+            echo "⏳ Waiting for Docker image ($i/6)..."
+            sleep 30
+          done
+
       - name: Install MCP Publisher
         run: |
           git clone --quiet https://github.com/modelcontextprotocol/registry publisher-repo
@@ -41,7 +60,7 @@ jobs:
             TAG_VERSION=$(echo "${{ github.ref_name }}" | sed 's/^v//')
           else
             LATEST_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-.*)?$' | head -n 1)
-            [ -z "$LATEST_TAG" ] && { echo "No release tag found"; exit 1; }
+            [ -z "$LATEST_TAG" ] && { echo "No release tag found. Cannot determine version."; exit 1; }
             TAG_VERSION=$(echo "$LATEST_TAG" | sed 's/^v//')
             echo "Using latest tag: $LATEST_TAG"
           fi
