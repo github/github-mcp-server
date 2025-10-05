@@ -114,7 +114,96 @@ type MinimalResponse struct {
 	URL string `json:"url"`
 }
 
+type MinimalProject struct {
+	ID               *int64            `json:"id,omitempty"`
+	NodeID           *string           `json:"node_id,omitempty"`
+	Owner            *MinimalUser      `json:"owner,omitempty"`
+	Creator          *MinimalUser      `json:"creator,omitempty"`
+	Title            *string           `json:"title,omitempty"`
+	Description      *string           `json:"description,omitempty"`
+	Public           *bool             `json:"public,omitempty"`
+	ClosedAt         *github.Timestamp `json:"closed_at,omitempty"`
+	CreatedAt        *github.Timestamp `json:"created_at,omitempty"`
+	UpdatedAt        *github.Timestamp `json:"updated_at,omitempty"`
+	DeletedAt        *github.Timestamp `json:"deleted_at,omitempty"`
+	Number           *int              `json:"number,omitempty"`
+	ShortDescription *string           `json:"short_description,omitempty"`
+	DeletedBy        *MinimalUser      `json:"deleted_by,omitempty"`
+}
+
+type MinimalProjectItem struct {
+	ID            *int64            `json:"id,omitempty"`
+	NodeID        *string           `json:"node_id,omitempty"`
+	ProjectNodeID *string           `json:"project_node_id,omitempty"`
+	ContentNodeID *string           `json:"content_node_id,omitempty"`
+	ProjectURL    *string           `json:"project_url,omitempty"`
+	ContentType   *string           `json:"content_type,omitempty"`
+	Creator       *MinimalUser      `json:"creator,omitempty"`
+	CreatedAt     *github.Timestamp `json:"created_at,omitempty"`
+	UpdatedAt     *github.Timestamp `json:"updated_at,omitempty"`
+	ArchivedAt    *github.Timestamp `json:"archived_at,omitempty"`
+	ItemURL       *string           `json:"item_url,omitempty"`
+	Fields        []*projectV2Field `json:"fields,omitempty"`
+}
+
 // Helper functions
+
+func convertToMinimalProject(fullProject *github.ProjectV2) *MinimalProject {
+	if fullProject == nil {
+		return nil
+	}
+
+	return &MinimalProject{
+		ID:               github.Ptr(fullProject.GetID()),
+		NodeID:           github.Ptr(fullProject.GetNodeID()),
+		Owner:            convertToMinimalUser(fullProject.GetOwner()),
+		Creator:          convertToMinimalUser(fullProject.GetCreator()),
+		Title:            github.Ptr(fullProject.GetTitle()),
+		Description:      github.Ptr(fullProject.GetDescription()),
+		Public:           github.Ptr(fullProject.GetPublic()),
+		ClosedAt:         github.Ptr(fullProject.GetClosedAt()),
+		CreatedAt:        github.Ptr(fullProject.GetCreatedAt()),
+		UpdatedAt:        github.Ptr(fullProject.GetUpdatedAt()),
+		DeletedAt:        github.Ptr(fullProject.GetDeletedAt()),
+		Number:           github.Ptr(fullProject.GetNumber()),
+		ShortDescription: github.Ptr(fullProject.GetShortDescription()),
+		DeletedBy:        convertToMinimalUser(fullProject.GetDeletedBy()),
+	}
+}
+
+func convertToMinimalUser(user *github.User) *MinimalUser {
+	if user == nil {
+		return nil
+	}
+
+	return &MinimalUser{
+		Login:      user.GetLogin(),
+		ID:         user.GetID(),
+		ProfileURL: user.GetHTMLURL(),
+		AvatarURL:  user.GetAvatarURL(),
+	}
+}
+
+func convertToMinimalProjectItem(item *projectV2Item) *MinimalProjectItem {
+	if item == nil {
+		return nil
+	}
+
+	return &MinimalProjectItem{
+		ID:            item.ID,
+		NodeID:        item.NodeID,
+		ProjectNodeID: item.ProjectNodeID,
+		ContentNodeID: item.ContentNodeID,
+		ProjectURL:    item.ProjectURL,
+		ContentType:   item.ContentType,
+		Creator:       convertToMinimalUser(item.Creator),
+		CreatedAt:     item.CreatedAt,
+		UpdatedAt:     item.UpdatedAt,
+		ArchivedAt:    item.ArchivedAt,
+		ItemURL:       item.ItemURL,
+		Fields:        item.Fields,
+	}
+}
 
 // convertToMinimalCommit converts a GitHub API RepositoryCommit to MinimalCommit
 func convertToMinimalCommit(commit *github.RepositoryCommit, includeDiffs bool) MinimalCommit {
