@@ -1,0 +1,65 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "name": "io.github.github/github-mcp-server",
+  "description": "Connect AI assistants to GitHub - manage repos, issues, PRs, and workflows through natural language.",
+  "status": "active",
+  "repository": {
+    "url": "https://github.com/github/github-mcp-server",
+    "source": "github"
+  },
+  "version": "${VERSION}",
+  "packages": [
+    {
+      "registryType": "oci",
+      "registryBaseUrl": "https://ghcr.io",
+      "identifier": "github/github-mcp-server",
+      "version": "${VERSION}",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeArguments": [
+        {
+          "type": "positional",
+          "value": "run",
+          "description": "The runtime command to execute"
+        },
+        {
+          "type": "named",
+          "name": "-i",
+          "description": "Run container in interactive mode"
+        },
+        {
+          "type": "named",
+          "name": "--rm",
+          "description": "Automatically remove the container when it exits"
+        },
+        {
+          "type": "named",
+          "name": "-e",
+          "description": "Set an environment variable in the runtime"
+        },
+        {
+          "type": "positional",
+          "valueHint": "env_var_name",
+          "value": "GITHUB_PERSONAL_ACCESS_TOKEN",
+          "description": "Environment variable name"
+        },
+        {
+          "type": "positional",
+          "valueHint": "image_name",
+          "value": "ghcr.io/github/github-mcp-server",
+          "description": "The container image to run"
+        }
+      ],
+      "environmentVariables": [
+        {
+          "description": "Your GitHub personal access token with appropriate scopes.",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": true,
+          "name": "GITHUB_PERSONAL_ACCESS_TOKEN"
+        }
+      ]
+    }
+  ]
+}
