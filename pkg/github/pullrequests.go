@@ -92,7 +92,7 @@ Possible options:
 			case "get_review_comments":
 				return GetPullRequestReviewComments(ctx, client, owner, repo, pullNumber, pagination)
 			case "get_reviews":
-				return GetPullRequestReviews(ctx, client, owner, repo, pullNumber, pagination)
+				return GetPullRequestReviews(ctx, client, owner, repo, pullNumber)
 			default:
 				return nil, fmt.Errorf("unknown method: %s", method)
 			}
@@ -267,7 +267,7 @@ func GetPullRequestReviewComments(ctx context.Context, client *github.Client, ow
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-func GetPullRequestReviews(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+func GetPullRequestReviews(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
 	reviews, resp, err := client.PullRequests.ListReviews(ctx, owner, repo, pullNumber, nil)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
