@@ -604,6 +604,7 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 					// Determine if content is text or binary
 					isTextContent := strings.HasPrefix(contentType, "text/") ||
 						contentType == "application/json" ||
+						contentType == "application/xml" ||
 						strings.HasSuffix(contentType, "+json") ||
 						strings.HasSuffix(contentType, "+xml")
 
