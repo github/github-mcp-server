@@ -31,6 +31,10 @@ For quick installation, use one of the one-click install buttons above. Once you
 
 Alternatively, to manually configure VS Code, choose the appropriate JSON block from the examples below and add it to your host configuration:
 
+> [!NOTE]
+> If you are using GitHub Enterprise Cloud with Data Residency, update the URL in the JSON configuration.
+> For example, if your enterprise's subdomain is octocorp, update the URL to `https://copilot-api.octocorp.ghe.com/mcp`.
+
 <table>
 <tr><th>Using OAuth</th><th>Using a GitHub PAT</th></tr>
 <tr><th align=left colspan=2>VS Code (version 1.101 or greater)</th></tr>
