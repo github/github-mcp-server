@@ -5,6 +5,22 @@
     "version": "0.2.0",
     "configurations": [
         
+        /**
+         * No code selection was provided.
+         * Please paste the code (or selection) you want documented and include the language if relevant.
+         * I will generate a documentation comment for that selection only.
+         */
+
+        {
+            "name": "Attach to Chrome",
+            "port": 9222,
+            "request": "attach",
+            "type": "chrome",
+            "webRoot": "${workspaceFolder}"
+        },
+
+
+        
         {
             "name": "Launch stdio server",
             "type": "go",
