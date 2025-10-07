@@ -32,7 +32,7 @@ go install github.com/github/github-mcp-server/cmd/mcpcurl@latest
 
 ### Verify Installation
 ```bash
-./mcpcurl --help
+
 ```
 
 ## Usage
