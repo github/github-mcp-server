@@ -478,6 +478,196 @@ func TestOptionalStringArrayParam(t *testing.T) {
 	}
 }
 
+func TestOptionalIntArrayParam(t *testing.T) {
+	tests := []struct {
+		name        string
+		params      map[string]interface{}
+		paramName   string
+		expected    []int
+		expectError bool
+	}{
+		{
+			name:        "parameter not in request",
+			params:      map[string]any{},
+			paramName:   "numbers",
+			expected:    []int{},
+			expectError: false,
+		},
+		{
+			name: "valid any array parameter with float64",
+			params: map[string]any{
+				"numbers": []any{float64(1), float64(2), float64(3)},
+			},
+			paramName:   "numbers",
+			expected:    []int{1, 2, 3},
+			expectError: false,
+		},
+		{
+			name: "valid int array parameter",
+			params: map[string]any{
+				"numbers": []int{1, 2, 3},
+			},
+			paramName:   "numbers",
+			expected:    []int{1, 2, 3},
+			expectError: false,
+		},
+		{
+			name: "mixed numeric types",
+			params: map[string]any{
+				"numbers": []any{float64(1), int(2), int32(3), int64(4)},
+			},
+			paramName:   "numbers",
+			expected:    []int{1, 2, 3, 4},
+			expectError: false,
+		},
+		{
+			name: "invalid type in array",
+			params: map[string]any{
+				"numbers": []any{float64(1), "not a number"},
+			},
+			paramName:   "numbers",
+			expected:    []int{},
+			expectError: true,
+		},
+		{
+			name: "nil value",
+			params: map[string]any{
+				"numbers": nil,
+			},
+			paramName:   "numbers",
+			expected:    []int{},
+			expectError: false,
+		},
+		{
+			name: "wrong parameter type",
+			params: map[string]any{
+				"numbers": "not an array",
+			},
+			paramName:   "numbers",
+			expected:    []int{},
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			request := createMCPRequest(tc.params)
+			result, err := OptionalIntArrayParam(request, tc.paramName)
+
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
+func TestRequiredIntArrayParam(t *testing.T) {
+	tests := []struct {
+		name        string
+		params      map[string]interface{}
+		paramName   string
+		expected    []int
+		expectError bool
+	}{
+		{
+			name:        "parameter not in request",
+			params:      map[string]any{},
+			paramName:   "numbers",
+			expected:    nil,
+			expectError: true,
+		},
+		{
+			name: "valid any array parameter with float64",
+			params: map[string]any{
+				"numbers": []any{float64(1), float64(2), float64(3)},
+			},
+			paramName:   "numbers",
+			expected:    []int{1, 2, 3},
+			expectError: false,
+		},
+		{
+			name: "valid int array parameter",
+			params: map[string]any{
+				"numbers": []int{1, 2, 3},
+			},
+			paramName:   "numbers",
+			expected:    []int{1, 2, 3},
+			expectError: false,
+		},
+		{
+			name: "mixed numeric types",
+			params: map[string]any{
+				"numbers": []any{float64(1), int(2), int32(3), int64(4)},
+			},
+			paramName:   "numbers",
+			expected:    []int{1, 2, 3, 4},
+			expectError: false,
+		},
+		{
+			name: "invalid type in array",
+			params: map[string]any{
+				"numbers": []any{float64(1), "not a number"},
+			},
+			paramName:   "numbers",
+			expected:    nil,
+			expectError: true,
+		},
+		{
+			name: "nil value",
+			params: map[string]any{
+				"numbers": nil,
+			},
+			paramName:   "numbers",
+			expected:    nil,
+			expectError: true,
+		},
+		{
+			name: "empty array",
+			params: map[string]any{
+				"numbers": []any{},
+			},
+			paramName:   "numbers",
+			expected:    nil,
+			expectError: true,
+		},
+		{
+			name: "empty int array",
+			params: map[string]any{
+				"numbers": []int{},
+			},
+			paramName:   "numbers",
+			expected:    nil,
+			expectError: true,
+		},
+		{
+			name: "wrong parameter type",
+			params: map[string]any{
+				"numbers": "not an array",
+			},
+			paramName:   "numbers",
+			expected:    nil,
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			request := createMCPRequest(tc.params)
+			result, err := RequiredIntArrayParam(request, tc.paramName)
+
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tc.expected, result)
+			}
+		})
+	}
+}
+
 func TestOptionalPaginationParams(t *testing.T) {
 	tests := []struct {
 		name        string

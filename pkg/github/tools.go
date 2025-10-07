@@ -172,6 +172,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(GetIssueComments(getClient, t)),
 			toolsets.NewServerTool(ListIssueTypes(getClient, t)),
 			toolsets.NewServerTool(ListSubIssues(getClient, t)),
+			toolsets.NewServerTool(FindClosingPullRequests(getGQLClient, t)),
 		).
 		AddWriteTools(
 			toolsets.NewServerTool(CreateIssue(getClient, t)),
@@ -358,6 +359,11 @@ func InitDynamicToolset(s *server.MCPServer, tsg *toolsets.ToolsetGroup, t trans
 // ToBoolPtr converts a bool to a *bool pointer.
 func ToBoolPtr(b bool) *bool {
 	return &b
+}
+
+// ToIntPtr converts an int to a *int pointer.
+func ToIntPtr(i int) *int {
+	return &i
 }
 
 // ToStringPtr converts a string to a *string pointer.
