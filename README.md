@@ -808,38 +808,6 @@ The following sets of tools are available (all are on by default):
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
-- **get_pull_request** - Get pull request details
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **get_pull_request_diff** - Get pull request diff
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **get_pull_request_files** - Get pull request files
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **get_pull_request_review_comments** - Get pull request review comments
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **get_pull_request_reviews** - Get pull request reviews
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **get_pull_request_status** - Get pull request status checks
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
 - **list_pull_requests** - List pull requests
   - `base`: Filter by base branch (string, optional)
   - `direction`: Sort direction (string, optional)
@@ -856,6 +824,22 @@ The following sets of tools are available (all are on by default):
   - `commit_title`: Title for merge commit (string, optional)
   - `merge_method`: Merge method (string, optional)
   - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
+- **pull_request_read** - Get details for a single pull request
+  - `method`: Action to specify what pull request data needs to be retrieved from GitHub. 
+Possible options: 
+ 1. get - Get details of a specific pull request.
+ 2. get_diff - Get the diff of a pull request.
+ 3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
+ 4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
+ 5. get_review_comments - Get the review comments on a pull request. Use with pagination parameters to control the number of results returned.
+ 6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
+ (string, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 

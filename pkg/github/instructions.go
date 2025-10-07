@@ -28,15 +28,15 @@ func GenerateInstructions(enabledToolsets []string) string {
 	}
 
 	// Base instruction with context management
-	baseInstruction := `The GitHub MCP Server provides tools to interact with GitHub.
-
-Context management:
-	1. Use pagination whenever possible with batches of 5-10 items.
-	2. Use minimal_output parameter set to true if the full information is not needed to accomplish a task.
+	baseInstruction := `The GitHub MCP Server provides tools to interact with GitHub platform.
 
 Tool selection guidance:
 	1. Use 'list_*' tools for broad, simple retrieval and pagination of all items of a type (e.g., all issues, all PRs, all branches) with basic filtering.
-	2. Use tools containing 'search' in their name for targeted queries with specific criteria, keywords, or complex filters (e.g., issues with certain text, PRs by author, code containing functions).`
+	2. Use 'search_*' tools for targeted queries with specific criteria, keywords, or complex filters (e.g., issues with certain text, PRs by author, code containing functions).
+
+Context management:
+	1. Use pagination whenever possible with batches of 5-10 items.
+	2. Use minimal_output parameter set to true if the full information is not needed to accomplish a task.`
 
 	allInstructions := []string{baseInstruction}
 	allInstructions = append(allInstructions, instructions...)
