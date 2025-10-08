@@ -1040,12 +1040,12 @@ type PullRequestReviewWriteParams struct {
 
 func PullRequestReviewWrite(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("pull_request_review_write",
-			mcp.WithDescription(t("TOOL_PULL_REQUEST_REVIEW_WRITE_DESCRIPTION", `Create and/or submit, delete pull request review.
+			mcp.WithDescription(t("TOOL_PULL_REQUEST_REVIEW_WRITE_DESCRIPTION", `Create and/or submit, delete review of a pull request.
 
 Available methods:
-- create: Create a new pull request review. If "event" parameter is provided, the review is submitted. If "event" is omitted, a pending review is created.
-- submit_pending: Submit an existing pending pull request review. This requires that a pending review exists for the current user on the specified pull request. The "body" and "event" parameters are used when submitting the review.
-- delete_pending: Delete an existing pending pull request review. This requires that a pending review exists for the current user on the specified pull request.
+- create: Create a new review of a pull request. If "event" parameter is provided, the review is submitted. If "event" is omitted, a pending review is created.
+- submit_pending: Submit an existing pending review of a pull request. This requires that a pending review exists for the current user on the specified pull request. The "body" and "event" parameters are used when submitting the review.
+- delete_pending: Delete an existing pending review of a pull request. This requires that a pending review exists for the current user on the specified pull request.
 `)),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:        t("TOOL_PULL_REQUEST_REVIEW_WRITE_USER_TITLE", "Write operations (create, submit, delete) on pull request reviews."),
