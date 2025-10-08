@@ -657,6 +657,14 @@ The following sets of tools are available (all are on by default):
   - `title`: New title (string, optional)
   - `type`: New issue type (string, optional)
 
+- **get_latest_issue_comment_user** - Get latest issue comments by a user on a particular issue
+  - `issue_number`: Issue number (number, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
+  - `user`: Github username of that particular user (string, required)
+
 </details>
 
 <details>

@@ -172,10 +172,12 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(GetIssueComments(getClient, t)),
 			toolsets.NewServerTool(ListIssueTypes(getClient, t)),
 			toolsets.NewServerTool(ListSubIssues(getClient, t)),
+			toolsets.NewServerTool(GetLatestIssueCommentUser(getClient, t)),
 		).
 		AddWriteTools(
 			toolsets.NewServerTool(CreateIssue(getClient, t)),
 			toolsets.NewServerTool(AddIssueComment(getClient, t)),
+			toolsets.NewServerTool(UpdateIssueComment(getClient, t)),
 			toolsets.NewServerTool(UpdateIssue(getClient, getGQLClient, t)),
 			toolsets.NewServerTool(AssignCopilotToIssue(getGQLClient, t)),
 			toolsets.NewServerTool(AddSubIssue(getClient, t)),
