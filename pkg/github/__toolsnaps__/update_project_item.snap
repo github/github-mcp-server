@@ -6,13 +6,14 @@
   "description": "Update a specific Project item for a user or org",
   "inputSchema": {
     "properties": {
-      "fields": {
-        "description": "A list of field updates to apply.",
-        "type": "array"
-      },
       "item_id": {
-        "description": "The numeric ID of the project item to update (not the issue or pull request ID).",
+        "description": "The numeric ID of the issue or pull request to add to the project.",
         "type": "number"
+      },
+      "new_field": {
+        "description": "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set this to null. Example: {\"id\": 123456, \"value\": \"New Value\"}",
+        "properties": {},
+        "type": "object"
       },
       "owner": {
         "description": "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.",
@@ -36,7 +37,7 @@
       "owner",
       "project_number",
       "item_id",
-      "fields"
+      "new_field"
     ],
     "type": "object"
   },
