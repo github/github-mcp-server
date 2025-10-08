@@ -167,7 +167,7 @@ func NewMockedHTTPClient(ms ...Matcher) *http.Client {
 			return
 		}
 		defer func() { _ = r.Body.Close() }()
-		
+
 		matcher, ok := matchers[gqlRequest.Query]
 		if !ok {
 			http.Error(w, fmt.Sprintf("no matcher found for query %s", gqlRequest.Query), http.StatusNotFound)

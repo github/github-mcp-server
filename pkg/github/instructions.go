@@ -48,7 +48,7 @@ Context management:
 func getToolsetInstructions(toolset string) string {
 	switch toolset {
 	case "pull_requests":
-		return "## Pull Requests\n\nPR review workflow: Always use 'create_pending_pull_request_review' → 'add_comment_to_pending_review' → 'submit_pending_pull_request_review' for complex reviews with line-specific comments."
+		return "## Pull Requests\n\nPR review workflow: Always use 'pull_request_review_write' with method 'create' and no 'event' parameter to create a pending review, then 'add_comment_to_pending_review' to add comments, and finally 'pull_request_review_write' with method 'submit_pending' to submit the review for complex reviews with line-specific comments."
 	case "issues":
 		return "## Issues\n\nCheck 'list_issue_types' first for organizations to use proper issue types. Use 'search_issues' before creating new issues to avoid duplicates. Always set 'state_reason' when closing issues."
 	case "discussions":
