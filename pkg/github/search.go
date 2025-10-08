@@ -30,6 +30,10 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 				mcp.Description("Return minimal repository information (default: true). When false, returns full GitHub API repository objects."),
 				mcp.DefaultBool(true),
 			),
+			mcp.WithBoolean("include_archived",
+				mcp.Description("Include archived repositories in search results (default: true). When false, excludes archived repositories."),
+				mcp.DefaultBool(true),
+			),
 			WithPagination(),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -45,6 +49,15 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+			includeArchived, err := OptionalBoolParamWithDefault(request, "include_archived", true)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			// Modify query to exclude archived repositories if requested
+			if !includeArchived && !hasFilter(query, "archived") {
+				query = query + " archived:false"
+			}
+
 			opts := &github.SearchOptions{
 				ListOptions: github.ListOptions{
 					Page:    pagination.Page,
