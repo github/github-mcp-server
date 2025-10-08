@@ -558,6 +558,93 @@ func AddProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 		}
 }
 
+func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("update_project_item",
+			mcp.WithDescription(t("TOOL_UPDATE_PROJECT_ITEM_DESCRIPTION", "Update a specific Project item for a user or org")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{Title: t("TOOL_UPDATE_PROJECT_ITEM_USER_TITLE", "Update project item"), ReadOnlyHint: ToBoolPtr(false)}),
+			mcp.WithString("owner_type", mcp.Required(), mcp.Description("Owner type"), mcp.Enum("user", "org")),
+			mcp.WithString("owner", mcp.Required(), mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.")),
+			mcp.WithNumber("project_number", mcp.Required(), mcp.Description("The project's number.")),
+			mcp.WithNumber("item_id", mcp.Required(), mcp.Description("The numeric ID of the issue or pull request to add to the project.")),
+			mcp.WithObject("new_field", mcp.Required(), mcp.Description("Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set this to null. Example: {\"id\": 123456, \"value\": \"New Value\"}")),
+		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := RequiredParam[string](req, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			ownerType, err := RequiredParam[string](req, "owner_type")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			projectNumber, err := RequiredInt(req, "project_number")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			itemID, err := RequiredInt(req, "item_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			rawNewField, exists := req.GetArguments()["new_field"]
+			if !exists {
+				return mcp.NewToolResultError("missing required parameter: new_field"), nil
+			}
+
+			newField, ok := rawNewField.(map[string]any)
+			if !ok || newField == nil {
+				return mcp.NewToolResultError("new_field must be an object"), nil
+			}
+
+			updatePayload, err := buildUpdateProjectItem(newField)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			var projectsURL string
+			if ownerType == "org" {
+				projectsURL = fmt.Sprintf("orgs/%s/projectsV2/%d/items/%d", owner, projectNumber, itemID)
+			} else {
+				projectsURL = fmt.Sprintf("users/%s/projectsV2/%d/items/%d", owner, projectNumber, itemID)
+			}
+			httpRequest, err := client.NewRequest("PATCH", projectsURL, updateProjectItemPayload{
+				Fields: []updateProjectItem{*updatePayload},
+			})
+			if err != nil {
+				return nil, fmt.Errorf("failed to create request: %w", err)
+			}
+			addedItem := projectV2Item{}
+
+			resp, err := client.Do(ctx, httpRequest, &addedItem)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to add a project item",
+					resp,
+					err,
+				), nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to add a project item: %s", string(body))), nil
+			}
+			r, err := json.Marshal(convertToMinimalProjectItem(&addedItem))
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
 func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("delete_project_item",
 			mcp.WithDescription(t("TOOL_DELETE_PROJECT_ITEM_DESCRIPTION", "Delete a specific Project item for a user or org")),
@@ -622,8 +709,17 @@ func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 }
 
 type newProjectItem struct {
-	ID   int64  `json:"id,omitempty"` // Issue or Pull Request ID to add to the project.
+	ID   int64  `json:"id,omitempty"`
 	Type string `json:"type,omitempty"`
+}
+
+type updateProjectItemPayload struct {
+	Fields []updateProjectItem `json:"fields"`
+}
+
+type updateProjectItem struct {
+	ID    int `json:"id"`
+	Value any `json:"value"`
 }
 
 type projectV2Field struct {
@@ -639,6 +735,8 @@ type projectV2Field struct {
 
 type projectV2Item struct {
 	ID            *int64            `json:"id,omitempty"`
+	Title         *string           `json:"title,omitempty"`
+	Description   *string           `json:"description,omitempty"`
 	NodeID        *string           `json:"node_id,omitempty"`
 	ProjectNodeID *string           `json:"project_node_id,omitempty"`
 	ContentNodeID *string           `json:"content_node_id,omitempty"`
@@ -669,6 +767,33 @@ type listProjectsOptions struct {
 
 	// Query Limit results to projects of the specified type.
 	Query string `url:"q,omitempty"`
+}
+
+func buildUpdateProjectItem(input map[string]any) (*updateProjectItem, error) {
+	if input == nil {
+		return nil, fmt.Errorf("new_field must be an object")
+	}
+
+	fieldIDValue, ok := input["id"]
+	if !ok {
+		fieldIDValue, ok = input["value"]
+		if !ok {
+			return nil, fmt.Errorf("new_field.id is required")
+		}
+	}
+
+	fieldIDAsInt, ok := fieldIDValue.(float64) // JSON numbers are float64
+	if !ok {
+		return nil, fmt.Errorf("new_field.id must be a number")
+	}
+
+	value, ok := input["value"]
+	if !ok {
+		return nil, fmt.Errorf("new_field.value is required")
+	}
+	payload := &updateProjectItem{ID: int(fieldIDAsInt), Value: value}
+
+	return payload, nil
 }
 
 // addOptions adds the parameters in opts as URL query parameters to s. opts
