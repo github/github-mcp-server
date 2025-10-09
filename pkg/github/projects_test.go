@@ -1175,8 +1175,9 @@ func Test_UpdateProjectItem(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "project_number")
 	assert.Contains(t, tool.InputSchema.Properties, "item_id")
-	assert.Contains(t, tool.InputSchema.Properties, "new_field")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number", "item_id", "new_field"})
+	assert.Contains(t, tool.InputSchema.Properties, "field_id")
+	assert.Contains(t, tool.InputSchema.Properties, "field_value")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number", "item_id", "field_id", "field_value"})
 
 	orgUpdatedItem := map[string]any{
 		"id":           801,
@@ -1223,8 +1224,8 @@ func Test_UpdateProjectItem(t *testing.T) {
 				"owner_type":     "org",
 				"project_number": float64(1001),
 				"item_id":        float64(5555),
-				"new_field": map[string]any{
-					"id":    float64(101),
+				"field_id":       float64(101),
+				"field_value": map[string]any{
 					"value": "Done",
 				},
 			},
