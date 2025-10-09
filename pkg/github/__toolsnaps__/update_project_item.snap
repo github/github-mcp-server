@@ -6,15 +6,6 @@
   "description": "Update a specific Project item for a user or org",
   "inputSchema": {
     "properties": {
-      "field_id": {
-        "description": "The unique identifier of the project field to be updated.",
-        "type": "number"
-      },
-      "field_value": {
-        "description": "The new value for the field: For text, number, and date fields, provide the new value directly. For single select and iteration fields, provide the ID of the option or iteration. To clear the field, set this to null. Example: {\"field_value\": \"Done\"}",
-        "properties": {},
-        "type": "object"
-      },
       "item_id": {
         "description": "The unique identifier of the project item. This is not the issue or pull request ID.",
         "type": "number"
@@ -34,6 +25,11 @@
       "project_number": {
         "description": "The project's number.",
         "type": "number"
+      },
+      "updated_field": {
+        "description": "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set \"value\" to null. Example: {\"id\": 123456, \"value\": \"New Value\"}",
+        "properties": {},
+        "type": "object"
       }
     },
     "required": [
@@ -41,8 +37,7 @@
       "owner",
       "project_number",
       "item_id",
-      "field_id",
-      "field_value"
+      "updated_field"
     ],
     "type": "object"
   },

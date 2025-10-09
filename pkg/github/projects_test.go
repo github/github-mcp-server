@@ -1175,9 +1175,8 @@ func Test_UpdateProjectItem(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "project_number")
 	assert.Contains(t, tool.InputSchema.Properties, "item_id")
-	assert.Contains(t, tool.InputSchema.Properties, "field_id")
-	assert.Contains(t, tool.InputSchema.Properties, "field_value")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number", "item_id", "field_id", "field_value"})
+	assert.Contains(t, tool.InputSchema.Properties, "updated_field")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number", "item_id", "updated_field"})
 
 	orgUpdatedItem := map[string]any{
 		"id":           801,
@@ -1224,8 +1223,8 @@ func Test_UpdateProjectItem(t *testing.T) {
 				"owner_type":     "org",
 				"project_number": float64(1001),
 				"item_id":        float64(5555),
-				"field_id":       float64(101),
-				"field_value": map[string]any{
+				"updated_field": map[string]any{
+					"id":    float64(101),
 					"value": "Done",
 				},
 			},
@@ -1259,8 +1258,8 @@ func Test_UpdateProjectItem(t *testing.T) {
 				"owner_type":     "user",
 				"project_number": float64(2002),
 				"item_id":        float64(6666),
-				"field_id":       float64(202),
-				"field_value": map[string]any{
+				"updated_field": map[string]any{
+					"id":    float64(202),
 					"value": float64(42),
 				},
 			},
@@ -1279,8 +1278,8 @@ func Test_UpdateProjectItem(t *testing.T) {
 				"owner_type":     "org",
 				"project_number": float64(3003),
 				"item_id":        float64(7777),
-				"field_id":       float64(303),
-				"field_value": map[string]any{
+				"updated_field": map[string]any{
+					"id":    float64(303),
 					"value": "In Progress",
 				},
 			},
@@ -1363,7 +1362,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 				"owner_type":     "org",
 				"project_number": float64(1),
 				"item_id":        float64(2),
-				"new_field":      "not-an-object",
+				"updated_field":  "not-an-object",
 			},
 			expectError: true,
 		},
@@ -1375,7 +1374,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 				"owner_type":     "org",
 				"project_number": float64(1),
 				"item_id":        float64(2),
-				"new_field":      map[string]any{},
+				"updated_field":  map[string]any{},
 			},
 			expectError: true,
 		},
@@ -1387,7 +1386,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 				"owner_type":     "org",
 				"project_number": float64(1),
 				"item_id":        float64(2),
-				"new_field": map[string]any{
+				"updated_field": map[string]any{
 					"id": float64(9),
 				},
 			},
@@ -1419,7 +1418,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 				case "missing item_id":
 					assert.Contains(t, text, "missing required parameter: item_id")
 				case "missing field_value":
-					assert.Contains(t, text, "missing required parameter: field_value")
+					assert.Contains(t, text, "missing required parameter: updated_field")
 				case "field_value not object":
 					assert.Contains(t, text, "field_value must be an object")
 				case "field_value missing id":

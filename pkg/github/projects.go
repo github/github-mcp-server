@@ -691,13 +691,9 @@ func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 				mcp.Required(),
 				mcp.Description("The unique identifier of the project item. This is not the issue or pull request ID."),
 			),
-			mcp.WithNumber("field_id",
+			mcp.WithObject("updated_field",
 				mcp.Required(),
-				mcp.Description("The unique identifier of the project field to be updated."),
-			),
-			mcp.WithObject("field_value",
-				mcp.Required(),
-				mcp.Description("The new value for the field: For text, number, and date fields, provide the new value directly. For single select and iteration fields, provide the ID of the option or iteration. To clear the field, set this to null. Example: {\"field_value\": \"Done\"}"),
+				mcp.Description("Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set \"value\" to null. Example: {\"id\": 123456, \"value\": \"New Value\"}"),
 			),
 		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](req, "owner")
@@ -717,27 +713,20 @@ func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			fieldID, err := RequiredInt(req, "field_id")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			rawFieldValue, exists := req.GetArguments()["field_value"]
+			rawUpdatedField, exists := req.GetArguments()["updated_field"]
 			if !exists {
-				return mcp.NewToolResultError("missing required parameter: field_value"), nil
+				return mcp.NewToolResultError("missing required parameter: updated_field"), nil
 			}
 
-			fieldValue, ok := rawFieldValue.(map[string]any)
+			fieldValue, ok := rawUpdatedField.(map[string]any)
 			if !ok || fieldValue == nil {
 				return mcp.NewToolResultError("field_value must be an object"), nil
 			}
 
-			valueField, ok := fieldValue["value"]
-			if !ok {
-				return nil, fmt.Errorf("field_value is required")
+			updatePayload, err := buildUpdateProjectItem(fieldValue)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
 			}
-
-			updatePayload := &updateProjectItem{ID: fieldID, Value: valueField}
 
 			client, err := getClient(ctx)
 			if err != nil {
@@ -924,29 +913,29 @@ type listProjectsOptions struct {
 	Query string `url:"q,omitempty"`
 }
 
-// func buildUpdateProjectItem(input map[string]any) (*updateProjectItem, error) {
-// 	if input == nil {
-// 		return nil, fmt.Errorf("new_field must be an object")
-// 	}
+func buildUpdateProjectItem(input map[string]any) (*updateProjectItem, error) {
+	if input == nil {
+		return nil, fmt.Errorf("updated_field must be an object")
+	}
 
-// 	idField, ok := input["id"]
-// 	if !ok {
-// 		return nil, fmt.Errorf("new_field.id is required")
-// 	}
+	idField, ok := input["id"]
+	if !ok {
+		return nil, fmt.Errorf("updated_field.id is required")
+	}
 
-// 	idFieldAsFloat64, ok := idField.(float64) // JSON numbers are float64
-// 	if !ok {
-// 		return nil, fmt.Errorf("new_field.id must be a number")
-// 	}
+	idFieldAsFloat64, ok := idField.(float64) // JSON numbers are float64
+	if !ok {
+		return nil, fmt.Errorf("updated_field.id must be a number")
+	}
 
-// 	valueField, ok := input["value"]
-// 	if !ok {
-// 		return nil, fmt.Errorf("new_field.value is required")
-// 	}
-// 	payload := &updateProjectItem{ID: int(idFieldAsFloat64), Value: valueField}
+	valueField, ok := input["value"]
+	if !ok {
+		return nil, fmt.Errorf("updated_field.value is required")
+	}
+	payload := &updateProjectItem{ID: int(idFieldAsFloat64), Value: valueField}
 
-// 	return payload, nil
-// }
+	return payload, nil
+}
 
 // addOptions adds the parameters in opts as URL query parameters to s. opts
 // must be a struct whose fields may contain "url" tags.
