@@ -1259,8 +1259,8 @@ func Test_UpdateProjectItem(t *testing.T) {
 				"owner_type":     "user",
 				"project_number": float64(2002),
 				"item_id":        float64(6666),
-				"new_field": map[string]any{
-					"id":    float64(202),
+				"field_id":       float64(202),
+				"field_value": map[string]any{
 					"value": float64(42),
 				},
 			},
@@ -1279,8 +1279,8 @@ func Test_UpdateProjectItem(t *testing.T) {
 				"owner_type":     "org",
 				"project_number": float64(3003),
 				"item_id":        float64(7777),
-				"new_field": map[string]any{
-					"id":    float64(303),
+				"field_id":       float64(303),
+				"field_value": map[string]any{
 					"value": "In Progress",
 				},
 			},
@@ -1294,8 +1294,8 @@ func Test_UpdateProjectItem(t *testing.T) {
 				"owner_type":     "org",
 				"project_number": float64(1),
 				"item_id":        float64(2),
+				"field_id":       float64(1),
 				"new_field": map[string]any{
-					"id":    float64(1),
 					"value": "X",
 				},
 			},
@@ -1344,13 +1344,14 @@ func Test_UpdateProjectItem(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:         "missing new_field",
+			name:         "missing field_value",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
 				"project_number": float64(1),
 				"item_id":        float64(2),
+				"field_id":       float64(2),
 			},
 			expectError: true,
 		},
@@ -1417,14 +1418,14 @@ func Test_UpdateProjectItem(t *testing.T) {
 					assert.Contains(t, text, "missing required parameter: project_number")
 				case "missing item_id":
 					assert.Contains(t, text, "missing required parameter: item_id")
-				case "missing new_field":
-					assert.Contains(t, text, "missing required parameter: new_field")
-				case "new_field not object":
-					assert.Contains(t, text, "new_field must be an object")
-				case "new_field missing id":
-					assert.Contains(t, text, "new_field.id is required")
-				case "new_field missing value":
-					assert.Contains(t, text, "new_field.value is required")
+				case "missing field_value":
+					assert.Contains(t, text, "missing required parameter: field_value")
+				case "field_value not object":
+					assert.Contains(t, text, "field_value must be an object")
+				case "field_value missing id":
+					assert.Contains(t, text, "missing required parameter: field_id")
+				case "field_value missing value":
+					assert.Contains(t, text, "field_value.value is required")
 				}
 				return
 			}
