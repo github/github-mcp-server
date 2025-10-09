@@ -806,6 +806,13 @@ The following sets of tools are available (all are on by default):
   - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
   - `query`: Filter projects by a search query (matches title and description) (string, optional)
 
+- **update_project_item** - Update project item
+  - `item_id`: The unique identifier of the project item. This is not the issue or pull request ID. (number, required)
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `project_number`: The project's number. (number, required)
+  - `updated_field`: Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set "value" to null. Example: {"id": 123456, "value": "New Value"} (object, required)
+
 </details>
 
 <details>
