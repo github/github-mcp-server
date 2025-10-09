@@ -11,7 +11,7 @@
         "type": "number"
       },
       "field_value": {
-        "description": "The new value for the field: For text, number, and date fields, provide the new value directly. For single select and iteration fields, provide the ID of the option or iteration. To clear the field, set this to null. Example: {\"id\": 123456, \"value\": \"Done\"}",
+        "description": "The new value for the field: For text, number, and date fields, provide the new value directly. For single select and iteration fields, provide the ID of the option or iteration. To clear the field, set this to null. Example: {\"field_value\": \"Done\"}",
         "properties": {},
         "type": "object"
       },

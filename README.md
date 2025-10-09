@@ -808,7 +808,7 @@ The following sets of tools are available (all are on by default):
 
 - **update_project_item** - Update project item
   - `field_id`: The unique identifier of the project field to be updated. (number, required)
-  - `field_value`: The new value for the field: For text, number, and date fields, provide the new value directly. For single select and iteration fields, provide the ID of the option or iteration. To clear the field, set this to null. Example: {"id": 123456, "value": "Done"} (object, required)
+  - `field_value`: The new value for the field: For text, number, and date fields, provide the new value directly. For single select and iteration fields, provide the ID of the option or iteration. To clear the field, set this to null. Example: {"field_value": "Done"} (object, required)
   - `item_id`: The unique identifier of the project item. This is not the issue or pull request ID. (number, required)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)

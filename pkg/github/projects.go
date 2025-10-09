@@ -697,7 +697,7 @@ func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 			),
 			mcp.WithObject("field_value",
 				mcp.Required(),
-				mcp.Description("The new value for the field: For text, number, and date fields, provide the new value directly. For single select and iteration fields, provide the ID of the option or iteration. To clear the field, set this to null. Example: {\"id\": 123456, \"value\": \"Done\"}"),
+				mcp.Description("The new value for the field: For text, number, and date fields, provide the new value directly. For single select and iteration fields, provide the ID of the option or iteration. To clear the field, set this to null. Example: {\"field_value\": \"Done\"}"),
 			),
 		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](req, "owner")
