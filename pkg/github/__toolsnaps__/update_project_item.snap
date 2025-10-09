@@ -7,11 +7,11 @@
   "inputSchema": {
     "properties": {
       "item_id": {
-        "description": "The numeric ID of the issue or pull request to add to the project.",
+        "description": "The unique identifier of the project item. This is not the issue or pull request ID.",
         "type": "number"
       },
       "new_field": {
-        "description": "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set this to null. Example: {\"id\": 123456, \"value\": \"New Value\"}",
+        "description": "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set \"value\" to null. Example: {\"id\": 123456, \"value\": \"New Value\"}",
         "properties": {},
         "type": "object"
       },

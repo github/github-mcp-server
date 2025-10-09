@@ -708,8 +708,8 @@ The following sets of tools are available (all are on by default):
   - `query`: Filter projects by a search query (matches title and description) (string, optional)
 
 - **update_project_item** - Update project item
-  - `item_id`: The numeric ID of the issue or pull request to add to the project. (number, required)
-  - `new_field`: Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set this to null. Example: {"id": 123456, "value": "New Value"} (object, required)
+  - `item_id`: The unique identifier of the project item. This is not the issue or pull request ID. (number, required)
+  - `new_field`: Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set "value" to null. Example: {"id": 123456, "value": "New Value"} (object, required)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
   - `project_number`: The project's number. (number, required)

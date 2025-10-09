@@ -1022,7 +1022,7 @@ func Test_AddProjectItem(t *testing.T) {
 						assert.NoError(t, json.Unmarshal(body, &payload))
 						assert.Equal(t, "PullRequest", payload.Type)
 						assert.Equal(t, 7654, payload.ID)
-						w.WriteHeader(http.StatusOK)
+						w.WriteHeader(http.StatusCreated)
 						_, _ = w.Write(mock.MustMarshal(userItem))
 					}),
 				),
@@ -1139,6 +1139,8 @@ func Test_AddProjectItem(t *testing.T) {
 					assert.Contains(t, text, "missing required parameter: item_type")
 				case "missing item_id":
 					assert.Contains(t, text, "missing required parameter: item_id")
+					// case "api error":
+					// 	assert.Contains(t, text, ProjectAddFailedError)
 				}
 				return
 			}
@@ -1246,7 +1248,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 						require.Len(t, payload.Fields, 1)
 						assert.Equal(t, 202, payload.Fields[0].ID)
 						assert.Equal(t, 42.0, payload.Fields[0].Value)
-						w.WriteHeader(http.StatusCreated)
+						w.WriteHeader(http.StatusOK)
 						_, _ = w.Write(mock.MustMarshal(userUpdatedItem))
 					}),
 				),
@@ -1282,7 +1284,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 				},
 			},
 			expectError:    true,
-			expectedErrMsg: "failed to add a project item",
+			expectedErrMsg: "failed to update a project item",
 		},
 		{
 			name:         "missing owner",
