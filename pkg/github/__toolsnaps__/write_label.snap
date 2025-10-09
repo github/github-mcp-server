@@ -1,9 +1,9 @@
 {
   "annotations": {
-    "title": "Write operations on labels - create, update, delete",
+    "title": "Write operations on repository labels.",
     "readOnlyHint": false
   },
-  "description": "Create, update, or delete repository labels in GitHub.",
+  "description": "Perform write operations on repository labels.",
   "inputSchema": {
     "properties": {
       "color": {

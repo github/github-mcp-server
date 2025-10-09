@@ -96,7 +96,7 @@ var (
 		Description: "Discover GitHub MCP tools that can help achieve tasks by enabling additional sets of tools, you can control the enablement of any toolset to access its tools when this toolset is enabled.",
 	}
 	ToolsetLabels = ToolsetMetadata{
-		ID: 				"labels",
+		ID:          "labels",
 		Description: "GitHub Labels related tools",
 	}
 )
