@@ -1245,7 +1245,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 						assert.NoError(t, json.Unmarshal(body, &payload))
 						require.Len(t, payload.Fields, 1)
 						assert.Equal(t, 202, payload.Fields[0].ID)
-						assert.Equal(t, 42.0, payload.Fields[0].Value) // number value example
+						assert.Equal(t, 42.0, payload.Fields[0].Value)
 						w.WriteHeader(http.StatusCreated)
 						_, _ = w.Write(mock.MustMarshal(userUpdatedItem))
 					}),
@@ -1282,7 +1282,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 				},
 			},
 			expectError:    true,
-			expectedErrMsg: "failed to add a project item", // implementation uses this message for update failures
+			expectedErrMsg: "failed to add a project item",
 		},
 		{
 			name:         "missing owner",
