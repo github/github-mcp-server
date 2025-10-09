@@ -19,7 +19,7 @@ func GetLabel(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc)
 			"get_label",
 			mcp.WithDescription(t("TOOL_GET_LABEL_DESCRIPTION", "Get a specific label from a repository.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_GET_LABEL_TITLE", "Get Label from a repository."),
+				Title:        t("TOOL_GET_LABEL_TITLE", "Get a specific label from a repository."),
 				ReadOnlyHint: ToBoolPtr(true),
 			}),
 			mcp.WithString("owner",
@@ -103,7 +103,7 @@ func ListLabels(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 			"list_label",
 			mcp.WithDescription(t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository or an issue")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_GET_LABEL_TITLE", "List labels from a repository."),
+				Title:        t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository."),
 				ReadOnlyHint: ToBoolPtr(true),
 			}),
 			mcp.WithString("owner",

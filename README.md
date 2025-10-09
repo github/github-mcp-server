@@ -600,7 +600,7 @@ The following sets of tools are available (all are on by default):
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
-- **get_label** - Get Label from a repository.
+- **get_label** - Get a specific label from a repository.
   - `name`: Label name. (string, required)
   - `owner`: Repository owner (username or organization name) (string, required)
   - `repo`: Repository name (string, required)
@@ -619,7 +619,7 @@ The following sets of tools are available (all are on by default):
   - `since`: Filter by date (ISO 8601 timestamp) (string, optional)
   - `state`: Filter by state, by default both open and closed issues are returned when not provided (string, optional)
 
-- **list_label** - Get Label from a repository.
+- **list_label** - List labels from a repository or an issue
   - `issue_number`: Issue number - if provided, lists labels on the specific issue (number, optional)
   - `owner`: Repository owner (username or organization name) - required for all operations (string, required)
   - `repo`: Repository name - required for all operations (string, required)
@@ -683,12 +683,12 @@ The following sets of tools are available (all are on by default):
 
 <summary>Labels</summary>
 
-- **get_label** - Get Label from a repository.
+- **get_label** - Get a specific label from a repository.
   - `name`: Label name. (string, required)
   - `owner`: Repository owner (username or organization name) (string, required)
   - `repo`: Repository name (string, required)
 
-- **list_label** - Get Label from a repository.
+- **list_label** - List labels from a repository or an issue
   - `issue_number`: Issue number - if provided, lists labels on the specific issue (number, optional)
   - `owner`: Repository owner (username or organization name) - required for all operations (string, required)
   - `repo`: Repository name - required for all operations (string, required)
