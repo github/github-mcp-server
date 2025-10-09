@@ -25,6 +25,11 @@
       },
       "method": {
         "description": "The write operation to perform on pull request review.",
+        "enum": [
+          "create",
+          "submit_pending",
+          "delete_pending"
+        ],
         "type": "string"
       },
       "owner": {

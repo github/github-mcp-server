@@ -8,6 +8,14 @@
     "properties": {
       "method": {
         "description": "Action to specify what pull request data needs to be retrieved from GitHub. \nPossible options: \n 1. get - Get details of a specific pull request.\n 2. get_diff - Get the diff of a pull request.\n 3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.\n 4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.\n 5. get_review_comments - Get the review comments on a pull request. Use with pagination parameters to control the number of results returned.\n 6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.\n",
+        "enum": [
+          "get",
+          "get_diff",
+          "get_status",
+          "get_files",
+          "get_review_comments",
+          "get_reviews"
+        ],
         "type": "string"
       },
       "owner": {

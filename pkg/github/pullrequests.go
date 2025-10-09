@@ -36,6 +36,8 @@ Possible options:
  5. get_review_comments - Get the review comments on a pull request. Use with pagination parameters to control the number of results returned.
  6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
 `),
+
+				mcp.Enum("get", "get_diff", "get_status", "get_files", "get_review_comments", "get_reviews"),
 			),
 			mcp.WithString("owner",
 				mcp.Required(),
@@ -1057,6 +1059,7 @@ Available methods:
 			mcp.WithString("method",
 				mcp.Required(),
 				mcp.Description("The write operation to perform on pull request review."),
+				mcp.Enum("create", "submit_pending", "delete_pending"),
 			),
 			mcp.WithString("owner",
 				mcp.Required(),
