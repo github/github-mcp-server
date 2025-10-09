@@ -160,7 +160,7 @@ func ListLabels(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 				vars := map[string]any{
 					"owner":       githubv4.String(owner),
 					"repo":        githubv4.String(repo),
-					"issueNumber": githubv4.Int(issueNumber),
+					"issueNumber": githubv4.Int(issueNumber), // #nosec G115 - issue numbers are always small positive integers
 				}
 
 				if err := client.Query(ctx, &query, vars); err != nil {
@@ -190,52 +190,52 @@ func ListLabels(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 
 				return mcp.NewToolResultText(string(out)), nil
 
-			} else {
-				var query struct {
-					Repository struct {
-						Labels struct {
-							Nodes []struct {
-								ID          githubv4.ID
-								Name        githubv4.String
-								Color       githubv4.String
-								Description githubv4.String
-							}
-							TotalCount githubv4.Int
-						} `graphql:"labels(first: 100)"`
-					} `graphql:"repository(owner: $owner, name: $repo)"`
-				}
-
-				vars := map[string]any{
-					"owner": githubv4.String(owner),
-					"repo":  githubv4.String(repo),
-				}
-
-				if err := client.Query(ctx, &query, vars); err != nil {
-					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to list labels", err), nil
-				}
-
-				labels := make([]map[string]any, len(query.Repository.Labels.Nodes))
-				for i, labelNode := range query.Repository.Labels.Nodes {
-					labels[i] = map[string]any{
-						"id":          fmt.Sprintf("%v", labelNode.ID),
-						"name":        string(labelNode.Name),
-						"color":       string(labelNode.Color),
-						"description": string(labelNode.Description),
-					}
-				}
-
-				response := map[string]any{
-					"labels":     labels,
-					"totalCount": int(query.Repository.Labels.TotalCount),
-				}
-
-				out, err := json.Marshal(response)
-				if err != nil {
-					return nil, fmt.Errorf("failed to marshal labels: %w", err)
-				}
-
-				return mcp.NewToolResultText(string(out)), nil
 			}
+
+			var query struct {
+				Repository struct {
+					Labels struct {
+						Nodes []struct {
+							ID          githubv4.ID
+							Name        githubv4.String
+							Color       githubv4.String
+							Description githubv4.String
+						}
+						TotalCount githubv4.Int
+					} `graphql:"labels(first: 100)"`
+				} `graphql:"repository(owner: $owner, name: $repo)"`
+			}
+
+			vars := map[string]any{
+				"owner": githubv4.String(owner),
+				"repo":  githubv4.String(repo),
+			}
+
+			if err := client.Query(ctx, &query, vars); err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to list labels", err), nil
+			}
+
+			labels := make([]map[string]any, len(query.Repository.Labels.Nodes))
+			for i, labelNode := range query.Repository.Labels.Nodes {
+				labels[i] = map[string]any{
+					"id":          fmt.Sprintf("%v", labelNode.ID),
+					"name":        string(labelNode.Name),
+					"color":       string(labelNode.Color),
+					"description": string(labelNode.Description),
+				}
+			}
+
+			response := map[string]any{
+				"labels":     labels,
+				"totalCount": int(query.Repository.Labels.TotalCount),
+			}
+
+			out, err := json.Marshal(response)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal labels: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(out)), nil
 		}
 }
 
