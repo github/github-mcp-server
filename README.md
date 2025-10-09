@@ -993,9 +993,11 @@ Possible options:
 
 - **search_repositories** - Search repositories
   - `minimal_output`: Return minimal repository information (default: true). When false, returns full GitHub API repository objects. (boolean, optional)
+  - `order`: Sort order (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Repository search query. Examples: 'machine learning in:name stars:>1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering. (string, required)
+  - `sort`: Sort repositories by field, defaults to best match (string, optional)
 
 </details>
 
