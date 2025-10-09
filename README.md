@@ -668,15 +668,6 @@ The following sets of tools are available (all are on by default):
   - `title`: New title (string, optional)
   - `type`: New issue type (string, optional)
 
-- **write_label** - Write operations on repository labels.
-  - `color`: Label color as 6-character hex code without '#' prefix (e.g., 'f29513'). Required for 'create', optional for 'update'. (string, optional)
-  - `description`: Label description text. Optional for 'create' and 'update'. (string, optional)
-  - `method`: Operation to perform: 'create', 'update', or 'delete' (string, required)
-  - `name`: Label name - required for all operations (string, required)
-  - `new_name`: New name for the label (used only with 'update' method to rename) (string, optional)
-  - `owner`: Repository owner (username or organization name) (string, required)
-  - `repo`: Repository name (string, required)
-
 </details>
 
 <details>
@@ -688,12 +679,7 @@ The following sets of tools are available (all are on by default):
   - `owner`: Repository owner (username or organization name) (string, required)
   - `repo`: Repository name (string, required)
 
-- **list_label** - List labels from a repository or an issue
-  - `issue_number`: Issue number - if provided, lists labels on the specific issue (number, optional)
-  - `owner`: Repository owner (username or organization name) - required for all operations (string, required)
-  - `repo`: Repository name - required for all operations (string, required)
-
-- **write_label** - Write operations on repository labels.
+- **label_write** - Write operations on repository labels.
   - `color`: Label color as 6-character hex code without '#' prefix (e.g., 'f29513'). Required for 'create', optional for 'update'. (string, optional)
   - `description`: Label description text. Optional for 'create' and 'update'. (string, optional)
   - `method`: Operation to perform: 'create', 'update', or 'delete' (string, required)
@@ -701,6 +687,11 @@ The following sets of tools are available (all are on by default):
   - `new_name`: New name for the label (used only with 'update' method to rename) (string, optional)
   - `owner`: Repository owner (username or organization name) (string, required)
   - `repo`: Repository name (string, required)
+
+- **list_label** - List labels from a repository or an issue
+  - `issue_number`: Issue number - if provided, lists labels on the specific issue (number, optional)
+  - `owner`: Repository owner (username or organization name) - required for all operations (string, required)
+  - `repo`: Repository name - required for all operations (string, required)
 
 </details>
 

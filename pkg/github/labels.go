@@ -239,13 +239,13 @@ func ListLabels(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 		}
 }
 
-// WriteLabel handles create, update, and delete operations for GitHub labels
-func WriteLabel(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+// LabelWrite handles create, update, and delete operations for GitHub labels
+func LabelWrite(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool(
-			"write_label",
-			mcp.WithDescription(t("TOOL_WRITE_LABEL_DESCRIPTION", "Perform write operations on repository labels. To set labels on issues, use the 'update_issue' tool.")),
+			"label_write",
+			mcp.WithDescription(t("TOOL_LABEL_WRITE_DESCRIPTION", "Perform write operations on repository labels. To set labels on issues, use the 'update_issue' tool.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_WRITE_LABEL_TITLE", "Write operations on repository labels."),
+				Title:        t("TOOL_LABEL_WRITE_TITLE", "Write operations on repository labels."),
 				ReadOnlyHint: ToBoolPtr(false),
 			}),
 			mcp.WithString("method",

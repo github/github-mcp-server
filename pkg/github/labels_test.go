@@ -291,10 +291,10 @@ func TestWriteLabel(t *testing.T) {
 
 	// Verify tool definition
 	mockClient := githubv4.NewClient(nil)
-	tool, _ := WriteLabel(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := LabelWrite(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "write_label", tool.Name)
+	assert.Equal(t, "label_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	assert.Contains(t, tool.InputSchema.Properties, "method")
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
@@ -520,7 +520,7 @@ func TestWriteLabel(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := githubv4.NewClient(tc.mockedClient)
-			_, handler := WriteLabel(stubGetGQLClientFn(client), translations.NullTranslationHelper)
+			_, handler := LabelWrite(stubGetGQLClientFn(client), translations.NullTranslationHelper)
 
 			request := createMCPRequest(tc.requestArgs)
 			result, err := handler(context.Background(), request)
