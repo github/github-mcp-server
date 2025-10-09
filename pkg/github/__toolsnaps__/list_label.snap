@@ -1,6 +1,6 @@
 {
   "annotations": {
-    "title": "Get labels from a repository.",
+    "title": "List labels from a repository.",
     "readOnlyHint": true
   },
   "description": "List labels from a repository or an issue",
