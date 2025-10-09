@@ -605,15 +605,6 @@ The following sets of tools are available (all are on by default):
   - `owner`: Repository owner (username or organization name) (string, required)
   - `repo`: Repository name (string, required)
 
-- **label_write** - Write operations on repository labels.
-  - `color`: Label color as 6-character hex code without '#' prefix (e.g., 'f29513'). Required for 'create', optional for 'update'. (string, optional)
-  - `description`: Label description text. Optional for 'create' and 'update'. (string, optional)
-  - `method`: Operation to perform: 'create', 'update', or 'delete' (string, required)
-  - `name`: Label name - required for all operations (string, required)
-  - `new_name`: New name for the label (used only with 'update' method to rename) (string, optional)
-  - `owner`: Repository owner (username or organization name) (string, required)
-  - `repo`: Repository name (string, required)
-
 - **list_issue_types** - List available issue types
   - `owner`: The organization owner of the repository (string, required)
 
