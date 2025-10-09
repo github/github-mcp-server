@@ -127,3 +127,19 @@ jobs:
         # This step uses the identity token to provision an ephemeral certificate
         # against the sigstore community Fulcio instance.
         run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+
+      - name: Trigger registry publication
+        if: ${{ github.event_name != 'pull_request' && github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v') }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createDispatchEvent({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              event_type: 'docker-published',
+              client_payload: {
+                tag: context.ref.replace('refs/tags/', ''),
+                sha: context.sha,
+                image_digest: '${{ steps.build-and-push.outputs.digest }}'
+              }
+            });
