@@ -21,6 +21,8 @@ import (
 const (
 	ProjectUpdateFailedError = "failed to update a project item"
 	ProjectAddFailedError    = "failed to add a project item"
+	ProjectDeleteFailedError = "failed to delete a project item"
+	ProjectListFailedError   = "failed to list project items"
 )
 
 func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
@@ -451,7 +453,7 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 			resp, err := client.Do(ctx, httpRequest, &projectItems)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to list project items",
+					ProjectListFailedError,
 					resp,
 					err,
 				), nil
@@ -463,7 +465,7 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 				if err != nil {
 					return nil, fmt.Errorf("failed to read response body: %w", err)
 				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to list project items: %s", string(body))), nil
+				return mcp.NewToolResultError(fmt.Sprintf("%s: %s", ProjectListFailedError, string(body))), nil
 			}
 			minimalProjectItems := []MinimalProjectItem{}
 			for _, item := range projectItems {
@@ -832,7 +834,7 @@ func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 			resp, err := client.Do(ctx, httpRequest, nil)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to delete a project item",
+					ProjectDeleteFailedError,
 					resp,
 					err,
 				), nil
@@ -844,7 +846,7 @@ func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 				if err != nil {
 					return nil, fmt.Errorf("failed to read response body: %w", err)
 				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to delete a project item: %s", string(body))), nil
+				return mcp.NewToolResultError(fmt.Sprintf("%s: %s", ProjectDeleteFailedError, string(body))), nil
 			}
 			return mcp.NewToolResultText("project item successfully deleted"), nil
 		}

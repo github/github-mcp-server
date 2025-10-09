@@ -697,7 +697,7 @@ func Test_ListProjectItems(t *testing.T) {
 				"project_number": float64(789),
 			},
 			expectError:    true,
-			expectedErrMsg: "failed to list project items",
+			expectedErrMsg: ProjectListFailedError,
 		},
 		{
 			name:         "missing owner",
@@ -1054,7 +1054,7 @@ func Test_AddProjectItem(t *testing.T) {
 				"item_id":        float64(8888),
 			},
 			expectError:    true,
-			expectedErrMsg: "failed to add a project item",
+			expectedErrMsg: ProjectAddFailedError,
 		},
 		{
 			name:         "missing owner",
@@ -1511,7 +1511,7 @@ func Test_DeleteProjectItem(t *testing.T) {
 				"item_id":        float64(999),
 			},
 			expectError:    true,
-			expectedErrMsg: "failed to delete a project item",
+			expectedErrMsg: ProjectDeleteFailedError,
 		},
 		{
 			name:         "missing owner",
