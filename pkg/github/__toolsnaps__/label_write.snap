@@ -48,5 +48,5 @@
     ],
     "type": "object"
   },
-  "name": "write_label"
+  "name": "label_write"
 }
