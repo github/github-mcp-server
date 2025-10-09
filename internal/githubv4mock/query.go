@@ -154,4 +154,4 @@ func writeQuery(w io.Writer, t reflect.Type, inline bool) {
 	}
 }
 
-var jsonUnmarshaler = reflect.TypeOf((*json.Unmarshaler)(nil)).Elem()
+var jsonUnmarshaler = reflect.TypeFor[json.Unmarshaler]()
