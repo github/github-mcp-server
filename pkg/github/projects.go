@@ -745,9 +745,9 @@ func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 			if err != nil {
 				return nil, fmt.Errorf("failed to create request: %w", err)
 			}
-			addedItem := projectV2Item{}
+			updatedItem := projectV2Item{}
 
-			resp, err := client.Do(ctx, httpRequest, &addedItem)
+			resp, err := client.Do(ctx, httpRequest, &updatedItem)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					ProjectUpdateFailedError,
@@ -764,7 +764,7 @@ func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 				}
 				return mcp.NewToolResultError(fmt.Sprintf("%s: %s", ProjectUpdateFailedError, string(body))), nil
 			}
-			r, err := json.Marshal(convertToMinimalProjectItem(&addedItem))
+			r, err := json.Marshal(convertToMinimalProjectItem(&updatedItem))
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
