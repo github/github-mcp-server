@@ -95,6 +95,10 @@ var (
 		ID:          "dynamic",
 		Description: "Discover GitHub MCP tools that can help achieve tasks by enabling additional sets of tools, you can control the enablement of any toolset to access its tools when this toolset is enabled.",
 	}
+	ToolsetLabels = ToolsetMetadata{
+		ID:          "labels",
+		Description: "GitHub Labels related tools",
+	}
 )
 
 func AvailableTools() []ToolsetMetadata {
@@ -117,6 +121,7 @@ func AvailableTools() []ToolsetMetadata {
 		ToolsetMetadataProjects,
 		ToolsetMetadataStargazers,
 		ToolsetMetadataDynamic,
+		ToolsetLabels,
 	}
 }
 
@@ -172,6 +177,8 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(GetIssueComments(getClient, t)),
 			toolsets.NewServerTool(ListIssueTypes(getClient, t)),
 			toolsets.NewServerTool(ListSubIssues(getClient, t)),
+			toolsets.NewServerTool(GetLabel(getGQLClient, t)),
+			toolsets.NewServerTool(ListLabels(getGQLClient, t)),
 		).
 		AddWriteTools(
 			toolsets.NewServerTool(CreateIssue(getClient, t)),
@@ -181,6 +188,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(AddSubIssue(getClient, t)),
 			toolsets.NewServerTool(RemoveSubIssue(getClient, t)),
 			toolsets.NewServerTool(ReprioritizeSubIssue(getClient, t)),
+			toolsets.NewServerTool(WriteLabel(getGQLClient, t)),
 		).AddPrompts(
 		toolsets.NewServerPrompt(AssignCodingAgentPrompt(t)),
 		toolsets.NewServerPrompt(IssueToFixWorkflowPrompt(t)),
@@ -317,7 +325,17 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(StarRepository(getClient, t)),
 			toolsets.NewServerTool(UnstarRepository(getClient, t)),
 		)
-
+	labels := toolsets.NewToolset(ToolsetLabels.ID, ToolsetLabels.Description).
+		AddReadTools(
+			// get
+			toolsets.NewServerTool(GetLabel(getGQLClient, t)),
+			// list labels on repo or issue
+			toolsets.NewServerTool(ListLabels(getGQLClient, t)),
+		).
+		AddWriteTools(
+			// create or update
+			toolsets.NewServerTool(WriteLabel(getGQLClient, t)),
+		)
 	// Add toolsets to the group
 	tsg.AddToolset(contextTools)
 	tsg.AddToolset(repos)
@@ -336,6 +354,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(securityAdvisories)
 	tsg.AddToolset(projects)
 	tsg.AddToolset(stargazers)
+	tsg.AddToolset(labels)
 
 	return tsg
 }
