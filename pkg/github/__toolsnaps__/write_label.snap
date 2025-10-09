@@ -3,7 +3,7 @@
     "title": "Write operations on repository labels.",
     "readOnlyHint": false
   },
-  "description": "Perform write operations on repository labels.",
+  "description": "Perform write operations on repository labels. To set labels on issues, use the 'update_issue' tool.",
   "inputSchema": {
     "properties": {
       "color": {
