@@ -340,6 +340,7 @@ The following sets of tools are available (all are on by default):
 | `experiments` | Experimental features that are not considered stable yet |
 | `gists` | GitHub Gist related tools |
 | `issues` | GitHub Issues related tools |
+| `labels` | GitHub Labels related tools |
 | `notifications` | GitHub Notifications related tools |
 | `orgs` | GitHub Organization related tools |
 | `projects` | GitHub Projects related tools |
@@ -599,6 +600,11 @@ The following sets of tools are available (all are on by default):
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
+- **get_label** - Get a specific label from a repository.
+  - `name`: Label name. (string, required)
+  - `owner`: Repository owner (username or organization name) (string, required)
+  - `repo`: Repository name (string, required)
+
 - **list_issue_types** - List available issue types
   - `owner`: The organization owner of the repository (string, required)
 
@@ -612,6 +618,11 @@ The following sets of tools are available (all are on by default):
   - `repo`: Repository name (string, required)
   - `since`: Filter by date (ISO 8601 timestamp) (string, optional)
   - `state`: Filter by state, by default both open and closed issues are returned when not provided (string, optional)
+
+- **list_label** - List labels from a repository or an issue
+  - `issue_number`: Issue number - if provided, lists labels on the specific issue (number, optional)
+  - `owner`: Repository owner (username or organization name) - required for all operations (string, required)
+  - `repo`: Repository name - required for all operations (string, required)
 
 - **list_sub_issues** - List sub-issues
   - `issue_number`: Issue number (number, required)
@@ -656,6 +667,31 @@ The following sets of tools are available (all are on by default):
   - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
   - `title`: New title (string, optional)
   - `type`: New issue type (string, optional)
+
+</details>
+
+<details>
+
+<summary>Labels</summary>
+
+- **get_label** - Get a specific label from a repository.
+  - `name`: Label name. (string, required)
+  - `owner`: Repository owner (username or organization name) (string, required)
+  - `repo`: Repository name (string, required)
+
+- **label_write** - Write operations on repository labels.
+  - `color`: Label color as 6-character hex code without '#' prefix (e.g., 'f29513'). Required for 'create', optional for 'update'. (string, optional)
+  - `description`: Label description text. Optional for 'create' and 'update'. (string, optional)
+  - `method`: Operation to perform: 'create', 'update', or 'delete' (string, required)
+  - `name`: Label name - required for all operations (string, required)
+  - `new_name`: New name for the label (used only with 'update' method to rename) (string, optional)
+  - `owner`: Repository owner (username or organization name) (string, required)
+  - `repo`: Repository name (string, required)
+
+- **list_label** - List labels from a repository or an issue
+  - `issue_number`: Issue number - if provided, lists labels on the specific issue (number, optional)
+  - `owner`: Repository owner (username or organization name) - required for all operations (string, required)
+  - `repo`: Repository name - required for all operations (string, required)
 
 </details>
 
@@ -760,6 +796,13 @@ The following sets of tools are available (all are on by default):
   - `owner_type`: Owner type (string, required)
   - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
   - `query`: Filter projects by a search query (matches title and description) (string, optional)
+
+- **update_project_item** - Update project item
+  - `item_id`: The unique identifier of the project item. This is not the issue or pull request ID. (number, required)
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `project_number`: The project's number. (number, required)
+  - `updated_field`: Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set "value" to null. Example: {"id": 123456, "value": "New Value"} (object, required)
 
 </details>
 
@@ -976,9 +1019,11 @@ Possible options:
 
 - **search_repositories** - Search repositories
   - `minimal_output`: Return minimal repository information (default: true). When false, returns full GitHub API repository objects. (boolean, optional)
+  - `order`: Sort order (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Repository search query. Examples: 'machine learning in:name stars:>1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering. (string, required)
+  - `sort`: Sort repositories by field, defaults to best match (string, optional)
 
 </details>
 

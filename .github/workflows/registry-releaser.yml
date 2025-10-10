@@ -29,6 +29,25 @@ jobs:
             echo "Skipping tag fetch - already on tag ${{ github.ref_name }}"
           fi
 
+      - name: Wait for Docker image
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            TAG="${{ github.ref_name }}"
+          else
+            TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+' | head -n1)
+          fi
+          IMAGE="ghcr.io/github/github-mcp-server:$TAG"
+          
+          for i in {1..10}; do
+            if docker manifest inspect "$IMAGE" &>/dev/null; then
+              echo "✅ Docker image ready: $TAG"
+              break
+            fi
+            [ $i -eq 10 ] && { echo "❌ Timeout waiting for $TAG after 5 minutes"; exit 1; }
+            echo "⏳ Waiting for Docker image ($i/10)..."
+            sleep 30
+          done
+
       - name: Install MCP Publisher
         run: |
           git clone --quiet https://github.com/modelcontextprotocol/registry publisher-repo

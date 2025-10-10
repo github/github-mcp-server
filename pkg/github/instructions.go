@@ -36,7 +36,10 @@ Tool selection guidance:
 
 Context management:
 	1. Use pagination whenever possible with batches of 5-10 items.
-	2. Use minimal_output parameter set to true if the full information is not needed to accomplish a task.`
+	2. Use minimal_output parameter set to true if the full information is not needed to accomplish a task.
+
+Tool usage guidance:
+	1. For 'search_*' tools: Use separate 'sort' and 'order' parameters if available for sorting results - do not include 'sort:' syntax in query strings. Query strings should contain only search criteria (e.g., 'org:google language:python'), not sorting instructions.`
 
 	allInstructions := []string{baseInstruction}
 	allInstructions = append(allInstructions, instructions...)

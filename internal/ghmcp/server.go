@@ -142,7 +142,7 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 
 	// Create default toolsets
 	tsg := github.DefaultToolsetGroup(cfg.ReadOnly, getClient, getGQLClient, getRawClient, cfg.Translator, cfg.ContentWindowSize)
-	err = tsg.EnableToolsets(enabledToolsets)
+	err = tsg.EnableToolsets(enabledToolsets, nil)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to enable toolsets: %w", err)
