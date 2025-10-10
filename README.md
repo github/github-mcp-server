@@ -1141,6 +1141,15 @@ Possible options:
 -   **list_copilot_spaces** - List Copilot Spaces
 </details>
 
+<details>
+
+<summary>Web Search</summary>
+> **Note:** Only available for users on a paid Copilot subscription, and with Web search enabled.
+
+-   **web_search** - Web Search
+    -   `query`: A natural language query representing what to search for on the web. (string, required)
+</details>
+
 ## Dynamic Tool Discovery
 
 **Note**: This feature is currently in beta and may not be available in all environments. Please test it out and let us know if you encounter any issues.
