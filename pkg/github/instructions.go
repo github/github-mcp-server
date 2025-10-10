@@ -1,6 +1,7 @@
 package github
 
 import (
+	"fmt"
 	"os"
 	"slices"
 	"strings"
@@ -18,6 +19,11 @@ func GenerateInstructions(enabledToolsets []string) string {
 	// Core instruction - always included if context toolset enabled
 	if slices.Contains(enabledToolsets, "context") {
 		instructions = append(instructions, "Always call 'get_me' first to understand current user permissions and context.")
+	}
+
+	generalInstructions := getGeneralInstructions(enabledToolsets)
+	if generalInstructions != "" {
+		instructions = append(instructions, "Here are common scenarios you may encounter followed by name and description of the steps to follow:", generalInstructions)
 	}
 
 	// Individual toolset instructions
@@ -45,6 +51,52 @@ Tool usage guidance:
 	allInstructions = append(allInstructions, instructions...)
 
 	return strings.Join(allInstructions, " ")
+}
+
+// scenarioDefinition defines a scenario with its instruction text and required toolsets
+type scenarioDefinition struct {
+	instruction      string
+	requiredToolsets []string
+}
+
+// getGeneralInstructions returns scenario-based guidance for common development tasks
+func getGeneralInstructions(enabledToolsets []string) string {
+	enabledSet := make(map[string]bool)
+	for _, ts := range enabledToolsets {
+		enabledSet[ts] = true
+	}
+
+	scenarios := map[string]scenarioDefinition{
+		"Reviewing Pull Requests": {
+			instruction:      "Use get_pull_request to fetch PR details and get_pull_request_files to see changes. Use create_pending_pull_request_review to start a review, add_comment_to_pending_review for line-specific feedback, then submit_pending_pull_request_review to publish. Check get_pull_request_status to verify CI/CD checks before approving.",
+			requiredToolsets: []string{"pull_requests"},
+		},
+	}
+
+	var parts []string
+	parts = append(parts, "When helping with development tasks, consider these common scenarios and appropriate tool choices:")
+
+	// Filter scenarios based on enabled toolsets
+	for scenarioName, scenario := range scenarios {
+		if len(scenario.requiredToolsets) == 0 {
+			parts = append(parts, fmt.Sprintf("%s: %s", scenarioName, scenario.instruction))
+			continue
+		}
+
+		hasAllRequiredToolsets := true
+		for _, required := range scenario.requiredToolsets {
+			if !enabledSet[required] {
+				hasAllRequiredToolsets = false
+				break
+			}
+		}
+
+		if hasAllRequiredToolsets {
+			parts = append(parts, fmt.Sprintf("%s: %s", scenarioName, scenario.instruction))
+		}
+	}
+
+	return strings.Join(parts, " ")
 }
 
 // getToolsetInstructions returns specific instructions for individual toolsets
