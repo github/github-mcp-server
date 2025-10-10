@@ -870,7 +870,7 @@ Possible options:
 - **pull_request_review_write** - Write operations (create, submit, delete) on pull request reviews.
   - `body`: Review comment text (string, optional)
   - `commitID`: SHA of commit to review (string, optional)
-  - `event`: Review action to perform. If not specified, pending review is created. (string, optional)
+  - `event`: Review action to perform. (string, optional)
   - `method`: The write operation to perform on pull request review. (string, required)
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
