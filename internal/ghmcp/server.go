@@ -17,6 +17,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/github"
 	mcplog "github.com/github/github-mcp-server/pkg/log"
 	"github.com/github/github-mcp-server/pkg/raw"
+	"github.com/github/github-mcp-server/pkg/toolsets"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v74/github"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -142,7 +143,7 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 
 	// Create default toolsets
 	tsg := github.DefaultToolsetGroup(cfg.ReadOnly, getClient, getGQLClient, getRawClient, cfg.Translator, cfg.ContentWindowSize)
-	err = tsg.EnableToolsets(enabledToolsets)
+	err = tsg.EnableToolsets(enabledToolsets, &toolsets.EnableToolsetsOptions{})
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to enable toolsets: %w", err)
