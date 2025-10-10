@@ -210,7 +210,7 @@ type EnableToolsetsOptions struct {
 func (tg *ToolsetGroup) EnableToolsets(names []string, options *EnableToolsetsOptions) error {
 	if options == nil {
 		options = &EnableToolsetsOptions{
-			IgnoreUnknown: false,
+			IgnoreUnknown: true,
 		}
 	}
 

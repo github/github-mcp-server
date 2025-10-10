@@ -148,17 +148,24 @@ func TestEnableToolsets(t *testing.T) {
 	}
 
 	// Test with non-existent toolset in the list
-	err = tsg.EnableToolsets([]string{"toolset1", "non-existent"}, &EnableToolsetsOptions{})
+	err = tsg.EnableToolsets([]string{"toolset1", "non-existent"}, nil)
+	if err != nil {
+		t.Errorf("Expected no error when ignoring unknown toolsets, got: %v", err)
+	}
+
+	err = tsg.EnableToolsets([]string{"toolset1", "non-existent"}, &EnableToolsetsOptions{
+		IgnoreUnknown: true,
+	})
+	if err != nil {
+		t.Errorf("Expected no error when ignoring unknown toolsets, got: %v", err)
+	}
+
+	err = tsg.EnableToolsets([]string{"toolset1", "non-existent"}, &EnableToolsetsOptions{IgnoreUnknown: false})
 	if err == nil {
 		t.Error("Expected error when enabling list with non-existent toolset")
 	}
 	if !errors.Is(err, NewToolsetDoesNotExistError("non-existent")) {
 		t.Errorf("Expected ToolsetDoesNotExistError when enabling non-existent toolset, got: %v", err)
-	}
-
-	err = tsg.EnableToolsets([]string{"toolset1", "non-existent"}, &EnableToolsetsOptions{IgnoreUnknown: true})
-	if err != nil {
-		t.Errorf("Expected no error when ignoring unknown toolsets, got: %v", err)
 	}
 
 	// Test with empty list
