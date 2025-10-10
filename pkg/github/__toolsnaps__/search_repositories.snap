@@ -11,6 +11,14 @@
         "description": "Return minimal repository information (default: true). When false, returns full GitHub API repository objects.",
         "type": "boolean"
       },
+      "order": {
+        "description": "Sort order",
+        "enum": [
+          "asc",
+          "desc"
+        ],
+        "type": "string"
+      },
       "page": {
         "description": "Page number for pagination (min 1)",
         "minimum": 1,
@@ -24,6 +32,16 @@
       },
       "query": {
         "description": "Repository search query. Examples: 'machine learning in:name stars:\u003e1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering.",
+        "type": "string"
+      },
+      "sort": {
+        "description": "Sort repositories by field, defaults to best match",
+        "enum": [
+          "stars",
+          "forks",
+          "help-wanted-issues",
+          "updated"
+        ],
         "type": "string"
       }
     },

@@ -1,8 +1,8 @@
 name: Publish to MCP Registry
 
 on:
-  push:
-    tags: ["v*"]  # Triggers on version tags like v1.0.0
+  repository_dispatch:
+    types: [docker-published]  # Triggered after Docker image is published
   workflow_dispatch:  # Allow manual triggering
 
 jobs:
@@ -23,7 +23,9 @@ jobs:
         
       - name: Fetch tags
         run: |
-          if [[ "${{ github.ref_type }}" != "tag" ]]; then
+          if [[ "${{ github.event_name }}" == "repository_dispatch" ]]; then
+            echo "Triggered by docker-published event for tag: ${{ github.event.client_payload.tag }}"
+          elif [[ "${{ github.ref_type }}" != "tag" ]]; then
             git fetch --tags
           else
             echo "Skipping tag fetch - already on tag ${{ github.ref_name }}"
@@ -56,7 +58,10 @@ jobs:
 
       - name: Update server.json version
         run: |
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+          if [[ "${{ github.event_name }}" == "repository_dispatch" ]]; then
+            TAG_VERSION=$(echo "${{ github.event.client_payload.tag }}" | sed 's/^v//')
+            echo "Using tag from dispatch: ${{ github.event.client_payload.tag }}"
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
             TAG_VERSION=$(echo "${{ github.ref_name }}" | sed 's/^v//')
           else
             LATEST_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-.*)?$' | head -n 1)

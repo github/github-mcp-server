@@ -26,6 +26,14 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 				mcp.Required(),
 				mcp.Description("Repository search query. Examples: 'machine learning in:name stars:>1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering."),
 			),
+			mcp.WithString("sort",
+				mcp.Description("Sort repositories by field, defaults to best match"),
+				mcp.Enum("stars", "forks", "help-wanted-issues", "updated"),
+			),
+			mcp.WithString("order",
+				mcp.Description("Sort order"),
+				mcp.Enum("asc", "desc"),
+			),
 			mcp.WithBoolean("minimal_output",
 				mcp.Description("Return minimal repository information (default: true). When false, returns full GitHub API repository objects."),
 				mcp.DefaultBool(true),
@@ -34,6 +42,14 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			query, err := RequiredParam[string](request, "query")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			sort, err := OptionalParam[string](request, "sort")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			order, err := OptionalParam[string](request, "order")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -46,6 +62,8 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 			opts := &github.SearchOptions{
+				Sort:  sort,
+				Order: order,
 				ListOptions: github.ListOptions{
 					Page:    pagination.Page,
 					PerPage: pagination.PerPage,
