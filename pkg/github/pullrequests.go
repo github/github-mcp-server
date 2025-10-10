@@ -1077,7 +1077,7 @@ Available methods:
 				mcp.Description("Review comment text"),
 			),
 			mcp.WithString("event",
-				mcp.Description("Review action to perform. If not specified, pending review is created."),
+				mcp.Description("Review action to perform."),
 				mcp.Enum("APPROVE", "REQUEST_CHANGES", "COMMENT"),
 			),
 			mcp.WithString("commitID",

@@ -15,7 +15,7 @@
         "type": "string"
       },
       "event": {
-        "description": "Review action to perform. If not specified, pending review is created.",
+        "description": "Review action to perform.",
         "enum": [
           "APPROVE",
           "REQUEST_CHANGES",
