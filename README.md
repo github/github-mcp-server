@@ -822,20 +822,6 @@ The following sets of tools are available (all are on by default):
   - `startSide`: For multi-line comments, the starting side of the diff that the comment applies to. LEFT indicates the previous state, RIGHT indicates the new state (string, optional)
   - `subjectType`: The level at which the comment is targeted (string, required)
 
-- **create_and_submit_pull_request_review** - Create and submit a pull request review without comments
-  - `body`: Review comment text (string, required)
-  - `commitID`: SHA of commit to review (string, optional)
-  - `event`: Review action to perform (string, required)
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **create_pending_pull_request_review** - Create pending pull request review
-  - `commitID`: SHA of commit to review (string, optional)
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
 - **create_pull_request** - Open new pull request
   - `base`: Branch to merge into (string, required)
   - `body`: PR description (string, optional)
@@ -845,11 +831,6 @@ The following sets of tools are available (all are on by default):
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `title`: PR title (string, required)
-
-- **delete_pending_pull_request_review** - Delete the requester's latest pending pull request review
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
 
 - **list_pull_requests** - List pull requests
   - `base`: Filter by base branch (string, optional)
@@ -886,6 +867,15 @@ Possible options:
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
+- **pull_request_review_write** - Write operations (create, submit, delete) on pull request reviews.
+  - `body`: Review comment text (string, optional)
+  - `commitID`: SHA of commit to review (string, optional)
+  - `event`: Review action to perform. (string, optional)
+  - `method`: The write operation to perform on pull request review. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
 - **request_copilot_review** - Request Copilot review
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
@@ -899,13 +889,6 @@ Possible options:
   - `query`: Search query using GitHub pull request search syntax (string, required)
   - `repo`: Optional repository name. If provided with owner, only pull requests for this repository are listed. (string, optional)
   - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
-
-- **submit_pending_pull_request_review** - Submit the requester's latest pending pull request review
-  - `body`: The text of the review comment (string, optional)
-  - `event`: The event to perform (string, required)
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
 
 - **update_pull_request** - Edit pull request
   - `base`: New base branch name (string, optional)

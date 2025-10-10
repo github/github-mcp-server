@@ -214,11 +214,8 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(RequestCopilotReview(getClient, t)),
 
 			// Reviews
-			toolsets.NewServerTool(CreateAndSubmitPullRequestReview(getGQLClient, t)),
-			toolsets.NewServerTool(CreatePendingPullRequestReview(getGQLClient, t)),
+			toolsets.NewServerTool(PullRequestReviewWrite(getGQLClient, t)),
 			toolsets.NewServerTool(AddCommentToPendingReview(getGQLClient, t)),
-			toolsets.NewServerTool(SubmitPendingPullRequestReview(getGQLClient, t)),
-			toolsets.NewServerTool(DeletePendingPullRequestReview(getGQLClient, t)),
 		)
 	codeSecurity := toolsets.NewToolset(ToolsetMetadataCodeSecurity.ID, ToolsetMetadataCodeSecurity.Description).
 		AddReadTools(

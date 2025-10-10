@@ -1,0 +1,57 @@
+{
+  "annotations": {
+    "title": "Write operations (create, submit, delete) on pull request reviews.",
+    "readOnlyHint": false
+  },
+  "description": "Create and/or submit, delete review of a pull request.\n\nAvailable methods:\n- create: Create a new review of a pull request. If \"event\" parameter is provided, the review is submitted. If \"event\" is omitted, a pending review is created.\n- submit_pending: Submit an existing pending review of a pull request. This requires that a pending review exists for the current user on the specified pull request. The \"body\" and \"event\" parameters are used when submitting the review.\n- delete_pending: Delete an existing pending review of a pull request. This requires that a pending review exists for the current user on the specified pull request.\n",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "Review comment text",
+        "type": "string"
+      },
+      "commitID": {
+        "description": "SHA of commit to review",
+        "type": "string"
+      },
+      "event": {
+        "description": "Review action to perform.",
+        "enum": [
+          "APPROVE",
+          "REQUEST_CHANGES",
+          "COMMENT"
+        ],
+        "type": "string"
+      },
+      "method": {
+        "description": "The write operation to perform on pull request review.",
+        "enum": [
+          "create",
+          "submit_pending",
+          "delete_pending"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "pullNumber": {
+        "description": "Pull request number",
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo",
+      "pullNumber"
+    ],
+    "type": "object"
+  },
+  "name": "pull_request_review_write"
+}
