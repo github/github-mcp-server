@@ -925,6 +925,15 @@ Possible options:
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
+- **update_pull_request_review** - Update pull request review
+  - `body`: New body text for the review (string, optional)
+  - `commitID`: SHA of commit to update the review against (string, optional)
+  - `event`: New review state (string, optional)
+  - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+  - `reviewID`: The ID of the review to update (number, required)
+
 </details>
 
 <details>

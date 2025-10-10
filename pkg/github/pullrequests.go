@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"bytes"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/google/go-github/v74/github"
@@ -1716,6 +1717,137 @@ func RequestCopilotReview(getClient GetClientFn, t translations.TranslationHelpe
 			// Return nothing on success, as there's not much value in returning the Pull Request itself
 			return mcp.NewToolResultText(""), nil
 		}
+}
+
+
+// UpdatePullRequestReview provides a tool to update an existing pull request review.
+// Use this when you want to modify your own BOT review (body, event, or commit SHA)
+// instead of dismissing and recreating a new one.
+// This keeps the PR timeline clean (no dismissed markers).
+func UpdatePullRequestReview(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+	return mcp.NewTool(
+		"update_pull_request_review",
+		mcp.WithDescription(t(
+			"TOOL_UPDATE_PULL_REQUEST_REVIEW_DESCRIPTION",
+			"Update an existing pull request review (body, event, commit ID).",
+		)),
+		mcp.WithToolAnnotation(mcp.ToolAnnotation{
+			Title:        t("TOOL_UPDATE_PULL_REQUEST_REVIEW_USER_TITLE", "Update pull request review"),
+			ReadOnlyHint: ToBoolPtr(false),
+		}),
+		mcp.WithString("owner",
+			mcp.Required(),
+			mcp.Description("Repository owner"),
+		),
+		mcp.WithString("repo",
+			mcp.Required(),
+			mcp.Description("Repository name"),
+		),
+		mcp.WithNumber("pullNumber",
+			mcp.Required(),
+			mcp.Description("Pull request number"),
+		),
+		mcp.WithNumber("reviewID",
+			mcp.Required(),
+			mcp.Description("The ID of the review to update"),
+		),
+		mcp.WithString("body",
+			mcp.Description("New body text for the review"),
+		),
+		mcp.WithString("event",
+			mcp.Description("New review state"),
+			mcp.Enum("COMMENT", "APPROVE", "REQUEST_CHANGES"),
+		),
+		mcp.WithString("commitID",
+			mcp.Description("SHA of commit to update the review against"),
+		),
+	), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		owner, err := RequiredParam[string](request, "owner")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		repo, err := RequiredParam[string](request, "repo")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		pullNumber, err := RequiredInt(request, "pullNumber")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		reviewID, err := RequiredInt(request, "reviewID")
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		body, _ := OptionalParam[string](request, "body")
+		event, _ := OptionalParam[string](request, "event")
+		commitID, _ := OptionalParam[string](request, "commitID")
+
+		client, err := getClient(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+		}
+
+		// Build request body
+		reqBody := map[string]any{}
+		if body != "" {
+			reqBody["body"] = body
+		}
+		if event != "" {
+			reqBody["event"] = event
+		}
+		if commitID != "" {
+			reqBody["commit_id"] = commitID
+		}
+
+		// Encode JSON
+		jsonBody, _ := json.Marshal(reqBody)
+
+		// Construct API path
+		url := fmt.Sprintf("repos/%s/%s/pulls/%d/reviews/%d", owner, repo, pullNumber, reviewID)
+
+		// Create PATCH request
+		req, err := client.NewRequest("PATCH", url, bytes.NewReader(jsonBody))
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("failed to build request: %v", err)), nil
+		}
+
+		// Execute request
+		review := new(github.PullRequestReview)
+		resp, err := client.Do(ctx, req, review)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				"failed to update pull request review",
+				resp,
+				err,
+			), nil
+		}
+		defer func() {
+			if resp != nil && resp.Body != nil {
+				_ = resp.Body.Close()
+			}
+		}()
+
+		if resp.StatusCode != http.StatusOK {
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			return mcp.NewToolResultError(fmt.Sprintf("failed to update review: %s", string(bodyBytes))), nil
+		}
+
+		// Minimal response back to client
+		type minimal struct {
+			ReviewID int64  `json:"reviewID"`
+			State    string `json:"state"`
+			Body     string `json:"body,omitempty"`
+			URL      string `json:"url,omitempty"`
+		}
+		out := minimal{
+			ReviewID: int64(reviewID),
+			State:    review.GetState(),
+			Body:     review.GetBody(),
+			URL:      review.GetHTMLURL(),
+		}
+		b, _ := json.Marshal(out)
+		return mcp.NewToolResultText(string(b)), nil
+	}
 }
 
 // newGQLString like takes something that approximates a string (of which there are many types in shurcooL/githubv4)

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -2928,4 +2930,122 @@ func getLatestPendingReviewQuery(p getLatestPendingReviewQueryParams) githubv4mo
 			},
 		),
 	)
+}
+
+func TestUpdatePullRequestReview(t *testing.T) {
+	// Snapshot test for tool definition
+	mockClient := github.NewClient(nil)
+	tool, _ := UpdatePullRequestReview(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "update_pull_request_review", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
+	assert.Contains(t, tool.InputSchema.Properties, "reviewID")
+	// body, event, commitID are optional
+	assert.Subset(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber", "reviewID"})
+
+	t.Run("successful update", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/repos/owner/repo/pulls/42/reviews/201", func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, http.MethodPatch, r.Method)
+
+			_ = json.NewEncoder(w).Encode(&github.PullRequestReview{
+				ID:      github.Ptr(int64(201)),
+				State:   github.Ptr("COMMENT"),
+				Body:    github.Ptr("updated body"),
+				HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42#review-201"),
+			})
+		})
+		srv := httptest.NewServer(mux)
+		defer srv.Close()
+
+		getClient := func(_ context.Context) (*github.Client, error) {
+			c := github.NewClient(nil)
+			c.BaseURL = mustParseURL(srv.URL + "/")
+			return c, nil
+		}
+
+		_, handler := UpdatePullRequestReview(getClient, translations.NullTranslationHelper)
+		req := createMCPRequest(map[string]any{
+			"owner":      "owner",
+			"repo":       "repo",
+			"pullNumber": float64(42),
+			"reviewID":   float64(201),
+			"body":       "updated body",
+			"event":      "COMMENT",
+		})
+
+		result, err := handler(context.Background(), req)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		text := getTextResult(t, result)
+		assert.Contains(t, text.Text, `"state":"COMMENT"`)
+		assert.Contains(t, text.Text, `"body":"updated body"`)
+	})
+
+	t.Run("API error", func(t *testing.T) {
+		mux := http.NewServeMux()
+		mux.HandleFunc("/repos/owner/repo/pulls/42/reviews/202", func(w http.ResponseWriter, r *http.Request) {
+			require.Equal(t, http.MethodPatch, r.Method)
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"message":"Bad request"}`))
+		})
+		srv := httptest.NewServer(mux)
+		defer srv.Close()
+
+		getClient := func(_ context.Context) (*github.Client, error) {
+			c := github.NewClient(nil)
+			c.BaseURL = mustParseURL(srv.URL + "/")
+			return c, nil
+		}
+
+		_, handler := UpdatePullRequestReview(getClient, translations.NullTranslationHelper)
+		req := createMCPRequest(map[string]any{
+			"owner":      "owner",
+			"repo":       "repo",
+			"pullNumber": float64(42),
+			"reviewID":   float64(202),
+			"body":       "new",
+		})
+
+		result, err := handler(context.Background(), req)
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+
+		errorContent := getErrorResult(t, result)
+		assert.Contains(t, errorContent.Text, "failed to update pull request review")
+	})
+
+	t.Run("missing required parameter", func(t *testing.T) {
+		client := github.NewClient(nil)
+		_, handler := UpdatePullRequestReview(stubGetClientFn(client), translations.NullTranslationHelper)
+
+		// missing reviewID
+		req := createMCPRequest(map[string]any{
+			"owner":      "owner",
+			"repo":       "repo",
+			"pullNumber": float64(42),
+			// no reviewID
+		})
+
+		result, err := handler(context.Background(), req)
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+
+		errorContent := getErrorResult(t, result)
+		assert.Contains(t, errorContent.Text, "missing required parameter")
+	})
+}
+
+// Helper for parsing test server URLs
+func mustParseURL(raw string) *url.URL {
+	u, err := url.Parse(raw)
+	if err != nil {
+		panic(err)
+	}
+	return u
 }
