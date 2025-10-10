@@ -204,13 +204,13 @@ func (tg *ToolsetGroup) IsEnabled(name string) bool {
 }
 
 type EnableToolsetsOptions struct {
-	IgnoreUnknown bool
+	ErrorOnUnknown bool
 }
 
 func (tg *ToolsetGroup) EnableToolsets(names []string, options *EnableToolsetsOptions) error {
 	if options == nil {
 		options = &EnableToolsetsOptions{
-			IgnoreUnknown: true,
+			ErrorOnUnknown: false,
 		}
 	}
 
@@ -221,7 +221,7 @@ func (tg *ToolsetGroup) EnableToolsets(names []string, options *EnableToolsetsOp
 			break
 		}
 		err := tg.EnableToolset(name)
-		if err != nil && !options.IgnoreUnknown {
+		if err != nil && options.ErrorOnUnknown {
 			return err
 		}
 	}
@@ -229,7 +229,7 @@ func (tg *ToolsetGroup) EnableToolsets(names []string, options *EnableToolsetsOp
 	if tg.everythingOn {
 		for name := range tg.Toolsets {
 			err := tg.EnableToolset(name)
-			if err != nil && !options.IgnoreUnknown {
+			if err != nil && options.ErrorOnUnknown {
 				return err
 			}
 		}

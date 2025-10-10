@@ -154,13 +154,13 @@ func TestEnableToolsets(t *testing.T) {
 	}
 
 	err = tsg.EnableToolsets([]string{"toolset1", "non-existent"}, &EnableToolsetsOptions{
-		IgnoreUnknown: true,
+		ErrorOnUnknown: false,
 	})
 	if err != nil {
 		t.Errorf("Expected no error when ignoring unknown toolsets, got: %v", err)
 	}
 
-	err = tsg.EnableToolsets([]string{"toolset1", "non-existent"}, &EnableToolsetsOptions{IgnoreUnknown: false})
+	err = tsg.EnableToolsets([]string{"toolset1", "non-existent"}, &EnableToolsetsOptions{ErrorOnUnknown: true})
 	if err == nil {
 		t.Error("Expected error when enabling list with non-existent toolset")
 	}
