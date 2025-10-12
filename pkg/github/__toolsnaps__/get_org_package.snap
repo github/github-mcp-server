@@ -1,0 +1,38 @@
+{
+  "annotations": {
+    "title": "Get organization package details",
+    "readOnlyHint": true
+  },
+  "description": "Get details of a specific package for an organization.",
+  "inputSchema": {
+    "properties": {
+      "org": {
+        "description": "Organization name",
+        "type": "string"
+      },
+      "package_name": {
+        "description": "Package name",
+        "type": "string"
+      },
+      "package_type": {
+        "description": "Package type",
+        "enum": [
+          "npm",
+          "maven",
+          "rubygems",
+          "docker",
+          "nuget",
+          "container"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "org",
+      "package_type",
+      "package_name"
+    ],
+    "type": "object"
+  },
+  "name": "get_org_package"
+}
