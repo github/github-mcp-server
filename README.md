@@ -343,6 +343,7 @@ The following sets of tools are available (all are on by default):
 | `labels` | GitHub Labels related tools |
 | `notifications` | GitHub Notifications related tools |
 | `orgs` | GitHub Organization related tools |
+| `packages` | GitHub Packages related tools for managing and viewing package metadata, versions, and deletion operations |
 | `projects` | GitHub Projects related tools |
 | `pull_requests` | GitHub Pull Request related tools |
 | `repos` | GitHub Repository related tools |
@@ -741,6 +742,65 @@ The following sets of tools are available (all are on by default):
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Organization search query. Examples: 'microsoft', 'location:california', 'created:>=2025-01-01'. Search is automatically scoped to type:org. (string, required)
   - `sort`: Sort field by category (string, optional)
+
+</details>
+
+<details>
+
+<summary>Packages</summary>
+
+- **delete_org_package** - Delete organization package
+  - `org`: Organization name (string, required)
+  - `package_name`: Package name (string, required)
+  - `package_type`: Package type (string, required)
+
+- **delete_org_package_version** - Delete organization package version
+  - `org`: Organization name (string, required)
+  - `package_name`: Package name (string, required)
+  - `package_type`: Package type (string, required)
+  - `package_version_id`: Package version ID (number, required)
+
+- **delete_user_package** - Delete user package
+  - `package_name`: Package name (string, required)
+  - `package_type`: Package type (string, required)
+
+- **delete_user_package_version** - Delete user package version
+  - `package_name`: Package name (string, required)
+  - `package_type`: Package type (string, required)
+  - `package_version_id`: Package version ID (number, required)
+
+- **get_org_package** - Get organization package details
+  - `org`: Organization name (string, required)
+  - `package_name`: Package name (string, required)
+  - `package_type`: Package type (string, required)
+
+- **get_package_version** - Get package version details
+  - `org`: Organization name (string, required)
+  - `package_name`: Package name (string, required)
+  - `package_type`: Package type (string, required)
+  - `package_version_id`: Package version ID (number, required)
+
+- **list_org_packages** - List organization packages
+  - `org`: Organization name (string, required)
+  - `package_type`: Filter by package type (string, optional)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `visibility`: Filter by package visibility (string, optional)
+
+- **list_package_versions** - List package versions
+  - `org`: Organization name (string, required)
+  - `package_name`: Package name (string, required)
+  - `package_type`: Package type (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `state`: Filter by version state (string, optional)
+
+- **list_user_packages** - List user packages
+  - `package_type`: Filter by package type (string, optional)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `username`: GitHub username (string, required)
+  - `visibility`: Filter by package visibility (string, optional)
 
 </details>
 
