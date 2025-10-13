@@ -6,7 +6,10 @@
     "deploy": "node scripts/update-controller.js",
     "verify": "solana program show GENEtH5amGSi8kHAtQoezp1XEXwZJ8vcuePYnXdKrMYz",
     "verify:authority": "node scripts/reannounce-authority.js",
-    "reannounce:authority": "node scripts/reannounce-authority.js"
+    "reannounce:authority": "node scripts/reannounce-authority.js",
+    "check:signer": "node scripts/check-signer-ready.js",
+    "transfer:authority": "node scripts/transfer-authority-zero-cost.js",
+    "check:priority-fee": "node scripts/quicknode-priority-fee.js"
   },
   "devDependencies": {
     "@solana/web3.js": "^1.95.8",
