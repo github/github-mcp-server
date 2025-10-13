@@ -1,17 +1,42 @@
-.idea
-cmd/github-mcp-server/github-mcp-server
+# Moralis API Keys
+.env.moralis
+moralis-api-key.txt
+**/moralis-config.json
 
-# VSCode
-.vscode/*
-!.vscode/launch.json
+# API Keys
+*.key
+.env
+.env.local
+.env.*.local
 
-# Added by goreleaser init:
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
 dist/
-__debug_bin*
+build/
+*.so
+*.o
 
-# Go
-vendor
-bin/
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
 
-# macOS
+# OS
 .DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Secrets
+secrets/
+*.pem
+*.key
+id_rsa*

@@ -1,0 +1,199 @@
+{
+  "version": "3.0.0",
+  "timestamp": "2025-10-13T05:21:20Z",
+  "vercel_deployment": {
+    "project_url": "https://vercel.com/imfromfuture3000-androids-projects",
+    "enabled": true,
+    "automated": true
+  },
+  "solana_programs": {
+    "owned_programs": {
+      "gene_mint": "GENEtH5amGSi8kHAtQoezp1XEXwZJ8vcuePYnXdKrMYz",
+      "standard_program": "DjVE6JNiYqPL2QXyCUUh8rNjHrbz9hXHNYt99MQ59qw1",
+      "dao_controller": "CvQZZ23qYDWF2RUpxYJ8y9K4skmuvYEEjH7fK58jtipQ",
+      "primary_program": "jaJrDgf4U8DAZcUD3t5AwL7Cfe2QnkpXZXGegdUHc4ZE"
+    },
+    "core_programs": {
+      "stake_program": "Stake11111111111111111111111111111111111111",
+      "token_program": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      "token_2022": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "associated_token": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+      "metadata_program": "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",
+      "system_program": "11111111111111111111111111111111"
+    },
+    "dex_programs": {
+      "jupiter": "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+      "meteora": "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo",
+      "raydium": "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"
+    },
+    "backfill_contracts": {
+      "omega_primary": "EoRJaGA4iVSQWDyv5Q3ThBXx1KGqYyos3gaXUFEiqUSN",
+      "omega_alt": "2YTrK8f6NwwUg7Tu6sYcCmRKYWpU8yYRYHPz87LTdcgx",
+      "earnings_vault": "F2EkpVd3pKLUi9u9BU794t3mWscJXzUAVw1WSjogTQuR"
+    }
+  },
+  "bot_army": {
+    "bot1_stake_master": {
+      "bot_address": "HKBJoeUWH6pUQuLd9CZWrJBzGSE9roEW4bshnxd9AHsR",
+      "contract_address": "EAy5Nfn6fhs4ixC4sMcKQYQaoedLokpWqbfDtWURCnk6",
+      "specialty": "liquid_staking_yield_farming"
+    },
+    "bot2_mint_operator": {
+      "bot_address": "NqGHDaaLWmND7uShuaZkVbGNQFy6pS96qHyfR3pGR2d",
+      "contract_address": "HUwjG8LFabw28vJsQNoLXjxuzgdLhjGQw1DHZggzt76",
+      "specialty": "token_minting_supply_management"
+    },
+    "bot3_contract_deployer": {
+      "bot_address": "DbhKvqweZECTyYQ7PRJoHmKt8f262fsBCGHxSaD5BPqA",
+      "contract_address": "FZxmYkA6axyK3Njh3YNWXtybw9GgniVrXowS1pAAyrD1",
+      "specialty": "smart_contracts_governance"
+    },
+    "bot4_mev_hunter": {
+      "bot_address": "7uSCVM1MJPKctrSRzuFN7qfVoJX78q6V5q5JuzRPaK41",
+      "contract_address": "5ynYfAM7KZZXwT4dd2cZQnYhFNy1LUysE8m7Lxzjzh2p",
+      "specialty": "arbitrage_mev_operations"
+    },
+    "bot5_loot_extractor": {
+      "bot_address": "3oFCkoneQShDsJMZYscXew4jGwgLjpxfykHuGo85QyLw",
+      "contract_address": "DHBDPUkLLYCRAiyrgFBgvWfevquFkLR1TjGXKD4M4JPD",
+      "specialty": "flash_loans_liquidations"
+    }
+  },
+  "wallets": {
+    "deployer": "zhBqbd9tSQFPevg4188JxcgpccCj3t1Jxb29zsBc2R4",
+    "signer": "FsQPFuje4WMdvbyoVef6MRMuzNZt9E8HM9YBN8T3Zbdq",
+    "controller": "5kDqr3kwfeLhz5rS9cb14Tj2ZZPSq7LddVsxYDV8DnUm",
+    "authority": "4gLAGDEHs6sJ6AMmLdAwCUx9NPmPLxoMCZ3yiKyAyQ1m",
+    "treasury": "4eJZVbbsiLAG6EkWvgEYEWKEpdhJPFBYMeJ6DBX98w6a",
+    "treasury_operational": "EdFC98d1BBhJkeh7KDq26TwEGLeznhoyYsY6Y8LFY4y6",
+    "relayer": "8cRrU1NzNpjL3k2BwjW3VixAcX6VFc29KHr4KZg8cs2Y",
+    "dao_signers": {
+      "controller_address": "CvQZZ23qYDWF2RUpxYJ8y9K4skmuvYEEjH7fK58jtipQ",
+      "signer_1": "mQBipzeneXqnAkWNL8raGvrj2c8dJv87LXs2Hn7BeXk",
+      "signer_2": "J1toHzrhyxaoFTUoxrceFMSqd1vTdZ1Wat3xQVa8E5Jt"
+    }
+  },
+  "evm_contracts": {
+    "multi_chain": {
+      "primary": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+      "networks": ["ethereum", "polygon", "bsc"]
+    },
+    "token_interactions": {
+      "usdt_ethereum": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      "usdc_polygon": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+      "usdt_bsc": "0x55d398326f99059fF775485246999027B3197955",
+      "erc20_example": "0xA0b86a33E6441e6e80D0c4C34F0b1e4E6a7c4b8d"
+    },
+    "skale": {
+      "opt_token": "0xc6D31F2F6CcBcd101604a92C6c08e0aee2937B3a",
+      "network": "honorable-steel-rasalhague",
+      "rpc": "https://mainnet.skalenodes.com/v1/honorable-steel-rasalhague"
+    }
+  },
+  "token_mints": {
+    "usdc": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+  },
+  "api_services": {
+    "helius": {
+      "enabled": true,
+      "rpc": "https://mainnet.helius-rpc.com",
+      "api": "https://api.helius.xyz"
+    },
+    "quicknode": {
+      "enabled": true,
+      "configured": true
+    },
+    "moralis": {
+      "enabled": true,
+      "api_key": "c4d1d108f46144f1955612d3ac03dcd5",
+      "node_url": "https://site2.moralis-nodes.com/eth/c4d1d108f46144f1955612d3ac03dcd5"
+    }
+  },
+  "rpc_endpoints": {
+    "solana": {
+      "mainnet": "https://api.mainnet-beta.solana.com",
+      "helius": "https://mainnet.helius-rpc.com",
+      "relayer": "https://api.helius.xyz/v0/transactions/submit"
+    },
+    "ethereum": "https://eth.llamarpc.com",
+    "polygon": "https://polygon-rpc.com",
+    "bsc": "https://bsc-dataseed.binance.org"
+  },
+  "cloud_services": {
+    "azure": {
+      "key_vault": "https://omegaprime-kv.vault.azure.net/",
+      "storage": "omegaprimestore",
+      "cosmos_db": "omegaprime-cosmos",
+      "functions": "omegaprime-functions",
+      "resource_group": "Gene_Mint",
+      "location": "eastus"
+    }
+  },
+  "master_allowlist": [
+    "GENEtH5amGSi8kHAtQoezp1XEXwZJ8vcuePYnXdKrMYz",
+    "DjVE6JNiYqPL2QXyCUUh8rNjHrbz9hXHNYt99MQ59qw1",
+    "CvQZZ23qYDWF2RUpxYJ8y9K4skmuvYEEjH7fK58jtipQ",
+    "jaJrDgf4U8DAZcUD3t5AwL7Cfe2QnkpXZXGegdUHc4ZE",
+    "EoRJaGA4iVSQWDyv5Q3ThBXx1KGqYyos3gaXUFEiqUSN",
+    "2YTrK8f6NwwUg7Tu6sYcCmRKYWpU8yYRYHPz87LTdcgx",
+    "F2EkpVd3pKLUi9u9BU794t3mWscJXzUAVw1WSjogTQuR",
+    "HKBJoeUWH6pUQuLd9CZWrJBzGSE9roEW4bshnxd9AHsR",
+    "NqGHDaaLWmND7uShuaZkVbGNQFy6pS96qHyfR3pGR2d",
+    "DbhKvqweZECTyYQ7PRJoHmKt8f262fsBCGHxSaD5BPqA",
+    "7uSCVM1MJPKctrSRzuFN7qfVoJX78q6V5q5JuzRPaK41",
+    "3oFCkoneQShDsJMZYscXew4jGwgLjpxfykHuGo85QyLw",
+    "EAy5Nfn6fhs4ixC4sMcKQYQaoedLokpWqbfDtWURCnk6",
+    "HUwjG8LFabw28vJsQNoLXjxuzgdLhjGQw1DHZggzt76",
+    "FZxmYkA6axyK3Njh3YNWXtybw9GgniVrXowS1pAAyrD1",
+    "5ynYfAM7KZZXwT4dd2cZQnYhFNy1LUysE8m7Lxzjzh2p",
+    "DHBDPUkLLYCRAiyrgFBgvWfevquFkLR1TjGXKD4M4JPD",
+    "mQBipzeneXqnAkWNL8raGvrj2c8dJv87LXs2Hn7BeXk",
+    "J1toHzrhyxaoFTUoxrceFMSqd1vTdZ1Wat3xQVa8E5Jt",
+    "zhBqbd9tSQFPevg4188JxcgpccCj3t1Jxb29zsBc2R4",
+    "FsQPFuje4WMdvbyoVef6MRMuzNZt9E8HM9YBN8T3Zbdq",
+    "5kDqr3kwfeLhz5rS9cb14Tj2ZZPSq7LddVsxYDV8DnUm",
+    "4gLAGDEHs6sJ6AMmLdAwCUx9NPmPLxoMCZ3yiKyAyQ1m",
+    "4eJZVbbsiLAG6EkWvgEYEWKEpdhJPFBYMeJ6DBX98w6a",
+    "EdFC98d1BBhJkeh7KDq26TwEGLeznhoyYsY6Y8LFY4y6",
+    "8cRrU1NzNpjL3k2BwjW3VixAcX6VFc29KHr4KZg8cs2Y",
+    "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+    "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",
+    "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+    "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo",
+    "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+    "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+    "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+    "0x55d398326f99059fF775485246999027B3197955",
+    "0xA0b86a33E6441e6e80D0c4C34F0b1e4E6a7c4b8d",
+    "0xc6D31F2F6CcBcd101604a92C6c08e0aee2937B3a"
+  ],
+  "deployment_config": {
+    "automated": true,
+    "auto_upgrade": true,
+    "authority_delegation": true,
+    "treasury_integration": true,
+    "monitoring": true,
+    "alerts": true,
+    "logging": true,
+    "multi_chain": true,
+    "cross_chain": true
+  },
+  "dependencies": {
+    "go_modules": [
+      "github.com/google/go-github/v74",
+      "github.com/mark3labs/mcp-go",
+      "github.com/spf13/cobra",
+      "github.com/spf13/viper"
+    ],
+    "npm_packages": [
+      "@solana/web3.js",
+      "@solana/spl-token",
+      "ethers",
+      "node-fetch"
+    ]
+  }
+}

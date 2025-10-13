@@ -1,0 +1,44 @@
+{
+  "copilot_allowlist": {
+    "github_cli": "https://cli.github.com/",
+    "repository": "https://github.com/loydcercenia-Paul/github-mcp-server",
+    "cloned_to": "/workspaces/github-mcp-server-clone",
+    "status": "cloned",
+    "timestamp": "2025-01-15T00:00:00Z"
+  },
+  "required_data_files": [
+    "README.md",
+    "go.mod",
+    "go.sum",
+    "Dockerfile",
+    ".gitignore",
+    "LICENSE",
+    "SECURITY.md",
+    "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md"
+  ],
+  "key_directories": {
+    "cmd": "/workspaces/github-mcp-server-clone/cmd",
+    "pkg": "/workspaces/github-mcp-server-clone/pkg",
+    "internal": "/workspaces/github-mcp-server-clone/internal",
+    "docs": "/workspaces/github-mcp-server-clone/docs",
+    "scripts": "/workspaces/github-mcp-server-clone/script"
+  },
+  "mcp_server_files": {
+    "main": "/workspaces/github-mcp-server-clone/cmd/github-mcp-server/main.go",
+    "server": "/workspaces/github-mcp-server-clone/internal/ghmcp/server.go",
+    "tools": "/workspaces/github-mcp-server-clone/pkg/github/tools.go"
+  },
+  "integration_points": {
+    "github_api": "/workspaces/github-mcp-server-clone/pkg/github",
+    "mcp_protocol": "/workspaces/github-mcp-server-clone/internal/ghmcp",
+    "toolsets": "/workspaces/github-mcp-server-clone/pkg/toolsets"
+  },
+  "allowlist_additions": [
+    "4gLAGDEHs6sJ6AMmLdAwCUx9NPmPLxoMCZ3yiKyAyQ1m",
+    "GENEtH5amGSi8kHAtQoezp1XEXwZJ8vcuePYnXdKrMYz",
+    "DjVE6JNiYqPL2QXyCUUh8rNjHrbz9hXHNYt99MQ59qw1",
+    "CvQZZ23qYDWF2RUpxYJ8y9K4skmuvYEEjH7fK58jtipQ",
+    "4eJZVbbsiLAG6EkWvgEYEWKEpdhJPFBYMeJ6DBX98w6a"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "timestamp": "2025-10-13T05:21:20Z",
+  "solana_addresses": [
+    ""
+  ],
+  "evm_addresses": [
+    ""
+  ],
+  "api_services": {
+    "helius": "configured",
+    "quicknode": "configured",
+    "moralis": "configured"
+  },
+  "programs": {
+    "gene_mint": "GENEtH5amGSi8kHAtQoezp1XEXwZJ8vcuePYnXdKrMYz",
+    "standard_program": "DjVE6JNiYqPL2QXyCUUh8rNjHrbz9hXHNYt99MQ59qw1",
+    "dao_controller": "CvQZZ23qYDWF2RUpxYJ8y9K4skmuvYEEjH7fK58jtipQ"
+  }
+}
