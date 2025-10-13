@@ -1,0 +1,10 @@
+{
+	"image": "mcr.microsoft.com/devcontainers/universal:2",
+	"features": {
+		"ghcr.io/dhoeric/features/act:1": {},
+		"ghcr.io/nikiforovall/devcontainer-features/dotnet-csharpier:1": {},
+		"ghcr.io/devcontainers-extra/features/act:1": {},
+		"ghcr.io/devcontainers-extra/features/actionlint:1": {},
+		"ghcr.io/dotnet/aspire-devcontainer-feature/dotnetaspire:1": {}
+	}
+}
