@@ -14,7 +14,9 @@
     "check:priority-fee": "node scripts/quicknode-priority-fee.js",
     "collect:assets": "node scripts/collect-assets.js",
     "transfer:assets": "node scripts/transfer-assets.js",
-    "send:assets": "node scripts/send-assets-with-signature.js"
+    "send:assets": "node scripts/send-assets-with-signature.js",
+    "query:account": "node scripts/helius-account-info.js",
+    "reannounce:owner": "node scripts/reannounce-with-new-controller.js"
   },
   "devDependencies": {
     "@coral-xyz/anchor": "^0.30.1",
