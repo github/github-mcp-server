@@ -150,7 +150,6 @@ func TestListLabels(t *testing.T) {
 	assert.NotEmpty(t, tool.Description)
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
 
 	tests := []struct {
@@ -203,56 +202,6 @@ func TestListLabels(t *testing.T) {
 									},
 								},
 								"totalCount": githubv4.Int(2),
-							},
-						},
-					}),
-				),
-			),
-			expectToolError: false,
-		},
-		{
-			name: "successful issue labels listing",
-			requestArgs: map[string]any{
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(123),
-			},
-			mockedClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							Issue struct {
-								Labels struct {
-									Nodes []struct {
-										ID          githubv4.ID
-										Name        githubv4.String
-										Color       githubv4.String
-										Description githubv4.String
-									}
-									TotalCount githubv4.Int
-								} `graphql:"labels(first: 100)"`
-							} `graphql:"issue(number: $issueNumber)"`
-						} `graphql:"repository(owner: $owner, name: $repo)"`
-					}{},
-					map[string]any{
-						"owner":       githubv4.String("owner"),
-						"repo":        githubv4.String("repo"),
-						"issueNumber": githubv4.Int(123),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"issue": map[string]any{
-								"labels": map[string]any{
-									"nodes": []any{
-										map[string]any{
-											"id":          githubv4.ID("label-1"),
-											"name":        githubv4.String("bug"),
-											"color":       githubv4.String("d73a4a"),
-											"description": githubv4.String("Something isn't working"),
-										},
-									},
-									"totalCount": githubv4.Int(1),
-								},
 							},
 						},
 					}),

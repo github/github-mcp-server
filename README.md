@@ -566,44 +566,48 @@ The following sets of tools are available (all are on by default):
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
-- **add_sub_issue** - Add sub-issue
-  - `issue_number`: The number of the parent issue (number, required)
-  - `owner`: Repository owner (string, required)
-  - `replace_parent`: When true, replaces the sub-issue's current parent issue (boolean, optional)
-  - `repo`: Repository name (string, required)
-  - `sub_issue_id`: The ID of the sub-issue to add. ID is not the same as issue number (number, required)
-
 - **assign_copilot_to_issue** - Assign Copilot to issue
   - `issueNumber`: Issue number (number, required)
   - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-
-- **create_issue** - Open new issue
-  - `assignees`: Usernames to assign to this issue (string[], optional)
-  - `body`: Issue body content (string, optional)
-  - `labels`: Labels to apply to this issue (string[], optional)
-  - `milestone`: Milestone number (number, optional)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `title`: Issue title (string, required)
-  - `type`: Type of this issue (string, optional)
-
-- **get_issue** - Get issue details
-  - `issue_number`: The number of the issue (number, required)
-  - `owner`: The owner of the repository (string, required)
-  - `repo`: The name of the repository (string, required)
-
-- **get_issue_comments** - Get issue comments
-  - `issue_number`: Issue number (number, required)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
 - **get_label** - Get a specific label from a repository.
   - `name`: Label name. (string, required)
   - `owner`: Repository owner (username or organization name) (string, required)
   - `repo`: Repository name (string, required)
+
+- **issue_read** - Get issue details
+  - `issue_number`: The number of the issue (number, required)
+  - `method`: The read operation to perform on a single issue. 
+Options are: 
+1. 'get' - get issue details
+2. 'get_comments' - get issue comments
+3. 'get_sub_issues' - list sub-issues of the issue
+4. 'get_labels' - list labels assigned to the issue
+ (string, required)
+  - `owner`: The owner of the repository (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: The name of the repository (string, required)
+
+- **issue_write** - Create or update issue.
+  - `assignees`: Usernames to assign to this issue (string[], optional)
+  - `body`: Issue body content (string, optional)
+  - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
+  - `issue_number`: Issue number to update (number, optional)
+  - `labels`: Labels to apply to this issue (string[], optional)
+  - `method`: Write operation to perform on a single issue.
+Options are: 
+- 'create' - creates a new issue. 
+- 'update' - updates an existing issue.
+ (string, required)
+  - `milestone`: Milestone number (number, optional)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `state`: New state (string, optional)
+  - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
+  - `title`: Issue title (string, optional)
+  - `type`: Type of this issue (string, optional)
 
 - **list_issue_types** - List available issue types
   - `owner`: The organization owner of the repository (string, required)
@@ -619,32 +623,6 @@ The following sets of tools are available (all are on by default):
   - `since`: Filter by date (ISO 8601 timestamp) (string, optional)
   - `state`: Filter by state, by default both open and closed issues are returned when not provided (string, optional)
 
-- **list_label** - List labels from a repository or an issue
-  - `issue_number`: Issue number - if provided, lists labels on the specific issue (number, optional)
-  - `owner`: Repository owner (username or organization name) - required for all operations (string, required)
-  - `repo`: Repository name - required for all operations (string, required)
-
-- **list_sub_issues** - List sub-issues
-  - `issue_number`: Issue number (number, required)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (default: 1) (number, optional)
-  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
-  - `repo`: Repository name (string, required)
-
-- **remove_sub_issue** - Remove sub-issue
-  - `issue_number`: The number of the parent issue (number, required)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `sub_issue_id`: The ID of the sub-issue to remove. ID is not the same as issue number (number, required)
-
-- **reprioritize_sub_issue** - Reprioritize sub-issue
-  - `after_id`: The ID of the sub-issue to be prioritized after (either after_id OR before_id should be specified) (number, optional)
-  - `before_id`: The ID of the sub-issue to be prioritized before (either after_id OR before_id should be specified) (number, optional)
-  - `issue_number`: The number of the parent issue (number, required)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `sub_issue_id`: The ID of the sub-issue to reprioritize. ID is not the same as issue number (number, required)
-
 - **search_issues** - Search issues
   - `order`: Sort order (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only issues for this repository are listed. (string, optional)
@@ -654,19 +632,20 @@ The following sets of tools are available (all are on by default):
   - `repo`: Optional repository name. If provided with owner, only issues for this repository are listed. (string, optional)
   - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
 
-- **update_issue** - Edit issue
-  - `assignees`: New assignees (string[], optional)
-  - `body`: New description (string, optional)
-  - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
-  - `issue_number`: Issue number to update (number, required)
-  - `labels`: New labels (string[], optional)
-  - `milestone`: New milestone number (number, optional)
+- **sub_issue_write** - Change sub-issue
+  - `after_id`: The ID of the sub-issue to be prioritized after (either after_id OR before_id should be specified) (number, optional)
+  - `before_id`: The ID of the sub-issue to be prioritized before (either after_id OR before_id should be specified) (number, optional)
+  - `issue_number`: The number of the parent issue (number, required)
+  - `method`: The action to perform on a single sub-issue
+Options are:
+- 'add' - add a sub-issue to a parent issue in a GitHub repository.
+- 'remove' - remove a sub-issue from a parent issue in a GitHub repository.
+- 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.
+				 (string, required)
   - `owner`: Repository owner (string, required)
+  - `replace_parent`: When true, replaces the sub-issue's current parent issue. Use with 'add' method only. (boolean, optional)
   - `repo`: Repository name (string, required)
-  - `state`: New state (string, optional)
-  - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
-  - `title`: New title (string, optional)
-  - `type`: New issue type (string, optional)
+  - `sub_issue_id`: The ID of the sub-issue to add. ID is not the same as issue number (number, required)
 
 </details>
 
@@ -688,8 +667,7 @@ The following sets of tools are available (all are on by default):
   - `owner`: Repository owner (username or organization name) (string, required)
   - `repo`: Repository name (string, required)
 
-- **list_label** - List labels from a repository or an issue
-  - `issue_number`: Issue number - if provided, lists labels on the specific issue (number, optional)
+- **list_label** - List labels from a repository
   - `owner`: Repository owner (username or organization name) - required for all operations (string, required)
   - `repo`: Repository name - required for all operations (string, required)
 

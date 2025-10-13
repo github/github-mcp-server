@@ -1,0 +1,52 @@
+{
+  "annotations": {
+    "title": "Change sub-issue",
+    "readOnlyHint": false
+  },
+  "description": "Add a sub-issue to a parent issue in a GitHub repository.",
+  "inputSchema": {
+    "properties": {
+      "after_id": {
+        "description": "The ID of the sub-issue to be prioritized after (either after_id OR before_id should be specified)",
+        "type": "number"
+      },
+      "before_id": {
+        "description": "The ID of the sub-issue to be prioritized before (either after_id OR before_id should be specified)",
+        "type": "number"
+      },
+      "issue_number": {
+        "description": "The number of the parent issue",
+        "type": "number"
+      },
+      "method": {
+        "description": "The action to perform on a single sub-issue\nOptions are:\n- 'add' - add a sub-issue to a parent issue in a GitHub repository.\n- 'remove' - remove a sub-issue from a parent issue in a GitHub repository.\n- 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.\n\t\t\t\t",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "replace_parent": {
+        "description": "When true, replaces the sub-issue's current parent issue. Use with 'add' method only.",
+        "type": "boolean"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "sub_issue_id": {
+        "description": "The ID of the sub-issue to add. ID is not the same as issue number",
+        "type": "number"
+      }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo",
+      "issue_number",
+      "sub_issue_id"
+    ],
+    "type": "object"
+  },
+  "name": "sub_issue_write"
+}
