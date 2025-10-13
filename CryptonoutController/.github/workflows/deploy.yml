@@ -1,0 +1,40 @@
+name: Manual Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      server_host:
+        description: "Server Host (IP or domain)"
+        required: true
+        type: string
+      server_user:
+        description: "SSH User"
+        required: true
+        type: string
+      deploy_path:
+        description: "Remote Deploy Directory"
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Copy files to server
+        run: |
+          rsync -avz --delete ./ ${{ inputs.server_user }}@${{ inputs.server_host }}:${{ inputs.deploy_path }}
+
+      - name: Run deployment script on server
+        env:
+          DEPLOY_PATH: ${{ inputs.deploy_path }}
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ inputs.server_user }}@${{ inputs.server_host }} "cd $DEPLOY_PATH && ./deploy.sh || echo 'No deploy.sh found, skipping.'"

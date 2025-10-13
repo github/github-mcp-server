@@ -2,6 +2,8 @@
 .env.moralis
 moralis-api-key.txt
 **/moralis-config.json
+MORALIS_API_KEY
+.moralis
 
 # API Keys
 *.key

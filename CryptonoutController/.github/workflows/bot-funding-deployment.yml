@@ -1,0 +1,267 @@
+name: Bot Army Funding Deployment
+
+permissions:
+  contents: write
+  actions: write
+  pull-requests: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      bot_number:
+        description: 'Bot number to fund (1-8, or "all")'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - '1'
+          - '2'
+          - '3'
+          - '4'
+          - '5'
+          - '6'
+          - '7'
+          - '8'
+          - 'all'
+      dry_run:
+        description: 'Dry run mode'
+        required: false
+        default: 'false'
+        type: boolean
+      allowlist_addresses:
+        description: 'Additional allowlist addresses (comma-separated)'
+        required: false
+        type: string
+
+env:
+  SOLANA_NETWORK: mainnet-beta
+  PRIMARY_MINT: 3i62KXuWERyTZJ5HbE7HNbhvBAhEdMjMjLQk3m39PpN4
+  RELAYER_URL: https://api.helius.xyz/v0/transactions/submit
+  TREASURY: 4eJZVbbsiLAG6EkWvgEYEWKEpdhJPFBYMeJ6DBX98w6a
+
+jobs:
+  fund-bot-1:
+    if: github.event.inputs.bot_number == '1' || github.event.inputs.bot_number == 'all'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Fund Bot 1 - Stake Master
+        run: |
+          echo "🤖 Funding Bot 1: Stake Master"
+          echo "Address: HKBJoeUWH6pUQuLd9CZWrJBzGSE9roEW4bshnxd9AHsR"
+          echo "Amount: 1,000 tokens"
+          node Deployer-Gene/scripts/mint-bot.js \
+            --bot=1 \
+            --address=HKBJoeUWH6pUQuLd9CZWrJBzGSE9roEW4bshnxd9AHsR \
+            --amount=1000 \
+            --mint=$PRIMARY_MINT \
+            --relayer=$RELAYER_URL \
+            --dry-run=${{ github.event.inputs.dry_run }}
+
+  fund-bot-2:
+    if: github.event.inputs.bot_number == '2' || github.event.inputs.bot_number == 'all'
+    needs: fund-bot-1
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Fund Bot 2 - Mint Operator
+        run: |
+          echo "🤖 Funding Bot 2: Mint Operator"
+          echo "Address: NqGHDaaLWmND7uShuaZkVbGNQFy6pS96qHyfR3pGR2d"
+          echo "Amount: 1,500 tokens"
+          node Deployer-Gene/scripts/mint-bot.js \
+            --bot=2 \
+            --address=NqGHDaaLWmND7uShuaZkVbGNQFy6pS96qHyfR3pGR2d \
+            --amount=1500 \
+            --mint=$PRIMARY_MINT \
+            --relayer=$RELAYER_URL \
+            --dry-run=${{ github.event.inputs.dry_run }}
+
+  fund-bot-3:
+    if: github.event.inputs.bot_number == '3' || github.event.inputs.bot_number == 'all'
+    needs: fund-bot-2
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Fund Bot 3 - Contract Deployer
+        run: |
+          echo "🤖 Funding Bot 3: Contract Deployer"
+          echo "Address: DbhKvqweZECTyYQ7PRJoHmKt8f262fsBCGHxSaD5BPqA"
+          echo "Amount: 2,000 tokens"
+          node Deployer-Gene/scripts/mint-bot.js \
+            --bot=3 \
+            --address=DbhKvqweZECTyYQ7PRJoHmKt8f262fsBCGHxSaD5BPqA \
+            --amount=2000 \
+            --mint=$PRIMARY_MINT \
+            --relayer=$RELAYER_URL \
+            --dry-run=${{ github.event.inputs.dry_run }}
+
+  fund-bot-4:
+    if: github.event.inputs.bot_number == '4' || github.event.inputs.bot_number == 'all'
+    needs: fund-bot-3
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Fund Bot 4 - MEV Hunter
+        run: |
+          echo "🤖 Funding Bot 4: MEV Hunter"
+          echo "Address: 7uSCVM1MJPKctrSRzuFN7qfVoJX78q6V5q5JuzRPaK41"
+          echo "Amount: 2,500 tokens"
+          node Deployer-Gene/scripts/mint-bot.js \
+            --bot=4 \
+            --address=7uSCVM1MJPKctrSRzuFN7qfVoJX78q6V5q5JuzRPaK41 \
+            --amount=2500 \
+            --mint=$PRIMARY_MINT \
+            --relayer=$RELAYER_URL \
+            --dry-run=${{ github.event.inputs.dry_run }}
+
+  fund-bot-5:
+    if: github.event.inputs.bot_number == '5' || github.event.inputs.bot_number == 'all'
+    needs: fund-bot-4
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Fund Bot 5 - Loot Extractor
+        run: |
+          echo "🤖 Funding Bot 5: Loot Extractor"
+          echo "Address: 3oFCkoneQShDsJMZYscXew4jGwgLjpxfykHuGo85QyLw"
+          echo "Amount: 3,000 tokens"
+          node Deployer-Gene/scripts/mint-bot.js \
+            --bot=5 \
+            --address=3oFCkoneQShDsJMZYscXew4jGwgLjpxfykHuGo85QyLw \
+            --amount=3000 \
+            --mint=$PRIMARY_MINT \
+            --relayer=$RELAYER_URL \
+            --dry-run=${{ github.event.inputs.dry_run }}
+
+  fund-bot-6:
+    if: github.event.inputs.bot_number == '6' || github.event.inputs.bot_number == 'all'
+    needs: fund-bot-5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Fund Bot 6 - Advanced
+        run: |
+          echo "🤖 Funding Bot 6: Advanced"
+          echo "Address: 8duk9DzqBVXmqiyci9PpBsKuRCwg6ytzWywjQztM6VzS"
+          echo "Amount: 3,500 tokens"
+          node Deployer-Gene/scripts/mint-bot.js \
+            --bot=6 \
+            --address=8duk9DzqBVXmqiyci9PpBsKuRCwg6ytzWywjQztM6VzS \
+            --amount=3500 \
+            --mint=$PRIMARY_MINT \
+            --relayer=$RELAYER_URL \
+            --dry-run=${{ github.event.inputs.dry_run }}
+
+  fund-bot-7:
+    if: github.event.inputs.bot_number == '7' || github.event.inputs.bot_number == 'all'
+    needs: fund-bot-6
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Fund Bot 7 - Elite
+        run: |
+          echo "🤖 Funding Bot 7: Elite"
+          echo "Address: 96891wG6iLVEDibwjYv8xWFGFiEezFQkvdyTrM69ou24"
+          echo "Amount: 4,000 tokens"
+          node Deployer-Gene/scripts/mint-bot.js \
+            --bot=7 \
+            --address=96891wG6iLVEDibwjYv8xWFGFiEezFQkvdyTrM69ou24 \
+            --amount=4000 \
+            --mint=$PRIMARY_MINT \
+            --relayer=$RELAYER_URL \
+            --dry-run=${{ github.event.inputs.dry_run }}
+
+  fund-bot-8:
+    if: github.event.inputs.bot_number == '8' || github.event.inputs.bot_number == 'all'
+    needs: fund-bot-7
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Fund Bot 8 - Master
+        run: |
+          echo "🤖 Funding Bot 8: Master"
+          echo "Address: 2A8qGB3iZ21NxGjX4EjjWJKc9PFG1r7F4jkcR66dc4mb"
+          echo "Amount: 5,000 tokens"
+          node Deployer-Gene/scripts/mint-bot.js \
+            --bot=8 \
+            --address=2A8qGB3iZ21NxGjX4EjjWJKc9PFG1r7F4jkcR66dc4mb \
+            --amount=5000 \
+            --mint=$PRIMARY_MINT \
+            --relayer=$RELAYER_URL \
+            --dry-run=${{ github.event.inputs.dry_run }}
+
+  update-allowlist:
+    if: github.event.inputs.allowlist_addresses != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Update Allowlist
+        env:
+          NEW_ADDRESSES: ${{ github.event.inputs.allowlist_addresses }}
+        run: |
+          echo "📝 Updating allowlist with new addresses"
+          node scripts/update-allowlist.js "$NEW_ADDRESSES"
+      
+      - name: Commit Allowlist Changes
+        if: github.event.inputs.dry_run == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add VERCEL_DEPLOYMENT_ALLOWLIST.json
+          git commit -m "🔐 Update allowlist: ${{ github.event.inputs.allowlist_addresses }}" || echo "No changes"
+          git push
+
+  deployment-summary:
+    needs: [fund-bot-1, fund-bot-2, fund-bot-3, fund-bot-4, fund-bot-5, fund-bot-6, fund-bot-7, fund-bot-8, update-allowlist]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate Deployment Report
+        run: |
+          echo "# 🤖 Bot Army Funding Deployment Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Network**: Solana Mainnet-Beta" >> $GITHUB_STEP_SUMMARY
+          echo "**Primary Mint**: $PRIMARY_MINT" >> $GITHUB_STEP_SUMMARY
+          echo "**Treasury**: $TREASURY" >> $GITHUB_STEP_SUMMARY
+          echo "**Total Investment**: 22,500 tokens" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Deployment Status" >> $GITHUB_STEP_SUMMARY
+          echo "| Bot | Role | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 1 | Stake Master | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| 2 | Mint Operator | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| 3 | Contract Deployer | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| 4 | MEV Hunter | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| 5 | Loot Extractor | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| 6 | Advanced | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| 7 | Elite | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| 8 | Master | ✅ |" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,38 @@
+name: Omega-Prime SKALE Deploy
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build contracts
+        run: npx hardhat compile
+
+      - name: Deploy to SKALE
+        env:
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+          SKALE_RPC_URL: ${{ secrets.SKALE_RPC_URL }}
+        run: npx hardhat run scripts/deploy.js --network skale
+
+      - name: Summarize Deployment
+        if: success()
+        run: cat deployment-info.txt >> $GITHUB_STEP_SUMMARY

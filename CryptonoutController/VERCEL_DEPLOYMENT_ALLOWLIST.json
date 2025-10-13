@@ -1,0 +1,165 @@
+{
+  "vercel_deployment": {
+    "project_url": "https://vercel.com/imfromfuture3000-androids-projects",
+    "enabled": true,
+    "automated": true
+  },
+  "backfill_contracts": {
+    "solana": {
+      "omega_primary": "EoRJaGA4iVSQWDyv5Q3ThBXx1KGqYyos3gaXUFEiqUSN",
+      "omega_alt": "2YTrK8f6NwwUg7Tu6sYcCmRKYWpU8yYRYHPz87LTdcgx",
+      "earnings_vault": "F2EkpVd3pKLUi9u9BU794t3mWscJXzUAVw1WSjogTQuR",
+      "dex_program": "DjVE6JNiYqPL2QXyCUUh8rNjHrbz9hXHNYt99MQ59qw1",
+      "gene_mint": "GENEtH5amGSi8kHAtQoezp1XEXwZJ8vcuePYnXdKrMYz",
+      "dao_controller": "CvQZZ23qYDWF2RUpxYJ8y9K4skmuvYEEjH7fK58jtipQ",
+      "primary_program": "jaJrDgf4U8DAZcUD3t5AwL7Cfe2QnkpXZXGegdUHc4ZE"
+    },
+    "core_programs": {
+      "token_program": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      "token_2022": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "associated_token": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+      "metadata_program": "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+    },
+    "dex_programs": {
+      "jupiter": "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+      "meteora": "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo",
+      "raydium": "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"
+    },
+    "bot_army": {
+      "bot1": "HKBJoeUWH6pUQuLd9CZWrJBzGSE9roEW4bshnxd9AHsR",
+      "bot2": "NqGHDaaLWmND7uShuaZkVbGNQFy6pS96qHyfR3pGR2d",
+      "bot3": "DbhKvqweZECTyYQ7PRJoHmKt8f262fsBCGHxSaD5BPqA",
+      "bot4": "7uSCVM1MJPKctrSRzuFN7qfVoJX78q6V5q5JuzRPaK41",
+      "bot5": "3oFCkoneQShDsJMZYscXew4jGwgLjpxfykHuGo85QyLw",
+      "bot6": "8duk9DzqBVXmqiyci9PpBsKuRCwg6ytzWywjQztM6VzS",
+      "bot7": "96891wG6iLVEDibwjYv8xWFGFiEezFQkvdyTrM69ou24",
+      "bot8": "2A8qGB3iZ21NxGjX4EjjWJKc9PFG1r7F4jkcR66dc4mb",
+      "bot1_contract": "EAy5Nfn6fhs4ixC4sMcKQYQaoedLokpWqbfDtWURCnk6",
+      "bot2_contract": "HUwjG8LFabw28vJsQNoLXjxuzgdLhjGQw1DHZggzt76",
+      "bot3_contract": "FZxmYkA6axyK3Njh3YNWXtybw9GgniVrXowS1pAAyrD1",
+      "bot4_contract": "5ynYfAM7KZZXwT4dd2cZQnYhFNy1LUysE8m7Lxzjzh2p",
+      "bot5_contract": "DHBDPUkLLYCRAiyrgFBgvWfevquFkLR1TjGXKD4M4JPD"
+    },
+    "evm": {
+      "ethereum": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+      "polygon": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+      "bsc": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6"
+    }
+  },
+  "wallets": {
+    "deployer": "zhBqbd9tSQFPevg4188JxcgpccCj3t1Jxb29zsBc2R4",
+    "signer": "FsQPFuje4WMdvbyoVef6MRMuzNZt9E8HM9YBN8T3Zbdq",
+    "controller": "5kDqr3kwfeLhz5rS9cb14Tj2ZZPSq7LddVsxYDV8DnUm",
+    "authority": "4gLAGDEHs6sJ6AMmLdAwCUx9NPmPLxoMCZ3yiKyAyQ1m",
+    "treasury": "4eJZVbbsiLAG6EkWvgEYEWKEpdhJPFBYMeJ6DBX98w6a",
+    "treasury_operational": "EdFC98d1BBhJkeh7KDq26TwEGLeznhoyYsY6Y8LFY4y6",
+    "relayer": "8cRrU1NzNpjL3k2BwjW3VixAcX6VFc29KHr4KZg8cs2Y",
+    "dao_signers": {
+      "controller_address": "CvQZZ23qYDWF2RUpxYJ8y9K4skmuvYEEjH7fK58jtipQ",
+      "signer_1": "mQBipzeneXqnAkWNL8raGvrj2c8dJv87LXs2Hn7BeXk",
+      "signer_2": "J1toHzrhyxaoFTUoxrceFMSqd1vTdZ1Wat3xQVa8E5Jt"
+    }
+  },
+  "evm_interact": {
+    "moralis_api_key": "c4d1d108f46144f1955612d3ac03dcd5",
+    "moralis_node": "https://site2.moralis-nodes.com/eth/c4d1d108f46144f1955612d3ac03dcd5",
+    "networks": ["ethereum", "polygon", "bsc", "arbitrum", "optimism"],
+    "enabled": true,
+    "evm_wallets": {
+      "primary": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+      "derived_from_solana": "zhBqbd9tSQFPevg4188JxcgpccCj3t1Jxb29zsBc2R4"
+    },
+    "contract_interactions": {
+      "usdt_ethereum": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      "usdc_polygon": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+      "usdt_bsc": "0x55d398326f99059fF775485246999027B3197955",
+      "erc20_example": "0xA0b86a33E6441e6e80D0c4C34F0b1e4E6a7c4b8d"
+    },
+    "skale": {
+      "opt_token": "0xc6D31F2F6CcBcd101604a92C6c08e0aee2937B3a",
+      "dmt_token": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+      "iem_matrix": "0xc6D31F2F6CcBcd101604a92C6c08e0aee2937B3a",
+      "deployer": "0xE38FB59ba3AEAbE2AD0f6FB7Fb84453F6d145D23",
+      "network": "honorable-steel-rasalhague",
+      "rpc": "https://mainnet.skalenodes.com/v1/honorable-steel-rasalhague"
+    },
+    "rpc_endpoints": {
+      "ethereum": "https://eth.llamarpc.com",
+      "polygon": "https://polygon-rpc.com",
+      "bsc": "https://bsc-dataseed.binance.org"
+    }
+  },
+  "automated_deployment": {
+    "vercel": {
+      "enabled": true,
+      "auto_deploy": true,
+      "production": true,
+      "preview": true
+    },
+    "contracts": {
+      "auto_upgrade": true,
+      "authority_delegation": true,
+      "treasury_integration": true
+    },
+    "monitoring": {
+      "enabled": true,
+      "alerts": true,
+      "logging": true
+    }
+  },
+  "token_mints": {
+    "usdc": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+  },
+  "allowlist": [
+    "GENEtH5amGSi8kHAtQoezp1XEXwZJ8vcuePYnXdKrMYz",
+    "DjVE6JNiYqPL2QXyCUUh8rNjHrbz9hXHNYt99MQ59qw1",
+    "CvQZZ23qYDWF2RUpxYJ8y9K4skmuvYEEjH7fK58jtipQ",
+    "jaJrDgf4U8DAZcUD3t5AwL7Cfe2QnkpXZXGegdUHc4ZE",
+    "EoRJaGA4iVSQWDyv5Q3ThBXx1KGqYyos3gaXUFEiqUSN",
+    "2YTrK8f6NwwUg7Tu6sYcCmRKYWpU8yYRYHPz87LTdcgx",
+    "F2EkpVd3pKLUi9u9BU794t3mWscJXzUAVw1WSjogTQuR",
+    "HKBJoeUWH6pUQuLd9CZWrJBzGSE9roEW4bshnxd9AHsR",
+    "NqGHDaaLWmND7uShuaZkVbGNQFy6pS96qHyfR3pGR2d",
+    "DbhKvqweZECTyYQ7PRJoHmKt8f262fsBCGHxSaD5BPqA",
+    "7uSCVM1MJPKctrSRzuFN7qfVoJX78q6V5q5JuzRPaK41",
+    "3oFCkoneQShDsJMZYscXew4jGwgLjpxfykHuGo85QyLw",
+    "EAy5Nfn6fhs4ixC4sMcKQYQaoedLokpWqbfDtWURCnk6",
+    "HUwjG8LFabw28vJsQNoLXjxuzgdLhjGQw1DHZggzt76",
+    "FZxmYkA6axyK3Njh3YNWXtybw9GgniVrXowS1pAAyrD1",
+    "5ynYfAM7KZZXwT4dd2cZQnYhFNy1LUysE8m7Lxzjzh2p",
+    "DHBDPUkLLYCRAiyrgFBgvWfevquFkLR1TjGXKD4M4JPD",
+    "8duk9DzqBVXmqiyci9PpBsKuRCwg6ytzWywjQztM6VzS",
+    "96891wG6iLVEDibwjYv8xWFGFiEezFQkvdyTrM69ou24",
+    "2A8qGB3iZ21NxGjX4EjjWJKc9PFG1r7F4jkcR66dc4mb",
+    "mQBipzeneXqnAkWNL8raGvrj2c8dJv87LXs2Hn7BeXk",
+    "J1toHzrhyxaoFTUoxrceFMSqd1vTdZ1Wat3xQVa8E5Jt",
+    "zhBqbd9tSQFPevg4188JxcgpccCj3t1Jxb29zsBc2R4",
+    "FsQPFuje4WMdvbyoVef6MRMuzNZt9E8HM9YBN8T3Zbdq",
+    "5kDqr3kwfeLhz5rS9cb14Tj2ZZPSq7LddVsxYDV8DnUm",
+    "4gLAGDEHs6sJ6AMmLdAwCUx9NPmPLxoMCZ3yiKyAyQ1m",
+    "4eJZVbbsiLAG6EkWvgEYEWKEpdhJPFBYMeJ6DBX98w6a",
+    "EdFC98d1BBhJkeh7KDq26TwEGLeznhoyYsY6Y8LFY4y6",
+    "8cRrU1NzNpjL3k2BwjW3VixAcX6VFc29KHr4KZg8cs2Y",
+    "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+    "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",
+    "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+    "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo",
+    "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",
+    "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+    "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+    "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+    "0x55d398326f99059fF775485246999027B3197955",
+    "0xA0b86a33E6441e6e80D0c4C34F0b1e4E6a7c4b8d",
+    "0xc6D31F2F6CcBcd101604a92C6c08e0aee2937B3a",
+    "0xE38FB59ba3AEAbE2AD0f6FB7Fb84453F6d145D23"
+  ],
+  "cross_chain": {
+    "enabled": true,
+    "chains": ["solana", "skale"],
+    "bridge_active": true,
+    "unified_treasury": true
+  }
+}

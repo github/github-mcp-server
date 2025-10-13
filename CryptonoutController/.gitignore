@@ -1,0 +1,116 @@
+# Security & Secrets
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+*-key.json
+user_auth.json
+.cache/user_auth.json
+
+# Private Keys & Keypairs
+*-keypair.json
+*.keypair
+private-key-*
+deployer-key*
+signer-key*
+authority-key*
+
+# Node Modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Build & Dist
+dist/
+build/
+out/
+*.log
+*.tgz
+*.tar.gz
+
+# Hardhat
+cache/
+artifacts/
+typechain/
+typechain-types/
+
+# Solana
+.anchor/
+target/
+**/*.so
+test-ledger/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Cache & Temp
+.cache/
+.cache-backup*/
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Deployment Artifacts
+deployment-*.json
+transaction-*.json
+signature-*.json
+
+# Sensitive Data
+*-private.json
+*-secret.json
+*-credentials.json
+wallet-*.json
+keypair-*.json
+
+# Vote Data
+vote-data-*.json
+node-votes-*.json
+validator-keys/
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Backup Files
+*.bak
+*.backup
+*-backup-*
+
+# Test Files
+coverage/
+.nyc_output/
+*.test.local.js
+
+# Docker
+.dockerignore
+
+# Vercel
+.vercel/
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# AWS
+.aws/
+
+# Azure
+.azure/
