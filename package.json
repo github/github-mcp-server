@@ -1,0 +1,13 @@
+{
+  "name": "github-mcp-server-deployment",
+  "version": "2.0.0",
+  "private": true,
+  "scripts": {
+    "deploy": "node scripts/update-controller.js",
+    "verify": "solana program show GENEtH5amGSi8kHAtQoezp1XEXwZJ8vcuePYnXdKrMYz"
+  },
+  "devDependencies": {
+    "@solana/web3.js": "^1.95.8",
+    "@coral-xyz/anchor": "^0.30.1"
+  }
+}

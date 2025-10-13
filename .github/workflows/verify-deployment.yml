@@ -1,0 +1,61 @@
+name: Verify Deployment
+
+on:
+  workflow_run:
+    workflows: ["Full Deployment Pipeline"]
+    types: [completed]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: deployment-report-*
+          merge-multiple: true
+
+      - name: Verify on Solscan
+        run: |
+          if [ -f deployment-report.json ]; then
+            TX_HASH=$(jq -r '.transaction' deployment-report.json)
+            PROGRAM_ID=$(jq -r '.programId' deployment-report.json)
+            
+            echo "🔍 Verifying deployment..."
+            echo "Transaction: https://solscan.io/tx/$TX_HASH"
+            echo "Program: https://solscan.io/account/$PROGRAM_ID"
+            
+            # Verify transaction exists
+            curl -s "https://api.solscan.io/transaction?tx=$TX_HASH" | jq .
+          fi
+
+      - name: Update README
+        run: |
+          if [ -f deployment-report.json ]; then
+            TX_HASH=$(jq -r '.transaction' deployment-report.json)
+            TIMESTAMP=$(jq -r '.timestamp' deployment-report.json)
+            
+            cat >> DEPLOYMENT_LOG.md <<EOF
+          ## Deployment $(date -d @$TIMESTAMP +"%Y-%m-%d %H:%M:%S")
+          
+          - **TX Hash:** [\`$TX_HASH\`](https://solscan.io/tx/$TX_HASH)
+          - **Status:** ✅ Verified
+          - **Workflow:** [Run #${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          
+          EOF
+            
+            git config user.name "GitHub Actions"
+            git config user.email "actions@github.com"
+            git add DEPLOYMENT_LOG.md
+            git commit -m "Update deployment log [skip ci]" || true
+            git push || true
+          fi

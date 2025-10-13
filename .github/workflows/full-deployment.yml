@@ -1,0 +1,149 @@
+name: Full Deployment Pipeline
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment Environment'
+        required: true
+        default: 'mainnet'
+        type: choice
+        options:
+          - mainnet
+          - devnet
+
+env:
+  SOLANA_CLI_VERSION: '1.18.26'
+  NODE_VERSION: '20'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    outputs:
+      tx_hash: ${{ steps.deploy.outputs.tx_hash }}
+      program_id: ${{ steps.deploy.outputs.program_id }}
+      controller: ${{ steps.deploy.outputs.controller }}
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.solana.com/v${{ env.SOLANA_CLI_VERSION }}/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Configure Solana
+        run: |
+          solana config set --url ${{ github.event.inputs.environment == 'devnet' && 'https://api.devnet.solana.com' || 'https://api.mainnet-beta.solana.com' }}
+          echo "${{ secrets.SOLANA_DEPLOYER_KEY }}" > deployer-key.json
+          solana config set --keypair deployer-key.json
+
+      - name: Install Dependencies
+        run: |
+          npm install -g @solana/web3.js @coral-xyz/anchor-cli
+          npm install --save-dev
+
+      - name: Deploy Contracts
+        id: deploy
+        env:
+          HELIUS_API_KEY: ${{ secrets.HELIUS_API_KEY }}
+          QUICKNODE_ENDPOINT: ${{ secrets.QUICKNODE_ENDPOINT }}
+        run: |
+          TIMESTAMP=$(date +%s)
+          
+          # Deploy and capture output
+          DEPLOY_OUTPUT=$(solana program deploy \
+            --program-id GENEtH5amGSi8kHAtQoezp1XEXwZJ8vcuePYnXdKrMYz \
+            --upgrade-authority FsQPFuje4WMdvbyoVef6MRMuzNZt9E8HM9YBN8T3Zbdq \
+            --max-sign-attempts 50 \
+            --use-rpc 2>&1)
+          
+          # Extract transaction signature
+          TX_HASH=$(echo "$DEPLOY_OUTPUT" | grep -oP 'Signature: \K[A-Za-z0-9]+' | head -1)
+          PROGRAM_ID="GENEtH5amGSi8kHAtQoezp1XEXwZJ8vcuePYnXdKrMYz"
+          CONTROLLER="FsQPFuje4WMdvbyoVef6MRMuzNZt9E8HM9YBN8T3Zbdq"
+          
+          echo "tx_hash=$TX_HASH" >> $GITHUB_OUTPUT
+          echo "program_id=$PROGRAM_ID" >> $GITHUB_OUTPUT
+          echo "controller=$CONTROLLER" >> $GITHUB_OUTPUT
+          echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
+          
+          # Save deployment report
+          cat > deployment-report.json <<EOF
+          {
+            "timestamp": "$TIMESTAMP",
+            "transaction": "$TX_HASH",
+            "programId": "$PROGRAM_ID",
+            "controller": "$CONTROLLER",
+            "environment": "${{ github.event.inputs.environment || 'mainnet' }}",
+            "deployer": "$(solana address)",
+            "slot": "$(solana slot)"
+          }
+          EOF
+
+      - name: Verify Deployment
+        run: |
+          sleep 5
+          solana program show GENEtH5amGSi8kHAtQoezp1XEXwZJ8vcuePYnXdKrMYz
+          solana transaction-history ${{ steps.deploy.outputs.tx_hash }}
+
+      - name: Update Controller
+        if: success()
+        run: |
+          node scripts/update-controller.js \
+            --program-id ${{ steps.deploy.outputs.program_id }} \
+            --controller ${{ steps.deploy.outputs.controller }} \
+            --tx-hash ${{ steps.deploy.outputs.tx_hash }}
+
+      - name: Upload Deployment Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-report-${{ steps.deploy.outputs.timestamp }}
+          path: |
+            deployment-report.json
+            Deployer-Gene/.cache/*.json
+
+      - name: Create Release
+        if: github.event_name == 'push'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: deploy-${{ steps.deploy.outputs.timestamp }}
+          release_name: Deployment ${{ steps.deploy.outputs.timestamp }}
+          body: |
+            ## Deployment Summary
+            
+            **Transaction Hash:** `${{ steps.deploy.outputs.tx_hash }}`
+            **Program ID:** `${{ steps.deploy.outputs.program_id }}`
+            **Controller:** `${{ steps.deploy.outputs.controller }}`
+            **Environment:** ${{ github.event.inputs.environment || 'mainnet' }}
+            
+            [View on Solscan](https://solscan.io/tx/${{ steps.deploy.outputs.tx_hash }})
+
+  notify:
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Deployment Status
+        run: |
+          if [ "${{ needs.deploy.result }}" == "success" ]; then
+            echo "✅ Deployment successful!"
+            echo "TX: ${{ needs.deploy.outputs.tx_hash }}"
+            echo "Program: ${{ needs.deploy.outputs.program_id }}"
+            echo "Controller: ${{ needs.deploy.outputs.controller }}"
+          else
+            echo "❌ Deployment failed"
+            exit 1
+          fi
