@@ -19,7 +19,9 @@
     "reannounce:owner": "node scripts/reannounce-with-new-controller.js",
     "check:rebates": "node scripts/check-rebates-income.js",
     "check:core": "node scripts/check-all-core.js",
-    "deploy:multi": "node scripts/deploy-multi-program.js"
+    "deploy:multi": "node scripts/deploy-multi-program.js",
+    "security:scan": "node scripts/security-scan-all.js",
+    "verify:relayers": "node scripts/verify-relayers-rebates.js"
   },
   "devDependencies": {
     "@coral-xyz/anchor": "^0.30.1",

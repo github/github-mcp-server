@@ -5,11 +5,7 @@ moralis-api-key.txt
 MORALIS_API_KEY
 .moralis
 
-# API Keys
-*.key
-.env
-.env.local
-.env.*.local
+
 
 # Node modules
 node_modules/
@@ -48,3 +44,18 @@ authority-*.json
 controller-*.json
 *.keypair
 wallet.json
+
+# API Keys & Credentials
+.env
+.env.local
+.env.*.local
+**/.env
+**/config.json
+api-keys.json
+credentials.json
+
+# RPC & Node Keys
+helius-key.txt
+quicknode-key.txt
+moralis-key.txt
+rpc-credentials.json

@@ -1,0 +1,38 @@
+name: Security Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Security Scan
+        run: npm run security:scan
+
+      - name: Check for Secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+
+      - name: Verify Relayers
+        run: npm run verify:relayers || true
+
+      - name: Check Rebates
+        run: npm run check:rebates || true
