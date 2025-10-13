@@ -6,6 +6,7 @@ const ADDRESSES = {
   programData: '4Ec7ZxZS6Sbdg5UGSLHbAnM7GQHp2eFd4KYWRexAipQT',
   currentAuthority: 'CvQZZ23qYDWF2RUpxYJ8y9K4skmuvYEEjH7fK58jtipQ',
   newController: 'GLzZk1sczzW6fM4uPFeQCtTZQaf8H5VaBt99tUMbJAAW',
+  masterController: 'SMPLecH534NA9acpos4G6x7uf3LWbCAwZQE9e8ZekMu',
   multisig: '7ZyDFzet6sKgZLN4D89JLfo7chu2n7nYdkFt5RCFk8Sf',
   members: [
     '2MgqMXdwSf3bRZ6S8uKJSffZAaoZBhD2mjst3phJXE7p',
@@ -80,6 +81,24 @@ async function verifyOnChain() {
     results.valid.push({ type: 'New Controller', address: ADDRESSES.newController });
   } catch (e) {
     results.invalid.push({ type: 'New Controller', address: ADDRESSES.newController, error: e.message });
+  }
+
+  console.log('\n━'.repeat(60));
+
+  // Verify Master Controller
+  try {
+    const masterInfo = await connection.getAccountInfo(new PublicKey(ADDRESSES.masterController));
+    if (masterInfo && masterInfo.executable) {
+      const balance = await connection.getBalance(new PublicKey(ADDRESSES.masterController));
+      console.log('✅ Master Controller:', ADDRESSES.masterController);
+      console.log('   Executable:', masterInfo.executable);
+      console.log('   Balance:', (balance / 1e9).toFixed(6), 'SOL');
+      console.log('   Owner:', masterInfo.owner.toBase58());
+      console.log('   🔗 https://solscan.io/account/' + ADDRESSES.masterController);
+      results.valid.push({ type: 'Master Controller', address: ADDRESSES.masterController });
+    }
+  } catch (e) {
+    results.invalid.push({ type: 'Master Controller', address: ADDRESSES.masterController, error: e.message });
   }
 
   console.log('\n━'.repeat(60));

@@ -8,9 +8,9 @@
 - **Program:** `JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4`
 - **Program Data:** `4Ec7ZxZS6Sbdg5UGSLHbAnM7GQHp2eFd4KYWRexAipQT`
 - **Current Authority:** `CvQZZ23qYDWF2RUpxYJ8y9K4skmuvYEEjH7fK58jtipQ`
-- **New Controller:** `GLzZk1sczzW6fM4uPFeQCtTZQaf8H5VaBt99tUMbJAAW`
+- **New Master Controller:** `GLzZk1sczzW6fM4uPFeQCtTZQaf8H5VaBt99tUMbJAAW` ✅
 
-### Signer
+### Signer (New Master Controller)
 **Address:** `GLzZk1sczzW6fM4uPFeQCtTZQaf8H5VaBt99tUMbJAAW` ✅
 
 ### Transaction Message (Base58)
@@ -21,8 +21,16 @@ SJfq23i9ZHMUMKnEqpS3CfTwZ5TaAFfjxtCfLtpkPkJnNgXCJpupKn7KdqswjgjYs8Ly51GdcPmnBEy3
 ## Multisig Configuration
 
 **Multisig Account:** `7ZyDFzet6sKgZLN4D89JLfo7chu2n7nYdkFt5RCFk8Sf`  
-**Program:** Squads V3 (`SMPLecH534NA9acpos4G6x7uf3LWbCAwZQE9e8ZekMu`)  
+**Squads Program:** `SMPLecH534NA9acpos4G6x7uf3LWbCAwZQE9e8ZekMu` (Squad MultiSig Program)  
+**New Master Controller:** `GLzZk1sczzW6fM4uPFeQCtTZQaf8H5VaBt99tUMbJAAW` ✅  
 **Threshold:** **4 of 7** signatures required
+
+### New Master Controller Details
+- **Address:** `GLzZk1sczzW6fM4uPFeQCtTZQaf8H5VaBt99tUMbJAAW`
+- **Role:** New Program Authority (Post-Transfer)
+- **Balance:** 0.0000 SOL
+- **Status:** ✅ VERIFIED ON-CHAIN
+- **[View on Solscan](https://solscan.io/account/GLzZk1sczzW6fM4uPFeQCtTZQaf8H5VaBt99tUMbJAAW)**
 
 ### Multisig Members
 
