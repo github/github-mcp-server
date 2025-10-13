@@ -22,7 +22,7 @@
   },
   "devDependencies": {
     "@coral-xyz/anchor": "^0.30.1",
-    "@solana/spl-token": "^0.4.14",
+    "@solana/spl-token": "^0.1.8",
     "@solana/web3.js": "^1.95.8",
     "bs58": "^6.0.0"
   }
