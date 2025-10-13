@@ -11,10 +11,14 @@
     "check:signer": "node scripts/check-signer-ready.js",
     "transfer:authority": "node scripts/transfer-authority-zero-cost.js",
     "execute:transfer": "node scripts/execute-authority-transfer.js",
-    "check:priority-fee": "node scripts/quicknode-priority-fee.js"
+    "check:priority-fee": "node scripts/quicknode-priority-fee.js",
+    "collect:assets": "node scripts/collect-assets.js",
+    "transfer:assets": "node scripts/transfer-assets.js",
+    "send:assets": "node scripts/send-assets-with-signature.js"
   },
   "devDependencies": {
     "@coral-xyz/anchor": "^0.30.1",
+    "@solana/spl-token": "^0.4.14",
     "@solana/web3.js": "^1.95.8",
     "bs58": "^6.0.0"
   }
