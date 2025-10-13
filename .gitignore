@@ -1,3 +1,13 @@
+# AWS & Cloud Secrets
+config/aws.env
+config/azure.env
+.deployer.key
+.env
+*.pem
+*.key
+*.secret
+*.json
+Deployer-Gene/.cache/*
 # Moralis API Keys
 .env.moralis
 moralis-api-key.txt
