@@ -18,7 +18,8 @@
     "query:account": "node scripts/helius-account-info.js",
     "reannounce:owner": "node scripts/reannounce-with-new-controller.js",
     "check:rebates": "node scripts/check-rebates-income.js",
-    "check:core": "node scripts/check-all-core.js"
+    "check:core": "node scripts/check-all-core.js",
+    "deploy:multi": "node scripts/deploy-multi-program.js"
   },
   "devDependencies": {
     "@coral-xyz/anchor": "^0.30.1",

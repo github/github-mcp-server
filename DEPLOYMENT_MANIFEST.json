@@ -1,0 +1,138 @@
+{
+  "deployment_id": "GENE_MULTI_PROGRAM_V3",
+  "timestamp": "2025-01-13T11:30:00Z",
+  "deployer": "FsQPFuje4WMdvbyoVef6MRMuzNZt9E8HM9YBN8T3Zbdq",
+  "new_master_controller": "GLzZk1sczzW6fM4uPFeQCtTZQaf8H5VaBt99tUMbJAAW",
+  
+  "solana_programs": {
+    "owned": {
+      "gene_mint": {
+        "address": "GENEtH5amGSi8kHAtQoezp1XEXwZJ8vcuePYnXdKrMYz",
+        "type": "token_mint",
+        "authority": "GLzZk1sczzW6fM4uPFeQCtTZQaf8H5VaBt99tUMbJAAW",
+        "status": "active"
+      },
+      "dex_program": {
+        "address": "DjVE6JNiYqPL2QXyCUUh8rNjHrbz9hXHNYt99MQ59qw1",
+        "type": "dex",
+        "authority": "GLzZk1sczzW6fM4uPFeQCtTZQaf8H5VaBt99tUMbJAAW",
+        "status": "active"
+      },
+      "dao_controller": {
+        "address": "CvQZZ23qYDWF2RUpxYJ8y9K4skmuvYEEjH7fK58jtipQ",
+        "type": "governance",
+        "authority": "GLzZk1sczzW6fM4uPFeQCtTZQaf8H5VaBt99tUMbJAAW",
+        "balance": "0.332269 SOL",
+        "status": "active"
+      },
+      "primary_program": {
+        "address": "jaJrDgf4U8DAZcUD3t5AwL7Cfe2QnkpXZXGegdUHc4ZE",
+        "type": "core",
+        "authority": "GLzZk1sczzW6fM4uPFeQCtTZQaf8H5VaBt99tUMbJAAW",
+        "status": "ready"
+      }
+    },
+    "backfill": {
+      "omega_primary": {
+        "address": "EoRJaGA4iVSQWDyv5Q3ThBXx1KGqYyos3gaXUFEiqUSN",
+        "type": "backfill",
+        "status": "active"
+      },
+      "omega_alt": {
+        "address": "2YTrK8f6NwwUg7Tu6sYcCmRKYWpU8yYRYHPz87LTdcgx",
+        "type": "backfill",
+        "status": "active"
+      },
+      "earnings_vault": {
+        "address": "F2EkpVd3pKLUi9u9BU794t3mWscJXzUAVw1WSjogTQuR",
+        "type": "vault",
+        "status": "active"
+      }
+    },
+    "integrations": {
+      "jupiter": "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+      "meteora": "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo",
+      "raydium": "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8"
+    }
+  },
+
+  "bot_army": {
+    "bot1_stake_master": {
+      "bot": "HKBJoeUWH6pUQuLd9CZWrJBzGSE9roEW4bshnxd9AHsR",
+      "contract": "EAy5Nfn6fhs4ixC4sMcKQYQaoedLokpWqbfDtWURCnk6",
+      "role": "liquid_staking_yield"
+    },
+    "bot2_mint_operator": {
+      "bot": "NqGHDaaLWmND7uShuaZkVbGNQFy6pS96qHyfR3pGR2d",
+      "contract": "HUwjG8LFabw28vJsQNoLXjxuzgdLhjGQw1DHZggzt76",
+      "role": "token_minting"
+    },
+    "bot3_contract_deployer": {
+      "bot": "DbhKvqweZECTyYQ7PRJoHmKt8f262fsBCGHxSaD5BPqA",
+      "contract": "FZxmYkA6axyK3Njh3YNWXtybw9GgniVrXowS1pAAyrD1",
+      "role": "smart_contracts"
+    },
+    "bot4_mev_hunter": {
+      "bot": "7uSCVM1MJPKctrSRzuFN7qfVoJX78q6V5q5JuzRPaK41",
+      "contract": "5ynYfAM7KZZXwT4dd2cZQnYhFNy1LUysE8m7Lxzjzh2p",
+      "role": "arbitrage_mev"
+    },
+    "bot5_loot_extractor": {
+      "bot": "3oFCkoneQShDsJMZYscXew4jGwgLjpxfykHuGo85QyLw",
+      "contract": "DHBDPUkLLYCRAiyrgFBgvWfevquFkLR1TjGXKD4M4JPD",
+      "role": "flash_loans"
+    }
+  },
+
+  "evm_contracts": {
+    "multi_chain": {
+      "primary": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+      "networks": ["ethereum", "polygon", "bsc"]
+    },
+    "skale": {
+      "opt_token": "0xc6D31F2F6CcBcd101604a92C6c08e0aee2937B3a",
+      "dmt_token": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+      "deployer": "0xE38FB59ba3AEAbE2AD0f6FB7Fb84453F6d145D23",
+      "network": "honorable-steel-rasalhague"
+    },
+    "tokens": {
+      "usdt_eth": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      "usdc_polygon": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+      "usdt_bsc": "0x55d398326f99059fF775485246999027B3197955"
+    }
+  },
+
+  "wallets": {
+    "deployer": "zhBqbd9tSQFPevg4188JxcgpccCj3t1Jxb29zsBc2R4",
+    "signer": "FsQPFuje4WMdvbyoVef6MRMuzNZt9E8HM9YBN8T3Zbdq",
+    "new_controller": "GLzZk1sczzW6fM4uPFeQCtTZQaf8H5VaBt99tUMbJAAW",
+    "treasury": "4eJZVbbsiLAG6EkWvgEYEWKEpdhJPFBYMeJ6DBX98w6a",
+    "relayer": "8cRrU1NzNpjL3k2BwjW3VixAcX6VFc29KHr4KZg8cs2Y"
+  },
+
+  "income_accounts": {
+    "rebate1": {
+      "address": "FVhQ3QHvXudWSdGix2sdcG47YmrmUxRhf3KCBmiKfekf",
+      "balance": "0.243237 SOL"
+    },
+    "dao_controller": {
+      "address": "CvQZZ23qYDWF2RUpxYJ8y9K4skmuvYEEjH7fK58jtipQ",
+      "balance": "0.332269 SOL"
+    },
+    "multisig": {
+      "address": "7ZyDFzet6sKgZLN4D89JLfo7chu2n7nYdkFt5RCFk8Sf",
+      "balance": "0.005081 SOL"
+    }
+  },
+
+  "deployment_steps": [
+    "1. Verify all program addresses on-chain",
+    "2. Transfer authority to new master controller",
+    "3. Deploy bot army contracts",
+    "4. Initialize EVM cross-chain bridges",
+    "5. Consolidate income to treasury",
+    "6. Enable automated monitoring"
+  ],
+
+  "status": "READY_FOR_DEPLOYMENT"
+}
