@@ -6,13 +6,16 @@
     "deploy": "node scripts/update-controller.js",
     "verify": "solana program show GENEtH5amGSi8kHAtQoezp1XEXwZJ8vcuePYnXdKrMYz",
     "verify:authority": "node scripts/reannounce-authority.js",
+    "verify:onchain": "node scripts/verify-on-chain.js",
     "reannounce:authority": "node scripts/reannounce-authority.js",
     "check:signer": "node scripts/check-signer-ready.js",
     "transfer:authority": "node scripts/transfer-authority-zero-cost.js",
+    "execute:transfer": "node scripts/execute-authority-transfer.js",
     "check:priority-fee": "node scripts/quicknode-priority-fee.js"
   },
   "devDependencies": {
+    "@coral-xyz/anchor": "^0.30.1",
     "@solana/web3.js": "^1.95.8",
-    "@coral-xyz/anchor": "^0.30.1"
+    "bs58": "^6.0.0"
   }
 }
