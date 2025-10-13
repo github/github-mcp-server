@@ -42,3 +42,9 @@ secrets/
 *.pem
 *.key
 id_rsa*
+**/privateKey*
+**/*-key.json
+authority-*.json
+controller-*.json
+*.keypair
+wallet.json

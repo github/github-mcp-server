@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "deploy": "node scripts/update-controller.js",
-    "verify": "solana program show GENEtH5amGSi8kHAtQoezp1XEXwZJ8vcuePYnXdKrMYz"
+    "verify": "solana program show GENEtH5amGSi8kHAtQoezp1XEXwZJ8vcuePYnXdKrMYz",
+    "verify:authority": "node scripts/reannounce-authority.js",
+    "reannounce:authority": "node scripts/reannounce-authority.js"
   },
   "devDependencies": {
     "@solana/web3.js": "^1.95.8",
