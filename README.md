@@ -98,6 +98,27 @@ The default configuration is:
 
 See [Remote Server Documentation](docs/remote-server.md) for full details on remote server configuration, toolsets, headers, and advanced usage. This file provides comprehensive instructions and examples for connecting, customizing, and installing the remote GitHub MCP Server in VS Code and other MCP hosts.
 
+#### Enterprise Cloud with data residency (ghe.com)
+
+GitHub Enterprise Cloud can also make use of the remote server.
+
+Example for `https://octocorp.ghe.com`:
+```
+{
+    ...
+    "proxima-github": {
+      "type": "http",
+      "url": "https://copilot-api.octocorp.ghe.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${input:github_mcp_pat}"
+      }
+    },
+    ...
+}
+```
+
+GitHub Enterprise Server does not support remote server hosting. Please refer to [GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)](#github-enterprise-server-and-enterprise-cloud-with-data-residency-ghecom) from the local server configuration.
+
 ---
 
 ## Local GitHub MCP Server
@@ -160,13 +181,13 @@ To keep your GitHub PAT secure and reusable across different MCP hosts:
 
 </details>
 
-## GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)
+### GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)
 
 The flag `--gh-host` and the environment variable `GITHUB_HOST` can be used to set
 the hostname for GitHub Enterprise Server or GitHub Enterprise Cloud with data residency.
 
 - For GitHub Enterprise Server, prefix the hostname with the `https://` URI scheme, as it otherwise defaults to `http://`, which GitHub Enterprise Server does not support.
-- For GitHub Enterprise Cloud with data residency, use `https://copilot-api.YOURSUBDOMAIN.ghe.com` as the hostname.
+- For GitHub Enterprise Cloud with data residency, use `https://YOURSUBDOMAIN.ghe.com` as the hostname.
 ``` json
 "github": {
     "command": "docker",
