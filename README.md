@@ -160,6 +160,33 @@ To keep your GitHub PAT secure and reusable across different MCP hosts:
 
 </details>
 
+## GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)
+
+The flag `--gh-host` and the environment variable `GITHUB_HOST` can be used to set
+the hostname for GitHub Enterprise Server or GitHub Enterprise Cloud with data residency.
+
+- For GitHub Enterprise Server, prefix the hostname with the `https://` URI scheme, as it otherwise defaults to `http://`, which GitHub Enterprise Server does not support.
+- For GitHub Enterprise Cloud with data residency, use `https://copilot-api.YOURSUBDOMAIN.ghe.com` as the hostname.
+``` json
+"github": {
+    "command": "docker",
+    "args": [
+    "run",
+    "-i",
+    "--rm",
+    "-e",
+    "GITHUB_PERSONAL_ACCESS_TOKEN",
+    "-e",
+    "GITHUB_HOST",
+    "ghcr.io/github/github-mcp-server"
+    ],
+    "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}",
+        "GITHUB_HOST": "https://<your GHES or ghe.com domain name>"
+    }
+}
+```
+
 ## Installation
 
 ### Install in GitHub Copilot on VS Code
@@ -1179,33 +1206,6 @@ docker run -i --rm \
   -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
   -e GITHUB_READ_ONLY=1 \
   ghcr.io/github/github-mcp-server
-```
-
-## GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)
-
-The flag `--gh-host` and the environment variable `GITHUB_HOST` can be used to set
-the hostname for GitHub Enterprise Server or GitHub Enterprise Cloud with data residency.
-
-- For GitHub Enterprise Server, prefix the hostname with the `https://` URI scheme, as it otherwise defaults to `http://`, which GitHub Enterprise Server does not support.
-- For GitHub Enterprise Cloud with data residency, use `https://YOURSUBDOMAIN.ghe.com` as the hostname.
-``` json
-"github": {
-    "command": "docker",
-    "args": [
-    "run",
-    "-i",
-    "--rm",
-    "-e",
-    "GITHUB_PERSONAL_ACCESS_TOKEN",
-    "-e",
-    "GITHUB_HOST",
-    "ghcr.io/github/github-mcp-server"
-    ],
-    "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}",
-        "GITHUB_HOST": "https://<your GHES or ghe.com domain name>"
-    }
-}
 ```
 
 ## i18n / Overriding Descriptions
