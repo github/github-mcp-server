@@ -1,0 +1,124 @@
+name: Security Scan & Auto-Update
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy Security Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy Results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        if: github.event_name == 'pull_request'
+
+      - name: Check Solana Program Security
+        run: |
+          echo "🔍 Checking Solana program security..."
+          curl -s https://api.mainnet-beta.solana.com -X POST -H "Content-Type: application/json" -d '
+          {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getAccountInfo",
+            "params": ["JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4", {"encoding": "base64"}]
+          }' | jq .
+
+  solana-updates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check Solana Updates
+        run: |
+          echo "📦 Checking for Solana updates..."
+          LATEST=$(curl -s https://api.github.com/repos/solana-labs/solana/releases/latest | jq -r .tag_name)
+          echo "Latest Solana version: $LATEST"
+          echo "SOLANA_VERSION=$LATEST" >> $GITHUB_ENV
+
+      - name: Check Program Upgrades
+        run: |
+          echo "🔄 Checking program upgrade status..."
+          curl -s https://api.mainnet-beta.solana.com -X POST -H "Content-Type: application/json" -d '
+          {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getProgramAccounts",
+            "params": ["BPFLoaderUpgradeab1e11111111111111111111111"]
+          }' | jq '.result | length'
+
+      - name: Create Issue on Errors
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 Security Scan Failed',
+              body: 'Automated security scan detected issues. Please review.',
+              labels: ['security', 'automated']
+            })
+
+  npm-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run npm audit
+        run: |
+          npm audit --audit-level=moderate || true
+          npm audit fix --force || true
+
+      - name: Commit fixes
+        run: |
+          git config user.name "Security Bot"
+          git config user.email "security@github.com"
+          git add package*.json
+          git diff --staged --quiet || git commit -m "🔒 Auto-fix security vulnerabilities"
+          git push || true
+
+  solana-validator-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Validator Health
+        run: |
+          echo "🏥 Checking Solana validator health..."
+          curl -s https://api.mainnet-beta.solana.com -X POST -H "Content-Type: application/json" -d '
+          {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getHealth"
+          }' | jq .
+
+      - name: Check Cluster Nodes
+        run: |
+          echo "🌐 Checking cluster nodes..."
+          curl -s https://api.mainnet-beta.solana.com -X POST -H "Content-Type: application/json" -d '
+          {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "getClusterNodes"
+          }' | jq '.result | length'

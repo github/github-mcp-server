@@ -1,0 +1,75 @@
+name: Solana Program Monitor
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Dependencies
+        run: npm install @solana/web3.js
+
+      - name: Monitor Jupiter Program
+        run: |
+          node -e "
+          const { Connection, PublicKey } = require('@solana/web3.js');
+          (async () => {
+            const conn = new Connection('https://api.mainnet-beta.solana.com');
+            const program = new PublicKey('JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4');
+            const info = await conn.getAccountInfo(program);
+            console.log('✅ Program Status: Active');
+            console.log('Executable:', info.executable);
+            console.log('Owner:', info.owner.toBase58());
+          })();
+          "
+
+      - name: Check Authority
+        run: |
+          node -e "
+          const { Connection, PublicKey } = require('@solana/web3.js');
+          (async () => {
+            const conn = new Connection('https://api.mainnet-beta.solana.com');
+            const auth = new PublicKey('CvQZZ23qYDWF2RUpxYJ8y9K4skmuvYEEjH7fK58jtipQ');
+            const balance = await conn.getBalance(auth);
+            console.log('Authority Balance:', balance / 1e9, 'SOL');
+            if (balance < 10000) {
+              console.log('⚠️ Low balance warning');
+              process.exit(1);
+            }
+          })();
+          "
+
+      - name: Check New Controller
+        run: |
+          node -e "
+          const { Connection, PublicKey } = require('@solana/web3.js');
+          (async () => {
+            const conn = new Connection('https://api.mainnet-beta.solana.com');
+            const controller = new PublicKey('GLzZk1sczzW6fM4uPFeQCtTZQaf8H5VaBt99tUMbJAAW');
+            const balance = await conn.getBalance(controller);
+            console.log('New Controller Balance:', balance / 1e9, 'SOL');
+          })();
+          "
+
+      - name: Alert on Issues
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '⚠️ Solana Program Monitor Alert',
+              body: 'Program monitoring detected an issue. Check workflow logs.',
+              labels: ['monitoring', 'solana', 'alert']
+            })

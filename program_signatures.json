@@ -1,0 +1,149 @@
+[
+  {
+    "address": "GENEtH5amGSi8kHAtQoezp1XEXwZJ8vcuePYnXdKrMYz",
+    "balance": 6.452432793,
+    "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "executable": false,
+    "signatureCount": 5,
+    "recentTransactions": [
+      {
+        "signature": "5B15yUZk5cWDjwUxBeBJLkse9dx4W1Zg7sno2EpDFZE8tK1nZBGii6HQavkgDVFn1GeRTVDRXZAMKhhBwGrVQ12P",
+        "fee": 0.000020001,
+        "priorityFee": 118155,
+        "slot": 373093367,
+        "err": null
+      },
+      {
+        "signature": "4ojFBvNr5mKxP7qPFoCcbiPn1BVuacE4EFc6gyMzAMaVwXpTpSXoDGM5VPHJX2M4zxWqdKUPVib4bbizkZ5ZhQoW",
+        "fee": 0.000005,
+        "priorityFee": 208075,
+        "slot": 373090965,
+        "err": null
+      }
+    ],
+    "exists": true
+  },
+  {
+    "address": "DjVE6JNiYqPL2QXyCUUh8rNjHrbz9hXHNYt99MQ59qw1",
+    "balance": 2.161991723,
+    "owner": "BPFLoader2111111111111111111111111111111111",
+    "executable": true,
+    "signatureCount": 5,
+    "recentTransactions": [],
+    "exists": true
+  },
+  {
+    "address": "CvQZZ23qYDWF2RUpxYJ8y9K4skmuvYEEjH7fK58jtipQ",
+    "balance": 0.332269003,
+    "owner": "11111111111111111111111111111111",
+    "executable": false,
+    "signatureCount": 5,
+    "recentTransactions": [],
+    "exists": true
+  },
+  {
+    "address": "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+    "balance": 2.729681025,
+    "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+    "executable": true,
+    "signatureCount": 5,
+    "recentTransactions": [],
+    "exists": true
+  },
+  {
+    "address": "4Ec7ZxZS6Sbdg5UGSLHbAnM7GQHp2eFd4KYWRexAipQT",
+    "balance": 20.13108312,
+    "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+    "executable": false,
+    "signatureCount": 5,
+    "recentTransactions": [],
+    "exists": true
+  },
+  {
+    "address": "GLzZk1sczzW6fM4uPFeQCtTZQaf8H5VaBt99tUMbJAAW",
+    "exists": false
+  },
+  {
+    "address": "SMPLecH534NA9acpos4G6x7uf3LWbCAwZQE9e8ZekMu",
+    "balance": 0.00444344,
+    "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+    "executable": true,
+    "signatureCount": 5,
+    "recentTransactions": [
+      {
+        "signature": "2xBW4fvQTxPyqjxtwpJVFSgqhCMNMDCsr4Xrxpk2Qjoe7UyjPoGreg9m8iqZRp6LfGktCfq5n56Qh4s2tk3vH3VV",
+        "fee": 0.000029,
+        "priorityFee": 39738,
+        "slot": 373082688,
+        "err": null
+      }
+    ],
+    "exists": true
+  },
+  {
+    "address": "7ZyDFzet6sKgZLN4D89JLfo7chu2n7nYdkFt5RCFk8Sf",
+    "balance": 0.0050809,
+    "owner": "SMPLecH534NA9acpos4G6x7uf3LWbCAwZQE9e8ZekMu",
+    "executable": false,
+    "signatureCount": 5,
+    "recentTransactions": [
+      {
+        "signature": "2U1a9LXX1bqzCYMkWxe5HHvgVgmohi4qZBnaPdTBSeWHm58zxCQ5cMTwydck49hUVAZjAuEDEW6PQKJWMxSCxPnT",
+        "fee": 0.000069469,
+        "priorityFee": 118937,
+        "slot": 373055807,
+        "err": null
+      }
+    ],
+    "exists": true
+  },
+  {
+    "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "balance": 5.299606121,
+    "owner": "BPFLoader2111111111111111111111111111111111",
+    "executable": true,
+    "signatureCount": 5,
+    "recentTransactions": [
+      {
+        "signature": "3AGxi9nxwituFHfrAKpNtgDj6MJ8FUqJcvjtg3DTW1AwsXxNpRxot4vBYUCe9nvhSDwqRazWReWqBnQPr3X34x55",
+        "fee": 0.000005991,
+        "priorityFee": 91603,
+        "slot": 373094812,
+        "err": {
+          "InstructionError": [
+            3,
+            {
+              "Custom": 1
+            }
+          ]
+        }
+      },
+      {
+        "signature": "5ohuTMuimtVsfHsVh3LXuT4YXKPvuJEyqtAzckZqaFF1shk8Zb7Tu3FuDGPiMcP9n9eQmfVrhhDCz3X6w7feL5TB",
+        "fee": 0.0000053,
+        "priorityFee": 81749,
+        "slot": 373094812,
+        "err": null
+      }
+    ],
+    "exists": true
+  },
+  {
+    "address": "So11111111111111111111111111111111111111112",
+    "balance": 1171.596894503,
+    "owner": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+    "executable": false,
+    "signatureCount": 5,
+    "recentTransactions": [],
+    "exists": true
+  },
+  {
+    "address": "11111111111111111111111111111111",
+    "balance": 1e-9,
+    "owner": "NativeLoader1111111111111111111111111111111",
+    "executable": true,
+    "signatureCount": 5,
+    "recentTransactions": [],
+    "exists": true
+  }
+]

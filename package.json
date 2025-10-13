@@ -17,7 +17,8 @@
     "send:assets": "node scripts/send-assets-with-signature.js",
     "query:account": "node scripts/helius-account-info.js",
     "reannounce:owner": "node scripts/reannounce-with-new-controller.js",
-    "check:rebates": "node scripts/check-rebates-income.js"
+    "check:rebates": "node scripts/check-rebates-income.js",
+    "check:core": "node scripts/check-all-core.js"
   },
   "devDependencies": {
     "@coral-xyz/anchor": "^0.30.1",

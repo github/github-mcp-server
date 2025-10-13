@@ -1,0 +1,26 @@
+{
+  "confirmed": [],
+  "notFound": [],
+  "errors": [
+    {
+      "hash": "rbnuBdmraMViDnWH1actWGoS5o6fSmqJKmKpmW5S8twwAvhCnXBS54eaVV7y1QRpZitp53T9zBWwFq23pA6wJgoH",
+      "error": "failed to get signature status: Invalid param: WrongSize"
+    },
+    {
+      "hash": "udcyK55j8CURPELb2PxPJjRMYwYd6Hu6VPaKX7dMEF4GpDNk8GCyJT5V31MT1MffpGxB9MDrRzvYhquBdoakz3UX",
+      "error": "failed to get signature status: Invalid param: WrongSize"
+    },
+    {
+      "hash": "ThY6SHYpzDq5KEaQxEgPvUhsJ9HfDJwjz7tGnA3bmZKennXB7W1fDFhN1EjcNUY1Q4Lec9mNnmDHPrWkLpc34gTc",
+      "error": "failed to get signature status: Invalid param: WrongSize"
+    },
+    {
+      "hash": "kmY699qtZ8QM1TjM6FfXysACCU4epQbMqhRLdJ9uVVCvbtP5WVaPeWK4ANhoLu48j1jC2a8eNiLsZeZpBEiWowAL",
+      "error": "failed to get signature status: Invalid param: WrongSize"
+    },
+    {
+      "hash": "TxhBFGvurRz26oYLMzj5GBG1JFe64h83R2Zc2tbuDzFQpVFGn8yW4iPixfDghN35Eub9ZpQpXZu3Bo4UxUPAtcBd",
+      "error": "failed to get signature status: Invalid param: WrongSize"
+    }
+  ]
+}
