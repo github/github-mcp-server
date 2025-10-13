@@ -601,7 +601,14 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 						}
 					}
 
-					if strings.HasPrefix(contentType, "application") || strings.HasPrefix(contentType, "text") {
+					// Determine if content is text or binary
+					isTextContent := strings.HasPrefix(contentType, "text/") ||
+						contentType == "application/json" ||
+						contentType == "application/xml" ||
+						strings.HasSuffix(contentType, "+json") ||
+						strings.HasSuffix(contentType, "+xml")
+
+					if isTextContent {
 						result := mcp.TextResourceContents{
 							URI:      resourceURI,
 							Text:     string(body),
