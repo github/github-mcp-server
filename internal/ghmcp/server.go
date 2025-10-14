@@ -401,10 +401,8 @@ func newGHESHost(hostname string) (apiHost, error) {
 }
 
 // checkSubdomainIsolation detects if GitHub Enterprise Server has subdomain isolation enabled
-// by attempting to ping the raw._ping endpoint on the subdomain.
-// Returns true if subdomain isolation is detected, false otherwise.
+// by attempting to ping the raw.<host>/_ping endpoint on the subdomain. The raw subdomain must always exist for subdomain isolation.
 func checkSubdomainIsolation(scheme, hostname string) bool {
-	// Try the subdomain isolation URL first: https://raw.hostname/_ping
 	subdomainURL := fmt.Sprintf("%s://raw.%s/_ping", scheme, hostname)
 
 	client := &http.Client{
@@ -417,7 +415,6 @@ func checkSubdomainIsolation(scheme, hostname string) bool {
 
 	resp, err := client.Get(subdomainURL)
 	if err != nil {
-		// If we can't reach the subdomain, assume no subdomain isolation
 		return false
 	}
 	defer resp.Body.Close()
