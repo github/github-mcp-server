@@ -364,13 +364,21 @@ func newGHESHost(hostname string) (apiHost, error) {
 		return apiHost{}, fmt.Errorf("failed to parse GHES GraphQL URL: %w", err)
 	}
 
-	uploadURL, err := url.Parse(fmt.Sprintf("%s://%s/api/uploads/", u.Scheme, u.Hostname()))
+	// Check if subdomain isolation is enabled
+	// See https://docs.github.com/en/enterprise-server@3.17/admin/configuring-settings/hardening-security-for-your-enterprise/enabling-subdomain-isolation#about-subdomain-isolation
+	hasSubdomainIsolation := checkSubdomainIsolation(u.Scheme, u.Hostname())
+
+	var uploadURL *url.URL
+	if hasSubdomainIsolation {
+		// With subdomain isolation: https://uploads.hostname/
+		uploadURL, err = url.Parse(fmt.Sprintf("%s://uploads.%s/", u.Scheme, u.Hostname()))
+	} else {
+		// Without subdomain isolation: https://hostname/api/uploads/
+		uploadURL, err = url.Parse(fmt.Sprintf("%s://%s/api/uploads/", u.Scheme, u.Hostname()))
+	}
 	if err != nil {
 		return apiHost{}, fmt.Errorf("failed to parse GHES Upload URL: %w", err)
 	}
-
-	// Check if subdomain isolation is enabled
-	hasSubdomainIsolation := checkSubdomainIsolation(u.Scheme, u.Hostname())
 
 	var rawURL *url.URL
 	if hasSubdomainIsolation {
