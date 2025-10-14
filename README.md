@@ -121,6 +121,43 @@ GitHub Enterprise Server does not support remote server hosting. Please refer to
 
 ---
 
+## HTTP Server Mode
+
+The GitHub MCP Server can run in HTTP mode, allowing it to serve multiple clients concurrently. This is useful for enterprise scenarios where you want to run a single MCP server instance that handles multiple external clients.
+
+### Starting the HTTP Server
+
+To run the server in HTTP mode, use the `http` command:
+
+```bash
+github-mcp-server http --port 8080
+```
+
+Or with Docker:
+
+```bash
+docker run -p 8080:8080 \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  ghcr.io/github/github-mcp-server http --port 8080
+```
+
+### HTTP Server with "Bring Your Own Token"
+
+When running the server in HTTP mode, clients can provide their own GitHub token with each request using the `Authorization` header:
+
+```http
+Authorization: Bearer <github-token>
+```
+
+This allows each client to authenticate with their own credentials, enabling:
+- Multi-tenant deployments where each user has their own access level
+- Enterprise use cases with centralized MCP server infrastructure
+- OAuth-based authentication flows
+
+If no `Authorization` header is provided, the server will fall back to using the token specified via the `GITHUB_PERSONAL_ACCESS_TOKEN` environment variable (if configured).
+
+---
+
 ## Local GitHub MCP Server
 
 [![Install with Docker in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&inputs=%5B%7B%22id%22%3A%22github_token%22%2C%22type%22%3A%22promptString%22%2C%22description%22%3A%22GitHub%20Personal%20Access%20Token%22%2C%22password%22%3Atrue%7D%5D&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-e%22%2C%22GITHUB_PERSONAL_ACCESS_TOKEN%22%2C%22ghcr.io%2Fgithub%2Fgithub-mcp-server%22%5D%2C%22env%22%3A%7B%22GITHUB_PERSONAL_ACCESS_TOKEN%22%3A%22%24%7Binput%3Agithub_token%7D%22%7D%7D) [![Install with Docker in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install_Server-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&inputs=%5B%7B%22id%22%3A%22github_token%22%2C%22type%22%3A%22promptString%22%2C%22description%22%3A%22GitHub%20Personal%20Access%20Token%22%2C%22password%22%3Atrue%7D%5D&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-e%22%2C%22GITHUB_PERSONAL_ACCESS_TOKEN%22%2C%22ghcr.io%2Fgithub%2Fgithub-mcp-server%22%5D%2C%22env%22%3A%7B%22GITHUB_PERSONAL_ACCESS_TOKEN%22%3A%22%24%7Binput%3Agithub_token%7D%22%7D%7D&quality=insiders)
