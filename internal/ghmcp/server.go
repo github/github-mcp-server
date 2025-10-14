@@ -322,7 +322,7 @@ func RunHTTPServer(cfg HTTPServerConfig) error {
 
 	select {
 	case <-ctx.Done():
-		logrusLogger.Infof("shutting down server...")
+		logrusLogger.Infof("Shutting down server...")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		return srv.Shutdown(shutdownCtx)
