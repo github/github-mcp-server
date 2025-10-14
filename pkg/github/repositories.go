@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
@@ -680,7 +679,7 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 				if err != nil {
 					return mcp.NewToolResultError(fmt.Sprintf("failed to marshal resolved refs: %s", err)), nil
 				}
-				return mcp.NewToolResultText(fmt.Sprintf("Failed to get raw repository content with response %d, but resolved git ref to %s with possible path matches: %s", rawAPIResponseCode, resolvedRefs, matchingFilesJSON)), nil
+				return mcp.NewToolResultError(fmt.Sprintf("Resolved potential matches in the repository tree (resolved refs: %s, matching files: %s), but the raw content API returned an unexpected status code %d.", string(resolvedRefs), string(matchingFilesJSON), rawAPIResponseCode)), nil
 			}
 
 			return mcp.NewToolResultError("Failed to get file contents. The path does not point to a file or directory, or the file does not exist in the repository."), nil
