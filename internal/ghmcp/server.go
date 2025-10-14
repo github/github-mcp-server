@@ -408,6 +408,7 @@ func checkSubdomainIsolation(scheme, hostname string) bool {
 	client := &http.Client{
 		Timeout: 5 * time.Second,
 		// Don't follow redirects - we just want to check if the endpoint exists
+		//nolint:revive // parameters are required by http.Client.CheckRedirect signature
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
