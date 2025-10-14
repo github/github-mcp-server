@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"

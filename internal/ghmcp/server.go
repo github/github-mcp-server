@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/github"
@@ -367,7 +368,18 @@ func newGHESHost(hostname string) (apiHost, error) {
 	if err != nil {
 		return apiHost{}, fmt.Errorf("failed to parse GHES Upload URL: %w", err)
 	}
-	rawURL, err := url.Parse(fmt.Sprintf("%s://%s/raw/", u.Scheme, u.Hostname()))
+
+	// Check if subdomain isolation is enabled
+	hasSubdomainIsolation := checkSubdomainIsolation(u.Scheme, u.Hostname())
+
+	var rawURL *url.URL
+	if hasSubdomainIsolation {
+		// With subdomain isolation: https://raw.hostname/
+		rawURL, err = url.Parse(fmt.Sprintf("%s://raw.%s/", u.Scheme, u.Hostname()))
+	} else {
+		// Without subdomain isolation: https://hostname/raw/
+		rawURL, err = url.Parse(fmt.Sprintf("%s://%s/raw/", u.Scheme, u.Hostname()))
+	}
 	if err != nil {
 		return apiHost{}, fmt.Errorf("failed to parse GHES Raw URL: %w", err)
 	}
@@ -378,6 +390,31 @@ func newGHESHost(hostname string) (apiHost, error) {
 		uploadURL:   uploadURL,
 		rawURL:      rawURL,
 	}, nil
+}
+
+// checkSubdomainIsolation detects if GitHub Enterprise Server has subdomain isolation enabled
+// by attempting to ping the raw._ping endpoint on the subdomain.
+// Returns true if subdomain isolation is detected, false otherwise.
+func checkSubdomainIsolation(scheme, hostname string) bool {
+	// Try the subdomain isolation URL first: https://raw.hostname/_ping
+	subdomainURL := fmt.Sprintf("%s://raw.%s/_ping", scheme, hostname)
+
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+		// Don't follow redirects - we just want to check if the endpoint exists
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Get(subdomainURL)
+	if err != nil {
+		// If we can't reach the subdomain, assume no subdomain isolation
+		return false
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode == http.StatusOK
 }
 
 // Note that this does not handle ports yet, so development environments are out.
