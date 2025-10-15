@@ -14,7 +14,7 @@ For security, avoid hardcoding your token. Create or update `~/.gemini/.env` (wh
 
 ```bash
 # ~/.gemini/.env
-GITHUB_PAT=your_token_here
+GITHUB_MCP_PAT=your_token_here
 ```
 
 </details>
@@ -32,21 +32,13 @@ After securely storing your PAT, you can add the GitHub MCP server configuration
 
 ### Method 1: Remote Server (Recommended)
 
-The simplest way is to use GitHub's hosted MCP server:
+The simplest way is to use GitHub's hosted MCP server via our gemini extension.
 
-```json
-// ~/.gemini/settings.json
-{
-    "mcpServers": {
-        "github": {
-            "httpUrl": "https://api.githubcopilot.com/mcp/",
-            "headers": {
-                "Authorization": "Bearer $GITHUB_PAT"
-            }
-        }
-    }
-}
-```
+`gemini extensions install https://github.com/github/github-mcp-server`
+
+> [!NOTE]
+> You will still need to have a personal access token with the appropriate scopes called `GITHUB_MCP_PAT` in your environment.
+
 
 ### Method 2: Local Docker
 
@@ -88,7 +80,7 @@ Then, replacing `/path/to/binary` with the actual path to your binary, configure
             "command": "/path/to/binary",
             "args": ["stdio"],
             "env": {
-                "GITHUB_PERSONAL_ACCESS_TOKEN": "$GITHUB_PAT"
+                "GITHUB_PERSONAL_ACCESS_TOKEN": "$GITHUB_MCP_PAT"
             }
         }
     }
