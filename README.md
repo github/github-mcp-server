@@ -375,7 +375,7 @@ GITHUB_TOOLSETS="all" ./github-mcp-server
 
 ### Available Toolsets
 
-The following sets of tools are available (all are on by default):
+The following sets of tools are available:
 
 <!-- START AUTOMATED TOOLSETS -->
 | Toolset                 | Description                                                   |
@@ -399,6 +399,13 @@ The following sets of tools are available (all are on by default):
 | `stargazers` | GitHub Stargazers related tools |
 | `users` | GitHub User related tools |
 <!-- END AUTOMATED TOOLSETS -->
+
+### Additional Toolsets in Remote Github MCP Server
+
+| Toolset                 | Description                                                   |
+| ----------------------- | ------------------------------------------------------------- |
+| `copilot` | Copilot related tools (e.g. Copilot Coding Agent) |
+| `copilot_spaces` | Copilot Spaces related tools |
 
 ## Tools
 
