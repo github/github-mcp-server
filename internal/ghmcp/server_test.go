@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestTransformDefault(t *testing.T) {
+func TestTransformSpecialToolsets(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    []string
@@ -18,6 +18,26 @@ func TestTransformDefault(t *testing.T) {
 			name:     "empty slice",
 			input:    []string{},
 			expected: []string{},
+		},
+		{
+			name:     "all only",
+			input:    []string{"all"},
+			expected: []string{"all"},
+		},
+		{
+			name:     "all with other toolsets",
+			input:    []string{"all", "actions", "gists"},
+			expected: []string{"all"},
+		},
+		{
+			name:     "all at the end",
+			input:    []string{"actions", "gists", "all"},
+			expected: []string{"all"},
+		},
+		{
+			name:     "all with default",
+			input:    []string{"default", "all", "actions"},
+			expected: []string{"all"},
 		},
 		{
 			name:  "default only",
@@ -104,7 +124,7 @@ func TestTransformDefault(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := transformDefault(tt.input)
+			result := transformSpecialToolsets(tt.input)
 
 			// Check that the result has the correct length
 			require.Len(t, result, len(tt.expected), "result length should match expected length")
@@ -132,10 +152,10 @@ func TestTransformDefault(t *testing.T) {
 	}
 }
 
-func TestTransformDefaultWithActualDefaults(t *testing.T) {
+func TestTransformSpecialToolsetsWithActualDefaults(t *testing.T) {
 	// This test verifies that the function uses the actual default toolsets from GetDefaultToolsetIDs()
 	input := []string{"default"}
-	result := transformDefault(input)
+	result := transformSpecialToolsets(input)
 
 	defaultToolsets := github.GetDefaultToolsetIDs()
 

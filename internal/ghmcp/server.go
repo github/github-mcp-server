@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -117,7 +118,7 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 		}
 	}
 
-	enabledToolsets = transformDefault(enabledToolsets)
+	enabledToolsets = transformSpecialToolsets(enabledToolsets)
 
 	// Generate instructions based on enabled toolsets
 	instructions := github.GenerateInstructions(enabledToolsets)
@@ -473,19 +474,24 @@ func (t *bearerAuthTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	return t.transport.RoundTrip(req)
 }
 
-// transformDefault replaces "default" in the enabled toolsets with the actual default toolset IDs.
-// If "default" is present, it removes it and adds the default toolset IDs from GetDefaultToolsetIDs().
+// transformSpecialToolsets handles special toolset keywords in the enabled toolsets list:
+// - "all": Returns ["all"] immediately, ignoring all other toolsets
+// - "default": Replaces with the actual default toolset IDs from GetDefaultToolsetIDs()
 // Duplicates are removed from the final result.
-func transformDefault(enabledToolsets []string) []string {
-	hasDefault := false
-	result := make([]string, 0, len(enabledToolsets))
-	seen := make(map[string]bool)
+func transformSpecialToolsets(enabledToolsets []string) []string {
+	// Check if "all" is present - if so, return immediately
+	if slices.Contains(enabledToolsets, github.ToolsetMetadataAll.ID) {
+		return []string{github.ToolsetMetadataAll.ID}
+	}
 
-	// First pass: check if "default" exists and collect non-default toolsets
+	hasDefault := slices.Contains(enabledToolsets, github.ToolsetMetadataDefault.ID)
+
+	seen := make(map[string]bool)
+	result := make([]string, 0, len(enabledToolsets))
+
+	// Add non-default toolsets, removing duplicates
 	for _, toolset := range enabledToolsets {
-		if toolset == github.ToolsetMetadataDefault.ID {
-			hasDefault = true
-		} else if !seen[toolset] {
+		if toolset != github.ToolsetMetadataDefault.ID && !seen[toolset] {
 			result = append(result, toolset)
 			seen[toolset] = true
 		}
