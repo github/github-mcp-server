@@ -23,6 +23,14 @@ type ToolsetMetadata struct {
 }
 
 var (
+	ToolsetMetadataAll = ToolsetMetadata{
+		ID:          "all",
+		Description: "Special toolset that enables all available toolsets",
+	}
+	ToolsetMetadataDefault = ToolsetMetadata{
+		ID:          "default",
+		Description: "Special toolset that enables the default toolset configuration. When no toolsets are specified, this is the set that is enabled",
+	}
 	ToolsetMetadataContext = ToolsetMetadata{
 		ID:          "context",
 		Description: "Tools that provide context about the current user and GitHub context you are operating in",

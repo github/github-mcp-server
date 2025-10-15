@@ -111,11 +111,13 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 		// filter "all" from the enabled toolsets
 		enabledToolsets = make([]string, 0, len(cfg.EnabledToolsets))
 		for _, toolset := range cfg.EnabledToolsets {
-			if toolset != "all" {
+			if toolset != github.ToolsetMetadataAll.ID {
 				enabledToolsets = append(enabledToolsets, toolset)
 			}
 		}
 	}
+
+	enabledToolsets = transformDefault(enabledToolsets)
 
 	// Generate instructions based on enabled toolsets
 	instructions := github.GenerateInstructions(enabledToolsets)
@@ -469,4 +471,35 @@ func (t *bearerAuthTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	req = req.Clone(req.Context())
 	req.Header.Set("Authorization", "Bearer "+t.token)
 	return t.transport.RoundTrip(req)
+}
+
+// transformDefault replaces "default" in the enabled toolsets with the actual default toolset IDs.
+// If "default" is present, it removes it and adds the default toolset IDs from GetDefaultToolsetIDs().
+// Duplicates are removed from the final result.
+func transformDefault(enabledToolsets []string) []string {
+	hasDefault := false
+	result := make([]string, 0, len(enabledToolsets))
+	seen := make(map[string]bool)
+
+	// First pass: check if "default" exists and collect non-default toolsets
+	for _, toolset := range enabledToolsets {
+		if toolset == github.ToolsetMetadataDefault.ID {
+			hasDefault = true
+		} else if !seen[toolset] {
+			result = append(result, toolset)
+			seen[toolset] = true
+		}
+	}
+
+	// If "default" was found, add the default toolset IDs
+	if hasDefault {
+		for _, defaultToolset := range github.GetDefaultToolsetIDs() {
+			if !seen[defaultToolset] {
+				result = append(result, defaultToolset)
+				seen[defaultToolset] = true
+			}
+		}
+	}
+
+	return result
 }

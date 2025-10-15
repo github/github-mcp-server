@@ -45,8 +45,9 @@ var (
 				return fmt.Errorf("failed to unmarshal toolsets: %w", err)
 			}
 
+			// No passed toolsets configuration means we enable the default toolset
 			if len(enabledToolsets) == 0 {
-				enabledToolsets = github.GetDefaultToolsetIDs()
+				enabledToolsets = []string{github.ToolsetMetadataDefault.ID}
 			}
 
 			stdioServerConfig := ghmcp.StdioServerConfig{

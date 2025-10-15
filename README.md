@@ -359,7 +359,9 @@ docker run -i --rm \
   ghcr.io/github/github-mcp-server
 ```
 
-### The "all" Toolset
+### Special toolsets
+
+#### "all" toolset
 
 The special toolset `all` can be provided to enable all available toolsets regardless of any other configuration:
 
@@ -371,6 +373,19 @@ Or using the environment variable:
 
 ```bash
 GITHUB_TOOLSETS="all" ./github-mcp-server
+```
+
+#### "default" toolset
+
+The default toolset `default` is the configuration that gets passed to the server if no toolsets are specified.
+
+It consists of:
+- ...
+
+To keep the default configuration and add additional toolsets, just specify "default, <additional-toolset>"
+
+```bash
+GITHUB_TOOLSETS="default,stargazers" ./github-mcp-server
 ```
 
 ### Available Toolsets
