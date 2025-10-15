@@ -59,7 +59,7 @@ With docker running, you can run the GitHub MCP server in a container:
                 "ghcr.io/github/github-mcp-server"
             ],
             "env": {
-                "GITHUB_PERSONAL_ACCESS_TOKEN": "$GITHUB_PAT"
+                "GITHUB_PERSONAL_ACCESS_TOKEN": "$GITHUB_MCP_PAT"
             }
         }
     }
