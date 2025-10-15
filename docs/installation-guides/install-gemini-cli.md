@@ -121,23 +121,9 @@ To verify that the GitHub MCP server has been configured, start Gemini CLI in yo
     List my GitHub repositories
     ```
 
-## Skip Confirmations
+## Additional Configuration
 
-To bypass tool confirmations, you can add `"trust": true` to your MCP server configuration:
-
-```json
-// ~/.gemini/settings.json
-{
-    "mcpServers": {
-        "github": {
-            "trust": true
-            // other configuration options
-        }
-    }
-}
-```
-
-You can find more Gemini CLI configuration options here: [MCP Configuration Structure](https://google-gemini.github.io/gemini-cli/docs/tools/mcp-server.html#configuration-structure)
+You can find more MCP configuration options for Gemini CLI here: [MCP Configuration Structure](https://google-gemini.github.io/gemini-cli/docs/tools/mcp-server.html#configuration-structure). For example, bypassing tool confirmations or excluding specific tools.
 
 ## Troubleshooting
 
