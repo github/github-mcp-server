@@ -133,6 +133,18 @@ func AvailableTools() []ToolsetMetadata {
 	}
 }
 
+// GetValidToolsetIDs returns a map of all valid toolset IDs for quick lookup
+func GetValidToolsetIDs() map[string]bool {
+	validIDs := make(map[string]bool)
+	for _, tool := range AvailableTools() {
+		validIDs[tool.ID] = true
+	}
+	// Add special keywords
+	validIDs[ToolsetMetadataAll.ID] = true
+	validIDs[ToolsetMetadataDefault.ID] = true
+	return validIDs
+}
+
 func GetDefaultToolsetIDs() []string {
 	return []string{
 		ToolsetMetadataContext.ID,

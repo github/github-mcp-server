@@ -106,7 +106,12 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 		},
 	}
 
-	enabledToolsets := cleanToolsets(cfg.EnabledToolsets, cfg.DynamicToolsets)
+	enabledToolsets, invalidToolsets := cleanToolsets(cfg.EnabledToolsets, cfg.DynamicToolsets)
+
+	// Log warning about invalid toolsets
+	if len(invalidToolsets) > 0 {
+		slog.Warn("invalid toolsets ignored", "toolsets", strings.Join(invalidToolsets, ", "))
+	}
 
 	// Generate instructions based on enabled toolsets
 	instructions := github.GenerateInstructions(enabledToolsets)
@@ -465,20 +470,32 @@ func (t *bearerAuthTransport) RoundTrip(req *http.Request) (*http.Response, erro
 // cleanToolsets handles special toolset keywords in the enabled toolsets list:
 // - Duplicates are removed from the result.
 // - Removes whitespaces
+// - Validates toolset names and returns invalid ones separately
 // - "all": Returns ["all"] immediately, ignoring all other toolsets (unless dynamicToolsets is true)
 // - "default": Replaces with the actual default toolset IDs from GetDefaultToolsetIDs()
 // When dynamicToolsets is true, filters out "all" from the enabled toolsets.
-func cleanToolsets(enabledToolsets []string, dynamicToolsets bool) []string {
+// Returns: (validToolsets, invalidToolsets)
+func cleanToolsets(enabledToolsets []string, dynamicToolsets bool) ([]string, []string) {
 	seen := make(map[string]bool)
 	result := make([]string, 0, len(enabledToolsets))
+	invalid := make([]string, 0)
+	validIDs := github.GetValidToolsetIDs()
 
 	// Add non-default toolsets, removing duplicates and trimming whitespace
 	for _, toolset := range enabledToolsets {
 		trimmed := strings.TrimSpace(toolset)
+		if trimmed == "" {
+			continue
+		}
 		if !seen[trimmed] {
 			seen[trimmed] = true
 			if trimmed != github.ToolsetMetadataDefault.ID && trimmed != github.ToolsetMetadataAll.ID {
-				result = append(result, trimmed)
+				// Validate the toolset name
+				if validIDs[trimmed] {
+					result = append(result, trimmed)
+				} else {
+					invalid = append(invalid, trimmed)
+				}
 			}
 		}
 	}
@@ -488,7 +505,7 @@ func cleanToolsets(enabledToolsets []string, dynamicToolsets bool) []string {
 
 	// Handle "all" keyword - return early if not in dynamic mode
 	if hasAll && !dynamicToolsets {
-		return []string{github.ToolsetMetadataAll.ID}
+		return []string{github.ToolsetMetadataAll.ID}, invalid
 	}
 
 	// Expand "default" keyword to actual default toolsets
@@ -501,5 +518,5 @@ func cleanToolsets(enabledToolsets []string, dynamicToolsets bool) []string {
 		}
 	}
 
-	return result
+	return result, invalid
 }

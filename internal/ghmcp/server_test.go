@@ -13,6 +13,7 @@ func TestCleanToolsets(t *testing.T) {
 		input           []string
 		dynamicToolsets bool
 		expected        []string
+		expectedInvalid []string
 	}{
 		{
 			name:            "empty slice",
@@ -211,16 +212,41 @@ func TestCleanToolsets(t *testing.T) {
 			dynamicToolsets: false,
 			expected:        []string{"all"},
 		},
+		// Invalid toolset test cases
+		{
+			name:            "mix of valid and invalid toolsets",
+			input:           []string{"actions", "invalid_toolset", "gists", "typo_repo"},
+			dynamicToolsets: false,
+			expected:        []string{"actions", "gists"},
+			expectedInvalid: []string{"invalid_toolset", "typo_repo"},
+		},
+		{
+			name:            "invalid with whitespace",
+			input:           []string{" invalid_tool ", "  actions  ", " typo_gist "},
+			dynamicToolsets: false,
+			expected:        []string{"actions"},
+			expectedInvalid: []string{"invalid_tool", "typo_gist"},
+		},
+		{
+			name:            "empty string in toolsets",
+			input:           []string{"", "actions", "  ", "gists"},
+			dynamicToolsets: false,
+			expected:        []string{"actions", "gists"},
+			expectedInvalid: []string{},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := cleanToolsets(tt.input, tt.dynamicToolsets)
+			result, invalid := cleanToolsets(tt.input, tt.dynamicToolsets)
 
-			// Check that the result has the correct length
 			require.Len(t, result, len(tt.expected), "result length should match expected length")
 
-			// Create a map for easier comparison since order might vary
+			if tt.expectedInvalid == nil {
+				tt.expectedInvalid = []string{}
+			}
+			require.Len(t, invalid, len(tt.expectedInvalid), "invalid length should match expected invalid length")
+
 			resultMap := make(map[string]bool)
 			for _, toolset := range result {
 				resultMap[toolset] = true
@@ -231,13 +257,21 @@ func TestCleanToolsets(t *testing.T) {
 				expectedMap[toolset] = true
 			}
 
-			// Check that both maps contain the same toolsets
-			assert.Equal(t, expectedMap, resultMap, "result should contain all expected toolsets without duplicates")
+			invalidMap := make(map[string]bool)
+			for _, toolset := range invalid {
+				invalidMap[toolset] = true
+			}
 
-			// Verify no duplicates in result
+			expectedInvalidMap := make(map[string]bool)
+			for _, toolset := range tt.expectedInvalid {
+				expectedInvalidMap[toolset] = true
+			}
+
+			assert.Equal(t, expectedMap, resultMap, "result should contain all expected toolsets without duplicates")
+			assert.Equal(t, expectedInvalidMap, invalidMap, "invalid should contain all expected invalid toolsets")
+
 			assert.Len(t, resultMap, len(result), "result should not contain duplicates")
 
-			// Verify "default" is not in the result
 			assert.False(t, resultMap["default"], "result should not contain 'default'")
 		})
 	}
