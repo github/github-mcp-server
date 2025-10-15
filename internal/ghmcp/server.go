@@ -469,8 +469,12 @@ func (t *bearerAuthTransport) RoundTrip(req *http.Request) (*http.Response, erro
 
 // cleanToolsets handles special toolset keywords in the enabled toolsets list:
 // - Duplicates are removed from the result.
+<<<<<<< HEAD
 // - Removes whitespaces
 // - Validates toolset names and returns invalid ones separately
+=======
+// - Removes whitespace
+>>>>>>> d78630632e447a488309d9c75301a1d23f14342e
 // - "all": Returns ["all"] immediately, ignoring all other toolsets (unless dynamicToolsets is true)
 // - "default": Replaces with the actual default toolset IDs from GetDefaultToolsetIDs()
 // When dynamicToolsets is true, filters out "all" from the enabled toolsets.

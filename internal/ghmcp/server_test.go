@@ -187,7 +187,7 @@ func TestCleanToolsets(t *testing.T) {
 		},
 		// Whitespace test cases
 		{
-			name:            "whitespace check- leading and trailing whitespace on regular toolsets",
+			name:            "whitespace check - leading and trailing whitespace on regular toolsets",
 			input:           []string{" actions ", "  gists  ", "notifications"},
 			dynamicToolsets: false,
 			expected:        []string{"actions", "gists", "notifications"},
