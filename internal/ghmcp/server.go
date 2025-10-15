@@ -10,7 +10,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -107,18 +106,7 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 		},
 	}
 
-	enabledToolsets := cfg.EnabledToolsets
-	if cfg.DynamicToolsets {
-		// filter "all" from the enabled toolsets
-		enabledToolsets = make([]string, 0, len(cfg.EnabledToolsets))
-		for _, toolset := range cfg.EnabledToolsets {
-			if toolset != github.ToolsetMetadataAll.ID {
-				enabledToolsets = append(enabledToolsets, toolset)
-			}
-		}
-	}
-
-	enabledToolsets = transformSpecialToolsets(enabledToolsets)
+	enabledToolsets := cleanToolsets(cfg.EnabledToolsets, cfg.DynamicToolsets)
 
 	// Generate instructions based on enabled toolsets
 	instructions := github.GenerateInstructions(enabledToolsets)
@@ -474,30 +462,34 @@ func (t *bearerAuthTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	return t.transport.RoundTrip(req)
 }
 
-// transformSpecialToolsets handles special toolset keywords in the enabled toolsets list:
-// - "all": Returns ["all"] immediately, ignoring all other toolsets
+// cleanToolsets handles special toolset keywords in the enabled toolsets list:
+// Duplicates are removed from the result.
+// - "all": Returns ["all"] immediately, ignoring all other toolsets (unless dynamicToolsets is true)
 // - "default": Replaces with the actual default toolset IDs from GetDefaultToolsetIDs()
-// Duplicates are removed from the final result.
-func transformSpecialToolsets(enabledToolsets []string) []string {
-	// Check if "all" is present - if so, return immediately
-	if slices.Contains(enabledToolsets, github.ToolsetMetadataAll.ID) {
-		return []string{github.ToolsetMetadataAll.ID}
-	}
-
-	hasDefault := slices.Contains(enabledToolsets, github.ToolsetMetadataDefault.ID)
-
+// When dynamicToolsets is true, filters out "all" from the enabled toolsets.
+func cleanToolsets(enabledToolsets []string, dynamicToolsets bool) []string {
 	seen := make(map[string]bool)
 	result := make([]string, 0, len(enabledToolsets))
 
 	// Add non-default toolsets, removing duplicates
 	for _, toolset := range enabledToolsets {
-		if toolset != github.ToolsetMetadataDefault.ID && !seen[toolset] {
-			result = append(result, toolset)
+		if !seen[toolset] {
 			seen[toolset] = true
+			if toolset != github.ToolsetMetadataDefault.ID && toolset != github.ToolsetMetadataAll.ID {
+				result = append(result, toolset)
+			}
 		}
 	}
 
-	// If "default" was found, add the default toolset IDs
+	hasDefault := seen[github.ToolsetMetadataDefault.ID]
+	hasAll := seen[github.ToolsetMetadataAll.ID]
+
+	// Handle "all" keyword - return early if not in dynamic mode
+	if hasAll && !dynamicToolsets {
+		return []string{github.ToolsetMetadataAll.ID}
+	}
+
+	// Expand "default" keyword to actual default toolsets
 	if hasDefault {
 		for _, defaultToolset := range github.GetDefaultToolsetIDs() {
 			if !seen[defaultToolset] {

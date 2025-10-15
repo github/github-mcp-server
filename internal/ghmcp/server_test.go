@@ -10,38 +10,53 @@ import (
 
 func TestTransformSpecialToolsets(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    []string
-		expected []string
+		name            string
+		input           []string
+		dynamicToolsets bool
+		expected        []string
 	}{
 		{
-			name:     "empty slice",
-			input:    []string{},
-			expected: []string{},
+			name:            "empty slice",
+			input:           []string{},
+			dynamicToolsets: false,
+			expected:        []string{},
 		},
 		{
-			name:     "all only",
-			input:    []string{"all"},
-			expected: []string{"all"},
+			name:            "nil input slice",
+			input:           nil,
+			dynamicToolsets: false,
+			expected:        []string{},
+		},
+		// all test cases
+		{
+			name:            "all only",
+			input:           []string{"all"},
+			dynamicToolsets: false,
+			expected:        []string{"all"},
 		},
 		{
-			name:     "all with other toolsets",
-			input:    []string{"all", "actions", "gists"},
-			expected: []string{"all"},
+			name:            "all appears multiple times",
+			input:           []string{"all", "actions", "all"},
+			dynamicToolsets: false,
+			expected:        []string{"all"},
 		},
 		{
-			name:     "all at the end",
-			input:    []string{"actions", "gists", "all"},
-			expected: []string{"all"},
+			name:            "all with other toolsets",
+			input:           []string{"all", "actions", "gists"},
+			dynamicToolsets: false,
+			expected:        []string{"all"},
 		},
 		{
-			name:     "all with default",
-			input:    []string{"default", "all", "actions"},
-			expected: []string{"all"},
+			name:            "all with default",
+			input:           []string{"default", "all", "actions"},
+			dynamicToolsets: false,
+			expected:        []string{"all"},
 		},
+		// default test cases
 		{
-			name:  "default only",
-			input: []string{"default"},
+			name:            "default only",
+			input:           []string{"default"},
+			dynamicToolsets: false,
 			expected: []string{
 				"context",
 				"repos",
@@ -51,8 +66,9 @@ func TestTransformSpecialToolsets(t *testing.T) {
 			},
 		},
 		{
-			name:  "default with additional toolsets",
-			input: []string{"default", "actions", "gists"},
+			name:            "default with additional toolsets",
+			input:           []string{"default", "actions", "gists"},
+			dynamicToolsets: false,
 			expected: []string{
 				"actions",
 				"gists",
@@ -64,44 +80,22 @@ func TestTransformSpecialToolsets(t *testing.T) {
 			},
 		},
 		{
-			name:  "default with overlapping toolsets",
-			input: []string{"default", "issues", "actions"},
+			name:            "no default present",
+			input:           []string{"actions", "gists", "notifications"},
+			dynamicToolsets: false,
+			expected:        []string{"actions", "gists", "notifications"},
+		},
+		{
+			name:            "duplicate toolsets without default",
+			input:           []string{"actions", "gists", "actions"},
+			dynamicToolsets: false,
+			expected:        []string{"actions", "gists"},
+		},
+		{
+			name:            "duplicate toolsets with default",
+			input:           []string{"context", "repos", "issues", "pull_requests", "users", "default"},
+			dynamicToolsets: false,
 			expected: []string{
-				"issues",
-				"actions",
-				"context",
-				"repos",
-				"pull_requests",
-				"users",
-			},
-		},
-		{
-			name:     "no default present",
-			input:    []string{"actions", "gists", "notifications"},
-			expected: []string{"actions", "gists", "notifications"},
-		},
-		{
-			name:     "duplicate toolsets without default",
-			input:    []string{"actions", "gists", "actions"},
-			expected: []string{"actions", "gists"},
-		},
-		{
-			name:  "duplicate toolsets with default",
-			input: []string{"actions", "default", "actions", "issues"},
-			expected: []string{
-				"actions",
-				"issues",
-				"context",
-				"repos",
-				"pull_requests",
-				"users",
-			},
-		},
-		{
-			name:  "multiple defaults (edge case)",
-			input: []string{"default", "actions", "default"},
-			expected: []string{
-				"actions",
 				"context",
 				"repos",
 				"issues",
@@ -110,12 +104,83 @@ func TestTransformSpecialToolsets(t *testing.T) {
 			},
 		},
 		{
-			name:  "all default toolsets already present with default",
-			input: []string{"context", "repos", "issues", "pull_requests", "users", "default"},
+			name:            "default appears multiple times with different toolsets in between",
+			input:           []string{"default", "actions", "default", "gists", "default"},
+			dynamicToolsets: false,
+			expected: []string{
+				"actions",
+				"gists",
+				"context",
+				"repos",
+				"issues",
+				"pull_requests",
+				"users",
+			},
+		},
+		// Dynamic toolsets test cases
+		{
+			name:            "dynamic toolsets - all only should be filtered",
+			input:           []string{"all"},
+			dynamicToolsets: true,
+			expected:        []string{},
+		},
+		{
+			name:            "dynamic toolsets - all with other toolsets",
+			input:           []string{"all", "actions", "gists"},
+			dynamicToolsets: true,
+			expected:        []string{"actions", "gists"},
+		},
+		{
+			name:            "dynamic toolsets - all with default",
+			input:           []string{"all", "default", "actions"},
+			dynamicToolsets: true,
+			expected: []string{
+				"actions",
+				"context",
+				"repos",
+				"issues",
+				"pull_requests",
+				"users",
+			},
+		},
+		{
+			name:            "dynamic toolsets - no all present",
+			input:           []string{"actions", "gists"},
+			dynamicToolsets: true,
+			expected:        []string{"actions", "gists"},
+		},
+		{
+			name:            "dynamic toolsets - default only",
+			input:           []string{"default"},
+			dynamicToolsets: true,
 			expected: []string{
 				"context",
 				"repos",
 				"issues",
+				"pull_requests",
+				"users",
+			},
+		},
+		{
+			name:            "only special keywords with dynamic mode",
+			input:           []string{"all", "default"},
+			dynamicToolsets: true,
+			expected: []string{
+				"context",
+				"repos",
+				"issues",
+				"pull_requests",
+				"users",
+			},
+		},
+		{
+			name:            "all with default and overlapping default toolsets in dynamic mode",
+			input:           []string{"all", "default", "issues", "repos"},
+			dynamicToolsets: true,
+			expected: []string{
+				"issues",
+				"repos",
+				"context",
 				"pull_requests",
 				"users",
 			},
@@ -124,7 +189,7 @@ func TestTransformSpecialToolsets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := transformSpecialToolsets(tt.input)
+			result := cleanToolsets(tt.input, tt.dynamicToolsets)
 
 			// Check that the result has the correct length
 			require.Len(t, result, len(tt.expected), "result length should match expected length")
@@ -155,7 +220,7 @@ func TestTransformSpecialToolsets(t *testing.T) {
 func TestTransformSpecialToolsetsWithActualDefaults(t *testing.T) {
 	// This test verifies that the function uses the actual default toolsets from GetDefaultToolsetIDs()
 	input := []string{"default"}
-	result := transformSpecialToolsets(input)
+	result := cleanToolsets(input, false)
 
 	defaultToolsets := github.GetDefaultToolsetIDs()
 
