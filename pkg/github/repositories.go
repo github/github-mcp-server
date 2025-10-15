@@ -542,6 +542,8 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 
 			// If the path is (most likely) not to be a directory, we will
 			// first try to get the raw content from the GitHub raw content API.
+
+			var rawAPIResponseCode int
 			if path != "" && !strings.HasSuffix(path, "/") {
 				// First, get file info from Contents API to retrieve SHA
 				var fileSHA string
@@ -631,8 +633,8 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 						return mcp.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)", fileSHA), result), nil
 					}
 					return mcp.NewToolResultResource("successfully downloaded binary file", result), nil
-
 				}
+				rawAPIResponseCode = resp.StatusCode
 			}
 
 			if rawOpts.SHA != "" {
@@ -677,7 +679,7 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 				if err != nil {
 					return mcp.NewToolResultError(fmt.Sprintf("failed to marshal resolved refs: %s", err)), nil
 				}
-				return mcp.NewToolResultText(fmt.Sprintf("Path did not point to a file or directory, but resolved git ref to %s with possible path matches: %s", resolvedRefs, matchingFilesJSON)), nil
+				return mcp.NewToolResultError(fmt.Sprintf("Resolved potential matches in the repository tree (resolved refs: %s, matching files: %s), but the raw content API returned an unexpected status code %d.", string(resolvedRefs), string(matchingFilesJSON), rawAPIResponseCode)), nil
 			}
 
 			return mcp.NewToolResultError("Failed to get file contents. The path does not point to a file or directory, or the file does not exist in the repository."), nil
