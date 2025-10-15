@@ -406,6 +406,7 @@ The following sets of tools are available:
 | ----------------------- | ------------------------------------------------------------- |
 | `copilot` | Copilot related tools (e.g. Copilot Coding Agent) |
 | `copilot_spaces` | Copilot Spaces related tools |
+| `github_support_docs_search` | Search docs to answer GitHub product and support questions |
 
 ## Tools
 
