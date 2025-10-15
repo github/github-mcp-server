@@ -3,12 +3,11 @@ package ghmcp
 import (
 	"testing"
 
-	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestTransformSpecialToolsets(t *testing.T) {
+func TestCleanToolsets(t *testing.T) {
 	tests := []struct {
 		name            string
 		input           []string
@@ -242,27 +241,4 @@ func TestTransformSpecialToolsets(t *testing.T) {
 			assert.False(t, resultMap["default"], "result should not contain 'default'")
 		})
 	}
-}
-
-func TestTransformSpecialToolsetsWithActualDefaults(t *testing.T) {
-	// This test verifies that the function uses the actual default toolsets from GetDefaultToolsetIDs()
-	input := []string{"default"}
-	result := cleanToolsets(input, false)
-
-	defaultToolsets := github.GetDefaultToolsetIDs()
-
-	// Check that result contains all default toolsets
-	require.Len(t, result, len(defaultToolsets), "result should contain all default toolsets")
-
-	resultMap := make(map[string]bool)
-	for _, toolset := range result {
-		resultMap[toolset] = true
-	}
-
-	for _, defaultToolset := range defaultToolsets {
-		assert.True(t, resultMap[defaultToolset], "result should contain default toolset: %s", defaultToolset)
-	}
-
-	// Verify "default" is not in the result
-	assert.False(t, resultMap["default"], "result should not contain 'default'")
 }
