@@ -463,7 +463,8 @@ func (t *bearerAuthTransport) RoundTrip(req *http.Request) (*http.Response, erro
 }
 
 // cleanToolsets handles special toolset keywords in the enabled toolsets list:
-// Duplicates are removed from the result.
+// - Duplicates are removed from the result.
+// - Removes whitespaces
 // - "all": Returns ["all"] immediately, ignoring all other toolsets (unless dynamicToolsets is true)
 // - "default": Replaces with the actual default toolset IDs from GetDefaultToolsetIDs()
 // When dynamicToolsets is true, filters out "all" from the enabled toolsets.
@@ -471,12 +472,13 @@ func cleanToolsets(enabledToolsets []string, dynamicToolsets bool) []string {
 	seen := make(map[string]bool)
 	result := make([]string, 0, len(enabledToolsets))
 
-	// Add non-default toolsets, removing duplicates
+	// Add non-default toolsets, removing duplicates and trimming whitespace
 	for _, toolset := range enabledToolsets {
-		if !seen[toolset] {
-			seen[toolset] = true
-			if toolset != github.ToolsetMetadataDefault.ID && toolset != github.ToolsetMetadataAll.ID {
-				result = append(result, toolset)
+		trimmed := strings.TrimSpace(toolset)
+		if !seen[trimmed] {
+			seen[trimmed] = true
+			if trimmed != github.ToolsetMetadataDefault.ID && trimmed != github.ToolsetMetadataAll.ID {
+				result = append(result, trimmed)
 			}
 		}
 	}

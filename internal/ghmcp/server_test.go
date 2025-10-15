@@ -185,6 +185,33 @@ func TestTransformSpecialToolsets(t *testing.T) {
 				"users",
 			},
 		},
+		// Whitespace test cases
+		{
+			name:            "whitespace check- leading and trailing whitespace on regular toolsets",
+			input:           []string{" actions ", "  gists  ", "notifications"},
+			dynamicToolsets: false,
+			expected:        []string{"actions", "gists", "notifications"},
+		},
+		{
+			name:            "whitespace check - default toolset",
+			input:           []string{" actions ", "  default  ", "notifications"},
+			dynamicToolsets: false,
+			expected: []string{
+				"actions",
+				"notifications",
+				"context",
+				"repos",
+				"issues",
+				"pull_requests",
+				"users",
+			},
+		},
+		{
+			name:            "whitespace check - all toolset",
+			input:           []string{" actions ", "  gists  ", "notifications", "  all   "},
+			dynamicToolsets: false,
+			expected:        []string{"all"},
+		},
 	}
 
 	for _, tt := range tests {
