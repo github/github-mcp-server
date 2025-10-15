@@ -3,7 +3,7 @@
 	"version": "1.0.0",
 	"mcpServers": {
 		"github": {
-			"httpUrl": "https://api.githubcopilot.com/mcp",
+			"httpUrl": "https://api.githubcopilot.com/mcp/",
 			"headers": {
 				"Authorization": "Bearer $GITHUB_MCP_PAT"
 			}
