@@ -86,7 +86,33 @@ Alternatively, to manually configure VS Code, choose the appropriate JSON block 
 > **Note:** Each MCP host application needs to configure a GitHub App or OAuth App to support remote access via OAuth. Any host application that supports remote MCP servers should support the remote GitHub server with PAT authentication. Configuration details and support levels vary by host. Make sure to refer to the host application's documentation for more info.
 
 ### Configuration
-See [Remote Server Documentation](/docs/remote-server.md) on how to pass additional configuration settings to the remote GitHub MCP Server.
+
+#### Toolset configuration
+
+See [Remote Server Documentation](docs/remote-server.md) for full details on remote server configuration, toolsets, headers, and advanced usage. This file provides comprehensive instructions and examples for connecting, customizing, and installing the remote GitHub MCP Server in VS Code and other MCP hosts.
+
+When no toolsets are specified, [default toolsets](#default-toolset) are used.
+
+#### Enterprise Cloud with data residency (ghe.com)
+
+GitHub Enterprise Cloud can also make use of the remote server.
+
+Example for `https://octocorp.ghe.com`:
+```
+{
+    ...
+    "proxima-github": {
+      "type": "http",
+      "url": "https://copilot-api.octocorp.ghe.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${input:github_mcp_pat}"
+      }
+    },
+    ...
+}
+```
+
+GitHub Enterprise Server does not support remote server hosting. Please refer to [GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)](#github-enterprise-server-and-enterprise-cloud-with-data-residency-ghecom) from the local server configuration.
 
 ---
 
@@ -149,6 +175,33 @@ To keep your GitHub PAT secure and reusable across different MCP hosts:
   ```
 
 </details>
+
+### GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)
+
+The flag `--gh-host` and the environment variable `GITHUB_HOST` can be used to set
+the hostname for GitHub Enterprise Server or GitHub Enterprise Cloud with data residency.
+
+- For GitHub Enterprise Server, prefix the hostname with the `https://` URI scheme, as it otherwise defaults to `http://`, which GitHub Enterprise Server does not support.
+- For GitHub Enterprise Cloud with data residency, use `https://YOURSUBDOMAIN.ghe.com` as the hostname.
+``` json
+"github": {
+    "command": "docker",
+    "args": [
+    "run",
+    "-i",
+    "--rm",
+    "-e",
+    "GITHUB_PERSONAL_ACCESS_TOKEN",
+    "-e",
+    "GITHUB_HOST",
+    "ghcr.io/github/github-mcp-server"
+    ],
+    "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}",
+        "GITHUB_HOST": "https://<your GHES or ghe.com domain name>"
+    }
+}
+```
 
 ## Installation
 
@@ -271,9 +324,71 @@ The GitHub MCP Server supports enabling or disabling specific groups of function
 
 _Toolsets are not limited to Tools. Relevant MCP Resources and Prompts are also included where applicable._
 
+When no toolsets are specified, [default toolsets](#default-toolset) are used.
+
+#### Specifying Toolsets
+
+To specify toolsets you want available to the LLM, you can pass an allow-list in two ways:
+
+1. **Using Command Line Argument**:
+
+   ```bash
+   github-mcp-server --toolsets repos,issues,pull_requests,actions,code_security
+   ```
+
+2. **Using Environment Variable**:
+   ```bash
+   GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security" ./github-mcp-server
+   ```
+
+The environment variable `GITHUB_TOOLSETS` takes precedence over the command line argument if both are provided.
+
+### Using Toolsets With Docker
+
+When using Docker, you can pass the toolsets as environment variables:
+
+```bash
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security,experiments" \
+  ghcr.io/github/github-mcp-server
+```
+
+### Special toolsets
+
+#### "all" toolset
+
+The special toolset `all` can be provided to enable all available toolsets regardless of any other configuration:
+
+```bash
+./github-mcp-server --toolsets all
+```
+
+Or using the environment variable:
+
+```bash
+GITHUB_TOOLSETS="all" ./github-mcp-server
+```
+
+#### "default" toolset
+The default toolset `default` is the configuration that gets passed to the server if no toolsets are specified.
+
+The default configuration is:
+- context
+- repos
+- issues
+- pull_requests
+- users
+
+To keep the default configuration and add additional toolsets:
+
+```bash
+GITHUB_TOOLSETS="default,stargazers" ./github-mcp-server
+```
+
 ### Available Toolsets
 
-The following sets of tools are available (all are on by default):
+The following sets of tools are available:
 
 <!-- START AUTOMATED TOOLSETS -->
 | Toolset                 | Description                                                   |
@@ -286,17 +401,27 @@ The following sets of tools are available (all are on by default):
 | `experiments` | Experimental features that are not considered stable yet |
 | `gists` | GitHub Gist related tools |
 | `issues` | GitHub Issues related tools |
+| `labels` | GitHub Labels related tools |
 | `notifications` | GitHub Notifications related tools |
 | `orgs` | GitHub Organization related tools |
+| `projects` | GitHub Projects related tools |
 | `pull_requests` | GitHub Pull Request related tools |
 | `repos` | GitHub Repository related tools |
 | `secret_protection` | Secret protection related tools, such as GitHub Secret Scanning |
 | `security_advisories` | Security advisories related tools |
+| `stargazers` | GitHub Stargazers related tools |
 | `users` | GitHub User related tools |
 <!-- END AUTOMATED TOOLSETS -->
 
-## Tools
+### Additional Toolsets in Remote Github MCP Server
 
+| Toolset                 | Description                                                   |
+| ----------------------- | ------------------------------------------------------------- |
+| `copilot` | Copilot related tools (e.g. Copilot Coding Agent) |
+| `copilot_spaces` | Copilot Spaces related tools |
+| `github_support_docs_search` | Search docs to answer GitHub product and support questions |
+
+## Tools
 
 <!-- START AUTOMATED TOOLS -->
 <details>
@@ -566,6 +691,11 @@ The following sets of tools are available (all are on by default):
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
+- **get_label** - Get a specific label from a repository.
+  - `name`: Label name. (string, required)
+  - `owner`: Repository owner (username or organization name) (string, required)
+  - `repo`: Repository name (string, required)
+
 - **list_issue_types** - List available issue types
   - `owner`: The organization owner of the repository (string, required)
 
@@ -588,6 +718,11 @@ The following sets of tools are available (all are on by default):
   - `repo`: Repository name (string, required)
   - `sort`: Sort field (string, optional)
   - `state`: Filter by state (string, optional)
+
+- **list_label** - List labels from a repository or an issue
+  - `issue_number`: Issue number - if provided, lists labels on the specific issue (number, optional)
+  - `owner`: Repository owner (username or organization name) - required for all operations (string, required)
+  - `repo`: Repository name - required for all operations (string, required)
 
 - **list_sub_issues** - List sub-issues
   - `issue_number`: Issue number (number, required)
@@ -643,6 +778,31 @@ The following sets of tools are available (all are on by default):
 
 <details>
 
+<summary>Labels</summary>
+
+- **get_label** - Get a specific label from a repository.
+  - `name`: Label name. (string, required)
+  - `owner`: Repository owner (username or organization name) (string, required)
+  - `repo`: Repository name (string, required)
+
+- **label_write** - Write operations on repository labels.
+  - `color`: Label color as 6-character hex code without '#' prefix (e.g., 'f29513'). Required for 'create', optional for 'update'. (string, optional)
+  - `description`: Label description text. Optional for 'create' and 'update'. (string, optional)
+  - `method`: Operation to perform: 'create', 'update', or 'delete' (string, required)
+  - `name`: Label name - required for all operations (string, required)
+  - `new_name`: New name for the label (used only with 'update' method to rename) (string, optional)
+  - `owner`: Repository owner (username or organization name) (string, required)
+  - `repo`: Repository name (string, required)
+
+- **list_label** - List labels from a repository or an issue
+  - `issue_number`: Issue number - if provided, lists labels on the specific issue (number, optional)
+  - `owner`: Repository owner (username or organization name) - required for all operations (string, required)
+  - `repo`: Repository name - required for all operations (string, required)
+
+</details>
+
+<details>
+
 <summary>Notifications</summary>
 
 - **dismiss_notification** - Dismiss notification
@@ -692,6 +852,68 @@ The following sets of tools are available (all are on by default):
 
 <details>
 
+<summary>Projects</summary>
+
+- **add_project_item** - Add project item
+  - `item_id`: The numeric ID of the issue or pull request to add to the project. (number, required)
+  - `item_type`: The item's type, either issue or pull_request. (string, required)
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `project_number`: The project's number. (number, required)
+
+- **delete_project_item** - Delete project item
+  - `item_id`: The internal project item ID to delete from the project (not the issue or pull request ID). (number, required)
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `project_number`: The project's number. (number, required)
+
+- **get_project** - Get project
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `project_number`: The project's number (number, required)
+
+- **get_project_field** - Get project field
+  - `field_id`: The field's id. (number, required)
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `project_number`: The project's number. (number, required)
+
+- **get_project_item** - Get project item
+  - `item_id`: The item's ID. (number, required)
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `project_number`: The project's number. (number, required)
+
+- **list_project_fields** - List project fields
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
+  - `project_number`: The project's number. (number, required)
+
+- **list_project_items** - List project items
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
+  - `project_number`: The project's number. (number, required)
+  - `query`: Search query to filter items (string, optional)
+
+- **list_projects** - List projects
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
+  - `query`: Filter projects by a search query (matches title and description) (string, optional)
+
+- **update_project_item** - Update project item
+  - `item_id`: The unique identifier of the project item. This is not the issue or pull request ID. (number, required)
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `project_number`: The project's number. (number, required)
+  - `updated_field`: Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set "value" to null. Example: {"id": 123456, "value": "New Value"} (object, required)
+
+</details>
+
+<details>
+
 <summary>Pull Requests</summary>
 
 - **add_comment_to_pending_review** - Add review comment to the requester's latest pending pull request review
@@ -706,20 +928,6 @@ The following sets of tools are available (all are on by default):
   - `startSide`: For multi-line comments, the starting side of the diff that the comment applies to. LEFT indicates the previous state, RIGHT indicates the new state (string, optional)
   - `subjectType`: The level at which the comment is targeted (string, required)
 
-- **create_and_submit_pull_request_review** - Create and submit a pull request review without comments
-  - `body`: Review comment text (string, required)
-  - `commitID`: SHA of commit to review (string, optional)
-  - `event`: Review action to perform (string, required)
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **create_pending_pull_request_review** - Create pending pull request review
-  - `commitID`: SHA of commit to review (string, optional)
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
 - **create_pull_request** - Open new pull request
   - `base`: Branch to merge into (string, required)
   - `body`: PR description (string, optional)
@@ -729,43 +937,6 @@ The following sets of tools are available (all are on by default):
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `title`: PR title (string, required)
-
-- **delete_pending_pull_request_review** - Delete the requester's latest pending pull request review
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **get_pull_request** - Get pull request details
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **get_pull_request_diff** - Get pull request diff
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **get_pull_request_files** - Get pull request files
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **get_pull_request_review_comments** - Get pull request review comments
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **get_pull_request_reviews** - Get pull request reviews
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **get_pull_request_status** - Get pull request status checks
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
 
 - **list_pull_requests** - List pull requests
   - `base`: Filter by base branch (string, optional)
@@ -786,6 +957,31 @@ The following sets of tools are available (all are on by default):
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
+- **pull_request_read** - Get details for a single pull request
+  - `method`: Action to specify what pull request data needs to be retrieved from GitHub. 
+Possible options: 
+ 1. get - Get details of a specific pull request.
+ 2. get_diff - Get the diff of a pull request.
+ 3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
+ 4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
+ 5. get_review_comments - Get the review comments on a pull request. Use with pagination parameters to control the number of results returned.
+ 6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
+ (string, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
+- **pull_request_review_write** - Write operations (create, submit, delete) on pull request reviews.
+  - `body`: Review comment text (string, optional)
+  - `commitID`: SHA of commit to review (string, optional)
+  - `event`: Review action to perform. (string, optional)
+  - `method`: The write operation to perform on pull request review. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
 - **request_copilot_review** - Request Copilot review
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
@@ -799,13 +995,6 @@ The following sets of tools are available (all are on by default):
   - `query`: Search query using GitHub pull request search syntax (string, required)
   - `repo`: Optional repository name. If provided with owner, only pull requests for this repository are listed. (string, optional)
   - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
-
-- **submit_pending_pull_request_review** - Submit the requester's latest pending pull request review
-  - `body`: The text of the review comment (string, optional)
-  - `event`: The event to perform (string, required)
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
 
 - **update_pull_request** - Edit pull request
   - `base`: New base branch name (string, optional)
@@ -914,13 +1103,6 @@ The following sets of tools are available (all are on by default):
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
-- **list_starred_repositories** - List starred repositories
-  - `direction`: The direction to sort the results by. (string, optional)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `sort`: How to sort the results. Can be either 'created' (when the repository was starred) or 'updated' (when the repository was last pushed to). (string, optional)
-  - `username`: Username to list starred repositories for. Defaults to the authenticated user. (string, optional)
-
 - **list_tags** - List tags
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -943,17 +1125,11 @@ The following sets of tools are available (all are on by default):
 
 - **search_repositories** - Search repositories
   - `minimal_output`: Return minimal repository information (default: true). When false, returns full GitHub API repository objects. (boolean, optional)
+  - `order`: Sort order (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Repository search query. Examples: 'machine learning in:name stars:>1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering. (string, required)
-
-- **star_repository** - Star repository
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-
-- **unstar_repository** - Unstar repository
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
+  - `sort`: Sort repositories by field, defaults to best match (string, optional)
 
 </details>
 
@@ -1012,6 +1188,27 @@ The following sets of tools are available (all are on by default):
 
 <details>
 
+<summary>Stargazers</summary>
+
+- **list_starred_repositories** - List starred repositories
+  - `direction`: The direction to sort the results by. (string, optional)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `sort`: How to sort the results. Can be either 'created' (when the repository was starred) or 'updated' (when the repository was last pushed to). (string, optional)
+  - `username`: Username to list starred repositories for. Defaults to the authenticated user. (string, optional)
+
+- **star_repository** - Star repository
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **unstar_repository** - Unstar repository
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+</details>
+
+<details>
+
 <summary>Users</summary>
 
 - **search_users** - Search users
@@ -1028,7 +1225,7 @@ The following sets of tools are available (all are on by default):
 
 <details>
 
-<summary>Copilot coding agent</summary>
+<summary>Copilot</summary>
 
 -   **create_pull_request_with_copilot** - Perform task with GitHub Copilot coding agent
     -   `owner`: Repository owner. You can guess the owner, but confirm it with the user before proceeding. (string, required)
@@ -1039,47 +1236,24 @@ The following sets of tools are available (all are on by default):
 
 </details>
 
-#### Specifying Toolsets
+<details>
 
-To specify toolsets you want available to the LLM, you can pass an allow-list in two ways:
+<summary>Copilot Spaces</summary>
 
-1. **Using Command Line Argument**:
+-   **get_copilot_space** - Get Copilot Space
+    -   `owner`: The owner of the space. (string, required)
+    -   `name`: The name of the space. (string, required)
 
-   ```bash
-   github-mcp-server --toolsets repos,issues,pull_requests,actions,code_security
-   ```
+-   **list_copilot_spaces** - List Copilot Spaces
+</details>
 
-2. **Using Environment Variable**:
-   ```bash
-   GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security" ./github-mcp-server
-   ```
+<details>
 
-The environment variable `GITHUB_TOOLSETS` takes precedence over the command line argument if both are provided.
+<summary>GitHub Support Docs Search</summary>
 
-### Using Toolsets With Docker
-
-When using Docker, you can pass the toolsets as environment variables:
-
-```bash
-docker run -i --rm \
-  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
-  -e GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security,experiments" \
-  ghcr.io/github/github-mcp-server
-```
-
-### The "all" Toolset
-
-The special toolset `all` can be provided to enable all available toolsets regardless of any other configuration:
-
-```bash
-./github-mcp-server --toolsets all
-```
-
-Or using the environment variable:
-
-```bash
-GITHUB_TOOLSETS="all" ./github-mcp-server
-```
+-   **github_support_docs_search** - Retrieve documentation relevant to answer GitHub product and support questions. Support topics include: GitHub Actions Workflows, Authentication, GitHub Support Inquiries, Pull Request Practices, Repository Maintenance, GitHub Pages, GitHub Packages, GitHub Discussions, Copilot Spaces
+    -   `query`: Input from the user about the question they need answered. This is the latest raw unedited user message. You should ALWAYS leave the user message as it is, you should never modify it. (string, required)
+</details>
 
 ## Dynamic Tool Discovery
 
@@ -1119,33 +1293,6 @@ docker run -i --rm \
   -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
   -e GITHUB_READ_ONLY=1 \
   ghcr.io/github/github-mcp-server
-```
-
-## GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)
-
-The flag `--gh-host` and the environment variable `GITHUB_HOST` can be used to set
-the hostname for GitHub Enterprise Server or GitHub Enterprise Cloud with data residency.
-
-- For GitHub Enterprise Server, prefix the hostname with the `https://` URI scheme, as it otherwise defaults to `http://`, which GitHub Enterprise Server does not support.
-- For GitHub Enterprise Cloud with data residency, use `https://YOURSUBDOMAIN.ghe.com` as the hostname.
-``` json
-"github": {
-    "command": "docker",
-    "args": [
-    "run",
-    "-i",
-    "--rm",
-    "-e",
-    "GITHUB_PERSONAL_ACCESS_TOKEN",
-    "-e",
-    "GITHUB_HOST",
-    "ghcr.io/github/github-mcp-server"
-    ],
-    "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}",
-        "GITHUB_HOST": "https://<your GHES or ghe.com domain name>"
-    }
-}
 ```
 
 ## i18n / Overriding Descriptions

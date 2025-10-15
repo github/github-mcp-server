@@ -40,7 +40,6 @@ The simplest way is to use GitHub's hosted MCP server:
     "mcpServers": {
         "github": {
             "httpUrl": "https://api.githubcopilot.com/mcp/",
-            "trust": true,
             "headers": {
                 "Authorization": "Bearer $GITHUB_PAT"
             }
@@ -121,6 +120,10 @@ To verify that the GitHub MCP server has been configured, start Gemini CLI in yo
     ```
     List my GitHub repositories
     ```
+
+## Additional Configuration
+
+You can find more MCP configuration options for Gemini CLI here: [MCP Configuration Structure](https://google-gemini.github.io/gemini-cli/docs/tools/mcp-server.html#configuration-structure). For example, bypassing tool confirmations or excluding specific tools.
 
 ## Troubleshooting
 
