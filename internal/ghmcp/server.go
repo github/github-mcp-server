@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/github"
@@ -363,11 +364,30 @@ func newGHESHost(hostname string) (apiHost, error) {
 		return apiHost{}, fmt.Errorf("failed to parse GHES GraphQL URL: %w", err)
 	}
 
-	uploadURL, err := url.Parse(fmt.Sprintf("%s://%s/api/uploads/", u.Scheme, u.Hostname()))
+	// Check if subdomain isolation is enabled
+	// See https://docs.github.com/en/enterprise-server@3.17/admin/configuring-settings/hardening-security-for-your-enterprise/enabling-subdomain-isolation#about-subdomain-isolation
+	hasSubdomainIsolation := checkSubdomainIsolation(u.Scheme, u.Hostname())
+
+	var uploadURL *url.URL
+	if hasSubdomainIsolation {
+		// With subdomain isolation: https://uploads.hostname/
+		uploadURL, err = url.Parse(fmt.Sprintf("%s://uploads.%s/", u.Scheme, u.Hostname()))
+	} else {
+		// Without subdomain isolation: https://hostname/api/uploads/
+		uploadURL, err = url.Parse(fmt.Sprintf("%s://%s/api/uploads/", u.Scheme, u.Hostname()))
+	}
 	if err != nil {
 		return apiHost{}, fmt.Errorf("failed to parse GHES Upload URL: %w", err)
 	}
-	rawURL, err := url.Parse(fmt.Sprintf("%s://%s/raw/", u.Scheme, u.Hostname()))
+
+	var rawURL *url.URL
+	if hasSubdomainIsolation {
+		// With subdomain isolation: https://raw.hostname/
+		rawURL, err = url.Parse(fmt.Sprintf("%s://raw.%s/", u.Scheme, u.Hostname()))
+	} else {
+		// Without subdomain isolation: https://hostname/raw/
+		rawURL, err = url.Parse(fmt.Sprintf("%s://%s/raw/", u.Scheme, u.Hostname()))
+	}
 	if err != nil {
 		return apiHost{}, fmt.Errorf("failed to parse GHES Raw URL: %w", err)
 	}
@@ -378,6 +398,29 @@ func newGHESHost(hostname string) (apiHost, error) {
 		uploadURL:   uploadURL,
 		rawURL:      rawURL,
 	}, nil
+}
+
+// checkSubdomainIsolation detects if GitHub Enterprise Server has subdomain isolation enabled
+// by attempting to ping the raw.<host>/_ping endpoint on the subdomain. The raw subdomain must always exist for subdomain isolation.
+func checkSubdomainIsolation(scheme, hostname string) bool {
+	subdomainURL := fmt.Sprintf("%s://raw.%s/_ping", scheme, hostname)
+
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+		// Don't follow redirects - we just want to check if the endpoint exists
+		//nolint:revive // parameters are required by http.Client.CheckRedirect signature
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Get(subdomainURL)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode == http.StatusOK
 }
 
 // Note that this does not handle ports yet, so development environments are out.
