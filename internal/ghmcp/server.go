@@ -108,9 +108,8 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 
 	enabledToolsets, invalidToolsets := cleanToolsets(cfg.EnabledToolsets, cfg.DynamicToolsets)
 
-	// Log warning about invalid toolsets
 	if len(invalidToolsets) > 0 {
-		slog.Warn("invalid toolsets ignored", "toolsets", strings.Join(invalidToolsets, ", "))
+		fmt.Fprintf(os.Stderr, "Invalid toolsets ignored: %s\n", strings.Join(invalidToolsets, ", "))
 	}
 
 	// Generate instructions based on enabled toolsets
