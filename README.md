@@ -406,6 +406,7 @@ The following sets of tools are available:
 | ----------------------- | ------------------------------------------------------------- |
 | `copilot` | Copilot related tools (e.g. Copilot Coding Agent) |
 | `copilot_spaces` | Copilot Spaces related tools |
+| `github_support_docs_search` | Search docs to answer GitHub product and support questions |
 
 ## Tools
 
@@ -1194,6 +1195,14 @@ Possible options:
     -   `name`: The name of the space. (string, required)
 
 -   **list_copilot_spaces** - List Copilot Spaces
+</details>
+
+<details>
+
+<summary>GitHub Support Docs Search</summary>
+
+-   **github_support_docs_search** - Retrieve documentation relevant to answer GitHub product and support questions. Support topics include: GitHub Actions Workflows, Authentication, GitHub Support Inquiries, Pull Request Practices, Repository Maintenance, GitHub Pages, GitHub Packages, GitHub Discussions, Copilot Spaces
+    -   `query`: Input from the user about the question they need answered. This is the latest raw unedited user message. You should ALWAYS leave the user message as it is, you should never modify it. (string, required)
 </details>
 
 ## Dynamic Tool Discovery
