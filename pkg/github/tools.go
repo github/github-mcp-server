@@ -23,6 +23,14 @@ type ToolsetMetadata struct {
 }
 
 var (
+	ToolsetMetadataAll = ToolsetMetadata{
+		ID:          "all",
+		Description: "Special toolset that enables all available toolsets",
+	}
+	ToolsetMetadataDefault = ToolsetMetadata{
+		ID:          "default",
+		Description: "Special toolset that enables the default toolset configuration. When no toolsets are specified, this is the set that is enabled",
+	}
 	ToolsetMetadataContext = ToolsetMetadata{
 		ID:          "context",
 		Description: "Tools that provide context about the current user and GitHub context you are operating in",
@@ -123,6 +131,18 @@ func AvailableTools() []ToolsetMetadata {
 		ToolsetMetadataDynamic,
 		ToolsetLabels,
 	}
+}
+
+// GetValidToolsetIDs returns a map of all valid toolset IDs for quick lookup
+func GetValidToolsetIDs() map[string]bool {
+	validIDs := make(map[string]bool)
+	for _, tool := range AvailableTools() {
+		validIDs[tool.ID] = true
+	}
+	// Add special keywords
+	validIDs[ToolsetMetadataAll.ID] = true
+	validIDs[ToolsetMetadataDefault.ID] = true
+	return validIDs
 }
 
 func GetDefaultToolsetIDs() []string {
@@ -414,8 +434,14 @@ func GenerateToolsetsHelp() string {
 	availableTools := strings.Join(availableToolsLines, ",\n\t     ")
 
 	toolsetsHelp := fmt.Sprintf("Comma-separated list of tool groups to enable (no spaces).\n"+
-		"Default: %s\n"+
-		"Available: %s\n", defaultTools, availableTools) +
-		"To enable all tools, use \"all\"."
+		"Available: %s\n", availableTools) +
+		"Special toolset keywords:\n" +
+		"  - all: Enables all available toolsets\n" +
+		fmt.Sprintf("  - default: Enables the default toolset configuration of:\n\t     %s\n", defaultTools) +
+		"Examples:\n" +
+		"  - --toolsets=actions,gists,notifications\n" +
+		"  - Default + additional: --toolsets=default,actions,gists\n" +
+		"  - All tools: --toolsets=all"
+
 	return toolsetsHelp
 }
