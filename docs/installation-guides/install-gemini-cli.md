@@ -39,8 +39,25 @@ The simplest way is to use GitHub's hosted MCP server via our gemini extension.
 > [!NOTE]
 > You will still need to have a personal access token with the appropriate scopes called `GITHUB_MCP_PAT` in your environment.
 
+### Method 2: Manual Remote Server
 
-### Method 2: Local Docker
+You can also connect to the hosted MCP server directly. After securely storing your PAT, configure Gemini CLI with:
+
+```json
+// ~/.gemini/settings.json
+{
+    "mcpServers": {
+        "github": {
+            "httpUrl": "https://api.githubcopilot.com/mcp/",
+            "headers": {
+                "Authorization": "Bearer $GITHUB_MCP_PAT"
+            }
+        }
+    }
+}
+```
+
+### Method 3: Local Docker
 
 With docker running, you can run the GitHub MCP server in a container:
 
@@ -66,7 +83,7 @@ With docker running, you can run the GitHub MCP server in a container:
 }
 ```
 
-### Method 3: Binary
+### Method 4: Binary
 
 You can download the latest binary release from the [GitHub releases page](https://github.com/github/github-mcp-server/releases) or build it from source by running `go build -o github-mcp-server ./cmd/github-mcp-server`.
 
