@@ -30,7 +30,7 @@ After securely storing your PAT, you can add the GitHub MCP server configuration
 
 > **Note:** For the most up-to-date configuration options, see the [main README.md](../../README.md).
 
-### Method 1: Remote Server (Recommended)
+### Method 1: Gemini Extension (Recommended)
 
 The simplest way is to use GitHub's hosted MCP server via our gemini extension.
 
@@ -39,7 +39,7 @@ The simplest way is to use GitHub's hosted MCP server via our gemini extension.
 > [!NOTE]
 > You will still need to have a personal access token with the appropriate scopes called `GITHUB_MCP_PAT` in your environment.
 
-### Method 2: Manual Remote Server
+### Method 2: Remote Server
 
 You can also connect to the hosted MCP server directly. After securely storing your PAT, configure Gemini CLI with:
 
