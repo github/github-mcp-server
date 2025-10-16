@@ -299,7 +299,7 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, owner, re
 // CreatePullRequest creates a tool to create a new pull request.
 func CreatePullRequest(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("create_pull_request",
-			mcp.WithDescription(t("TOOL_CREATE_PULL_REQUEST_DESCRIPTION", "Create a new pull request in a GitHub repository.")),
+			mcp.WithDescription(t("TOOL_CREATE_PULL_REQUEST_DESCRIPTION", "Create a new pull request in a GitHub repository. If there is a PULL_REQUEST_TEMPLATE.md file in the repository, consider using it as a reference for the pull request description to follow repository conventions.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:        t("TOOL_CREATE_PULL_REQUEST_USER_TITLE", "Open new pull request"),
 				ReadOnlyHint: ToBoolPtr(false),
