@@ -237,10 +237,10 @@ func IssueRead(getClient GetClientFn, getGQLClient GetGQLClientFn, t translation
 				mcp.Required(),
 				mcp.Description(`The read operation to perform on a single issue. 
 Options are: 
-1. 'get' - get issue details
-2. 'get_comments' - get issue comments
-3. 'get_sub_issues' - list sub-issues of the issue
-4. 'get_labels' - list labels assigned to the issue
+1. get - Get details of a specific issue.
+2. get_comments - Get issue comments.
+3. get_sub_issues - Get sub-issues of the issue.
+4. get_labels - Get labels assigned to the issue.
 `),
 
 				mcp.Enum("get", "get_comments", "get_sub_issues", "get_labels"),
