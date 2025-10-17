@@ -3,7 +3,7 @@
     "title": "Add comment to issue",
     "readOnlyHint": false
   },
-  "description": "Add a comment to a specific issue in a GitHub repository.",
+  "description": "Add a comment to a specific issue in a GitHub repository. Use this tool to add comments to pull requests as well (in this case pass pull request number as issue_number), but only if user is not asking specifically to add review comments.",
   "inputSchema": {
     "properties": {
       "body": {

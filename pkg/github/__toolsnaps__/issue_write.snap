@@ -1,20 +1,20 @@
 {
   "annotations": {
-    "title": "Edit issue",
+    "title": "Create or update issue.",
     "readOnlyHint": false
   },
-  "description": "Update an existing issue in a GitHub repository.",
+  "description": "Create a new or update an existing issue in a GitHub repository.",
   "inputSchema": {
     "properties": {
       "assignees": {
-        "description": "New assignees",
+        "description": "Usernames to assign to this issue",
         "items": {
           "type": "string"
         },
         "type": "array"
       },
       "body": {
-        "description": "New description",
+        "description": "Issue body content",
         "type": "string"
       },
       "duplicate_of": {
@@ -26,14 +26,22 @@
         "type": "number"
       },
       "labels": {
-        "description": "New labels",
+        "description": "Labels to apply to this issue",
         "items": {
           "type": "string"
         },
         "type": "array"
       },
+      "method": {
+        "description": "Write operation to perform on a single issue.\nOptions are: \n- 'create' - creates a new issue. \n- 'update' - updates an existing issue.\n",
+        "enum": [
+          "create",
+          "update"
+        ],
+        "type": "string"
+      },
       "milestone": {
-        "description": "New milestone number",
+        "description": "Milestone number",
         "type": "number"
       },
       "owner": {
@@ -62,20 +70,20 @@
         "type": "string"
       },
       "title": {
-        "description": "New title",
+        "description": "Issue title",
         "type": "string"
       },
       "type": {
-        "description": "New issue type",
+        "description": "Type of this issue",
         "type": "string"
       }
     },
     "required": [
+      "method",
       "owner",
-      "repo",
-      "issue_number"
+      "repo"
     ],
     "type": "object"
   },
-  "name": "update_issue"
+  "name": "issue_write"
 }
