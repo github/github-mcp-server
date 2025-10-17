@@ -38,7 +38,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
@@ -52,13 +52,13 @@ jobs:
             threat-models: [  ]
       - name: Setup proxy for registries
         id: proxy
-        uses: github/codeql-action/start-proxy@v3
+        uses: github/codeql-action/start-proxy@v4
         with:
           registries_credentials: ${{ secrets.GITHUB_REGISTRIES_PROXY }}
           language: ${{ matrix.language }}
 
       - name: Configure
-        uses: github/codeql-action/resolve-environment@v3
+        uses: github/codeql-action/resolve-environment@v4
         id: resolve-environment
         with:
           language: ${{ matrix.language }}
@@ -70,10 +70,10 @@ jobs:
           cache: false
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@v4
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         env:
           CODEQL_PROXY_HOST: ${{ steps.proxy.outputs.proxy_host }}
           CODEQL_PROXY_PORT: ${{ steps.proxy.outputs.proxy_port }}
