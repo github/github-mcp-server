@@ -580,10 +580,10 @@ The following sets of tools are available (all are on by default):
   - `issue_number`: The number of the issue (number, required)
   - `method`: The read operation to perform on a single issue. 
 Options are: 
-1. 'get' - get issue details
-2. 'get_comments' - get issue comments
-3. 'get_sub_issues' - list sub-issues of the issue
-4. 'get_labels' - list labels assigned to the issue
+1. get - Get details of a specific issue.
+2. get_comments - Get issue comments.
+3. get_sub_issues - Get sub-issues of the issue.
+4. get_labels - Get labels assigned to the issue.
  (string, required)
   - `owner`: The owner of the repository (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -836,8 +836,9 @@ Possible options:
  2. get_diff - Get the diff of a pull request.
  3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
  4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
- 5. get_review_comments - Get the review comments on a pull request. They are comments made on a portion of the unified diff during a pull request review. These are different from commit comments and issue comments in a pull request. Use with pagination parameters to control the number of results returned.
+ 5. get_review_comments - Get the review comments on a pull request. They are comments made on a portion of the unified diff during a pull request review. Use with pagination parameters to control the number of results returned.
  6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
+ 7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
  (string, required)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)

@@ -11,7 +11,7 @@
         "type": "number"
       },
       "method": {
-        "description": "The read operation to perform on a single issue. \nOptions are: \n1. 'get' - get issue details\n2. 'get_comments' - get issue comments\n3. 'get_sub_issues' - list sub-issues of the issue\n4. 'get_labels' - list labels assigned to the issue\n",
+        "description": "The read operation to perform on a single issue. \nOptions are: \n1. get - Get details of a specific issue.\n2. get_comments - Get issue comments.\n3. get_sub_issues - Get sub-issues of the issue.\n4. get_labels - Get labels assigned to the issue.\n",
         "enum": [
           "get",
           "get_comments",
