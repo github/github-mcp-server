@@ -408,6 +408,80 @@ func AddIssueComment(getClient GetClientFn, t translations.TranslationHelperFunc
 		}
 }
 
+// UpdateIssueComment creates a tool to update a previously added comment to an issue.
+func UpdateIssueComment(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("update_issue_comment",
+			mcp.WithDescription(t("TOOL_UPDATE_ISSUE_COMMENT_DESCRIPTION", "Update a previously added comment to a specific issue in a GitHub repository.")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_UPDATE_ISSUE_COMMENT_USER_TITLE", "Update a previously added comment to an issue"),
+				ReadOnlyHint: ToBoolPtr(false),
+			}),
+			mcp.WithNumber("comment_id",
+				mcp.Required(),
+				mcp.Description("ID of the comment to update"),
+			),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithString("body",
+				mcp.Required(),
+				mcp.Description("Comment content"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := RequiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			repo, err := RequiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			body, err := RequiredParam[string](request, "body")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			commentID, err := RequiredInt(request, "comment_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			comment := &github.IssueComment{
+				Body: github.Ptr(body),
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+			updatedComment, resp, err := client.Issues.EditComment(ctx, owner, repo, int64(commentID), comment)
+			if err != nil {
+				return nil, fmt.Errorf("failed to update comment: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to update comment: %s", string(body))), nil
+			}
+
+			r, err := json.Marshal(updatedComment)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
 // AddSubIssue creates a tool to add a sub-issue to a parent issue.
 func AddSubIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("add_sub_issue",
