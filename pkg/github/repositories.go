@@ -634,7 +634,7 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 					}
 					return mcp.NewToolResultResource("successfully downloaded binary file", result), nil
 				}
-				rawAPIResponseCode = resp.StatusCode
+				return mcp.NewToolResultText(fmt.Sprintf("Raw API Response: %+v", resp)), nil
 			}
 
 			if rawOpts.SHA != "" {
