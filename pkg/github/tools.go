@@ -314,6 +314,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	gists := toolsets.NewToolset(ToolsetMetadataGists.ID, ToolsetMetadataGists.Description).
 		AddReadTools(
 			toolsets.NewServerTool(ListGists(getClient, t)),
+			toolsets.NewServerTool(GetGist(getClient, t)),
 		).
 		AddWriteTools(
 			toolsets.NewServerTool(CreateGist(getClient, t)),
