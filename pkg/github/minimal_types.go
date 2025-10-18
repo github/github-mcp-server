@@ -134,6 +134,8 @@ type MinimalProject struct {
 type MinimalProjectItem struct {
 	ID            *int64            `json:"id,omitempty"`
 	NodeID        *string           `json:"node_id,omitempty"`
+	Title         *string           `json:"title,omitempty"`
+	Description   *string           `json:"description,omitempty"`
 	ProjectNodeID *string           `json:"project_node_id,omitempty"`
 	ContentNodeID *string           `json:"content_node_id,omitempty"`
 	ProjectURL    *string           `json:"project_url,omitempty"`
@@ -192,6 +194,8 @@ func convertToMinimalProjectItem(item *projectV2Item) *MinimalProjectItem {
 	return &MinimalProjectItem{
 		ID:            item.ID,
 		NodeID:        item.NodeID,
+		Title:         item.Title,
+		Description:   item.Description,
 		ProjectNodeID: item.ProjectNodeID,
 		ContentNodeID: item.ContentNodeID,
 		ProjectURL:    item.ProjectURL,
