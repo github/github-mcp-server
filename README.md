@@ -82,6 +82,7 @@ Alternatively, to manually configure VS Code, choose the appropriate JSON block 
 - **[Claude Applications](/docs/installation-guides/install-claude.md)** - Installation guide for Claude Web, Claude Desktop and Claude Code CLI
 - **[Cursor](/docs/installation-guides/install-cursor.md)** - Installation guide for Cursor IDE
 - **[Windsurf](/docs/installation-guides/install-windsurf.md)** - Installation guide for Windsurf IDE
+- **[Rovo Dev CLI](/docs/installation-guides/install-rovo-dev-cli.md)** - Installation guide for Rovo Dev CLI
 
 > **Note:** Each MCP host application needs to configure a GitHub App or OAuth App to support remote access via OAuth. Any host application that supports remote MCP servers should support the remote GitHub server with PAT authentication. Configuration details and support levels vary by host. Make sure to refer to the host application's documentation for more info.
 
