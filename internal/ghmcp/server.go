@@ -106,15 +106,10 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 		},
 	}
 
-	enabledToolsets := cfg.EnabledToolsets
-	if cfg.DynamicToolsets {
-		// filter "all" from the enabled toolsets
-		enabledToolsets = make([]string, 0, len(cfg.EnabledToolsets))
-		for _, toolset := range cfg.EnabledToolsets {
-			if toolset != "all" {
-				enabledToolsets = append(enabledToolsets, toolset)
-			}
-		}
+	enabledToolsets, invalidToolsets := cleanToolsets(cfg.EnabledToolsets, cfg.DynamicToolsets)
+
+	if len(invalidToolsets) > 0 {
+		fmt.Fprintf(os.Stderr, "Invalid toolsets ignored: %s\n", strings.Join(invalidToolsets, ", "))
 	}
 
 	// Generate instructions based on enabled toolsets
@@ -469,4 +464,58 @@ func (t *bearerAuthTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	req = req.Clone(req.Context())
 	req.Header.Set("Authorization", "Bearer "+t.token)
 	return t.transport.RoundTrip(req)
+}
+
+// cleanToolsets cleans and handles special toolset keywords:
+// - Duplicates are removed from the result
+// - Removes whitespaces
+// - Validates toolset names and returns invalid ones separately
+// - "all": Returns ["all"] immediately, ignoring all other toolsets
+// - when dynamicToolsets is true, filters out "all" from the enabled toolsets
+// - "default": Replaces with the actual default toolset IDs from GetDefaultToolsetIDs()
+// Returns: (validToolsets, invalidToolsets)
+func cleanToolsets(enabledToolsets []string, dynamicToolsets bool) ([]string, []string) {
+	seen := make(map[string]bool)
+	result := make([]string, 0, len(enabledToolsets))
+	invalid := make([]string, 0)
+	validIDs := github.GetValidToolsetIDs()
+
+	// Add non-default toolsets, removing duplicates and trimming whitespace
+	for _, toolset := range enabledToolsets {
+		trimmed := strings.TrimSpace(toolset)
+		if trimmed == "" {
+			continue
+		}
+		if !seen[trimmed] {
+			seen[trimmed] = true
+			if trimmed != github.ToolsetMetadataDefault.ID && trimmed != github.ToolsetMetadataAll.ID {
+				// Validate the toolset name
+				if validIDs[trimmed] {
+					result = append(result, trimmed)
+				} else {
+					invalid = append(invalid, trimmed)
+				}
+			}
+		}
+	}
+
+	hasDefault := seen[github.ToolsetMetadataDefault.ID]
+	hasAll := seen[github.ToolsetMetadataAll.ID]
+
+	// Handle "all" keyword - return early if not in dynamic mode
+	if hasAll && !dynamicToolsets {
+		return []string{github.ToolsetMetadataAll.ID}, invalid
+	}
+
+	// Expand "default" keyword to actual default toolsets
+	if hasDefault {
+		for _, defaultToolset := range github.GetDefaultToolsetIDs() {
+			if !seen[defaultToolset] {
+				result = append(result, defaultToolset)
+				seen[defaultToolset] = true
+			}
+		}
+	}
+
+	return result, invalid
 }

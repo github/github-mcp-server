@@ -87,16 +87,11 @@ Alternatively, to manually configure VS Code, choose the appropriate JSON block 
 
 ### Configuration
 
-#### Default toolset configuration
-
-The default configuration is:
-- context
-- repos
-- issues
-- pull_requests
-- users
+#### Toolset configuration
 
 See [Remote Server Documentation](docs/remote-server.md) for full details on remote server configuration, toolsets, headers, and advanced usage. This file provides comprehensive instructions and examples for connecting, customizing, and installing the remote GitHub MCP Server in VS Code and other MCP hosts.
+
+When no toolsets are specified, [default toolsets](#default-toolset) are used.
 
 #### Enterprise Cloud with data residency (ghe.com)
 
@@ -329,7 +324,7 @@ The GitHub MCP Server supports enabling or disabling specific groups of function
 
 _Toolsets are not limited to Tools. Relevant MCP Resources and Prompts are also included where applicable._
 
-The Local GitHub MCP Server follows the same [default toolset configuration](#default-toolset-configuration) as the remote version.
+When no toolsets are specified, [default toolsets](#default-toolset) are used.
 
 #### Specifying Toolsets
 
@@ -359,7 +354,9 @@ docker run -i --rm \
   ghcr.io/github/github-mcp-server
 ```
 
-### The "all" Toolset
+### Special toolsets
+
+#### "all" toolset
 
 The special toolset `all` can be provided to enable all available toolsets regardless of any other configuration:
 
@@ -371,6 +368,22 @@ Or using the environment variable:
 
 ```bash
 GITHUB_TOOLSETS="all" ./github-mcp-server
+```
+
+#### "default" toolset
+The default toolset `default` is the configuration that gets passed to the server if no toolsets are specified.
+
+The default configuration is:
+- context
+- repos
+- issues
+- pull_requests
+- users
+
+To keep the default configuration and add additional toolsets:
+
+```bash
+GITHUB_TOOLSETS="default,stargazers" ./github-mcp-server
 ```
 
 ### Available Toolsets
