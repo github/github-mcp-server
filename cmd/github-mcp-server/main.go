@@ -1,11 +1,11 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/github/github-mcp-server/internal/auth"
 	"github.com/github/github-mcp-server/internal/ghmcp"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/spf13/cobra"
@@ -31,9 +31,17 @@ var (
 		Short: "Start stdio server",
 		Long:  `Start a server that communicates via standard input/output streams using JSON-RPC messages.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			token := viper.GetString("personal_access_token")
-			if token == "" {
-				return errors.New("GITHUB_PERSONAL_ACCESS_TOKEN not set")
+			// Load authentication configuration (supports both PAT and GitHub App)
+			authType, token, err := auth.LoadAuthConfigFromEnv()
+			if err != nil {
+				return fmt.Errorf("authentication error: %w", err)
+			}
+
+			// Log which authentication method is being used
+			if authType == "github-app" {
+				fmt.Fprintf(os.Stderr, "[github-mcp-server] Using GitHub App authentication\n")
+			} else {
+				fmt.Fprintf(os.Stderr, "[github-mcp-server] Using Personal Access Token authentication\n")
 			}
 
 			// If you're wondering why we're not using viper.GetStringSlice("toolsets"),
