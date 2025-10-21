@@ -106,7 +106,24 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 		},
 	}
 
-	enabledToolsets, invalidToolsets := cleanToolsets(cfg.EnabledToolsets, cfg.DynamicToolsets)
+	enabledToolsets := cfg.EnabledToolsets
+
+	// If dynamic toolsets are enabled, remove "all" from the enabled toolsets
+	if cfg.DynamicToolsets {
+		enabledToolsets = github.RemoveToolset(enabledToolsets, github.ToolsetMetadataAll.ID)
+	}
+
+	// Clean up the passed toolsets
+	enabledToolsets, invalidToolsets := github.CleanToolsets(enabledToolsets)
+
+	// If "all" is present, override all other toolsets
+	if github.ContainsToolset(enabledToolsets, github.ToolsetMetadataAll.ID) {
+		enabledToolsets = []string{github.ToolsetMetadataAll.ID}
+	}
+	// If "default" is present, expand to real toolset IDs
+	if github.ContainsToolset(enabledToolsets, github.ToolsetMetadataDefault.ID) {
+		enabledToolsets = github.AddDefaultToolset(enabledToolsets)
+	}
 
 	if len(invalidToolsets) > 0 {
 		fmt.Fprintf(os.Stderr, "Invalid toolsets ignored: %s\n", strings.Join(invalidToolsets, ", "))
@@ -464,58 +481,4 @@ func (t *bearerAuthTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	req = req.Clone(req.Context())
 	req.Header.Set("Authorization", "Bearer "+t.token)
 	return t.transport.RoundTrip(req)
-}
-
-// cleanToolsets cleans and handles special toolset keywords:
-// - Duplicates are removed from the result
-// - Removes whitespaces
-// - Validates toolset names and returns invalid ones separately
-// - "all": Returns ["all"] immediately, ignoring all other toolsets
-// - when dynamicToolsets is true, filters out "all" from the enabled toolsets
-// - "default": Replaces with the actual default toolset IDs from GetDefaultToolsetIDs()
-// Returns: (validToolsets, invalidToolsets)
-func cleanToolsets(enabledToolsets []string, dynamicToolsets bool) ([]string, []string) {
-	seen := make(map[string]bool)
-	result := make([]string, 0, len(enabledToolsets))
-	invalid := make([]string, 0)
-	validIDs := github.GetValidToolsetIDs()
-
-	// Add non-default toolsets, removing duplicates and trimming whitespace
-	for _, toolset := range enabledToolsets {
-		trimmed := strings.TrimSpace(toolset)
-		if trimmed == "" {
-			continue
-		}
-		if !seen[trimmed] {
-			seen[trimmed] = true
-			if trimmed != github.ToolsetMetadataDefault.ID && trimmed != github.ToolsetMetadataAll.ID {
-				// Validate the toolset name
-				if validIDs[trimmed] {
-					result = append(result, trimmed)
-				} else {
-					invalid = append(invalid, trimmed)
-				}
-			}
-		}
-	}
-
-	hasDefault := seen[github.ToolsetMetadataDefault.ID]
-	hasAll := seen[github.ToolsetMetadataAll.ID]
-
-	// Handle "all" keyword - return early if not in dynamic mode
-	if hasAll && !dynamicToolsets {
-		return []string{github.ToolsetMetadataAll.ID}, invalid
-	}
-
-	// Expand "default" keyword to actual default toolsets
-	if hasDefault {
-		for _, defaultToolset := range github.GetDefaultToolsetIDs() {
-			if !seen[defaultToolset] {
-				result = append(result, defaultToolset)
-				seen[defaultToolset] = true
-			}
-		}
-	}
-
-	return result, invalid
 }
