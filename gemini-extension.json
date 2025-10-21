@@ -1,6 +1,7 @@
 {
 	"name": "github",
 	"version": "1.0.0",
+	"description": "Connect Gemini CLI to GitHub - manage repos, issues, PRs, and workflows through natural language.",
 	"mcpServers": {
 		"github": {
 			"description": "Connect AI assistants to GitHub - manage repos, issues, PRs, and workflows through natural language.",
