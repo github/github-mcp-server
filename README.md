@@ -87,16 +87,32 @@ Alternatively, to manually configure VS Code, choose the appropriate JSON block 
 
 ### Configuration
 
-#### Default toolset configuration
-
-The default configuration is:
-- context
-- repos
-- issues
-- pull_requests
-- users
+#### Toolset configuration
 
 See [Remote Server Documentation](docs/remote-server.md) for full details on remote server configuration, toolsets, headers, and advanced usage. This file provides comprehensive instructions and examples for connecting, customizing, and installing the remote GitHub MCP Server in VS Code and other MCP hosts.
+
+When no toolsets are specified, [default toolsets](#default-toolset) are used.
+
+#### Enterprise Cloud with data residency (ghe.com)
+
+GitHub Enterprise Cloud can also make use of the remote server.
+
+Example for `https://octocorp.ghe.com`:
+```
+{
+    ...
+    "proxima-github": {
+      "type": "http",
+      "url": "https://copilot-api.octocorp.ghe.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${input:github_mcp_pat}"
+      }
+    },
+    ...
+}
+```
+
+GitHub Enterprise Server does not support remote server hosting. Please refer to [GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)](#github-enterprise-server-and-enterprise-cloud-with-data-residency-ghecom) from the local server configuration.
 
 ---
 
@@ -159,6 +175,33 @@ To keep your GitHub PAT secure and reusable across different MCP hosts:
   ```
 
 </details>
+
+### GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)
+
+The flag `--gh-host` and the environment variable `GITHUB_HOST` can be used to set
+the hostname for GitHub Enterprise Server or GitHub Enterprise Cloud with data residency.
+
+- For GitHub Enterprise Server, prefix the hostname with the `https://` URI scheme, as it otherwise defaults to `http://`, which GitHub Enterprise Server does not support.
+- For GitHub Enterprise Cloud with data residency, use `https://YOURSUBDOMAIN.ghe.com` as the hostname.
+``` json
+"github": {
+    "command": "docker",
+    "args": [
+    "run",
+    "-i",
+    "--rm",
+    "-e",
+    "GITHUB_PERSONAL_ACCESS_TOKEN",
+    "-e",
+    "GITHUB_HOST",
+    "ghcr.io/github/github-mcp-server"
+    ],
+    "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}",
+        "GITHUB_HOST": "https://<your GHES or ghe.com domain name>"
+    }
+}
+```
 
 ## Installation
 
@@ -281,7 +324,7 @@ The GitHub MCP Server supports enabling or disabling specific groups of function
 
 _Toolsets are not limited to Tools. Relevant MCP Resources and Prompts are also included where applicable._
 
-The Local GitHub MCP Server follows the same [default toolset configuration](#default-toolset-configuration) as the remote version.
+When no toolsets are specified, [default toolsets](#default-toolset) are used.
 
 #### Specifying Toolsets
 
@@ -311,7 +354,9 @@ docker run -i --rm \
   ghcr.io/github/github-mcp-server
 ```
 
-### The "all" Toolset
+### Special toolsets
+
+#### "all" toolset
 
 The special toolset `all` can be provided to enable all available toolsets regardless of any other configuration:
 
@@ -325,9 +370,25 @@ Or using the environment variable:
 GITHUB_TOOLSETS="all" ./github-mcp-server
 ```
 
+#### "default" toolset
+The default toolset `default` is the configuration that gets passed to the server if no toolsets are specified.
+
+The default configuration is:
+- context
+- repos
+- issues
+- pull_requests
+- users
+
+To keep the default configuration and add additional toolsets:
+
+```bash
+GITHUB_TOOLSETS="default,stargazers" ./github-mcp-server
+```
+
 ### Available Toolsets
 
-The following sets of tools are available (all are on by default):
+The following sets of tools are available:
 
 <!-- START AUTOMATED TOOLSETS -->
 | Toolset                 | Description                                                   |
@@ -351,6 +412,14 @@ The following sets of tools are available (all are on by default):
 | `stargazers` | GitHub Stargazers related tools |
 | `users` | GitHub User related tools |
 <!-- END AUTOMATED TOOLSETS -->
+
+### Additional Toolsets in Remote Github MCP Server
+
+| Toolset                 | Description                                                   |
+| ----------------------- | ------------------------------------------------------------- |
+| `copilot` | Copilot related tools (e.g. Copilot Coding Agent) |
+| `copilot_spaces` | Copilot Spaces related tools |
+| `github_support_docs_search` | Search docs to answer GitHub product and support questions |
 
 ## Tools
 
@@ -1098,7 +1167,7 @@ Possible options:
 
 <details>
 
-<summary>Copilot coding agent</summary>
+<summary>Copilot</summary>
 
 -   **create_pull_request_with_copilot** - Perform task with GitHub Copilot coding agent
     -   `owner`: Repository owner. You can guess the owner, but confirm it with the user before proceeding. (string, required)
@@ -1118,6 +1187,14 @@ Possible options:
     -   `name`: The name of the space. (string, required)
 
 -   **list_copilot_spaces** - List Copilot Spaces
+</details>
+
+<details>
+
+<summary>GitHub Support Docs Search</summary>
+
+-   **github_support_docs_search** - Retrieve documentation relevant to answer GitHub product and support questions. Support topics include: GitHub Actions Workflows, Authentication, GitHub Support Inquiries, Pull Request Practices, Repository Maintenance, GitHub Pages, GitHub Packages, GitHub Discussions, Copilot Spaces
+    -   `query`: Input from the user about the question they need answered. This is the latest raw unedited user message. You should ALWAYS leave the user message as it is, you should never modify it. (string, required)
 </details>
 
 ## Dynamic Tool Discovery
@@ -1158,33 +1235,6 @@ docker run -i --rm \
   -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
   -e GITHUB_READ_ONLY=1 \
   ghcr.io/github/github-mcp-server
-```
-
-## GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)
-
-The flag `--gh-host` and the environment variable `GITHUB_HOST` can be used to set
-the hostname for GitHub Enterprise Server or GitHub Enterprise Cloud with data residency.
-
-- For GitHub Enterprise Server, prefix the hostname with the `https://` URI scheme, as it otherwise defaults to `http://`, which GitHub Enterprise Server does not support.
-- For GitHub Enterprise Cloud with data residency, use `https://YOURSUBDOMAIN.ghe.com` as the hostname.
-``` json
-"github": {
-    "command": "docker",
-    "args": [
-    "run",
-    "-i",
-    "--rm",
-    "-e",
-    "GITHUB_PERSONAL_ACCESS_TOKEN",
-    "-e",
-    "GITHUB_HOST",
-    "ghcr.io/github/github-mcp-server"
-    ],
-    "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}",
-        "GITHUB_HOST": "https://<your GHES or ghe.com domain name>"
-    }
-}
 ```
 
 ## i18n / Overriding Descriptions
