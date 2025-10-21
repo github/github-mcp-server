@@ -30,3 +30,4 @@ jobs:
 
       - name: Build
         run: go build -v ./cmd/github-mcp-server
+        
