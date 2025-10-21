@@ -502,7 +502,7 @@ func CleanToolsets(enabledToolsets []string) ([]string, []string) {
 }
 
 func RemoveToolset(tools []string, toRemove string) []string {
-	result := []string{}
+	result := make([]string, 0, len(tools))
 	for _, tool := range tools {
 		if tool != toRemove {
 			result = append(result, tool)
