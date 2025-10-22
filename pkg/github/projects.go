@@ -76,7 +76,8 @@ func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (
 			projects := []github.ProjectV2{}
 			minimalProjects := []MinimalProject{}
 
-			opts := listProjectsOptions{PerPage: perPage}
+			opts := listProjectsOptions{}
+			opts.PerPage = perPage
 
 			if queryStr != "" {
 				opts.Query = queryStr
@@ -257,7 +258,9 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 			}
 			projectFields := []projectV2Field{}
 
-			opts := listProjectsOptions{PerPage: perPage}
+			opts := paginationOptions{}
+			opts.PerPage = perPage
+
 			url, err = addOptions(url, opts)
 			if err != nil {
 				return nil, fmt.Errorf("failed to add options to request: %w", err)
@@ -402,6 +405,10 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 			mcp.WithNumber("per_page",
 				mcp.Description("Number of results per page (max 100, default: 30)"),
 			),
+			mcp.WithArray("fields",
+				mcp.Description("Specific list of field IDs to include in the response (e.g. [\"102589\", \"985201\", \"169875\"]). If not provided, only the title field is included."),
+				mcp.WithStringItems(),
+			),
 		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](req, "owner")
 			if err != nil {
@@ -423,6 +430,11 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+			fields, err := OptionalStringArrayParam(req, "fields")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
 			client, err := getClient(ctx)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
@@ -436,10 +448,17 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 			}
 			projectItems := []projectV2Item{}
 
-			opts := listProjectsOptions{PerPage: perPage}
+			opts := listProjectItemsOptions{}
+			opts.PerPage = perPage
+
 			if queryStr != "" {
 				opts.Query = queryStr
 			}
+
+			if len(fields) > 0 {
+				opts.Fields = fields
+			}
+
 			url, err = addOptions(url, opts)
 			if err != nil {
 				return nil, fmt.Errorf("failed to add options to request: %w", err)
@@ -504,6 +523,10 @@ func GetProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 				mcp.Required(),
 				mcp.Description("The item's ID."),
 			),
+			mcp.WithArray("fields",
+				mcp.Description("Specific list of field IDs to include in the response (e.g. [\"102589\", \"985201\", \"169875\"]). If not provided, only the title field is included."),
+				mcp.WithStringItems(),
+			),
 		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](req, "owner")
 			if err != nil {
@@ -521,6 +544,10 @@ func GetProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+			fields, err := OptionalStringArrayParam(req, "fields")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
 
 			client, err := getClient(ctx)
 			if err != nil {
@@ -533,6 +560,18 @@ func GetProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 			} else {
 				url = fmt.Sprintf("users/%s/projectsV2/%d/items/%d", owner, projectNumber, itemID)
 			}
+
+			opts := fieldSelectionOptions{}
+
+			if len(fields) > 0 {
+				opts.Fields = fields
+			}
+
+			url, err = addOptions(url, opts)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
 			projectItem := projectV2Item{}
 
 			httpRequest, err := client.NewRequest("GET", url, nil)
@@ -877,21 +916,53 @@ type projectV2Field struct {
 	UpdatedAt *github.Timestamp `json:"updated_at,omitempty"` // The time when this field was last updated.
 }
 
+type projectV2ItemFieldValue struct {
+	ID       *int64      `json:"id,omitempty"`        // The unique identifier for this field.
+	Name     string      `json:"name,omitempty"`      // The display name of the field.
+	DataType string      `json:"data_type,omitempty"` // The data type of the field (e.g., "text", "number", "date", "single_select", "multi_select").
+	Value    interface{} `json:"value,omitempty"`     // The value of the field for a specific project item.
+}
+
 type projectV2Item struct {
-	ID            *int64            `json:"id,omitempty"`
-	Title         *string           `json:"title,omitempty"`
-	Description   *string           `json:"description,omitempty"`
-	NodeID        *string           `json:"node_id,omitempty"`
-	ProjectNodeID *string           `json:"project_node_id,omitempty"`
-	ContentNodeID *string           `json:"content_node_id,omitempty"`
-	ProjectURL    *string           `json:"project_url,omitempty"`
-	ContentType   *string           `json:"content_type,omitempty"`
-	Creator       *github.User      `json:"creator,omitempty"`
-	CreatedAt     *github.Timestamp `json:"created_at,omitempty"`
-	UpdatedAt     *github.Timestamp `json:"updated_at,omitempty"`
-	ArchivedAt    *github.Timestamp `json:"archived_at,omitempty"`
-	ItemURL       *string           `json:"item_url,omitempty"`
-	Fields        []*projectV2Field `json:"fields,omitempty"`
+	ID            *int64                     `json:"id,omitempty"`
+	Title         *string                    `json:"title,omitempty"`
+	Description   *string                    `json:"description,omitempty"`
+	NodeID        *string                    `json:"node_id,omitempty"`
+	ProjectNodeID *string                    `json:"project_node_id,omitempty"`
+	ContentNodeID *string                    `json:"content_node_id,omitempty"`
+	ProjectURL    *string                    `json:"project_url,omitempty"`
+	ContentType   *string                    `json:"content_type,omitempty"`
+	Creator       *github.User               `json:"creator,omitempty"`
+	CreatedAt     *github.Timestamp          `json:"created_at,omitempty"`
+	UpdatedAt     *github.Timestamp          `json:"updated_at,omitempty"`
+	ArchivedAt    *github.Timestamp          `json:"archived_at,omitempty"`
+	ItemURL       *string                    `json:"item_url,omitempty"`
+	Fields        []*projectV2ItemFieldValue `json:"fields,omitempty"`
+}
+
+type paginationOptions struct {
+	PerPage int `url:"per_page,omitempty"`
+}
+
+type filterQueryOptions struct {
+	Query string `url:"q,omitempty"`
+}
+
+type fieldSelectionOptions struct {
+	// Specific list of field IDs to include in the response. If not provided, only the title field is included.
+	// Example: fields=102589,985201,169875 or fields[]=102589&fields[]=985201&fields[]=169875
+	Fields []string `url:"fields,omitempty"`
+}
+
+type listProjectsOptions struct {
+	paginationOptions
+	filterQueryOptions
+}
+
+type listProjectItemsOptions struct {
+	paginationOptions
+	filterQueryOptions
+	fieldSelectionOptions
 }
 
 func toNewProjectType(projType string) string {
@@ -903,14 +974,6 @@ func toNewProjectType(projType string) string {
 	default:
 		return ""
 	}
-}
-
-type listProjectsOptions struct {
-	// For paginated result sets, the number of results to include per page.
-	PerPage int `url:"per_page,omitempty"`
-
-	// Query Limit results to projects of the specified type.
-	Query string `url:"q,omitempty"`
 }
 
 func buildUpdateProjectItem(input map[string]any) (*updateProjectItem, error) {
@@ -957,4 +1020,57 @@ func addOptions(s string, opts any) (string, error) {
 
 	u.RawQuery = qs.Encode()
 	return u.String(), nil
+}
+
+func ManageProjectItemsPrompt(t translations.TranslationHelperFunc) (tool mcp.Prompt, handler server.PromptHandlerFunc) {
+	return mcp.NewPrompt("ManageProjectItems",
+			mcp.WithPromptDescription(t("PROMPT_MANAGE_PROJECT_ITEMS_DESCRIPTION", "Guide for working with GitHub Projects, including listing projects, viewing fields, querying items, and updating field values.")),
+			mcp.WithArgument("owner", mcp.ArgumentDescription("The owner of the project (user or organization name)"), mcp.RequiredArgument()),
+			mcp.WithArgument("owner_type", mcp.ArgumentDescription("Type of owner: 'user' or 'org'"), mcp.RequiredArgument()),
+		), func(_ context.Context, request mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+			owner := request.Params.Arguments["owner"]
+			ownerType := request.Params.Arguments["owner_type"]
+
+			messages := []mcp.PromptMessage{
+				{
+					Role:    "user",
+					Content: mcp.NewTextContent("You are an assistant helping users work with GitHub Projects (Projects V2). Your role is to help them discover projects, understand project fields, query items, and update field values on project items."),
+				},
+				{
+					Role:    "user",
+					Content: mcp.NewTextContent(fmt.Sprintf("I want to work with projects owned by %s (owner_type: %s). Please help me understand what projects are available.", owner, ownerType)),
+				},
+				{
+					Role:    "assistant",
+					Content: mcp.NewTextContent(fmt.Sprintf("I'll help you explore the projects for %s. Let me start by listing the available projects.", owner)),
+				},
+				{
+					Role:    "user",
+					Content: mcp.NewTextContent("Great! Once you show me the projects, I'd like to understand the fields available in a specific project."),
+				},
+				{
+					Role:    "assistant",
+					Content: mcp.NewTextContent("Perfect! After showing you the projects, I can help you:\n\n1. 📋 List all fields in a project (using `list_project_fields`)\n2. 🔍 Get details about specific fields including their IDs, data types, and options\n3. 📊 Query project items with specific field values (using `list_project_items`)\n\nIMPORTANT: When querying project items, you must provide a list of field IDs in the 'fields' parameter to access field values. For example: fields=[\"198354254\", \"198354255\"] to get Status and Assignees. Without this parameter, only the title field is returned."),
+				},
+				{
+					Role:    "user",
+					Content: mcp.NewTextContent("How do I update field values on project items?"),
+				},
+				{
+					Role:    "assistant",
+					Content: mcp.NewTextContent("To update field values on project items, you'll use the `update_project_item` tool. Here's what you need to know:\n\n1. **Get the item_id**: Use `list_project_items` to find the internal project item ID (not the issue/PR number)\n2. **Get the field_id**: Use `list_project_fields` to find the ID of the field you want to update\n3. **Update the field**: Call `update_project_item` with:\n   - project_number: The project's number\n   - item_id: The internal project item ID\n   - updated_field: An object with {\"id\": <field_id>, \"value\": <new_value>}\n\nFor single_select fields, the value should be the option name (e.g., \"In Progress\").\nFor text fields, provide a string value.\nFor number fields, provide a numeric value.\nTo clear a field, set \"value\" to null."),
+				},
+				{
+					Role:    "user",
+					Content: mcp.NewTextContent("Can you give me an example workflow for finding items and updating their status?"),
+				},
+				{
+					Role:    "assistant",
+					Content: mcp.NewTextContent(fmt.Sprintf("Absolutely! Here's a complete workflow:\n\n**Step 1: Find your project**\nUse `list_projects` with owner=\"%s\" and owner_type=\"%s\"\n\n**Step 2: Get the Status field ID**\nUse `list_project_fields` with the project_number from step 1\nLook for the field with name=\"Status\" and note its ID (e.g., 198354254)\n\n**Step 3: Query items with the Status field**\nUse `list_project_items` with fields=[\"198354254\"] to see current status values\nOptionally add a query parameter to filter items (e.g., query=\"assignee:@me\")\n\n**Step 4: Update an item's status**\nUse `update_project_item` with:\n- item_id: The ID from the item you want to update\n- updated_field: {\"id\": 198354254, \"value\": \"In Progress\"}\n\nLet me start by listing your projects now.", owner, ownerType)),
+				},
+			}
+			return &mcp.GetPromptResult{
+				Messages: messages,
+			}, nil
+		}
 }
