@@ -76,12 +76,11 @@ func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (
 			projects := []github.ProjectV2{}
 			minimalProjects := []MinimalProject{}
 
-			opts := listProjectsOptions{}
-			opts.PerPage = perPage
-
-			if queryStr != "" {
-				opts.Query = queryStr
+			opts := listProjectsOptions{
+				paginationOptions:  paginationOptions{PerPage: perPage},
+				filterQueryOptions: filterQueryOptions{Query: queryStr},
 			}
+
 			url, err = addOptions(url, opts)
 			if err != nil {
 				return nil, fmt.Errorf("failed to add options to request: %w", err)
@@ -258,8 +257,7 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 			}
 			projectFields := []projectV2Field{}
 
-			opts := paginationOptions{}
-			opts.PerPage = perPage
+			opts := paginationOptions{PerPage: perPage}
 
 			url, err = addOptions(url, opts)
 			if err != nil {
@@ -448,15 +446,10 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 			}
 			projectItems := []projectV2Item{}
 
-			opts := listProjectItemsOptions{}
-			opts.PerPage = perPage
-
-			if queryStr != "" {
-				opts.Query = queryStr
-			}
-
-			if len(fields) > 0 {
-				opts.Fields = fields
+			opts := listProjectItemsOptions{
+				paginationOptions:     paginationOptions{PerPage: perPage},
+				filterQueryOptions:    filterQueryOptions{Query: queryStr},
+				fieldSelectionOptions: fieldSelectionOptions{Fields: fields},
 			}
 
 			url, err = addOptions(url, opts)
@@ -1034,7 +1027,7 @@ func ManageProjectItemsPrompt(t translations.TranslationHelperFunc) (tool mcp.Pr
 			messages := []mcp.PromptMessage{
 				{
 					Role:    "user",
-					Content: mcp.NewTextContent("You are an assistant helping users work with GitHub Projects (Projects V2). Your role is to help them discover projects, understand project fields, query items, and update field values on project items."),
+					Content: mcp.NewTextContent("You are an assistant helping users work with GitHub Projects V2. Your role is to help them discover projects, understand project fields, query items, and update field values on project items."),
 				},
 				{
 					Role:    "user",
