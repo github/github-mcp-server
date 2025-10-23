@@ -404,7 +404,7 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 				mcp.Description("Number of results per page (max 100, default: 30)"),
 			),
 			mcp.WithArray("fields",
-				mcp.Description("Specific list of field IDs to include in the response (e.g. [102589, 985201, 169875]). If not provided, only the title field is included."),
+				mcp.Description("Specific list of field IDs to include in the response (e.g. [\"102589\", \"985201\", \"169875\"]). If not provided, only the title field is included."),
 				mcp.WithStringItems(),
 			),
 		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -514,7 +514,7 @@ func GetProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 				mcp.Description("The item's ID."),
 			),
 			mcp.WithArray("fields",
-				mcp.Description("Specific list of field IDs to include in the response (e.g. [102589, 985201, 169875]). If not provided, only the title field is included."),
+				mcp.Description("Specific list of field IDs to include in the response (e.g. [\"102589\", \"985201\", \"169875\"]). If not provided, only the title field is included."),
 				mcp.WithStringItems(),
 			),
 		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -722,7 +722,7 @@ func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 			),
 			mcp.WithObject("updated_field",
 				mcp.Required(),
-				mcp.Description("Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {id: 123456, value: New Value}"),
+				mcp.Description("Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}"),
 			),
 		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](req, "owner")
@@ -1117,21 +1117,26 @@ func ManageProjectItemsPrompt(t translations.TranslationHelperFunc) (tool mcp.Pr
 					Content: mcp.NewTextContent("**✏️ Step 3: Updating Field Values**\n\n" +
 						"Use **update_project_item** with the updated_field parameter. The format varies by field type:\n\n" +
 						"**Text fields:**\n" +
-						"json\n" +
-						"{\"id\": 123456, \"value\": \"Updated text content\"}\n\n\n" +
+						"```json\n" +
+						"{\"id\": 123456, \"value\": \"Updated text content\"}\n" +
+						"```\n\n" +
 						"**Single-select fields:**\n" +
-						"json\n" +
-						"{\"id\": 198354254, \"value\": 18498754}\n\n" +
+						"```json\n" +
+						"{\"id\": 198354254, \"value\": 18498754}\n" +
+						"```\n" +
 						"*(Use option ID, not option name)*\n\n" +
 						"**Date fields:**\n" +
-						"json\n" +
-						"{\"id\": 789012, \"value\": \"2024-03-15\"}\n\n\n" +
+						"```json\n" +
+						"{\"id\": 789012, \"value\": \"2024-03-15\"}\n" +
+						"```\n\n" +
 						"**Number fields:**\n" +
-						"json\n" +
-						"{\"id\": 345678, \"value\": 5}\n\n\n" +
+						"```json\n" +
+						"{\"id\": 345678, \"value\": 5}\n" +
+						"```\n\n" +
 						"**Clear a field:**\n" +
-						"json\n" +
-						"{\"id\": 123456, \"value\": null}\n\n\n" +
+						"```json\n" +
+						"{\"id\": 123456, \"value\": null}\n" +
+						"```\n\n" +
 						"**⚠️ Important:** Use the internal project item_id (not issue/PR number) for updates!"),
 				},
 				{
