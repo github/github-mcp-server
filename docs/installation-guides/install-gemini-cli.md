@@ -14,7 +14,7 @@ For security, avoid hardcoding your token. Create or update `~/.gemini/.env` (wh
 
 ```bash
 # ~/.gemini/.env
-GITHUB_PAT=your_token_here
+GITHUB_MCP_PAT=your_token_here
 ```
 
 </details>
@@ -30,9 +30,18 @@ After securely storing your PAT, you can add the GitHub MCP server configuration
 
 > **Note:** For the most up-to-date configuration options, see the [main README.md](../../README.md).
 
-### Method 1: Remote Server (Recommended)
+### Method 1: Gemini Extension (Recommended)
 
-The simplest way is to use GitHub's hosted MCP server:
+The simplest way is to use GitHub's hosted MCP server via our gemini extension.
+
+`gemini extensions install https://github.com/github/github-mcp-server`
+
+> [!NOTE]
+> You will still need to have a personal access token with the appropriate scopes called `GITHUB_MCP_PAT` in your environment.
+
+### Method 2: Remote Server
+
+You can also connect to the hosted MCP server directly. After securely storing your PAT, configure Gemini CLI with:
 
 ```json
 // ~/.gemini/settings.json
@@ -41,14 +50,14 @@ The simplest way is to use GitHub's hosted MCP server:
         "github": {
             "httpUrl": "https://api.githubcopilot.com/mcp/",
             "headers": {
-                "Authorization": "Bearer $GITHUB_PAT"
+                "Authorization": "Bearer $GITHUB_MCP_PAT"
             }
         }
     }
 }
 ```
 
-### Method 2: Local Docker
+### Method 3: Local Docker
 
 With docker running, you can run the GitHub MCP server in a container:
 
@@ -67,14 +76,14 @@ With docker running, you can run the GitHub MCP server in a container:
                 "ghcr.io/github/github-mcp-server"
             ],
             "env": {
-                "GITHUB_PERSONAL_ACCESS_TOKEN": "$GITHUB_PAT"
+                "GITHUB_PERSONAL_ACCESS_TOKEN": "$GITHUB_MCP_PAT"
             }
         }
     }
 }
 ```
 
-### Method 3: Binary
+### Method 4: Binary
 
 You can download the latest binary release from the [GitHub releases page](https://github.com/github/github-mcp-server/releases) or build it from source by running `go build -o github-mcp-server ./cmd/github-mcp-server`.
 
@@ -88,7 +97,7 @@ Then, replacing `/path/to/binary` with the actual path to your binary, configure
             "command": "/path/to/binary",
             "args": ["stdio"],
             "env": {
-                "GITHUB_PERSONAL_ACCESS_TOKEN": "$GITHUB_PAT"
+                "GITHUB_PERSONAL_ACCESS_TOKEN": "$GITHUB_MCP_PAT"
             }
         }
     }
