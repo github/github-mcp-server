@@ -287,6 +287,446 @@ func GetIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (tool
 		}
 }
 
+// SearchMilestones creates a tool to search for milestones in a repository.
+func SearchMilestones(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("search_milestones",
+			mcp.WithDescription(t("TOOL_SEARCH_MILESTONES_DESCRIPTION", "Search for milestones in a repository.")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_SEARCH_MILESTONES_USER_TITLE", "Search milestones"),
+				ReadOnlyHint: ToBoolPtr(true),
+			}),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithString("query",
+				mcp.Required(),
+				mcp.Description("Search query to filter milestones by title or description"),
+			),
+			mcp.WithString("state",
+				mcp.Description("Filter by state"),
+				mcp.Enum("open", "closed", "all"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := RequiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			repo, err := RequiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			query, err := RequiredParam[string](request, "query")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			state, err := OptionalParam[string](request, "state")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			if state == "" {
+				state = "open"
+			}
+
+			opts := &github.MilestoneListOptions{
+				State: state,
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			allMilestones, _, err := client.Issues.ListMilestones(ctx, owner, repo, opts)
+			if err != nil {
+				return nil, fmt.Errorf("failed to list milestones: %w", err)
+			}
+
+			var filteredMilestones []*github.Milestone
+			for _, milestone := range allMilestones {
+				if (milestone.Title != nil && strings.Contains(strings.ToLower(*milestone.Title), strings.ToLower(query))) ||
+					(milestone.Description != nil && strings.Contains(strings.ToLower(*milestone.Description), strings.ToLower(query))) {
+					filteredMilestones = append(filteredMilestones, milestone)
+				}
+			}
+
+			r, err := json.Marshal(filteredMilestones)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
+// EditMilestone creates a tool to edit an existing milestone in a GitHub repository.
+func EditMilestone(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("edit_milestone",
+			mcp.WithDescription(t("TOOL_EDIT_MILESTONE_DESCRIPTION", "Edit an existing milestone in a GitHub repository.")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_EDIT_MILESTONE_USER_TITLE", "Edit milestone"),
+				ReadOnlyHint: ToBoolPtr(false),
+			}),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithNumber("milestone_number",
+				mcp.Required(),
+				mcp.Description("The number of the milestone to edit"),
+			),
+			mcp.WithString("title",
+				mcp.Description("New milestone title"),
+			),
+			mcp.WithString("state",
+				mcp.Description("New milestone state"),
+				mcp.Enum("open", "closed"),
+			),
+			mcp.WithString("description",
+				mcp.Description("New milestone description"),
+			),
+			mcp.WithString("due_on",
+				mcp.Description("New milestone due date in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ)"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := RequiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			repo, err := RequiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			milestoneNumber, err := RequiredInt(request, "milestone_number")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			milestoneRequest := &github.Milestone{}
+
+			if title, ok, err := OptionalParamOK[string](request, "title"); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			} else if ok {
+				milestoneRequest.Title = &title
+			}
+
+			if state, ok, err := OptionalParamOK[string](request, "state"); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			} else if ok {
+				milestoneRequest.State = &state
+			}
+
+			if description, ok, err := OptionalParamOK[string](request, "description"); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			} else if ok {
+				milestoneRequest.Description = &description
+			}
+
+			if dueOn, ok, err := OptionalParamOK[string](request, "due_on"); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			} else if ok {
+				if dueOn != "" {
+					dueOnTime, err := time.Parse(time.RFC3339, dueOn)
+					if err != nil {
+						return mcp.NewToolResultError(fmt.Sprintf("invalid due_on format: %v", err)), nil
+					}
+					milestoneRequest.DueOn = &github.Timestamp{Time: dueOnTime}
+				} else {
+					milestoneRequest.DueOn = &github.Timestamp{}
+				}
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+			milestone, resp, err := client.Issues.EditMilestone(ctx, owner, repo, milestoneNumber, milestoneRequest)
+			if err != nil {
+				return nil, fmt.Errorf("failed to edit milestone: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to edit milestone: %s", string(body))), nil
+			}
+
+			r, err := json.Marshal(milestone)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
+// CreateMilestone creates a tool to create a new milestone in a GitHub repository.
+func CreateMilestone(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("create_milestone",
+			mcp.WithDescription(t("TOOL_CREATE_MILESTONE_DESCRIPTION", "Create a new milestone in a GitHub repository.")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_CREATE_MILESTONE_USER_TITLE", "Create new milestone"),
+				ReadOnlyHint: ToBoolPtr(false),
+			}),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithString("title",
+				mcp.Required(),
+				mcp.Description("Milestone title"),
+			),
+			mcp.WithString("state",
+				mcp.Required(),
+				mcp.Description("Milestone state"),
+				mcp.Enum("open", "closed"),
+			),
+			mcp.WithString("description",
+				mcp.Description("Milestone description"),
+			),
+			mcp.WithString("due_on",
+				mcp.Description("Milestone due date in ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ)"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := RequiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			repo, err := RequiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			title, err := RequiredParam[string](request, "title")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			// Optional parameters
+			state, err := OptionalParam[string](request, "state")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			description, err := OptionalParam[string](request, "description")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			dueOn, err := OptionalParam[string](request, "due_on")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			milestoneRequest := &github.Milestone{
+				Title:       github.Ptr(title),
+				State:       github.Ptr(state),
+				Description: github.Ptr(description),
+			}
+
+			if dueOn != "" {
+				dueOnTime, err := time.Parse(time.RFC3339, dueOn)
+				if err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("invalid due_on format: %v", err)), nil
+				}
+				milestoneRequest.DueOn = &github.Timestamp{Time: dueOnTime}
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+			milestone, resp, err := client.Issues.CreateMilestone(ctx, owner, repo, milestoneRequest)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create milestone: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusCreated {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to create milestone: %s", string(body))), nil
+			}
+
+			r, err := json.Marshal(milestone)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
+// DeleteMilestone creates a tool to delete a milestone from a GitHub repository.
+func DeleteMilestone(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("delete_milestone",
+			mcp.WithDescription(t("TOOL_DELETE_MILESTONE_DESCRIPTION", "Delete a milestone from a GitHub repository.")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_DELETE_MILESTONE_USER_TITLE", "Delete milestone"),
+				ReadOnlyHint: ToBoolPtr(false),
+			}),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithNumber("milestone_number",
+				mcp.Required(),
+				mcp.Description("The number of the milestone to delete"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := RequiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			repo, err := RequiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			milestoneNumber, err := RequiredInt(request, "milestone_number")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			resp, err := client.Issues.DeleteMilestone(ctx, owner, repo, milestoneNumber)
+			if err != nil {
+				return nil, fmt.Errorf("failed to delete milestone: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusNoContent {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to delete milestone: %s", string(body))), nil
+			}
+
+			return mcp.NewToolResultText("milestone deleted successfully"), nil
+		}
+}
+
+// ListMilestones creates a tool to list milestones for a repository.
+func ListMilestones(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("list_milestones",
+			mcp.WithDescription(t("TOOL_LIST_MILESTONES_DESCRIPTION", "List milestones for a repository.")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_LIST_MILESTONES_USER_TITLE", "List milestones"),
+				ReadOnlyHint: ToBoolPtr(true),
+			}),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithString("state",
+				mcp.Description("Filter by state"),
+				mcp.Enum("open", "closed", "all"),
+			),
+			mcp.WithString("sort",
+				mcp.Description("Sort field"),
+				mcp.Enum("due_on", "completeness"),
+			),
+			mcp.WithString("direction",
+				mcp.Description("Sort direction"),
+				mcp.Enum("asc", "desc"),
+			),
+			WithPagination(),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := RequiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			repo, err := RequiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			state, err := OptionalParam[string](request, "state")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			sort, err := OptionalParam[string](request, "sort")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			direction, err := OptionalParam[string](request, "direction")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			pagination, err := OptionalPaginationParams(request)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			opts := &github.MilestoneListOptions{
+				State:     state,
+				Sort:      sort,
+				Direction: direction,
+				ListOptions: github.ListOptions{
+					Page:    pagination.Page,
+					PerPage: pagination.PerPage,
+				},
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			milestones, resp, err := client.Issues.ListMilestones(ctx, owner, repo, opts)
+			if err != nil {
+				return nil, fmt.Errorf("failed to list milestones: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to list milestones: %s", string(body))), nil
+			}
+
+			r, err := json.Marshal(milestones)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
 // ListIssueTypes creates a tool to list defined issue types for an organization. This can be used to understand supported issue type values for creating or updating issues.
 func ListIssueTypes(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 

@@ -1,0 +1,39 @@
+{
+  "annotations": {
+    "title": "Search milestones",
+    "readOnlyHint": true
+  },
+  "description": "Search for milestones in a repository.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "query": {
+        "description": "Search query to filter milestones by title or description",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "state": {
+        "description": "Filter by state",
+        "enum": [
+          "open",
+          "closed",
+          "all"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "query"
+    ],
+    "type": "object"
+  },
+  "name": "search_milestones"
+}

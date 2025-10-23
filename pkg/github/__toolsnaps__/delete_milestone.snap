@@ -1,0 +1,30 @@
+{
+  "annotations": {
+    "title": "Delete milestone",
+    "readOnlyHint": false
+  },
+  "description": "Delete a milestone from a GitHub repository.",
+  "inputSchema": {
+    "properties": {
+      "milestone_number": {
+        "description": "The number of the milestone to delete",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "milestone_number"
+    ],
+    "type": "object"
+  },
+  "name": "delete_milestone"
+}
