@@ -153,21 +153,14 @@ func GetProject(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			var url string
+			var resp *github.Response
+			var project *github.ProjectV2
+
 			if ownerType == "org" {
-				url = fmt.Sprintf("orgs/%s/projectsV2/%d", owner, projectNumber)
+				project, resp, err = client.Projects.GetProjectForOrg(ctx, owner, projectNumber)
 			} else {
-				url = fmt.Sprintf("users/%s/projectsV2/%d", owner, projectNumber)
+				project, resp, err = client.Projects.GetProjectForUser(ctx, owner, projectNumber)
 			}
-
-			project := github.ProjectV2{}
-
-			httpRequest, err := client.NewRequest("GET", url, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create request: %w", err)
-			}
-
-			resp, err := client.Do(ctx, httpRequest, &project)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to get project",
@@ -185,7 +178,7 @@ func GetProject(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get project: %s", string(body))), nil
 			}
 
-			minimalProject := convertToMinimalProject(&project)
+			minimalProject := convertToMinimalProject(project)
 			r, err := json.Marshal(minimalProject)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
