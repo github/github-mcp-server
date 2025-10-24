@@ -1981,3 +1981,191 @@ func Test_ActionsResourceRead_DownloadWorkflowArtifact(t *testing.T) {
 		})
 	}
 }
+
+func Test_ActionsResourceRead_ListWorkflowArtifacts(t *testing.T) {
+	tests := []struct {
+		name                 string
+		mockedClient         *http.Client
+		requestArgs          map[string]any
+		expectError          bool
+		expectedErrMsg       string
+		expectedErrMsgRegexp *regexp.Regexp
+	}{
+		{
+			name: "successful workflow artifacts read",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposActionsRunsArtifactsByOwnerByRepoByRunId,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						artifacts := &github.ArtifactList{
+							TotalCount: github.Ptr(int64(2)),
+							Artifacts: []*github.Artifact{
+								{
+									ID:   github.Ptr(int64(12345)),
+									Name: github.Ptr("artifact-1"),
+								},
+								{
+									ID:   github.Ptr(int64(12346)),
+									Name: github.Ptr("artifact-2"),
+								},
+							},
+						}
+						w.WriteHeader(http.StatusOK)
+						_ = json.NewEncoder(w).Encode(artifacts)
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"action":      "list_workflow_artifacts",
+				"owner":       "owner",
+				"repo":        "repo",
+				"resource_id": float64(1),
+			},
+			expectError: false,
+		},
+		{
+			name: "missing workflow artifacts read",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposActionsRunsArtifactsByOwnerByRepoByRunId,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"action":      "list_workflow_artifacts",
+				"owner":       "owner",
+				"repo":        "repo",
+				"resource_id": float64(99999),
+			},
+			expectError:          true,
+			expectedErrMsgRegexp: regexp.MustCompile(`^failed to list workflow run artifacts: GET .*/repos/owner/repo/actions/runs/99999/artifacts.* 404.*$`),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := ActionsRead(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			require.NoError(t, err)
+			require.Equal(t, tc.expectError, result.IsError)
+
+			// Parse the result and get the text content if no error
+			textContent := getTextResult(t, result)
+
+			if tc.expectedErrMsg != "" {
+				assert.Contains(t, tc.expectedErrMsg, textContent.Text)
+				return
+			}
+
+			if tc.expectedErrMsgRegexp != nil {
+				assert.Regexp(t, tc.expectedErrMsgRegexp, textContent.Text)
+				return
+			}
+		})
+	}
+}
+
+func Test_ActionsResourceRead_GetWorkflowUsage(t *testing.T) {
+	tests := []struct {
+		name                 string
+		mockedClient         *http.Client
+		requestArgs          map[string]any
+		expectError          bool
+		expectedErrMsg       string
+		expectedErrMsgRegexp *regexp.Regexp
+	}{
+		{
+			name: "successful workflow usage read",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposActionsRunsTimingByOwnerByRepoByRunId,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						workflowUsage := &github.WorkflowRunUsage{
+							Billable: &github.WorkflowRunBillMap{
+								"UBUNTU": &github.WorkflowRunBill{
+									TotalMS: github.Ptr(int64(60000)),
+									Jobs:    github.Ptr(1),
+									JobRuns: []*github.WorkflowRunJobRun{
+										&github.WorkflowRunJobRun{
+											JobID:      github.Ptr(1),
+											DurationMS: github.Ptr(int64(600)),
+										},
+									},
+								},
+							},
+							RunDurationMS: github.Ptr(int64(60000)),
+						}
+						w.WriteHeader(http.StatusOK)
+						_ = json.NewEncoder(w).Encode(workflowUsage)
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"action":      "get_workflow_run_usage",
+				"owner":       "owner",
+				"repo":        "repo",
+				"resource_id": float64(1),
+			},
+			expectError: false,
+		},
+		{
+			name: "missing workflow usage read",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposActionsRunsTimingByOwnerByRepoByRunId,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"action":      "get_workflow_run_usage",
+				"owner":       "owner",
+				"repo":        "repo",
+				"resource_id": float64(99999),
+			},
+			expectError:          true,
+			expectedErrMsgRegexp: regexp.MustCompile(`^failed to get workflow run usage: GET .*/repos/owner/repo/actions/runs/99999/timing.* 404.*$`),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := ActionsRead(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			require.NoError(t, err)
+			require.Equal(t, tc.expectError, result.IsError)
+
+			// Parse the result and get the text content if no error
+			textContent := getTextResult(t, result)
+
+			if tc.expectedErrMsg != "" {
+				assert.Contains(t, tc.expectedErrMsg, textContent.Text)
+				return
+			}
+
+			if tc.expectedErrMsgRegexp != nil {
+				assert.Regexp(t, tc.expectedErrMsgRegexp, textContent.Text)
+				return
+			}
+		})
+	}
+}
