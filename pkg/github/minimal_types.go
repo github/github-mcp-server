@@ -132,20 +132,20 @@ type MinimalProject struct {
 }
 
 type MinimalProjectItem struct {
-	ID            *int64            `json:"id,omitempty"`
-	NodeID        *string           `json:"node_id,omitempty"`
-	Title         *string           `json:"title,omitempty"`
-	Description   *string           `json:"description,omitempty"`
-	ProjectNodeID *string           `json:"project_node_id,omitempty"`
-	ContentNodeID *string           `json:"content_node_id,omitempty"`
-	ProjectURL    *string           `json:"project_url,omitempty"`
-	ContentType   *string           `json:"content_type,omitempty"`
-	Creator       *MinimalUser      `json:"creator,omitempty"`
-	CreatedAt     *github.Timestamp `json:"created_at,omitempty"`
-	UpdatedAt     *github.Timestamp `json:"updated_at,omitempty"`
-	ArchivedAt    *github.Timestamp `json:"archived_at,omitempty"`
-	ItemURL       *string           `json:"item_url,omitempty"`
-	Fields        []*projectV2Field `json:"fields,omitempty"`
+	ID            *int64                     `json:"id,omitempty"`
+	NodeID        *string                    `json:"node_id,omitempty"`
+	Title         *string                    `json:"title,omitempty"`
+	Description   *string                    `json:"description,omitempty"`
+	ProjectNodeID *string                    `json:"project_node_id,omitempty"`
+	ContentNodeID *string                    `json:"content_node_id,omitempty"`
+	ProjectURL    *string                    `json:"project_url,omitempty"`
+	ContentType   *string                    `json:"content_type,omitempty"`
+	Creator       *MinimalUser               `json:"creator,omitempty"`
+	CreatedAt     *github.Timestamp          `json:"created_at,omitempty"`
+	UpdatedAt     *github.Timestamp          `json:"updated_at,omitempty"`
+	ArchivedAt    *github.Timestamp          `json:"archived_at,omitempty"`
+	ItemURL       *string                    `json:"item_url,omitempty"`
+	Fields        []*projectV2ItemFieldValue `json:"fields,omitempty"`
 }
 
 // Helper functions
