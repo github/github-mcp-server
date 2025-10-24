@@ -23,6 +23,8 @@ func Test_SearchRepositories(t *testing.T) {
 	assert.Equal(t, "search_repositories", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	assert.Contains(t, tool.InputSchema.Properties, "query")
+	assert.Contains(t, tool.InputSchema.Properties, "sort")
+	assert.Contains(t, tool.InputSchema.Properties, "order")
 	assert.Contains(t, tool.InputSchema.Properties, "page")
 	assert.Contains(t, tool.InputSchema.Properties, "perPage")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"query"})
@@ -66,6 +68,8 @@ func Test_SearchRepositories(t *testing.T) {
 					mock.GetSearchRepositories,
 					expectQueryParams(t, map[string]string{
 						"q":        "golang test",
+						"sort":     "stars",
+						"order":    "desc",
 						"page":     "2",
 						"per_page": "10",
 					}).andThen(
@@ -75,6 +79,8 @@ func Test_SearchRepositories(t *testing.T) {
 			),
 			requestArgs: map[string]interface{}{
 				"query":   "golang test",
+				"sort":    "stars",
+				"order":   "desc",
 				"page":    float64(2),
 				"perPage": float64(10),
 			},

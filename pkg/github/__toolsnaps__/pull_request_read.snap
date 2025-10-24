@@ -1,0 +1,55 @@
+{
+  "annotations": {
+    "title": "Get details for a single pull request",
+    "readOnlyHint": true
+  },
+  "description": "Get information on a specific pull request in GitHub repository.",
+  "inputSchema": {
+    "properties": {
+      "method": {
+        "description": "Action to specify what pull request data needs to be retrieved from GitHub. \nPossible options: \n 1. get - Get details of a specific pull request.\n 2. get_diff - Get the diff of a pull request.\n 3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.\n 4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.\n 5. get_review_comments - Get the review comments on a pull request. They are comments made on a portion of the unified diff during a pull request review. Use with pagination parameters to control the number of results returned.\n 6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.\n 7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.\n",
+        "enum": [
+          "get",
+          "get_diff",
+          "get_status",
+          "get_files",
+          "get_review_comments",
+          "get_reviews",
+          "get_comments"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "page": {
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      },
+      "pullNumber": {
+        "description": "Pull request number",
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo",
+      "pullNumber"
+    ],
+    "type": "object"
+  },
+  "name": "pull_request_read"
+}

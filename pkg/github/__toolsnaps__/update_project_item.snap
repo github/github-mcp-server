@@ -1,0 +1,45 @@
+{
+  "annotations": {
+    "title": "Update project item",
+    "readOnlyHint": false
+  },
+  "description": "Update a specific Project item for a user or org",
+  "inputSchema": {
+    "properties": {
+      "item_id": {
+        "description": "The unique identifier of the project item. This is not the issue or pull request ID.",
+        "type": "number"
+      },
+      "owner": {
+        "description": "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.",
+        "type": "string"
+      },
+      "owner_type": {
+        "description": "Owner type",
+        "enum": [
+          "user",
+          "org"
+        ],
+        "type": "string"
+      },
+      "project_number": {
+        "description": "The project's number.",
+        "type": "number"
+      },
+      "updated_field": {
+        "description": "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}",
+        "properties": {},
+        "type": "object"
+      }
+    },
+    "required": [
+      "owner_type",
+      "owner",
+      "project_number",
+      "item_id",
+      "updated_field"
+    ],
+    "type": "object"
+  },
+  "name": "update_project_item"
+}

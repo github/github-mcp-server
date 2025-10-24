@@ -16,33 +16,67 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
 
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "stable"
+        
       - name: Fetch tags
-        run: git fetch --tags
+        run: |
+          if [[ "${{ github.ref_type }}" != "tag" ]]; then
+            git fetch --tags
+          else
+            echo "Skipping tag fetch - already on tag ${{ github.ref_name }}"
+          fi
+
+      - name: Wait for Docker image
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            TAG="${{ github.ref_name }}"
+          else
+            TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+' | head -n1)
+          fi
+          IMAGE="ghcr.io/github/github-mcp-server:$TAG"
+          
+          for i in {1..10}; do
+            if docker manifest inspect "$IMAGE" &>/dev/null; then
+              echo "✅ Docker image ready: $TAG"
+              break
+            fi
+            [ $i -eq 10 ] && { echo "❌ Timeout waiting for $TAG after 5 minutes"; exit 1; }
+            echo "⏳ Waiting for Docker image ($i/10)..."
+            sleep 30
+          done
 
       - name: Install MCP Publisher
         run: |
-          curl -L "https://github.com/modelcontextprotocol/registry/releases/download/v1.0.0/mcp-publisher_1.0.0_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+          git clone --quiet https://github.com/modelcontextprotocol/registry publisher-repo
+          cd publisher-repo && make publisher > /dev/null && cd ..
+          cp publisher-repo/bin/mcp-publisher . && chmod +x mcp-publisher
 
       - name: Update server.json version
         run: |
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            # Use the tag that triggered the workflow
             TAG_VERSION=$(echo "${{ github.ref_name }}" | sed 's/^v//')
-            echo "Using triggered tag: ${{ github.ref_name }}"
           else
-            # Fallback to latest tag (for manual triggers)
             LATEST_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-.*)?$' | head -n 1)
-            if [ -z "$LATEST_TAG" ]; then
-              echo "❌ No release tag found. Cannot determine version."
-              exit 1
-            fi
+            [ -z "$LATEST_TAG" ] && { echo "No release tag found"; exit 1; }
             TAG_VERSION=$(echo "$LATEST_TAG" | sed 's/^v//')
             echo "Using latest tag: $LATEST_TAG"
           fi
           sed -i "s/\${VERSION}/$TAG_VERSION/g" server.json
-          echo "Updated server.json version to $TAG_VERSION"
+          echo "Version: $TAG_VERSION"
 
-      - name: Login to MCP Registry
+      - name: Validate configuration
+        run: |
+          python3 -m json.tool server.json > /dev/null && echo "Configuration valid" || exit 1
+
+      - name: Display final server.json
+        run: |
+          echo "Final server.json contents:"
+          cat server.json
+
+      - name: Login to MCP Registry (OIDC)
         run: ./mcp-publisher login github-oidc
 
       - name: Publish to MCP Registry

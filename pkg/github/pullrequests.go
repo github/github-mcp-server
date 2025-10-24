@@ -18,13 +18,28 @@ import (
 )
 
 // GetPullRequest creates a tool to get details of a specific pull request.
-func GetPullRequest(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
-	return mcp.NewTool("get_pull_request",
-			mcp.WithDescription(t("TOOL_GET_PULL_REQUEST_DESCRIPTION", "Get details of a specific pull request in a GitHub repository.")),
+func PullRequestRead(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+	return mcp.NewTool("pull_request_read",
+			mcp.WithDescription(t("TOOL_PULL_REQUEST_READ_DESCRIPTION", "Get information on a specific pull request in GitHub repository.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_GET_PULL_REQUEST_USER_TITLE", "Get pull request details"),
+				Title:        t("TOOL_GET_PULL_REQUEST_USER_TITLE", "Get details for a single pull request"),
 				ReadOnlyHint: ToBoolPtr(true),
 			}),
+			mcp.WithString("method",
+				mcp.Required(),
+				mcp.Description(`Action to specify what pull request data needs to be retrieved from GitHub. 
+Possible options: 
+ 1. get - Get details of a specific pull request.
+ 2. get_diff - Get the diff of a pull request.
+ 3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
+ 4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
+ 5. get_review_comments - Get the review comments on a pull request. They are comments made on a portion of the unified diff during a pull request review. Use with pagination parameters to control the number of results returned.
+ 6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
+ 7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
+`),
+
+				mcp.Enum("get", "get_diff", "get_status", "get_files", "get_review_comments", "get_reviews", "get_comments"),
+			),
 			mcp.WithString("owner",
 				mcp.Required(),
 				mcp.Description("Repository owner"),
@@ -37,8 +52,14 @@ func GetPullRequest(getClient GetClientFn, t translations.TranslationHelperFunc)
 				mcp.Required(),
 				mcp.Description("Pull request number"),
 			),
+			WithPagination(),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			method, err := RequiredParam[string](request, "method")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
 			owner, err := RequiredParam[string](request, "owner")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
@@ -51,36 +72,231 @@ func GetPullRequest(getClient GetClientFn, t translations.TranslationHelperFunc)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+			pagination, err := OptionalPaginationParams(request)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
 
 			client, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get pull request",
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
 
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request: %s", string(body))), nil
-			}
+			switch method {
 
-			r, err := json.Marshal(pr)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			case "get":
+				return GetPullRequest(ctx, client, owner, repo, pullNumber)
+			case "get_diff":
+				return GetPullRequestDiff(ctx, client, owner, repo, pullNumber)
+			case "get_status":
+				return GetPullRequestStatus(ctx, client, owner, repo, pullNumber)
+			case "get_files":
+				return GetPullRequestFiles(ctx, client, owner, repo, pullNumber, pagination)
+			case "get_review_comments":
+				return GetPullRequestReviewComments(ctx, client, owner, repo, pullNumber, pagination)
+			case "get_reviews":
+				return GetPullRequestReviews(ctx, client, owner, repo, pullNumber)
+			case "get_comments":
+				return GetIssueComments(ctx, client, owner, repo, pullNumber, pagination)
+			default:
+				return nil, fmt.Errorf("unknown method: %s", method)
 			}
-
-			return mcp.NewToolResultText(string(r)), nil
 		}
+}
+
+func GetPullRequest(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
+	pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to get pull request",
+			resp,
+			err,
+		), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request: %s", string(body))), nil
+	}
+
+	r, err := json.Marshal(pr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return mcp.NewToolResultText(string(r)), nil
+}
+
+func GetPullRequestDiff(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
+	raw, resp, err := client.PullRequests.GetRaw(
+		ctx,
+		owner,
+		repo,
+		pullNumber,
+		github.RawOptions{Type: github.Diff},
+	)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to get pull request diff",
+			resp,
+			err,
+		), nil
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request diff: %s", string(body))), nil
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	// Return the raw response
+	return mcp.NewToolResultText(string(raw)), nil
+}
+
+func GetPullRequestStatus(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
+	pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to get pull request",
+			resp,
+			err,
+		), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request: %s", string(body))), nil
+	}
+
+	// Get combined status for the head SHA
+	status, resp, err := client.Repositories.GetCombinedStatus(ctx, owner, repo, *pr.Head.SHA, nil)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to get combined status",
+			resp,
+			err,
+		), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return mcp.NewToolResultError(fmt.Sprintf("failed to get combined status: %s", string(body))), nil
+	}
+
+	r, err := json.Marshal(status)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return mcp.NewToolResultText(string(r)), nil
+}
+
+func GetPullRequestFiles(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	opts := &github.ListOptions{
+		PerPage: pagination.PerPage,
+		Page:    pagination.Page,
+	}
+	files, resp, err := client.PullRequests.ListFiles(ctx, owner, repo, pullNumber, opts)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to get pull request files",
+			resp,
+			err,
+		), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request files: %s", string(body))), nil
+	}
+
+	r, err := json.Marshal(files)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return mcp.NewToolResultText(string(r)), nil
+}
+
+func GetPullRequestReviewComments(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	opts := &github.PullRequestListCommentsOptions{
+		ListOptions: github.ListOptions{
+			PerPage: pagination.PerPage,
+			Page:    pagination.Page,
+		},
+	}
+
+	comments, resp, err := client.PullRequests.ListComments(ctx, owner, repo, pullNumber, opts)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to get pull request review comments",
+			resp,
+			err,
+		), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request review comments: %s", string(body))), nil
+	}
+
+	r, err := json.Marshal(comments)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return mcp.NewToolResultText(string(r)), nil
+}
+
+func GetPullRequestReviews(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
+	reviews, resp, err := client.PullRequests.ListReviews(ctx, owner, repo, pullNumber, nil)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to get pull request reviews",
+			resp,
+			err,
+		), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request reviews: %s", string(body))), nil
+	}
+
+	r, err := json.Marshal(reviews)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return mcp.NewToolResultText(string(r)), nil
 }
 
 // CreatePullRequest creates a tool to create a new pull request.
@@ -735,166 +951,6 @@ func SearchPullRequests(getClient GetClientFn, t translations.TranslationHelperF
 		}
 }
 
-// GetPullRequestFiles creates a tool to get the list of files changed in a pull request.
-func GetPullRequestFiles(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
-	return mcp.NewTool("get_pull_request_files",
-			mcp.WithDescription(t("TOOL_GET_PULL_REQUEST_FILES_DESCRIPTION", "Get the files changed in a specific pull request.")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_GET_PULL_REQUEST_FILES_USER_TITLE", "Get pull request files"),
-				ReadOnlyHint: ToBoolPtr(true),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-			mcp.WithNumber("pullNumber",
-				mcp.Required(),
-				mcp.Description("Pull request number"),
-			),
-			WithPagination(),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := RequiredParam[string](request, "owner")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			repo, err := RequiredParam[string](request, "repo")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			pullNumber, err := RequiredInt(request, "pullNumber")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			pagination, err := OptionalPaginationParams(request)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-			opts := &github.ListOptions{
-				PerPage: pagination.PerPage,
-				Page:    pagination.Page,
-			}
-			files, resp, err := client.PullRequests.ListFiles(ctx, owner, repo, pullNumber, opts)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get pull request files",
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request files: %s", string(body))), nil
-			}
-
-			r, err := json.Marshal(files)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
-		}
-}
-
-// GetPullRequestStatus creates a tool to get the combined status of all status checks for a pull request.
-func GetPullRequestStatus(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
-	return mcp.NewTool("get_pull_request_status",
-			mcp.WithDescription(t("TOOL_GET_PULL_REQUEST_STATUS_DESCRIPTION", "Get the status of a specific pull request.")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_GET_PULL_REQUEST_STATUS_USER_TITLE", "Get pull request status checks"),
-				ReadOnlyHint: ToBoolPtr(true),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-			mcp.WithNumber("pullNumber",
-				mcp.Required(),
-				mcp.Description("Pull request number"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := RequiredParam[string](request, "owner")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			repo, err := RequiredParam[string](request, "repo")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			pullNumber, err := RequiredInt(request, "pullNumber")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			// First get the PR to find the head SHA
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-			pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get pull request",
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request: %s", string(body))), nil
-			}
-
-			// Get combined status for the head SHA
-			status, resp, err := client.Repositories.GetCombinedStatus(ctx, owner, repo, *pr.Head.SHA, nil)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get combined status",
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get combined status: %s", string(body))), nil
-			}
-
-			r, err := json.Marshal(status)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
-		}
-}
-
 // UpdatePullRequestBranch creates a tool to update a pull request branch with the latest changes from the base branch.
 func UpdatePullRequestBranch(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("update_pull_request_branch",
@@ -977,154 +1033,37 @@ func UpdatePullRequestBranch(getClient GetClientFn, t translations.TranslationHe
 		}
 }
 
-// GetPullRequestReviewComments creates a tool to get the review comments on a pull request.
-func GetPullRequestReviewComments(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
-	return mcp.NewTool("get_pull_request_review_comments",
-			mcp.WithDescription(t("TOOL_GET_PULL_REQUEST_REVIEW_COMMENTS_DESCRIPTION", "Get pull request review comments. They are comments made on a portion of the unified diff during a pull request review. These are different from commit comments and issue comments in a pull request.")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_GET_PULL_REQUEST_REVIEW_COMMENTS_USER_TITLE", "Get pull request review comments"),
-				ReadOnlyHint: ToBoolPtr(true),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-			mcp.WithNumber("pullNumber",
-				mcp.Required(),
-				mcp.Description("Pull request number"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := RequiredParam[string](request, "owner")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			repo, err := RequiredParam[string](request, "repo")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			pullNumber, err := RequiredInt(request, "pullNumber")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			opts := &github.PullRequestListCommentsOptions{
-				ListOptions: github.ListOptions{
-					PerPage: 100,
-				},
-			}
-
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-			comments, resp, err := client.PullRequests.ListComments(ctx, owner, repo, pullNumber, opts)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get pull request review comments",
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request review comments: %s", string(body))), nil
-			}
-
-			r, err := json.Marshal(comments)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
-		}
+type PullRequestReviewWriteParams struct {
+	Method     string
+	Owner      string
+	Repo       string
+	PullNumber int32
+	Body       string
+	Event      string
+	CommitID   *string
 }
 
-// GetPullRequestReviews creates a tool to get the reviews on a pull request.
-func GetPullRequestReviews(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
-	return mcp.NewTool("get_pull_request_reviews",
-			mcp.WithDescription(t("TOOL_GET_PULL_REQUEST_REVIEWS_DESCRIPTION", "Get reviews for a specific pull request.")),
+func PullRequestReviewWrite(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+	return mcp.NewTool("pull_request_review_write",
+			mcp.WithDescription(t("TOOL_PULL_REQUEST_REVIEW_WRITE_DESCRIPTION", `Create and/or submit, delete review of a pull request.
+
+Available methods:
+- create: Create a new review of a pull request. If "event" parameter is provided, the review is submitted. If "event" is omitted, a pending review is created.
+- submit_pending: Submit an existing pending review of a pull request. This requires that a pending review exists for the current user on the specified pull request. The "body" and "event" parameters are used when submitting the review.
+- delete_pending: Delete an existing pending review of a pull request. This requires that a pending review exists for the current user on the specified pull request.
+`)),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_GET_PULL_REQUEST_REVIEWS_USER_TITLE", "Get pull request reviews"),
-				ReadOnlyHint: ToBoolPtr(true),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-			mcp.WithNumber("pullNumber",
-				mcp.Required(),
-				mcp.Description("Pull request number"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := RequiredParam[string](request, "owner")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			repo, err := RequiredParam[string](request, "repo")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			pullNumber, err := RequiredInt(request, "pullNumber")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-			reviews, resp, err := client.PullRequests.ListReviews(ctx, owner, repo, pullNumber, nil)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get pull request reviews",
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request reviews: %s", string(body))), nil
-			}
-
-			r, err := json.Marshal(reviews)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
-		}
-}
-
-func CreateAndSubmitPullRequestReview(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
-	return mcp.NewTool("create_and_submit_pull_request_review",
-			mcp.WithDescription(t("TOOL_CREATE_AND_SUBMIT_PULL_REQUEST_REVIEW_DESCRIPTION", "Create and submit a review for a pull request without review comments.")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_CREATE_AND_SUBMIT_PULL_REQUEST_REVIEW_USER_TITLE", "Create and submit a pull request review without comments"),
+				Title:        t("TOOL_PULL_REQUEST_REVIEW_WRITE_USER_TITLE", "Write operations (create, submit, delete) on pull request reviews."),
 				ReadOnlyHint: ToBoolPtr(false),
 			}),
 			// Either we need the PR GQL Id directly, or we need owner, repo and PR number to look it up.
 			// Since our other Pull Request tools are working with the REST Client, will handle the lookup
 			// internally for now.
+			mcp.WithString("method",
+				mcp.Required(),
+				mcp.Description("The write operation to perform on pull request review."),
+				mcp.Enum("create", "submit_pending", "delete_pending"),
+			),
 			mcp.WithString("owner",
 				mcp.Required(),
 				mcp.Description("Repository owner"),
@@ -1138,12 +1077,10 @@ func CreateAndSubmitPullRequestReview(getGQLClient GetGQLClientFn, t translation
 				mcp.Description("Pull request number"),
 			),
 			mcp.WithString("body",
-				mcp.Required(),
 				mcp.Description("Review comment text"),
 			),
 			mcp.WithString("event",
-				mcp.Required(),
-				mcp.Description("Review action to perform"),
+				mcp.Description("Review action to perform."),
 				mcp.Enum("APPROVE", "REQUEST_CHANGES", "COMMENT"),
 			),
 			mcp.WithString("commitID",
@@ -1151,14 +1088,7 @@ func CreateAndSubmitPullRequestReview(getGQLClient GetGQLClientFn, t translation
 			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			var params struct {
-				Owner      string
-				Repo       string
-				PullNumber int32
-				Body       string
-				Event      string
-				CommitID   *string
-			}
+			var params PullRequestReviewWriteParams
 			if err := mapstructure.Decode(request.Params.Arguments, &params); err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -1169,144 +1099,240 @@ func CreateAndSubmitPullRequestReview(getGQLClient GetGQLClientFn, t translation
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil
 			}
 
-			var getPullRequestQuery struct {
-				Repository struct {
-					PullRequest struct {
-						ID githubv4.ID
-					} `graphql:"pullRequest(number: $prNum)"`
-				} `graphql:"repository(owner: $owner, name: $repo)"`
+			switch params.Method {
+			case "create":
+				return CreatePullRequestReview(ctx, client, params)
+			case "submit_pending":
+				return SubmitPendingPullRequestReview(ctx, client, params)
+			case "delete_pending":
+				return DeletePendingPullRequestReview(ctx, client, params)
+			default:
+				return mcp.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil
 			}
-			if err := client.Query(ctx, &getPullRequestQuery, map[string]any{
-				"owner": githubv4.String(params.Owner),
-				"repo":  githubv4.String(params.Repo),
-				"prNum": githubv4.Int(params.PullNumber),
-			}); err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
-					"failed to get pull request",
-					err,
-				), nil
-			}
-
-			// Now we have the GQL ID, we can create a review
-			var addPullRequestReviewMutation struct {
-				AddPullRequestReview struct {
-					PullRequestReview struct {
-						ID githubv4.ID // We don't need this, but a selector is required or GQL complains.
-					}
-				} `graphql:"addPullRequestReview(input: $input)"`
-			}
-
-			if err := client.Mutate(
-				ctx,
-				&addPullRequestReviewMutation,
-				githubv4.AddPullRequestReviewInput{
-					PullRequestID: getPullRequestQuery.Repository.PullRequest.ID,
-					Body:          githubv4.NewString(githubv4.String(params.Body)),
-					Event:         newGQLStringlike[githubv4.PullRequestReviewEvent](params.Event),
-					CommitOID:     newGQLStringlikePtr[githubv4.GitObjectID](params.CommitID),
-				},
-				nil,
-			); err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			// Return nothing interesting, just indicate success for the time being.
-			// In future, we may want to return the review ID, but for the moment, we're not leaking
-			// API implementation details to the LLM.
-			return mcp.NewToolResultText("pull request review submitted successfully"), nil
 		}
 }
 
-// CreatePendingPullRequestReview creates a tool to create a pending review on a pull request.
-func CreatePendingPullRequestReview(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
-	return mcp.NewTool("create_pending_pull_request_review",
-			mcp.WithDescription(t("TOOL_CREATE_PENDING_PULL_REQUEST_REVIEW_DESCRIPTION", "Create a pending review for a pull request. Call this first before attempting to add comments to a pending review, and ultimately submitting it. A pending pull request review means a pull request review, it is pending because you create it first and submit it later, and the PR author will not see it until it is submitted.")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_CREATE_PENDING_PULL_REQUEST_REVIEW_USER_TITLE", "Create pending pull request review"),
-				ReadOnlyHint: ToBoolPtr(false),
-			}),
-			// Either we need the PR GQL Id directly, or we need owner, repo and PR number to look it up.
-			// Since our other Pull Request tools are working with the REST Client, will handle the lookup
-			// internally for now.
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-			mcp.WithNumber("pullNumber",
-				mcp.Required(),
-				mcp.Description("Pull request number"),
-			),
-			mcp.WithString("commitID",
-				mcp.Description("SHA of commit to review"),
-			),
-			// Event is omitted here because we always want to create a pending review.
-			// Threads are omitted for the moment, and we'll see if the LLM can use the appropriate tool.
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			var params struct {
-				Owner      string
-				Repo       string
-				PullNumber int32
-				CommitID   *string
-			}
-			if err := mapstructure.Decode(request.Params.Arguments, &params); err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
+func CreatePullRequestReview(ctx context.Context, client *githubv4.Client, params PullRequestReviewWriteParams) (*mcp.CallToolResult, error) {
+	var getPullRequestQuery struct {
+		Repository struct {
+			PullRequest struct {
+				ID githubv4.ID
+			} `graphql:"pullRequest(number: $prNum)"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
 
-			// Given our owner, repo and PR number, lookup the GQL ID of the PR.
-			client, err := getGQLClient(ctx)
-			if err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil
-			}
+	if err := client.Query(ctx, &getPullRequestQuery, map[string]any{
+		"owner": githubv4.String(params.Owner),
+		"repo":  githubv4.String(params.Repo),
+		"prNum": githubv4.Int(params.PullNumber),
+	}); err != nil {
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+			"failed to get pull request",
+			err,
+		), nil
+	}
 
-			var getPullRequestQuery struct {
-				Repository struct {
-					PullRequest struct {
-						ID githubv4.ID
-					} `graphql:"pullRequest(number: $prNum)"`
-				} `graphql:"repository(owner: $owner, name: $repo)"`
+	// Now we have the GQL ID, we can create a review
+	var addPullRequestReviewMutation struct {
+		AddPullRequestReview struct {
+			PullRequestReview struct {
+				ID githubv4.ID // We don't need this, but a selector is required or GQL complains.
 			}
-			if err := client.Query(ctx, &getPullRequestQuery, map[string]any{
-				"owner": githubv4.String(params.Owner),
-				"repo":  githubv4.String(params.Repo),
-				"prNum": githubv4.Int(params.PullNumber),
-			}); err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
-					"failed to get pull request",
-					err,
-				), nil
-			}
+		} `graphql:"addPullRequestReview(input: $input)"`
+	}
 
-			// Now we have the GQL ID, we can create a pending review
-			var addPullRequestReviewMutation struct {
-				AddPullRequestReview struct {
-					PullRequestReview struct {
-						ID githubv4.ID // We don't need this, but a selector is required or GQL complains.
-					}
-				} `graphql:"addPullRequestReview(input: $input)"`
-			}
+	addPullRequestReviewInput := githubv4.AddPullRequestReviewInput{
+		PullRequestID: getPullRequestQuery.Repository.PullRequest.ID,
+		CommitOID:     newGQLStringlikePtr[githubv4.GitObjectID](params.CommitID),
+	}
 
-			if err := client.Mutate(
-				ctx,
-				&addPullRequestReviewMutation,
-				githubv4.AddPullRequestReviewInput{
-					PullRequestID: getPullRequestQuery.Repository.PullRequest.ID,
-					CommitOID:     newGQLStringlikePtr[githubv4.GitObjectID](params.CommitID),
-				},
-				nil,
-			); err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
+	// Event and Body are provided if we submit a review
+	if params.Event != "" {
+		addPullRequestReviewInput.Event = newGQLStringlike[githubv4.PullRequestReviewEvent](params.Event)
+		addPullRequestReviewInput.Body = githubv4.NewString(githubv4.String(params.Body))
+	}
 
-			// Return nothing interesting, just indicate success for the time being.
-			// In future, we may want to return the review ID, but for the moment, we're not leaking
-			// API implementation details to the LLM.
-			return mcp.NewToolResultText("pending pull request created"), nil
+	if err := client.Mutate(
+		ctx,
+		&addPullRequestReviewMutation,
+		addPullRequestReviewInput,
+		nil,
+	); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	// Return nothing interesting, just indicate success for the time being.
+	// In future, we may want to return the review ID, but for the moment, we're not leaking
+	// API implementation details to the LLM.
+	if params.Event == "" {
+		return mcp.NewToolResultText("pending pull request created"), nil
+	}
+	return mcp.NewToolResultText("pull request review submitted successfully"), nil
+}
+
+func SubmitPendingPullRequestReview(ctx context.Context, client *githubv4.Client, params PullRequestReviewWriteParams) (*mcp.CallToolResult, error) {
+	// First we'll get the current user
+	var getViewerQuery struct {
+		Viewer struct {
+			Login githubv4.String
 		}
+	}
+
+	if err := client.Query(ctx, &getViewerQuery, nil); err != nil {
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+			"failed to get current user",
+			err,
+		), nil
+	}
+
+	var getLatestReviewForViewerQuery struct {
+		Repository struct {
+			PullRequest struct {
+				Reviews struct {
+					Nodes []struct {
+						ID    githubv4.ID
+						State githubv4.PullRequestReviewState
+						URL   githubv4.URI
+					}
+				} `graphql:"reviews(first: 1, author: $author)"`
+			} `graphql:"pullRequest(number: $prNum)"`
+		} `graphql:"repository(owner: $owner, name: $name)"`
+	}
+
+	vars := map[string]any{
+		"author": githubv4.String(getViewerQuery.Viewer.Login),
+		"owner":  githubv4.String(params.Owner),
+		"name":   githubv4.String(params.Repo),
+		"prNum":  githubv4.Int(params.PullNumber),
+	}
+
+	if err := client.Query(context.Background(), &getLatestReviewForViewerQuery, vars); err != nil {
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+			"failed to get latest review for current user",
+			err,
+		), nil
+	}
+
+	// Validate there is one review and the state is pending
+	if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
+		return mcp.NewToolResultError("No pending review found for the viewer"), nil
+	}
+
+	review := getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes[0]
+	if review.State != githubv4.PullRequestReviewStatePending {
+		errText := fmt.Sprintf("The latest review, found at %s is not pending", review.URL)
+		return mcp.NewToolResultError(errText), nil
+	}
+
+	// Prepare the mutation
+	var submitPullRequestReviewMutation struct {
+		SubmitPullRequestReview struct {
+			PullRequestReview struct {
+				ID githubv4.ID // We don't need this, but a selector is required or GQL complains.
+			}
+		} `graphql:"submitPullRequestReview(input: $input)"`
+	}
+
+	if err := client.Mutate(
+		ctx,
+		&submitPullRequestReviewMutation,
+		githubv4.SubmitPullRequestReviewInput{
+			PullRequestReviewID: &review.ID,
+			Event:               githubv4.PullRequestReviewEvent(params.Event),
+			Body:                newGQLStringlikePtr[githubv4.String](&params.Body),
+		},
+		nil,
+	); err != nil {
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+			"failed to submit pull request review",
+			err,
+		), nil
+	}
+
+	// Return nothing interesting, just indicate success for the time being.
+	// In future, we may want to return the review ID, but for the moment, we're not leaking
+	// API implementation details to the LLM.
+	return mcp.NewToolResultText("pending pull request review successfully submitted"), nil
+}
+
+func DeletePendingPullRequestReview(ctx context.Context, client *githubv4.Client, params PullRequestReviewWriteParams) (*mcp.CallToolResult, error) {
+	// First we'll get the current user
+	var getViewerQuery struct {
+		Viewer struct {
+			Login githubv4.String
+		}
+	}
+
+	if err := client.Query(ctx, &getViewerQuery, nil); err != nil {
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+			"failed to get current user",
+			err,
+		), nil
+	}
+
+	var getLatestReviewForViewerQuery struct {
+		Repository struct {
+			PullRequest struct {
+				Reviews struct {
+					Nodes []struct {
+						ID    githubv4.ID
+						State githubv4.PullRequestReviewState
+						URL   githubv4.URI
+					}
+				} `graphql:"reviews(first: 1, author: $author)"`
+			} `graphql:"pullRequest(number: $prNum)"`
+		} `graphql:"repository(owner: $owner, name: $name)"`
+	}
+
+	vars := map[string]any{
+		"author": githubv4.String(getViewerQuery.Viewer.Login),
+		"owner":  githubv4.String(params.Owner),
+		"name":   githubv4.String(params.Repo),
+		"prNum":  githubv4.Int(params.PullNumber),
+	}
+
+	if err := client.Query(context.Background(), &getLatestReviewForViewerQuery, vars); err != nil {
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+			"failed to get latest review for current user",
+			err,
+		), nil
+	}
+
+	// Validate there is one review and the state is pending
+	if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
+		return mcp.NewToolResultError("No pending review found for the viewer"), nil
+	}
+
+	review := getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes[0]
+	if review.State != githubv4.PullRequestReviewStatePending {
+		errText := fmt.Sprintf("The latest review, found at %s is not pending", review.URL)
+		return mcp.NewToolResultError(errText), nil
+	}
+
+	// Prepare the mutation
+	var deletePullRequestReviewMutation struct {
+		DeletePullRequestReview struct {
+			PullRequestReview struct {
+				ID githubv4.ID // We don't need this, but a selector is required or GQL complains.
+			}
+		} `graphql:"deletePullRequestReview(input: $input)"`
+	}
+
+	if err := client.Mutate(
+		ctx,
+		&deletePullRequestReviewMutation,
+		githubv4.DeletePullRequestReviewInput{
+			PullRequestReviewID: &review.ID,
+		},
+		nil,
+	); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	// Return nothing interesting, just indicate success for the time being.
+	// In future, we may want to return the review ID, but for the moment, we're not leaking
+	// API implementation details to the LLM.
+	return mcp.NewToolResultText("pending pull request review successfully deleted"), nil
 }
 
 // AddCommentToPendingReview creates a tool to add a comment to a pull request review.
@@ -1472,325 +1498,6 @@ func AddCommentToPendingReview(getGQLClient GetGQLClientFn, t translations.Trans
 			// In future, we may want to return the review ID, but for the moment, we're not leaking
 			// API implementation details to the LLM.
 			return mcp.NewToolResultText("pull request review comment successfully added to pending review"), nil
-		}
-}
-
-// SubmitPendingPullRequestReview creates a tool to submit a pull request review.
-func SubmitPendingPullRequestReview(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
-	return mcp.NewTool("submit_pending_pull_request_review",
-			mcp.WithDescription(t("TOOL_SUBMIT_PENDING_PULL_REQUEST_REVIEW_DESCRIPTION", "Submit the requester's latest pending pull request review, normally this is a final step after creating a pending review, adding comments first, unless you know that the user already did the first two steps, you should check before calling this.")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_SUBMIT_PENDING_PULL_REQUEST_REVIEW_USER_TITLE", "Submit the requester's latest pending pull request review"),
-				ReadOnlyHint: ToBoolPtr(false),
-			}),
-			// Ideally, for performance sake this would just accept the pullRequestReviewID. However, we would need to
-			// add a new tool to get that ID for clients that aren't in the same context as the original pending review
-			// creation. So for now, we'll just accept the owner, repo and pull number and assume this is submitting
-			// the latest review from a user, since only one can be active at a time.
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-			mcp.WithNumber("pullNumber",
-				mcp.Required(),
-				mcp.Description("Pull request number"),
-			),
-			mcp.WithString("event",
-				mcp.Required(),
-				mcp.Description("The event to perform"),
-				mcp.Enum("APPROVE", "REQUEST_CHANGES", "COMMENT"),
-			),
-			mcp.WithString("body",
-				mcp.Description("The text of the review comment"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			var params struct {
-				Owner      string
-				Repo       string
-				PullNumber int32
-				Event      string
-				Body       *string
-			}
-			if err := mapstructure.Decode(request.Params.Arguments, &params); err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			client, err := getGQLClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub GQL client: %w", err)
-			}
-
-			// First we'll get the current user
-			var getViewerQuery struct {
-				Viewer struct {
-					Login githubv4.String
-				}
-			}
-
-			if err := client.Query(ctx, &getViewerQuery, nil); err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
-					"failed to get current user",
-					err,
-				), nil
-			}
-
-			var getLatestReviewForViewerQuery struct {
-				Repository struct {
-					PullRequest struct {
-						Reviews struct {
-							Nodes []struct {
-								ID    githubv4.ID
-								State githubv4.PullRequestReviewState
-								URL   githubv4.URI
-							}
-						} `graphql:"reviews(first: 1, author: $author)"`
-					} `graphql:"pullRequest(number: $prNum)"`
-				} `graphql:"repository(owner: $owner, name: $name)"`
-			}
-
-			vars := map[string]any{
-				"author": githubv4.String(getViewerQuery.Viewer.Login),
-				"owner":  githubv4.String(params.Owner),
-				"name":   githubv4.String(params.Repo),
-				"prNum":  githubv4.Int(params.PullNumber),
-			}
-
-			if err := client.Query(context.Background(), &getLatestReviewForViewerQuery, vars); err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
-					"failed to get latest review for current user",
-					err,
-				), nil
-			}
-
-			// Validate there is one review and the state is pending
-			if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
-				return mcp.NewToolResultError("No pending review found for the viewer"), nil
-			}
-
-			review := getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes[0]
-			if review.State != githubv4.PullRequestReviewStatePending {
-				errText := fmt.Sprintf("The latest review, found at %s is not pending", review.URL)
-				return mcp.NewToolResultError(errText), nil
-			}
-
-			// Prepare the mutation
-			var submitPullRequestReviewMutation struct {
-				SubmitPullRequestReview struct {
-					PullRequestReview struct {
-						ID githubv4.ID // We don't need this, but a selector is required or GQL complains.
-					}
-				} `graphql:"submitPullRequestReview(input: $input)"`
-			}
-
-			if err := client.Mutate(
-				ctx,
-				&submitPullRequestReviewMutation,
-				githubv4.SubmitPullRequestReviewInput{
-					PullRequestReviewID: &review.ID,
-					Event:               githubv4.PullRequestReviewEvent(params.Event),
-					Body:                newGQLStringlikePtr[githubv4.String](params.Body),
-				},
-				nil,
-			); err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
-					"failed to submit pull request review",
-					err,
-				), nil
-			}
-
-			// Return nothing interesting, just indicate success for the time being.
-			// In future, we may want to return the review ID, but for the moment, we're not leaking
-			// API implementation details to the LLM.
-			return mcp.NewToolResultText("pending pull request review successfully submitted"), nil
-		}
-}
-
-func DeletePendingPullRequestReview(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
-	return mcp.NewTool("delete_pending_pull_request_review",
-			mcp.WithDescription(t("TOOL_DELETE_PENDING_PULL_REQUEST_REVIEW_DESCRIPTION", "Delete the requester's latest pending pull request review. Use this after the user decides not to submit a pending review, if you don't know if they already created one then check first.")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_DELETE_PENDING_PULL_REQUEST_REVIEW_USER_TITLE", "Delete the requester's latest pending pull request review"),
-				ReadOnlyHint: ToBoolPtr(false),
-			}),
-			// Ideally, for performance sake this would just accept the pullRequestReviewID. However, we would need to
-			// add a new tool to get that ID for clients that aren't in the same context as the original pending review
-			// creation. So for now, we'll just accept the owner, repo and pull number and assume this is deleting
-			// the latest pending review from a user, since only one can be active at a time.
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-			mcp.WithNumber("pullNumber",
-				mcp.Required(),
-				mcp.Description("Pull request number"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			var params struct {
-				Owner      string
-				Repo       string
-				PullNumber int32
-			}
-			if err := mapstructure.Decode(request.Params.Arguments, &params); err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			client, err := getGQLClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub GQL client: %w", err)
-			}
-
-			// First we'll get the current user
-			var getViewerQuery struct {
-				Viewer struct {
-					Login githubv4.String
-				}
-			}
-
-			if err := client.Query(ctx, &getViewerQuery, nil); err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
-					"failed to get current user",
-					err,
-				), nil
-			}
-
-			var getLatestReviewForViewerQuery struct {
-				Repository struct {
-					PullRequest struct {
-						Reviews struct {
-							Nodes []struct {
-								ID    githubv4.ID
-								State githubv4.PullRequestReviewState
-								URL   githubv4.URI
-							}
-						} `graphql:"reviews(first: 1, author: $author)"`
-					} `graphql:"pullRequest(number: $prNum)"`
-				} `graphql:"repository(owner: $owner, name: $name)"`
-			}
-
-			vars := map[string]any{
-				"author": githubv4.String(getViewerQuery.Viewer.Login),
-				"owner":  githubv4.String(params.Owner),
-				"name":   githubv4.String(params.Repo),
-				"prNum":  githubv4.Int(params.PullNumber),
-			}
-
-			if err := client.Query(context.Background(), &getLatestReviewForViewerQuery, vars); err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
-					"failed to get latest review for current user",
-					err,
-				), nil
-			}
-
-			// Validate there is one review and the state is pending
-			if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
-				return mcp.NewToolResultError("No pending review found for the viewer"), nil
-			}
-
-			review := getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes[0]
-			if review.State != githubv4.PullRequestReviewStatePending {
-				errText := fmt.Sprintf("The latest review, found at %s is not pending", review.URL)
-				return mcp.NewToolResultError(errText), nil
-			}
-
-			// Prepare the mutation
-			var deletePullRequestReviewMutation struct {
-				DeletePullRequestReview struct {
-					PullRequestReview struct {
-						ID githubv4.ID // We don't need this, but a selector is required or GQL complains.
-					}
-				} `graphql:"deletePullRequestReview(input: $input)"`
-			}
-
-			if err := client.Mutate(
-				ctx,
-				&deletePullRequestReviewMutation,
-				githubv4.DeletePullRequestReviewInput{
-					PullRequestReviewID: &review.ID,
-				},
-				nil,
-			); err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			// Return nothing interesting, just indicate success for the time being.
-			// In future, we may want to return the review ID, but for the moment, we're not leaking
-			// API implementation details to the LLM.
-			return mcp.NewToolResultText("pending pull request review successfully deleted"), nil
-		}
-}
-
-func GetPullRequestDiff(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
-	return mcp.NewTool("get_pull_request_diff",
-			mcp.WithDescription(t("TOOL_GET_PULL_REQUEST_DIFF_DESCRIPTION", "Get the diff of a pull request.")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_GET_PULL_REQUEST_DIFF_USER_TITLE", "Get pull request diff"),
-				ReadOnlyHint: ToBoolPtr(true),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-			mcp.WithNumber("pullNumber",
-				mcp.Required(),
-				mcp.Description("Pull request number"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			var params struct {
-				Owner      string
-				Repo       string
-				PullNumber int32
-			}
-			if err := mapstructure.Decode(request.Params.Arguments, &params); err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			client, err := getClient(ctx)
-			if err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get GitHub client: %v", err)), nil
-			}
-
-			raw, resp, err := client.PullRequests.GetRaw(
-				ctx,
-				params.Owner,
-				params.Repo,
-				int(params.PullNumber),
-				github.RawOptions{Type: github.Diff},
-			)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get pull request diff",
-					resp,
-					err,
-				), nil
-			}
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request diff: %s", string(body))), nil
-			}
-
-			defer func() { _ = resp.Body.Close() }()
-
-			// Return the raw response
-			return mcp.NewToolResultText(string(raw)), nil
 		}
 }
 
