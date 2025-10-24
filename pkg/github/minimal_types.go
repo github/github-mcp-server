@@ -131,23 +131,6 @@ type MinimalProject struct {
 	DeletedBy        *MinimalUser      `json:"deleted_by,omitempty"`
 }
 
-type MinimalProjectItem struct {
-	ID            *int64            `json:"id,omitempty"`
-	NodeID        *string           `json:"node_id,omitempty"`
-	Title         *string           `json:"title,omitempty"`
-	Description   *string           `json:"description,omitempty"`
-	ProjectNodeID *string           `json:"project_node_id,omitempty"`
-	ContentNodeID *string           `json:"content_node_id,omitempty"`
-	ProjectURL    *string           `json:"project_url,omitempty"`
-	ContentType   *string           `json:"content_type,omitempty"`
-	Creator       *MinimalUser      `json:"creator,omitempty"`
-	CreatedAt     *github.Timestamp `json:"created_at,omitempty"`
-	UpdatedAt     *github.Timestamp `json:"updated_at,omitempty"`
-	ArchivedAt    *github.Timestamp `json:"archived_at,omitempty"`
-	ItemURL       *string           `json:"item_url,omitempty"`
-	Fields        []*projectV2Field `json:"fields,omitempty"`
-}
-
 // Helper functions
 
 func convertToMinimalProject(fullProject *github.ProjectV2) *MinimalProject {
@@ -183,29 +166,6 @@ func convertToMinimalUser(user *github.User) *MinimalUser {
 		ID:         user.GetID(),
 		ProfileURL: user.GetHTMLURL(),
 		AvatarURL:  user.GetAvatarURL(),
-	}
-}
-
-func convertToMinimalProjectItem(item *projectV2Item) *MinimalProjectItem {
-	if item == nil {
-		return nil
-	}
-
-	return &MinimalProjectItem{
-		ID:            item.ID,
-		NodeID:        item.NodeID,
-		Title:         item.Title,
-		Description:   item.Description,
-		ProjectNodeID: item.ProjectNodeID,
-		ContentNodeID: item.ContentNodeID,
-		ProjectURL:    item.ProjectURL,
-		ContentType:   item.ContentType,
-		Creator:       convertToMinimalUser(item.Creator),
-		CreatedAt:     item.CreatedAt,
-		UpdatedAt:     item.UpdatedAt,
-		ArchivedAt:    item.ArchivedAt,
-		ItemURL:       item.ItemURL,
-		Fields:        item.Fields,
 	}
 }
 

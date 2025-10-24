@@ -46,7 +46,9 @@ These toolsets are only available in the remote GitHub MCP Server and are not in
 
 | Name                 | Description                                   | API URL                                     | 1-Click Install (VS Code)                                                                                                                                                                          | Read-only Link                                                    | 1-Click Read-only Install (VS Code)                                                                                                                                                                                     |
 | -------------------- | --------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Copilot coding agent | Perform task with GitHub Copilot coding agent | https://api.githubcopilot.com/mcp/x/copilot | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-copilot&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fcopilot%22%7D) | [read-only](https://api.githubcopilot.com/mcp/x/copilot/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-copilot&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fcopilot%2Freadonly%22%7D) |
+| Copilot  | Copilot related tools | https://api.githubcopilot.com/mcp/x/copilot | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-copilot&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fcopilot%22%7D)             | [read-only](https://api.githubcopilot.com/mcp/x/copilot/readonly)                                        | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-copilot&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fcopilot%2Freadonly%22%7D)                                                              |
+| Copilot Spaces  | Copilot Spaces tools | https://api.githubcopilot.com/mcp/x/copilot_spaces    | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-copilot_spaces&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fcopilot_spaces%22%7D)             | [read-only](https://api.githubcopilot.com/mcp/x/copilot_spaces/readonly)                                        | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-copilot_spaces&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fcopilot_spaces%2Freadonly%22%7D)                                                              |
+| GitHub support docs search | Retrieve documentation to answer GitHub product and support questions. Topics include: GitHub Actions Workflows, Authentication, ... | https://api.githubcopilot.com/mcp/x/github_support_docs_search | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-support&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fgithub_support_docs_search%22%7D) | [read-only](https://api.githubcopilot.com/mcp/x/github_support_docs_search/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-support&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Fx%2Fgithub_support_docs_search%2Freadonly%22%7D) |
 
 ### Optional Headers
 
@@ -74,13 +76,16 @@ Example:
 
 ### URL Path Parameters
 
-The Remote GitHub MCP server also supports the URL path parameters:
+The Remote GitHub MCP server supports the following URL path patterns:
 
-- `/x/{toolset}`
-- `/x/{toolset}/readonly`
-- `/readonly`
+- `/` - Default toolset (see ["default" toolset](../README.md#default-toolset))
+- `/readonly` - Default toolset in read-only mode
+- `/x/all` - All available toolsets
+- `/x/all/readonly` - All available toolsets in read-only mode
+- `/x/{toolset}` - Single specific toolset
+- `/x/{toolset}/readonly` - Single specific toolset in read-only mode
 
-Note: `{toolset}` can only been a single toolset, not a comma-separated list. To combine multiple toolsets, use the `X-MCP-Toolsets` header instead.
+Note: `{toolset}` can only be a single toolset, not a comma-separated list. To combine multiple toolsets, use the `X-MCP-Toolsets` header instead.
 
 Example:
 

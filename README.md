@@ -87,16 +87,11 @@ Alternatively, to manually configure VS Code, choose the appropriate JSON block 
 
 ### Configuration
 
-#### Default toolset configuration
-
-The default configuration is:
-- context
-- repos
-- issues
-- pull_requests
-- users
+#### Toolset configuration
 
 See [Remote Server Documentation](docs/remote-server.md) for full details on remote server configuration, toolsets, headers, and advanced usage. This file provides comprehensive instructions and examples for connecting, customizing, and installing the remote GitHub MCP Server in VS Code and other MCP hosts.
+
+When no toolsets are specified, [default toolsets](#default-toolset) are used.
 
 #### Enterprise Cloud with data residency (ghe.com)
 
@@ -329,7 +324,7 @@ The GitHub MCP Server supports enabling or disabling specific groups of function
 
 _Toolsets are not limited to Tools. Relevant MCP Resources and Prompts are also included where applicable._
 
-The Local GitHub MCP Server follows the same [default toolset configuration](#default-toolset-configuration) as the remote version.
+When no toolsets are specified, [default toolsets](#default-toolset) are used.
 
 #### Specifying Toolsets
 
@@ -359,7 +354,9 @@ docker run -i --rm \
   ghcr.io/github/github-mcp-server
 ```
 
-### The "all" Toolset
+### Special toolsets
+
+#### "all" toolset
 
 The special toolset `all` can be provided to enable all available toolsets regardless of any other configuration:
 
@@ -373,9 +370,25 @@ Or using the environment variable:
 GITHUB_TOOLSETS="all" ./github-mcp-server
 ```
 
+#### "default" toolset
+The default toolset `default` is the configuration that gets passed to the server if no toolsets are specified.
+
+The default configuration is:
+- context
+- repos
+- issues
+- pull_requests
+- users
+
+To keep the default configuration and add additional toolsets:
+
+```bash
+GITHUB_TOOLSETS="default,stargazers" ./github-mcp-server
+```
+
 ### Available Toolsets
 
-The following sets of tools are available (all are on by default):
+The following sets of tools are available:
 
 <!-- START AUTOMATED TOOLSETS -->
 | Toolset                 | Description                                                   |
@@ -399,6 +412,14 @@ The following sets of tools are available (all are on by default):
 | `stargazers` | GitHub Stargazers related tools |
 | `users` | GitHub User related tools |
 <!-- END AUTOMATED TOOLSETS -->
+
+### Additional Toolsets in Remote Github MCP Server
+
+| Toolset                 | Description                                                   |
+| ----------------------- | ------------------------------------------------------------- |
+| `copilot` | Copilot related tools (e.g. Copilot Coding Agent) |
+| `copilot_spaces` | Copilot Spaces related tools |
+| `github_support_docs_search` | Search docs to answer GitHub product and support questions |
 
 ## Tools
 
@@ -614,44 +635,48 @@ The following sets of tools are available (all are on by default):
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
-- **add_sub_issue** - Add sub-issue
-  - `issue_number`: The number of the parent issue (number, required)
-  - `owner`: Repository owner (string, required)
-  - `replace_parent`: When true, replaces the sub-issue's current parent issue (boolean, optional)
-  - `repo`: Repository name (string, required)
-  - `sub_issue_id`: The ID of the sub-issue to add. ID is not the same as issue number (number, required)
-
 - **assign_copilot_to_issue** - Assign Copilot to issue
   - `issueNumber`: Issue number (number, required)
   - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-
-- **create_issue** - Open new issue
-  - `assignees`: Usernames to assign to this issue (string[], optional)
-  - `body`: Issue body content (string, optional)
-  - `labels`: Labels to apply to this issue (string[], optional)
-  - `milestone`: Milestone number (number, optional)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `title`: Issue title (string, required)
-  - `type`: Type of this issue (string, optional)
-
-- **get_issue** - Get issue details
-  - `issue_number`: The number of the issue (number, required)
-  - `owner`: The owner of the repository (string, required)
-  - `repo`: The name of the repository (string, required)
-
-- **get_issue_comments** - Get issue comments
-  - `issue_number`: Issue number (number, required)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
 - **get_label** - Get a specific label from a repository.
   - `name`: Label name. (string, required)
   - `owner`: Repository owner (username or organization name) (string, required)
   - `repo`: Repository name (string, required)
+
+- **issue_read** - Get issue details
+  - `issue_number`: The number of the issue (number, required)
+  - `method`: The read operation to perform on a single issue. 
+Options are: 
+1. get - Get details of a specific issue.
+2. get_comments - Get issue comments.
+3. get_sub_issues - Get sub-issues of the issue.
+4. get_labels - Get labels assigned to the issue.
+ (string, required)
+  - `owner`: The owner of the repository (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: The name of the repository (string, required)
+
+- **issue_write** - Create or update issue.
+  - `assignees`: Usernames to assign to this issue (string[], optional)
+  - `body`: Issue body content (string, optional)
+  - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
+  - `issue_number`: Issue number to update (number, optional)
+  - `labels`: Labels to apply to this issue (string[], optional)
+  - `method`: Write operation to perform on a single issue.
+Options are: 
+- 'create' - creates a new issue. 
+- 'update' - updates an existing issue.
+ (string, required)
+  - `milestone`: Milestone number (number, optional)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `state`: New state (string, optional)
+  - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
+  - `title`: Issue title (string, optional)
+  - `type`: Type of this issue (string, optional)
 
 - **list_issue_types** - List available issue types
   - `owner`: The organization owner of the repository (string, required)
@@ -667,32 +692,6 @@ The following sets of tools are available (all are on by default):
   - `since`: Filter by date (ISO 8601 timestamp) (string, optional)
   - `state`: Filter by state, by default both open and closed issues are returned when not provided (string, optional)
 
-- **list_label** - List labels from a repository or an issue
-  - `issue_number`: Issue number - if provided, lists labels on the specific issue (number, optional)
-  - `owner`: Repository owner (username or organization name) - required for all operations (string, required)
-  - `repo`: Repository name - required for all operations (string, required)
-
-- **list_sub_issues** - List sub-issues
-  - `issue_number`: Issue number (number, required)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (default: 1) (number, optional)
-  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
-  - `repo`: Repository name (string, required)
-
-- **remove_sub_issue** - Remove sub-issue
-  - `issue_number`: The number of the parent issue (number, required)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `sub_issue_id`: The ID of the sub-issue to remove. ID is not the same as issue number (number, required)
-
-- **reprioritize_sub_issue** - Reprioritize sub-issue
-  - `after_id`: The ID of the sub-issue to be prioritized after (either after_id OR before_id should be specified) (number, optional)
-  - `before_id`: The ID of the sub-issue to be prioritized before (either after_id OR before_id should be specified) (number, optional)
-  - `issue_number`: The number of the parent issue (number, required)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `sub_issue_id`: The ID of the sub-issue to reprioritize. ID is not the same as issue number (number, required)
-
 - **search_issues** - Search issues
   - `order`: Sort order (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only issues for this repository are listed. (string, optional)
@@ -702,19 +701,20 @@ The following sets of tools are available (all are on by default):
   - `repo`: Optional repository name. If provided with owner, only issues for this repository are listed. (string, optional)
   - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
 
-- **update_issue** - Edit issue
-  - `assignees`: New assignees (string[], optional)
-  - `body`: New description (string, optional)
-  - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
-  - `issue_number`: Issue number to update (number, required)
-  - `labels`: New labels (string[], optional)
-  - `milestone`: New milestone number (number, optional)
+- **sub_issue_write** - Change sub-issue
+  - `after_id`: The ID of the sub-issue to be prioritized after (either after_id OR before_id should be specified) (number, optional)
+  - `before_id`: The ID of the sub-issue to be prioritized before (either after_id OR before_id should be specified) (number, optional)
+  - `issue_number`: The number of the parent issue (number, required)
+  - `method`: The action to perform on a single sub-issue
+Options are:
+- 'add' - add a sub-issue to a parent issue in a GitHub repository.
+- 'remove' - remove a sub-issue from a parent issue in a GitHub repository.
+- 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.
+				 (string, required)
   - `owner`: Repository owner (string, required)
+  - `replace_parent`: When true, replaces the sub-issue's current parent issue. Use with 'add' method only. (boolean, optional)
   - `repo`: Repository name (string, required)
-  - `state`: New state (string, optional)
-  - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
-  - `title`: New title (string, optional)
-  - `type`: New issue type (string, optional)
+  - `sub_issue_id`: The ID of the sub-issue to add. ID is not the same as issue number (number, required)
 
 </details>
 
@@ -736,8 +736,7 @@ The following sets of tools are available (all are on by default):
   - `owner`: Repository owner (username or organization name) (string, required)
   - `repo`: Repository name (string, required)
 
-- **list_label** - List labels from a repository or an issue
-  - `issue_number`: Issue number - if provided, lists labels on the specific issue (number, optional)
+- **list_label** - List labels from a repository
   - `owner`: Repository owner (username or organization name) - required for all operations (string, required)
   - `repo`: Repository name - required for all operations (string, required)
 
@@ -821,6 +820,7 @@ The following sets of tools are available (all are on by default):
   - `project_number`: The project's number. (number, required)
 
 - **get_project_item** - Get project item
+  - `fields`: Specific list of field IDs to include in the response (e.g. ["102589", "985201", "169875"]). If not provided, only the title field is included. (string[], optional)
   - `item_id`: The item's ID. (number, required)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
@@ -833,6 +833,7 @@ The following sets of tools are available (all are on by default):
   - `project_number`: The project's number. (number, required)
 
 - **list_project_items** - List project items
+  - `fields`: Specific list of field IDs to include in the response (e.g. ["102589", "985201", "169875"]). If not provided, only the title field is included. (string[], optional)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
   - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
@@ -850,7 +851,7 @@ The following sets of tools are available (all are on by default):
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
   - `project_number`: The project's number. (number, required)
-  - `updated_field`: Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set "value" to null. Example: {"id": 123456, "value": "New Value"} (object, required)
+  - `updated_field`: Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {"id": 123456, "value": "New Value"} (object, required)
 
 </details>
 
@@ -906,8 +907,9 @@ Possible options:
  2. get_diff - Get the diff of a pull request.
  3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
  4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
- 5. get_review_comments - Get the review comments on a pull request. Use with pagination parameters to control the number of results returned.
+ 5. get_review_comments - Get the review comments on a pull request. They are comments made on a portion of the unified diff during a pull request review. Use with pagination parameters to control the number of results returned.
  6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
+ 7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
  (string, required)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -1167,7 +1169,7 @@ Possible options:
 
 <details>
 
-<summary>Copilot coding agent</summary>
+<summary>Copilot</summary>
 
 -   **create_pull_request_with_copilot** - Perform task with GitHub Copilot coding agent
     -   `owner`: Repository owner. You can guess the owner, but confirm it with the user before proceeding. (string, required)
@@ -1187,6 +1189,14 @@ Possible options:
     -   `name`: The name of the space. (string, required)
 
 -   **list_copilot_spaces** - List Copilot Spaces
+</details>
+
+<details>
+
+<summary>GitHub Support Docs Search</summary>
+
+-   **github_support_docs_search** - Retrieve documentation relevant to answer GitHub product and support questions. Support topics include: GitHub Actions Workflows, Authentication, GitHub Support Inquiries, Pull Request Practices, Repository Maintenance, GitHub Pages, GitHub Packages, GitHub Discussions, Copilot Spaces
+    -   `query`: Input from the user about the question they need answered. This is the latest raw unedited user message. You should ALWAYS leave the user message as it is, you should never modify it. (string, required)
 </details>
 
 ## Dynamic Tool Discovery
