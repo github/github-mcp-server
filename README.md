@@ -406,6 +406,7 @@ The following sets of tools are available:
 | `orgs` | GitHub Organization related tools |
 | `projects` | GitHub Projects related tools |
 | `pull_requests` | GitHub Pull Request related tools |
+| `releases` | GitHub Releases related tools |
 | `repos` | GitHub Repository related tools |
 | `secret_protection` | Secret protection related tools, such as GitHub Secret Scanning |
 | `security_advisories` | Security advisories related tools |
@@ -962,6 +963,20 @@ Possible options:
 
 <details>
 
+<summary>Releases</summary>
+
+- **release_read** - Read operations for releases
+  - `method`: The read operation to perform on releases. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
+  - `tag`: Tag name (required for get_by_tag method) (string, optional)
+
+</details>
+
+<details>
+
 <summary>Repositories</summary>
 
 - **commit_read** - Read commits
@@ -1016,14 +1031,6 @@ Possible options:
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
-- **release_read** - Read operations for releases and tags
-  - `method`: The read operation to perform on releases/tags. (string, required)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (for list_tags and list_releases methods) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (for list_tags and list_releases methods) (number, optional)
-  - `repo`: Repository name (string, required)
-  - `tag`: Tag name (required for get_tag and get_release_by_tag methods) (string, optional)
-
 - **search_code** - Search code
   - `order`: Sort order for results (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -1038,6 +1045,14 @@ Possible options:
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Repository search query. Examples: 'machine learning in:name stars:>1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering. (string, required)
   - `sort`: Sort repositories by field, defaults to best match (string, optional)
+
+- **tag_read** - Read operations for git tags
+  - `method`: The read operation to perform on tags. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
+  - `tag`: Tag name (required for get method) (string, optional)
 
 </details>
 

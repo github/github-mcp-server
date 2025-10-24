@@ -1629,13 +1629,13 @@ func Test_ListBranches(t *testing.T) {
 
 // Test_DeleteFile is removed as the delete_file tool has been consolidated into file_write
 
-func Test_ReleaseRead(t *testing.T) {
+func Test_TagRead(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := ReleaseRead(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := TagRead(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "release_read", tool.Name)
+	assert.Equal(t, "tag_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	assert.Contains(t, tool.InputSchema.Properties, "method")
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
@@ -1689,7 +1689,7 @@ func Test_ReleaseRead(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
-				"method": "list_tags",
+				"method": "list",
 				"owner":  "owner",
 				"repo":   "repo",
 			},
@@ -1708,7 +1708,7 @@ func Test_ReleaseRead(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
-				"method": "list_tags",
+				"method": "list",
 				"owner":  "owner",
 				"repo":   "repo",
 			},
@@ -1721,7 +1721,7 @@ func Test_ReleaseRead(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ReleaseRead(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := TagRead(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)

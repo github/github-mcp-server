@@ -99,6 +99,10 @@ var (
 		ID:          "stargazers",
 		Description: "GitHub Stargazers related tools",
 	}
+	ToolsetMetadataReleases = ToolsetMetadata{
+		ID:          "releases",
+		Description: "GitHub Releases related tools",
+	}
 	ToolsetMetadataDynamic = ToolsetMetadata{
 		ID:          "dynamic",
 		Description: "Discover GitHub MCP tools that can help achieve tasks by enabling additional sets of tools, you can control the enablement of any toolset to access its tools when this toolset is enabled.",
@@ -167,7 +171,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(CommitRead(getClient, t)),
 			toolsets.NewServerTool(SearchCode(getClient, t)),
 			toolsets.NewServerTool(ListBranches(getClient, t)),
-			toolsets.NewServerTool(ReleaseRead(getClient, t)),
+			toolsets.NewServerTool(TagRead(getClient, t)),
 		).
 		AddWriteTools(
 			toolsets.NewServerTool(FileWrite(getClient, t)),
@@ -331,6 +335,10 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(StarRepository(getClient, t)),
 			toolsets.NewServerTool(UnstarRepository(getClient, t)),
 		)
+	releases := toolsets.NewToolset(ToolsetMetadataReleases.ID, ToolsetMetadataReleases.Description).
+		AddReadTools(
+			toolsets.NewServerTool(ReleaseRead(getClient, t)),
+		)
 	labels := toolsets.NewToolset(ToolsetLabels.ID, ToolsetLabels.Description).
 		AddReadTools(
 			// get
@@ -360,6 +368,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(securityAdvisories)
 	tsg.AddToolset(projects)
 	tsg.AddToolset(stargazers)
+	tsg.AddToolset(releases)
 	tsg.AddToolset(labels)
 
 	return tsg

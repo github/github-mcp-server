@@ -1,17 +1,16 @@
 {
   "annotations": {
-    "title": "Read operations for releases",
+    "title": "Read operations for git tags",
     "readOnlyHint": true
   },
-  "description": "Read operations for GitHub releases in a repository.\n\nAvailable methods:\n- list: List all releases in a repository.\n- get_latest: Get the latest release in a repository.\n- get_by_tag: Get a specific release by its tag name.\n",
+  "description": "Read operations for Git tags in a repository.\n\nAvailable methods:\n- list: List all git tags in a repository.\n- get: Get details about a specific git tag.\n",
   "inputSchema": {
     "properties": {
       "method": {
-        "description": "The read operation to perform on releases.",
+        "description": "The read operation to perform on tags.",
         "enum": [
           "list",
-          "get_latest",
-          "get_by_tag"
+          "get"
         ],
         "type": "string"
       },
@@ -35,7 +34,7 @@
         "type": "string"
       },
       "tag": {
-        "description": "Tag name (required for get_by_tag method)",
+        "description": "Tag name (required for get method)",
         "type": "string"
       }
     },
@@ -46,5 +45,5 @@
     ],
     "type": "object"
   },
-  "name": "release_read"
+  "name": "tag_read"
 }
