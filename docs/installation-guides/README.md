@@ -6,6 +6,7 @@ This directory contains detailed installation instructions for the GitHub MCP Se
 - **[GitHub Copilot in other IDEs](install-other-copilot-ides.md)** - Installation for JetBrains, Visual Studio, Eclipse, and Xcode with GitHub Copilot
 - **[Claude Applications](install-claude.md)** - Installation guide for Claude Web, Claude Desktop and Claude Code CLI
 - **[Cursor](install-cursor.md)** - Installation guide for Cursor IDE
+- **[Google Gemini CLI](install-gemini-cli.md)** - Installation guide for Google Gemini CLI
 - **[Windsurf](install-windsurf.md)** - Installation guide for Windsurf IDE
 
 ## Support by Host Application
@@ -14,14 +15,15 @@ This directory contains detailed installation instructions for the GitHub MCP Se
 |-----------------|---------------|----------------|---------------|------------|
 | Copilot in VS Code | ✅ | ✅ Full (OAuth + PAT) | Local: Docker or Go build, GitHub PAT<br>Remote: VS Code 1.101+ | Easy |
 | Copilot Coding Agent | ✅ | ✅ Full (on by default; no auth needed) | Any _paid_ copilot license | Default on |
-| Copilot in Visual Studio | ✅ | ✅ PAT + ❌ No OAuth | Local: Docker or Go build, GitHub PAT<br>Remote: Visual Studio 17.14+ | Easy |
-| Copilot in JetBrains | ✅ | ✅ PAT + ❌ No OAuth | Local: Docker or Go build, GitHub PAT<br>Remote: JetBrains Copilot Extension v1.5.35+ | Easy |
+| Copilot in Visual Studio | ✅ | ✅ Full (OAuth + PAT) | Local: Docker or Go build, GitHub PAT<br>Remote: Visual Studio 17.14+ | Easy |
+| Copilot in JetBrains | ✅ | ✅ Full (OAuth + PAT) | Local: Docker or Go build, GitHub PAT<br>Remote: JetBrains Copilot Extension v1.5.53+ | Easy |
 | Claude Code | ✅ | ✅ PAT + ❌ No OAuth| GitHub MCP Server binary or remote URL, GitHub PAT | Easy |
 | Claude Desktop | ✅ | ✅ PAT + ❌ No OAuth | Docker or Go build, GitHub PAT | Moderate |
 | Cursor | ✅ | ✅ PAT + ❌ No OAuth | Docker or Go build, GitHub PAT | Easy |
+| Google Gemini CLI | ✅ | ✅ PAT + ❌ No OAuth | Docker or Go build, GitHub PAT | Easy |
 | Windsurf | ✅ | ✅ PAT + ❌ No OAuth | Docker or Go build, GitHub PAT | Easy |
-| Copilot in Xcode | ✅ | ✅ PAT + ❌ No OAuth | Local: Docker or Go build, GitHub PAT<br>Remote: Copilot for Xcode latest version | Easy |
-| Copilot in Eclipse | ✅ | ✅ PAT + ❌ No OAuth | Local: Docker or Go build, GitHub PAT<br>Remote: TBD | Easy |
+| Copilot in Xcode | ✅ | ✅ Full (OAuth + PAT) | Local: Docker or Go build, GitHub PAT<br>Remote: Copilot for Xcode 0.41.0+ | Easy |
+| Copilot in Eclipse | ✅ | ✅ Full (OAuth + PAT) | Local: Docker or Go build, GitHub PAT<br>Remote: Eclipse Plug-in for Copilot 0.10.0+ | Easy |
 
 **Legend:**
 - ✅ = Fully supported

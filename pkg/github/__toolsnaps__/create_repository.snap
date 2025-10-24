@@ -3,7 +3,7 @@
     "title": "Create repository",
     "readOnlyHint": false
   },
-  "description": "Create a new GitHub repository in your account",
+  "description": "Create a new GitHub repository in your account or specified organization",
   "inputSchema": {
     "properties": {
       "autoInit": {
@@ -16,6 +16,10 @@
       },
       "name": {
         "description": "Repository name",
+        "type": "string"
+      },
+      "organization": {
+        "description": "Organization to create the repository in (omit to create in your personal account)",
         "type": "string"
       },
       "private": {

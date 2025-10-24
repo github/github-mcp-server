@@ -36,7 +36,7 @@ Alternatively, to manually configure VS Code, choose the appropriate JSON block 
 <tr><th align=left colspan=2>VS Code (version 1.101 or greater)</th></tr>
 <tr valign=top>
 <td>
-  
+
 ```json
 {
   "servers": {
@@ -85,13 +85,34 @@ Alternatively, to manually configure VS Code, choose the appropriate JSON block 
 
 > **Note:** Each MCP host application needs to configure a GitHub App or OAuth App to support remote access via OAuth. Any host application that supports remote MCP servers should support the remote GitHub server with PAT authentication. Configuration details and support levels vary by host. Make sure to refer to the host application's documentation for more info.
 
-> ⚠️ **Public Preview Status:** The **remote** GitHub MCP Server is currently in Public Preview. During preview, access may be gated depending on authentication type and surface:
-> - OAuth: Subject to GitHub Copilot Editor Preview Policy until GA
-> - PAT: Controlled via your organization's PAT policies
-> - MCP Servers in Copilot policy: Enables/disables access to all MCP servers in VS Code, with other Copilot editors migrating to this policy in the coming months.
-
 ### Configuration
-See [Remote Server Documentation](/docs/remote-server.md) on how to pass additional configuration settings to the remote GitHub MCP Server.
+
+#### Toolset configuration
+
+See [Remote Server Documentation](docs/remote-server.md) for full details on remote server configuration, toolsets, headers, and advanced usage. This file provides comprehensive instructions and examples for connecting, customizing, and installing the remote GitHub MCP Server in VS Code and other MCP hosts.
+
+When no toolsets are specified, [default toolsets](#default-toolset) are used.
+
+#### Enterprise Cloud with data residency (ghe.com)
+
+GitHub Enterprise Cloud can also make use of the remote server.
+
+Example for `https://octocorp.ghe.com`:
+```
+{
+    ...
+    "proxima-github": {
+      "type": "http",
+      "url": "https://copilot-api.octocorp.ghe.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${input:github_mcp_pat}"
+      }
+    },
+    ...
+}
+```
+
+GitHub Enterprise Server does not support remote server hosting. Please refer to [GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)](#github-enterprise-server-and-enterprise-cloud-with-data-residency-ghecom) from the local server configuration.
 
 ---
 
@@ -130,7 +151,7 @@ To keep your GitHub PAT secure and reusable across different MCP hosts:
    ```bash
    # CLI usage
    claude mcp update github -e GITHUB_PERSONAL_ACCESS_TOKEN=$GITHUB_PAT
-   
+
    # In config files (where supported)
    "env": {
      "GITHUB_PERSONAL_ACCESS_TOKEN": "$GITHUB_PAT"
@@ -144,6 +165,7 @@ To keep your GitHub PAT secure and reusable across different MCP hosts:
 - **Minimum scopes**: Only grant necessary permissions
   - `repo` - Repository operations
   - `read:packages` - Docker image access
+  - `read:org` - Organization team access
 - **Separate tokens**: Use different PATs for different projects/environments
 - **Regular rotation**: Update tokens periodically
 - **Never commit**: Keep tokens out of version control
@@ -153,6 +175,33 @@ To keep your GitHub PAT secure and reusable across different MCP hosts:
   ```
 
 </details>
+
+### GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)
+
+The flag `--gh-host` and the environment variable `GITHUB_HOST` can be used to set
+the hostname for GitHub Enterprise Server or GitHub Enterprise Cloud with data residency.
+
+- For GitHub Enterprise Server, prefix the hostname with the `https://` URI scheme, as it otherwise defaults to `http://`, which GitHub Enterprise Server does not support.
+- For GitHub Enterprise Cloud with data residency, use `https://YOURSUBDOMAIN.ghe.com` as the hostname.
+``` json
+"github": {
+    "command": "docker",
+    "args": [
+    "run",
+    "-i",
+    "--rm",
+    "-e",
+    "GITHUB_PERSONAL_ACCESS_TOKEN",
+    "-e",
+    "GITHUB_HOST",
+    "ghcr.io/github/github-mcp-server"
+    ],
+    "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}",
+        "GITHUB_HOST": "https://<your GHES or ghe.com domain name>"
+    }
+}
+```
 
 ## Installation
 
@@ -240,10 +289,11 @@ For other MCP host applications, please refer to our installation guides:
 
 - **[GitHub Copilot in other IDEs](/docs/installation-guides/install-other-copilot-ides.md)** - Installation for JetBrains, Visual Studio, Eclipse, and Xcode with GitHub Copilot
 - **[Claude Code & Claude Desktop](docs/installation-guides/install-claude.md)** - Installation guide for Claude Code and Claude Desktop
-- **[Cursor](docs/installation-guides/install-cursor.md)** - Installation guide for Cursor IDE  
+- **[Cursor](docs/installation-guides/install-cursor.md)** - Installation guide for Cursor IDE
+- **[Google Gemini CLI](docs/installation-guides/install-gemini-cli.md)** - Installation guide for Google Gemini CLI
 - **[Windsurf](docs/installation-guides/install-windsurf.md)** - Installation guide for Windsurf IDE
 
-For a complete overview of all installation options, see our **[Installation Guides Index](docs/installation-guides/installation-guides.md)**.
+For a complete overview of all installation options, see our **[Installation Guides Index](docs/installation-guides)**.
 
 > **Note:** Any host application that supports local MCP servers should be able to access the local GitHub MCP server. However, the specific configuration process, syntax and stability of the integration will vary by host application. While many may follow a similar format to the examples above, this is not guaranteed. Please refer to your host application's documentation for the correct MCP configuration syntax and setup process.
 
@@ -274,9 +324,71 @@ The GitHub MCP Server supports enabling or disabling specific groups of function
 
 _Toolsets are not limited to Tools. Relevant MCP Resources and Prompts are also included where applicable._
 
+When no toolsets are specified, [default toolsets](#default-toolset) are used.
+
+#### Specifying Toolsets
+
+To specify toolsets you want available to the LLM, you can pass an allow-list in two ways:
+
+1. **Using Command Line Argument**:
+
+   ```bash
+   github-mcp-server --toolsets repos,issues,pull_requests,actions,code_security
+   ```
+
+2. **Using Environment Variable**:
+   ```bash
+   GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security" ./github-mcp-server
+   ```
+
+The environment variable `GITHUB_TOOLSETS` takes precedence over the command line argument if both are provided.
+
+### Using Toolsets With Docker
+
+When using Docker, you can pass the toolsets as environment variables:
+
+```bash
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security,experiments" \
+  ghcr.io/github/github-mcp-server
+```
+
+### Special toolsets
+
+#### "all" toolset
+
+The special toolset `all` can be provided to enable all available toolsets regardless of any other configuration:
+
+```bash
+./github-mcp-server --toolsets all
+```
+
+Or using the environment variable:
+
+```bash
+GITHUB_TOOLSETS="all" ./github-mcp-server
+```
+
+#### "default" toolset
+The default toolset `default` is the configuration that gets passed to the server if no toolsets are specified.
+
+The default configuration is:
+- context
+- repos
+- issues
+- pull_requests
+- users
+
+To keep the default configuration and add additional toolsets:
+
+```bash
+GITHUB_TOOLSETS="default,stargazers" ./github-mcp-server
+```
+
 ### Available Toolsets
 
-The following sets of tools are available (all are on by default):
+The following sets of tools are available:
 
 <!-- START AUTOMATED TOOLSETS -->
 | Toolset                 | Description                                                   |
@@ -289,16 +401,27 @@ The following sets of tools are available (all are on by default):
 | `experiments` | Experimental features that are not considered stable yet |
 | `gists` | GitHub Gist related tools |
 | `issues` | GitHub Issues related tools |
+| `labels` | GitHub Labels related tools |
 | `notifications` | GitHub Notifications related tools |
 | `orgs` | GitHub Organization related tools |
+| `projects` | GitHub Projects related tools |
 | `pull_requests` | GitHub Pull Request related tools |
 | `repos` | GitHub Repository related tools |
 | `secret_protection` | Secret protection related tools, such as GitHub Secret Scanning |
+| `security_advisories` | Security advisories related tools |
+| `stargazers` | GitHub Stargazers related tools |
 | `users` | GitHub User related tools |
 <!-- END AUTOMATED TOOLSETS -->
 
-## Tools
+### Additional Toolsets in Remote Github MCP Server
 
+| Toolset                 | Description                                                   |
+| ----------------------- | ------------------------------------------------------------- |
+| `copilot` | Copilot related tools (e.g. Copilot Coding Agent) |
+| `copilot_spaces` | Copilot Spaces related tools |
+| `github_support_docs_search` | Search docs to answer GitHub product and support questions |
+
+## Tools
 
 <!-- START AUTOMATED TOOLS -->
 <details>
@@ -421,6 +544,13 @@ The following sets of tools are available (all are on by default):
 - **get_me** - Get my user profile
   - No parameters required
 
+- **get_team_members** - Get team members
+  - `org`: Organization login (owner) that contains the team. (string, required)
+  - `team_slug`: Team slug (string, required)
+
+- **get_teams** - Get teams
+  - `user`: Username to get teams for. If not provided, uses the authenticated user. (string, optional)
+
 </details>
 
 <details>
@@ -458,7 +588,7 @@ The following sets of tools are available (all are on by default):
 
 - **list_discussion_categories** - List discussion categories
   - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
+  - `repo`: Repository name. If not provided, discussion categories will be queried at the organisation level. (string, optional)
 
 - **list_discussions** - List discussions
   - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
@@ -505,90 +635,110 @@ The following sets of tools are available (all are on by default):
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
-- **add_sub_issue** - Add sub-issue
-  - `issue_number`: The number of the parent issue (number, required)
-  - `owner`: Repository owner (string, required)
-  - `replace_parent`: When true, replaces the sub-issue's current parent issue (boolean, optional)
-  - `repo`: Repository name (string, required)
-  - `sub_issue_id`: The ID of the sub-issue to add. ID is not the same as issue number (number, required)
-
 - **assign_copilot_to_issue** - Assign Copilot to issue
   - `issueNumber`: Issue number (number, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
-- **create_issue** - Open new issue
+- **get_label** - Get a specific label from a repository.
+  - `name`: Label name. (string, required)
+  - `owner`: Repository owner (username or organization name) (string, required)
+  - `repo`: Repository name (string, required)
+
+- **issue_read** - Get issue details
+  - `issue_number`: The number of the issue (number, required)
+  - `method`: The read operation to perform on a single issue. 
+Options are: 
+1. get - Get details of a specific issue.
+2. get_comments - Get issue comments.
+3. get_sub_issues - Get sub-issues of the issue.
+4. get_labels - Get labels assigned to the issue.
+ (string, required)
+  - `owner`: The owner of the repository (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: The name of the repository (string, required)
+
+- **issue_write** - Create or update issue.
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
+  - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
+  - `issue_number`: Issue number to update (number, optional)
   - `labels`: Labels to apply to this issue (string[], optional)
+  - `method`: Write operation to perform on a single issue.
+Options are: 
+- 'create' - creates a new issue. 
+- 'update' - updates an existing issue.
+ (string, required)
   - `milestone`: Milestone number (number, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
-  - `title`: Issue title (string, required)
+  - `state`: New state (string, optional)
+  - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
+  - `title`: Issue title (string, optional)
+  - `type`: Type of this issue (string, optional)
 
-- **get_issue** - Get issue details
-  - `issue_number`: The number of the issue (number, required)
-  - `owner`: The owner of the repository (string, required)
-  - `repo`: The name of the repository (string, required)
-
-- **get_issue_comments** - Get issue comments
-  - `issue_number`: Issue number (number, required)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
+- **list_issue_types** - List available issue types
+  - `owner`: The organization owner of the repository (string, required)
 
 - **list_issues** - List issues
-  - `direction`: Sort direction (string, optional)
+  - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
+  - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
   - `labels`: Filter by labels (string[], optional)
+  - `orderBy`: Order issues by field. If provided, the 'direction' also needs to be provided. (string, optional)
   - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
   - `since`: Filter by date (ISO 8601 timestamp) (string, optional)
-  - `sort`: Sort order (string, optional)
-  - `state`: Filter by state (string, optional)
-
-- **list_sub_issues** - List sub-issues
-  - `issue_number`: Issue number (number, required)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (default: 1) (number, optional)
-  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
-  - `repo`: Repository name (string, required)
-
-- **remove_sub_issue** - Remove sub-issue
-  - `issue_number`: The number of the parent issue (number, required)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `sub_issue_id`: The ID of the sub-issue to remove. ID is not the same as issue number (number, required)
-
-- **reprioritize_sub_issue** - Reprioritize sub-issue
-  - `after_id`: The ID of the sub-issue to be prioritized after (either after_id OR before_id should be specified) (number, optional)
-  - `before_id`: The ID of the sub-issue to be prioritized before (either after_id OR before_id should be specified) (number, optional)
-  - `issue_number`: The number of the parent issue (number, required)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `sub_issue_id`: The ID of the sub-issue to reprioritize. ID is not the same as issue number (number, required)
+  - `state`: Filter by state, by default both open and closed issues are returned when not provided (string, optional)
 
 - **search_issues** - Search issues
   - `order`: Sort order (string, optional)
-  - `owner`: Optional repository owner. If provided with repo, only notifications for this repository are listed. (string, optional)
+  - `owner`: Optional repository owner. If provided with repo, only issues for this repository are listed. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Search query using GitHub issues search syntax (string, required)
-  - `repo`: Optional repository name. If provided with owner, only notifications for this repository are listed. (string, optional)
+  - `repo`: Optional repository name. If provided with owner, only issues for this repository are listed. (string, optional)
   - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
 
-- **update_issue** - Edit issue
-  - `assignees`: New assignees (string[], optional)
-  - `body`: New description (string, optional)
-  - `issue_number`: Issue number to update (number, required)
-  - `labels`: New labels (string[], optional)
-  - `milestone`: New milestone number (number, optional)
+- **sub_issue_write** - Change sub-issue
+  - `after_id`: The ID of the sub-issue to be prioritized after (either after_id OR before_id should be specified) (number, optional)
+  - `before_id`: The ID of the sub-issue to be prioritized before (either after_id OR before_id should be specified) (number, optional)
+  - `issue_number`: The number of the parent issue (number, required)
+  - `method`: The action to perform on a single sub-issue
+Options are:
+- 'add' - add a sub-issue to a parent issue in a GitHub repository.
+- 'remove' - remove a sub-issue from a parent issue in a GitHub repository.
+- 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.
+				 (string, required)
   - `owner`: Repository owner (string, required)
+  - `replace_parent`: When true, replaces the sub-issue's current parent issue. Use with 'add' method only. (boolean, optional)
   - `repo`: Repository name (string, required)
-  - `state`: New state (string, optional)
-  - `title`: New title (string, optional)
+  - `sub_issue_id`: The ID of the sub-issue to add. ID is not the same as issue number (number, required)
+
+</details>
+
+<details>
+
+<summary>Labels</summary>
+
+- **get_label** - Get a specific label from a repository.
+  - `name`: Label name. (string, required)
+  - `owner`: Repository owner (username or organization name) (string, required)
+  - `repo`: Repository name (string, required)
+
+- **label_write** - Write operations on repository labels.
+  - `color`: Label color as 6-character hex code without '#' prefix (e.g., 'f29513'). Required for 'create', optional for 'update'. (string, optional)
+  - `description`: Label description text. Optional for 'create' and 'update'. (string, optional)
+  - `method`: Operation to perform: 'create', 'update', or 'delete' (string, required)
+  - `name`: Label name - required for all operations (string, required)
+  - `new_name`: New name for the label (used only with 'update' method to rename) (string, optional)
+  - `owner`: Repository owner (username or organization name) (string, required)
+  - `repo`: Repository name (string, required)
+
+- **list_label** - List labels from a repository
+  - `owner`: Repository owner (username or organization name) - required for all operations (string, required)
+  - `repo`: Repository name - required for all operations (string, required)
 
 </details>
 
@@ -643,6 +793,70 @@ The following sets of tools are available (all are on by default):
 
 <details>
 
+<summary>Projects</summary>
+
+- **add_project_item** - Add project item
+  - `item_id`: The numeric ID of the issue or pull request to add to the project. (number, required)
+  - `item_type`: The item's type, either issue or pull_request. (string, required)
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `project_number`: The project's number. (number, required)
+
+- **delete_project_item** - Delete project item
+  - `item_id`: The internal project item ID to delete from the project (not the issue or pull request ID). (number, required)
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `project_number`: The project's number. (number, required)
+
+- **get_project** - Get project
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `project_number`: The project's number (number, required)
+
+- **get_project_field** - Get project field
+  - `field_id`: The field's id. (number, required)
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `project_number`: The project's number. (number, required)
+
+- **get_project_item** - Get project item
+  - `fields`: Specific list of field IDs to include in the response (e.g. ["102589", "985201", "169875"]). If not provided, only the title field is included. (string[], optional)
+  - `item_id`: The item's ID. (number, required)
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `project_number`: The project's number. (number, required)
+
+- **list_project_fields** - List project fields
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
+  - `project_number`: The project's number. (number, required)
+
+- **list_project_items** - List project items
+  - `fields`: Specific list of field IDs to include in the response (e.g. ["102589", "985201", "169875"]). If not provided, only the title field is included. (string[], optional)
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
+  - `project_number`: The project's number. (number, required)
+  - `query`: Search query to filter items (string, optional)
+
+- **list_projects** - List projects
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
+  - `query`: Filter projects by a search query (matches title and description) (string, optional)
+
+- **update_project_item** - Update project item
+  - `item_id`: The unique identifier of the project item. This is not the issue or pull request ID. (number, required)
+  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `project_number`: The project's number. (number, required)
+  - `updated_field`: Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {"id": 123456, "value": "New Value"} (object, required)
+
+</details>
+
+<details>
+
 <summary>Pull Requests</summary>
 
 - **add_comment_to_pending_review** - Add review comment to the requester's latest pending pull request review
@@ -657,20 +871,6 @@ The following sets of tools are available (all are on by default):
   - `startSide`: For multi-line comments, the starting side of the diff that the comment applies to. LEFT indicates the previous state, RIGHT indicates the new state (string, optional)
   - `subjectType`: The level at which the comment is targeted (string, required)
 
-- **create_and_submit_pull_request_review** - Create and submit a pull request review without comments
-  - `body`: Review comment text (string, required)
-  - `commitID`: SHA of commit to review (string, optional)
-  - `event`: Review action to perform (string, required)
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **create_pending_pull_request_review** - Create pending pull request review
-  - `commitID`: SHA of commit to review (string, optional)
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
 - **create_pull_request** - Open new pull request
   - `base`: Branch to merge into (string, required)
   - `body`: PR description (string, optional)
@@ -680,43 +880,6 @@ The following sets of tools are available (all are on by default):
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `title`: PR title (string, required)
-
-- **delete_pending_pull_request_review** - Delete the requester's latest pending pull request review
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **get_pull_request** - Get pull request details
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **get_pull_request_comments** - Get pull request comments
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **get_pull_request_diff** - Get pull request diff
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **get_pull_request_files** - Get pull request files
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **get_pull_request_reviews** - Get pull request reviews
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
-
-- **get_pull_request_status** - Get pull request status checks
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
 
 - **list_pull_requests** - List pull requests
   - `base`: Filter by base branch (string, optional)
@@ -737,6 +900,32 @@ The following sets of tools are available (all are on by default):
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
+- **pull_request_read** - Get details for a single pull request
+  - `method`: Action to specify what pull request data needs to be retrieved from GitHub. 
+Possible options: 
+ 1. get - Get details of a specific pull request.
+ 2. get_diff - Get the diff of a pull request.
+ 3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
+ 4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
+ 5. get_review_comments - Get the review comments on a pull request. They are comments made on a portion of the unified diff during a pull request review. Use with pagination parameters to control the number of results returned.
+ 6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
+ 7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
+ (string, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
+- **pull_request_review_write** - Write operations (create, submit, delete) on pull request reviews.
+  - `body`: Review comment text (string, optional)
+  - `commitID`: SHA of commit to review (string, optional)
+  - `event`: Review action to perform. (string, optional)
+  - `method`: The write operation to perform on pull request review. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
 - **request_copilot_review** - Request Copilot review
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
@@ -744,19 +933,12 @@ The following sets of tools are available (all are on by default):
 
 - **search_pull_requests** - Search pull requests
   - `order`: Sort order (string, optional)
-  - `owner`: Optional repository owner. If provided with repo, only notifications for this repository are listed. (string, optional)
+  - `owner`: Optional repository owner. If provided with repo, only pull requests for this repository are listed. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Search query using GitHub pull request search syntax (string, required)
-  - `repo`: Optional repository name. If provided with owner, only notifications for this repository are listed. (string, optional)
+  - `repo`: Optional repository name. If provided with owner, only pull requests for this repository are listed. (string, optional)
   - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
-
-- **submit_pending_pull_request_review** - Submit the requester's latest pending pull request review
-  - `body`: The text of the review comment (string, optional)
-  - `event`: The event to perform (string, required)
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
 
 - **update_pull_request** - Edit pull request
   - `base`: New base branch name (string, optional)
@@ -801,6 +983,7 @@ The following sets of tools are available (all are on by default):
   - `autoInit`: Initialize with README (boolean, optional)
   - `description`: Repository description (string, optional)
   - `name`: Repository name (string, required)
+  - `organization`: Organization to create the repository in (omit to create in your personal account) (string, optional)
   - `private`: Whether repo should be private (boolean, optional)
 
 - **delete_file** - Delete file
@@ -816,6 +999,7 @@ The following sets of tools are available (all are on by default):
   - `repo`: Repository name (string, required)
 
 - **get_commit** - Get commit details
+  - `include_diff`: Whether to include file diffs and stats in the response. Default is true. (boolean, optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -828,6 +1012,15 @@ The following sets of tools are available (all are on by default):
   - `ref`: Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head` (string, optional)
   - `repo`: Repository name (string, required)
   - `sha`: Accepts optional commit SHA. If specified, it will be used instead of ref (string, optional)
+
+- **get_latest_release** - Get latest release
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **get_release_by_tag** - Get a release by tag name
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `tag`: Tag name (e.g., 'v1.0.0') (string, required)
 
 - **get_tag** - Get tag details
   - `owner`: Repository owner (string, required)
@@ -847,6 +1040,12 @@ The following sets of tools are available (all are on by default):
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
   - `sha`: Commit SHA, branch or tag name to list commits of. If not provided, uses the default branch of the repository. If a commit SHA is provided, will list commits up to that SHA. (string, optional)
+
+- **list_releases** - List releases
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
 
 - **list_tags** - List tags
   - `owner`: Repository owner (string, required)
@@ -869,9 +1068,12 @@ The following sets of tools are available (all are on by default):
   - `sort`: Sort field ('indexed' only) (string, optional)
 
 - **search_repositories** - Search repositories
+  - `minimal_output`: Return minimal repository information (default: true). When false, returns full GitHub API repository objects. (boolean, optional)
+  - `order`: Sort order (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Repository search query. Examples: 'machine learning in:name stars:>1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering. (string, required)
+  - `sort`: Sort repositories by field, defaults to best match (string, optional)
 
 </details>
 
@@ -895,6 +1097,62 @@ The following sets of tools are available (all are on by default):
 
 <details>
 
+<summary>Security Advisories</summary>
+
+- **get_global_security_advisory** - Get a global security advisory
+  - `ghsaId`: GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx). (string, required)
+
+- **list_global_security_advisories** - List global security advisories
+  - `affects`: Filter advisories by affected package or version (e.g. "package1,package2@1.0.0"). (string, optional)
+  - `cveId`: Filter by CVE ID. (string, optional)
+  - `cwes`: Filter by Common Weakness Enumeration IDs (e.g. ["79", "284", "22"]). (string[], optional)
+  - `ecosystem`: Filter by package ecosystem. (string, optional)
+  - `ghsaId`: Filter by GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx). (string, optional)
+  - `isWithdrawn`: Whether to only return withdrawn advisories. (boolean, optional)
+  - `modified`: Filter by publish or update date or date range (ISO 8601 date or range). (string, optional)
+  - `published`: Filter by publish date or date range (ISO 8601 date or range). (string, optional)
+  - `severity`: Filter by severity. (string, optional)
+  - `type`: Advisory type. (string, optional)
+  - `updated`: Filter by update date or date range (ISO 8601 date or range). (string, optional)
+
+- **list_org_repository_security_advisories** - List org repository security advisories
+  - `direction`: Sort direction. (string, optional)
+  - `org`: The organization login. (string, required)
+  - `sort`: Sort field. (string, optional)
+  - `state`: Filter by advisory state. (string, optional)
+
+- **list_repository_security_advisories** - List repository security advisories
+  - `direction`: Sort direction. (string, optional)
+  - `owner`: The owner of the repository. (string, required)
+  - `repo`: The name of the repository. (string, required)
+  - `sort`: Sort field. (string, optional)
+  - `state`: Filter by advisory state. (string, optional)
+
+</details>
+
+<details>
+
+<summary>Stargazers</summary>
+
+- **list_starred_repositories** - List starred repositories
+  - `direction`: The direction to sort the results by. (string, optional)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `sort`: How to sort the results. Can be either 'created' (when the repository was starred) or 'updated' (when the repository was last pushed to). (string, optional)
+  - `username`: Username to list starred repositories for. Defaults to the authenticated user. (string, optional)
+
+- **star_repository** - Star repository
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **unstar_repository** - Unstar repository
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+</details>
+
+<details>
+
 <summary>Users</summary>
 
 - **search_users** - Search users
@@ -911,7 +1169,7 @@ The following sets of tools are available (all are on by default):
 
 <details>
 
-<summary>Copilot coding agent</summary>
+<summary>Copilot</summary>
 
 -   **create_pull_request_with_copilot** - Perform task with GitHub Copilot coding agent
     -   `owner`: Repository owner. You can guess the owner, but confirm it with the user before proceeding. (string, required)
@@ -922,47 +1180,24 @@ The following sets of tools are available (all are on by default):
 
 </details>
 
-#### Specifying Toolsets
+<details>
 
-To specify toolsets you want available to the LLM, you can pass an allow-list in two ways:
+<summary>Copilot Spaces</summary>
 
-1. **Using Command Line Argument**:
+-   **get_copilot_space** - Get Copilot Space
+    -   `owner`: The owner of the space. (string, required)
+    -   `name`: The name of the space. (string, required)
 
-   ```bash
-   github-mcp-server --toolsets repos,issues,pull_requests,actions,code_security
-   ```
+-   **list_copilot_spaces** - List Copilot Spaces
+</details>
 
-2. **Using Environment Variable**:
-   ```bash
-   GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security" ./github-mcp-server
-   ```
+<details>
 
-The environment variable `GITHUB_TOOLSETS` takes precedence over the command line argument if both are provided.
+<summary>GitHub Support Docs Search</summary>
 
-### Using Toolsets With Docker
-
-When using Docker, you can pass the toolsets as environment variables:
-
-```bash
-docker run -i --rm \
-  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
-  -e GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security,experiments" \
-  ghcr.io/github/github-mcp-server
-```
-
-### The "all" Toolset
-
-The special toolset `all` can be provided to enable all available toolsets regardless of any other configuration:
-
-```bash
-./github-mcp-server --toolsets all
-```
-
-Or using the environment variable:
-
-```bash
-GITHUB_TOOLSETS="all" ./github-mcp-server
-```
+-   **github_support_docs_search** - Retrieve documentation relevant to answer GitHub product and support questions. Support topics include: GitHub Actions Workflows, Authentication, GitHub Support Inquiries, Pull Request Practices, Repository Maintenance, GitHub Pages, GitHub Packages, GitHub Discussions, Copilot Spaces
+    -   `query`: Input from the user about the question they need answered. This is the latest raw unedited user message. You should ALWAYS leave the user message as it is, you should never modify it. (string, required)
+</details>
 
 ## Dynamic Tool Discovery
 
@@ -1002,33 +1237,6 @@ docker run -i --rm \
   -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
   -e GITHUB_READ_ONLY=1 \
   ghcr.io/github/github-mcp-server
-```
-
-## GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)
-
-The flag `--gh-host` and the environment variable `GITHUB_HOST` can be used to set
-the hostname for GitHub Enterprise Server or GitHub Enterprise Cloud with data residency.
-
-- For GitHub Enterprise Server, prefix the hostname with the `https://` URI scheme, as it otherwise defaults to `http://`, which GitHub Enterprise Server does not support.
-- For GitHub Enterprise Cloud with data residency, use `https://YOURSUBDOMAIN.ghe.com` as the hostname.
-``` json
-"github": {
-    "command": "docker",
-    "args": [
-    "run",
-    "-i",
-    "--rm",
-    "-e",
-    "GITHUB_PERSONAL_ACCESS_TOKEN",
-    "-e",
-    "GITHUB_HOST",
-    "ghcr.io/github/github-mcp-server"
-    ],
-    "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}",
-        "GITHUB_HOST": "https://<your GHES or ghe.com domain name>"
-    }
-}
 ```
 
 ## i18n / Overriding Descriptions

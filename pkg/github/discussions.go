@@ -7,7 +7,7 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/google/go-github/v73/github"
+	"github.com/google/go-github/v74/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/shurcooL/githubv4"
@@ -443,7 +443,7 @@ func GetDiscussionComments(getGQLClient GetGQLClientFn, t translations.Translati
 
 func ListDiscussionCategories(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("list_discussion_categories",
-			mcp.WithDescription(t("TOOL_LIST_DISCUSSION_CATEGORIES_DESCRIPTION", "List discussion categories with their id and name, for a repository")),
+			mcp.WithDescription(t("TOOL_LIST_DISCUSSION_CATEGORIES_DESCRIPTION", "List discussion categories with their id and name, for a repository or organisation.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:        t("TOOL_LIST_DISCUSSION_CATEGORIES_USER_TITLE", "List discussion categories"),
 				ReadOnlyHint: ToBoolPtr(true),
@@ -453,18 +453,22 @@ func ListDiscussionCategories(getGQLClient GetGQLClientFn, t translations.Transl
 				mcp.Description("Repository owner"),
 			),
 			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
+				mcp.Description("Repository name. If not provided, discussion categories will be queried at the organisation level."),
 			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			// Decode params
-			var params struct {
-				Owner string
-				Repo  string
-			}
-			if err := mapstructure.Decode(request.Params.Arguments, &params); err != nil {
+			owner, err := RequiredParam[string](request, "owner")
+			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
+			}
+			repo, err := OptionalParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			// when not provided, default to the .github repository
+			// this will query discussion categories at the organisation level
+			if repo == "" {
+				repo = ".github"
 			}
 
 			client, err := getGQLClient(ctx)
@@ -490,8 +494,8 @@ func ListDiscussionCategories(getGQLClient GetGQLClientFn, t translations.Transl
 				} `graphql:"repository(owner: $owner, name: $repo)"`
 			}
 			vars := map[string]interface{}{
-				"owner": githubv4.String(params.Owner),
-				"repo":  githubv4.String(params.Repo),
+				"owner": githubv4.String(owner),
+				"repo":  githubv4.String(repo),
 				"first": githubv4.Int(25),
 			}
 			if err := client.Query(ctx, &q, vars); err != nil {

@@ -3,21 +3,24 @@ module github.com/github/github-mcp-server
 go 1.23.7
 
 require (
-	github.com/google/go-github/v73 v73.0.0
+	github.com/google/go-github/v74 v74.0.0
 	github.com/josephburnett/jd v1.9.2
-	github.com/mark3labs/mcp-go v0.32.0
+	github.com/mark3labs/mcp-go v0.36.0
 	github.com/migueleliasweb/go-github-mock v1.3.0
-	github.com/sirupsen/logrus v1.9.3
-	github.com/spf13/cobra v1.9.1
+	github.com/spf13/cobra v1.10.1
 	github.com/spf13/viper v1.20.1
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 )
 
 require (
+	github.com/bahlo/generic-list-go v0.2.0 // indirect
+	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/swag v0.21.1 // indirect
+	github.com/invopop/jsonschema v0.13.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
+	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
@@ -26,9 +29,9 @@ require (
 require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
-	github.com/go-viper/mapstructure/v2 v2.3.0
+	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/google/go-github/v71 v71.0.0 // indirect
-	github.com/google/go-querystring v1.1.0 // indirect
+	github.com/google/go-querystring v1.1.0
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -41,7 +44,7 @@ require (
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.14.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
-	github.com/spf13/pflag v1.0.6
+	github.com/spf13/pflag v1.0.9
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect

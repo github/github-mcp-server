@@ -9,7 +9,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v73/github"
+	"github.com/google/go-github/v74/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -484,7 +484,7 @@ func Test_GetDiscussion(t *testing.T) {
 	assert.ElementsMatch(t, toolDef.InputSchema.Required, []string{"owner", "repo", "discussionNumber"})
 
 	// Use exact string query that matches implementation output
-    qGetDiscussion := "query($discussionNumber:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){number,title,body,createdAt,url,category{name}}}}"
+	qGetDiscussion := "query($discussionNumber:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){number,title,body,createdAt,url,category{name}}}}"
 
 	vars := map[string]interface{}{
 		"owner":            "owner",
@@ -638,17 +638,33 @@ func Test_GetDiscussionComments(t *testing.T) {
 }
 
 func Test_ListDiscussionCategories(t *testing.T) {
+	mockClient := githubv4.NewClient(nil)
+	toolDef, _ := ListDiscussionCategories(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
+	assert.Equal(t, "list_discussion_categories", toolDef.Name)
+	assert.NotEmpty(t, toolDef.Description)
+	assert.Contains(t, toolDef.Description, "or organisation")
+	assert.Contains(t, toolDef.InputSchema.Properties, "owner")
+	assert.Contains(t, toolDef.InputSchema.Properties, "repo")
+	assert.ElementsMatch(t, toolDef.InputSchema.Required, []string{"owner"})
+
 	// Use exact string query that matches implementation output
 	qListCategories := "query($first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussionCategories(first: $first){nodes{id,name},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
 
-	// Variables matching what GraphQL receives after JSON marshaling/unmarshaling
-	vars := map[string]interface{}{
+	// Variables for repository-level categories
+	varsRepo := map[string]interface{}{
 		"owner": "owner",
 		"repo":  "repo",
 		"first": float64(25),
 	}
 
-	mockResp := githubv4mock.DataResponse(map[string]any{
+	// Variables for organization-level categories (using .github repo)
+	varsOrg := map[string]interface{}{
+		"owner": "owner",
+		"repo":  ".github",
+		"first": float64(25),
+	}
+
+	mockRespRepo := githubv4mock.DataResponse(map[string]any{
 		"repository": map[string]any{
 			"discussionCategories": map[string]any{
 				"nodes": []map[string]any{
@@ -665,37 +681,98 @@ func Test_ListDiscussionCategories(t *testing.T) {
 			},
 		},
 	})
-	matcher := githubv4mock.NewQueryMatcher(qListCategories, vars, mockResp)
-	httpClient := githubv4mock.NewMockedHTTPClient(matcher)
-	gqlClient := githubv4.NewClient(httpClient)
 
-	tool, handler := ListDiscussionCategories(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
-	assert.Equal(t, "list_discussion_categories", tool.Name)
-	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
+	mockRespOrg := githubv4mock.DataResponse(map[string]any{
+		"repository": map[string]any{
+			"discussionCategories": map[string]any{
+				"nodes": []map[string]any{
+					{"id": "789", "name": "Announcements"},
+					{"id": "101", "name": "General"},
+					{"id": "112", "name": "Ideas"},
+				},
+				"pageInfo": map[string]any{
+					"hasNextPage":     false,
+					"hasPreviousPage": false,
+					"startCursor":     "",
+					"endCursor":       "",
+				},
+				"totalCount": 3,
+			},
+		},
+	})
 
-	request := createMCPRequest(map[string]interface{}{"owner": "owner", "repo": "repo"})
-	result, err := handler(context.Background(), request)
-	require.NoError(t, err)
-
-	text := getTextResult(t, result).Text
-
-	var response struct {
-		Categories []map[string]string `json:"categories"`
-		PageInfo   struct {
-			HasNextPage     bool   `json:"hasNextPage"`
-			HasPreviousPage bool   `json:"hasPreviousPage"`
-			StartCursor     string `json:"startCursor"`
-			EndCursor       string `json:"endCursor"`
-		} `json:"pageInfo"`
-		TotalCount int `json:"totalCount"`
+	tests := []struct {
+		name               string
+		reqParams          map[string]interface{}
+		vars               map[string]interface{}
+		mockResponse       githubv4mock.GQLResponse
+		expectError        bool
+		expectedCount      int
+		expectedCategories []map[string]string
+	}{
+		{
+			name: "list repository-level discussion categories",
+			reqParams: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			vars:          varsRepo,
+			mockResponse:  mockRespRepo,
+			expectError:   false,
+			expectedCount: 2,
+			expectedCategories: []map[string]string{
+				{"id": "123", "name": "CategoryOne"},
+				{"id": "456", "name": "CategoryTwo"},
+			},
+		},
+		{
+			name: "list org-level discussion categories (no repo provided)",
+			reqParams: map[string]interface{}{
+				"owner": "owner",
+				// repo is not provided, it will default to ".github"
+			},
+			vars:          varsOrg,
+			mockResponse:  mockRespOrg,
+			expectError:   false,
+			expectedCount: 3,
+			expectedCategories: []map[string]string{
+				{"id": "789", "name": "Announcements"},
+				{"id": "101", "name": "General"},
+				{"id": "112", "name": "Ideas"},
+			},
+		},
 	}
-	require.NoError(t, json.Unmarshal([]byte(text), &response))
-	assert.Len(t, response.Categories, 2)
-	assert.Equal(t, "123", response.Categories[0]["id"])
-	assert.Equal(t, "CategoryOne", response.Categories[0]["name"])
-	assert.Equal(t, "456", response.Categories[1]["id"])
-	assert.Equal(t, "CategoryTwo", response.Categories[1]["name"])
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			matcher := githubv4mock.NewQueryMatcher(qListCategories, tc.vars, tc.mockResponse)
+			httpClient := githubv4mock.NewMockedHTTPClient(matcher)
+			gqlClient := githubv4.NewClient(httpClient)
+
+			_, handler := ListDiscussionCategories(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+
+			req := createMCPRequest(tc.reqParams)
+			res, err := handler(context.Background(), req)
+			text := getTextResult(t, res).Text
+
+			if tc.expectError {
+				require.True(t, res.IsError)
+				return
+			}
+			require.NoError(t, err)
+
+			var response struct {
+				Categories []map[string]string `json:"categories"`
+				PageInfo   struct {
+					HasNextPage     bool   `json:"hasNextPage"`
+					HasPreviousPage bool   `json:"hasPreviousPage"`
+					StartCursor     string `json:"startCursor"`
+					EndCursor       string `json:"endCursor"`
+				} `json:"pageInfo"`
+				TotalCount int `json:"totalCount"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(text), &response))
+			assert.Equal(t, tc.expectedCategories, response.Categories)
+		})
+	}
 }

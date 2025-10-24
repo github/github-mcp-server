@@ -14,10 +14,10 @@ jobs:
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
 
@@ -25,7 +25,7 @@ jobs:
         run: go mod download
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@9c156ee8a17a598857849441385a2041ef570552
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a
         with:
           distribution: goreleaser
           # GoReleaser version
@@ -37,7 +37,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate signed build provenance attestations for workflow artifacts
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@v3
         with:
           subject-path: |
             dist/*.tar.gz

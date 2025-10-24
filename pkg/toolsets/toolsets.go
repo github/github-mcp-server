@@ -33,30 +33,18 @@ func NewServerTool(tool mcp.Tool, handler server.ToolHandlerFunc) server.ServerT
 	return server.ServerTool{Tool: tool, Handler: handler}
 }
 
-func NewServerResourceTemplate(resourceTemplate mcp.ResourceTemplate, handler server.ResourceTemplateHandlerFunc) ServerResourceTemplate {
-	return ServerResourceTemplate{
-		resourceTemplate: resourceTemplate,
-		handler:          handler,
+func NewServerResourceTemplate(resourceTemplate mcp.ResourceTemplate, handler server.ResourceTemplateHandlerFunc) server.ServerResourceTemplate {
+	return server.ServerResourceTemplate{
+		Template: resourceTemplate,
+		Handler:  handler,
 	}
 }
 
-func NewServerPrompt(prompt mcp.Prompt, handler server.PromptHandlerFunc) ServerPrompt {
-	return ServerPrompt{
+func NewServerPrompt(prompt mcp.Prompt, handler server.PromptHandlerFunc) server.ServerPrompt {
+	return server.ServerPrompt{
 		Prompt:  prompt,
 		Handler: handler,
 	}
-}
-
-// ServerResourceTemplate represents a resource template that can be registered with the MCP server.
-type ServerResourceTemplate struct {
-	resourceTemplate mcp.ResourceTemplate
-	handler          server.ResourceTemplateHandlerFunc
-}
-
-// ServerPrompt represents a prompt that can be registered with the MCP server.
-type ServerPrompt struct {
-	Prompt  mcp.Prompt
-	Handler server.PromptHandlerFunc
 }
 
 // Toolset represents a collection of MCP functionality that can be enabled or disabled as a group.
@@ -69,9 +57,9 @@ type Toolset struct {
 	readTools   []server.ServerTool
 	// resources are not tools, but the community seems to be moving towards namespaces as a broader concept
 	// and in order to have multiple servers running concurrently, we want to avoid overlapping resources too.
-	resourceTemplates []ServerResourceTemplate
+	resourceTemplates []server.ServerResourceTemplate
 	// prompts are also not tools but are namespaced similarly
-	prompts []ServerPrompt
+	prompts []server.ServerPrompt
 }
 
 func (t *Toolset) GetActiveTools() []server.ServerTool {
@@ -105,24 +93,24 @@ func (t *Toolset) RegisterTools(s *server.MCPServer) {
 	}
 }
 
-func (t *Toolset) AddResourceTemplates(templates ...ServerResourceTemplate) *Toolset {
+func (t *Toolset) AddResourceTemplates(templates ...server.ServerResourceTemplate) *Toolset {
 	t.resourceTemplates = append(t.resourceTemplates, templates...)
 	return t
 }
 
-func (t *Toolset) AddPrompts(prompts ...ServerPrompt) *Toolset {
+func (t *Toolset) AddPrompts(prompts ...server.ServerPrompt) *Toolset {
 	t.prompts = append(t.prompts, prompts...)
 	return t
 }
 
-func (t *Toolset) GetActiveResourceTemplates() []ServerResourceTemplate {
+func (t *Toolset) GetActiveResourceTemplates() []server.ServerResourceTemplate {
 	if !t.Enabled {
 		return nil
 	}
 	return t.resourceTemplates
 }
 
-func (t *Toolset) GetAvailableResourceTemplates() []ServerResourceTemplate {
+func (t *Toolset) GetAvailableResourceTemplates() []server.ServerResourceTemplate {
 	return t.resourceTemplates
 }
 
@@ -131,7 +119,7 @@ func (t *Toolset) RegisterResourcesTemplates(s *server.MCPServer) {
 		return
 	}
 	for _, resource := range t.resourceTemplates {
-		s.AddResourceTemplate(resource.resourceTemplate, resource.handler)
+		s.AddResourceTemplate(resource.Template, resource.Handler)
 	}
 }
 
@@ -215,7 +203,17 @@ func (tg *ToolsetGroup) IsEnabled(name string) bool {
 	return feature.Enabled
 }
 
-func (tg *ToolsetGroup) EnableToolsets(names []string) error {
+type EnableToolsetsOptions struct {
+	ErrorOnUnknown bool
+}
+
+func (tg *ToolsetGroup) EnableToolsets(names []string, options *EnableToolsetsOptions) error {
+	if options == nil {
+		options = &EnableToolsetsOptions{
+			ErrorOnUnknown: false,
+		}
+	}
+
 	// Special case for "all"
 	for _, name := range names {
 		if name == "all" {
@@ -223,7 +221,7 @@ func (tg *ToolsetGroup) EnableToolsets(names []string) error {
 			break
 		}
 		err := tg.EnableToolset(name)
-		if err != nil {
+		if err != nil && options.ErrorOnUnknown {
 			return err
 		}
 	}
@@ -231,7 +229,7 @@ func (tg *ToolsetGroup) EnableToolsets(names []string) error {
 	if tg.everythingOn {
 		for name := range tg.Toolsets {
 			err := tg.EnableToolset(name)
-			if err != nil {
+			if err != nil && options.ErrorOnUnknown {
 				return err
 			}
 		}

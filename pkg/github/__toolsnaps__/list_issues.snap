@@ -3,14 +3,18 @@
     "title": "List issues",
     "readOnlyHint": true
   },
-  "description": "List issues in a GitHub repository.",
+  "description": "List issues in a GitHub repository. For pagination, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter.",
   "inputSchema": {
     "properties": {
+      "after": {
+        "description": "Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs.",
+        "type": "string"
+      },
       "direction": {
-        "description": "Sort direction",
+        "description": "Order direction. If provided, the 'orderBy' also needs to be provided.",
         "enum": [
-          "asc",
-          "desc"
+          "ASC",
+          "DESC"
         ],
         "type": "string"
       },
@@ -21,14 +25,18 @@
         },
         "type": "array"
       },
+      "orderBy": {
+        "description": "Order issues by field. If provided, the 'direction' also needs to be provided.",
+        "enum": [
+          "CREATED_AT",
+          "UPDATED_AT",
+          "COMMENTS"
+        ],
+        "type": "string"
+      },
       "owner": {
         "description": "Repository owner",
         "type": "string"
-      },
-      "page": {
-        "description": "Page number for pagination (min 1)",
-        "minimum": 1,
-        "type": "number"
       },
       "perPage": {
         "description": "Results per page for pagination (min 1, max 100)",
@@ -44,21 +52,11 @@
         "description": "Filter by date (ISO 8601 timestamp)",
         "type": "string"
       },
-      "sort": {
-        "description": "Sort order",
-        "enum": [
-          "created",
-          "updated",
-          "comments"
-        ],
-        "type": "string"
-      },
       "state": {
-        "description": "Filter by state",
+        "description": "Filter by state, by default both open and closed issues are returned when not provided",
         "enum": [
-          "open",
-          "closed",
-          "all"
+          "OPEN",
+          "CLOSED"
         ],
         "type": "string"
       }
