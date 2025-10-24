@@ -479,11 +479,8 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 				}
 				return mcp.NewToolResultError(fmt.Sprintf("%s: %s", ProjectListFailedError, string(body))), nil
 			}
-			minimalProjectItems := []MinimalProjectItem{}
-			for _, item := range projectItems {
-				minimalProjectItems = append(minimalProjectItems, *convertToMinimalProjectItem(&item))
-			}
-			r, err := json.Marshal(minimalProjectItems)
+
+			r, err := json.Marshal(projectItems)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -589,7 +586,7 @@ func GetProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 				}
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get project item: %s", string(body))), nil
 			}
-			r, err := json.Marshal(convertToMinimalProjectItem(&projectItem))
+			r, err := json.Marshal(projectItem)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -691,7 +688,7 @@ func AddProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 				}
 				return mcp.NewToolResultError(fmt.Sprintf("%s: %s", ProjectAddFailedError, string(body))), nil
 			}
-			r, err := json.Marshal(convertToMinimalProjectItem(&addedItem))
+			r, err := json.Marshal(addedItem)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -725,7 +722,7 @@ func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 			),
 			mcp.WithObject("updated_field",
 				mcp.Required(),
-				mcp.Description("Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set \"value\" to null. Example: {\"id\": 123456, \"value\": \"New Value\"}"),
+				mcp.Description("Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}"),
 			),
 		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](req, "owner")
@@ -796,7 +793,7 @@ func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 				}
 				return mcp.NewToolResultError(fmt.Sprintf("%s: %s", ProjectUpdateFailedError, string(body))), nil
 			}
-			r, err := json.Marshal(convertToMinimalProjectItem(&updatedItem))
+			r, err := json.Marshal(updatedItem)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -917,20 +914,33 @@ type projectV2ItemFieldValue struct {
 }
 
 type projectV2Item struct {
-	ID            *int64                     `json:"id,omitempty"`
-	Title         *string                    `json:"title,omitempty"`
-	Description   *string                    `json:"description,omitempty"`
-	NodeID        *string                    `json:"node_id,omitempty"`
-	ProjectNodeID *string                    `json:"project_node_id,omitempty"`
-	ContentNodeID *string                    `json:"content_node_id,omitempty"`
-	ProjectURL    *string                    `json:"project_url,omitempty"`
-	ContentType   *string                    `json:"content_type,omitempty"`
-	Creator       *github.User               `json:"creator,omitempty"`
-	CreatedAt     *github.Timestamp          `json:"created_at,omitempty"`
-	UpdatedAt     *github.Timestamp          `json:"updated_at,omitempty"`
-	ArchivedAt    *github.Timestamp          `json:"archived_at,omitempty"`
-	ItemURL       *string                    `json:"item_url,omitempty"`
-	Fields        []*projectV2ItemFieldValue `json:"fields,omitempty"`
+	ArchivedAt  *github.Timestamp          `json:"archived_at,omitempty"`
+	Content     *projectV2ItemContent      `json:"content,omitempty"`
+	ContentType *string                    `json:"content_type,omitempty"`
+	CreatedAt   *github.Timestamp          `json:"created_at,omitempty"`
+	Creator     *github.User               `json:"creator,omitempty"`
+	Description *string                    `json:"description,omitempty"`
+	Fields      []*projectV2ItemFieldValue `json:"fields,omitempty"`
+	ID          *int64                     `json:"id,omitempty"`
+	ItemURL     *string                    `json:"item_url,omitempty"`
+	NodeID      *string                    `json:"node_id,omitempty"`
+	ProjectURL  *string                    `json:"project_url,omitempty"`
+	Title       *string                    `json:"title,omitempty"`
+	UpdatedAt   *github.Timestamp          `json:"updated_at,omitempty"`
+}
+
+type projectV2ItemContent struct {
+	Body        *string           `json:"body,omitempty"`
+	ClosedAt    *github.Timestamp `json:"closed_at,omitempty"`
+	CreatedAt   *github.Timestamp `json:"created_at,omitempty"`
+	ID          *int64            `json:"id,omitempty"`
+	Number      *int              `json:"number,omitempty"`
+	Repository  MinimalRepository `json:"repository,omitempty"`
+	State       *string           `json:"state,omitempty"`
+	StateReason *string           `json:"stateReason,omitempty"`
+	Title       *string           `json:"title,omitempty"`
+	UpdatedAt   *github.Timestamp `json:"updated_at,omitempty"`
+	URL         *string           `json:"url,omitempty"`
 }
 
 type paginationOptions struct {
@@ -1017,49 +1027,177 @@ func addOptions(s string, opts any) (string, error) {
 
 func ManageProjectItemsPrompt(t translations.TranslationHelperFunc) (tool mcp.Prompt, handler server.PromptHandlerFunc) {
 	return mcp.NewPrompt("ManageProjectItems",
-			mcp.WithPromptDescription(t("PROMPT_MANAGE_PROJECT_ITEMS_DESCRIPTION", "Guide for working with GitHub Projects, including listing projects, viewing fields, querying items, and updating field values.")),
+			mcp.WithPromptDescription(t("PROMPT_MANAGE_PROJECT_ITEMS_DESCRIPTION", "Interactive guide for managing GitHub Projects V2, including discovery, field management, querying, and updates.")),
 			mcp.WithArgument("owner", mcp.ArgumentDescription("The owner of the project (user or organization name)"), mcp.RequiredArgument()),
 			mcp.WithArgument("owner_type", mcp.ArgumentDescription("Type of owner: 'user' or 'org'"), mcp.RequiredArgument()),
+			mcp.WithArgument("task", mcp.ArgumentDescription("Optional: specific task to focus on (e.g., 'discover_projects', 'update_items', 'create_reports')")),
 		), func(_ context.Context, request mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 			owner := request.Params.Arguments["owner"]
 			ownerType := request.Params.Arguments["owner_type"]
 
+			task := ""
+			if t, exists := request.Params.Arguments["task"]; exists {
+				task = fmt.Sprintf("%v", t)
+			}
+
 			messages := []mcp.PromptMessage{
 				{
-					Role:    "user",
-					Content: mcp.NewTextContent("You are an assistant helping users work with GitHub Projects V2. Your role is to help them discover projects, understand project fields, query items, and update field values on project items."),
+					Role: "system",
+					Content: mcp.NewTextContent("You are a GitHub Projects V2 management assistant. Your expertise includes:\n\n" +
+						"**Core Capabilities:**\n" +
+						"- Project discovery and field analysis\n" +
+						"- Item querying with advanced filters\n" +
+						"- Field value updates and management\n" +
+						"- Progress reporting and insights\n\n" +
+						"**Key Rules:**\n" +
+						"- ALWAYS use the 'query' parameter in **list_project_items** to filter results effectively\n" +
+						"- ALWAYS include 'fields' parameter with specific field IDs to retrieve field values\n" +
+						"- Use proper field IDs (not names) when updating items\n" +
+						"- Provide step-by-step workflows with concrete examples\n\n" +
+						"**Understanding Project Items:**\n" +
+						"- Project items reference underlying content (issues or pull requests)\n" +
+						"- Project tools provide: project fields, item metadata, and basic content info\n" +
+						"- For detailed information about an issue or pull request (comments, events, etc.), use issue/PR specific tools\n" +
+						"- The 'content' field in project items includes: repository, issue/PR number, title, state\n" +
+						"- Use this info to fetch full details: **get_issue**, **list_comments**, **list_issue_events**\n\n" +
+						"**Available Tools:**\n" +
+						"- **list_projects**: Discover available projects\n" +
+						"- **get_project**: Get detailed project information\n" +
+						"- **list_project_fields**: Get field definitions and IDs\n" +
+						"- **list_project_items**: Query items with filters and field selection\n" +
+						"- **get_project_item**: Get specific item details\n" +
+						"- **add_project_item**: Add issues/PRs to projects\n" +
+						"- **update_project_item**: Update field values\n" +
+						"- **delete_project_item**: Remove items from projects"),
+				},
+				{
+					Role: "user",
+					Content: mcp.NewTextContent(fmt.Sprintf("I want to work with GitHub Projects for %s (owner_type: %s).%s\n\n"+
+						"Help me get started with project management tasks.",
+						owner,
+						ownerType,
+						func() string {
+							if task != "" {
+								return fmt.Sprintf(" I'm specifically interested in: %s.", task)
+							}
+							return ""
+						}())),
+				},
+				{
+					Role: "assistant",
+					Content: mcp.NewTextContent(fmt.Sprintf("Perfect! I'll help you manage GitHub Projects for %s. Let me guide you through the essential workflows.\n\n"+
+						"**🔍 Step 1: Project Discovery**\n"+
+						"First, let's see what projects are available using **list_projects**.", owner)),
 				},
 				{
 					Role:    "user",
-					Content: mcp.NewTextContent(fmt.Sprintf("I want to work with projects owned by %s (owner_type: %s). Please help me understand what projects are available.", owner, ownerType)),
+					Content: mcp.NewTextContent("Great! After seeing the projects, I want to understand how to work with project fields and items."),
 				},
 				{
-					Role:    "assistant",
-					Content: mcp.NewTextContent(fmt.Sprintf("I'll help you explore the projects for %s. Let me start by listing the available projects.", owner)),
-				},
-				{
-					Role:    "user",
-					Content: mcp.NewTextContent("Great! Once you show me the projects, I'd like to understand the fields available in a specific project."),
-				},
-				{
-					Role:    "assistant",
-					Content: mcp.NewTextContent("Perfect! After showing you the projects, I can help you:\n\n1. 📋 List all fields in a project (using `list_project_fields`)\n2. 🔍 Get details about specific fields including their IDs, data types, and options\n3. 📊 Query project items with specific field values (using `list_project_items`)\n\nIMPORTANT: When querying project items, you must provide a list of field IDs in the 'fields' parameter to access field values. For example: fields=[\"198354254\", \"198354255\"] to get Status and Assignees. Without this parameter, only the title field is returned."),
-				},
-				{
-					Role:    "user",
-					Content: mcp.NewTextContent("How do I update field values on project items?"),
-				},
-				{
-					Role:    "assistant",
-					Content: mcp.NewTextContent("To update field values on project items, you'll use the `update_project_item` tool. Here's what you need to know:\n\n1. **Get the item_id**: Use `list_project_items` to find the internal project item ID (not the issue/PR number)\n2. **Get the field_id**: Use `list_project_fields` to find the ID of the field you want to update\n3. **Update the field**: Call `update_project_item` with:\n   - project_number: The project's number\n   - item_id: The internal project item ID\n   - updated_field: An object with {\"id\": <field_id>, \"value\": <new_value>}\n\nFor single_select fields, the value should be the option name (e.g., \"In Progress\").\nFor text fields, provide a string value.\nFor number fields, provide a numeric value.\nTo clear a field, set \"value\" to null."),
+					Role: "assistant",
+					Content: mcp.NewTextContent("**📋 Step 2: Understanding Project Structure**\n\n" +
+						"Once you select a project, I'll help you:\n\n" +
+						"1. **Get field information** using **list_project_fields**\n" +
+						"   - Find field IDs, names, and data types\n" +
+						"   - Understand available options for select fields\n" +
+						"   - Identify required vs. optional fields\n\n" +
+						"2. **Query project items** using **list_project_items**\n" +
+						"   - Filter by assignees: query=\"assignee:@me\"\n" +
+						"   - Filter by status: query=\"status:In Progress\"\n" +
+						"   - Filter by labels: query=\"label:bug\"\n" +
+						"   - Include specific fields: fields=[\"198354254\", \"198354255\"]\n\n" +
+						"**💡 Pro Tip:** Always specify the 'fields' parameter to get field values, not just titles!"),
 				},
 				{
 					Role:    "user",
-					Content: mcp.NewTextContent("Can you give me an example workflow for finding items and updating their status?"),
+					Content: mcp.NewTextContent("How do I update field values? What about the different field types?"),
 				},
 				{
-					Role:    "assistant",
-					Content: mcp.NewTextContent(fmt.Sprintf("Absolutely! Here's a complete workflow:\n\n**Step 1: Find your project**\nUse `list_projects` with owner=\"%s\" and owner_type=\"%s\"\n\n**Step 2: Get the Status field ID**\nUse `list_project_fields` with the project_number from step 1\nLook for the field with name=\"Status\" and note its ID (e.g., 198354254)\n\n**Step 3: Query items with the Status field**\nUse `list_project_items` with fields=[\"198354254\"] to see current status values\nOptionally add a query parameter to filter items (e.g., query=\"assignee:@me\")\n\n**Step 4: Update an item's status**\nUse `update_project_item` with:\n- item_id: The ID from the item you want to update\n- updated_field: {\"id\": 198354254, \"value\": \"In Progress\"}\n\nLet me start by listing your projects now.", owner, ownerType)),
+					Role: "assistant",
+					Content: mcp.NewTextContent("**✏️ Step 3: Updating Field Values**\n\n" +
+						"Use **update_project_item** with the updated_field parameter. The format varies by field type:\n\n" +
+						"**Text fields:**\n" +
+						"```json\n" +
+						"{\"id\": 123456, \"value\": \"Updated text content\"}\n" +
+						"```\n\n" +
+						"**Single-select fields:**\n" +
+						"```json\n" +
+						"{\"id\": 198354254, \"value\": 18498754}\n" +
+						"```\n" +
+						"*(Use option ID, not option name)*\n\n" +
+						"**Date fields:**\n" +
+						"```json\n" +
+						"{\"id\": 789012, \"value\": \"2024-03-15\"}\n" +
+						"```\n\n" +
+						"**Number fields:**\n" +
+						"```json\n" +
+						"{\"id\": 345678, \"value\": 5}\n" +
+						"```\n\n" +
+						"**Clear a field:**\n" +
+						"```json\n" +
+						"{\"id\": 123456, \"value\": null}\n" +
+						"```\n\n" +
+						"**⚠️ Important:** Use the internal project item_id (not issue/PR number) for updates!"),
+				},
+				{
+					Role:    "user",
+					Content: mcp.NewTextContent("Can you show me a complete workflow example?"),
+				},
+				{
+					Role: "assistant",
+					Content: mcp.NewTextContent(fmt.Sprintf("**🔄 Complete Workflow Example**\n\n"+
+						"Here's how to find and update your assigned items:\n\n"+
+						"**Step 1:** Discover projects\n\n"+
+						"**list_projects** owner=\"%s\" owner_type=\"%s\"\n\n\n"+
+						"**Step 2:** Get project fields (using project #123)\n\n"+
+						"**list_project_fields** owner=\"%s\" owner_type=\"%s\" project_number=123\n\n"+
+						"*(Note the Status field ID, e.g., 198354254)*\n\n"+
+						"**Step 3:** Query your assigned items\n\n"+
+						"**list_project_items**\n"+
+						"  owner=\"%s\"\n"+
+						"  owner_type=\"%s\"\n"+
+						"  project_number=123\n"+
+						"  query=\"assignee:@me\"\n"+
+						"  fields=[\"198354254\", \"other_field_ids\"]\n\n\n"+
+						"**Step 4:** Update item status\n\n"+
+						"**update_project_item**\n"+
+						"  owner=\"%s\"\n"+
+						"  owner_type=\"%s\"\n"+
+						"  project_number=123\n"+
+						"  item_id=789123\n"+
+						"  updated_field={\"id\": 198354254, \"value\": 18498754}\n\n\n"+
+						"Let me start by listing your projects now!", owner, ownerType, owner, ownerType, owner, ownerType, owner, ownerType)),
+				},
+				{
+					Role:    "user",
+					Content: mcp.NewTextContent("What if I need more details about the items, like recent comments or linked pull requests?"),
+				},
+				{
+					Role: "assistant",
+					Content: mcp.NewTextContent("**📝 Accessing Underlying Issue/PR Details**\n\n" +
+						"Project items contain basic content info, but for detailed information you need to use issue/PR tools:\n\n" +
+						"**From project items, extract:**\n" +
+						"- content.repository.name and content.repository.owner.login\n" +
+						"- content.number (the issue/PR number)\n" +
+						"- content_type (\"Issue\" or \"PullRequest\")\n\n" +
+						"**Then use these tools for details:**\n\n" +
+						"1. **Get full issue/PR details:**\n" +
+						"   - **get_issue** owner=repo_owner repo=repo_name issue_number=123\n" +
+						"   - Returns: full body, labels, assignees, milestone, etc.\n\n" +
+						"2. **Get recent comments:**\n" +
+						"   - **list_comments** owner=repo_owner repo=repo_name issue_number=123\n" +
+						"   - Add since parameter to filter recent comments\n\n" +
+						"3. **Get issue events:**\n" +
+						"   - **list_issue_events** owner=repo_owner repo=repo_name issue_number=123\n" +
+						"   - Shows timeline: assignments, label changes, status updates\n\n" +
+						"4. **For pull requests specifically:**\n" +
+						"   - **get_pull_request** owner=repo_owner repo=repo_name pull_number=123\n" +
+						"   - **list_pull_request_reviews** for review status\n\n" +
+						"**💡 Example:** To check for blockers in comments:\n" +
+						"1. Get project items with query=\"assignee:@me is:open\"\n" +
+						"2. For each item, extract repository and issue number from content\n" +
+						"3. Use **list_comments** to get recent comments\n" +
+						"4. Search comments for keywords like \"blocked\", \"blocker\", \"waiting\""),
 				},
 			}
 			return &mcp.GetPromptResult{
