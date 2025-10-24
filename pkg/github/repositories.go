@@ -1183,12 +1183,12 @@ func PushFiles(getClient GetClientFn, t translations.TranslationHelperFunc) (too
 			defer func() { _ = resp.Body.Close() }()
 
 			// Create a new commit
-			commit := &github.Commit{
+			commit := github.Commit{
 				Message: github.Ptr(message),
 				Tree:    newTree,
 				Parents: []*github.Commit{{SHA: baseCommit.SHA}},
 			}
-			newCommit, resp, err := client.Git.CreateCommit(ctx, owner, repo, *commit, nil)
+			newCommit, resp, err := client.Git.CreateCommit(ctx, owner, repo, commit, nil)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to create commit",
