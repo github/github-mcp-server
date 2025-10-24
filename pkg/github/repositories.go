@@ -885,12 +885,12 @@ func DeleteFile(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 			}
 
 			// Create a new commit with the new tree
-			commit := &github.Commit{
+			commit := github.Commit{
 				Message: github.Ptr(message),
 				Tree:    newTree,
 				Parents: []*github.Commit{{SHA: baseCommit.SHA}},
 			}
-			newCommit, resp, err := client.Git.CreateCommit(ctx, owner, repo, *commit, nil)
+			newCommit, resp, err := client.Git.CreateCommit(ctx, owner, repo, commit, nil)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to create commit",
