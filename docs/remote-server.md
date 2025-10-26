@@ -77,13 +77,16 @@ Example:
 
 ### URL Path Parameters
 
-The Remote GitHub MCP server also supports the URL path parameters:
+The Remote GitHub MCP server supports the following URL path patterns:
 
-- `/x/{toolset}`
-- `/x/{toolset}/readonly`
-- `/readonly`
+- `/` - Default toolset (see ["default" toolset](../README.md#default-toolset))
+- `/readonly` - Default toolset in read-only mode
+- `/x/all` - All available toolsets
+- `/x/all/readonly` - All available toolsets in read-only mode
+- `/x/{toolset}` - Single specific toolset
+- `/x/{toolset}/readonly` - Single specific toolset in read-only mode
 
-Note: `{toolset}` can only been a single toolset, not a comma-separated list. To combine multiple toolsets, use the `X-MCP-Toolsets` header instead.
+Note: `{toolset}` can only be a single toolset, not a comma-separated list. To combine multiple toolsets, use the `X-MCP-Toolsets` header instead.
 
 Example:
 

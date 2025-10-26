@@ -609,10 +609,14 @@ func Test_ListProjectItems(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "project_number")
 	assert.Contains(t, tool.InputSchema.Properties, "query")
 	assert.Contains(t, tool.InputSchema.Properties, "per_page")
+	assert.Contains(t, tool.InputSchema.Properties, "fields")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number"})
 
 	orgItems := []map[string]any{
-		{"id": 301, "content_type": "Issue", "project_node_id": "PR_1"},
+		{"id": 301, "content_type": "Issue", "project_node_id": "PR_1", "fields": []map[string]any{
+			{"id": 123, "name": "Status", "data_type": "single_select", "value": "value1"},
+			{"id": 456, "name": "Priority", "data_type": "single_select", "value": "value2"},
+		}},
 	}
 	userItems := []map[string]any{
 		{"id": 401, "content_type": "PullRequest", "project_node_id": "PR_2"},
@@ -639,6 +643,32 @@ func Test_ListProjectItems(t *testing.T) {
 				"owner":          "octo-org",
 				"owner_type":     "org",
 				"project_number": float64(123),
+			},
+			expectedLength: 1,
+		},
+		{
+			name: "success organization items with fields",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodGet},
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						q := r.URL.Query()
+						fieldParams := q["fields"]
+						if len(fieldParams) == 3 && fieldParams[0] == "123" && fieldParams[1] == "456" && fieldParams[2] == "789" {
+							w.WriteHeader(http.StatusOK)
+							_, _ = w.Write(mock.MustMarshal(orgItems))
+							return
+						}
+						w.WriteHeader(http.StatusBadRequest)
+						_, _ = w.Write([]byte(`{"message":"unexpected query params"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(123),
+				"fields":         []interface{}{"123", "456", "789"},
 			},
 			expectedLength: 1,
 		},
@@ -775,6 +805,7 @@ func Test_GetProjectItem(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "project_number")
 	assert.Contains(t, tool.InputSchema.Properties, "item_id")
+	assert.Contains(t, tool.InputSchema.Properties, "fields")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number", "item_id"})
 
 	orgItem := map[string]any{
@@ -811,6 +842,33 @@ func Test_GetProjectItem(t *testing.T) {
 				"owner_type":     "org",
 				"project_number": float64(123),
 				"item_id":        float64(301),
+			},
+			expectedID: 301,
+		},
+		{
+			name: "success organization item with fields",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodGet},
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						q := r.URL.Query()
+						fieldParams := q["fields"]
+						if len(fieldParams) == 2 && fieldParams[0] == "123" && fieldParams[1] == "456" {
+							w.WriteHeader(http.StatusOK)
+							_, _ = w.Write(mock.MustMarshal(orgItem))
+							return
+						}
+						w.WriteHeader(http.StatusBadRequest)
+						_, _ = w.Write([]byte(`{"message":"unexpected query params"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(123),
+				"item_id":        float64(301),
+				"fields":         []interface{}{"123", "456"},
 			},
 			expectedID: 301,
 		},

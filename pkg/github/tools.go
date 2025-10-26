@@ -196,23 +196,17 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		)
 	issues := toolsets.NewToolset(ToolsetMetadataIssues.ID, ToolsetMetadataIssues.Description).
 		AddReadTools(
-			toolsets.NewServerTool(GetIssue(getClient, t)),
+			toolsets.NewServerTool(IssueRead(getClient, getGQLClient, t)),
 			toolsets.NewServerTool(SearchIssues(getClient, t)),
 			toolsets.NewServerTool(ListIssues(getGQLClient, t)),
-			toolsets.NewServerTool(GetIssueComments(getClient, t)),
 			toolsets.NewServerTool(ListIssueTypes(getClient, t)),
-			toolsets.NewServerTool(ListSubIssues(getClient, t)),
 			toolsets.NewServerTool(GetLabel(getGQLClient, t)),
-			toolsets.NewServerTool(ListLabels(getGQLClient, t)),
 		).
 		AddWriteTools(
-			toolsets.NewServerTool(CreateIssue(getClient, t)),
+			toolsets.NewServerTool(IssueWrite(getClient, getGQLClient, t)),
 			toolsets.NewServerTool(AddIssueComment(getClient, t)),
-			toolsets.NewServerTool(UpdateIssue(getClient, getGQLClient, t)),
 			toolsets.NewServerTool(AssignCopilotToIssue(getGQLClient, t)),
-			toolsets.NewServerTool(AddSubIssue(getClient, t)),
-			toolsets.NewServerTool(RemoveSubIssue(getClient, t)),
-			toolsets.NewServerTool(ReprioritizeSubIssue(getClient, t)),
+			toolsets.NewServerTool(SubIssueWrite(getClient, t)),
 		).AddPrompts(
 		toolsets.NewServerPrompt(AssignCodingAgentPrompt(t)),
 		toolsets.NewServerPrompt(IssueToFixWorkflowPrompt(t)),
@@ -338,7 +332,9 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(AddProjectItem(getClient, t)),
 			toolsets.NewServerTool(DeleteProjectItem(getClient, t)),
 			toolsets.NewServerTool(UpdateProjectItem(getClient, t)),
-		)
+		).AddPrompts(
+		toolsets.NewServerPrompt(ManageProjectItemsPrompt(t)),
+	)
 	stargazers := toolsets.NewToolset(ToolsetMetadataStargazers.ID, ToolsetMetadataStargazers.Description).
 		AddReadTools(
 			toolsets.NewServerTool(ListStarredRepositories(getClient, t)),
