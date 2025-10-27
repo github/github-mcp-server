@@ -1286,7 +1286,7 @@ func Test_ActionsResourceRead(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := ActionsRead(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 
-	assert.Equal(t, "actions_resource_read", tool.Name)
+	assert.Equal(t, "actions_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	assert.Contains(t, tool.InputSchema.Properties, "action")
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
