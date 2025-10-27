@@ -1004,7 +1004,10 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 		Body:      github.Ptr(body),
 		Assignees: &assignees,
 		Labels:    &labels,
-		Milestone: &milestoneNum,
+	}
+
+	if milestoneNum != 0 {
+		issueRequest.Milestone = &milestoneNum
 	}
 
 	if issueType != "" {
