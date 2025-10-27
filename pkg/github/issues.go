@@ -881,7 +881,7 @@ Options are:
 				mcp.Description("Milestone number"),
 			),
 			mcp.WithString("type",
-				mcp.Description("Type of this issue"),
+				mcp.Description("Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter."),
 			),
 			mcp.WithString("state",
 				mcp.Description("New state"),
