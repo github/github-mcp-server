@@ -13,7 +13,7 @@ import (
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v74/github"
+	"github.com/google/go-github/v76/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
@@ -155,6 +155,51 @@ func Test_GetFileContents(t *testing.T) {
 				URI:      "repo://owner/repo/refs/heads/main/contents/test.png",
 				Blob:     base64.StdEncoding.EncodeToString(mockRawContent),
 				MIMEType: "image/png",
+			},
+		},
+		{
+			name: "successful PDF file content fetch",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposGitRefByOwnerByRepoByRef,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write([]byte(`{"ref": "refs/heads/main", "object": {"sha": ""}}`))
+					}),
+				),
+				mock.WithRequestMatchHandler(
+					mock.GetReposContentsByOwnerByRepoByPath,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						fileContent := &github.RepositoryContent{
+							Name: github.Ptr("document.pdf"),
+							Path: github.Ptr("document.pdf"),
+							SHA:  github.Ptr("pdf123"),
+							Type: github.Ptr("file"),
+						}
+						contentBytes, _ := json.Marshal(fileContent)
+						_, _ = w.Write(contentBytes)
+					}),
+				),
+				mock.WithRequestMatchHandler(
+					raw.GetRawReposContentsByOwnerByRepoByBranchByPath,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.Header().Set("Content-Type", "application/pdf")
+						_, _ = w.Write(mockRawContent)
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+				"path":  "document.pdf",
+				"ref":   "refs/heads/main",
+			},
+			expectError: false,
+			expectedResult: mcp.BlobResourceContents{
+				URI:      "repo://owner/repo/refs/heads/main/contents/document.pdf",
+				Blob:     base64.StdEncoding.EncodeToString(mockRawContent),
+				MIMEType: "application/pdf",
 			},
 		},
 		{

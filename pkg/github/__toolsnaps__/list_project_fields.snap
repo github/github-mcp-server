@@ -1,0 +1,38 @@
+{
+  "annotations": {
+    "title": "List project fields",
+    "readOnlyHint": true
+  },
+  "description": "List Project fields for a user or org",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.",
+        "type": "string"
+      },
+      "owner_type": {
+        "description": "Owner type",
+        "enum": [
+          "user",
+          "org"
+        ],
+        "type": "string"
+      },
+      "per_page": {
+        "description": "Number of results per page (max 100, default: 30)",
+        "type": "number"
+      },
+      "project_number": {
+        "description": "The project's number.",
+        "type": "number"
+      }
+    },
+    "required": [
+      "owner_type",
+      "owner",
+      "project_number"
+    ],
+    "type": "object"
+  },
+  "name": "list_project_fields"
+}

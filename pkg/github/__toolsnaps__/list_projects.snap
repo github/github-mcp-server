@@ -3,26 +3,18 @@
     "title": "List projects",
     "readOnlyHint": true
   },
-  "description": "List Projects for a user or organization",
+  "description": "List Projects for a user or org",
   "inputSchema": {
     "properties": {
-      "after": {
-        "description": "Cursor for items after (forward pagination)",
-        "type": "string"
-      },
-      "before": {
-        "description": "Cursor for items before (backwards pagination)",
-        "type": "string"
-      },
       "owner": {
-        "description": "If owner_type == user it is the handle for the GitHub user account. If owner_type == organization it is the name of the organization. The name is not case sensitive.",
+        "description": "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.",
         "type": "string"
       },
       "owner_type": {
         "description": "Owner type",
         "enum": [
           "user",
-          "organization"
+          "org"
         ],
         "type": "string"
       },

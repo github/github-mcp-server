@@ -1,0 +1,52 @@
+{
+  "annotations": {
+    "title": "Write operations on repository labels.",
+    "readOnlyHint": false
+  },
+  "description": "Perform write operations on repository labels. To set labels on issues, use the 'update_issue' tool.",
+  "inputSchema": {
+    "properties": {
+      "color": {
+        "description": "Label color as 6-character hex code without '#' prefix (e.g., 'f29513'). Required for 'create', optional for 'update'.",
+        "type": "string"
+      },
+      "description": {
+        "description": "Label description text. Optional for 'create' and 'update'.",
+        "type": "string"
+      },
+      "method": {
+        "description": "Operation to perform: 'create', 'update', or 'delete'",
+        "enum": [
+          "create",
+          "update",
+          "delete"
+        ],
+        "type": "string"
+      },
+      "name": {
+        "description": "Label name - required for all operations",
+        "type": "string"
+      },
+      "new_name": {
+        "description": "New name for the label (used only with 'update' method to rename)",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization name)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo",
+      "name"
+    ],
+    "type": "object"
+  },
+  "name": "label_write"
+}
