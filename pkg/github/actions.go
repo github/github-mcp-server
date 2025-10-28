@@ -188,7 +188,7 @@ func ActionsRead(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 				return mcp.NewToolResultError(fmt.Sprintf("unknown action: %s", actionTypeStr)), nil
 			}
 
-			resourceIDInt, err := RequiredInt(request, "resource_id")
+			resourceID, err := RequiredParam[string](request, "resource_id")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -203,23 +203,36 @@ func ActionsRead(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
+			var resourceIDInt int64
+			var parseErr error
+			switch resourceType {
+			case actionsActionTypeGetWorkflow, actionsActionTypeListWorkflowRuns:
+				// Do nothing, we accept both a string workflow ID or filename
+			default:
+				// For other actions, resource ID must be an integer
+				resourceIDInt, parseErr = strconv.ParseInt(resourceID, 10, 64)
+				if parseErr != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("invalid resource_id, must be an integer for action %s: %v", actionTypeStr, parseErr)), nil
+				}
+			}
+
 			switch resourceType {
 			case actionsActionTypeGetWorkflow:
-				return getWorkflow(ctx, client, request, owner, repo, int64(resourceIDInt))
+				return getWorkflow(ctx, client, request, owner, repo, resourceID)
 			case actionsActionTypeGetWorkflowRun:
-				return getWorkflowRun(ctx, client, request, owner, repo, int64(resourceIDInt))
+				return getWorkflowRun(ctx, client, request, owner, repo, resourceIDInt)
 			case actionsActionTypeListWorkflowRuns:
-				return listWorkflowRuns(ctx, client, request, owner, repo, int64(resourceIDInt), pagination)
+				return listWorkflowRuns(ctx, client, request, owner, repo, resourceID, pagination)
 			case actionsActionTypeGetWorkflowJob:
-				return getWorkflowJob(ctx, client, request, owner, repo, int64(resourceIDInt))
+				return getWorkflowJob(ctx, client, request, owner, repo, resourceIDInt)
 			case actionsActionTypeListWorkflowJobs:
-				return listWorkflowJobs(ctx, client, request, owner, repo, int64(resourceIDInt), pagination)
+				return listWorkflowJobs(ctx, client, request, owner, repo, resourceIDInt, pagination)
 			case actionsActionTypeDownloadWorkflowArtifact:
-				return downloadWorkflowArtifact(ctx, client, request, owner, repo, int64(resourceIDInt))
+				return downloadWorkflowArtifact(ctx, client, request, owner, repo, resourceIDInt)
 			case actionsActionTypeListWorkflowArtifacts:
-				return listWorkflowArtifacts(ctx, client, request, owner, repo, int64(resourceIDInt), pagination)
+				return listWorkflowArtifacts(ctx, client, request, owner, repo, resourceIDInt, pagination)
 			case actionsActionTypeGetWorkflowRunUsage:
-				return getWorkflowRunUsage(ctx, client, request, owner, repo, int64(resourceIDInt))
+				return getWorkflowRunUsage(ctx, client, request, owner, repo, resourceIDInt)
 			case actionsActionTypeUnknown:
 				return mcp.NewToolResultError(fmt.Sprintf("unknown action: %s", actionTypeStr)), nil
 			default:
@@ -229,8 +242,17 @@ func ActionsRead(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 		}
 }
 
-func getWorkflow(ctx context.Context, client *github.Client, _ mcp.CallToolRequest, owner, repo string, resourceID int64) (*mcp.CallToolResult, error) {
-	workflow, resp, err := client.Actions.GetWorkflowByID(ctx, owner, repo, resourceID)
+func getWorkflow(ctx context.Context, client *github.Client, _ mcp.CallToolRequest, owner, repo string, resourceID string) (*mcp.CallToolResult, error) {
+	var workflow *github.Workflow
+	var resp *github.Response
+	var err error
+
+	if workflowIDInt, parseErr := strconv.ParseInt(resourceID, 10, 64); parseErr == nil {
+		workflow, resp, err = client.Actions.GetWorkflowByID(ctx, owner, repo, workflowIDInt)
+	} else {
+		workflow, resp, err = client.Actions.GetWorkflowByFileName(ctx, owner, repo, resourceID)
+	}
+
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get workflow", resp, err), nil
 	}
@@ -257,7 +279,7 @@ func getWorkflowRun(ctx context.Context, client *github.Client, _ mcp.CallToolRe
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-func listWorkflowRuns(ctx context.Context, client *github.Client, request mcp.CallToolRequest, owner, repo string, resourceID int64, pagination PaginationParams) (*mcp.CallToolResult, error) {
+func listWorkflowRuns(ctx context.Context, client *github.Client, request mcp.CallToolRequest, owner, repo string, resourceID string, pagination PaginationParams) (*mcp.CallToolResult, error) {
 	filterArgs, err := OptionalParam[map[string]any](request, "workflow_runs_filter")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -272,7 +294,7 @@ func listWorkflowRuns(ctx context.Context, client *github.Client, request mcp.Ca
 		}
 	}
 
-	workflowRuns, resp, err := client.Actions.ListWorkflowRunsByID(ctx, owner, repo, resourceID, &github.ListWorkflowRunsOptions{
+	listWorkflowRunsOptions := &github.ListWorkflowRunsOptions{
 		Actor:  filterArgsTyped["actor"],
 		Branch: filterArgsTyped["branch"],
 		Event:  filterArgsTyped["event"],
@@ -281,7 +303,17 @@ func listWorkflowRuns(ctx context.Context, client *github.Client, request mcp.Ca
 			Page:    pagination.Page,
 			PerPage: pagination.PerPage,
 		},
-	})
+	}
+
+	var workflowRuns *github.WorkflowRuns
+	var resp *github.Response
+
+	if workflowIDInt, parseErr := strconv.ParseInt(resourceID, 10, 64); parseErr == nil {
+		workflowRuns, resp, err = client.Actions.ListWorkflowRunsByID(ctx, owner, repo, workflowIDInt, listWorkflowRunsOptions)
+	} else {
+		workflowRuns, resp, err = client.Actions.ListWorkflowRunsByFileName(ctx, owner, repo, resourceID, listWorkflowRunsOptions)
+	}
+
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list workflow runs", resp, err), nil
 	}
