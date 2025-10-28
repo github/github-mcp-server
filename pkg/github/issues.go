@@ -12,7 +12,7 @@ import (
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/google/go-github/v74/github"
+	"github.com/google/go-github/v76/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/shurcooL/githubv4"
@@ -881,7 +881,7 @@ Options are:
 				mcp.Description("Milestone number"),
 			),
 			mcp.WithString("type",
-				mcp.Description("Type of this issue"),
+				mcp.Description("Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter."),
 			),
 			mcp.WithString("state",
 				mcp.Description("New state"),
@@ -1004,7 +1004,10 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 		Body:      github.Ptr(body),
 		Assignees: &assignees,
 		Labels:    &labels,
-		Milestone: &milestoneNum,
+	}
+
+	if milestoneNum != 0 {
+		issueRequest.Milestone = &milestoneNum
 	}
 
 	if issueType != "" {

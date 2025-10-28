@@ -12,7 +12,7 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v74/github"
+	"github.com/google/go-github/v76/github"
 	"github.com/google/go-querystring/query"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -67,31 +67,21 @@ func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			var url string
-			if ownerType == "org" {
-				url = fmt.Sprintf("orgs/%s/projectsV2", owner)
-			} else {
-				url = fmt.Sprintf("users/%s/projectsV2", owner)
-			}
-			projects := []github.ProjectV2{}
+			var resp *github.Response
+			var projects []*github.ProjectV2
 			minimalProjects := []MinimalProject{}
 
-			opts := listProjectsOptions{
-				paginationOptions:  paginationOptions{PerPage: perPage},
-				filterQueryOptions: filterQueryOptions{Query: queryStr},
+			opts := &github.ListProjectsOptions{
+				ListProjectsPaginationOptions: github.ListProjectsPaginationOptions{PerPage: perPage},
+				Query:                         queryStr,
 			}
 
-			url, err = addOptions(url, opts)
-			if err != nil {
-				return nil, fmt.Errorf("failed to add options to request: %w", err)
+			if ownerType == "org" {
+				projects, resp, err = client.Projects.ListProjectsForOrg(ctx, owner, opts)
+			} else {
+				projects, resp, err = client.Projects.ListProjectsForUser(ctx, owner, opts)
 			}
 
-			httpRequest, err := client.NewRequest("GET", url, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create request: %w", err)
-			}
-
-			resp, err := client.Do(ctx, httpRequest, &projects)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to list projects",
@@ -102,7 +92,7 @@ func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (
 			defer func() { _ = resp.Body.Close() }()
 
 			for _, project := range projects {
-				minimalProjects = append(minimalProjects, *convertToMinimalProject(&project))
+				minimalProjects = append(minimalProjects, *convertToMinimalProject(project))
 			}
 
 			if resp.StatusCode != http.StatusOK {
@@ -163,21 +153,14 @@ func GetProject(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			var url string
+			var resp *github.Response
+			var project *github.ProjectV2
+
 			if ownerType == "org" {
-				url = fmt.Sprintf("orgs/%s/projectsV2/%d", owner, projectNumber)
+				project, resp, err = client.Projects.GetProjectForOrg(ctx, owner, projectNumber)
 			} else {
-				url = fmt.Sprintf("users/%s/projectsV2/%d", owner, projectNumber)
+				project, resp, err = client.Projects.GetProjectForUser(ctx, owner, projectNumber)
 			}
-
-			project := github.ProjectV2{}
-
-			httpRequest, err := client.NewRequest("GET", url, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create request: %w", err)
-			}
-
-			resp, err := client.Do(ctx, httpRequest, &project)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to get project",
@@ -195,7 +178,7 @@ func GetProject(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get project: %s", string(body))), nil
 			}
 
-			minimalProject := convertToMinimalProject(&project)
+			minimalProject := convertToMinimalProject(project)
 			r, err := json.Marshal(minimalProject)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -955,11 +938,6 @@ type fieldSelectionOptions struct {
 	// Specific list of field IDs to include in the response. If not provided, only the title field is included.
 	// Example: fields=102589,985201,169875 or fields[]=102589&fields[]=985201&fields[]=169875
 	Fields []string `url:"fields,omitempty"`
-}
-
-type listProjectsOptions struct {
-	paginationOptions
-	filterQueryOptions
 }
 
 type listProjectItemsOptions struct {

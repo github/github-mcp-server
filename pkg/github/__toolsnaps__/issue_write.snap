@@ -74,7 +74,7 @@
         "type": "string"
       },
       "type": {
-        "description": "Type of this issue",
+        "description": "Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter.",
         "type": "string"
       }
     },
