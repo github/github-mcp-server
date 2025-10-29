@@ -93,7 +93,11 @@ func GetRepositoryTree(getClient GetClientFn, t translations.TranslationHelperFu
 			if treeSHA == "" {
 				repoInfo, _, err := client.Repositories.Get(ctx, owner, repo)
 				if err != nil {
-					return mcp.NewToolResultError(fmt.Sprintf("failed to get repository info: %s", err)), nil
+					return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					  "failed to get repository info",
+					  resp,
+					  err,
+					), nil
 				}
 				treeSHA = *repoInfo.DefaultBranch
 			}
