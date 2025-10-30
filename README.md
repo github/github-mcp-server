@@ -400,6 +400,7 @@ The following sets of tools are available:
 | `discussions` | GitHub Discussions related tools |
 | `experiments` | Experimental features that are not considered stable yet |
 | `gists` | GitHub Gist related tools |
+| `github_docs` | GitHub Docs search related tools |
 | `issues` | GitHub Issues related tools |
 | `labels` | GitHub Labels related tools |
 | `notifications` | GitHub Notifications related tools |
@@ -625,6 +626,18 @@ The following sets of tools are available:
   - `description`: Updated description of the gist (string, optional)
   - `filename`: Filename to update or create (string, required)
   - `gist_id`: ID of the gist to update (string, required)
+
+</details>
+
+<details>
+
+<summary>Github Docs</summary>
+
+- **search_github_docs** - Search GitHub Docs
+  - `language`: Language code for documentation. Options: 'en' (default), 'es', 'ja', 'pt', 'zh', 'ru', 'fr', 'ko', 'de' (string, optional)
+  - `max_results`: Maximum number of results to return (default: 10, max: 100) (number, optional)
+  - `query`: Search query for GitHub documentation. Examples: 'actions workflow syntax', 'pull request review', 'GitHub Pages' (string, required)
+  - `version`: GitHub version to search. Options: 'dotcom' (default, free/pro/team), 'ghec' (GitHub Enterprise Cloud), or a specific GHES version like '3.12' (string, optional)
 
 </details>
 
