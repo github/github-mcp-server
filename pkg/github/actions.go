@@ -66,7 +66,7 @@ func ActionFromString(s string) actionsActionType {
 
 func ActionsRead(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("actions_read",
-			mcp.WithDescription(t("TOOL_ACTIONS_READ_DESCRIPTION", "Tools for reading GitHub Actions resources (workflows, workflow runs, jobs, and artifacts)")),
+			mcp.WithDescription(t("TOOL_ACTIONS_READ_DESCRIPTION", "Tools for reading GitHub Actions resources. Use this tool to get details about individual Actions Workflows, list and get individual Actions Workflow Runs, Jobs, and Artifacts.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:        t("TOOL_ACTIONS_READ_USER_TITLE", "Get details of GitHub Actions resources (workflows, workflow runs, jobs, and artifacts)"),
 				ReadOnlyHint: ToBoolPtr(true),
