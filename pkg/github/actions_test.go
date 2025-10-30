@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -22,19 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_ListWorkflows(t *testing.T) {
-	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := ListWorkflows(stubGetClientFn(mockClient), translations.NullTranslationHelper)
-
-	assert.Equal(t, "list_workflows", tool.Name)
-	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
-
+func Test_ActionsRead_ListWorkflows(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
@@ -83,8 +72,9 @@ func Test_ListWorkflows(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"owner": "owner",
-				"repo":  "repo",
+				"action": actionsActionTypeListWorkflows.String(),
+				"owner":  "owner",
+				"repo":   "repo",
 			},
 			expectError: false,
 		},
@@ -92,7 +82,8 @@ func Test_ListWorkflows(t *testing.T) {
 			name:         "missing required parameter owner",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
-				"repo": "repo",
+				"action": actionsActionTypeListWorkflows.String(),
+				"repo":   "repo",
 			},
 			expectError:    true,
 			expectedErrMsg: "missing required parameter: owner",
@@ -103,7 +94,7 @@ func Test_ListWorkflows(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListWorkflows(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsRead(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -477,7 +468,7 @@ func Test_ListWorkflowRunArtifacts(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      "list_workflow_artifacts",
+				"action":      actionsActionTypeListWorkflowArtifacts.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"resource_id": "12345",
@@ -488,12 +479,12 @@ func Test_ListWorkflowRunArtifacts(t *testing.T) {
 			name:         "missing required parameter resource_id",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
-				"action": "list_workflow_artifacts",
+				"action": actionsActionTypeListWorkflowArtifacts.String(),
 				"owner":  "owner",
 				"repo":   "repo",
 			},
 			expectError:    true,
-			expectedErrMsg: "missing required parameter: resource_id",
+			expectedErrMsg: fmt.Sprintf("missing required parameter for action %s: resource_id", actionsActionTypeListWorkflowArtifacts.String()),
 		},
 	}
 
@@ -555,7 +546,7 @@ func Test_DownloadWorkflowRunArtifact(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      "download_workflow_artifact",
+				"action":      actionsActionTypeDownloadWorkflowArtifact.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"resource_id": "123",
@@ -566,12 +557,12 @@ func Test_DownloadWorkflowRunArtifact(t *testing.T) {
 			name:         "missing required parameter resource_id",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
-				"action": "download_workflow_artifact",
+				"action": actionsActionTypeDownloadWorkflowArtifact.String(),
 				"owner":  "owner",
 				"repo":   "repo",
 			},
 			expectError:    true,
-			expectedErrMsg: "missing required parameter: resource_id",
+			expectedErrMsg: fmt.Sprintf("missing required parameter for action %s: resource_id", actionsActionTypeDownloadWorkflowArtifact.String()),
 		},
 	}
 
@@ -719,7 +710,7 @@ func Test_GetWorkflowRunUsage(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      "get_workflow_run_usage",
+				"action":      actionsActionTypeGetWorkflowRunUsage.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"resource_id": "12345",
@@ -730,12 +721,12 @@ func Test_GetWorkflowRunUsage(t *testing.T) {
 			name:         "missing required parameter run_id",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
-				"action": "get_workflow_run_usage",
+				"action": actionsActionTypeGetWorkflowRunUsage.String(),
 				"owner":  "owner",
 				"repo":   "repo",
 			},
 			expectError:    true,
-			expectedErrMsg: "missing required parameter: resource_id",
+			expectedErrMsg: fmt.Sprintf("missing required parameter for action %s: resource_id", actionsActionTypeGetWorkflowRunUsage.String()),
 		},
 	}
 
@@ -1292,7 +1283,7 @@ func Test_ActionsResourceRead(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "resource_id")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"action", "owner", "repo", "resource_id"})
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"action", "owner", "repo"})
 
 	tests := []struct {
 		name           string
@@ -1316,7 +1307,7 @@ func Test_ActionsResourceRead(t *testing.T) {
 			name:         "missing required parameter owner",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
-				"action":      "get_workflow",
+				"action":      actionsActionTypeGetWorkflow.String(),
 				"repo":        "repo",
 				"resource_id": "123",
 			},
@@ -1327,23 +1318,12 @@ func Test_ActionsResourceRead(t *testing.T) {
 			name:         "missing required parameter repo",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
-				"action":      "get_workflow",
+				"action":      actionsActionTypeGetWorkflow.String(),
 				"owner":       "owner",
 				"resource_id": "123",
 			},
 			expectError:    true,
 			expectedErrMsg: "missing required parameter: repo",
-		},
-		{
-			name:         "missing required parameter resource_id",
-			mockedClient: mock.NewMockedHTTPClient(),
-			requestArgs: map[string]any{
-				"action": "get_workflow",
-				"owner":  "owner",
-				"repo":   "repo",
-			},
-			expectError:    true,
-			expectedErrMsg: "missing required parameter: resource_id",
 		},
 		{
 			name:         "unknown resource",
@@ -1413,7 +1393,7 @@ func Test_ActionsResourceRead_GetWorkflow(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      "get_workflow",
+				"action":      actionsActionTypeGetWorkflow.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"resource_id": "1",
@@ -1431,7 +1411,7 @@ func Test_ActionsResourceRead_GetWorkflow(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      "get_workflow",
+				"action":      actionsActionTypeGetWorkflow.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"resource_id": "2",
@@ -1508,7 +1488,7 @@ func Test_ActionsResourceRead_GetWorkflowRun(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      "get_workflow_run",
+				"action":      actionsActionTypeGetWorkflowRun.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"resource_id": "12345",
@@ -1526,7 +1506,7 @@ func Test_ActionsResourceRead_GetWorkflowRun(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      "get_workflow_run",
+				"action":      actionsActionTypeGetWorkflowRun.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"resource_id": "99999",
@@ -1617,7 +1597,7 @@ func Test_ActionsResourceRead_ListWorkflowRuns(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      "list_workflow_runs",
+				"action":      actionsActionTypeListWorkflowRuns.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"resource_id": "1",
@@ -1656,7 +1636,7 @@ func Test_ActionsResourceRead_ListWorkflowRuns(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      "list_workflow_runs",
+				"action":      actionsActionTypeListWorkflowRuns.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"resource_id": "1",
@@ -1678,7 +1658,7 @@ func Test_ActionsResourceRead_ListWorkflowRuns(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      "list_workflow_runs",
+				"action":      actionsActionTypeListWorkflowRuns.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"resource_id": "99999",
@@ -1746,7 +1726,7 @@ func Test_ActionsResourceRead_GetWorkflowJob(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      "get_workflow_job",
+				"action":      actionsActionTypeGetWorkflowJob.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"resource_id": "12345",
@@ -1764,7 +1744,7 @@ func Test_ActionsResourceRead_GetWorkflowJob(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      "get_workflow_job",
+				"action":      actionsActionTypeGetWorkflowJob.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"resource_id": "99999",
@@ -1843,7 +1823,7 @@ func Test_ActionsResourceRead_ListWorkflowJobs(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      "list_workflow_jobs",
+				"action":      actionsActionTypeListWorkflowJobs.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"resource_id": "1",
@@ -1861,7 +1841,7 @@ func Test_ActionsResourceRead_ListWorkflowJobs(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      "list_workflow_jobs",
+				"action":      actionsActionTypeListWorkflowJobs.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"resource_id": "99999",
@@ -1923,7 +1903,7 @@ func Test_ActionsResourceRead_DownloadWorkflowArtifact(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      "download_workflow_artifact",
+				"action":      actionsActionTypeDownloadWorkflowArtifact.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"resource_id": "12345",
@@ -1941,7 +1921,7 @@ func Test_ActionsResourceRead_DownloadWorkflowArtifact(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      "download_workflow_artifact",
+				"action":      actionsActionTypeDownloadWorkflowArtifact.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"resource_id": "99999",
@@ -2016,7 +1996,7 @@ func Test_ActionsResourceRead_ListWorkflowArtifacts(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      "list_workflow_artifacts",
+				"action":      actionsActionTypeListWorkflowArtifacts.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"resource_id": "1",
@@ -2034,7 +2014,7 @@ func Test_ActionsResourceRead_ListWorkflowArtifacts(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      "list_workflow_artifacts",
+				"action":      actionsActionTypeListWorkflowArtifacts.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"resource_id": "99999",
@@ -2111,7 +2091,7 @@ func Test_ActionsResourceRead_GetWorkflowUsage(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      "get_workflow_run_usage",
+				"action":      actionsActionTypeGetWorkflowRunUsage.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"resource_id": "1",
@@ -2129,7 +2109,7 @@ func Test_ActionsResourceRead_GetWorkflowUsage(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      "get_workflow_run_usage",
+				"action":      actionsActionTypeGetWorkflowRunUsage.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"resource_id": "99999",

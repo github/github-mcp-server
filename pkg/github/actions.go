@@ -208,9 +208,15 @@ func ActionsRead(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 			var resourceIDInt int64
 			var parseErr error
 			switch resourceType {
+			case actionsActionTypeListWorkflows:
+				// No resource ID required
 			case actionsActionTypeGetWorkflow, actionsActionTypeListWorkflowRuns:
 				// Do nothing, we accept both a string workflow ID or filename
 			default:
+				if resourceID == "" {
+					return mcp.NewToolResultError(fmt.Sprintf("missing required parameter for action %s: resource_id", actionTypeStr)), nil
+				}
+
 				// For other actions, resource ID must be an integer
 				resourceIDInt, parseErr = strconv.ParseInt(resourceID, 10, 64)
 				if parseErr != nil {
