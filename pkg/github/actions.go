@@ -57,7 +57,7 @@ func (r actionsActionType) String() string {
 	return "unknown"
 }
 
-func ActionFromString(s string) actionsActionType {
+func actionFromString(s string) actionsActionType {
 	for r, str := range actionsResourceTypes {
 		if str == strings.ToLower(s) {
 			return r
@@ -185,7 +185,7 @@ func ActionsRead(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			resourceType := ActionFromString(actionTypeStr)
+			resourceType := actionFromString(actionTypeStr)
 			if resourceType == actionsActionTypeUnknown {
 				return mcp.NewToolResultError(fmt.Sprintf("unknown action: %s", actionTypeStr)), nil
 			}
@@ -1127,7 +1127,7 @@ func DeleteWorkflowRunLogs(getClient GetClientFn, t translations.TranslationHelp
 }
 
 // GetWorkflowRunUsage creates a tool to get usage metrics for a workflow run
-func getWorkflowRunUsage(ctx context.Context, client *github.Client, request mcp.CallToolRequest, owner, repo string, resourceID int64) (*mcp.CallToolResult, error) {
+func getWorkflowRunUsage(ctx context.Context, client *github.Client, _ mcp.CallToolRequest, owner, repo string, resourceID int64) (*mcp.CallToolResult, error) {
 	usage, resp, err := client.Actions.GetWorkflowRunUsageByID(ctx, owner, repo, resourceID)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get workflow run usage", resp, err), nil
