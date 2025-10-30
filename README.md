@@ -631,7 +631,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Github Docs</summary>
+<summary>GitHub Docs</summary>
 
 - **search_github_docs** - Search GitHub Docs
   - `language`: Language code for documentation. Options: 'en' (default), 'es', 'ja', 'pt', 'zh', 'ru', 'fr', 'ko', 'de' (string, optional)
