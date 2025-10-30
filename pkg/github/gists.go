@@ -92,14 +92,14 @@ func ListGists(getClient GetClientFn, t translations.TranslationHelperFunc) (too
 // GetGist creates a tool to get the content of a gist
 func GetGist(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("get_gist",
-			mcp.WithDescription(t("TOOL_GET_GIST_DESCRIPTION", "Get gist content of a particular gist ID")),
+			mcp.WithDescription(t("TOOL_GET_GIST_DESCRIPTION", "Get gist content of a particular gist, by gist ID")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:        t("TOOL_GET_GIST", "Get Gist Content"),
 				ReadOnlyHint: ToBoolPtr(true),
 			}),
 			mcp.WithString("gist_id",
 				mcp.Required(),
-				mcp.Description("Gist ID of a particular gist"),
+				mcp.Description("The ID of the gist"),
 			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
