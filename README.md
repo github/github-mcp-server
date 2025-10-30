@@ -785,6 +785,13 @@ Options are:
 
 <summary>Organizations</summary>
 
+- **get_team_members** - Get team members
+  - `org`: Organization login (owner) that contains the team. (string, required)
+  - `team_slug`: Team slug (string, required)
+
+- **get_teams** - Get teams
+  - `user`: Username to get teams for. If not provided, uses the authenticated user. (string, optional)
+
 - **search_orgs** - Search organizations
   - `order`: Sort order (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
