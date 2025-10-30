@@ -101,7 +101,7 @@ Use this tool also to get details about individual workflows, workflow runs, job
 			mcp.WithNumber("resource_id",
 				mcp.Description(`The unique identifier of the resource. This will vary based on the "action" provided, so ensure you provide the correct ID:
 - Do not provide any resource ID for 'list_workflows' action.
-- Provide a workflow ID or Filename for 'get_workflow' and 'list_workflow_runs' actions.
+- Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'get_workflow' and 'list_workflow_runs' actions.
 - Provide a workflow run ID for 'get_workflow_run', 'list_workflow_jobs', 'download_workflow_run_artifact', 'list_workflow_run_artifacts' and 'get_workflow_run_usage' actions.
 - Provide a job ID for the 'get_workflow_job' action.
 `),
