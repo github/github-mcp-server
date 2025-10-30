@@ -19,7 +19,7 @@ import (
 	mcplog "github.com/github/github-mcp-server/pkg/log"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
-	gogithub "github.com/google/go-github/v74/github"
+	gogithub "github.com/google/go-github/v76/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/shurcooL/githubv4"
@@ -107,14 +107,26 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 	}
 
 	enabledToolsets := cfg.EnabledToolsets
+
+	// If dynamic toolsets are enabled, remove "all" from the enabled toolsets
 	if cfg.DynamicToolsets {
-		// filter "all" from the enabled toolsets
-		enabledToolsets = make([]string, 0, len(cfg.EnabledToolsets))
-		for _, toolset := range cfg.EnabledToolsets {
-			if toolset != "all" {
-				enabledToolsets = append(enabledToolsets, toolset)
-			}
-		}
+		enabledToolsets = github.RemoveToolset(enabledToolsets, github.ToolsetMetadataAll.ID)
+	}
+
+	// Clean up the passed toolsets
+	enabledToolsets, invalidToolsets := github.CleanToolsets(enabledToolsets)
+
+	// If "all" is present, override all other toolsets
+	if github.ContainsToolset(enabledToolsets, github.ToolsetMetadataAll.ID) {
+		enabledToolsets = []string{github.ToolsetMetadataAll.ID}
+	}
+	// If "default" is present, expand to real toolset IDs
+	if github.ContainsToolset(enabledToolsets, github.ToolsetMetadataDefault.ID) {
+		enabledToolsets = github.AddDefaultToolset(enabledToolsets)
+	}
+
+	if len(invalidToolsets) > 0 {
+		fmt.Fprintf(os.Stderr, "Invalid toolsets ignored: %s\n", strings.Join(invalidToolsets, ", "))
 	}
 
 	// Generate instructions based on enabled toolsets

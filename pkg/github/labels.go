@@ -97,11 +97,11 @@ func GetLabel(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc)
 		}
 }
 
-// ListLabels lists labels from a repository or an issue
+// ListLabels lists labels from a repository
 func ListLabels(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool(
 			"list_label",
-			mcp.WithDescription(t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository or an issue")),
+			mcp.WithDescription(t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:        t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository."),
 				ReadOnlyHint: ToBoolPtr(true),
@@ -113,9 +113,6 @@ func ListLabels(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 			mcp.WithString("repo",
 				mcp.Required(),
 				mcp.Description("Repository name - required for all operations"),
-			),
-			mcp.WithNumber("issue_number",
-				mcp.Description("Issue number - if provided, lists labels on the specific issue"),
 			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -129,67 +126,9 @@ func ListLabels(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			issueNumber, err := OptionalIntParam(request, "issue_number")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
 			client, err := getGQLClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-
-			if issueNumber != 0 {
-				// Get current labels on the issue using GraphQL
-				var query struct {
-					Repository struct {
-						Issue struct {
-							Labels struct {
-								Nodes []struct {
-									ID          githubv4.ID
-									Name        githubv4.String
-									Color       githubv4.String
-									Description githubv4.String
-								}
-								TotalCount githubv4.Int
-							} `graphql:"labels(first: 100)"`
-						} `graphql:"issue(number: $issueNumber)"`
-					} `graphql:"repository(owner: $owner, name: $repo)"`
-				}
-
-				vars := map[string]any{
-					"owner":       githubv4.String(owner),
-					"repo":        githubv4.String(repo),
-					"issueNumber": githubv4.Int(issueNumber), // #nosec G115 - issue numbers are always small positive integers
-				}
-
-				if err := client.Query(ctx, &query, vars); err != nil {
-					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to get issue labels", err), nil
-				}
-
-				// Extract label information
-				issueLabels := make([]map[string]any, len(query.Repository.Issue.Labels.Nodes))
-				for i, label := range query.Repository.Issue.Labels.Nodes {
-					issueLabels[i] = map[string]any{
-						"id":          fmt.Sprintf("%v", label.ID),
-						"name":        string(label.Name),
-						"color":       string(label.Color),
-						"description": string(label.Description),
-					}
-				}
-
-				response := map[string]any{
-					"labels":     issueLabels,
-					"totalCount": int(query.Repository.Issue.Labels.TotalCount),
-				}
-
-				out, err := json.Marshal(response)
-				if err != nil {
-					return nil, fmt.Errorf("failed to marshal response: %w", err)
-				}
-
-				return mcp.NewToolResultText(string(out)), nil
-
 			}
 
 			var query struct {

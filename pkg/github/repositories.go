@@ -13,7 +13,7 @@ import (
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v74/github"
+	"github.com/google/go-github/v76/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -885,7 +885,7 @@ func DeleteFile(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 			}
 
 			// Create a new commit with the new tree
-			commit := &github.Commit{
+			commit := github.Commit{
 				Message: github.Ptr(message),
 				Tree:    newTree,
 				Parents: []*github.Commit{{SHA: baseCommit.SHA}},
@@ -910,7 +910,10 @@ func DeleteFile(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 
 			// Update the branch reference to point to the new commit
 			ref.Object.SHA = newCommit.SHA
-			_, resp, err = client.Git.UpdateRef(ctx, owner, repo, ref, false)
+			_, resp, err = client.Git.UpdateRef(ctx, owner, repo, *ref.Ref, github.UpdateRef{
+				SHA:   *newCommit.SHA,
+				Force: github.Ptr(false),
+			})
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to update reference",
@@ -1020,9 +1023,9 @@ func CreateBranch(getClient GetClientFn, t translations.TranslationHelperFunc) (
 			defer func() { _ = resp.Body.Close() }()
 
 			// Create new branch
-			newRef := &github.Reference{
-				Ref:    github.Ptr("refs/heads/" + branch),
-				Object: &github.GitObject{SHA: ref.Object.SHA},
+			newRef := github.CreateRef{
+				Ref: "refs/heads/" + branch,
+				SHA: *ref.Object.SHA,
 			}
 
 			createdRef, resp, err := client.Git.CreateRef(ctx, owner, repo, newRef)
@@ -1180,7 +1183,7 @@ func PushFiles(getClient GetClientFn, t translations.TranslationHelperFunc) (too
 			defer func() { _ = resp.Body.Close() }()
 
 			// Create a new commit
-			commit := &github.Commit{
+			commit := github.Commit{
 				Message: github.Ptr(message),
 				Tree:    newTree,
 				Parents: []*github.Commit{{SHA: baseCommit.SHA}},
@@ -1197,7 +1200,10 @@ func PushFiles(getClient GetClientFn, t translations.TranslationHelperFunc) (too
 
 			// Update the reference to point to the new commit
 			ref.Object.SHA = newCommit.SHA
-			updatedRef, resp, err := client.Git.UpdateRef(ctx, owner, repo, ref, false)
+			updatedRef, resp, err := client.Git.UpdateRef(ctx, owner, repo, *ref.Ref, github.UpdateRef{
+				SHA:   *newCommit.SHA,
+				Force: github.Ptr(false),
+			})
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to update reference",
