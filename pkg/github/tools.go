@@ -107,6 +107,10 @@ var (
 		ID:          "labels",
 		Description: "GitHub Labels related tools",
 	}
+	ToolsetMetadataGitHubDocs = ToolsetMetadata{
+		ID:          "github_docs",
+		Description: "GitHub Docs search related tools",
+	}
 )
 
 func AvailableTools() []ToolsetMetadata {
@@ -130,6 +134,7 @@ func AvailableTools() []ToolsetMetadata {
 		ToolsetMetadataStargazers,
 		ToolsetMetadataDynamic,
 		ToolsetLabels,
+		ToolsetMetadataGitHubDocs,
 	}
 }
 
@@ -350,6 +355,10 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			// create or update
 			toolsets.NewServerTool(LabelWrite(getGQLClient, t)),
 		)
+	githubDocs := toolsets.NewToolset(ToolsetMetadataGitHubDocs.ID, ToolsetMetadataGitHubDocs.Description).
+		AddReadTools(
+			toolsets.NewServerTool(SearchGitHubDocs(t)),
+		)
 	// Add toolsets to the group
 	tsg.AddToolset(contextTools)
 	tsg.AddToolset(repos)
@@ -369,6 +378,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(projects)
 	tsg.AddToolset(stargazers)
 	tsg.AddToolset(labels)
+	tsg.AddToolset(githubDocs)
 
 	return tsg
 }
