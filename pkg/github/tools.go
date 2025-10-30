@@ -256,7 +256,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	actions := toolsets.NewToolset(ToolsetMetadataActions.ID, ToolsetMetadataActions.Description).
 		AddReadTools(
 			toolsets.NewServerTool(ActionsRead(getClient, t)),
-			toolsets.NewServerTool(ListWorkflows(getClient, t)),
+			// toolsets.NewServerTool(ListWorkflows(getClient, t)),
 			// toolsets.NewServerTool(ListWorkflowRuns(getClient, t)),
 			// toolsets.NewServerTool(GetWorkflowRun(getClient, t)),
 			toolsets.NewServerTool(GetWorkflowRunLogs(getClient, t)),
