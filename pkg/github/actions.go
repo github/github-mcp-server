@@ -96,7 +96,7 @@ func ActionsRead(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 			mcp.WithNumber("resource_id",
 				mcp.Required(),
 				mcp.Description(`The unique identifier of the resource. This will vary based on the "action" provided, so ensure you provide the correct ID:
-- Provide a workflow ID for 'get_workflow' and 'list_workflow_runs' actions.
+- Provide a workflow ID or Filename for  for 'get_workflow' and 'list_workflow_runs' actions.
 - Provide a workflow run ID for 'get_workflow_run', 'list_workflow_jobs', 'download_workflow_artifact', 'list_workflow_artifacts' and 'get_workflow_run_usage' actions.
 - Provide a job ID for the 'get_workflow_job' action.
 `),
