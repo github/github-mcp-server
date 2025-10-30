@@ -39,6 +39,10 @@ var (
 		ID:          "repos",
 		Description: "GitHub Repository related tools",
 	}
+	ToolsetMetadataGit = ToolsetMetadata{
+		ID:          "git",
+		Description: "GitHub Git API related tools for low-level Git operations",
+	}
 	ToolsetMetadataIssues = ToolsetMetadata{
 		ID:          "issues",
 		Description: "GitHub Issues related tools",
@@ -188,6 +192,10 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerResourceTemplate(GetRepositoryResourceCommitContent(getClient, getRawClient, t)),
 			toolsets.NewServerResourceTemplate(GetRepositoryResourceTagContent(getClient, getRawClient, t)),
 			toolsets.NewServerResourceTemplate(GetRepositoryResourcePrContent(getClient, getRawClient, t)),
+		)
+	git := toolsets.NewToolset(ToolsetMetadataGit.ID, ToolsetMetadataGit.Description).
+		AddReadTools(
+			toolsets.NewServerTool(GetRepositoryTree(getClient, t)),
 		)
 	issues := toolsets.NewToolset(ToolsetMetadataIssues.ID, ToolsetMetadataIssues.Description).
 		AddReadTools(
@@ -353,6 +361,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	// Add toolsets to the group
 	tsg.AddToolset(contextTools)
 	tsg.AddToolset(repos)
+	tsg.AddToolset(git)
 	tsg.AddToolset(issues)
 	tsg.AddToolset(orgs)
 	tsg.AddToolset(users)
