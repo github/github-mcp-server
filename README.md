@@ -798,63 +798,74 @@ Options are:
 
 <summary>Projects</summary>
 
-- **add_project_item** - Add project item
-  - `item_id`: The numeric ID of the issue or pull request to add to the project. (number, required)
-  - `item_type`: The item's type, either issue or pull_request. (string, required)
-  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
-  - `owner_type`: Owner type (string, required)
-  - `project_number`: The project's number. (number, required)
+- **project_read** - Read project information
+  - `after`: Forward pagination cursor. Use when the previous response's pageInfo.hasNextPage=true. Supply pageInfo.nextCursor as 'after' and immediately request the next page. LOOP UNTIL pageInfo.hasNextPage=false (don't stop early). Keep query, fields, and per_page identical for every page. (string, optional)
+  - `before`: Backward pagination cursor (rare): supply to move to the preceding page using pageInfo.prevCursor. Not needed for normal forward iteration. (string, optional)
+  - `field_id`: Field ID (required for get_project_field) (number, optional)
+  - `fields`: Field IDs to include (e.g. ["102589", "985201"]). CRITICAL: Always provide to get field values. Without this, only titles returned. Get IDs from list_project_fields first. (string[], optional)
+  - `item_id`: Item ID (required for get_project_item) (number, optional)
+  - `method`: Read operation: get_project, list_projects, get_project_field, list_project_fields (call FIRST for IDs), get_project_item, list_project_items (use query + fields) (string, required)
+  - `owner`: GitHub username or org name (case-insensitive) (string, required)
+  - `owner_type`: Owner type: 'user' or 'org' (string, required)
+  - `per_page`: Results per page (max 50). Keep constant across paginated requests; changing mid-sequence can complicate page traversal. (number, optional)
+  - `project_number`: Project number (required for most methods) (number, optional)
+  - `query`: Query string (used ONLY with list_projects and list_project_items). 
 
-- **delete_project_item** - Delete project item
-  - `item_id`: The internal project item ID to delete from the project (not the issue or pull request ID). (number, required)
-  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
-  - `owner_type`: Owner type (string, required)
-  - `project_number`: The project's number. (number, required)
+Pattern Split:
 
-- **get_project** - Get project
-  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
-  - `owner_type`: Owner type (string, required)
-  - `project_number`: The project's number (number, required)
+1. list_projects (project metadata only):
+   Scope: title text + open/closed state.
+   PERMITTED qualifiers: is:open, is:closed (state), simple title terms.
+   FORBIDDEN: is:issue, is:pr, assignee:, label:, status:, sprint-name:, parent-issue:, team-name:, priority:, etc.
+   Examples:
+     - roadmap is:open
+     - is:open feature planning
+   Reject & switch method if user intends items.
 
-- **get_project_field** - Get project field
-  - `field_id`: The field's id. (number, required)
-  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
-  - `owner_type`: Owner type (string, required)
-  - `project_number`: The project's number. (number, required)
+2. list_project_items (issues / PRs inside ONE project):
+   MUST reflect user intent; strongly prefer explicit content type if narrowed:
+     - "open issues" → state:open is:issue
+     - "merged PRs" → state:merged is:pr
+     - "items updated this week" → updated:>@today-7d (omit type only if mixed desired)
+   Query Construction Heuristics:
+     a. Extract type nouns: issues → is:issue | PRs, Pulls, or Pull Requests → is:pr | tasks/tickets → is:issue (ask if ambiguity)
+     b. Map temporal phrases: "this week" → updated:>@today-7d
+     c. Map negations: "excluding wontfix" → -label:wontfix
+     d. Map priority adjectives: "high/sev1/p1" → priority:high OR priority:p1 (choose based on field presence)
+     e. Map blocking relations: "blocked by 123" → parent-issue:"owner/repo#123"
 
-- **get_project_item** - Get project item
-  - `fields`: Specific list of field IDs to include in the response (e.g. ["102589", "985201", "169875"]). If not provided, only the title field is included. (string[], optional)
-  - `item_id`: The item's ID. (number, required)
-  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
-  - `owner_type`: Owner type (string, required)
-  - `project_number`: The project's number. (number, required)
+Syntax Essentials (items):
+   AND: space-separated.
+   OR: comma inside one qualifier (label:bug,critical).
+   NOT: leading '-' (-label:wontfix).
+   Hyphenate multi-word field names.
+   Quote multi-word values.
+   Ranges: points:1..3, updated:<@today-30d.
+   Wildcards: title:*crash*, label:bug*.
 
-- **list_project_fields** - List project fields
-  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
-  - `owner_type`: Owner type (string, required)
-  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
-  - `project_number`: The project's number. (number, required)
+Common Qualifier Glossary (items):
+   is:issue | is:pr | state:open|closed|merged | assignee:@me|username | label:NAME | status:VALUE |
+   priority:p1|high | sprint-name:@current | team-name:"Backend Team" | parent-issue:"org/repo#123" |
+   updated:>@today-7d | title:*text* | -label:wontfix | label:bug,critical | no:assignee | has:label
 
-- **list_project_items** - List project items
-  - `fields`: Specific list of field IDs to include in the response (e.g. ["102589", "985201", "169875"]). If not provided, only the title field is included. (string[], optional)
-  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
-  - `owner_type`: Owner type (string, required)
-  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
-  - `project_number`: The project's number. (number, required)
-  - `query`: Search query to filter items (string, optional)
+Pagination Mandate:
+   Do not analyze until ALL pages fetched (loop while pageInfo.hasNextPage=true). Always reuse identical query, fields, per_page.
 
-- **list_projects** - List projects
-  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
-  - `owner_type`: Owner type (string, required)
-  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
-  - `query`: Filter projects by a search query (matches title and description) (string, optional)
+Recovery Guidance:
+   If user provides ambiguous request ("show project activity") → ask clarification OR return mixed set (omit is:issue/is:pr). If user mixes project + item qualifiers in one phrase → split: run list_projects for discovery, then list_project_items for detail.
 
-- **update_project_item** - Update project item
-  - `item_id`: The unique identifier of the project item. This is not the issue or pull request ID. (number, required)
-  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
-  - `owner_type`: Owner type (string, required)
-  - `project_number`: The project's number. (number, required)
-  - `updated_field`: Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {"id": 123456, "value": "New Value"} (object, required)
+Never:
+   - Infer field IDs; fetch via list_project_fields.
+   - Drop 'fields' param on subsequent pages if field values are needed. (string, optional)
+
+- **project_write** - Modify project items
+  - `item_id`: For add: issue/PR ID. For update/delete: project item ID (not issue/PR ID) (number, required)
+  - `item_type`: Type to add: 'issue' or 'pull_request' (required for add_project_item) (string, optional)
+  - `method`: Write operation: add_project_item (needs item_type, item_id), update_project_item (needs item_id, updated_field), delete_project_item (needs item_id) (string, required)
+  - `owner`: GitHub username or org name (case-insensitive) (string, required)
+  - `owner_type`: Owner type: 'user' or 'org' (string, required)
+  - `project_number`: Project number (number, required)
+  - `updated_field`: Field update object (required for update_project_item). Format: {"id": 123456, "value": <value>}. Value types: text=string, single-select=option ID (number), date=ISO string, number=number. Set value to null to clear. (object, optional)
 
 </details>
 

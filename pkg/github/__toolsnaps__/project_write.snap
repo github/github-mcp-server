@@ -1,0 +1,62 @@
+{
+  "annotations": {
+    "title": "Modify project items",
+    "readOnlyHint": false
+  },
+  "description": "Write operations for GitHub Projects.\n\nMethods: add_project_item (add issue/PR), update_project_item (update fields), delete_project_item (remove item).\nNote: item_id for add is the issue/PR ID; for update/delete it's the project item ID.",
+  "inputSchema": {
+    "properties": {
+      "item_id": {
+        "description": "For add: issue/PR ID. For update/delete: project item ID (not issue/PR ID)",
+        "type": "number"
+      },
+      "item_type": {
+        "description": "Type to add: 'issue' or 'pull_request' (required for add_project_item)",
+        "enum": [
+          "issue",
+          "pull_request"
+        ],
+        "type": "string"
+      },
+      "method": {
+        "description": "Write operation: add_project_item (needs item_type, item_id), update_project_item (needs item_id, updated_field), delete_project_item (needs item_id)",
+        "enum": [
+          "add_project_item",
+          "update_project_item",
+          "delete_project_item"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "GitHub username or org name (case-insensitive)",
+        "type": "string"
+      },
+      "owner_type": {
+        "description": "Owner type: 'user' or 'org'",
+        "enum": [
+          "user",
+          "org"
+        ],
+        "type": "string"
+      },
+      "project_number": {
+        "description": "Project number",
+        "type": "number"
+      },
+      "updated_field": {
+        "description": "Field update object (required for update_project_item). Format: {\"id\": 123456, \"value\": \u003cvalue\u003e}. Value types: text=string, single-select=option ID (number), date=ISO string, number=number. Set value to null to clear.",
+        "properties": {},
+        "type": "object"
+      }
+    },
+    "required": [
+      "method",
+      "owner_type",
+      "owner",
+      "project_number",
+      "item_id"
+    ],
+    "type": "object"
+  },
+  "name": "project_write"
+}

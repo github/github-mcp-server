@@ -317,20 +317,13 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 
 	projects := toolsets.NewToolset(ToolsetMetadataProjects.ID, ToolsetMetadataProjects.Description).
 		AddReadTools(
-			toolsets.NewServerTool(ListProjects(getClient, t)),
-			toolsets.NewServerTool(GetProject(getClient, t)),
-			toolsets.NewServerTool(ListProjectFields(getClient, t)),
-			toolsets.NewServerTool(GetProjectField(getClient, t)),
-			toolsets.NewServerTool(ListProjectItems(getClient, t)),
-			toolsets.NewServerTool(GetProjectItem(getClient, t)),
+			toolsets.NewServerTool(ProjectRead(getClient, t)),
 		).
 		AddWriteTools(
-			toolsets.NewServerTool(AddProjectItem(getClient, t)),
-			toolsets.NewServerTool(DeleteProjectItem(getClient, t)),
-			toolsets.NewServerTool(UpdateProjectItem(getClient, t)),
+			toolsets.NewServerTool(ProjectWrite(getClient, t)),
 		).AddPrompts(
 		toolsets.NewServerPrompt(ManageProjectItemsPrompt(t)),
-	)
+	).AddResourceTemplates()
 	stargazers := toolsets.NewToolset(ToolsetMetadataStargazers.ID, ToolsetMetadataStargazers.Description).
 		AddReadTools(
 			toolsets.NewServerTool(ListStarredRepositories(getClient, t)),

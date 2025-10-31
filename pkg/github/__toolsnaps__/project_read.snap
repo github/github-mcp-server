@@ -1,0 +1,77 @@
+{
+  "annotations": {
+    "title": "Read project information",
+    "readOnlyHint": true
+  },
+  "description": "Read operations for GitHub Projects.\n\nDECISION GUIDE (choose method):\n- get_project: You have a project number; you need its metadata.\n- list_projects: User wants to discover or filter projects (TITLE / OPEN STATE ONLY).\n- get_project_field: You know a field_id and need its definition.\n- list_project_fields: MUST call before fetching item field values (get IDs \u0026 types).\n- get_project_item: You have an item_id (project item) and want its details.\n- list_project_items: User wants issues/PRs inside a project filtered by criteria.\n\nINTENT TOKENS (map user phrasing → method):\n[INTENT:DISCOVER_PROJECTS] → list_projects\n[INTENT:INSPECT_PROJECT] → get_project\n[INTENT:ENUM_FIELDS] → list_project_fields\n[INTENT:FIELD_DETAILS] → get_project_field\n[INTENT:LIST_ITEMS] → list_project_items\n[INTENT:ITEM_DETAILS] → get_project_item\n\nCRITICAL DISTINCTION:\nProjects ≠ Project Items.\n- list_projects filters ONLY project metadata (title, open/closed).\n  DO NOT use item-level qualifiers (is:issue, is:pr, assignee:, label:, status:, parent-issue:, sprint-name:, etc).\n- list_project_items filters ISSUES or PRs inside ONE project. Strongly prefer explicit type: is:issue OR is:pr unless user requests a mixed set.\n\nFAILURE MODES TO AVOID:\n1. Missing pagination (stops early) → ALWAYS loop while pageInfo.hasNextPage=true.\n2. Missing 'fields' when listing items → only title returned; no field values.\n3. Using item filters in list_projects → returns zero or irrelevant results.\n4. Ambiguous item type (issues vs PRs) → default to clarifying OR supply both (omit type only if user truly wants both).\n5. Inventing field IDs → fetch via list_project_fields first.\n6. INVENTING FIELD NAMES (NEW) → MUST use exact names returned by list_project_fields (case-insensitive match, preserve original spelling/hyphenation).\n\nFIELD NAME RESOLUTION (CRITICAL – ALWAYS DO BEFORE BUILDING QUERY WITH CUSTOM FIELDS):\n1. Call list_project_fields → build a map of lowercased field name → original field name + type.\n2. When user mentions a concept (e.g. \"current sprint\", \"this iteration\", \"in the cycle\"):\n   - Identify iteration-type fields (type == iteration).\n   - Accept synonyms in user phrasing: sprint, iteration, cycle.\n   - If user uses a generic phrase (\"current sprint\") and the existing iteration field is named \"Sprint\" → use sprint:@current.\n   - If the field is named \"Cycle\" → cycle:@current.\n   - If the field is named \"Iteration\" → iteration:@current.\n   - NEVER substitute a synonym that does not exist among field names.\n3. For any other custom fields (e.g. \"dev phase\", \"story points\", \"team name\"):\n   - Normalize user phrase → lower-case, replace spaces with hyphens.\n   - Match against available field names in lower-case.\n   - Use the ORIGINAL field name in the query exactly (including hyphenation and case if needed).\n4. If multiple iteration-type fields exist and the user intent is ambiguous → ask for clarification OR pick the one whose name best matches the user phrase.\n5. INVALID if you use a field name not present in list_project_fields.\n\nVALID vs INVALID (Iteration Example):\nUser request: \"Analyze the last week's activity ... for issues in the current sprint\"\nFields contain iteration field named \"sprint\":\n  VALID:  is:issue updated:\u003e@today-7d sprint:@current\n  INVALID: is:issue updated:\u003e@today-7d iteration:@current\nFields contain iteration field named \"cycle\":\n  VALID:  is:issue updated:\u003e@today-7d cycle:@current\n  INVALID: is:issue updated:\u003e@today-7d iteration:@current\nFields contain iteration field named \"iteration\":\n  VALID:  is:issue updated:\u003e@today-7d iteration:@current\n  INVALID: is:issue updated:\u003e@today-7d sprint:@current (if 'sprint' not defined)\n\nIf NO iteration-type field exists → omit that qualifier OR clarify with user (\"No iteration field found; continue without sprint filter?\").\n\nQUERY TRANSLATION (items):\nUser: \"Open sprint issues assigned to me\" →\n   state:open is:issue assignee:@me sprint:@current\nUser: \"PRs waiting for review\" →\n   is:pr status:\"Ready for Review\"\nUser: \"High priority bugs updated this week\" →\n   is:issue label:bug priority:high updated:\u003e@today-7d\n\nSYNTAX RULES (items):\n- AND: space-separated qualifiers.\n- OR: comma inside one qualifier (label:bug,critical).\n- NOT: prefix qualifier with '-' (-label:wontfix).\n- Hyphenate multi-word field names: sprint-name, team-name, parent-issue.\n- Quote multi-word values: status:\"In Review\".\n- Comparison \u0026 ranges: priority:1..3 updated:\u003c@today-14d.\n- Wildcards: title:*search*, label:bug*.\n- Presence: has:assignee, no:label, -no:assignee (force presence).\n\nGOOD PROJECT QUERIES (list_projects):\n  roadmap is:open\n  is:open feature planning\nBAD (reject for list_projects — item filters present):\n  is:issue state:open\n  assignee:@me sprint-name:\"Q3\"\n  label:bug priority:high\n\nVALID ITEM QUERIES (list_project_items):\n  state:open is:issue priority:high sprint:@current\n  is:pr status:\"In Review\" team-name:\"Backend Team\"\n  is:issue -label:wontfix updated:\u003e@today-30d\n  is:issue parent-issue:\"github/repo#123\"\n\nPAGINATION LOOP (ALL list_*):\n1. Call list_*.\n2. Read pageInfo.hasNextPage.\n3. If true → call again with after=pageInfo.nextCursor (same query, fields, per_page).\n4. Repeat until hasNextPage=false.\n5. Aggregate ALL pages BEFORE summarizing.\n\nDATA COMPLETENESS RULE:\nNever summarize, infer trends, or perform counts until all pages are retrieved.\n\nDEEP DETAILS:\nProject item = lightweight wrapper. For full issue/PR inspection use issue_read or pull_request_read after enumerating items.\n\nDO:\n- Normalize user intent → precise filters.\n- Fetch fields first → pass IDs every page.\n- Preserve consistency across pagination.\n- Resolve and validate field names from list_project_fields BEFORE using them.\n\nDON'T:\n- Mix project-only and item-only filters.\n- Omit type when user scope is explicit.\n- Invent field IDs or option IDs.\n- Invent field names (e.g. use iteration:@current when only sprint exists).\n- Stop early on pagination.",
+  "inputSchema": {
+    "properties": {
+      "after": {
+        "description": "Forward pagination cursor. Use when the previous response's pageInfo.hasNextPage=true. Supply pageInfo.nextCursor as 'after' and immediately request the next page. LOOP UNTIL pageInfo.hasNextPage=false (don't stop early). Keep query, fields, and per_page identical for every page.",
+        "type": "string"
+      },
+      "before": {
+        "description": "Backward pagination cursor (rare): supply to move to the preceding page using pageInfo.prevCursor. Not needed for normal forward iteration.",
+        "type": "string"
+      },
+      "field_id": {
+        "description": "Field ID (required for get_project_field)",
+        "type": "number"
+      },
+      "fields": {
+        "description": "Field IDs to include (e.g. [\"102589\", \"985201\"]). CRITICAL: Always provide to get field values. Without this, only titles returned. Get IDs from list_project_fields first.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "item_id": {
+        "description": "Item ID (required for get_project_item)",
+        "type": "number"
+      },
+      "method": {
+        "description": "Read operation: get_project, list_projects, get_project_field, list_project_fields (call FIRST for IDs), get_project_item, list_project_items (use query + fields)",
+        "enum": [
+          "get_project",
+          "list_projects",
+          "get_project_field",
+          "list_project_fields",
+          "get_project_item",
+          "list_project_items"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "GitHub username or org name (case-insensitive)",
+        "type": "string"
+      },
+      "owner_type": {
+        "description": "Owner type: 'user' or 'org'",
+        "enum": [
+          "user",
+          "org"
+        ],
+        "type": "string"
+      },
+      "per_page": {
+        "description": "Results per page (max 50). Keep constant across paginated requests; changing mid-sequence can complicate page traversal.",
+        "type": "number"
+      },
+      "project_number": {
+        "description": "Project number (required for most methods)",
+        "type": "number"
+      },
+      "query": {
+        "description": "Query string (used ONLY with list_projects and list_project_items). \n\nPattern Split:\n\n1. list_projects (project metadata only):\n   Scope: title text + open/closed state.\n   PERMITTED qualifiers: is:open, is:closed (state), simple title terms.\n   FORBIDDEN: is:issue, is:pr, assignee:, label:, status:, sprint-name:, parent-issue:, team-name:, priority:, etc.\n   Examples:\n     - roadmap is:open\n     - is:open feature planning\n   Reject \u0026 switch method if user intends items.\n\n2. list_project_items (issues / PRs inside ONE project):\n   MUST reflect user intent; strongly prefer explicit content type if narrowed:\n     - \"open issues\" → state:open is:issue\n     - \"merged PRs\" → state:merged is:pr\n     - \"items updated this week\" → updated:\u003e@today-7d (omit type only if mixed desired)\n   Query Construction Heuristics:\n     a. Extract type nouns: issues → is:issue | PRs, Pulls, or Pull Requests → is:pr | tasks/tickets → is:issue (ask if ambiguity)\n     b. Map temporal phrases: \"this week\" → updated:\u003e@today-7d\n     c. Map negations: \"excluding wontfix\" → -label:wontfix\n     d. Map priority adjectives: \"high/sev1/p1\" → priority:high OR priority:p1 (choose based on field presence)\n     e. Map blocking relations: \"blocked by 123\" → parent-issue:\"owner/repo#123\"\n\nSyntax Essentials (items):\n   AND: space-separated.\n   OR: comma inside one qualifier (label:bug,critical).\n   NOT: leading '-' (-label:wontfix).\n   Hyphenate multi-word field names.\n   Quote multi-word values.\n   Ranges: points:1..3, updated:\u003c@today-30d.\n   Wildcards: title:*crash*, label:bug*.\n\nCommon Qualifier Glossary (items):\n   is:issue | is:pr | state:open|closed|merged | assignee:@me|username | label:NAME | status:VALUE |\n   priority:p1|high | sprint-name:@current | team-name:\"Backend Team\" | parent-issue:\"org/repo#123\" |\n   updated:\u003e@today-7d | title:*text* | -label:wontfix | label:bug,critical | no:assignee | has:label\n\nPagination Mandate:\n   Do not analyze until ALL pages fetched (loop while pageInfo.hasNextPage=true). Always reuse identical query, fields, per_page.\n\nRecovery Guidance:\n   If user provides ambiguous request (\"show project activity\") → ask clarification OR return mixed set (omit is:issue/is:pr). If user mixes project + item qualifiers in one phrase → split: run list_projects for discovery, then list_project_items for detail.\n\nNever:\n   - Infer field IDs; fetch via list_project_fields.\n   - Drop 'fields' param on subsequent pages if field values are needed.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "owner_type",
+      "owner"
+    ],
+    "type": "object"
+  },
+  "name": "project_read"
+}
