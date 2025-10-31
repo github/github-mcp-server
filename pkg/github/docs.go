@@ -56,7 +56,7 @@ func SearchGitHubDocs(t translations.TranslationHelperFunc) (tool mcp.Tool, hand
 				mcp.Description("Maximum number of results to return (default: 10, max: 100)"),
 			),
 		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		func(_ context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			query, err := RequiredParam[string](request, "query")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
@@ -104,6 +104,7 @@ func SearchGitHubDocs(t translations.TranslationHelperFunc) (tool mcp.Tool, hand
 			)
 
 			// Make the HTTP request
+			// #nosec G107 - URL is constructed from validated parameters with proper escaping
 			resp, err := http.Get(searchURL)
 			if err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("failed to search GitHub Docs: %v", err)), nil

@@ -90,7 +90,7 @@ func TestSearchGitHubDocs(t *testing.T) {
 			expectError:    false,
 		},
 		{
-			name: "missing required query parameter",
+			name:        "missing required query parameter",
 			requestArgs: map[string]interface{}{
 				// no query
 			},
@@ -124,10 +124,10 @@ func TestSearchGitHubDocs(t *testing.T) {
 			var handler func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error)
 
 			if !tc.expectError || tc.serverStatus != 0 {
-				mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(tc.serverStatus)
-					json.NewEncoder(w).Encode(tc.serverResponse)
+					_ = json.NewEncoder(w).Encode(tc.serverResponse)
 				}))
 				defer mockServer.Close()
 
@@ -189,4 +189,3 @@ func TestDocsSearchResponse(t *testing.T) {
 	assert.Equal(t, "Test > Article", response.Hits[0].Breadcrumbs)
 	assert.Equal(t, "Test content", response.Hits[0].Content)
 }
-
