@@ -95,8 +95,8 @@ func SearchGitHubDocs(t translations.TranslationHelperFunc) (tool mcp.Tool, hand
 				maxResults = 10
 			}
 
-			// Build the search URL
-			searchURL := fmt.Sprintf("https://docs.github.com/api/search/v1?version=%s&language=%s&query=%s&limit=%d",
+			// Build the search URL with client_name parameter
+			searchURL := fmt.Sprintf("https://docs.github.com/api/search/v1?version=%s&language=%s&query=%s&limit=%d&client_name=github-mcp-server",
 				url.QueryEscape(version),
 				url.QueryEscape(language),
 				url.QueryEscape(query),
