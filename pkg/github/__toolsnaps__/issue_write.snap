@@ -1,7 +1,8 @@
 {
   "annotations": {
     "title": "Create or update issue.",
-    "readOnlyHint": false
+    "readOnlyHint": false,
+    "openWorldHint": true
   },
   "description": "Create a new or update an existing issue in a GitHub repository.",
   "inputSchema": {
