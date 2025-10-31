@@ -406,6 +406,7 @@ The following sets of tools are available:
 | `orgs` | GitHub Organization related tools |
 | `projects` | GitHub Projects related tools |
 | `pull_requests` | GitHub Pull Request related tools |
+| `releases` | GitHub Releases related tools |
 | `repos` | GitHub Repository related tools |
 | `secret_protection` | Secret protection related tools, such as GitHub Secret Scanning |
 | `security_advisories` | Security advisories related tools |
@@ -965,22 +966,37 @@ Possible options:
 
 <details>
 
+<summary>Releases</summary>
+
+- **release_read** - Read operations for releases
+  - `method`: The read operation to perform on releases. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
+  - `tag`: Tag name (required for get_by_tag method) (string, optional)
+
+</details>
+
+<details>
+
 <summary>Repositories</summary>
+
+- **commit_read** - Read commits
+  - `author`: For 'list' method: Author username or email address to filter commits by (string, optional)
+  - `include_diff`: For 'get' method: Whether to include file diffs and stats in the response. Default is true. (boolean, optional)
+  - `method`: Method to use: 'get' for getting a single commit, 'list' for listing commits (string, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
+  - `sha`: For 'get': Commit SHA, branch name, or tag name (required). For 'list': Commit SHA, branch or tag name to list commits of (optional). (string, optional)
 
 - **create_branch** - Create branch
   - `branch`: Name for new branch (string, required)
   - `from_branch`: Source branch (defaults to repo default) (string, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
-
-- **create_or_update_file** - Create or update file
-  - `branch`: Branch to create/update the file in (string, required)
-  - `content`: Content of the file (string, required)
-  - `message`: Commit message (string, required)
-  - `owner`: Repository owner (username or organization) (string, required)
-  - `path`: Path where to create/update the file (string, required)
-  - `repo`: Repository name (string, required)
-  - `sha`: Required if updating an existing file. The blob SHA of the file being replaced. (string, optional)
 
 - **create_repository** - Create repository
   - `autoInit`: Initialize with README (boolean, optional)
@@ -989,25 +1005,21 @@ Possible options:
   - `organization`: Organization to create the repository in (omit to create in your personal account) (string, optional)
   - `private`: Whether repo should be private (boolean, optional)
 
-- **delete_file** - Delete file
-  - `branch`: Branch to delete the file from (string, required)
+- **file_write** - Write operations (create, update, delete, push_files) on repository files
+  - `branch`: Branch to perform the operation on (string, required)
+  - `content`: Content of the file (required for create and update methods) (string, optional)
+  - `files`: Array of file objects to push (required for push_files method), each object with path (string) and content (string) (object[], optional)
   - `message`: Commit message (string, required)
+  - `method`: The write operation to perform on repository files. (string, required)
   - `owner`: Repository owner (username or organization) (string, required)
-  - `path`: Path to the file to delete (string, required)
+  - `path`: Path to the file (required for create, update, delete methods) (string, optional)
   - `repo`: Repository name (string, required)
+  - `sha`: Blob SHA of the file being replaced (required for update method) (string, optional)
 
 - **fork_repository** - Fork repository
   - `organization`: Organization to fork to (string, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
-
-- **get_commit** - Get commit details
-  - `include_diff`: Whether to include file diffs and stats in the response. Default is true. (boolean, optional)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-  - `sha`: Commit SHA, branch name, or tag name (string, required)
 
 - **get_file_contents** - Get file or directory contents
   - `owner`: Repository owner (username or organization) (string, required)
@@ -1016,51 +1028,10 @@ Possible options:
   - `repo`: Repository name (string, required)
   - `sha`: Accepts optional commit SHA. If specified, it will be used instead of ref (string, optional)
 
-- **get_latest_release** - Get latest release
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-
-- **get_release_by_tag** - Get a release by tag name
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `tag`: Tag name (e.g., 'v1.0.0') (string, required)
-
-- **get_tag** - Get tag details
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `tag`: Tag name (string, required)
-
 - **list_branches** - List branches
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-
-- **list_commits** - List commits
-  - `author`: Author username or email address to filter commits by (string, optional)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-  - `sha`: Commit SHA, branch or tag name to list commits of. If not provided, uses the default branch of the repository. If a commit SHA is provided, will list commits up to that SHA. (string, optional)
-
-- **list_releases** - List releases
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-
-- **list_tags** - List tags
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-
-- **push_files** - Push files to repository
-  - `branch`: Branch to push to (string, required)
-  - `files`: Array of file objects to push, each object with path (string) and content (string) (object[], required)
-  - `message`: Commit message (string, required)
-  - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
 - **search_code** - Search code
@@ -1077,6 +1048,14 @@ Possible options:
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Repository search query. Examples: 'machine learning in:name stars:>1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering. (string, required)
   - `sort`: Sort repositories by field, defaults to best match (string, optional)
+
+- **tag_read** - Read operations for git tags
+  - `method`: The read operation to perform on tags. (string, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
+  - `tag`: Tag name (required for get method) (string, optional)
 
 </details>
 
