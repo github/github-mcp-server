@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_ActionsRead_ListWorkflows(t *testing.T) {
+func Test_ActionsList_ListWorkflows(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
@@ -94,7 +94,7 @@ func Test_ActionsRead_ListWorkflows(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsRead(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsList(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -300,18 +300,21 @@ func Test_RunWorkflow_WithFilename(t *testing.T) {
 	}
 }
 
-func Test_CancelWorkflowRun(t *testing.T) {
+func Test_ActionsRunTrigger(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := CancelWorkflowRun(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := ActionsRunTrigger(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 
-	assert.Equal(t, "cancel_workflow_run", tool.Name)
+	assert.Equal(t, "actions_run_trigger", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "action")
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "run_id")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "run_id"})
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"action", "owner", "repo", "run_id"})
+}
 
+func Test_CancelWorkflowRun(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
@@ -333,6 +336,7 @@ func Test_CancelWorkflowRun(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
+				"action": actionsActionTypeCancelWorkflowRun.String(),
 				"owner":  "owner",
 				"repo":   "repo",
 				"run_id": float64(12345),
@@ -353,6 +357,7 @@ func Test_CancelWorkflowRun(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
+				"action": actionsActionTypeCancelWorkflowRun.String(),
 				"owner":  "owner",
 				"repo":   "repo",
 				"run_id": float64(12345),
@@ -364,8 +369,9 @@ func Test_CancelWorkflowRun(t *testing.T) {
 			name:         "missing required parameter run_id",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
-				"owner": "owner",
-				"repo":  "repo",
+				"action": actionsActionTypeCancelWorkflowRun.String(),
+				"owner":  "owner",
+				"repo":   "repo",
 			},
 			expectError:    true,
 			expectedErrMsg: "missing required parameter: run_id",
@@ -376,7 +382,7 @@ func Test_CancelWorkflowRun(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := CancelWorkflowRun(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsRunTrigger(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -492,7 +498,7 @@ func Test_ListWorkflowRunArtifacts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsRead(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsList(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -562,7 +568,7 @@ func Test_DownloadWorkflowRunArtifact(t *testing.T) {
 				"repo":   "repo",
 			},
 			expectError:    true,
-			expectedErrMsg: fmt.Sprintf("missing required parameter for action %s: resource_id", actionsActionTypeDownloadWorkflowArtifact.String()),
+			expectedErrMsg: "missing required parameter: resource_id",
 		},
 	}
 
@@ -570,7 +576,7 @@ func Test_DownloadWorkflowRunArtifact(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsRead(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -718,7 +724,7 @@ func Test_GetWorkflowRunUsage(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name:         "missing required parameter run_id",
+			name:         "missing required parameter resource_id",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"action": actionsActionTypeGetWorkflowRunUsage.String(),
@@ -726,7 +732,7 @@ func Test_GetWorkflowRunUsage(t *testing.T) {
 				"repo":   "repo",
 			},
 			expectError:    true,
-			expectedErrMsg: fmt.Sprintf("missing required parameter for action %s: resource_id", actionsActionTypeGetWorkflowRunUsage.String()),
+			expectedErrMsg: "missing required parameter: resource_id",
 		},
 	}
 
@@ -734,7 +740,7 @@ func Test_GetWorkflowRunUsage(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsRead(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1272,18 +1278,18 @@ func Test_MemoryUsage_SlidingWindow_vs_NoWindow(t *testing.T) {
 	t.Logf("No window: %s", profile2.String())
 }
 
-func Test_ActionsResourceRead(t *testing.T) {
+func Test_ActionsGet(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := ActionsRead(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := ActionsGet(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 
-	assert.Equal(t, "actions_read", tool.Name)
+	assert.Equal(t, "actions_get", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	assert.Contains(t, tool.InputSchema.Properties, "action")
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "resource_id")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"action", "owner", "repo"})
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"action", "owner", "repo", "resource_id"})
 
 	tests := []struct {
 		name           string
@@ -1326,6 +1332,17 @@ func Test_ActionsResourceRead(t *testing.T) {
 			expectedErrMsg: "missing required parameter: repo",
 		},
 		{
+			name:         "missing required parameter resource_id",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"action": actionsActionTypeGetWorkflow.String(),
+				"owner":  "owner",
+				"repo":   "repo",
+			},
+			expectError:    true,
+			expectedErrMsg: "missing required parameter: resource_id",
+		},
+		{
 			name:         "unknown resource",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
@@ -1343,7 +1360,7 @@ func Test_ActionsResourceRead(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsRead(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1425,7 +1442,7 @@ func Test_ActionsResourceRead_GetWorkflow(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsRead(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1520,7 +1537,7 @@ func Test_ActionsResourceRead_GetWorkflowRun(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsRead(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1672,7 +1689,7 @@ func Test_ActionsResourceRead_ListWorkflowRuns(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsRead(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsList(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1758,7 +1775,7 @@ func Test_ActionsResourceRead_GetWorkflowJob(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsRead(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1855,7 +1872,7 @@ func Test_ActionsResourceRead_ListWorkflowJobs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsRead(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsList(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1935,7 +1952,7 @@ func Test_ActionsResourceRead_DownloadWorkflowArtifact(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsRead(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -2028,7 +2045,7 @@ func Test_ActionsResourceRead_ListWorkflowArtifacts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsRead(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsList(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -2123,7 +2140,7 @@ func Test_ActionsResourceRead_GetWorkflowUsage(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsRead(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
