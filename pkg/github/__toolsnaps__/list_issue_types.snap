@@ -1,7 +1,8 @@
 {
   "annotations": {
     "title": "List available issue types",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "openWorldHint": true
   },
   "description": "List supported issue types for repository owner (organization).",
   "inputSchema": {
