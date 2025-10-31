@@ -114,15 +114,15 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 				mcp.Properties(map[string]any{
 					"actor": map[string]any{
 						"type":        "string",
-						"description": "Returns someone's workflow runs. Use the login for the user who created the workflow run.",
+						"description": "Filter to a specific GitHub user's workflow runs.",
 					},
 					"branch": map[string]any{
 						"type":        "string",
-						"description": "Returns workflow runs associated with a branch. Use the name of the branch.",
+						"description": "Filter workflow runs to a specific Git branch. Use the name of the branch.",
 					},
 					"event": map[string]any{
 						"type":        "string",
-						"description": "Returns workflow runs for a specific event type",
+						"description": "Filter workflow runs to a specific event type",
 						"enum": []string{
 							"branch_protection_rule",
 							"check_run",
@@ -160,7 +160,7 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 					},
 					"status": map[string]any{
 						"type":        "string",
-						"description": "Returns workflow runs with the check run status",
+						"description": "Filter workflow runs to only runs with a specific status",
 						"enum":        []string{"queued", "in_progress", "completed", "requested", "waiting"},
 					},
 				}),
