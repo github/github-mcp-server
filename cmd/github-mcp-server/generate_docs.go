@@ -205,6 +205,8 @@ func formatToolsetName(name string) string {
 		return "Secret Protection"
 	case "orgs":
 		return "Organizations"
+	case "github_docs":
+		return "GitHub Docs"
 	default:
 		// Fallback: capitalize first letter and replace underscores with spaces
 		parts := strings.Split(name, "_")
