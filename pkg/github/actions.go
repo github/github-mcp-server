@@ -77,6 +77,9 @@ func actionFromString(s string) actionsActionType {
 func ActionsList(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("actions_list",
 			mcp.WithDescription(t("TOOL_ACTIONS_LIST_DESCRIPTION", "List GitHub Actions workflows in a repository.")),
+			mcp.WithDescription(t("TOOL_ACTIONS_LIST_DESCRIPTION", `Tools for listing GitHub Actions resources.
+Use this tool to list workflows in a repository, or list workflow runs, jobs, and artifacts for a specific workflow or workflow run.
+`)),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:        t("TOOL_ACTIONS_LIST_USER_TITLE", "List GitHub Actions workflows in a repository"),
 				ReadOnlyHint: ToBoolPtr(true),
@@ -247,9 +250,8 @@ func ActionsList(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 
 func ActionsGet(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("actions_get",
-			mcp.WithDescription(t("TOOL_ACTIONS_READ_DESCRIPTION", `Tools for reading GitHub Actions resources.
-Use this tool to list workflows in a repository, or list workflow runs, jobs, and artifacts for a specific workflow or workflow run.
-Use this tool also to get details about individual workflows, workflow runs, jobs, and artifacts, by using their unique IDs.
+			mcp.WithDescription(t("TOOL_ACTIONS_READ_DESCRIPTION", `Tools for reading specific GitHub Actions resources.
+Use this tool to get details about individual workflows, workflow runs, jobs, and artifacts, by using their unique IDs.
 `)),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:        t("TOOL_ACTIONS_READ_USER_TITLE", "Get details of GitHub Actions resources (workflows, workflow runs, jobs, and artifacts)"),
