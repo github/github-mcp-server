@@ -16,8 +16,8 @@ import (
 
 var (
 	discussionsGeneral = []map[string]any{
-		{"number": 1, "title": "Discussion 1 title", "createdAt": "2023-01-01T00:00:00Z", "updatedAt": "2023-01-01T00:00:00Z", "state": "OPEN", "isAnswered": false, "author": map[string]any{"login": "user1"}, "url": "https://github.com/owner/repo/discussions/1", "category": map[string]any{"name": "General"}},
-		{"number": 3, "title": "Discussion 3 title", "createdAt": "2023-03-01T00:00:00Z", "updatedAt": "2023-02-01T00:00:00Z", "state": "OPEN", "isAnswered": false, "author": map[string]any{"login": "user1"}, "url": "https://github.com/owner/repo/discussions/3", "category": map[string]any{"name": "General"}},
+		{"number": 1, "title": "Discussion 1 title", "createdAt": "2023-01-01T00:00:00Z", "updatedAt": "2023-01-01T00:00:00Z", "closed": false, "isAnswered": false, "author": map[string]any{"login": "user1"}, "url": "https://github.com/owner/repo/discussions/1", "category": map[string]any{"name": "General"}},
+		{"number": 3, "title": "Discussion 3 title", "createdAt": "2023-03-01T00:00:00Z", "updatedAt": "2023-02-01T00:00:00Z", "closed": false, "isAnswered": false, "author": map[string]any{"login": "user1"}, "url": "https://github.com/owner/repo/discussions/3", "category": map[string]any{"name": "General"}},
 	}
 	discussionsAll = []map[string]any{
 		{
@@ -25,7 +25,7 @@ var (
 			"title":      "Discussion 1 title",
 			"createdAt":  "2023-01-01T00:00:00Z",
 			"updatedAt":  "2023-01-01T00:00:00Z",
-			"state":      "OPEN",
+			"closed":     false,
 			"isAnswered": false,
 			"author":     map[string]any{"login": "user1"},
 			"url":        "https://github.com/owner/repo/discussions/1",
@@ -36,7 +36,7 @@ var (
 			"title":      "Discussion 2 title",
 			"createdAt":  "2023-02-01T00:00:00Z",
 			"updatedAt":  "2023-02-01T00:00:00Z",
-			"state":      "OPEN",
+			"closed":     false,
 			"isAnswered": false,
 			"author":     map[string]any{"login": "user2"},
 			"url":        "https://github.com/owner/repo/discussions/2",
@@ -47,7 +47,7 @@ var (
 			"title":      "Discussion 3 title",
 			"createdAt":  "2023-03-01T00:00:00Z",
 			"updatedAt":  "2023-03-01T00:00:00Z",
-			"state":      "OPEN",
+			"closed":     false,
 			"isAnswered": false,
 			"author":     map[string]any{"login": "user3"},
 			"url":        "https://github.com/owner/repo/discussions/3",
@@ -61,7 +61,7 @@ var (
 			"title":      "Org Discussion 1 - Community Guidelines",
 			"createdAt":  "2023-01-15T00:00:00Z",
 			"updatedAt":  "2023-01-15T00:00:00Z",
-			"state":      "OPEN",
+			"closed":     false,
 			"isAnswered": false,
 			"author":     map[string]any{"login": "org-admin"},
 			"url":        "https://github.com/owner/.github/discussions/1",
@@ -72,7 +72,7 @@ var (
 			"title":      "Org Discussion 2 - Roadmap 2023",
 			"createdAt":  "2023-02-20T00:00:00Z",
 			"updatedAt":  "2023-02-20T00:00:00Z",
-			"state":      "OPEN",
+			"closed":     false,
 			"isAnswered": false,
 			"author":     map[string]any{"login": "org-admin"},
 			"url":        "https://github.com/owner/.github/discussions/2",
@@ -83,7 +83,7 @@ var (
 			"title":      "Org Discussion 3 - Roadmap 2024",
 			"createdAt":  "2023-02-20T00:00:00Z",
 			"updatedAt":  "2023-02-20T00:00:00Z",
-			"state":      "OPEN",
+			"closed":     false,
 			"isAnswered": false,
 			"author":     map[string]any{"login": "org-admin"},
 			"url":        "https://github.com/owner/.github/discussions/3",
@@ -94,7 +94,7 @@ var (
 			"title":      "Org Discussion 4 - Roadmap 2025",
 			"createdAt":  "2023-02-20T00:00:00Z",
 			"updatedAt":  "2023-02-20T00:00:00Z",
-			"state":      "OPEN",
+			"closed":     false,
 			"isAnswered": false,
 			"author":     map[string]any{"login": "org-admin"},
 			"url":        "https://github.com/owner/.github/discussions/4",
@@ -401,10 +401,10 @@ func Test_ListDiscussions(t *testing.T) {
 	}
 
 	// Define the actual query strings that match the implementation
-	qBasicNoOrder := "query($after:String$first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after){nodes{number,title,createdAt,updatedAt,state,isAnswered,answeredAt,answerChosenAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
-	qWithCategoryNoOrder := "query($after:String$categoryId:ID!$first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after, categoryId: $categoryId){nodes{number,title,createdAt,updatedAt,state,isAnswered,answeredAt,answerChosenAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
-	qBasicWithOrder := "query($after:String$first:Int!$orderByDirection:OrderDirection!$orderByField:DiscussionOrderField!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after, orderBy: { field: $orderByField, direction: $orderByDirection }){nodes{number,title,createdAt,updatedAt,state,isAnswered,answeredAt,answerChosenAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
-	qWithCategoryAndOrder := "query($after:String$categoryId:ID!$first:Int!$orderByDirection:OrderDirection!$orderByField:DiscussionOrderField!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after, categoryId: $categoryId, orderBy: { field: $orderByField, direction: $orderByDirection }){nodes{number,title,createdAt,updatedAt,state,isAnswered,answeredAt,answerChosenAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
+	qBasicNoOrder := "query($after:String$first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after){nodes{number,title,createdAt,updatedAt,closed,isAnswered,answerChosenAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
+	qWithCategoryNoOrder := "query($after:String$categoryId:ID!$first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after, categoryId: $categoryId){nodes{number,title,createdAt,updatedAt,closed,isAnswered,answerChosenAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
+	qBasicWithOrder := "query($after:String$first:Int!$orderByDirection:OrderDirection!$orderByField:DiscussionOrderField!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after, orderBy: { field: $orderByField, direction: $orderByDirection }){nodes{number,title,createdAt,updatedAt,closed,isAnswered,answerChosenAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
+	qWithCategoryAndOrder := "query($after:String$categoryId:ID!$first:Int!$orderByDirection:OrderDirection!$orderByField:DiscussionOrderField!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after, categoryId: $categoryId, orderBy: { field: $orderByField, direction: $orderByDirection }){nodes{number,title,createdAt,updatedAt,closed,isAnswered,answerChosenAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -497,7 +497,7 @@ func Test_GetDiscussion(t *testing.T) {
 	assert.ElementsMatch(t, toolDef.InputSchema.Required, []string{"owner", "repo", "discussionNumber"})
 
 	// Use exact string query that matches implementation output
-	qGetDiscussion := "query($discussionNumber:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){number,title,body,createdAt,state,isAnswered,answeredAt,answerChosenAt,url,category{name}}}}"
+	qGetDiscussion := "query($discussionNumber:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){number,title,body,createdAt,closed,isAnswered,answerChosenAt,url,category{name}}}}"
 
 	vars := map[string]interface{}{
 		"owner":            "owner",
@@ -520,7 +520,7 @@ func Test_GetDiscussion(t *testing.T) {
 					"body":       "This is a test discussion",
 					"url":        "https://github.com/owner/repo/discussions/1",
 					"createdAt":  "2025-04-25T12:00:00Z",
-					"state":      "OPEN",
+					"closed":     false,
 					"isAnswered": false,
 					"category":   map[string]any{"name": "General"},
 				}},
@@ -531,7 +531,7 @@ func Test_GetDiscussion(t *testing.T) {
 				"title":      "Test Discussion Title",
 				"body":       "This is a test discussion",
 				"url":        "https://github.com/owner/repo/discussions/1",
-				"state":      "OPEN",
+				"closed":     false,
 				"isAnswered": false,
 			},
 		},
@@ -566,7 +566,7 @@ func Test_GetDiscussion(t *testing.T) {
 			assert.Equal(t, tc.expected["title"], out["title"])
 			assert.Equal(t, tc.expected["body"], out["body"])
 			assert.Equal(t, tc.expected["url"], out["url"])
-			assert.Equal(t, tc.expected["state"], out["state"])
+			assert.Equal(t, tc.expected["closed"], out["closed"])
 			assert.Equal(t, tc.expected["isAnswered"], out["isAnswered"])
 			// Check category is present
 			category, ok := out["category"].(map[string]interface{})

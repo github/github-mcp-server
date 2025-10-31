@@ -48,9 +48,8 @@ type NodeFragment struct {
 	Title          githubv4.String
 	CreatedAt      githubv4.DateTime
 	UpdatedAt      githubv4.DateTime
-	State          githubv4.String
+	Closed         githubv4.Boolean
 	IsAnswered     githubv4.Boolean
-	AnsweredAt     *githubv4.DateTime
 	AnswerChosenAt *githubv4.DateTime
 	Author         struct {
 		Login githubv4.String
@@ -302,9 +301,8 @@ func GetDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelper
 						Title          githubv4.String
 						Body           githubv4.String
 						CreatedAt      githubv4.DateTime
-						State          githubv4.String
+						Closed         githubv4.Boolean
 						IsAnswered     githubv4.Boolean
-						AnsweredAt     *githubv4.DateTime
 						AnswerChosenAt *githubv4.DateTime
 						URL            githubv4.String `graphql:"url"`
 						Category       struct {
@@ -324,7 +322,7 @@ func GetDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelper
 			d := q.Repository.Discussion
 
 			// Build response as map to include fields not present in go-github's Discussion struct.
-			// The go-github library's Discussion type lacks isAnswered and answeredAt fields,
+			// The go-github library's Discussion type lacks isAnswered and answerChosenAt fields,
 			// so we use map[string]interface{} for the response (consistent with other functions
 			// like ListDiscussions and GetDiscussionComments).
 			response := map[string]interface{}{
@@ -332,7 +330,7 @@ func GetDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelper
 				"title":      string(d.Title),
 				"body":       string(d.Body),
 				"url":        string(d.URL),
-				"state":      string(d.State),
+				"closed":     bool(d.Closed),
 				"isAnswered": bool(d.IsAnswered),
 				"createdAt":  d.CreatedAt.Time,
 				"category": map[string]interface{}{
@@ -341,9 +339,6 @@ func GetDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelper
 			}
 
 			// Add optional timestamp fields if present
-			if d.AnsweredAt != nil {
-				response["answeredAt"] = d.AnsweredAt.Time
-			}
 			if d.AnswerChosenAt != nil {
 				response["answerChosenAt"] = d.AnswerChosenAt.Time
 			}
