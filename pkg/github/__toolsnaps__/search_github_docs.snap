@@ -1,0 +1,32 @@
+{
+  "annotations": {
+    "title": "Search GitHub Docs",
+    "readOnlyHint": true
+  },
+  "description": "Search GitHub's official documentation at docs.github.com. Use this to find help articles, guides, and API documentation for GitHub features and products.",
+  "inputSchema": {
+    "properties": {
+      "language": {
+        "description": "Language code for documentation. Options: 'en' (default), 'es', 'ja', 'pt', 'zh', 'ru', 'fr', 'ko', 'de'",
+        "type": "string"
+      },
+      "max_results": {
+        "description": "Maximum number of results to return (default: 10, max: 100)",
+        "type": "number"
+      },
+      "query": {
+        "description": "Search query for GitHub documentation. Examples: 'actions workflow syntax', 'pull request review', 'GitHub Pages'",
+        "type": "string"
+      },
+      "version": {
+        "description": "GitHub version to search. Options: 'dotcom' (default, free/pro/team), 'ghec' (GitHub Enterprise Cloud), or a specific GHES version like '3.12'",
+        "type": "string"
+      }
+    },
+    "required": [
+      "query"
+    ],
+    "type": "object"
+  },
+  "name": "search_github_docs"
+}

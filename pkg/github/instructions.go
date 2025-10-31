@@ -62,6 +62,15 @@ Check 'list_issue_types' first for organizations to use proper issue types. Use 
 		return `## Discussions
 		
 Use 'list_discussion_categories' to understand available categories before creating discussions. Filter by category for better organization.`
+	case "github_docs":
+		return `## GitHub Docs
+
+When searching GitHub documentation:
+1. First, call 'search_github_docs' to find relevant documentation pages
+2. Then, present ALL relevant results as a list with clickable hyperlinks to the user
+3. Finally, use 'fetch_webpage' to retrieve the full content from one or more of the returned URLs to provide a detailed answer grounded in the documentation
+
+Always show the search results before fetching and summarizing the content.`
 	default:
 		return ""
 	}
