@@ -827,19 +827,20 @@ Pattern Split:
      - "open issues" → state:open is:issue
      - "merged PRs" → state:merged is:pr
      - "items updated this week" → updated:>@today-7d (omit type only if mixed desired)
+     - "list all P1 priority items" → priority:p1 (omit state if user wants all, omit type if user speciifies "items")
+     - "list all open P2 issues" → is:issue state:open priority:p2 (include state if user wants open or closed, include type if user speciifies "issues" or "PRs")
    Query Construction Heuristics:
      a. Extract type nouns: issues → is:issue | PRs, Pulls, or Pull Requests → is:pr | tasks/tickets → is:issue (ask if ambiguity)
      b. Map temporal phrases: "this week" → updated:>@today-7d
      c. Map negations: "excluding wontfix" → -label:wontfix
      d. Map priority adjectives: "high/sev1/p1" → priority:high OR priority:p1 (choose based on field presence)
-     e. Map blocking relations: "blocked by 123" → parent-issue:"owner/repo#123"
 
 Syntax Essentials (items):
-   AND: space-separated.
+   AND: space-separated. (label:bug priority:high).
    OR: comma inside one qualifier (label:bug,critical).
    NOT: leading '-' (-label:wontfix).
-   Hyphenate multi-word field names.
-   Quote multi-word values.
+   Hyphenate multi-word field names. (team-name:"Backend Team", story-points:>5).
+   Quote multi-word values. (status:"In Review" team-name:"Backend Team").
    Ranges: points:1..3, updated:<@today-30d.
    Wildcards: title:*crash*, label:bug*.
 

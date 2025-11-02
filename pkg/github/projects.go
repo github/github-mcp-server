@@ -30,125 +30,54 @@ const (
 // Supports getting and listing projects, project fields, and project items.
 func ProjectRead(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("project_read",
-			mcp.WithDescription(t("TOOL_PROJECT_READ_DESCRIPTION", `Read operations for GitHub Projects.
+			mcp.WithDescription(t("TOOL_PROJECT_READ_DESCRIPTION", `GitHub Projects V2 read operations.
 
-DECISION GUIDE (choose method):
-- get_project: You have a project number; you need its metadata.
-- list_projects: User wants to discover or filter projects (TITLE / OPEN STATE ONLY).
-- get_project_field: You know a field_id and need its definition.
-- list_project_fields: MUST call before fetching item field values (get IDs & types).
-- get_project_item: You have an item_id (project item) and want its details.
-- list_project_items: User wants issues/PRs inside a project filtered by criteria.
+Methods: get_project | list_projects | list_project_fields | get_project_field | list_project_items | get_project_item
 
-INTENT TOKENS (map user phrasing → method):
-[INTENT:DISCOVER_PROJECTS] → list_projects
-[INTENT:INSPECT_PROJECT] → get_project
-[INTENT:ENUM_FIELDS] → list_project_fields
-[INTENT:FIELD_DETAILS] → get_project_field
-[INTENT:LIST_ITEMS] → list_project_items
-[INTENT:ITEM_DETAILS] → get_project_item
+Key distinctions:
+- list_projects: ONLY project metadata (title, open/closed). Never use item filters.
+- list_project_items: Issues/PRs inside ONE project. Prefer explicit is:issue or is:pr.
 
-CRITICAL DISTINCTION:
-Projects ≠ Project Items.
-- list_projects filters ONLY project metadata (title, open/closed).
-  DO NOT use item-level qualifiers (is:issue, is:pr, assignee:, label:, status:, parent-issue:, sprint-name:, etc).
-- list_project_items filters ISSUES or PRs inside ONE project. Strongly prefer explicit type: is:issue OR is:pr unless user requests a mixed set.
+Field usage:
+- Call list_project_fields first to get IDs/types.
+- Use EXACT returned field names (case-insensitive match). Don't invent names or IDs.
+- Iteration synonyms (sprint/cycle/iteration) only if that field exists; map to the actual name (e.g. sprint:@current).
+- Only include filters for fields that exist and are relevant.
 
-FAILURE MODES TO AVOID:
-1. Missing pagination (stops early) → ALWAYS loop while pageInfo.hasNextPage=true.
-2. Missing 'fields' when listing items → only title returned; no field values.
-3. Using item filters in list_projects → returns zero or irrelevant results.
-4. Ambiguous item type (issues vs PRs) → default to clarifying OR supply both (omit type only if user truly wants both).
-5. Inventing field IDs → fetch via list_project_fields first.
-6. INVENTING FIELD NAMES (NEW) → MUST use exact names returned by list_project_fields (case-insensitive match, preserve original spelling/hyphenation).
+Item query syntax:
+AND = space | OR = comma (label:bug,critical) | NOT = prefix - ( -label:wontfix )
+Quote multi-word values: status:"In Review" team-name:"Backend Team"
+Hyphenate multi-word field names (story-points).
+Ranges: points:1..3  dates:2025-01-01..2025-12-31
+Comparisons: updated:>@today-7d priority:>1 points:<=10
+Wildcards: title:*crash* label:bug*
+Temporal shortcuts: @today @today-7d @today-30d
+Iteration shortcuts: @current @next @previous
 
-FIELD NAME RESOLUTION (CRITICAL – ALWAYS DO BEFORE BUILDING QUERY WITH CUSTOM FIELDS):
-1. Call list_project_fields → build a map of lowercased field name → original field name + type.
-2. When user mentions a concept (e.g. "current sprint", "this iteration", "in the cycle"):
-   - Identify iteration-type fields (type == iteration).
-   - Accept synonyms in user phrasing: sprint, iteration, cycle.
-   - If user uses a generic phrase ("current sprint") and the existing iteration field is named "Sprint" → use sprint:@current.
-   - If the field is named "Cycle" → cycle:@current.
-   - If the field is named "Iteration" → iteration:@current.
-   - NEVER substitute a synonym that does not exist among field names.
-3. For any other custom fields (e.g. "dev phase", "story points", "team name"):
-   - Normalize user phrase → lower-case, replace spaces with hyphens.
-   - Match against available field names in lower-case.
-   - Use the ORIGINAL field name in the query exactly (including hyphenation and case if needed).
-4. If multiple iteration-type fields exist and the user intent is ambiguous → ask for clarification OR pick the one whose name best matches the user phrase.
-5. INVALID if you use a field name not present in list_project_fields.
+Pagination (mandatory):
+Loop while pageInfo.hasNextPage=true using after=nextCursor. Keep query, fields, per_page IDENTICAL each page.
 
-VALID vs INVALID (Iteration Example):
-User request: "Analyze the last week's activity ... for issues in the current sprint"
-Fields contain iteration field named "sprint":
-  VALID:  is:issue updated:>@today-7d sprint:@current
-  INVALID: is:issue updated:>@today-7d iteration:@current
-Fields contain iteration field named "cycle":
-  VALID:  is:issue updated:>@today-7d cycle:@current
-  INVALID: is:issue updated:>@today-7d iteration:@current
-Fields contain iteration field named "iteration":
-  VALID:  is:issue updated:>@today-7d iteration:@current
-  INVALID: is:issue updated:>@today-7d sprint:@current (if 'sprint' not defined)
+Fields parameter:
+Include field IDs on EVERY paginated list_project_items call if you need values. Omit → title only.
 
-If NO iteration-type field exists → omit that qualifier OR clarify with user ("No iteration field found; continue without sprint filter?").
+Counting rules:
+- Count items array length after full pagination.
+- If multi-page: collect all pages, dedupe by item.id (fallback node_id) before totals.
+- Never count field objects, content, or nested arrays as separate items.
+- item.id = project item ID (for updates/deletes). item.content.id = underlying issue/PR ID.
 
-QUERY TRANSLATION (items):
-User: "Open sprint issues assigned to me" →
-   state:open is:issue assignee:@me sprint:@current
-User: "PRs waiting for review" →
-   is:pr status:"Ready for Review"
-User: "High priority bugs updated this week" →
-   is:issue label:bug priority:high updated:>@today-7d
+Summary vs list:
+- Summaries ONLY if user uses verbs: analyze | summarize | summary | report | overview | insights.
+- Listing verbs (list/show/get/fetch/display/enumerate) → just enumerate + total.
 
-SYNTAX RULES (items):
-- AND: space-separated qualifiers.
-- OR: comma inside one qualifier (label:bug,critical).
-- NOT: prefix qualifier with '-' (-label:wontfix).
-- Hyphenate multi-word field names: sprint-name, team-name, parent-issue.
-- Quote multi-word values: status:"In Review".
-- Comparison & ranges: priority:1..3 updated:<@today-14d.
-- Wildcards: title:*search*, label:bug*.
-- Presence: has:assignee, no:label, -no:assignee (force presence).
+Examples:
+list_projects: "roadmap is:open"
+list_project_items: state:open is:issue sprint:@current priority:high updated:>@today-7d
 
-GOOD PROJECT QUERIES (list_projects):
-  roadmap is:open
-  is:open feature planning
-BAD (reject for list_projects — item filters present):
-  is:issue state:open
-  assignee:@me sprint-name:"Q3"
-  label:bug priority:high
+Self-check before returning:
+☑ Paginated fully ☑ Dedupe by id/node_id ☑ Correct IDs used ☑ Field names valid ☑ Summary only if requested.
 
-VALID ITEM QUERIES (list_project_items):
-  state:open is:issue priority:high sprint:@current
-  is:pr status:"In Review" team-name:"Backend Team"
-  is:issue -label:wontfix updated:>@today-30d
-  is:issue parent-issue:"github/repo#123"
-
-PAGINATION LOOP (ALL list_*):
-1. Call list_*.
-2. Read pageInfo.hasNextPage.
-3. If true → call again with after=pageInfo.nextCursor (same query, fields, per_page).
-4. Repeat until hasNextPage=false.
-5. Aggregate ALL pages BEFORE summarizing.
-
-DATA COMPLETENESS RULE:
-Never summarize, infer trends, or perform counts until all pages are retrieved.
-
-DEEP DETAILS:
-Project item = lightweight wrapper. For full issue/PR inspection use issue_read or pull_request_read after enumerating items.
-
-DO:
-- Normalize user intent → precise filters.
-- Fetch fields first → pass IDs every page.
-- Preserve consistency across pagination.
-- Resolve and validate field names from list_project_fields BEFORE using them.
-
-DON'T:
-- Mix project-only and item-only filters.
-- Omit type when user scope is explicit.
-- Invent field IDs or option IDs.
-- Invent field names (e.g. use iteration:@current when only sprint exists).
-- Stop early on pagination.`)),
+Return COMPLETE data or state what's missing (e.g. pages skipped).`)),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:        t("TOOL_PROJECT_READ_USER_TITLE", "Read project information"),
 				ReadOnlyHint: ToBoolPtr(true),
@@ -195,19 +124,20 @@ Pattern Split:
      - "open issues" → state:open is:issue
      - "merged PRs" → state:merged is:pr
      - "items updated this week" → updated:>@today-7d (omit type only if mixed desired)
+     - "list all P1 priority items" → priority:p1 (omit state if user wants all, omit type if user speciifies "items")
+     - "list all open P2 issues" → is:issue state:open priority:p2 (include state if user wants open or closed, include type if user speciifies "issues" or "PRs")
    Query Construction Heuristics:
      a. Extract type nouns: issues → is:issue | PRs, Pulls, or Pull Requests → is:pr | tasks/tickets → is:issue (ask if ambiguity)
      b. Map temporal phrases: "this week" → updated:>@today-7d
      c. Map negations: "excluding wontfix" → -label:wontfix
      d. Map priority adjectives: "high/sev1/p1" → priority:high OR priority:p1 (choose based on field presence)
-     e. Map blocking relations: "blocked by 123" → parent-issue:"owner/repo#123"
 
 Syntax Essentials (items):
-   AND: space-separated.
+   AND: space-separated. (label:bug priority:high).
    OR: comma inside one qualifier (label:bug,critical).
    NOT: leading '-' (-label:wontfix).
-   Hyphenate multi-word field names.
-   Quote multi-word values.
+   Hyphenate multi-word field names. (team-name:"Backend Team", story-points:>5).
+   Quote multi-word values. (status:"In Review" team-name:"Backend Team").
    Ranges: points:1..3, updated:<@today-30d.
    Wildcards: title:*crash*, label:bug*.
 
@@ -519,7 +449,6 @@ func listProjects(ctx context.Context, client *github.Client, owner string, owne
 		minimalProjects = append(minimalProjects, *convertToMinimalProject(project))
 	}
 
-	// Create response with pagination info
 	response := map[string]any{
 		"projects": minimalProjects,
 		"pageInfo": buildPageInfo(resp),
@@ -609,6 +538,7 @@ func listProjectFields(ctx context.Context, client *github.Client, owner string,
 			err,
 		), nil
 	}
+
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
@@ -619,9 +549,10 @@ func listProjectFields(ctx context.Context, client *github.Client, owner string,
 		return mcp.NewToolResultError(fmt.Sprintf("failed to list project fields: %s", string(body))), nil
 	}
 
-	// Create response with pagination info
+	filteredFields := filterSpecialTypes(projectFields)
+
 	response := map[string]any{
-		"fields":   projectFields,
+		"fields":   filteredFields,
 		"pageInfo": buildPageInfo(resp),
 	}
 
@@ -676,6 +607,11 @@ func getProjectItem(ctx context.Context, client *github.Client, owner string, ow
 		}
 		return mcp.NewToolResultError(fmt.Sprintf("failed to get project item: %s", string(body))), nil
 	}
+
+	if len(projectItem.Fields) > 0 {
+		projectItem.Fields = filterSpecialTypes(projectItem.Fields)
+	}
+
 	r, err := json.Marshal(projectItem)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -730,7 +666,14 @@ func listProjectItems(ctx context.Context, client *github.Client, owner string, 
 		return mcp.NewToolResultError(fmt.Sprintf("%s: %s", ProjectListFailedError, string(body))), nil
 	}
 
-	// Create response with pagination info
+	if len(projectItems) > 0 {
+		for i := range projectItems {
+			if len(projectItems[i].Fields) > 0 {
+				projectItems[i].Fields = filterSpecialTypes(projectItems[i].Fields)
+			}
+		}
+	}
+
 	response := map[string]any{
 		"items":    projectItems,
 		"pageInfo": buildPageInfo(resp),
@@ -883,16 +826,30 @@ type projectV2Field struct {
 	DataType      string            `json:"data_type,omitempty"`
 	URL           string            `json:"url,omitempty"`
 	Options       []*any            `json:"options,omitempty"`       // For single-select fields
-	Configuration []*any            `json:"configuration,omitempty"` // For iteration fields
+	Configuration *any              `json:"configuration,omitempty"` // For iteration fields
 	CreatedAt     *github.Timestamp `json:"created_at,omitempty"`
 	UpdatedAt     *github.Timestamp `json:"updated_at,omitempty"`
 }
 
+func (f *projectV2Field) getDataType() string {
+	if f == nil {
+		return ""
+	}
+	return strings.ToLower(f.DataType)
+}
+
 type projectV2ItemFieldValue struct {
-	ID       *int64 `json:"id,omitempty"`        // The unique identifier for this field.
-	Name     string `json:"name,omitempty"`      // The display name of the field.
-	DataType string `json:"data_type,omitempty"` // The data type of the field (e.g., "text", "number", "date", "single_select", "multi_select").
-	Value    any    `json:"value,omitempty"`     // The value of the field for a specific project item.
+	ID       *int64 `json:"id,omitempty"`
+	Name     string `json:"name,omitempty"`
+	DataType string `json:"data_type,omitempty"`
+	Value    any    `json:"value,omitempty"`
+}
+
+func (v *projectV2ItemFieldValue) getDataType() string {
+	if v == nil {
+		return ""
+	}
+	return strings.ToLower(v.DataType)
 }
 
 type projectV2Item struct {
@@ -912,17 +869,29 @@ type projectV2Item struct {
 }
 
 type projectV2ItemContent struct {
-	Body        *string           `json:"body,omitempty"`
-	ClosedAt    *github.Timestamp `json:"closed_at,omitempty"`
-	CreatedAt   *github.Timestamp `json:"created_at,omitempty"`
-	ID          *int64            `json:"id,omitempty"`
-	Number      *int              `json:"number,omitempty"`
-	Repository  MinimalRepository `json:"repository,omitempty"`
-	State       *string           `json:"state,omitempty"`
-	StateReason *string           `json:"stateReason,omitempty"`
-	Title       *string           `json:"title,omitempty"`
-	UpdatedAt   *github.Timestamp `json:"updated_at,omitempty"`
-	URL         *string           `json:"url,omitempty"`
+	Body        *string                         `json:"body,omitempty"`
+	ClosedAt    *github.Timestamp               `json:"closed_at,omitempty"`
+	CreatedAt   *github.Timestamp               `json:"created_at,omitempty"`
+	ID          *int64                          `json:"id,omitempty"`
+	Number      *int                            `json:"number,omitempty"`
+	Repository  *projectV2ItemContentRepository `json:"repository,omitempty"`
+	State       *string                         `json:"state,omitempty"`
+	StateReason *string                         `json:"stateReason,omitempty"`
+	Title       *string                         `json:"title,omitempty"`
+	UpdatedAt   *github.Timestamp               `json:"updated_at,omitempty"`
+	URL         *string                         `json:"url,omitempty"`
+	Type        *any                            `json:"type,omitempty"`
+	Labels      []*any                          `json:"labels,omitempty"`
+	Assignees   []*MinimalUser                  `json:"assignees,omitempty"`
+	Milestone   *any                            `json:"milestone,omitempty"`
+}
+
+type projectV2ItemContentRepository struct {
+	ID          *int64  `json:"id"`
+	Name        *string `json:"name"`
+	FullName    *string `json:"full_name"`
+	Description *string `json:"description,omitempty"`
+	HTMLURL     *string `json:"html_url"`
 }
 
 type pageInfo struct {
@@ -943,8 +912,6 @@ type filterQueryOptions struct {
 }
 
 type fieldSelectionOptions struct {
-	// Specific list of field IDs to include in the response. If not provided, only the title field is included.
-	// Example: fields=102589,985201,169875 or fields[]=102589&fields[]=985201&fields[]=169875
 	Fields string `url:"fields,omitempty"`
 }
 
@@ -989,7 +956,6 @@ func buildUpdateProjectItem(input map[string]any) (*updateProjectItem, error) {
 	return payload, nil
 }
 
-// buildPageInfo creates a pageInfo struct from the GitHub API response
 func buildPageInfo(resp *github.Response) pageInfo {
 	return pageInfo{
 		HasNextPage:     resp.After != "",
@@ -999,7 +965,6 @@ func buildPageInfo(resp *github.Response) pageInfo {
 	}
 }
 
-// extractPaginationOptions extracts and validates pagination parameters from a tool request
 func extractPaginationOptions(request mcp.CallToolRequest) (paginationOptions, error) {
 	perPage, err := OptionalIntParamWithDefault(request, "per_page", MaxProjectsPerPage)
 	if err != nil {
@@ -1024,6 +989,46 @@ func extractPaginationOptions(request mcp.CallToolRequest) (paginationOptions, e
 		After:   after,
 		Before:  before,
 	}, nil
+}
+
+// "special" data types that are present in the project item's content object.
+var specialFieldDataTypes = map[string]struct{}{
+	"assignees":            {},
+	"labels":               {},
+	"linked_pull_requests": {},
+	"milestone":            {},
+	"parent_issue":         {},
+	"repository":           {},
+	"reviewers":            {},
+	"sub_issues_progress":  {},
+	"title":                {},
+}
+
+// filterSpecialTypes returns a new slice containing only those field definitions
+// or field values whose DataType is NOT in the specialFieldDataTypes set. The
+// input must be a slice whose element type implements getDataType() string.
+//
+// Applicable to:
+//
+//	[]*projectV2Field
+//	[]*projectV2ItemFieldValue
+//
+// Example:
+//
+//	filtered := filterSpecialTypes(fields)
+func filterSpecialTypes[T interface{ getDataType() string }](fields []T) []T {
+	if len(fields) == 0 {
+		return fields
+	}
+	out := make([]T, 0, len(fields))
+	for _, f := range fields {
+		dt := f.getDataType()
+		if _, isSpecial := specialFieldDataTypes[dt]; isSpecial {
+			continue
+		}
+		out = append(out, f)
+	}
+	return out
 }
 
 // addOptions adds the parameters in opts as URL query parameters to s. opts
@@ -1068,67 +1073,43 @@ func ManageProjectItemsPrompt(t translations.TranslationHelperFunc) (tool mcp.Pr
 			messages := []mcp.PromptMessage{
 				{
 					Role: "system",
-					Content: mcp.NewTextContent(`You are an assistant for GitHub Projects V2.
-PRIMARY GOAL: Select correct method and produce COMPLETE results (no pagination truncation).
+					Content: mcp.NewTextContent(`System guide: GitHub Projects V2.
+Goal: Pick correct method, fetch COMPLETE data (no early pagination stop), apply accurate filters, and count items correctly.
 
-METHOD DECISION FLOW:
-1. Need list of projects? → project_read list_projects
-2. Have project_number → need its metadata? → project_read get_project
-3. Need field definitions (IDs/types)? → project_read list_project_fields
-4. Have field_id → single field details? → project_read get_project_field
-5. Need issues/PRs inside one project? → project_read list_project_items
-6. Have item_id → full item wrapper? → project_read get_project_item
-7. Need to modify items? → project_write (add/update/delete)
-8. Need deep issue/PR details beyond wrapper? → issue_read / pull_request_read
+Method quick map:
+list_projects (metadata only) | get_project (single) | list_project_fields (define IDs) | get_project_field | list_project_items (issues/PRs) | get_project_item | project_write (mutations) | issue_read / pull_request_read (deep details)
 
-CORE RULES (NON-NEGOTIABLE):
-- Call list_project_fields BEFORE querying items for field values.
-- ALWAYS include 'query' when calling list_project_items.
-- ALWAYS include 'fields' (IDs) on EVERY paginated call if field values matter.
-- ALWAYS paginate until pageInfo.hasNextPage=false.
-- NEVER use item-level qualifiers with list_projects.
-- STRONGLY prefer is:issue or is:pr in item queries when scope is clear.
-- DO NOT summarize or count until all pages fetched.
+Core rules:
+- list_projects: NEVER include item-level filters.
+- Before filtering on custom fields call list_project_fields.
+- Always paginate until pageInfo.hasNextPage=false.
+- Keep query, fields, per_page identical across pages.
+- Include fields IDs on every list_project_items page if you need values.
+- Prefer explicit is:issue / is:pr unless mixed set requested.
+- Only summarize if verbs like analyze / summarize / report / overview / insights appear; otherwise enumerate.
 
-QUERY BUILDING (ITEMS):
-Translate user intent → structured filters:
-- "open sprint issues assigned to me" → state:open is:issue assignee:@me sprint-name:@current
-- "recent merged PRs backend team" → state:merged is:pr team-name:"Backend Team" updated:>@today-7d
-- "exclude wontfix high priority bugs" → is:issue label:bug priority:high -label:wontfix state:open
+Field resolution:
+- Use exact returned field names; don't invent.
+- Iteration synonyms map to actual existing name (Sprint → sprint:@current, etc.). If none exist, omit.
+- Only add filters for fields that exist and matter to the user goal.
 
-SYNTAX:
-AND: space. OR: comma (label:bug,critical). NOT: -label:wontfix.
-Quote multi-word values. Hyphenate multi-word field names (sprint-name).
-Ranges: points:1..3, updated:<@today-14d.
-Temporal shortcuts: @today @today-7d @today-30d.
-Iteration shortcuts: @current @next @previous.
-Comparison Operators: (For number, date, and iteration field types)
-- field:>VALUE	priority:>1 will show items with a priority greater than 1.
-- field:>=VALUE	date:>=2022-06-01 will show items with a date of "2022-06-01" or later.
-- field:<VALUE	<iteration-field-name>:<"Iteration 5" will show items with an iteration before "Iteration 5."
-- field:<=VALUE	points:<=10 will show items with 10 or less points.
+Query syntax essentials:
+AND space | OR comma | NOT prefix - | quote multi-word values | hyphenate names | ranges points:1..5 | comparisons updated:>@today-7d priority:>1 | wildcards title:*crash*
 
-PAGINATION LOOP:
-1. Call list_project_items
-2. If pageInfo.hasNextPage=true → repeat with after=nextCursor (same query, fields, per_page)
-3. Aggregate until hasNextPage=false.
+Pagination pattern:
+Call list_project_items → if hasNextPage true, repeat with after=nextCursor → stop only when false → then count/deduplicate.
 
-RECOVERY / AMBIGUITY:
-- If user says “show items” with no type: omit is:issue/is:pr OR ask clarifying question.
-- If unknown field name appears: fetch list_project_fields, match by normalized lower-case; never guess.
+Counting:
+- Items array length after full pagination (dedupe by item.id or node_id).
+- Never count fields array, content, assignees, labels as separate items.
+- item.id = project item identifier; content.id = underlying issue/PR id.
 
-DO / DON'T:
-DO normalize user phrases → filters.
-DO preserve parameter consistency when paginating.
-DON'T invent field IDs or option IDs.
-DON'T halt early on pagination.
-DON'T mix discovery (list_projects) with item filtering.
+Edge handling:
+Empty pages → total=0 still return pageInfo.
+Duplicates → keep first for totals.
+Missing field values → null/omit, never fabricate.
 
-HANDOFF:
-For deeper issue/PR details (comments, diff, reviews) → use issue_read / pull_request_read after enumerating items.
-
-QUALITY GUARANTEE:
-Return COMPLETE data sets or explicitly state what's missing (e.g., user withheld pagination).`),
+Self-check: paginated? deduped? correct IDs? field names valid? summary allowed?`),
 				},
 				{
 					Role: "user",
@@ -1144,7 +1125,7 @@ Return COMPLETE data sets or explicitly state what's missing (e.g., user withhel
 				},
 				{
 					Role:    "assistant",
-					Content: mcp.NewTextContent("I'll help manage GitHub Projects. First, let's list projects using **project_read** with method=\"list_projects\"."),
+					Content: mcp.NewTextContent("Start by listing projects: project_read method=\"list_projects\"."),
 				},
 				{
 					Role:    "user",
@@ -1152,53 +1133,15 @@ Return COMPLETE data sets or explicitly state what's missing (e.g., user withhel
 				},
 				{
 					Role: "assistant",
-					Content: mcp.NewTextContent(`**Working with Fields & Items (Field Name Resolution Is Critical)**
-
-1. Enumerate fields first:
-   Use project_read method="list_project_fields" project_number=<num>.
-   Build a lookup: lowercased field name -> original name + data_type.
-
-2. Resolve user phrases to actual field names:
-   - Normalize user phrase: lowercase, trim, replace spaces with hyphens for matching.
-   - Only use EXACT existing field names returned by list_project_fields.
-   - Never invent synonyms; if user says "sprint" but only "Iteration" exists, use iteration:@current (NOT sprint:@current).
-
-3. Iteration field synonyms:
-   User may say: "sprint", "iteration", "cycle", "current sprint", "this cycle".
-   VALID substitution depends on actual field:
-     - If field list contains "Sprint": sprint:@current
-     - If field list contains "Cycle":  cycle:@current
-     - If field list contains "Iteration": iteration:@current
-   INVALID examples:
-     - iteration:@current when only "Sprint" exists
-     - sprint:@current when only "Cycle" exists
-
-4. Other custom fields (examples):
-   - "dev phase" → dev-phase:<value> (if field name is "Dev Phase" or "dev-phase")
-   - "story points" → story-points:<range or value>
-   - Preserve hyphenation EXACTLY as in the original field name.
-
-5. If ambiguous or multiple candidates (e.g., both "Sprint" and "Iteration"):
-   - Prefer the one that matches the user's wording.
-   - Ask for clarification if intent is unclear.
-
-6. Build the query AFTER resolving field names:
-   Example request: "Analyze last week's activity for issues in the current sprint"
-     - Temporal phrase "last week's activity" → updated:>@today-7d
-     - Content type "issues" → is:issue
-     - "current sprint" (field name?):
-        sprint:@current   (if 'Sprint')
-        cycle:@current    (if 'Cycle')
-        iteration:@current (if 'Iteration')
-   Final VALID queries depend entirely on actual field names.
-
-7. Always paginate:
-   Check pageInfo.hasNextPage. If true, repeat with after=<nextCursor> (same query, fields, per_page).
-
-8. Include fields parameter:
-   Pass fields=["<id1>", "<id2>", ...] on EVERY page if you want field values.
-
-Remember: Field presence governs filter legality. If a field doesn’t exist, either omit that filter or ask for clarification.`),
+					Content: mcp.NewTextContent(`Fields & items:
+1. list_project_fields first → map lowercased name -> {id,type}.
+2. Use only existing field names; no invention.
+3. Iteration mapping: pick sprint/cycle/iteration only if present (sprint:@current etc.).
+4. Include only relevant fields (e.g. Priority + Label for high priority bugs).
+5. Build query after resolving fields ("last week" → updated:>@today-7d).
+6. Paginate until hasNextPage=false; keep query/fields/per_page stable.
+7. Include fields IDs every page when you need their values.
+Missing field? Omit or clarify—never guess.`),
 				},
 				{
 					Role:    "user",
@@ -1206,20 +1149,9 @@ Remember: Field presence governs filter legality. If a field doesn’t exist, ei
 				},
 				{
 					Role: "assistant",
-					Content: mcp.NewTextContent(`**Update Item Field Values:** project_write method="update_project_item" with updated_field:
-
-Text: {"id": 123456, "value": "text"}
-Single-select: {"id": 198354254, "value": 18498754} (value = option ID)
-Iteration: {"id": 198354254, "value": 18498754} (value = configuration's iteration ID)
-Date: {"id": 789012, "value": "2025-03-15"}
-Number: {"id": 345678, "value": 5}
-Clear: {"id": 123456, "value": null}
-
-Requirements:
-- Use the project item_id (wrapper), NOT the issue/PR number.
-- Confirm field ID from list_project_fields before updating.
-- Single-select requires the numeric option ID (do not pass the name).
-- Iteration requires the iteration ID from the field configuration (do not pass the name).`),
+					Content: mcp.NewTextContent(`Updating fields (project_write update_project_item):
+Examples: text {"id":123,"value":"hello"} | select {"id":456,"value":789} (option ID) | number {"id":321,"value":5} | date {"id":654,"value":"2025-03-15"} | clear {"id":123,"value":null}
+Rules: item_id = project item wrapper ID; confirm field IDs via list_project_fields; select/iteration = pass option/iteration ID (not name).`),
 				},
 				{
 					Role:    "user",
@@ -1227,41 +1159,14 @@ Requirements:
 				},
 				{
 					Role: "assistant",
-					Content: mcp.NewTextContent(`**Workflow (Including Field Name Resolution):**
-
-1. Discover projects:
-   project_read method="list_projects" owner=<owner> owner_type=<owner_type>
-
-2. Get fields (MUST before filtering on custom fields):
-   project_read method="list_project_fields" project_number=<project_number>
-   → Build map: lowercased field name -> {originalName, type, id}
-
-3. Resolve user intent → query:
-   - User phrase: "current sprint high priority issues updated this week"
-   - Fields: has 'Sprint' (iteration type), has 'Priority'
-   - Query: is:issue sprint:@current priority:high updated:>@today-7d
-
-4. List items (FIRST page):
-   project_read method="list_project_items"
-     project_number=<project_number>
-     query="is:issue sprint:@current priority:high updated:>@today-7d"
-     fields=["<sprintFieldID>", "<priorityFieldID>", "<statusFieldID>"]
-
-5. Pagination:
-   If pageInfo.hasNextPage=true → repeat step 4 with after=<nextCursor> (same query, fields, per_page).
-   Continue until hasNextPage=false. Aggregate all pages.
-
-6. Deeper inspection:
-   Only when needed: for each item → extract repository + issue/PR number → call issue_read or pull_request_read for comments, reviews, etc.
-
-7. Update a field:
-   project_write method="update_project_item" project_number=<project_number> item_id=<projectItemID>
-     updated_field={"id": <priorityFieldID>, "value": "high"}
-
-**CRITICAL REMINDERS:**
-- Never use iteration:@current when only 'Sprint' exists.
-- Fields parameter MUST be identical across pagination calls.
-- Don't summarize until all pages are collected.`),
+					Content: mcp.NewTextContent(`Workflow quick path:
+1 list_projects → pick project_number.
+2 list_project_fields → build field map.
+3 Build query (e.g. is:issue sprint:@current priority:high updated:>@today-7d).
+4 list_project_items (include field IDs) → paginate fully.
+5 Optional deep dive: issue_read / pull_request_read per item.
+6 Optional update: project_write update_project_item.
+Reminders: iteration filter must match existing field; keep fields consistent; summarize only if asked.`),
 				},
 				{
 					Role:    "user",
@@ -1269,28 +1174,11 @@ Requirements:
 				},
 				{
 					Role: "assistant",
-					Content: mcp.NewTextContent(`**⚠️ Pagination Is Mandatory**
-
-Rules:
-1. Inspect pageInfo.hasNextPage on EVERY response.
-2. If true → call again with after=pageInfo.nextCursor.
-3. Keep query, fields, per_page EXACTLY the same.
-4. Loop until hasNextPage=false.
-5. Aggregate all items BEFORE analysis or summarization.
-
-Example:
-Page 1: hasNextPage=true → after="abc123"
-Page 2: hasNextPage=true → after="def456"
-Page 3: hasNextPage=false → DONE
-
-Field Value Integrity:
-- If you include fields=["123","456"] on page 1, you MUST include them on subsequent pages.
-- Omitting fields mid-pagination yields inconsistent item data.
-
-Never:
-- Stop early.
-- Change filters mid-sequence.
-- Drop fields array after the first page.`),
+					Content: mcp.NewTextContent(`Pagination:
+Loop while hasNextPage=true using after=nextCursor.
+Do NOT change query/fields/per_page.
+Include same fields IDs every page.
+Only count/summarize after final page.`),
 				},
 				{
 					Role:    "user",
@@ -1298,85 +1186,21 @@ Never:
 				},
 				{
 					Role: "assistant",
-					Content: mcp.NewTextContent(`**Deep Details Beyond Project Items**
-
-Project item wrapper gives: title, item URL, basic content state, and selected field values.
-For full issue/PR context (comments, reviews, diff, labels):
-
-Issues:
-  issue_read method="get"
-  issue_read method="get_comments"
-  issue_read method="get_labels"
-  issue_read method="get_sub_issues"
-
-Pull Requests:
-  pull_request_read method="get"
-  pull_request_read method="get_reviews"
-  pull_request_read method="get_review_comments"
-  pull_request_read method="get_files"
-  pull_request_read method="get_diff"
-  pull_request_read method="get_status"
-
-Workflow:
-1. Enumerate with list_project_items (capture repository + number).
-2. Use repository.owner.login + repository.name + content.number for deeper calls.
-3. Combine field-derived status + external discussions for a richer report.
-
-Always confirm item type (is:issue vs is:pr) before selecting downstream method.`),
+					Content: mcp.NewTextContent(`Deep details:
+Use issue_read or pull_request_read for comments/reviews/diffs after enumeration.
+Inputs: repository + item content.number.
+Confirm type (is:issue vs is:pr) before choosing which tool.`),
 				},
 				{
 					Role: "assistant",
-					Content: mcp.NewTextContent(`**Query Building for Reports (Field Name Integrity)**
-
-Preparation:
-- Run list_project_fields first.
-- Normalize user terms to actual field names (lowercase match).
-- Use returned names; preserve hyphens.
-
-Patterns:
-- "blocked issues" → is:issue (label:blocked OR status:"Blocked" OR dev-phase:"Blocked" depending on existing fields)
-- "overdue tasks" (field 'due-date') → is:issue due-date:<@today state:open
-- "PRs ready for review" (field 'review-status') → is:pr review-status:"Ready for Review" state:open
-- "stale issues" → is:issue updated:<@today-30d state:open
-- "high priority bugs" → is:issue label:bug priority:high state:open
-- "team PRs current sprint" (fields: 'team-name', 'Sprint') → is:pr team-name:"Backend Team" sprint:@current
-- "iteration tracking last week" (field 'Iteration') → is:issue updated:>@today-7d iteration:@current state:open
-
-Rules:
-- Content type first: is:issue or is:pr unless mixed set requested.
-- Temporal: "last week" → updated:>@today-7d; "last 30 days" → updated:>@today-30d
-- Multi-word values must be quoted: team-name:"Backend Team"
-- OR logic: label:bug,critical
-- NOT logic: -label:wontfix
-- Comparisons: 
-	- Greater than:
-		- number-field:>5
-		- date-field:>2024-06-01
-		- iteration-field:>"iteration 2"
-	- Less than:
-		- number-field:<3
-		- date-field:<2024-12-31
-		- iteration-field:<"iteration 2"
-	- Greater than or equal to:
-		- number-field:>=4
-		- date-field:>=2024-05-15
-		- iteration-field:>="iteration 1"
-	- Less than or equal to:
-		- number-field:<=8
-		- date-field:<=2024-11-30
-		- iteration-field:<="iteration 3"
-- Range: 
-	- number-field:1..10
-	- date-field:2024-01-01..2024-12-31
-	- iteration-field:"iteration 1..iteration 3"
-
-INVALID examples:
-- sprint:@current when only 'Iteration' exists
-- iteration:@current when only 'Sprint' exists
-- Using dev-phase:"In Progress" when no 'dev-phase' field exists (must clarify)
-
-Golden Rule:
-Never invent field names or IDs. Always source from list_project_fields.`),
+					Content: mcp.NewTextContent(`Query patterns:
+blocked issues → is:issue (label:blocked OR status:"Blocked")
+overdue tasks → is:issue due-date:<@today state:open
+PRs ready for review → is:pr review-status:"Ready for Review" state:open
+stale issues → is:issue updated:<@today-30d state:open
+high priority bugs → is:issue label:bug priority:high state:open
+team sprint PRs → is:pr team-name:"Backend Team" sprint:@current
+Rules: summarize only if asked; dedupe before counts; quote multi-word values; never invent field names or IDs.`),
 				},
 			}
 			return &mcp.GetPromptResult{
