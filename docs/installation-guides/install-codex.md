@@ -91,9 +91,6 @@ Use the principle of least privilege: add scopes only when a tool request fails 
 | 401 Unauthorized (remote) | Token expired/revoked | Create new PAT; update `bearer_token` |
 | Server not listed | Wrong table name or syntax error | Use `[mcp_servers.github]`; validate TOML |
 | Tools missing / zero tools | Insufficient PAT scopes | Add needed scopes (workflow, gist, etc.) |
-| Docker run fails | Image pull or local Docker issue | `docker pull ghcr.io/github/github-mcp-server`; verify Docker running |
-| Stdio exits immediately | `GITHUB_PERSONAL_ACCESS_TOKEN` not set | Add env table or export var before launch |
-| Timeouts on large operations | Default too low | Increase `tool_timeout_sec` (e.g. 600) |
 | Token in file risks leakage | Committed accidentally | Rotate token; add file to `.gitignore` |
 
 ## Security Best Practices
@@ -105,7 +102,6 @@ Use the principle of least privilege: add scopes only when a tool request fails 
 
 ## References
 - Remote server URL: `https://api.githubcopilot.com/mcp/`
-- Docker image: `ghcr.io/github/github-mcp-server`
 - Release binaries: [GitHub Releases](https://github.com/github/github-mcp-server/releases)
 - OpenAI Codex MCP docs: https://developers.openai.com/codex/mcp
 - Main project README: [Advanced configuration options](../../README.md)
