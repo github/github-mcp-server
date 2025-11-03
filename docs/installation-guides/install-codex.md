@@ -37,7 +37,7 @@ bearer_token_env_var = "GITHUB_PAT_TOKEN"
 
 ## Local Docker Configuration
 
-Use this if you prefer a local, self-hosted instance instead of the remote HTTP server, please refer to the [OpenAI documentaiton for configuration](https://developers.openai.com/codex/mcp).
+Use this if you prefer a local, self-hosted instance instead of the remote HTTP server, please refer to the [OpenAI documentation for configuration](https://developers.openai.com/codex/mcp).
 
 ## Verification
 
