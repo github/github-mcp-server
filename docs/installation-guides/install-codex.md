@@ -4,7 +4,6 @@
 
 1. OpenAI Codex (MCP-enabled) installed / available
 2. A [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new)
-3. (Optional for local hosting) [Docker](https://www.docker.com/) installed and running
 
 <details>
 <summary><b>Storing Your PAT Securely</b></summary>
