@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/google/go-github/v76/github"
+	"github.com/google/go-github/v77/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )

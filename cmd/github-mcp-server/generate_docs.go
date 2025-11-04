@@ -13,7 +13,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/toolsets"
 	"github.com/github/github-mcp-server/pkg/translations"
-	gogithub "github.com/google/go-github/v76/github"
+	gogithub "github.com/google/go-github/v77/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/spf13/cobra"
