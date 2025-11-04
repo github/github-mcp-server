@@ -71,9 +71,14 @@ func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (
 			var projects []*github.ProjectV2
 			minimalProjects := []MinimalProject{}
 
+			var queryPtr *string
+			if queryStr != "" {
+				queryPtr = &queryStr
+			}
+
 			opts := &github.ListProjectsOptions{
 				ListProjectsPaginationOptions: github.ListProjectsPaginationOptions{PerPage: &perPage},
-				Query:                         &queryStr,
+				Query:                         queryPtr,
 			}
 
 			if ownerType == "org" {
