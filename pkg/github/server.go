@@ -99,6 +99,19 @@ func RequiredInt(r mcp.CallToolRequest, p string) (int, error) {
 	return int(v), nil
 }
 
+// RequiredBigInt is a helper function that can be used to fetch a requested parameter from the request.
+// It does the following checks:
+// 1. Checks if the parameter is present in the request.
+// 2. Checks if the parameter is of the expected type.
+// 3. Checks if the parameter is not empty, i.e: non-zero value
+func RequiredBigInt(r mcp.CallToolRequest, p string) (int64, error) {
+	v, err := RequiredParam[float64](r, p)
+	if err != nil {
+		return 0, err
+	}
+	return int64(v), nil
+}
+
 // OptionalParam is a helper function that can be used to fetch a requested parameter from the request.
 // It does the following checks:
 // 1. Checks if the parameter is present in the request, if not, it returns its zero-value
@@ -186,6 +199,50 @@ func OptionalStringArrayParam(r mcp.CallToolRequest, p string) ([]string, error)
 		return strSlice, nil
 	default:
 		return []string{}, fmt.Errorf("parameter %s could not be coerced to []string, is %T", p, r.GetArguments()[p])
+	}
+}
+
+func convertStringSliceToInt64Slice(s []string) []int64 {
+	int64Slice := make([]int64, len(s))
+	for i, str := range s {
+		int64Slice[i] = convertStringToInt64(str)
+	}
+	return int64Slice
+}
+
+func convertStringToInt64(s string) int64 {
+	var i int64
+	fmt.Sscan(s, &i)
+	return i
+}
+
+// OptionalStringArrayParam is a helper function that can be used to fetch a requested parameter from the request.
+// It does the following checks:
+// 1. Checks if the parameter is present in the request, if not, it returns its zero-value
+// 2. If it is present, iterates the elements and checks each is a string
+func OptionalBigIntArrayParam(r mcp.CallToolRequest, p string) ([]int64, error) {
+	// Check if the parameter is present in the request
+	if _, ok := r.GetArguments()[p]; !ok {
+		return []int64{}, nil
+	}
+
+	switch v := r.GetArguments()[p].(type) {
+	case nil:
+		return []int64{}, nil
+	case []string:
+		return convertStringSliceToInt64Slice(v), nil
+	case []any:
+		int64Slice := make([]int64, len(v))
+		for i, v := range v {
+			s, ok := v.(string)
+			if !ok {
+				return []int64{}, fmt.Errorf("parameter %s is not of type string, is %T", p, v)
+			}
+			int64Slice[i] = convertStringToInt64(s)
+		}
+		return int64Slice, nil
+	default:
+		return []int64{}, fmt.Errorf("parameter %s could not be coerced to []int64, is %T", p, r.GetArguments()[p])
 	}
 }
 
