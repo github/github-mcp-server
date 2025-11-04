@@ -212,7 +212,7 @@ func fragmentToIssue(fragment IssueFragment) *github.Issue {
 
 	return &github.Issue{
 		Number:    github.Ptr(int(fragment.Number)),
-		Title:     github.Ptr(sanitize.FilterInvisibleCharacters(string(fragment.Title))),
+		Title:     github.Ptr(sanitize.Sanitize(string(fragment.Title))),
 		CreatedAt: &github.Timestamp{Time: fragment.CreatedAt.Time},
 		UpdatedAt: &github.Timestamp{Time: fragment.UpdatedAt.Time},
 		User: &github.User{
@@ -220,7 +220,7 @@ func fragmentToIssue(fragment IssueFragment) *github.Issue {
 		},
 		State:    github.Ptr(string(fragment.State)),
 		ID:       github.Ptr(fragment.DatabaseID),
-		Body:     github.Ptr(sanitize.FilterInvisibleCharacters(string(fragment.Body))),
+		Body:     github.Ptr(sanitize.Sanitize(string(fragment.Body))),
 		Labels:   foundLabels,
 		Comments: github.Ptr(int(fragment.Comments.TotalCount)),
 	}
@@ -327,10 +327,10 @@ func GetIssue(ctx context.Context, client *github.Client, owner string, repo str
 	// Sanitize title/body on response
 	if issue != nil {
 		if issue.Title != nil {
-			issue.Title = github.Ptr(sanitize.FilterInvisibleCharacters(*issue.Title))
+			issue.Title = github.Ptr(sanitize.Sanitize(*issue.Title))
 		}
 		if issue.Body != nil {
-			issue.Body = github.Ptr(sanitize.FilterInvisibleCharacters(*issue.Body))
+			issue.Body = github.Ptr(sanitize.Sanitize(*issue.Body))
 		}
 	}
 
