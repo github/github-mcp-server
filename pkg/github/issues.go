@@ -10,6 +10,7 @@ import (
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/google/go-github/v76/github"
@@ -211,7 +212,7 @@ func fragmentToIssue(fragment IssueFragment) *github.Issue {
 
 	return &github.Issue{
 		Number:    github.Ptr(int(fragment.Number)),
-		Title:     github.Ptr(string(fragment.Title)),
+		Title:     github.Ptr(sanitize.FilterInvisibleCharacters(string(fragment.Title))),
 		CreatedAt: &github.Timestamp{Time: fragment.CreatedAt.Time},
 		UpdatedAt: &github.Timestamp{Time: fragment.UpdatedAt.Time},
 		User: &github.User{
@@ -219,7 +220,7 @@ func fragmentToIssue(fragment IssueFragment) *github.Issue {
 		},
 		State:    github.Ptr(string(fragment.State)),
 		ID:       github.Ptr(fragment.DatabaseID),
-		Body:     github.Ptr(string(fragment.Body)),
+		Body:     github.Ptr(sanitize.FilterInvisibleCharacters(string(fragment.Body))),
 		Labels:   foundLabels,
 		Comments: github.Ptr(int(fragment.Comments.TotalCount)),
 	}
@@ -321,6 +322,16 @@ func GetIssue(ctx context.Context, client *github.Client, owner string, repo str
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return mcp.NewToolResultError(fmt.Sprintf("failed to get issue: %s", string(body))), nil
+	}
+
+	// Sanitize title/body on response
+	if issue != nil {
+		if issue.Title != nil {
+			issue.Title = github.Ptr(sanitize.FilterInvisibleCharacters(*issue.Title))
+		}
+		if issue.Body != nil {
+			issue.Body = github.Ptr(sanitize.FilterInvisibleCharacters(*issue.Body))
+		}
 	}
 
 	r, err := json.Marshal(issue)
