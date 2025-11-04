@@ -1,5 +1,25 @@
 package sanitize
 
+import (
+	"github.com/microcosm-cc/bluemonday"
+)
+
+type ContentFilter struct {
+	HTMLPolicy *bluemonday.Policy
+}
+
+func NewContentFilter() *ContentFilter {
+	p := bluemonday.NewPolicy()
+	p.AllowElements("b", "blockquote", "br", "code", "em", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "i", "li", "ol", "p", "pre", "strong", "sub", "sup", "table", "tbody", "td", "th", "thead", "tr", "ul")
+	p.AllowAttrs("img", "a")
+	p.AllowAttrs()
+	p.AllowURLSchemes("https")
+
+	return &ContentFilter{
+		HTMLPolicy: p,
+	}
+}
+
 // FilterInvisibleCharacters removes invisible or control characters that should not appear
 // in user-facing titles or bodies. This includes:
 // - Unicode tag characters: U+E0001, U+E0020–U+E007F
@@ -18,6 +38,13 @@ func FilterInvisibleCharacters(input string) string {
 		}
 	}
 	return string(out)
+}
+
+func (cf *ContentFilter) FilterHtmlTags(input string) string {
+	if input == "" {
+		return input
+	}
+	return cf.HTMLPolicy.Sanitize(input)
 }
 
 func shouldRemoveRune(r rune) bool {
