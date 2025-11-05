@@ -279,7 +279,7 @@ Options are:
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			pagination, err := OptionalPaginationParams(request)
+			cursorParams, err := GetCursorBasedParams(request)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -298,9 +298,9 @@ Options are:
 			case "get":
 				return GetIssue(ctx, client, owner, repo, issueNumber)
 			case "get_comments":
-				return GetIssueComments(ctx, client, owner, repo, issueNumber, pagination)
+				return GetIssueComments(ctx, client, owner, repo, issueNumber, cursorParams)
 			case "get_sub_issues":
-				return GetSubIssues(ctx, client, owner, repo, issueNumber, pagination)
+				return GetSubIssues(ctx, client, owner, repo, issueNumber, cursorParams)
 			case "get_labels":
 				return GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
 			default:
@@ -342,11 +342,11 @@ func GetIssue(ctx context.Context, client *github.Client, owner string, repo str
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-func GetIssueComments(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+func GetIssueComments(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, cursorParams *DecodedCursor) (*mcp.CallToolResult, error) {
 	opts := &github.IssueListCommentsOptions{
 		ListOptions: github.ListOptions{
-			Page:    pagination.Page,
-			PerPage: pagination.PerPage,
+			Page:    cursorParams.Page,
+			PerPage: cursorParams.PerPage + 1, // Request one extra
 		},
 	}
 
@@ -364,19 +364,23 @@ func GetIssueComments(ctx context.Context, client *github.Client, owner string, 
 		return mcp.NewToolResultError(fmt.Sprintf("failed to get issue comments: %s", string(body))), nil
 	}
 
-	r, err := json.Marshal(comments)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	// Check if there are more results
+	hasMore := len(comments) > cursorParams.PerPage
+	if hasMore {
+		// Remove the extra item
+		comments = comments[:cursorParams.PerPage]
 	}
 
-	return mcp.NewToolResultText(string(r)), nil
+	// Create paginated response
+	paginatedResp := NewPaginatedRESTResponse(comments, cursorParams.Page, cursorParams.PerPage, hasMore)
+	return MarshalPaginatedResponse(paginatedResp), nil
 }
 
-func GetSubIssues(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+func GetSubIssues(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, cursorParams *DecodedCursor) (*mcp.CallToolResult, error) {
 	opts := &github.IssueListOptions{
 		ListOptions: github.ListOptions{
-			Page:    pagination.Page,
-			PerPage: pagination.PerPage,
+			Page:    cursorParams.Page,
+			PerPage: cursorParams.PerPage + 1, // Request one extra
 		},
 	}
 
@@ -399,12 +403,16 @@ func GetSubIssues(ctx context.Context, client *github.Client, owner string, repo
 		return mcp.NewToolResultError(fmt.Sprintf("failed to list sub-issues: %s", string(body))), nil
 	}
 
-	r, err := json.Marshal(subIssues)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	// Check if there are more results
+	hasMore := len(subIssues) > cursorParams.PerPage
+	if hasMore {
+		// Remove the extra item
+		subIssues = subIssues[:cursorParams.PerPage]
 	}
 
-	return mcp.NewToolResultText(string(r)), nil
+	// Create paginated response
+	paginatedResp := NewPaginatedRESTResponse(subIssues, cursorParams.Page, cursorParams.PerPage, hasMore)
+	return MarshalPaginatedResponse(paginatedResp), nil
 }
 
 func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {

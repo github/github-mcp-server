@@ -60,14 +60,14 @@ func GetCommit(getClient GetClientFn, t translations.TranslationHelperFunc) (too
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			pagination, err := OptionalPaginationParams(request)
+			cursorParams, err := GetCursorBasedParams(request)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
 			opts := &github.ListOptions{
-				Page:    pagination.Page,
-				PerPage: pagination.PerPage,
+				Page:    cursorParams.Page,
+				PerPage: cursorParams.PerPage + 1, // Request one extra
 			}
 
 			client, err := getClient(ctx)
@@ -92,15 +92,19 @@ func GetCommit(getClient GetClientFn, t translations.TranslationHelperFunc) (too
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get commit: %s", string(body))), nil
 			}
 
+			// Check if there are more files in the commit
+			hasMore := len(commit.Files) > cursorParams.PerPage
+			if hasMore {
+				// Remove the extra item
+				commit.Files = commit.Files[:cursorParams.PerPage]
+			}
+
 			// Convert to minimal commit
 			minimalCommit := convertToMinimalCommit(commit, includeDiff)
 
-			r, err := json.Marshal(minimalCommit)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			// Create paginated response
+			paginatedResp := NewPaginatedRESTResponse(minimalCommit, cursorParams.Page, cursorParams.PerPage, hasMore)
+			return MarshalPaginatedResponse(paginatedResp), nil
 		}
 }
 
