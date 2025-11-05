@@ -174,14 +174,16 @@ func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelp
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			// Get pagination parameters and convert to GraphQL format
-			pagination, err := OptionalCursorPaginationParams(request)
+			// Get cursor-based pagination parameters
+			cursorParams, err := GetCursorBasedParams(request)
 			if err != nil {
 				return nil, err
 			}
-			paginationParams, err := pagination.ToGraphQLParams()
-			if err != nil {
-				return nil, err
+
+			// For GraphQL, the cursor is the 'after' value
+			var after *string
+			if cursorParams.After != "" {
+				after = &cursorParams.After
 			}
 
 			client, err := getGQLClient(ctx)
@@ -195,13 +197,16 @@ func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelp
 				categoryID = &id
 			}
 
+			// Use fixed page size of 10 for cursor-based pagination
+			first := int32(cursorParams.PerPage)
+
 			vars := map[string]interface{}{
 				"owner": githubv4.String(owner),
 				"repo":  githubv4.String(repo),
-				"first": githubv4.Int(*paginationParams.First),
+				"first": githubv4.Int(first),
 			}
-			if paginationParams.After != nil {
-				vars["after"] = githubv4.String(*paginationParams.After)
+			if after != nil {
+				vars["after"] = githubv4.String(*after)
 			} else {
 				vars["after"] = (*githubv4.String)(nil)
 			}
@@ -237,22 +242,20 @@ func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelp
 			}
 
 			// Create response with pagination info
-			response := map[string]interface{}{
-				"discussions": discussions,
-				"pageInfo": map[string]interface{}{
-					"hasNextPage":     pageInfo.HasNextPage,
-					"hasPreviousPage": pageInfo.HasPreviousPage,
-					"startCursor":     string(pageInfo.StartCursor),
-					"endCursor":       string(pageInfo.EndCursor),
-				},
-				"totalCount": totalCount,
+			hasNextPage := bool(pageInfo.HasNextPage)
+			var nextCursor string
+			if hasNextPage {
+				nextCursor = string(pageInfo.EndCursor)
 			}
 
-			out, err := json.Marshal(response)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal discussions: %w", err)
+			response := map[string]interface{}{
+				"discussions": discussions,
+				"totalCount":  totalCount,
 			}
-			return mcp.NewToolResultText(string(out)), nil
+
+			// Create paginated response
+			paginatedResp := NewPaginatedGraphQLResponse(response, hasNextPage, nextCursor)
+			return MarshalPaginatedResponse(paginatedResp), nil
 		}
 }
 
@@ -356,25 +359,16 @@ func GetDiscussionComments(getGQLClient GetGQLClientFn, t translations.Translati
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			// Get pagination parameters and convert to GraphQL format
-			pagination, err := OptionalCursorPaginationParams(request)
+			// Get cursor-based pagination parameters
+			cursorParams, err := GetCursorBasedParams(request)
 			if err != nil {
 				return nil, err
 			}
 
-			// Check if pagination parameters were explicitly provided
-			_, perPageProvided := request.GetArguments()["perPage"]
-			paginationExplicit := perPageProvided
-
-			paginationParams, err := pagination.ToGraphQLParams()
-			if err != nil {
-				return nil, err
-			}
-
-			// Use default of 30 if pagination was not explicitly provided
-			if !paginationExplicit {
-				defaultFirst := int32(DefaultGraphQLPageSize)
-				paginationParams.First = &defaultFirst
+			// For GraphQL, the cursor is the 'after' value
+			var after *string
+			if cursorParams.After != "" {
+				after = &cursorParams.After
 			}
 
 			client, err := getGQLClient(ctx)
@@ -400,14 +394,16 @@ func GetDiscussionComments(getGQLClient GetGQLClientFn, t translations.Translati
 					} `graphql:"discussion(number: $discussionNumber)"`
 				} `graphql:"repository(owner: $owner, name: $repo)"`
 			}
+			// Use fixed page size of 10 for cursor-based pagination
+			first := int32(cursorParams.PerPage)
 			vars := map[string]interface{}{
 				"owner":            githubv4.String(params.Owner),
 				"repo":             githubv4.String(params.Repo),
 				"discussionNumber": githubv4.Int(params.DiscussionNumber),
-				"first":            githubv4.Int(*paginationParams.First),
+				"first":            githubv4.Int(first),
 			}
-			if paginationParams.After != nil {
-				vars["after"] = githubv4.String(*paginationParams.After)
+			if after != nil {
+				vars["after"] = githubv4.String(*after)
 			} else {
 				vars["after"] = (*githubv4.String)(nil)
 			}
@@ -421,23 +417,20 @@ func GetDiscussionComments(getGQLClient GetGQLClientFn, t translations.Translati
 			}
 
 			// Create response with pagination info
+			hasNextPage := bool(q.Repository.Discussion.Comments.PageInfo.HasNextPage)
+			var nextCursor string
+			if hasNextPage {
+				nextCursor = string(q.Repository.Discussion.Comments.PageInfo.EndCursor)
+			}
+
 			response := map[string]interface{}{
-				"comments": comments,
-				"pageInfo": map[string]interface{}{
-					"hasNextPage":     q.Repository.Discussion.Comments.PageInfo.HasNextPage,
-					"hasPreviousPage": q.Repository.Discussion.Comments.PageInfo.HasPreviousPage,
-					"startCursor":     string(q.Repository.Discussion.Comments.PageInfo.StartCursor),
-					"endCursor":       string(q.Repository.Discussion.Comments.PageInfo.EndCursor),
-				},
+				"comments":   comments,
 				"totalCount": q.Repository.Discussion.Comments.TotalCount,
 			}
 
-			out, err := json.Marshal(response)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal comments: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(out)), nil
+			// Create paginated response
+			paginatedResp := NewPaginatedGraphQLResponse(response, hasNextPage, nextCursor)
+			return MarshalPaginatedResponse(paginatedResp), nil
 		}
 }
 
