@@ -1009,17 +1009,18 @@ func Test_ListIssues(t *testing.T) {
 			require.NoError(t, err)
 
 			// Parse the structured response with pagination info
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the response
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var response struct {
 				Issues   []*github.Issue `json:"issues"`
-				PageInfo struct {
-					HasNextPage     bool   `json:"hasNextPage"`
-					HasPreviousPage bool   `json:"hasPreviousPage"`
-					StartCursor     string `json:"startCursor"`
-					EndCursor       string `json:"endCursor"`
-				} `json:"pageInfo"`
 				TotalCount int `json:"totalCount"`
 			}
-			err = json.Unmarshal([]byte(text), &response)
+			err = json.Unmarshal(dataBytes, &response)
 			require.NoError(t, err)
 
 			assert.Len(t, response.Issues, tc.expectedCount, "Expected %d issues, got %d", tc.expectedCount, len(response.Issues))
@@ -1651,7 +1652,7 @@ func Test_GetIssueComments(t *testing.T) {
 					mock.GetReposIssuesCommentsByOwnerByRepoByIssueNumber,
 					expectQueryParams(t, map[string]string{
 						"page":     "2",
-						"per_page": "10",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockComments),
 					),
@@ -1662,8 +1663,7 @@ func Test_GetIssueComments(t *testing.T) {
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
-				"page":         float64(2),
-				"perPage":      float64(10),
+				"cursor":       "page=2;perPage=10",
 			},
 			expectError:      false,
 			expectedComments: mockComments,
