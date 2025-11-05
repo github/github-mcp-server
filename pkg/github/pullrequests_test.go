@@ -626,7 +626,7 @@ func Test_ListPullRequests(t *testing.T) {
 						"state":     "all",
 						"sort":      "created",
 						"direction": "desc",
-						"per_page":  "30",
+						"per_page":  "11",
 						"page":      "1",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockPRs),
@@ -639,8 +639,6 @@ func Test_ListPullRequests(t *testing.T) {
 				"state":     "all",
 				"sort":      "created",
 				"direction": "desc",
-				"perPage":   float64(30),
-				"page":      float64(1),
 			},
 			expectError: false,
 			expectedPRs: mockPRs,

@@ -904,17 +904,16 @@ func Test_ListCommits(t *testing.T) {
 					mock.GetReposCommitsByOwnerByRepo,
 					expectQueryParams(t, map[string]string{
 						"page":     "2",
-						"per_page": "10",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockCommits),
 					),
 				),
 			),
 			requestArgs: map[string]interface{}{
-				"owner":   "owner",
-				"repo":    "repo",
-				"page":    float64(2),
-				"perPage": float64(10),
+				"owner":  "owner",
+				"repo":   "repo",
+				"cursor": "page=2;perPage=10",
 			},
 			expectError:     false,
 			expectedCommits: mockCommits,
@@ -1714,9 +1713,9 @@ func Test_ListBranches(t *testing.T) {
 		{
 			name: "success",
 			args: map[string]interface{}{
-				"owner": "owner",
-				"repo":  "repo",
-				"page":  float64(2),
+				"owner":  "owner",
+				"repo":   "repo",
+				"cursor": "page=2;perPage=10",
 			},
 			mockResponses: []mock.MockBackendOption{
 				mock.WithRequestMatch(
