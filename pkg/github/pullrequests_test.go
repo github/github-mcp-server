@@ -694,8 +694,15 @@ func Test_ListPullRequests(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the pull requests
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedPRs []*github.PullRequest
-			err = json.Unmarshal([]byte(textContent.Text), &returnedPRs)
+			err = json.Unmarshal(dataBytes, &returnedPRs)
 			require.NoError(t, err)
 			assert.Len(t, returnedPRs, 2)
 			assert.Equal(t, *tc.expectedPRs[0].Number, *returnedPRs[0].Number)

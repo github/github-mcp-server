@@ -139,8 +139,15 @@ func Test_ListNotifications(t *testing.T) {
 			require.False(t, result.IsError)
 			textContent := getTextResult(t, result)
 			t.Logf("textContent: %s", textContent.Text)
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the notifications
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returned []*github.Notification
-			err = json.Unmarshal([]byte(textContent.Text), &returned)
+			err = json.Unmarshal(dataBytes, &returned)
 			require.NoError(t, err)
 			require.NotEmpty(t, returned)
 			assert.Equal(t, *tc.expectedResult[0].ID, *returned[0].ID)

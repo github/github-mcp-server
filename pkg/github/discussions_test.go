@@ -442,17 +442,18 @@ func Test_ListDiscussions(t *testing.T) {
 			require.NoError(t, err)
 
 			// Parse the structured response with pagination info
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the response
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var response struct {
 				Discussions []*github.Discussion `json:"discussions"`
-				PageInfo    struct {
-					HasNextPage     bool   `json:"hasNextPage"`
-					HasPreviousPage bool   `json:"hasPreviousPage"`
-					StartCursor     string `json:"startCursor"`
-					EndCursor       string `json:"endCursor"`
-				} `json:"pageInfo"`
 				TotalCount int `json:"totalCount"`
 			}
-			err = json.Unmarshal([]byte(text), &response)
+			err = json.Unmarshal(dataBytes, &response)
 			require.NoError(t, err)
 
 			assert.Len(t, response.Discussions, tc.expectedCount, "Expected %d discussions, got %d", tc.expectedCount, len(response.Discussions))
