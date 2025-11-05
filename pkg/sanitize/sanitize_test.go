@@ -1,5 +1,82 @@
 package sanitize
 
+import "testing"
+
+func TestFilterHTMLTags(t *testing.T) {
+    tests := []struct {
+        name     string
+        in       string
+        expected string
+    }{
+        {
+            name:     "anchor https allowed",
+            in:       `<a href="https://good.com">ok</a>`,
+            expected: `<a href="https://good.com">ok</a>`,
+        },
+        {
+            name:     "anchor javascript stripped href",
+            in:       `<a href="javascript:alert(1)">bad</a>`,
+            expected: `<a>bad</a>`,
+        },
+        {
+            name:     "anchor protocol-relative href removed",
+            in:       `<a href="//example.com">text</a>`,
+            expected: `<a>text</a>`,
+        },
+        {
+            name:     "anchor relative href removed",
+            in:       `<a href="/path">rel</a>`,
+            expected: `<a>rel</a>`,
+        },
+        {
+            name:     "image https allowed",
+            in:       `<img src="https://img.example/x.png" alt="x" title="y">`,
+            expected: `<img src="https://img.example/x.png" alt="x" title="y">`,
+        },
+        {
+            name:     "image data uri src removed",
+            in:       `<img src="data:image/svg+xml,xxx" alt="x">`,
+            expected: `<img alt="x">`,
+        },
+        {
+            name:     "image srcset removed",
+            in:       `<img src="https://a/x.png" srcset="https://a 1x, https://b 2x" alt="x">`,
+            expected: `<img src="https://a/x.png" alt="x">`,
+        },
+        {
+            name:     "onclick removed",
+            in:       `<p onclick="alert(1)">text</p>`,
+            expected: `<p>text</p>`,
+        },
+        {
+            name:     "script removed",
+            in:       `<script>alert(1)</script>ok`,
+            expected: `ok`,
+        },
+        {
+            name:     "iframe removed",
+            in:       `<iframe src="https://example.com"></iframe>ok`,
+            expected: `ok`,
+        },
+        {
+            name:     "style attribute removed",
+            in:       `<p style="color:red">x</p>`,
+            expected: `<p>x</p>`,
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            got := FilterHTMLTags(tt.in)
+            if got != tt.expected {
+                t.Fatalf("unexpected sanitize result.\ninput:    %q\nexpected: %q\nactual:   %q", tt.in, tt.expected, got)
+            }
+        })
+    }
+}
+
+package sanitize
+
 import (
 	"testing"
 

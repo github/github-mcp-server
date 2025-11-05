@@ -1,10 +1,13 @@
 package sanitize
 
 import (
-	"github.com/microcosm-cc/bluemonday"
+    "sync"
+
+    "github.com/microcosm-cc/bluemonday"
 )
 
 var policy *bluemonday.Policy
+var policyOnce sync.Once
 
 func Sanitize(input string) string {
 	return FilterHTMLTags(FilterInvisibleCharacters(input))
@@ -31,9 +34,9 @@ func FilterInvisibleCharacters(input string) string {
 }
 
 func FilterHTMLTags(input string) string {
-	if policy == nil {
-		policyInit()
-	}
+    if policy == nil {
+        policyInit()
+    }
 	if input == "" {
 		return input
 	}
@@ -41,14 +44,34 @@ func FilterHTMLTags(input string) string {
 }
 
 func policyInit() {
-	if policy != nil {
-		return
-	}
-	policy = bluemonday.StrictPolicy()
-	policy.AllowElements("b", "blockquote", "br", "code", "em", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "i", "li", "ol", "p", "pre", "strong", "sub", "sup", "table", "tbody", "td", "th", "thead", "tr", "ul")
-	policy.AllowAttrs("img", "a")
-	policy.AllowURLSchemes("https")
-	policy.AllowImages()
+    policyOnce.Do(func() {
+        p := bluemonday.StrictPolicy()
+
+        // Safe textual/formatting elements only
+        p.AllowElements(
+            "b", "blockquote", "br", "code", "em",
+            "h1", "h2", "h3", "h4", "h5", "h6",
+            "hr", "i", "li", "ol", "p", "pre",
+            "strong", "sub", "sup", "table", "tbody",
+            "td", "th", "thead", "tr", "ul",
+            // Explicitly allow anchors and images with constrained attributes
+            "a", "img",
+        )
+
+        // Links: only allow https href and require parseable URLs
+        p.AllowAttrs("href").OnElements("a")
+        p.AllowURLSchemes("https")
+        p.RequireParseableURLs(true)
+        p.RequireNoFollowOnLinks()
+        p.RequireNoReferrerOnLinks()
+        p.AddTargetBlankToFullyQualifiedLinks()
+
+        // Images: allow only https src and basic descriptive attributes
+        p.AllowImages()
+        p.AllowAttrs("src", "alt", "title").OnElements("img")
+
+        policy = p
+    })
 }
 
 func shouldRemoveRune(r rune) bool {
