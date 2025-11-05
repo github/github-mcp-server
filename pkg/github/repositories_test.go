@@ -882,7 +882,7 @@ func Test_ListCommits(t *testing.T) {
 						"author":   "username",
 						"sha":      "main",
 						"page":     "1",
-						"per_page": "30",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockCommits),
 					),

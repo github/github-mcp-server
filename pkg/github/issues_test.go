@@ -307,7 +307,7 @@ func Test_SearchIssues(t *testing.T) {
 							"sort":     "created",
 							"order":    "desc",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -336,7 +336,7 @@ func Test_SearchIssues(t *testing.T) {
 							"sort":     "created",
 							"order":    "asc",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -363,7 +363,7 @@ func Test_SearchIssues(t *testing.T) {
 						map[string]string{
 							"q":        "is:issue bug",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -387,7 +387,7 @@ func Test_SearchIssues(t *testing.T) {
 						map[string]string{
 							"q":        "is:issue feature",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -425,7 +425,7 @@ func Test_SearchIssues(t *testing.T) {
 						map[string]string{
 							"q":        "repo:github/github-mcp-server is:issue is:open (label:critical OR label:urgent)",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -448,7 +448,7 @@ func Test_SearchIssues(t *testing.T) {
 						map[string]string{
 							"q":        "is:issue repo:github/github-mcp-server critical",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -473,7 +473,7 @@ func Test_SearchIssues(t *testing.T) {
 						map[string]string{
 							"q":        "is:issue repo:octocat/Hello-World bug",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -496,7 +496,7 @@ func Test_SearchIssues(t *testing.T) {
 						map[string]string{
 							"q":        "repo:github/github-mcp-server is:issue (label:critical OR label:urgent OR label:high-priority OR label:blocker)",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),

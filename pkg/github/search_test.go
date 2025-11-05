@@ -94,7 +94,7 @@ func Test_SearchRepositories(t *testing.T) {
 					expectQueryParams(t, map[string]string{
 						"q":        "golang test",
 						"page":     "1",
-						"per_page": "30",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
@@ -199,7 +199,7 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 			expectQueryParams(t, map[string]string{
 				"q":        "golang test",
 				"page":     "1",
-				"per_page": "30",
+				"per_page": "11",
 			}).andThen(
 				mockResponse(t, http.StatusOK, mockSearchResult),
 			),
@@ -296,7 +296,7 @@ func Test_SearchCode(t *testing.T) {
 						"sort":     "indexed",
 						"order":    "desc",
 						"page":     "1",
-						"per_page": "30",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
@@ -320,7 +320,7 @@ func Test_SearchCode(t *testing.T) {
 					expectQueryParams(t, map[string]string{
 						"q":        "fmt.Println language:go",
 						"page":     "1",
-						"per_page": "30",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
@@ -456,7 +456,7 @@ func Test_SearchUsers(t *testing.T) {
 						"sort":     "followers",
 						"order":    "desc",
 						"page":     "1",
-						"per_page": "30",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
@@ -480,7 +480,7 @@ func Test_SearchUsers(t *testing.T) {
 					expectQueryParams(t, map[string]string{
 						"q":        "type:user location:finland language:go",
 						"page":     "1",
-						"per_page": "30",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
@@ -500,7 +500,7 @@ func Test_SearchUsers(t *testing.T) {
 					expectQueryParams(t, map[string]string{
 						"q":        "type:user location:seattle followers:>100",
 						"page":     "1",
-						"per_page": "30",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
@@ -520,7 +520,7 @@ func Test_SearchUsers(t *testing.T) {
 					expectQueryParams(t, map[string]string{
 						"q":        "type:user (location:seattle OR location:california) followers:>50",
 						"page":     "1",
-						"per_page": "30",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
@@ -653,7 +653,7 @@ func Test_SearchOrgs(t *testing.T) {
 					expectQueryParams(t, map[string]string{
 						"q":        "type:org github",
 						"page":     "1",
-						"per_page": "30",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
@@ -673,7 +673,7 @@ func Test_SearchOrgs(t *testing.T) {
 					expectQueryParams(t, map[string]string{
 						"q":        "type:org location:california followers:>1000",
 						"page":     "1",
-						"per_page": "30",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
@@ -693,7 +693,7 @@ func Test_SearchOrgs(t *testing.T) {
 					expectQueryParams(t, map[string]string{
 						"q":        "type:org (location:seattle OR location:california OR location:newyork) repos:>10",
 						"page":     "1",
-						"per_page": "30",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),

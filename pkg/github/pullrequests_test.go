@@ -892,7 +892,7 @@ func Test_SearchPullRequests(t *testing.T) {
 							"sort":     "created",
 							"order":    "desc",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -921,7 +921,7 @@ func Test_SearchPullRequests(t *testing.T) {
 							"sort":     "updated",
 							"order":    "asc",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -948,7 +948,7 @@ func Test_SearchPullRequests(t *testing.T) {
 						map[string]string{
 							"q":        "is:pr feature",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -972,7 +972,7 @@ func Test_SearchPullRequests(t *testing.T) {
 						map[string]string{
 							"q":        "is:pr review-required",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -1010,7 +1010,7 @@ func Test_SearchPullRequests(t *testing.T) {
 						map[string]string{
 							"q":        "is:pr repo:github/github-mcp-server is:open draft:false",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -1033,7 +1033,7 @@ func Test_SearchPullRequests(t *testing.T) {
 						map[string]string{
 							"q":        "is:pr repo:github/github-mcp-server author:octocat",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -1058,7 +1058,7 @@ func Test_SearchPullRequests(t *testing.T) {
 						map[string]string{
 							"q":        "is:pr repo:github/github-mcp-server (label:bug OR label:enhancement OR label:feature)",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
