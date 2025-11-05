@@ -69,13 +69,13 @@ func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (
 
 			var resp *github.Response
 			var projects []*github.ProjectV2
-			minimalProjects := []MinimalProject{}
-
 			var queryPtr *string
+
 			if queryStr != "" {
 				queryPtr = &queryStr
 			}
 
+			minimalProjects := []MinimalProject{}
 			opts := &github.ListProjectsOptions{
 				ListProjectsPaginationOptions: github.ListProjectsPaginationOptions{PerPage: &perPage},
 				Query:                         queryPtr,
