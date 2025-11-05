@@ -147,9 +147,8 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 					return nil, fmt.Errorf("failed to marshal minimal response: %w", err)
 				}
 				return mcp.NewToolResultText(string(r)), nil
-			} else {
-				return CreatePaginatedSearchResponse(result, pagination.Page)
 			}
+			return CreatePaginatedSearchResponse(result, pagination.Page)
 		}
 }
 
