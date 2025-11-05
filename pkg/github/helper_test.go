@@ -132,6 +132,23 @@ func getTextResult(t *testing.T, result *mcp.CallToolResult) mcp.TextContent {
 	return textContent
 }
 
+// extractItemsFromPaginatedResponse extracts the items array from a paginated response.
+// If the response is not paginated (old format), it returns the original JSON.
+func extractItemsFromPaginatedResponse(t *testing.T, jsonText string) []byte {
+	t.Helper()
+	var paginatedResponse PaginatedResponse
+	err := json.Unmarshal([]byte(jsonText), &paginatedResponse)
+	if err != nil {
+		// If unmarshaling fails, assume it's not a paginated response (old format)
+		return []byte(jsonText)
+	}
+
+	// Extract items from paginated response
+	itemsBytes, err := json.Marshal(paginatedResponse.Items)
+	require.NoError(t, err)
+	return itemsBytes
+}
+
 func getErrorResult(t *testing.T, result *mcp.CallToolResult) mcp.TextContent {
 	res := getTextResult(t, result)
 	require.True(t, result.IsError, "expected tool call result to be an error")

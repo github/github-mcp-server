@@ -490,34 +490,34 @@ func TestOptionalPaginationParams(t *testing.T) {
 			params: map[string]any{},
 			expected: PaginationParams{
 				Page:    1,
-				PerPage: 30,
+				PerPage: CursorPageSize,
 			},
 			expectError: false,
 		},
 		{
-			name: "page parameter, default perPage",
+			name: "cursor parameter, default page",
+			params: map[string]any{
+				"cursor": "page=2",
+			},
+			expected: PaginationParams{
+				Page:    2,
+				PerPage: CursorPageSize,
+			},
+			expectError: false,
+		},
+		{
+			name: "backward compatibility: page parameter, default perPage",
 			params: map[string]any{
 				"page": float64(2),
 			},
 			expected: PaginationParams{
 				Page:    2,
-				PerPage: 30,
+				PerPage: CursorPageSize,
 			},
 			expectError: false,
 		},
 		{
-			name: "perPage parameter, default page",
-			params: map[string]any{
-				"perPage": float64(50),
-			},
-			expected: PaginationParams{
-				Page:    1,
-				PerPage: 50,
-			},
-			expectError: false,
-		},
-		{
-			name: "page and perPage parameters",
+			name: "backward compatibility: page and perPage parameters",
 			params: map[string]any{
 				"page":    float64(2),
 				"perPage": float64(50),
@@ -529,20 +529,15 @@ func TestOptionalPaginationParams(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "invalid page parameter",
+			name: "invalid cursor parameter",
 			params: map[string]any{
-				"page": "not-a-number",
+				"cursor": "invalid",
 			},
-			expected:    PaginationParams{},
-			expectError: true,
-		},
-		{
-			name: "invalid perPage parameter",
-			params: map[string]any{
-				"perPage": "not-a-number",
+			expected: PaginationParams{
+				Page:    1,
+				PerPage: CursorPageSize,
 			},
-			expected:    PaginationParams{},
-			expectError: true,
+			expectError: false, // Invalid cursor defaults to page 1
 		},
 	}
 

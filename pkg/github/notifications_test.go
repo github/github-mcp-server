@@ -27,8 +27,7 @@ func Test_ListNotifications(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "before")
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
+	assert.Contains(t, tool.InputSchema.Properties, "cursor")
 	// All fields are optional, so Required should be empty
 	assert.Empty(t, tool.InputSchema.Required)
 
@@ -140,8 +139,10 @@ func Test_ListNotifications(t *testing.T) {
 			require.False(t, result.IsError)
 			textContent := getTextResult(t, result)
 			t.Logf("textContent: %s", textContent.Text)
+			// Extract items from paginated response and unmarshal
+			itemsBytes := extractItemsFromPaginatedResponse(t, textContent.Text)
 			var returned []*github.Notification
-			err = json.Unmarshal([]byte(textContent.Text), &returned)
+			err = json.Unmarshal(itemsBytes, &returned)
 			require.NoError(t, err)
 			require.NotEmpty(t, returned)
 			assert.Equal(t, *tc.expectedResult[0].ID, *returned[0].ID)

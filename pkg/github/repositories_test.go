@@ -765,8 +765,7 @@ func Test_ListCommits(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "sha")
 	assert.Contains(t, tool.InputSchema.Properties, "author")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
+	assert.Contains(t, tool.InputSchema.Properties, "cursor")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
 
 	// Setup mock commits for success case
@@ -876,7 +875,7 @@ func Test_ListCommits(t *testing.T) {
 						"author":   "username",
 						"sha":      "main",
 						"page":     "1",
-						"per_page": "30",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockCommits),
 					),
@@ -898,7 +897,7 @@ func Test_ListCommits(t *testing.T) {
 					mock.GetReposCommitsByOwnerByRepo,
 					expectQueryParams(t, map[string]string{
 						"page":     "2",
-						"per_page": "10",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockCommits),
 					),
@@ -960,9 +959,10 @@ func Test_ListCommits(t *testing.T) {
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Extract items from paginated response and unmarshal
+			itemsBytes := extractItemsFromPaginatedResponse(t, textContent.Text)
 			var returnedCommits []MinimalCommit
-			err = json.Unmarshal([]byte(textContent.Text), &returnedCommits)
+			err = json.Unmarshal(itemsBytes, &returnedCommits)
 			require.NoError(t, err)
 			assert.Len(t, returnedCommits, len(tc.expectedCommits))
 			for i, commit := range returnedCommits {
@@ -1675,8 +1675,7 @@ func Test_ListBranches(t *testing.T) {
 	assert.NotEmpty(t, tool.Description)
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
+	assert.Contains(t, tool.InputSchema.Properties, "cursor")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
 
 	// Setup mock branches for success case
@@ -1766,8 +1765,9 @@ func Test_ListBranches(t *testing.T) {
 			require.NotEmpty(t, textContent.Text)
 
 			// Verify response
+			itemsBytes := extractItemsFromPaginatedResponse(t, textContent.Text)
 			var branches []*github.Branch
-			err = json.Unmarshal([]byte(textContent.Text), &branches)
+			err = json.Unmarshal(itemsBytes, &branches)
 			require.NoError(t, err)
 			assert.Len(t, branches, 2)
 			assert.Equal(t, "main", *branches[0].Name)
@@ -2064,8 +2064,9 @@ func Test_ListTags(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Parse and verify the result
+			itemsBytes := extractItemsFromPaginatedResponse(t, textContent.Text)
 			var returnedTags []*github.RepositoryTag
-			err = json.Unmarshal([]byte(textContent.Text), &returnedTags)
+			err = json.Unmarshal(itemsBytes, &returnedTags)
 			require.NoError(t, err)
 
 			// Verify each tag
@@ -2312,8 +2313,9 @@ func Test_ListReleases(t *testing.T) {
 
 			require.NoError(t, err)
 			textContent := getTextResult(t, result)
+			itemsBytes := extractItemsFromPaginatedResponse(t, textContent.Text)
 			var returnedReleases []*github.RepositoryRelease
-			err = json.Unmarshal([]byte(textContent.Text), &returnedReleases)
+			err = json.Unmarshal(itemsBytes, &returnedReleases)
 			require.NoError(t, err)
 			assert.Len(t, returnedReleases, len(tc.expectedResult))
 			for i, rel := range returnedReleases {
@@ -2923,8 +2925,7 @@ func Test_ListStarredRepositories(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "username")
 	assert.Contains(t, tool.InputSchema.Properties, "sort")
 	assert.Contains(t, tool.InputSchema.Properties, "direction")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
+	assert.Contains(t, tool.InputSchema.Properties, "cursor")
 	assert.Empty(t, tool.InputSchema.Required) // All parameters are optional
 
 	// Setup mock starred repositories
@@ -3053,9 +3054,10 @@ func Test_ListStarredRepositories(t *testing.T) {
 				// Parse the result and get the text content
 				textContent := getTextResult(t, result)
 
-				// Unmarshal and verify the result
+				// Extract items from paginated response and unmarshal
+				itemsBytes := extractItemsFromPaginatedResponse(t, textContent.Text)
 				var returnedRepos []MinimalRepository
-				err = json.Unmarshal([]byte(textContent.Text), &returnedRepos)
+				err = json.Unmarshal(itemsBytes, &returnedRepos)
 				require.NoError(t, err)
 
 				assert.Len(t, returnedRepos, tc.expectedCount)

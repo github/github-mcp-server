@@ -254,8 +254,7 @@ func Test_SearchIssues(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "sort")
 	assert.Contains(t, tool.InputSchema.Properties, "order")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
+	assert.Contains(t, tool.InputSchema.Properties, "cursor")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"query"})
 
 	// Setup mock search results
@@ -308,7 +307,7 @@ func Test_SearchIssues(t *testing.T) {
 							"sort":     "created",
 							"order":    "desc",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -337,7 +336,7 @@ func Test_SearchIssues(t *testing.T) {
 							"sort":     "created",
 							"order":    "asc",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -364,7 +363,7 @@ func Test_SearchIssues(t *testing.T) {
 						map[string]string{
 							"q":        "is:issue bug",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -388,7 +387,7 @@ func Test_SearchIssues(t *testing.T) {
 						map[string]string{
 							"q":        "is:issue feature",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -426,7 +425,7 @@ func Test_SearchIssues(t *testing.T) {
 						map[string]string{
 							"q":        "repo:github/github-mcp-server is:issue is:open (label:critical OR label:urgent)",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -449,7 +448,7 @@ func Test_SearchIssues(t *testing.T) {
 						map[string]string{
 							"q":        "is:issue repo:github/github-mcp-server critical",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -474,7 +473,7 @@ func Test_SearchIssues(t *testing.T) {
 						map[string]string{
 							"q":        "is:issue repo:octocat/Hello-World bug",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -497,7 +496,7 @@ func Test_SearchIssues(t *testing.T) {
 						map[string]string{
 							"q":        "repo:github/github-mcp-server is:issue (label:critical OR label:urgent OR label:high-priority OR label:blocker)",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -553,14 +552,32 @@ func Test_SearchIssues(t *testing.T) {
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
-			var returnedResult github.IssuesSearchResult
+			// Unmarshal paginated search result
+			var returnedResult map[string]interface{}
 			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
 			require.NoError(t, err)
-			assert.Equal(t, *tc.expectedResult.Total, *returnedResult.Total)
-			assert.Equal(t, *tc.expectedResult.IncompleteResults, *returnedResult.IncompleteResults)
-			assert.Len(t, returnedResult.Issues, len(tc.expectedResult.Issues))
-			for i, issue := range returnedResult.Issues {
+			
+			// Check totalCount and incompleteResults
+			if totalCount, ok := returnedResult["totalCount"].(float64); ok {
+				assert.Equal(t, float64(*tc.expectedResult.Total), totalCount)
+			}
+			if incompleteResults, ok := returnedResult["incompleteResults"].(bool); ok {
+				assert.Equal(t, *tc.expectedResult.IncompleteResults, incompleteResults)
+			}
+			
+			// Extract items (Issues array)
+			items, ok := returnedResult["items"].([]interface{})
+			require.True(t, ok)
+			assert.Len(t, items, len(tc.expectedResult.Issues))
+			
+			// Convert items to Issues array for comparison
+			itemsBytes, err := json.Marshal(items)
+			require.NoError(t, err)
+			var issues []*github.Issue
+			err = json.Unmarshal(itemsBytes, &issues)
+			require.NoError(t, err)
+			
+			for i, issue := range issues {
 				assert.Equal(t, *tc.expectedResult.Issues[i].Number, *issue.Number)
 				assert.Equal(t, *tc.expectedResult.Issues[i].Title, *issue.Title)
 				assert.Equal(t, *tc.expectedResult.Issues[i].State, *issue.State)
@@ -749,7 +766,7 @@ func Test_ListIssues(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "direction")
 	assert.Contains(t, tool.InputSchema.Properties, "since")
 	assert.Contains(t, tool.InputSchema.Properties, "after")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
+	// ListIssues uses GraphQL pagination with "after", not REST "cursor"
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
 
 	// Mock issues data
@@ -1598,8 +1615,7 @@ func Test_GetIssueComments(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
+	assert.Contains(t, tool.InputSchema.Properties, "cursor")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number"})
 
 	// Setup mock comments for success case
@@ -1654,7 +1670,7 @@ func Test_GetIssueComments(t *testing.T) {
 					mock.GetReposIssuesCommentsByOwnerByRepoByIssueNumber,
 					expectQueryParams(t, map[string]string{
 						"page":     "2",
-						"per_page": "10",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockComments),
 					),
@@ -1713,9 +1729,10 @@ func Test_GetIssueComments(t *testing.T) {
 			require.NoError(t, err)
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Extract items from paginated response and unmarshal
+			itemsBytes := extractItemsFromPaginatedResponse(t, textContent.Text)
 			var returnedComments []*github.IssueComment
-			err = json.Unmarshal([]byte(textContent.Text), &returnedComments)
+			err = json.Unmarshal(itemsBytes, &returnedComments)
 			require.NoError(t, err)
 			assert.Equal(t, len(tc.expectedComments), len(returnedComments))
 			if len(returnedComments) > 0 {
@@ -2507,8 +2524,7 @@ func Test_GetSubIssues(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
+	assert.Contains(t, tool.InputSchema.Properties, "cursor")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number"})
 
 	// Setup mock sub-issues for success case
@@ -2577,7 +2593,7 @@ func Test_GetSubIssues(t *testing.T) {
 					mock.GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber,
 					expectQueryParams(t, map[string]string{
 						"page":     "2",
-						"per_page": "10",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSubIssues),
 					),
@@ -2723,8 +2739,9 @@ func Test_GetSubIssues(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			itemsBytes := extractItemsFromPaginatedResponse(t, textContent.Text)
 			var returnedSubIssues []*github.Issue
-			err = json.Unmarshal([]byte(textContent.Text), &returnedSubIssues)
+			err = json.Unmarshal(itemsBytes, &returnedSubIssues)
 			require.NoError(t, err)
 
 			assert.Len(t, returnedSubIssues, len(tc.expectedSubIssues))

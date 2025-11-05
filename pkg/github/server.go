@@ -444,11 +444,15 @@ func CreatePaginatedSearchResponse(searchResult interface{}, currentPage int) (*
 
 	items, ok := resultMap["items"].([]interface{})
 	if !ok {
-		// Try "Repositories", "Users", etc.
+		// Try "Repositories", "Users", "CodeResults", "Issues", etc.
 		if repos, ok := resultMap["repositories"].([]interface{}); ok {
 			items = repos
 		} else if users, ok := resultMap["users"].([]interface{}); ok {
 			items = users
+		} else if codeResults, ok := resultMap["codeResults"].([]interface{}); ok {
+			items = codeResults
+		} else if issues, ok := resultMap["issues"].([]interface{}); ok {
+			items = issues
 		} else {
 			// If we can't find items, return as-is
 			return mcp.NewToolResultText(string(data)), nil

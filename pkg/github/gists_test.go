@@ -23,8 +23,7 @@ func Test_ListGists(t *testing.T) {
 	assert.NotEmpty(t, tool.Description)
 	assert.Contains(t, tool.InputSchema.Properties, "username")
 	assert.Contains(t, tool.InputSchema.Properties, "since")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
+	assert.Contains(t, tool.InputSchema.Properties, "cursor")
 	assert.Empty(t, tool.InputSchema.Required)
 
 	// Setup mock gists for success case
@@ -101,7 +100,7 @@ func Test_ListGists(t *testing.T) {
 					expectQueryParams(t, map[string]string{
 						"since":    "2023-01-01T00:00:00Z",
 						"page":     "2",
-						"per_page": "5",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockGists),
 					),
@@ -176,9 +175,11 @@ func Test_ListGists(t *testing.T) {
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
+			// Extract items from paginated response
+			itemsBytes := extractItemsFromPaginatedResponse(t, textContent.Text)
+
 			var returnedGists []*github.Gist
-			err = json.Unmarshal([]byte(textContent.Text), &returnedGists)
+			err = json.Unmarshal(itemsBytes, &returnedGists)
 			require.NoError(t, err)
 
 			assert.Len(t, returnedGists, len(tc.expectedGists))
