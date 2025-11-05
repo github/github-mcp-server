@@ -1,10 +1,13 @@
 package sanitize
 
 import (
+	"sync"
+
 	"github.com/microcosm-cc/bluemonday"
 )
 
 var policy *bluemonday.Policy
+var policyOnce sync.Once
 
 func Sanitize(input string) string {
 	return FilterHTMLTags(FilterInvisibleCharacters(input))
@@ -41,14 +44,30 @@ func FilterHTMLTags(input string) string {
 }
 
 func policyInit() {
-	if policy != nil {
-		return
-	}
-	policy = bluemonday.StrictPolicy()
-	policy.AllowElements("b", "blockquote", "br", "code", "em", "h1", "h2", "h3", "h4", "h5", "h6", "hr", "i", "li", "ol", "p", "pre", "strong", "sub", "sup", "table", "tbody", "td", "th", "thead", "tr", "ul")
-	policy.AllowAttrs("img", "a")
-	policy.AllowURLSchemes("https")
-	policy.AllowImages()
+	policyOnce.Do(func() {
+		p := bluemonday.StrictPolicy()
+
+		p.AllowElements(
+			"b", "blockquote", "br", "code", "em",
+			"h1", "h2", "h3", "h4", "h5", "h6",
+			"hr", "i", "li", "ol", "p", "pre",
+			"strong", "sub", "sup", "table", "tbody",
+			"td", "th", "thead", "tr", "ul",
+			"a", "img",
+		)
+
+		p.AllowAttrs("href").OnElements("a")
+		p.AllowURLSchemes("https")
+		p.RequireParseableURLs(true)
+		p.RequireNoFollowOnLinks(true)
+		p.RequireNoReferrerOnLinks(true)
+		p.AddTargetBlankToFullyQualifiedLinks(true)
+
+		p.AllowImages()
+		p.AllowAttrs("src", "alt", "title").OnElements("img")
+
+		policy = p
+	})
 }
 
 func shouldRemoveRune(r rune) bool {

@@ -219,9 +219,14 @@ func TestFilterHtmlTags(t *testing.T) {
 			expected: "", // StrictPolicy should drop script element and contents
 		},
 		{
+			name:     "allow anchor with https href",
+			input:    "Click <a href=\"https://example.com\">here</a> now",
+			expected: "Click <a href=\"https://example.com\" rel=\"nofollow noreferrer noopener\" target=\"_blank\">here</a> now",
+		},
+		{
 			name:     "anchor removed but inner text kept",
-			input:    "Click <a href='https://example.com'>here</a> now",
-			expected: "Click here now",
+			input:    "before <a href='https://example.com' onclick='alert(1)' title='foo' alt='bar'>link</a> after",
+			expected: "before <a href=\"https://example.com\" rel=\"nofollow noreferrer noopener\" target=\"_blank\">link</a> after",
 		},
 		{
 			name:     "image removed (no textual fallback)",
