@@ -191,55 +191,26 @@ func OptionalStringArrayParam(r mcp.CallToolRequest, p string) ([]string, error)
 
 // WithPagination adds REST API pagination parameters to a tool.
 // https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api
+// WithPagination adds cursor-based pagination parameters to a tool.
+// This replaces the old page/perPage approach with a simple cursor string.
 func WithPagination() mcp.ToolOption {
 	return func(tool *mcp.Tool) {
-		mcp.WithNumber("page",
-			mcp.Description("Page number for pagination (min 1)"),
-			mcp.Min(1),
-		)(tool)
-
-		mcp.WithNumber("perPage",
-			mcp.Description("Results per page for pagination (min 1, max 100)"),
-			mcp.Min(1),
-			mcp.Max(100),
+		mcp.WithString("cursor",
+			mcp.Description("Pagination cursor. Leave empty for the first page. Use the nextCursor value from the previous response to get the next page."),
 		)(tool)
 	}
 }
 
-// WithUnifiedPagination adds REST API pagination parameters to a tool.
-// GraphQL tools will use this and convert page/perPage to GraphQL cursor parameters internally.
+// WithUnifiedPagination is deprecated and now redirects to WithPagination
+// for consistency. All pagination is now cursor-based.
 func WithUnifiedPagination() mcp.ToolOption {
-	return func(tool *mcp.Tool) {
-		mcp.WithNumber("page",
-			mcp.Description("Page number for pagination (min 1)"),
-			mcp.Min(1),
-		)(tool)
-
-		mcp.WithNumber("perPage",
-			mcp.Description("Results per page for pagination (min 1, max 100)"),
-			mcp.Min(1),
-			mcp.Max(100),
-		)(tool)
-
-		mcp.WithString("after",
-			mcp.Description("Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs."),
-		)(tool)
-	}
+	return WithPagination()
 }
 
-// WithCursorPagination adds only cursor-based pagination parameters to a tool (no page parameter).
+// WithCursorPagination adds cursor-based pagination parameters to a tool.
+// This is now the same as WithPagination for consistency.
 func WithCursorPagination() mcp.ToolOption {
-	return func(tool *mcp.Tool) {
-		mcp.WithNumber("perPage",
-			mcp.Description("Results per page for pagination (min 1, max 100)"),
-			mcp.Min(1),
-			mcp.Max(100),
-		)(tool)
-
-		mcp.WithString("after",
-			mcp.Description("Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs."),
-		)(tool)
-	}
+	return WithPagination()
 }
 
 type PaginationParams struct {
@@ -290,6 +261,25 @@ func OptionalCursorPaginationParams(r mcp.CallToolRequest) (CursorPaginationPara
 	}, nil
 }
 
+// GetCursorBasedParams extracts and decodes the cursor parameter from the request.
+// Returns decoded pagination parameters with a fixed page size of 10.
+func GetCursorBasedParams(r mcp.CallToolRequest) (*DecodedCursor, error) {
+	cursor, err := OptionalParam[string](r, "cursor")
+	if err != nil {
+		return nil, err
+	}
+	
+	decoded, err := DecodeCursor(cursor)
+	if err != nil {
+		return nil, err
+	}
+	
+	// Always use page size of 10 as per requirements
+	decoded.PerPage = 10
+	
+	return decoded, nil
+}
+
 type CursorPaginationParams struct {
 	PerPage int
 	After   string
@@ -331,6 +321,164 @@ func (p PaginationParams) ToGraphQLParams() (*GraphQLPaginationParams, error) {
 		After:   p.After,
 	}
 	return cursor.ToGraphQLParams()
+}
+
+// CursorBasedPaginationParams represents the cursor-based pagination input
+type CursorBasedPaginationParams struct {
+	Cursor string
+}
+
+// DecodedCursor represents the decoded cursor information
+type DecodedCursor struct {
+	Page    int
+	PerPage int
+	After   string // For GraphQL cursors
+}
+
+// DecodeCursor decodes a cursor string into pagination parameters
+// Cursor format: "page=2;perPage=10" for REST or just a GraphQL cursor string
+func DecodeCursor(cursor string) (*DecodedCursor, error) {
+	if cursor == "" {
+		// Empty cursor means first page with default size
+		return &DecodedCursor{
+			Page:    1,
+			PerPage: 10,
+		}, nil
+	}
+
+	// Check if this is a GraphQL cursor (doesn't contain '=')
+	if !contains(cursor, "=") {
+		// This is a GraphQL cursor, return it as-is in After field
+		return &DecodedCursor{
+			Page:    1,
+			PerPage: 10,
+			After:   cursor,
+		}, nil
+	}
+
+	// Parse REST API cursor format: "page=2;perPage=10"
+	decoded := &DecodedCursor{
+		Page:    1,
+		PerPage: 10,
+	}
+
+	parts := splitString(cursor, ";")
+	for _, part := range parts {
+		kv := splitString(part, "=")
+		if len(kv) != 2 {
+			continue
+		}
+		key := kv[0]
+		value := kv[1]
+
+		switch key {
+		case "page":
+			var p int
+			_, err := fmt.Sscanf(value, "%d", &p)
+			if err == nil {
+				decoded.Page = p
+			}
+		case "perPage":
+			var pp int
+			_, err := fmt.Sscanf(value, "%d", &pp)
+			if err == nil {
+				decoded.PerPage = pp
+			}
+		}
+	}
+
+	return decoded, nil
+}
+
+// EncodeCursor encodes pagination parameters into a cursor string
+func EncodeCursor(page int, perPage int) string {
+	return fmt.Sprintf("page=%d;perPage=%d", page, perPage)
+}
+
+// EncodeGraphQLCursor returns the GraphQL cursor as-is
+func EncodeGraphQLCursor(cursor string) string {
+	return cursor
+}
+
+// PaginatedResponse wraps a response with pagination metadata
+type PaginatedResponse struct {
+	Data        interface{} `json:"data"`
+	MoreResults bool        `json:"moreResults"`
+	NextCursor  string      `json:"nextCursor,omitempty"`
+}
+
+// NewPaginatedRESTResponse creates a paginated response for REST API results.
+// It fetches one extra item to determine if there are more results.
+func NewPaginatedRESTResponse(data interface{}, currentPage int, pageSize int, hasMore bool) *PaginatedResponse {
+	resp := &PaginatedResponse{
+		Data:        data,
+		MoreResults: hasMore,
+	}
+	
+	if hasMore {
+		resp.NextCursor = EncodeCursor(currentPage+1, pageSize)
+	}
+	
+	return resp
+}
+
+// NewPaginatedGraphQLResponse creates a paginated response for GraphQL API results.
+func NewPaginatedGraphQLResponse(data interface{}, hasNextPage bool, endCursor string) *PaginatedResponse {
+	resp := &PaginatedResponse{
+		Data:        data,
+		MoreResults: hasNextPage,
+	}
+	
+	if hasNextPage && endCursor != "" {
+		resp.NextCursor = EncodeGraphQLCursor(endCursor)
+	}
+	
+	return resp
+}
+
+// MarshalPaginatedResponse marshals a paginated response to JSON text result
+func MarshalPaginatedResponse(resp *PaginatedResponse) *mcp.CallToolResult {
+	data, err := json.Marshal(resp)
+	if err != nil {
+		return mcp.NewToolResultErrorFromErr("failed to marshal paginated response", err)
+	}
+	return mcp.NewToolResultText(string(data))
+}
+
+// Helper function to check if a string contains a substring
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && findSubstring(s, substr))
+}
+
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
+// Helper function to split a string by a delimiter
+func splitString(s, sep string) []string {
+	if s == "" {
+		return []string{}
+	}
+	if sep == "" {
+		return []string{s}
+	}
+
+	var result []string
+	start := 0
+	for i := 0; i <= len(s)-len(sep); i++ {
+		if s[i:i+len(sep)] == sep {
+			result = append(result, s[start:i])
+			start = i + len(sep)
+			i += len(sep) - 1
+		}
+	}
+	result = append(result, s[start:])
+	return result
 }
 
 func MarshalledTextResult(v any) *mcp.CallToolResult {

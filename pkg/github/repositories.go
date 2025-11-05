@@ -107,7 +107,7 @@ func GetCommit(getClient GetClientFn, t translations.TranslationHelperFunc) (too
 // ListCommits creates a tool to get commits of a branch in a repository.
 func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("list_commits",
-			mcp.WithDescription(t("TOOL_LIST_COMMITS_DESCRIPTION", "Get list of commits of a branch in a GitHub repository. Returns at least 30 results per page by default, but can return more if specified using the perPage parameter (up to 100).")),
+			mcp.WithDescription(t("TOOL_LIST_COMMITS_DESCRIPTION", "Get list of commits of a branch in a GitHub repository. Returns 10 results per page. Use the cursor parameter for pagination.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:        t("TOOL_LIST_COMMITS_USER_TITLE", "List commits"),
 				ReadOnlyHint: ToBoolPtr(true),
@@ -145,21 +145,18 @@ func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			pagination, err := OptionalPaginationParams(request)
+			cursorParams, err := GetCursorBasedParams(request)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			// Set default perPage to 30 if not provided
-			perPage := pagination.PerPage
-			if perPage == 0 {
-				perPage = 30
-			}
+
+			// Request one extra item to check if there are more results
 			opts := &github.CommitsListOptions{
 				SHA:    sha,
 				Author: author,
 				ListOptions: github.ListOptions{
-					Page:    pagination.Page,
-					PerPage: perPage,
+					Page:    cursorParams.Page,
+					PerPage: cursorParams.PerPage + 1, // Request one extra
 				},
 			}
 
@@ -185,18 +182,22 @@ func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 				return mcp.NewToolResultError(fmt.Sprintf("failed to list commits: %s", string(body))), nil
 			}
 
+			// Check if there are more results
+			hasMore := len(commits) > cursorParams.PerPage
+			if hasMore {
+				// Remove the extra item
+				commits = commits[:cursorParams.PerPage]
+			}
+
 			// Convert to minimal commits
 			minimalCommits := make([]MinimalCommit, len(commits))
 			for i, commit := range commits {
 				minimalCommits[i] = convertToMinimalCommit(commit, false)
 			}
 
-			r, err := json.Marshal(minimalCommits)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			// Create paginated response
+			paginatedResp := NewPaginatedRESTResponse(minimalCommits, cursorParams.Page, cursorParams.PerPage, hasMore)
+			return MarshalPaginatedResponse(paginatedResp), nil
 		}
 }
 
@@ -227,15 +228,16 @@ func ListBranches(getClient GetClientFn, t translations.TranslationHelperFunc) (
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			pagination, err := OptionalPaginationParams(request)
+			cursorParams, err := GetCursorBasedParams(request)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
+			// Request one extra item to check if there are more results
 			opts := &github.BranchListOptions{
 				ListOptions: github.ListOptions{
-					Page:    pagination.Page,
-					PerPage: pagination.PerPage,
+					Page:    cursorParams.Page,
+					PerPage: cursorParams.PerPage + 1, // Request one extra
 				},
 			}
 
@@ -262,18 +264,22 @@ func ListBranches(getClient GetClientFn, t translations.TranslationHelperFunc) (
 				return mcp.NewToolResultError(fmt.Sprintf("failed to list branches: %s", string(body))), nil
 			}
 
+			// Check if there are more results
+			hasMore := len(branches) > cursorParams.PerPage
+			if hasMore {
+				// Remove the extra item
+				branches = branches[:cursorParams.PerPage]
+			}
+
 			// Convert to minimal branches
 			minimalBranches := make([]MinimalBranch, 0, len(branches))
 			for _, branch := range branches {
 				minimalBranches = append(minimalBranches, convertToMinimalBranch(branch))
 			}
 
-			r, err := json.Marshal(minimalBranches)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			// Create paginated response
+			paginatedResp := NewPaginatedRESTResponse(minimalBranches, cursorParams.Page, cursorParams.PerPage, hasMore)
+			return MarshalPaginatedResponse(paginatedResp), nil
 		}
 }
 
@@ -1249,14 +1255,15 @@ func ListTags(getClient GetClientFn, t translations.TranslationHelperFunc) (tool
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			pagination, err := OptionalPaginationParams(request)
+			cursorParams, err := GetCursorBasedParams(request)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
+			// Request one extra item to check if there are more results
 			opts := &github.ListOptions{
-				Page:    pagination.Page,
-				PerPage: pagination.PerPage,
+				Page:    cursorParams.Page,
+				PerPage: cursorParams.PerPage + 1, // Request one extra
 			}
 
 			client, err := getClient(ctx)
@@ -1282,12 +1289,16 @@ func ListTags(getClient GetClientFn, t translations.TranslationHelperFunc) (tool
 				return mcp.NewToolResultError(fmt.Sprintf("failed to list tags: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(tags)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			// Check if there are more results
+			hasMore := len(tags) > cursorParams.PerPage
+			if hasMore {
+				// Remove the extra item
+				tags = tags[:cursorParams.PerPage]
 			}
 
-			return mcp.NewToolResultText(string(r)), nil
+			// Create paginated response
+			paginatedResp := NewPaginatedRESTResponse(tags, cursorParams.Page, cursorParams.PerPage, hasMore)
+			return MarshalPaginatedResponse(paginatedResp), nil
 		}
 }
 
@@ -1405,14 +1416,15 @@ func ListReleases(getClient GetClientFn, t translations.TranslationHelperFunc) (
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			pagination, err := OptionalPaginationParams(request)
+			cursorParams, err := GetCursorBasedParams(request)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
+			// Request one extra item to check if there are more results
 			opts := &github.ListOptions{
-				Page:    pagination.Page,
-				PerPage: pagination.PerPage,
+				Page:    cursorParams.Page,
+				PerPage: cursorParams.PerPage + 1, // Request one extra
 			}
 
 			client, err := getClient(ctx)
@@ -1434,12 +1446,16 @@ func ListReleases(getClient GetClientFn, t translations.TranslationHelperFunc) (
 				return mcp.NewToolResultError(fmt.Sprintf("failed to list releases: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(releases)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			// Check if there are more results
+			hasMore := len(releases) > cursorParams.PerPage
+			if hasMore {
+				// Remove the extra item
+				releases = releases[:cursorParams.PerPage]
 			}
 
-			return mcp.NewToolResultText(string(r)), nil
+			// Create paginated response
+			paginatedResp := NewPaginatedRESTResponse(releases, cursorParams.Page, cursorParams.PerPage, hasMore)
+			return MarshalPaginatedResponse(paginatedResp), nil
 		}
 }
 
@@ -1733,15 +1749,16 @@ func ListStarredRepositories(getClient GetClientFn, t translations.TranslationHe
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			pagination, err := OptionalPaginationParams(request)
+			cursorParams, err := GetCursorBasedParams(request)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
+			// Request one extra item to check if there are more results
 			opts := &github.ActivityListStarredOptions{
 				ListOptions: github.ListOptions{
-					Page:    pagination.Page,
-					PerPage: pagination.PerPage,
+					Page:    cursorParams.Page,
+					PerPage: cursorParams.PerPage + 1, // Request one extra
 				},
 			}
 			if sort != "" {
@@ -1783,6 +1800,13 @@ func ListStarredRepositories(getClient GetClientFn, t translations.TranslationHe
 				return mcp.NewToolResultError(fmt.Sprintf("failed to list starred repositories: %s", string(body))), nil
 			}
 
+			// Check if there are more results
+			hasMore := len(repos) > cursorParams.PerPage
+			if hasMore {
+				// Remove the extra item
+				repos = repos[:cursorParams.PerPage]
+			}
+
 			// Convert to minimal format
 			minimalRepos := make([]MinimalRepository, 0, len(repos))
 			for _, starredRepo := range repos {
@@ -1810,12 +1834,9 @@ func ListStarredRepositories(getClient GetClientFn, t translations.TranslationHe
 				minimalRepos = append(minimalRepos, minimalRepo)
 			}
 
-			r, err := json.Marshal(minimalRepos)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal starred repositories: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			// Create paginated response
+			paginatedResp := NewPaginatedRESTResponse(minimalRepos, cursorParams.Page, cursorParams.PerPage, hasMore)
+			return MarshalPaginatedResponse(paginatedResp), nil
 		}
 }
 
