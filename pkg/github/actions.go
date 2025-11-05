@@ -63,7 +63,7 @@ func ListWorkflows(getClient GetClientFn, t translations.TranslationHelperFunc) 
 
 			// Set up list options
 			opts := &github.ListOptions{
-				PerPage: pagination.PerPage,
+				PerPage: CursorFetchSize, // Fetch one extra to detect if more data exists
 				Page:    pagination.Page,
 			}
 
@@ -73,12 +73,7 @@ func ListWorkflows(getClient GetClientFn, t translations.TranslationHelperFunc) 
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			r, err := json.Marshal(workflows)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			return CreatePaginatedResponse(workflows, pagination.Page)
 		}
 }
 
@@ -201,7 +196,7 @@ func ListWorkflowRuns(getClient GetClientFn, t translations.TranslationHelperFun
 				Event:  event,
 				Status: status,
 				ListOptions: github.ListOptions{
-					PerPage: pagination.PerPage,
+					PerPage: CursorFetchSize, // Fetch one extra to detect if more data exists
 					Page:    pagination.Page,
 				},
 			}
@@ -212,12 +207,7 @@ func ListWorkflowRuns(getClient GetClientFn, t translations.TranslationHelperFun
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			r, err := json.Marshal(workflowRuns)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			return CreatePaginatedResponse(workflowRuns, pagination.Page)
 		}
 }
 
@@ -504,7 +494,7 @@ func ListWorkflowJobs(getClient GetClientFn, t translations.TranslationHelperFun
 			opts := &github.ListWorkflowJobsOptions{
 				Filter: filter,
 				ListOptions: github.ListOptions{
-					PerPage: pagination.PerPage,
+					PerPage: CursorFetchSize, // Fetch one extra to detect if more data exists
 					Page:    pagination.Page,
 				},
 			}
@@ -515,9 +505,24 @@ func ListWorkflowJobs(getClient GetClientFn, t translations.TranslationHelperFun
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			// Add optimization tip for failed job debugging
+			// Note: This response includes optimization_tip, so we need to handle it differently
+			// For now, we'll wrap jobs in pagination and include tip separately
+			// Get the jobs array from the response
+			paginatedJobs, err := CreatePaginatedResponse(jobs, pagination.Page)
+			if err != nil {
+				return nil, err
+			}
+
+			// Parse the paginated response to add the tip
+			var paginatedData PaginatedResponse
+			if err := json.Unmarshal([]byte(paginatedJobs.GetText()), &paginatedData); err != nil {
+				return paginatedJobs, nil // Return as-is if parsing fails
+			}
+
 			response := map[string]any{
-				"jobs":             jobs,
+				"items":            paginatedData.Items,
+				"moreData":         paginatedData.MoreData,
+				"cursor":           paginatedData.Cursor,
 				"optimization_tip": "For debugging failed jobs, consider using get_job_logs with failed_only=true and run_id=" + fmt.Sprintf("%d", runID) + " to get logs directly without needing to list jobs first",
 			}
 
@@ -1019,7 +1024,7 @@ func ListWorkflowRunArtifacts(getClient GetClientFn, t translations.TranslationH
 
 			// Set up list options
 			opts := &github.ListOptions{
-				PerPage: pagination.PerPage,
+				PerPage: CursorFetchSize, // Fetch one extra to detect if more data exists
 				Page:    pagination.Page,
 			}
 
@@ -1029,12 +1034,7 @@ func ListWorkflowRunArtifacts(getClient GetClientFn, t translations.TranslationH
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			r, err := json.Marshal(artifacts)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			return CreatePaginatedResponse(artifacts, pagination.Page)
 		}
 }
 

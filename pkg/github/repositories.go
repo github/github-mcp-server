@@ -67,7 +67,7 @@ func GetCommit(getClient GetClientFn, t translations.TranslationHelperFunc) (too
 
 			opts := &github.ListOptions{
 				Page:    pagination.Page,
-				PerPage: pagination.PerPage,
+				PerPage: CursorFetchSize, // Fetch one extra to detect if more data exists
 			}
 
 			client, err := getClient(ctx)
@@ -149,17 +149,12 @@ func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			// Set default perPage to 30 if not provided
-			perPage := pagination.PerPage
-			if perPage == 0 {
-				perPage = 30
-			}
 			opts := &github.CommitsListOptions{
 				SHA:    sha,
 				Author: author,
 				ListOptions: github.ListOptions{
 					Page:    pagination.Page,
-					PerPage: perPage,
+					PerPage: CursorFetchSize, // Fetch one extra to detect if more data exists
 				},
 			}
 
@@ -191,12 +186,7 @@ func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 				minimalCommits[i] = convertToMinimalCommit(commit, false)
 			}
 
-			r, err := json.Marshal(minimalCommits)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			return CreatePaginatedResponse(minimalCommits, pagination.Page)
 		}
 }
 
@@ -235,7 +225,7 @@ func ListBranches(getClient GetClientFn, t translations.TranslationHelperFunc) (
 			opts := &github.BranchListOptions{
 				ListOptions: github.ListOptions{
 					Page:    pagination.Page,
-					PerPage: pagination.PerPage,
+					PerPage: CursorFetchSize, // Fetch one extra to detect if more data exists
 				},
 			}
 
@@ -268,12 +258,7 @@ func ListBranches(getClient GetClientFn, t translations.TranslationHelperFunc) (
 				minimalBranches = append(minimalBranches, convertToMinimalBranch(branch))
 			}
 
-			r, err := json.Marshal(minimalBranches)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			return CreatePaginatedResponse(minimalBranches, pagination.Page)
 		}
 }
 
@@ -1256,7 +1241,7 @@ func ListTags(getClient GetClientFn, t translations.TranslationHelperFunc) (tool
 
 			opts := &github.ListOptions{
 				Page:    pagination.Page,
-				PerPage: pagination.PerPage,
+				PerPage: CursorFetchSize, // Fetch one extra to detect if more data exists
 			}
 
 			client, err := getClient(ctx)
@@ -1282,12 +1267,7 @@ func ListTags(getClient GetClientFn, t translations.TranslationHelperFunc) (tool
 				return mcp.NewToolResultError(fmt.Sprintf("failed to list tags: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(tags)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			return CreatePaginatedResponse(tags, pagination.Page)
 		}
 }
 
@@ -1412,7 +1392,7 @@ func ListReleases(getClient GetClientFn, t translations.TranslationHelperFunc) (
 
 			opts := &github.ListOptions{
 				Page:    pagination.Page,
-				PerPage: pagination.PerPage,
+				PerPage: CursorFetchSize, // Fetch one extra to detect if more data exists
 			}
 
 			client, err := getClient(ctx)
@@ -1434,12 +1414,7 @@ func ListReleases(getClient GetClientFn, t translations.TranslationHelperFunc) (
 				return mcp.NewToolResultError(fmt.Sprintf("failed to list releases: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(releases)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			return CreatePaginatedResponse(releases, pagination.Page)
 		}
 }
 
@@ -1741,7 +1716,7 @@ func ListStarredRepositories(getClient GetClientFn, t translations.TranslationHe
 			opts := &github.ActivityListStarredOptions{
 				ListOptions: github.ListOptions{
 					Page:    pagination.Page,
-					PerPage: pagination.PerPage,
+					PerPage: CursorFetchSize, // Fetch one extra to detect if more data exists
 				},
 			}
 			if sort != "" {
@@ -1810,12 +1785,7 @@ func ListStarredRepositories(getClient GetClientFn, t translations.TranslationHe
 				minimalRepos = append(minimalRepos, minimalRepo)
 			}
 
-			r, err := json.Marshal(minimalRepos)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal starred repositories: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			return CreatePaginatedResponse(minimalRepos, pagination.Page)
 		}
 }
 

@@ -48,7 +48,7 @@ func ListGists(getClient GetClientFn, t translations.TranslationHelperFunc) (too
 			opts := &github.GistListOptions{
 				ListOptions: github.ListOptions{
 					Page:    pagination.Page,
-					PerPage: pagination.PerPage,
+					PerPage: CursorFetchSize, // Fetch one extra to detect if more data exists
 				},
 			}
 
@@ -80,12 +80,7 @@ func ListGists(getClient GetClientFn, t translations.TranslationHelperFunc) (too
 				return mcp.NewToolResultError(fmt.Sprintf("failed to list gists: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(gists)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			return CreatePaginatedResponse(gists, pagination.Page)
 		}
 }
 

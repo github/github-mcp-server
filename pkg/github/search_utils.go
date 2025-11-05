@@ -84,7 +84,7 @@ func searchHandler(
 		Order: order,
 		ListOptions: github.ListOptions{
 			Page:    pagination.Page,
-			PerPage: pagination.PerPage,
+			PerPage: CursorFetchSize, // Fetch one extra to detect if more data exists
 		},
 	}
 
@@ -106,10 +106,5 @@ func searchHandler(
 		return mcp.NewToolResultError(fmt.Sprintf("%s: %s", errorPrefix, string(body))), nil
 	}
 
-	r, err := json.Marshal(result)
-	if err != nil {
-		return nil, fmt.Errorf("%s: failed to marshal response: %w", errorPrefix, err)
-	}
-
-	return mcp.NewToolResultText(string(r)), nil
+	return CreatePaginatedSearchResponse(result, pagination.Page)
 }

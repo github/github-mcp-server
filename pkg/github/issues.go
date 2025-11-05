@@ -346,7 +346,7 @@ func GetIssueComments(ctx context.Context, client *github.Client, owner string, 
 	opts := &github.IssueListCommentsOptions{
 		ListOptions: github.ListOptions{
 			Page:    pagination.Page,
-			PerPage: pagination.PerPage,
+			PerPage: CursorFetchSize, // Fetch one extra to detect if more data exists
 		},
 	}
 
@@ -364,19 +364,14 @@ func GetIssueComments(ctx context.Context, client *github.Client, owner string, 
 		return mcp.NewToolResultError(fmt.Sprintf("failed to get issue comments: %s", string(body))), nil
 	}
 
-	r, err := json.Marshal(comments)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
-	}
-
-	return mcp.NewToolResultText(string(r)), nil
+	return CreatePaginatedResponse(comments, pagination.Page)
 }
 
 func GetSubIssues(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
 	opts := &github.IssueListOptions{
 		ListOptions: github.ListOptions{
 			Page:    pagination.Page,
-			PerPage: pagination.PerPage,
+			PerPage: CursorFetchSize, // Fetch one extra to detect if more data exists
 		},
 	}
 
@@ -399,12 +394,7 @@ func GetSubIssues(ctx context.Context, client *github.Client, owner string, repo
 		return mcp.NewToolResultError(fmt.Sprintf("failed to list sub-issues: %s", string(body))), nil
 	}
 
-	r, err := json.Marshal(subIssues)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
-	}
-
-	return mcp.NewToolResultText(string(r)), nil
+	return CreatePaginatedResponse(subIssues, pagination.Page)
 }
 
 func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {

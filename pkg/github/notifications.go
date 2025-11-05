@@ -89,7 +89,7 @@ func ListNotifications(getClient GetClientFn, t translations.TranslationHelperFu
 				Participating: filter == FilterOnlyParticipating,
 				ListOptions: github.ListOptions{
 					Page:    paginationParams.Page,
-					PerPage: paginationParams.PerPage,
+					PerPage: CursorFetchSize, // Fetch one extra to detect if more data exists
 				},
 			}
 
@@ -135,13 +135,7 @@ func ListNotifications(getClient GetClientFn, t translations.TranslationHelperFu
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get notifications: %s", string(body))), nil
 			}
 
-			// Marshal response to JSON
-			r, err := json.Marshal(notifications)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			return CreatePaginatedResponse(notifications, paginationParams.Page)
 		}
 }
 

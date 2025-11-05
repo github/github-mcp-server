@@ -66,7 +66,7 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 				Order: order,
 				ListOptions: github.ListOptions{
 					Page:    pagination.Page,
-					PerPage: pagination.PerPage,
+					PerPage: CursorFetchSize, // Fetch one extra to detect if more data exists
 				},
 			}
 
@@ -93,10 +93,15 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 			}
 
 			// Return either minimal or full response based on parameter
-			var r []byte
 			if minimalOutput {
-				minimalRepos := make([]MinimalRepository, 0, len(result.Repositories))
-				for _, repo := range result.Repositories {
+				// Limit to CursorPageSize items
+				reposToProcess := result.Repositories
+				if len(reposToProcess) > CursorPageSize {
+					reposToProcess = reposToProcess[:CursorPageSize]
+				}
+
+				minimalRepos := make([]MinimalRepository, 0, len(reposToProcess))
+				for _, repo := range reposToProcess {
 					minimalRepo := MinimalRepository{
 						ID:            repo.GetID(),
 						Name:          repo.GetName(),
@@ -126,24 +131,25 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 					minimalRepos = append(minimalRepos, minimalRepo)
 				}
 
-				minimalResult := &MinimalSearchRepositoriesResult{
-					TotalCount:        result.GetTotal(),
-					IncompleteResults: result.GetIncompleteResults(),
-					Items:             minimalRepos,
+				hasMore := len(result.Repositories) > CursorPageSize
+				minimalResult := map[string]interface{}{
+					"totalCount":        result.GetTotal(),
+					"incompleteResults": result.GetIncompleteResults(),
+					"items":             minimalRepos,
+					"moreData":          hasMore,
+				}
+				if hasMore {
+					minimalResult["cursor"] = EncodeCursor(pagination.Page + 1)
 				}
 
-				r, err = json.Marshal(minimalResult)
+				r, err := json.Marshal(minimalResult)
 				if err != nil {
 					return nil, fmt.Errorf("failed to marshal minimal response: %w", err)
 				}
+				return mcp.NewToolResultText(string(r)), nil
 			} else {
-				r, err = json.Marshal(result)
-				if err != nil {
-					return nil, fmt.Errorf("failed to marshal full response: %w", err)
-				}
+				return CreatePaginatedSearchResponse(result, pagination.Page)
 			}
-
-			return mcp.NewToolResultText(string(r)), nil
 		}
 }
 
@@ -190,7 +196,7 @@ func SearchCode(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 				Sort:  sort,
 				Order: order,
 				ListOptions: github.ListOptions{
-					PerPage: pagination.PerPage,
+					PerPage: CursorFetchSize, // Fetch one extra to detect if more data exists
 					Page:    pagination.Page,
 				},
 			}
@@ -218,12 +224,7 @@ func SearchCode(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 				return mcp.NewToolResultError(fmt.Sprintf("failed to search code: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(result)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			return CreatePaginatedSearchResponse(result, pagination.Page)
 		}
 }
 
@@ -250,7 +251,7 @@ func userOrOrgHandler(accountType string, getClient GetClientFn) server.ToolHand
 			Sort:  sort,
 			Order: order,
 			ListOptions: github.ListOptions{
-				PerPage: pagination.PerPage,
+				PerPage: CursorFetchSize, // Fetch one extra to detect if more data exists
 				Page:    pagination.Page,
 			},
 		}
@@ -282,9 +283,15 @@ func userOrOrgHandler(accountType string, getClient GetClientFn) server.ToolHand
 			return mcp.NewToolResultError(fmt.Sprintf("failed to search %ss: %s", accountType, string(body))), nil
 		}
 
-		minimalUsers := make([]MinimalUser, 0, len(result.Users))
+		// Limit to CursorPageSize items
+		usersToProcess := result.Users
+		if len(usersToProcess) > CursorPageSize {
+			usersToProcess = usersToProcess[:CursorPageSize]
+		}
 
-		for _, user := range result.Users {
+		minimalUsers := make([]MinimalUser, 0, len(usersToProcess))
+
+		for _, user := range usersToProcess {
 			if user.Login != nil {
 				mu := MinimalUser{
 					Login:      user.GetLogin(),
@@ -295,16 +302,23 @@ func userOrOrgHandler(accountType string, getClient GetClientFn) server.ToolHand
 				minimalUsers = append(minimalUsers, mu)
 			}
 		}
-		minimalResp := &MinimalSearchUsersResult{
-			TotalCount:        result.GetTotal(),
-			IncompleteResults: result.GetIncompleteResults(),
-			Items:             minimalUsers,
+		hasMore := len(result.Users) > CursorPageSize
+		minimalResp := map[string]interface{}{
+			"totalCount":        result.GetTotal(),
+			"incompleteResults": result.GetIncompleteResults(),
+			"items":             minimalUsers,
+			"moreData":          hasMore,
 		}
 		if result.Total != nil {
-			minimalResp.TotalCount = *result.Total
+			minimalResp["totalCount"] = *result.Total
 		}
 		if result.IncompleteResults != nil {
-			minimalResp.IncompleteResults = *result.IncompleteResults
+			minimalResp["incompleteResults"] = *result.IncompleteResults
+		}
+		if hasMore {
+			// Get pagination from request context
+			pagination, _ := OptionalPaginationParams(request)
+			minimalResp["cursor"] = EncodeCursor(pagination.Page + 1)
 		}
 
 		r, err := json.Marshal(minimalResp)
