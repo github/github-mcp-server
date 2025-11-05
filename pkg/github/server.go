@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/google/go-github/v77/github"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -202,18 +203,20 @@ func OptionalStringArrayParam(r mcp.CallToolRequest, p string) ([]string, error)
 	}
 }
 
-func convertStringSliceToInt64Slice(s []string) []int64 {
+func convertStringSliceToBigIntSlice(s []string) []int64 {
 	int64Slice := make([]int64, len(s))
 	for i, str := range s {
-		int64Slice[i] = convertStringToInt64(str)
+		int64Slice[i] = convertStringToBigInt(str, 0)
 	}
 	return int64Slice
 }
 
-func convertStringToInt64(s string) int64 {
-	var i int64
-	fmt.Sscan(s, &i)
-	return i
+func convertStringToBigInt(s string, def int64) int64 {
+	v, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return def
+	}
+	return v
 }
 
 // OptionalStringArrayParam is a helper function that can be used to fetch a requested parameter from the request.
@@ -230,7 +233,7 @@ func OptionalBigIntArrayParam(r mcp.CallToolRequest, p string) ([]int64, error) 
 	case nil:
 		return []int64{}, nil
 	case []string:
-		return convertStringSliceToInt64Slice(v), nil
+		return convertStringSliceToBigIntSlice(v), nil
 	case []any:
 		int64Slice := make([]int64, len(v))
 		for i, v := range v {
@@ -238,7 +241,7 @@ func OptionalBigIntArrayParam(r mcp.CallToolRequest, p string) ([]int64, error) 
 			if !ok {
 				return []int64{}, fmt.Errorf("parameter %s is not of type string, is %T", p, v)
 			}
-			int64Slice[i] = convertStringToInt64(s)
+			int64Slice[i] = convertStringToBigInt(s)
 		}
 		return int64Slice, nil
 	default:
