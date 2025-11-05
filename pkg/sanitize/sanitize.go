@@ -34,16 +34,13 @@ func FilterInvisibleCharacters(input string) string {
 }
 
 func FilterHTMLTags(input string) string {
-	if policy == nil {
-		policyInit()
-	}
 	if input == "" {
 		return input
 	}
-	return policy.Sanitize(input)
+	return getPolicy().Sanitize(input)
 }
 
-func policyInit() {
+func getPolicy() *bluemonday.Policy {
 	policyOnce.Do(func() {
 		p := bluemonday.StrictPolicy()
 
@@ -68,6 +65,7 @@ func policyInit() {
 
 		policy = p
 	})
+	return policy
 }
 
 func shouldRemoveRune(r rune) bool {
