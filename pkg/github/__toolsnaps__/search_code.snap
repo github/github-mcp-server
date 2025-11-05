@@ -6,6 +6,10 @@
   "description": "Fast and precise code search across ALL GitHub repositories using GitHub's native search engine. Best for finding exact symbols, functions, classes, or specific code patterns.",
   "inputSchema": {
     "properties": {
+      "cursor": {
+        "description": "Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page.",
+        "type": "string"
+      },
       "order": {
         "description": "Sort order for results",
         "enum": [
@@ -13,17 +17,6 @@
           "desc"
         ],
         "type": "string"
-      },
-      "page": {
-        "description": "Page number for pagination (min 1)",
-        "minimum": 1,
-        "type": "number"
-      },
-      "perPage": {
-        "description": "Results per page for pagination (min 1, max 100)",
-        "maximum": 100,
-        "minimum": 1,
-        "type": "number"
       },
       "query": {
         "description": "Search query using GitHub's powerful code search syntax. Examples: 'content:Skill language:Java org:github', 'NOT is:archived language:Python OR language:go', 'repo:github/github-mcp-server'. Supports exact matching, language filters, path filters, and more.",

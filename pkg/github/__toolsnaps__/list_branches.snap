@@ -6,20 +6,13 @@
   "description": "List branches in a GitHub repository",
   "inputSchema": {
     "properties": {
+      "cursor": {
+        "description": "Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page.",
+        "type": "string"
+      },
       "owner": {
         "description": "Repository owner",
         "type": "string"
-      },
-      "page": {
-        "description": "Page number for pagination (min 1)",
-        "minimum": 1,
-        "type": "number"
-      },
-      "perPage": {
-        "description": "Results per page for pagination (min 1, max 100)",
-        "maximum": 100,
-        "minimum": 1,
-        "type": "number"
       },
       "repo": {
         "description": "Repository name",
