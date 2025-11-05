@@ -590,8 +590,7 @@ func Test_ListPullRequests(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "base")
 	assert.Contains(t, tool.InputSchema.Properties, "sort")
 	assert.Contains(t, tool.InputSchema.Properties, "direction")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
+	assert.Contains(t, tool.InputSchema.Properties, "cursor")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
 
 	// Setup mock PRs for success case
@@ -836,8 +835,7 @@ func Test_SearchPullRequests(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "sort")
 	assert.Contains(t, tool.InputSchema.Properties, "order")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
+	assert.Contains(t, tool.InputSchema.Properties, "cursor")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"query"})
 
 	mockSearchResult := &github.IssuesSearchResult{
@@ -1142,8 +1140,7 @@ func Test_GetPullRequestFiles(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
+	assert.Contains(t, tool.InputSchema.Properties, "cursor")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "pullNumber"})
 
 	// Setup mock PR files for success case

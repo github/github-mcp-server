@@ -27,8 +27,7 @@ func Test_ListNotifications(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "before")
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
+	assert.Contains(t, tool.InputSchema.Properties, "cursor")
 	// All fields are optional, so Required should be empty
 	assert.Empty(t, tool.InputSchema.Required)
 
