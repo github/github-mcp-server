@@ -853,38 +853,6 @@ type fieldSelectionOptions struct {
 	Fields []int64 `url:"fields,omitempty,comma"`
 }
 
-// addOptions adds the parameters in opts as URL query parameters to s. opts
-// must be a struct whose fields may contain "url" tags.
-func addOptions(s string, opts any) (string, error) {
-	v := reflect.ValueOf(opts)
-	if v.Kind() == reflect.Ptr && v.IsNil() {
-		return s, nil
-	}
-
-	origURL, err := url.Parse(s)
-	if err != nil {
-		return s, err
-	}
-
-	origValues := origURL.Query()
-
-	// Use the github.com/google/go-querystring library to parse the struct
-	newValues, err := query.Values(opts)
-	if err != nil {
-		return s, err
-	}
-
-	// Merge the values
-	for key, values := range newValues {
-		for _, value := range values {
-			origValues.Add(key, value)
-		}
-	}
-
-	origURL.RawQuery = origValues.Encode()
-	return origURL.String(), nil
-}
-
 type updateProjectItemPayload struct {
 	Fields []updateProjectItem `json:"fields"`
 }
@@ -964,6 +932,38 @@ func buildUpdateProjectItem(input map[string]any) (*updateProjectItem, error) {
 	payload := &updateProjectItem{ID: int(idFieldAsFloat64), Value: valueField}
 
 	return payload, nil
+}
+
+// addOptions adds the parameters in opts as URL query parameters to s. opts
+// must be a struct whose fields may contain "url" tags.
+func addOptions(s string, opts any) (string, error) {
+	v := reflect.ValueOf(opts)
+	if v.Kind() == reflect.Ptr && v.IsNil() {
+		return s, nil
+	}
+
+	origURL, err := url.Parse(s)
+	if err != nil {
+		return s, err
+	}
+
+	origValues := origURL.Query()
+
+	// Use the github.com/google/go-querystring library to parse the struct
+	newValues, err := query.Values(opts)
+	if err != nil {
+		return s, err
+	}
+
+	// Merge the values
+	for key, values := range newValues {
+		for _, value := range values {
+			origValues.Add(key, value)
+		}
+	}
+
+	origURL.RawQuery = origValues.Encode()
+	return origURL.String(), nil
 }
 
 func ManageProjectItemsPrompt(t translations.TranslationHelperFunc) (tool mcp.Prompt, handler server.PromptHandlerFunc) {
