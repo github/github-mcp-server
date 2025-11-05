@@ -618,17 +618,18 @@ func Test_GetDiscussionComments(t *testing.T) {
 
 	// (Lines removed)
 
+	var paginatedResponse PaginatedResponse
+	err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+	require.NoError(t, err)
+	
+	// The data field contains the response
+	dataBytes, err := json.Marshal(paginatedResponse.Data)
+	require.NoError(t, err)
 	var response struct {
 		Comments []*github.IssueComment `json:"comments"`
-		PageInfo struct {
-			HasNextPage     bool   `json:"hasNextPage"`
-			HasPreviousPage bool   `json:"hasPreviousPage"`
-			StartCursor     string `json:"startCursor"`
-			EndCursor       string `json:"endCursor"`
-		} `json:"pageInfo"`
 		TotalCount int `json:"totalCount"`
 	}
-	err = json.Unmarshal([]byte(textContent.Text), &response)
+	err = json.Unmarshal(dataBytes, &response)
 	require.NoError(t, err)
 	assert.Len(t, response.Comments, 2)
 	expectedBodies := []string{"This is the first comment", "This is the second comment"}

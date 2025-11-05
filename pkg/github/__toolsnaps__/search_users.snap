@@ -6,6 +6,10 @@
   "description": "Find GitHub users by username, real name, or other profile information. Useful for locating developers, contributors, or team members.",
   "inputSchema": {
     "properties": {
+      "cursor": {
+        "description": "Pagination cursor. Leave empty for the first page. Use the nextCursor value from the previous response to get the next page.",
+        "type": "string"
+      },
       "order": {
         "description": "Sort order",
         "enum": [
@@ -13,17 +17,6 @@
           "desc"
         ],
         "type": "string"
-      },
-      "page": {
-        "description": "Page number for pagination (min 1)",
-        "minimum": 1,
-        "type": "number"
-      },
-      "perPage": {
-        "description": "Results per page for pagination (min 1, max 100)",
-        "maximum": 100,
-        "minimum": 1,
-        "type": "number"
       },
       "query": {
         "description": "User search query. Examples: 'john smith', 'location:seattle', 'followers:\u003e100'. Search is automatically scoped to type:user.",

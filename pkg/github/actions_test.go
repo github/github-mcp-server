@@ -536,8 +536,15 @@ func Test_ListWorkflowRunArtifacts(t *testing.T) {
 			}
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the artifact list
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var response github.ArtifactList
-			err = json.Unmarshal([]byte(textContent.Text), &response)
+			err = json.Unmarshal(dataBytes, &response)
 			require.NoError(t, err)
 			assert.NotNil(t, response.TotalCount)
 			assert.Greater(t, *response.TotalCount, int64(0))

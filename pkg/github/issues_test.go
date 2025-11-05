@@ -1711,8 +1711,15 @@ func Test_GetIssueComments(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the comments
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedComments []*github.IssueComment
-			err = json.Unmarshal([]byte(textContent.Text), &returnedComments)
+			err = json.Unmarshal(dataBytes, &returnedComments)
 			require.NoError(t, err)
 			assert.Equal(t, len(tc.expectedComments), len(returnedComments))
 			if len(returnedComments) > 0 {
@@ -2719,8 +2726,15 @@ func Test_GetSubIssues(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the sub-issues
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedSubIssues []*github.Issue
-			err = json.Unmarshal([]byte(textContent.Text), &returnedSubIssues)
+			err = json.Unmarshal(dataBytes, &returnedSubIssues)
 			require.NoError(t, err)
 
 			assert.Len(t, returnedSubIssues, len(tc.expectedSubIssues))

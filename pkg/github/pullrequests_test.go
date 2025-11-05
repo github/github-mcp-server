@@ -1257,8 +1257,15 @@ func Test_GetPullRequestFiles(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the files
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedFiles []*github.CommitFile
-			err = json.Unmarshal([]byte(textContent.Text), &returnedFiles)
+			err = json.Unmarshal(dataBytes, &returnedFiles)
 			require.NoError(t, err)
 			assert.Len(t, returnedFiles, len(tc.expectedFiles))
 			for i, file := range returnedFiles {
@@ -1679,8 +1686,15 @@ func Test_GetPullRequestComments(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the comments
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedComments []*github.PullRequestComment
-			err = json.Unmarshal([]byte(textContent.Text), &returnedComments)
+			err = json.Unmarshal(dataBytes, &returnedComments)
 			require.NoError(t, err)
 			assert.Len(t, returnedComments, len(tc.expectedComments))
 			for i, comment := range returnedComments {

@@ -741,8 +741,15 @@ func Test_GetCommit(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the commit
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedCommit github.RepositoryCommit
-			err = json.Unmarshal([]byte(textContent.Text), &returnedCommit)
+			err = json.Unmarshal(dataBytes, &returnedCommit)
 			require.NoError(t, err)
 
 			assert.Equal(t, *tc.expectedCommit.SHA, *returnedCommit.SHA)
@@ -960,8 +967,15 @@ func Test_ListCommits(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the commits
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedCommits []MinimalCommit
-			err = json.Unmarshal([]byte(textContent.Text), &returnedCommits)
+			err = json.Unmarshal(dataBytes, &returnedCommits)
 			require.NoError(t, err)
 			assert.Len(t, returnedCommits, len(tc.expectedCommits))
 			for i, commit := range returnedCommits {
@@ -1764,8 +1778,15 @@ func Test_ListBranches(t *testing.T) {
 			require.NotEmpty(t, textContent.Text)
 
 			// Verify response
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the branches
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var branches []*github.Branch
-			err = json.Unmarshal([]byte(textContent.Text), &branches)
+			err = json.Unmarshal(dataBytes, &branches)
 			require.NoError(t, err)
 			assert.Len(t, branches, 2)
 			assert.Equal(t, "main", *branches[0].Name)
@@ -2062,8 +2083,15 @@ func Test_ListTags(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Parse and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the tags
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedTags []*github.RepositoryTag
-			err = json.Unmarshal([]byte(textContent.Text), &returnedTags)
+			err = json.Unmarshal(dataBytes, &returnedTags)
 			require.NoError(t, err)
 
 			// Verify each tag
@@ -2310,8 +2338,15 @@ func Test_ListReleases(t *testing.T) {
 
 			require.NoError(t, err)
 			textContent := getTextResult(t, result)
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the releases
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedReleases []*github.RepositoryRelease
-			err = json.Unmarshal([]byte(textContent.Text), &returnedReleases)
+			err = json.Unmarshal(dataBytes, &returnedReleases)
 			require.NoError(t, err)
 			assert.Len(t, returnedReleases, len(tc.expectedResult))
 			for i, rel := range returnedReleases {
@@ -3051,8 +3086,15 @@ func Test_ListStarredRepositories(t *testing.T) {
 				textContent := getTextResult(t, result)
 
 				// Unmarshal and verify the result
+				var paginatedResponse PaginatedResponse
+				err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+				require.NoError(t, err)
+				
+				// The data field contains the repositories
+				dataBytes, err := json.Marshal(paginatedResponse.Data)
+				require.NoError(t, err)
 				var returnedRepos []MinimalRepository
-				err = json.Unmarshal([]byte(textContent.Text), &returnedRepos)
+				err = json.Unmarshal(dataBytes, &returnedRepos)
 				require.NoError(t, err)
 
 				assert.Len(t, returnedRepos, tc.expectedCount)

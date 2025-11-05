@@ -10,6 +10,10 @@
         "description": "Filter by base branch",
         "type": "string"
       },
+      "cursor": {
+        "description": "Pagination cursor. Leave empty for the first page. Use the nextCursor value from the previous response to get the next page.",
+        "type": "string"
+      },
       "direction": {
         "description": "Sort direction",
         "enum": [
@@ -25,17 +29,6 @@
       "owner": {
         "description": "Repository owner",
         "type": "string"
-      },
-      "page": {
-        "description": "Page number for pagination (min 1)",
-        "minimum": 1,
-        "type": "number"
-      },
-      "perPage": {
-        "description": "Results per page for pagination (min 1, max 100)",
-        "maximum": 100,
-        "minimum": 1,
-        "type": "number"
       },
       "repo": {
         "description": "Repository name",

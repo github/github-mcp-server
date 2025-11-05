@@ -3,27 +3,20 @@
     "title": "List commits",
     "readOnlyHint": true
   },
-  "description": "Get list of commits of a branch in a GitHub repository. Returns at least 30 results per page by default, but can return more if specified using the perPage parameter (up to 100).",
+  "description": "Get list of commits of a branch in a GitHub repository. Returns 10 results per page. Use the cursor parameter for pagination.",
   "inputSchema": {
     "properties": {
       "author": {
         "description": "Author username or email address to filter commits by",
         "type": "string"
       },
+      "cursor": {
+        "description": "Pagination cursor. Leave empty for the first page. Use the nextCursor value from the previous response to get the next page.",
+        "type": "string"
+      },
       "owner": {
         "description": "Repository owner",
         "type": "string"
-      },
-      "page": {
-        "description": "Page number for pagination (min 1)",
-        "minimum": 1,
-        "type": "number"
-      },
-      "perPage": {
-        "description": "Results per page for pagination (min 1, max 100)",
-        "maximum": 100,
-        "minimum": 1,
-        "type": "number"
       },
       "repo": {
         "description": "Repository name",

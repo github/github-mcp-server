@@ -153,8 +153,15 @@ func Test_SearchRepositories(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the search result
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedResult MinimalSearchRepositoriesResult
-			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
+			err = json.Unmarshal(dataBytes, &returnedResult)
 			require.NoError(t, err)
 			assert.Equal(t, *tc.expectedResult.Total, returnedResult.TotalCount)
 			assert.Equal(t, *tc.expectedResult.IncompleteResults, returnedResult.IncompleteResults)
@@ -214,9 +221,17 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 
 	textContent := getTextResult(t, result)
 
+	// Unmarshal the paginated response first
+	var paginatedResponse PaginatedResponse
+	err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+	require.NoError(t, err)
+	
+	// The data field contains the full search result
+	dataBytes, err := json.Marshal(paginatedResponse.Data)
+	require.NoError(t, err)
 	// Unmarshal as full GitHub API response
 	var returnedResult github.RepositoriesSearchResult
-	err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
+	err = json.Unmarshal(dataBytes, &returnedResult)
 	require.NoError(t, err)
 
 	// Verify it's the full API response, not minimal
@@ -364,8 +379,15 @@ func Test_SearchCode(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the search result
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedResult github.CodeSearchResult
-			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
+			err = json.Unmarshal(dataBytes, &returnedResult)
 			require.NoError(t, err)
 			assert.Equal(t, *tc.expectedResult.Total, *returnedResult.Total)
 			assert.Equal(t, *tc.expectedResult.IncompleteResults, *returnedResult.IncompleteResults)
@@ -559,8 +581,15 @@ func Test_SearchUsers(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the search result
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedResult MinimalSearchUsersResult
-			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
+			err = json.Unmarshal(dataBytes, &returnedResult)
 			require.NoError(t, err)
 			assert.Equal(t, *tc.expectedResult.Total, returnedResult.TotalCount)
 			assert.Equal(t, *tc.expectedResult.IncompleteResults, returnedResult.IncompleteResults)
@@ -722,8 +751,15 @@ func Test_SearchOrgs(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the search result
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedResult MinimalSearchUsersResult
-			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
+			err = json.Unmarshal(dataBytes, &returnedResult)
 			require.NoError(t, err)
 			assert.Equal(t, *tc.expectedResult.Total, returnedResult.TotalCount)
 			assert.Equal(t, *tc.expectedResult.IncompleteResults, returnedResult.IncompleteResults)
