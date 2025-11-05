@@ -241,7 +241,7 @@ func OptionalBigIntArrayParam(r mcp.CallToolRequest, p string) ([]int64, error) 
 			if !ok {
 				return []int64{}, fmt.Errorf("parameter %s is not of type string, is %T", p, v)
 			}
-			int64Slice[i] = convertStringToBigInt(s)
+			int64Slice[i] = convertStringToBigInt(s, 0)
 		}
 		return int64Slice, nil
 	default:
