@@ -219,7 +219,7 @@ func convertStringToBigInt(s string, def int64) int64 {
 	return v
 }
 
-// OptionalStringArrayParam is a helper function that can be used to fetch a requested parameter from the request.
+// OptionalBigIntArrayParam is a helper function that can be used to fetch a requested parameter from the request.
 // It does the following checks:
 // 1. Checks if the parameter is present in the request, if not, it returns its zero-value
 // 2. If it is present, iterates the elements and checks each is a string
