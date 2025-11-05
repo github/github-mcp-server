@@ -468,35 +468,31 @@ The following sets of tools are available:
   - `run_id`: The unique identifier of the workflow run (number, required)
 
 - **list_workflow_jobs** - List workflow jobs
+  - `cursor`: Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page. (string, optional)
   - `filter`: Filters jobs by their completed_at timestamp (string, optional)
   - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)
 
 - **list_workflow_run_artifacts** - List workflow artifacts
+  - `cursor`: Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page. (string, optional)
   - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)
 
 - **list_workflow_runs** - List workflow runs
   - `actor`: Returns someone's workflow runs. Use the login for the user who created the workflow run. (string, optional)
   - `branch`: Returns workflow runs associated with a branch. Use the name of the branch. (string, optional)
+  - `cursor`: Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page. (string, optional)
   - `event`: Returns workflow runs for a specific event type (string, optional)
   - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
   - `status`: Returns workflow runs with the check run status (string, optional)
   - `workflow_id`: The workflow ID or workflow file name (string, required)
 
 - **list_workflows** - List workflows
+  - `cursor`: Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page. (string, optional)
   - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
 - **rerun_failed_jobs** - Rerun failed jobs
@@ -615,8 +611,7 @@ The following sets of tools are available:
   - `gist_id`: The ID of the gist (string, required)
 
 - **list_gists** - List Gists
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `cursor`: Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page. (string, optional)
   - `since`: Only gists updated after this time (ISO 8601 timestamp) (string, optional)
   - `username`: GitHub username (omit for authenticated user's gists) (string, optional)
 
@@ -649,6 +644,7 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
 
 - **issue_read** - Get issue details
+  - `cursor`: Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page. (string, optional)
   - `issue_number`: The number of the issue (number, required)
   - `method`: The read operation to perform on a single issue. 
 Options are: 
@@ -658,8 +654,6 @@ Options are:
 4. get_labels - Get labels assigned to the issue.
  (string, required)
   - `owner`: The owner of the repository (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: The name of the repository (string, required)
 
 - **issue_write** - Create or update issue.
@@ -696,10 +690,9 @@ Options are:
   - `state`: Filter by state, by default both open and closed issues are returned when not provided (string, optional)
 
 - **search_issues** - Search issues
+  - `cursor`: Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page. (string, optional)
   - `order`: Sort order (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only issues for this repository are listed. (string, optional)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Search query using GitHub issues search syntax (string, required)
   - `repo`: Optional repository name. If provided with owner, only issues for this repository are listed. (string, optional)
   - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
@@ -758,10 +751,9 @@ Options are:
 
 - **list_notifications** - List notifications
   - `before`: Only show notifications updated before the given time (ISO 8601 format) (string, optional)
+  - `cursor`: Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page. (string, optional)
   - `filter`: Filter notifications to, use default unless specified. Read notifications are ones that have already been acknowledged by the user. Participating notifications are those that the user is directly involved in, such as issues or pull requests they have commented on or created. (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only notifications for this repository are listed. (string, optional)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Optional repository name. If provided with owner, only notifications for this repository are listed. (string, optional)
   - `since`: Only show notifications updated after the given time (ISO 8601 format) (string, optional)
 
@@ -786,9 +778,8 @@ Options are:
 <summary>Organizations</summary>
 
 - **search_orgs** - Search organizations
+  - `cursor`: Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page. (string, optional)
   - `order`: Sort order (string, optional)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Organization search query. Examples: 'microsoft', 'location:california', 'created:>=2025-01-01'. Search is automatically scoped to type:org. (string, required)
   - `sort`: Sort field by category (string, optional)
 
@@ -886,11 +877,10 @@ Options are:
 
 - **list_pull_requests** - List pull requests
   - `base`: Filter by base branch (string, optional)
+  - `cursor`: Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page. (string, optional)
   - `direction`: Sort direction (string, optional)
   - `head`: Filter by head user/org and branch (string, optional)
   - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
   - `sort`: Sort by (string, optional)
   - `state`: Filter by state (string, optional)
@@ -904,6 +894,7 @@ Options are:
   - `repo`: Repository name (string, required)
 
 - **pull_request_read** - Get details for a single pull request
+  - `cursor`: Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page. (string, optional)
   - `method`: Action to specify what pull request data needs to be retrieved from GitHub. 
 Possible options: 
  1. get - Get details of a specific pull request.
@@ -915,8 +906,6 @@ Possible options:
  7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
  (string, required)
   - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
@@ -935,10 +924,9 @@ Possible options:
   - `repo`: Repository name (string, required)
 
 - **search_pull_requests** - Search pull requests
+  - `cursor`: Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page. (string, optional)
   - `order`: Sort order (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only pull requests for this repository are listed. (string, optional)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Search query using GitHub pull request search syntax (string, required)
   - `repo`: Optional repository name. If provided with owner, only pull requests for this repository are listed. (string, optional)
   - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
@@ -1002,10 +990,9 @@ Possible options:
   - `repo`: Repository name (string, required)
 
 - **get_commit** - Get commit details
+  - `cursor`: Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page. (string, optional)
   - `include_diff`: Whether to include file diffs and stats in the response. Default is true. (boolean, optional)
   - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
   - `sha`: Commit SHA, branch name, or tag name (string, required)
 
@@ -1031,29 +1018,25 @@ Possible options:
   - `tag`: Tag name (string, required)
 
 - **list_branches** - List branches
+  - `cursor`: Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page. (string, optional)
   - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
 - **list_commits** - List commits
   - `author`: Author username or email address to filter commits by (string, optional)
+  - `cursor`: Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page. (string, optional)
   - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
   - `sha`: Commit SHA, branch or tag name to list commits of. If not provided, uses the default branch of the repository. If a commit SHA is provided, will list commits up to that SHA. (string, optional)
 
 - **list_releases** - List releases
+  - `cursor`: Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page. (string, optional)
   - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
 - **list_tags** - List tags
+  - `cursor`: Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page. (string, optional)
   - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
 - **push_files** - Push files to repository
@@ -1064,17 +1047,15 @@ Possible options:
   - `repo`: Repository name (string, required)
 
 - **search_code** - Search code
+  - `cursor`: Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page. (string, optional)
   - `order`: Sort order for results (string, optional)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Search query using GitHub's powerful code search syntax. Examples: 'content:Skill language:Java org:github', 'NOT is:archived language:Python OR language:go', 'repo:github/github-mcp-server'. Supports exact matching, language filters, path filters, and more. (string, required)
   - `sort`: Sort field ('indexed' only) (string, optional)
 
 - **search_repositories** - Search repositories
+  - `cursor`: Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page. (string, optional)
   - `minimal_output`: Return minimal repository information (default: true). When false, returns full GitHub API repository objects. (boolean, optional)
   - `order`: Sort order (string, optional)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Repository search query. Examples: 'machine learning in:name stars:>1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering. (string, required)
   - `sort`: Sort repositories by field, defaults to best match (string, optional)
 
@@ -1138,9 +1119,8 @@ Possible options:
 <summary>Stargazers</summary>
 
 - **list_starred_repositories** - List starred repositories
+  - `cursor`: Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page. (string, optional)
   - `direction`: The direction to sort the results by. (string, optional)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `sort`: How to sort the results. Can be either 'created' (when the repository was starred) or 'updated' (when the repository was last pushed to). (string, optional)
   - `username`: Username to list starred repositories for. Defaults to the authenticated user. (string, optional)
 
@@ -1159,9 +1139,8 @@ Possible options:
 <summary>Users</summary>
 
 - **search_users** - Search users
+  - `cursor`: Cursor for pagination. Use the cursor value from the previous response's pagination metadata to retrieve the next page. Leave blank for the first page. (string, optional)
   - `order`: Sort order (string, optional)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: User search query. Examples: 'john smith', 'location:seattle', 'followers:>100'. Search is automatically scoped to type:user. (string, required)
   - `sort`: Sort users by number of followers or repositories, or when the person joined GitHub. (string, optional)
 
