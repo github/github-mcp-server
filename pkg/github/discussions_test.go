@@ -212,14 +212,14 @@ func Test_ListDiscussions(t *testing.T) {
 	varsListAll := map[string]interface{}{
 		"owner": "owner",
 		"repo":  "repo",
-		"first": float64(30),
+		"first": float64(10),
 		"after": (*string)(nil),
 	}
 
 	varsRepoNotFound := map[string]interface{}{
 		"owner": "owner",
 		"repo":  "nonexistent-repo",
-		"first": float64(30),
+		"first": float64(10),
 		"after": (*string)(nil),
 	}
 
@@ -227,7 +227,7 @@ func Test_ListDiscussions(t *testing.T) {
 		"owner":      "owner",
 		"repo":       "repo",
 		"categoryId": "DIC_kwDOABC123",
-		"first":      float64(30),
+		"first":      float64(10),
 		"after":      (*string)(nil),
 	}
 
@@ -236,7 +236,7 @@ func Test_ListDiscussions(t *testing.T) {
 		"repo":             "repo",
 		"orderByField":     "CREATED_AT",
 		"orderByDirection": "ASC",
-		"first":            float64(30),
+		"first":            float64(10),
 		"after":            (*string)(nil),
 	}
 
@@ -245,7 +245,7 @@ func Test_ListDiscussions(t *testing.T) {
 		"repo":             "repo",
 		"orderByField":     "UPDATED_AT",
 		"orderByDirection": "DESC",
-		"first":            float64(30),
+		"first":            float64(10),
 		"after":            (*string)(nil),
 	}
 
@@ -255,14 +255,14 @@ func Test_ListDiscussions(t *testing.T) {
 		"categoryId":       "DIC_kwDOABC123",
 		"orderByField":     "CREATED_AT",
 		"orderByDirection": "DESC",
-		"first":            float64(30),
+		"first":            float64(10),
 		"after":            (*string)(nil),
 	}
 
 	varsOrgLevel := map[string]interface{}{
 		"owner": "owner",
 		"repo":  ".github", // This is what gets set when repo is not provided
-		"first": float64(30),
+		"first": float64(10),
 		"after": (*string)(nil),
 	}
 
@@ -578,7 +578,7 @@ func Test_GetDiscussionComments(t *testing.T) {
 		"owner":            "owner",
 		"repo":             "repo",
 		"discussionNumber": float64(1),
-		"first":            float64(30),
+		"first":            float64(10),
 		"after":            (*string)(nil),
 	}
 

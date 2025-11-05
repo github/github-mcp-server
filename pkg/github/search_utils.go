@@ -2,7 +2,6 @@ package github
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -73,9 +72,11 @@ func searchHandler(
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	pagination, err := OptionalPaginationParams(request)
+	
+	// Get cursor-based pagination parameters
+	cursorParams, err := GetCursorBasedParams(request)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return nil, err
 	}
 
 	opts := &github.SearchOptions{
@@ -83,8 +84,8 @@ func searchHandler(
 		Sort:  sort,
 		Order: order,
 		ListOptions: github.ListOptions{
-			Page:    pagination.Page,
-			PerPage: pagination.PerPage,
+			Page:    cursorParams.Page,
+			PerPage: cursorParams.PerPage + 1, // Request one extra to check for more results
 		},
 	}
 
@@ -106,10 +107,15 @@ func searchHandler(
 		return mcp.NewToolResultError(fmt.Sprintf("%s: %s", errorPrefix, string(body))), nil
 	}
 
-	r, err := json.Marshal(result)
-	if err != nil {
-		return nil, fmt.Errorf("%s: failed to marshal response: %w", errorPrefix, err)
+	// Check if there are more results
+	hasMore := len(result.Issues) > cursorParams.PerPage
+	
+	// Trim to requested page size
+	if hasMore {
+		result.Issues = result.Issues[:cursorParams.PerPage]
 	}
-
-	return mcp.NewToolResultText(string(r)), nil
+	
+	// Create paginated response
+	paginatedResp := NewPaginatedRESTResponse(result, cursorParams.Page, cursorParams.PerPage, hasMore)
+	return MarshalPaginatedResponse(paginatedResp), nil
 }

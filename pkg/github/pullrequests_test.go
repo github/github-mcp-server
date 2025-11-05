@@ -900,11 +900,9 @@ func Test_SearchPullRequests(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
-				"query":   "repo:owner/repo is:open",
-				"sort":    "created",
-				"order":   "desc",
-				"page":    float64(1),
-				"perPage": float64(30),
+				"query": "repo:owner/repo is:open",
+				"sort":  "created",
+				"order": "desc",
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
@@ -1115,8 +1113,15 @@ func Test_SearchPullRequests(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the search result
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedResult github.IssuesSearchResult
-			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
+			err = json.Unmarshal(dataBytes, &returnedResult)
 			require.NoError(t, err)
 			assert.Equal(t, *tc.expectedResult.Total, *returnedResult.Total)
 			assert.Equal(t, *tc.expectedResult.IncompleteResults, *returnedResult.IncompleteResults)
@@ -1206,8 +1211,7 @@ func Test_GetPullRequestFiles(t *testing.T) {
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
-				"page":       float64(2),
-				"perPage":    float64(10),
+				"cursor":     "page=2;perPage=10",
 			},
 			expectError:   false,
 			expectedFiles: mockFiles,

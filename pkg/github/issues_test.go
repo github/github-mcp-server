@@ -315,11 +315,9 @@ func Test_SearchIssues(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
-				"query":   "repo:owner/repo is:open",
-				"sort":    "created",
-				"order":   "desc",
-				"page":    float64(1),
-				"perPage": float64(30),
+				"query": "repo:owner/repo is:open",
+				"sort":  "created",
+				"order": "desc",
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
@@ -553,8 +551,15 @@ func Test_SearchIssues(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the search result
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedResult github.IssuesSearchResult
-			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
+			err = json.Unmarshal(dataBytes, &returnedResult)
 			require.NoError(t, err)
 			assert.Equal(t, *tc.expectedResult.Total, *returnedResult.Total)
 			assert.Equal(t, *tc.expectedResult.IncompleteResults, *returnedResult.IncompleteResults)
@@ -747,7 +752,7 @@ func Test_ListIssues(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "orderBy")
 	assert.Contains(t, tool.InputSchema.Properties, "direction")
 	assert.Contains(t, tool.InputSchema.Properties, "since")
-	assert.Contains(t, tool.InputSchema.Properties, "after")
+	assert.Contains(t, tool.InputSchema.Properties, "cursor")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
 
 	// Mock issues data
@@ -865,7 +870,7 @@ func Test_ListIssues(t *testing.T) {
 		"states":    []interface{}{"OPEN", "CLOSED"},
 		"orderBy":   "CREATED_AT",
 		"direction": "DESC",
-		"first":     float64(30),
+		"first":     float64(10),
 		"after":     (*string)(nil),
 	}
 
@@ -875,7 +880,7 @@ func Test_ListIssues(t *testing.T) {
 		"states":    []interface{}{"OPEN"},
 		"orderBy":   "CREATED_AT",
 		"direction": "DESC",
-		"first":     float64(30),
+		"first":     float64(10),
 		"after":     (*string)(nil),
 	}
 
@@ -885,7 +890,7 @@ func Test_ListIssues(t *testing.T) {
 		"states":    []interface{}{"CLOSED"},
 		"orderBy":   "CREATED_AT",
 		"direction": "DESC",
-		"first":     float64(30),
+		"first":     float64(10),
 		"after":     (*string)(nil),
 	}
 
@@ -896,7 +901,7 @@ func Test_ListIssues(t *testing.T) {
 		"labels":    []interface{}{"bug", "enhancement"},
 		"orderBy":   "CREATED_AT",
 		"direction": "DESC",
-		"first":     float64(30),
+		"first":     float64(10),
 		"after":     (*string)(nil),
 	}
 
@@ -906,7 +911,7 @@ func Test_ListIssues(t *testing.T) {
 		"states":    []interface{}{"OPEN", "CLOSED"},
 		"orderBy":   "CREATED_AT",
 		"direction": "DESC",
-		"first":     float64(30),
+		"first":     float64(10),
 		"after":     (*string)(nil),
 	}
 
@@ -2580,7 +2585,7 @@ func Test_GetSubIssues(t *testing.T) {
 					mock.GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber,
 					expectQueryParams(t, map[string]string{
 						"page":     "2",
-						"per_page": "10",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSubIssues),
 					),
@@ -2591,8 +2596,7 @@ func Test_GetSubIssues(t *testing.T) {
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
-				"page":         float64(2),
-				"perPage":      float64(10),
+				"cursor":       "page=2;perPage=10",
 			},
 			expectError:       false,
 			expectedSubIssues: mockSubIssues,
