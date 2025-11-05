@@ -505,25 +505,21 @@ func ListWorkflowJobs(getClient GetClientFn, t translations.TranslationHelperFun
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			// Note: This response includes optimization_tip, so we need to handle it differently
-			// For now, we'll wrap jobs in pagination and include tip separately
-			// Get the jobs array from the response
-			paginatedJobs, err := CreatePaginatedResponse(jobs, pagination.Page)
-			if err != nil {
-				return nil, err
-			}
-
-			// Parse the paginated response to add the tip
-			var paginatedData PaginatedResponse
-			if err := json.Unmarshal([]byte(paginatedJobs.GetText()), &paginatedData); err != nil {
-				return paginatedJobs, nil // Return as-is if parsing fails
+			// Handle pagination and add optimization tip
+			hasMore := len(jobs.Jobs) > CursorPageSize
+			jobsToReturn := jobs.Jobs
+			if hasMore {
+				jobsToReturn = jobs.Jobs[:CursorPageSize]
 			}
 
 			response := map[string]any{
-				"items":            paginatedData.Items,
-				"moreData":         paginatedData.MoreData,
-				"cursor":           paginatedData.Cursor,
+				"jobs":             jobsToReturn,
+				"moreData":         hasMore,
 				"optimization_tip": "For debugging failed jobs, consider using get_job_logs with failed_only=true and run_id=" + fmt.Sprintf("%d", runID) + " to get logs directly without needing to list jobs first",
+			}
+
+			if hasMore {
+				response["cursor"] = EncodeCursor(pagination.Page + 1)
 			}
 
 			r, err := json.Marshal(response)
