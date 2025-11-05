@@ -78,7 +78,7 @@ func ListNotifications(getClient GetClientFn, t translations.TranslationHelperFu
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			paginationParams, err := OptionalPaginationParams(request)
+			cursorParams, err := GetCursorBasedParams(request)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -88,8 +88,8 @@ func ListNotifications(getClient GetClientFn, t translations.TranslationHelperFu
 				All:           filter == FilterIncludeRead,
 				Participating: filter == FilterOnlyParticipating,
 				ListOptions: github.ListOptions{
-					Page:    paginationParams.Page,
-					PerPage: paginationParams.PerPage,
+					Page:    cursorParams.Page,
+					PerPage: cursorParams.PerPage + 1, // Request one extra
 				},
 			}
 
@@ -135,13 +135,16 @@ func ListNotifications(getClient GetClientFn, t translations.TranslationHelperFu
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get notifications: %s", string(body))), nil
 			}
 
-			// Marshal response to JSON
-			r, err := json.Marshal(notifications)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			// Check if there are more results
+			hasMore := len(notifications) > cursorParams.PerPage
+			if hasMore {
+				// Remove the extra item
+				notifications = notifications[:cursorParams.PerPage]
 			}
 
-			return mcp.NewToolResultText(string(r)), nil
+			// Create paginated response
+			paginatedResp := NewPaginatedRESTResponse(notifications, cursorParams.Page, cursorParams.PerPage, hasMore)
+			return MarshalPaginatedResponse(paginatedResp), nil
 		}
 }
 
