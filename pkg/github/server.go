@@ -203,20 +203,24 @@ func OptionalStringArrayParam(r mcp.CallToolRequest, p string) ([]string, error)
 	}
 }
 
-func convertStringSliceToBigIntSlice(s []string) []int64 {
+func convertStringSliceToBigIntSlice(s []string) ([]int64, error) {
 	int64Slice := make([]int64, len(s))
 	for i, str := range s {
-		int64Slice[i] = convertStringToBigInt(str, 0)
+		val, err := convertStringToBigInt(str, 0)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert element %d (%s) to int64: %w", i, str, err)
+		}
+		int64Slice[i] = val
 	}
-	return int64Slice
+	return int64Slice, nil
 }
 
-func convertStringToBigInt(s string, def int64) int64 {
+func convertStringToBigInt(s string, def int64) (int64, error) {
 	v, err := strconv.ParseInt(s, 10, 64)
 	if err != nil {
-		return def
+		return def, fmt.Errorf("failed to convert string %s to int64: %w", s, err)
 	}
-	return v
+	return v, nil
 }
 
 // OptionalBigIntArrayParam is a helper function that can be used to fetch a requested parameter from the request.
@@ -233,7 +237,7 @@ func OptionalBigIntArrayParam(r mcp.CallToolRequest, p string) ([]int64, error) 
 	case nil:
 		return []int64{}, nil
 	case []string:
-		return convertStringSliceToBigIntSlice(v), nil
+		return convertStringSliceToBigIntSlice(v)
 	case []any:
 		int64Slice := make([]int64, len(v))
 		for i, v := range v {
@@ -241,7 +245,11 @@ func OptionalBigIntArrayParam(r mcp.CallToolRequest, p string) ([]int64, error) 
 			if !ok {
 				return []int64{}, fmt.Errorf("parameter %s is not of type string, is %T", p, v)
 			}
-			int64Slice[i] = convertStringToBigInt(s, 0)
+			val, err := convertStringToBigInt(s, 0)
+			if err != nil {
+				return []int64{}, fmt.Errorf("parameter %s: failed to convert element %d (%s) to int64: %w", p, i, s, err)
+			}
+			int64Slice[i] = val
 		}
 		return int64Slice, nil
 	default:
