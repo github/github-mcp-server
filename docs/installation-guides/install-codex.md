@@ -50,7 +50,7 @@ After starting Codex (CLI or IDE):
 
 ## Usage
 
-After setup, Codex can interact with GitHub directly. Try these example prompts:
+After setup, Codex can interact with GitHub directly. It will use the default tool automatically, but can be [configured](../../README.md#default-toolset). Try these example prompts:
 
 **Repository Operations:**
 - "List my GitHub repositories"
