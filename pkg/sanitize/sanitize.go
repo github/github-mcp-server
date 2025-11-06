@@ -1,5 +1,18 @@
 package sanitize
 
+import (
+	"sync"
+
+	"github.com/microcosm-cc/bluemonday"
+)
+
+var policy *bluemonday.Policy
+var policyOnce sync.Once
+
+func Sanitize(input string) string {
+	return FilterHTMLTags(FilterInvisibleCharacters(input))
+}
+
 // FilterInvisibleCharacters removes invisible or control characters that should not appear
 // in user-facing titles or bodies. This includes:
 // - Unicode tag characters: U+E0001, U+E0020–U+E007F
@@ -18,6 +31,41 @@ func FilterInvisibleCharacters(input string) string {
 		}
 	}
 	return string(out)
+}
+
+func FilterHTMLTags(input string) string {
+	if input == "" {
+		return input
+	}
+	return getPolicy().Sanitize(input)
+}
+
+func getPolicy() *bluemonday.Policy {
+	policyOnce.Do(func() {
+		p := bluemonday.StrictPolicy()
+
+		p.AllowElements(
+			"b", "blockquote", "br", "code", "em",
+			"h1", "h2", "h3", "h4", "h5", "h6",
+			"hr", "i", "li", "ol", "p", "pre",
+			"strong", "sub", "sup", "table", "tbody",
+			"td", "th", "thead", "tr", "ul",
+			"a", "img",
+		)
+
+		p.AllowAttrs("href").OnElements("a")
+		p.AllowURLSchemes("https")
+		p.RequireParseableURLs(true)
+		p.RequireNoFollowOnLinks(true)
+		p.RequireNoReferrerOnLinks(true)
+		p.AddTargetBlankToFullyQualifiedLinks(true)
+
+		p.AllowImages()
+		p.AllowAttrs("src", "alt", "title").OnElements("img")
+
+		policy = p
+	})
+	return policy
 }
 
 func shouldRemoveRune(r rune) bool {

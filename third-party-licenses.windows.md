@@ -7,6 +7,7 @@ The following open source dependencies are used to build the [github/github-mcp-
 Some packages may only be included on certain architectures or operating systems.
 
 
+ - [github.com/aymerick/douceur](https://pkg.go.dev/github.com/aymerick/douceur) ([MIT](https://github.com/aymerick/douceur/blob/v0.2.0/LICENSE))
  - [github.com/bahlo/generic-list-go](https://pkg.go.dev/github.com/bahlo/generic-list-go) ([BSD-3-Clause](https://github.com/bahlo/generic-list-go/blob/v0.2.0/LICENSE))
  - [github.com/buger/jsonparser](https://pkg.go.dev/github.com/buger/jsonparser) ([MIT](https://github.com/buger/jsonparser/blob/v1.1.1/LICENSE))
  - [github.com/fsnotify/fsnotify](https://pkg.go.dev/github.com/fsnotify/fsnotify) ([BSD-3-Clause](https://github.com/fsnotify/fsnotify/blob/v1.9.0/LICENSE))
@@ -18,6 +19,7 @@ Some packages may only be included on certain architectures or operating systems
  - [github.com/google/go-github/v76/github](https://pkg.go.dev/github.com/google/go-github/v76/github) ([BSD-3-Clause](https://github.com/google/go-github/blob/v76.0.0/LICENSE))
  - [github.com/google/go-querystring/query](https://pkg.go.dev/github.com/google/go-querystring/query) ([BSD-3-Clause](https://github.com/google/go-querystring/blob/v1.1.0/LICENSE))
  - [github.com/google/uuid](https://pkg.go.dev/github.com/google/uuid) ([BSD-3-Clause](https://github.com/google/uuid/blob/v1.6.0/LICENSE))
+ - [github.com/gorilla/css/scanner](https://pkg.go.dev/github.com/gorilla/css/scanner) ([BSD-3-Clause](https://github.com/gorilla/css/blob/v1.0.1/LICENSE))
  - [github.com/gorilla/mux](https://pkg.go.dev/github.com/gorilla/mux) ([BSD-3-Clause](https://github.com/gorilla/mux/blob/v1.8.0/LICENSE))
  - [github.com/inconshreveable/mousetrap](https://pkg.go.dev/github.com/inconshreveable/mousetrap) ([Apache-2.0](https://github.com/inconshreveable/mousetrap/blob/v1.1.0/LICENSE))
  - [github.com/invopop/jsonschema](https://pkg.go.dev/github.com/invopop/jsonschema) ([MIT](https://github.com/invopop/jsonschema/blob/v0.13.0/COPYING))
@@ -25,6 +27,7 @@ Some packages may only be included on certain architectures or operating systems
  - [github.com/josharian/intern](https://pkg.go.dev/github.com/josharian/intern) ([MIT](https://github.com/josharian/intern/blob/v1.0.0/license.md))
  - [github.com/mailru/easyjson](https://pkg.go.dev/github.com/mailru/easyjson) ([MIT](https://github.com/mailru/easyjson/blob/v0.7.7/LICENSE))
  - [github.com/mark3labs/mcp-go](https://pkg.go.dev/github.com/mark3labs/mcp-go) ([MIT](https://github.com/mark3labs/mcp-go/blob/v0.36.0/LICENSE))
+ - [github.com/microcosm-cc/bluemonday](https://pkg.go.dev/github.com/microcosm-cc/bluemonday) ([BSD-3-Clause](https://github.com/microcosm-cc/bluemonday/blob/v1.0.27/LICENSE.md))
  - [github.com/migueleliasweb/go-github-mock/src/mock](https://pkg.go.dev/github.com/migueleliasweb/go-github-mock/src/mock) ([MIT](https://github.com/migueleliasweb/go-github-mock/blob/v1.3.0/LICENSE))
  - [github.com/pelletier/go-toml/v2](https://pkg.go.dev/github.com/pelletier/go-toml/v2) ([MIT](https://github.com/pelletier/go-toml/blob/v2.2.4/LICENSE))
  - [github.com/sagikazarmark/locafero](https://pkg.go.dev/github.com/sagikazarmark/locafero) ([MIT](https://github.com/sagikazarmark/locafero/blob/v0.11.0/LICENSE))
@@ -42,6 +45,7 @@ Some packages may only be included on certain architectures or operating systems
  - [github.com/yudai/golcs](https://pkg.go.dev/github.com/yudai/golcs) ([MIT](https://github.com/yudai/golcs/blob/ecda9a501e82/LICENSE))
  - [go.yaml.in/yaml/v3](https://pkg.go.dev/go.yaml.in/yaml/v3) ([MIT](https://github.com/yaml/go-yaml/blob/v3.0.4/LICENSE))
  - [golang.org/x/exp](https://pkg.go.dev/golang.org/x/exp) ([BSD-3-Clause](https://cs.opensource.google/go/x/exp/+/8a7402ab:LICENSE))
+ - [golang.org/x/net/html](https://pkg.go.dev/golang.org/x/net/html) ([BSD-3-Clause](https://cs.opensource.google/go/x/net/+/v0.26.0:LICENSE))
  - [golang.org/x/sys/windows](https://pkg.go.dev/golang.org/x/sys/windows) ([BSD-3-Clause](https://cs.opensource.google/go/x/sys/+/v0.31.0:LICENSE))
  - [golang.org/x/text](https://pkg.go.dev/golang.org/x/text) ([BSD-3-Clause](https://cs.opensource.google/go/x/text/+/v0.28.0:LICENSE))
  - [golang.org/x/time/rate](https://pkg.go.dev/golang.org/x/time/rate) ([BSD-3-Clause](https://cs.opensource.google/go/x/time/+/v0.5.0:LICENSE))

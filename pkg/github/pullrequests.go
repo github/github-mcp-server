@@ -127,10 +127,10 @@ func GetPullRequest(ctx context.Context, client *github.Client, owner, repo stri
 	// sanitize title/body on response
 	if pr != nil {
 		if pr.Title != nil {
-			pr.Title = github.Ptr(sanitize.FilterInvisibleCharacters(*pr.Title))
+			pr.Title = github.Ptr(sanitize.Sanitize(*pr.Title))
 		}
 		if pr.Body != nil {
-			pr.Body = github.Ptr(sanitize.FilterInvisibleCharacters(*pr.Body))
+			pr.Body = github.Ptr(sanitize.Sanitize(*pr.Body))
 		}
 	}
 
@@ -821,10 +821,10 @@ func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFun
 					continue
 				}
 				if pr.Title != nil {
-					pr.Title = github.Ptr(sanitize.FilterInvisibleCharacters(*pr.Title))
+					pr.Title = github.Ptr(sanitize.Sanitize(*pr.Title))
 				}
 				if pr.Body != nil {
-					pr.Body = github.Ptr(sanitize.FilterInvisibleCharacters(*pr.Body))
+					pr.Body = github.Ptr(sanitize.Sanitize(*pr.Body))
 				}
 			}
 
