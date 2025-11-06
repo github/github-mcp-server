@@ -54,7 +54,7 @@ func getPolicy() *bluemonday.Policy {
 		)
 
 		p.AllowAttrs("href").OnElements("a")
-		p.AllowURLSchemes("https")
+		p.AllowURLSchemes("http", "https")
 		p.RequireParseableURLs(true)
 		p.RequireNoFollowOnLinks(true)
 		p.RequireNoReferrerOnLinks(true)
