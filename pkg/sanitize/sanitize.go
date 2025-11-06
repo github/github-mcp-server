@@ -12,7 +12,7 @@ var policy *bluemonday.Policy
 var policyOnce sync.Once
 
 func Sanitize(input string) string {
-	return FilterHTMLTags(FilterInvisibleCharacters(FilterCodeFenceMetadata(input)))
+	return FilterHTMLTags(FilterCodeFenceMetadata(FilterInvisibleCharacters(input)))
 }
 
 // FilterInvisibleCharacters removes invisible or control characters that should not appear

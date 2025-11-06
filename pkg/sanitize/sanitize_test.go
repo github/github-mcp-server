@@ -292,3 +292,11 @@ func TestFilterCodeFenceMetadata(t *testing.T) {
 		})
 	}
 }
+
+func TestSanitizeRemovesInvisibleCodeFenceMetadata(t *testing.T) {
+	input := "`\u200B`\u200B`steal secrets\nfmt.Println(42)\n```"
+	expected := "```\nfmt.Println(42)\n```"
+
+	result := Sanitize(input)
+	assert.Equal(t, expected, result)
+}
