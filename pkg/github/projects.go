@@ -843,7 +843,7 @@ func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 
 type fieldSelectionOptions struct {
 	// Specific list of field IDs to include in the response. If not provided, only the title field is included.
-	// Example: fields=102589,985201,169875 or fields[]=102589&fields[]=985201&fields[]=169875
+	// The comma tag encodes the slice as comma-separated values: fields=102589,985201,169875
 	Fields []int64 `url:"fields,omitempty,comma"`
 }
 
