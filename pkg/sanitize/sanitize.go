@@ -1,7 +1,9 @@
 package sanitize
 
 import (
+	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/microcosm-cc/bluemonday"
 )
@@ -10,7 +12,7 @@ var policy *bluemonday.Policy
 var policyOnce sync.Once
 
 func Sanitize(input string) string {
-	return FilterHTMLTags(FilterInvisibleCharacters(input))
+	return FilterHTMLTags(FilterCodeFenceMetadata(FilterInvisibleCharacters(input)))
 }
 
 // FilterInvisibleCharacters removes invisible or control characters that should not appear
@@ -40,6 +42,109 @@ func FilterHTMLTags(input string) string {
 	return getPolicy().Sanitize(input)
 }
 
+// FilterCodeFenceMetadata removes hidden or suspicious info strings from fenced code blocks.
+func FilterCodeFenceMetadata(input string) string {
+	if input == "" {
+		return input
+	}
+
+	lines := strings.Split(input, "\n")
+	insideFence := false
+	currentFenceLen := 0
+	for i, line := range lines {
+		sanitized, toggled, fenceLen := sanitizeCodeFenceLine(line, insideFence, currentFenceLen)
+		lines[i] = sanitized
+		if toggled {
+			insideFence = !insideFence
+			if insideFence {
+				currentFenceLen = fenceLen
+			} else {
+				currentFenceLen = 0
+			}
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+const maxCodeFenceInfoLength = 48
+
+func sanitizeCodeFenceLine(line string, insideFence bool, expectedFenceLen int) (string, bool, int) {
+	idx := strings.Index(line, "```")
+	if idx == -1 {
+		return line, false, expectedFenceLen
+	}
+
+	if hasNonWhitespace(line[:idx]) {
+		return line, false, expectedFenceLen
+	}
+
+	fenceEnd := idx
+	for fenceEnd < len(line) && line[fenceEnd] == '`' {
+		fenceEnd++
+	}
+
+	fenceLen := fenceEnd - idx
+	if fenceLen < 3 {
+		return line, false, expectedFenceLen
+	}
+
+	rest := line[fenceEnd:]
+
+	if insideFence {
+		if expectedFenceLen != 0 && fenceLen != expectedFenceLen {
+			return line, false, expectedFenceLen
+		}
+		return line[:fenceEnd], true, fenceLen
+	}
+
+	trimmed := strings.TrimSpace(rest)
+
+	if trimmed == "" {
+		return line[:fenceEnd], true, fenceLen
+	}
+
+	if strings.IndexFunc(trimmed, unicode.IsSpace) != -1 {
+		return line[:fenceEnd], true, fenceLen
+	}
+
+	if len(trimmed) > maxCodeFenceInfoLength {
+		return line[:fenceEnd], true, fenceLen
+	}
+
+	if !isSafeCodeFenceToken(trimmed) {
+		return line[:fenceEnd], true, fenceLen
+	}
+
+	if len(rest) > 0 && unicode.IsSpace(rune(rest[0])) {
+		return line[:fenceEnd] + " " + trimmed, true, fenceLen
+	}
+
+	return line[:fenceEnd] + trimmed, true, fenceLen
+}
+
+func hasNonWhitespace(segment string) bool {
+	for _, r := range segment {
+		if !unicode.IsSpace(r) {
+			return true
+		}
+	}
+	return false
+}
+
+func isSafeCodeFenceToken(token string) bool {
+	for _, r := range token {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			continue
+		}
+		switch r {
+		case '+', '-', '_', '#', '.':
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 func getPolicy() *bluemonday.Policy {
 	policyOnce.Do(func() {
 		p := bluemonday.StrictPolicy()
@@ -54,7 +159,7 @@ func getPolicy() *bluemonday.Policy {
 		)
 
 		p.AllowAttrs("href").OnElements("a")
-		p.AllowURLSchemes("https")
+		p.AllowURLSchemes("http", "https")
 		p.RequireParseableURLs(true)
 		p.RequireNoFollowOnLinks(true)
 		p.RequireNoReferrerOnLinks(true)
