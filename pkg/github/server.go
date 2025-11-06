@@ -227,6 +227,15 @@ func WithUnifiedPagination() mcp.ToolOption {
 	}
 }
 
+// WithFixedCursorPagination adds only cursor-based pagination parameters to a tool (no page parameter).
+func WithFixedCursorPagination() mcp.ToolOption {
+	return func(tool *mcp.Tool) {
+		mcp.WithString("cursor",
+			mcp.Description("Cursor for pagination. Use the endCursor from the previous page's PageInfo."),
+		)(tool)
+	}
+}
+
 // WithCursorPagination adds only cursor-based pagination parameters to a tool (no page parameter).
 func WithCursorPagination() mcp.ToolOption {
 	return func(tool *mcp.Tool) {
@@ -270,6 +279,19 @@ func OptionalPaginationParams(r mcp.CallToolRequest) (PaginationParams, error) {
 		Page:    page,
 		PerPage: perPage,
 		After:   after,
+	}, nil
+}
+
+// OptionalFixedCursorPaginationParams returns the "perPage" and "after" parameters from the request,
+// without the "page" parameter, suitable for cursor-based pagination only.
+func OptionalFixedCursorPaginationParams(r mcp.CallToolRequest) (CursorPaginationParams, error) {
+	cursor, err := OptionalParam[string](r, "cursor")
+	if err != nil {
+		return CursorPaginationParams{}, err
+	}
+	return CursorPaginationParams{
+		PerPage: 10,
+		After:   cursor,
 	}, nil
 }
 
