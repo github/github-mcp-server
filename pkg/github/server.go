@@ -103,14 +103,21 @@ func RequiredInt(r mcp.CallToolRequest, p string) (int, error) {
 // RequiredBigInt is a helper function that can be used to fetch a requested parameter from the request.
 // It does the following checks:
 // 1. Checks if the parameter is present in the request.
-// 2. Checks if the parameter is of the expected type.
-// 3. Checks if the parameter is not empty, i.e: non-zero value
+// 2. Checks if the parameter is of the expected type (float64).
+// 3. Checks if the parameter is not empty, i.e: non-zero value.
+// 4. Validates that the float64 value can be safely converted to int64 without truncation.
 func RequiredBigInt(r mcp.CallToolRequest, p string) (int64, error) {
 	v, err := RequiredParam[float64](r, p)
 	if err != nil {
 		return 0, err
 	}
-	return int64(v), nil
+
+	result := int64(v)
+	// Check if converting back produces the same value to avoid silent truncation
+	if float64(result) != v {
+		return 0, fmt.Errorf("parameter %s value %f is too large to fit in int64", p, v)
+	}
+	return result, nil
 }
 
 // OptionalParam is a helper function that can be used to fetch a requested parameter from the request.
