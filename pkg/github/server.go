@@ -225,8 +225,8 @@ func convertStringToBigInt(s string, def int64) (int64, error) {
 
 // OptionalBigIntArrayParam is a helper function that can be used to fetch a requested parameter from the request.
 // It does the following checks:
-// 1. Checks if the parameter is present in the request, if not, it returns its zero-value
-// 2. If it is present, iterates the elements and checks each is a string
+// 1. Checks if the parameter is present in the request, if not, it returns an empty slice
+// 2. If it is present, iterates the elements, checks each is a string, and converts them to int64 values
 func OptionalBigIntArrayParam(r mcp.CallToolRequest, p string) ([]int64, error) {
 	// Check if the parameter is present in the request
 	if _, ok := r.GetArguments()[p]; !ok {
