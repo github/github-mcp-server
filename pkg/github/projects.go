@@ -805,7 +805,7 @@ func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			itemID, err := RequiredInt(req, "item_id")
+			itemID, err := RequiredBigInt(req, "item_id")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -814,19 +814,13 @@ func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			var projectsURL string
+			var resp *github.Response
 			if ownerType == "org" {
-				projectsURL = fmt.Sprintf("orgs/%s/projectsV2/%d/items/%d", owner, projectNumber, itemID)
+				resp, err = client.Projects.DeleteOrganizationProjectItem(ctx, owner, projectNumber, itemID)
 			} else {
-				projectsURL = fmt.Sprintf("users/%s/projectsV2/%d/items/%d", owner, projectNumber, itemID)
+				resp, err = client.Projects.DeleteUserProjectItem(ctx, owner, projectNumber, itemID)
 			}
 
-			httpRequest, err := client.NewRequest("DELETE", projectsURL, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create request: %w", err)
-			}
-
-			resp, err := client.Do(ctx, httpRequest, nil)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					ProjectDeleteFailedError,
