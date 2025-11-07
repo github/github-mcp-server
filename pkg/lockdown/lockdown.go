@@ -8,22 +8,22 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
-func ShouldRemoveContent(ctx context.Context, client *githubv4.Client, username, owner, repo string) bool {
+func ShouldRemoveContent(ctx context.Context, client *githubv4.Client, username, owner, repo string) (bool, error) {
 	isPrivate, err := IsPrivateRepo(ctx, client, owner, repo)
 	if err != nil {
-		return false
+		return false, err
 	}
 
 	// Do not filter content for private repositories
 	if isPrivate {
-		return false
+		return false, nil
 	}
 	hasPushAccess, err := HasPushAccess(ctx, client, username, owner, repo)
 	if err != nil {
-		return false
+		return false, err
 	}
 
-	return !hasPushAccess
+	return !hasPushAccess, nil
 }
 
 func HasPushAccess(ctx context.Context, client *githubv4.Client, username, owner, repo string) (bool, error) {
