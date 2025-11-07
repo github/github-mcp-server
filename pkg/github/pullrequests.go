@@ -8,12 +8,13 @@ import (
 	"net/http"
 
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/google/go-github/v76/github"
+	"github.com/google/go-github/v77/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/shurcooL/githubv4"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/translations"
 )
 
@@ -121,6 +122,16 @@ func GetPullRequest(ctx context.Context, client *github.Client, owner, repo stri
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request: %s", string(body))), nil
+	}
+
+	// sanitize title/body on response
+	if pr != nil {
+		if pr.Title != nil {
+			pr.Title = github.Ptr(sanitize.Sanitize(*pr.Title))
+		}
+		if pr.Body != nil {
+			pr.Body = github.Ptr(sanitize.Sanitize(*pr.Body))
+		}
 	}
 
 	r, err := json.Marshal(pr)
@@ -802,6 +813,19 @@ func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFun
 					return nil, fmt.Errorf("failed to read response body: %w", err)
 				}
 				return mcp.NewToolResultError(fmt.Sprintf("failed to list pull requests: %s", string(body))), nil
+			}
+
+			// sanitize title/body on each PR
+			for _, pr := range prs {
+				if pr == nil {
+					continue
+				}
+				if pr.Title != nil {
+					pr.Title = github.Ptr(sanitize.Sanitize(*pr.Title))
+				}
+				if pr.Body != nil {
+					pr.Body = github.Ptr(sanitize.Sanitize(*pr.Body))
+				}
 			}
 
 			r, err := json.Marshal(prs)
