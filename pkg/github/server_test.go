@@ -40,7 +40,7 @@ func stubGetGQLClientFn(client *githubv4.Client) GetGQLClientFn {
 
 func stubFeatureFlags(enabledFlags map[string]bool) FeatureFlags {
 	return FeatureFlags{
-		LockdownEnabled: enabledFlags["lockdown"],
+		LockdownMode: enabledFlags["lockdown-mode"],
 	}
 }
 
