@@ -25,8 +25,7 @@ func Test_SearchRepositories(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "query")
 	assert.Contains(t, tool.InputSchema.Properties, "sort")
 	assert.Contains(t, tool.InputSchema.Properties, "order")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
+	assert.Contains(t, tool.InputSchema.Properties, "cursor")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"query"})
 
 	// Setup mock search results
@@ -71,18 +70,17 @@ func Test_SearchRepositories(t *testing.T) {
 						"sort":     "stars",
 						"order":    "desc",
 						"page":     "2",
-						"per_page": "10",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
 				),
 			),
 			requestArgs: map[string]interface{}{
-				"query":   "golang test",
-				"sort":    "stars",
-				"order":   "desc",
-				"page":    float64(2),
-				"perPage": float64(10),
+				"query":  "golang test",
+				"sort":   "stars",
+				"order":  "desc",
+				"cursor": "page=2;perPage=10",
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
@@ -95,7 +93,7 @@ func Test_SearchRepositories(t *testing.T) {
 					expectQueryParams(t, map[string]string{
 						"q":        "golang test",
 						"page":     "1",
-						"per_page": "30",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
@@ -154,8 +152,15 @@ func Test_SearchRepositories(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the search result
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedResult MinimalSearchRepositoriesResult
-			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
+			err = json.Unmarshal(dataBytes, &returnedResult)
 			require.NoError(t, err)
 			assert.Equal(t, *tc.expectedResult.Total, returnedResult.TotalCount)
 			assert.Equal(t, *tc.expectedResult.IncompleteResults, returnedResult.IncompleteResults)
@@ -193,7 +198,7 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 			expectQueryParams(t, map[string]string{
 				"q":        "golang test",
 				"page":     "1",
-				"per_page": "30",
+				"per_page": "11",
 			}).andThen(
 				mockResponse(t, http.StatusOK, mockSearchResult),
 			),
@@ -215,9 +220,17 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 
 	textContent := getTextResult(t, result)
 
+	// Unmarshal the paginated response first
+	var paginatedResponse PaginatedResponse
+	err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+	require.NoError(t, err)
+	
+	// The data field contains the full search result
+	dataBytes, err := json.Marshal(paginatedResponse.Data)
+	require.NoError(t, err)
 	// Unmarshal as full GitHub API response
 	var returnedResult github.RepositoriesSearchResult
-	err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
+	err = json.Unmarshal(dataBytes, &returnedResult)
 	require.NoError(t, err)
 
 	// Verify it's the full API response, not minimal
@@ -239,8 +252,7 @@ func Test_SearchCode(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "query")
 	assert.Contains(t, tool.InputSchema.Properties, "sort")
 	assert.Contains(t, tool.InputSchema.Properties, "order")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
+	assert.Contains(t, tool.InputSchema.Properties, "cursor")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"query"})
 
 	// Setup mock search results
@@ -283,7 +295,7 @@ func Test_SearchCode(t *testing.T) {
 						"sort":     "indexed",
 						"order":    "desc",
 						"page":     "1",
-						"per_page": "30",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
@@ -293,8 +305,6 @@ func Test_SearchCode(t *testing.T) {
 				"query":   "fmt.Println language:go",
 				"sort":    "indexed",
 				"order":   "desc",
-				"page":    float64(1),
-				"perPage": float64(30),
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
@@ -307,7 +317,7 @@ func Test_SearchCode(t *testing.T) {
 					expectQueryParams(t, map[string]string{
 						"q":        "fmt.Println language:go",
 						"page":     "1",
-						"per_page": "30",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
@@ -366,8 +376,15 @@ func Test_SearchCode(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the search result
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedResult github.CodeSearchResult
-			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
+			err = json.Unmarshal(dataBytes, &returnedResult)
 			require.NoError(t, err)
 			assert.Equal(t, *tc.expectedResult.Total, *returnedResult.Total)
 			assert.Equal(t, *tc.expectedResult.IncompleteResults, *returnedResult.IncompleteResults)
@@ -394,8 +411,7 @@ func Test_SearchUsers(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "query")
 	assert.Contains(t, tool.InputSchema.Properties, "sort")
 	assert.Contains(t, tool.InputSchema.Properties, "order")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
+	assert.Contains(t, tool.InputSchema.Properties, "cursor")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"query"})
 
 	// Setup mock search results
@@ -437,7 +453,7 @@ func Test_SearchUsers(t *testing.T) {
 						"sort":     "followers",
 						"order":    "desc",
 						"page":     "1",
-						"per_page": "30",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
@@ -447,8 +463,6 @@ func Test_SearchUsers(t *testing.T) {
 				"query":   "location:finland language:go",
 				"sort":    "followers",
 				"order":   "desc",
-				"page":    float64(1),
-				"perPage": float64(30),
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
@@ -461,7 +475,7 @@ func Test_SearchUsers(t *testing.T) {
 					expectQueryParams(t, map[string]string{
 						"q":        "type:user location:finland language:go",
 						"page":     "1",
-						"per_page": "30",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
@@ -481,7 +495,7 @@ func Test_SearchUsers(t *testing.T) {
 					expectQueryParams(t, map[string]string{
 						"q":        "type:user location:seattle followers:>100",
 						"page":     "1",
-						"per_page": "30",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
@@ -501,7 +515,7 @@ func Test_SearchUsers(t *testing.T) {
 					expectQueryParams(t, map[string]string{
 						"q":        "type:user (location:seattle OR location:california) followers:>50",
 						"page":     "1",
-						"per_page": "30",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
@@ -562,8 +576,15 @@ func Test_SearchUsers(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the search result
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedResult MinimalSearchUsersResult
-			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
+			err = json.Unmarshal(dataBytes, &returnedResult)
 			require.NoError(t, err)
 			assert.Equal(t, *tc.expectedResult.Total, returnedResult.TotalCount)
 			assert.Equal(t, *tc.expectedResult.IncompleteResults, returnedResult.IncompleteResults)
@@ -588,8 +609,7 @@ func Test_SearchOrgs(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "query")
 	assert.Contains(t, tool.InputSchema.Properties, "sort")
 	assert.Contains(t, tool.InputSchema.Properties, "order")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
+	assert.Contains(t, tool.InputSchema.Properties, "cursor")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"query"})
 
 	// Setup mock search results
@@ -628,7 +648,7 @@ func Test_SearchOrgs(t *testing.T) {
 					expectQueryParams(t, map[string]string{
 						"q":        "type:org github",
 						"page":     "1",
-						"per_page": "30",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
@@ -648,7 +668,7 @@ func Test_SearchOrgs(t *testing.T) {
 					expectQueryParams(t, map[string]string{
 						"q":        "type:org location:california followers:>1000",
 						"page":     "1",
-						"per_page": "30",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
@@ -668,7 +688,7 @@ func Test_SearchOrgs(t *testing.T) {
 					expectQueryParams(t, map[string]string{
 						"q":        "type:org (location:seattle OR location:california OR location:newyork) repos:>10",
 						"page":     "1",
-						"per_page": "30",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
@@ -726,8 +746,15 @@ func Test_SearchOrgs(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the search result
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedResult MinimalSearchUsersResult
-			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
+			err = json.Unmarshal(dataBytes, &returnedResult)
 			require.NoError(t, err)
 			assert.Equal(t, *tc.expectedResult.Total, returnedResult.TotalCount)
 			assert.Equal(t, *tc.expectedResult.IncompleteResults, returnedResult.IncompleteResults)

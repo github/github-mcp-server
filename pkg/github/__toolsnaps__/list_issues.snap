@@ -6,8 +6,8 @@
   "description": "List issues in a GitHub repository. For pagination, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter.",
   "inputSchema": {
     "properties": {
-      "after": {
-        "description": "Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs.",
+      "cursor": {
+        "description": "Pagination cursor. Leave empty for the first page. Use the nextCursor value from the previous response to get the next page.",
         "type": "string"
       },
       "direction": {
@@ -37,12 +37,6 @@
       "owner": {
         "description": "Repository owner",
         "type": "string"
-      },
-      "perPage": {
-        "description": "Results per page for pagination (min 1, max 100)",
-        "maximum": 100,
-        "minimum": 1,
-        "type": "number"
       },
       "repo": {
         "description": "Repository name",

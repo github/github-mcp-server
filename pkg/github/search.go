@@ -2,7 +2,6 @@ package github
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 
@@ -53,7 +52,7 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			pagination, err := OptionalPaginationParams(request)
+			cursorParams, err := GetCursorBasedParams(request)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -65,8 +64,8 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 				Sort:  sort,
 				Order: order,
 				ListOptions: github.ListOptions{
-					Page:    pagination.Page,
-					PerPage: pagination.PerPage,
+					Page:    cursorParams.Page,
+					PerPage: cursorParams.PerPage + 1, // Request one extra
 				},
 			}
 
@@ -92,8 +91,15 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 				return mcp.NewToolResultError(fmt.Sprintf("failed to search repositories: %s", string(body))), nil
 			}
 
+			// Check if there are more results
+			hasMore := len(result.Repositories) > cursorParams.PerPage
+			if hasMore {
+				// Remove the extra item
+				result.Repositories = result.Repositories[:cursorParams.PerPage]
+			}
+
 			// Return either minimal or full response based on parameter
-			var r []byte
+			var responseData interface{}
 			if minimalOutput {
 				minimalRepos := make([]MinimalRepository, 0, len(result.Repositories))
 				for _, repo := range result.Repositories {
@@ -126,24 +132,18 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 					minimalRepos = append(minimalRepos, minimalRepo)
 				}
 
-				minimalResult := &MinimalSearchRepositoriesResult{
+				responseData = &MinimalSearchRepositoriesResult{
 					TotalCount:        result.GetTotal(),
 					IncompleteResults: result.GetIncompleteResults(),
 					Items:             minimalRepos,
 				}
-
-				r, err = json.Marshal(minimalResult)
-				if err != nil {
-					return nil, fmt.Errorf("failed to marshal minimal response: %w", err)
-				}
 			} else {
-				r, err = json.Marshal(result)
-				if err != nil {
-					return nil, fmt.Errorf("failed to marshal full response: %w", err)
-				}
+				responseData = result
 			}
 
-			return mcp.NewToolResultText(string(r)), nil
+			// Create paginated response
+			paginatedResp := NewPaginatedRESTResponse(responseData, cursorParams.Page, cursorParams.PerPage, hasMore)
+			return MarshalPaginatedResponse(paginatedResp), nil
 		}
 }
 
@@ -181,7 +181,7 @@ func SearchCode(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			pagination, err := OptionalPaginationParams(request)
+			cursorParams, err := GetCursorBasedParams(request)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -190,8 +190,8 @@ func SearchCode(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 				Sort:  sort,
 				Order: order,
 				ListOptions: github.ListOptions{
-					PerPage: pagination.PerPage,
-					Page:    pagination.Page,
+					PerPage: cursorParams.PerPage + 1, // Request one extra
+					Page:    cursorParams.Page,
 				},
 			}
 
@@ -218,12 +218,16 @@ func SearchCode(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 				return mcp.NewToolResultError(fmt.Sprintf("failed to search code: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(result)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			// Check if there are more results
+			hasMore := len(result.CodeResults) > cursorParams.PerPage
+			if hasMore {
+				// Remove the extra item
+				result.CodeResults = result.CodeResults[:cursorParams.PerPage]
 			}
 
-			return mcp.NewToolResultText(string(r)), nil
+			// Create paginated response
+			paginatedResp := NewPaginatedRESTResponse(result, cursorParams.Page, cursorParams.PerPage, hasMore)
+			return MarshalPaginatedResponse(paginatedResp), nil
 		}
 }
 
@@ -241,7 +245,7 @@ func userOrOrgHandler(accountType string, getClient GetClientFn) server.ToolHand
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-		pagination, err := OptionalPaginationParams(request)
+		cursorParams, err := GetCursorBasedParams(request)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
@@ -250,8 +254,8 @@ func userOrOrgHandler(accountType string, getClient GetClientFn) server.ToolHand
 			Sort:  sort,
 			Order: order,
 			ListOptions: github.ListOptions{
-				PerPage: pagination.PerPage,
-				Page:    pagination.Page,
+				PerPage: cursorParams.PerPage + 1, // Request one extra
+				Page:    cursorParams.Page,
 			},
 		}
 
@@ -282,6 +286,13 @@ func userOrOrgHandler(accountType string, getClient GetClientFn) server.ToolHand
 			return mcp.NewToolResultError(fmt.Sprintf("failed to search %ss: %s", accountType, string(body))), nil
 		}
 
+		// Check if there are more results
+		hasMore := len(result.Users) > cursorParams.PerPage
+		if hasMore {
+			// Remove the extra item
+			result.Users = result.Users[:cursorParams.PerPage]
+		}
+
 		minimalUsers := make([]MinimalUser, 0, len(result.Users))
 
 		for _, user := range result.Users {
@@ -307,11 +318,9 @@ func userOrOrgHandler(accountType string, getClient GetClientFn) server.ToolHand
 			minimalResp.IncompleteResults = *result.IncompleteResults
 		}
 
-		r, err := json.Marshal(minimalResp)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal response: %w", err)
-		}
-		return mcp.NewToolResultText(string(r)), nil
+		// Create paginated response
+		paginatedResp := NewPaginatedRESTResponse(minimalResp, cursorParams.Page, cursorParams.PerPage, hasMore)
+		return MarshalPaginatedResponse(paginatedResp), nil
 	}
 }
 

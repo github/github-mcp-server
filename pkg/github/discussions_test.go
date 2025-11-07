@@ -212,14 +212,14 @@ func Test_ListDiscussions(t *testing.T) {
 	varsListAll := map[string]interface{}{
 		"owner": "owner",
 		"repo":  "repo",
-		"first": float64(30),
+		"first": float64(10),
 		"after": (*string)(nil),
 	}
 
 	varsRepoNotFound := map[string]interface{}{
 		"owner": "owner",
 		"repo":  "nonexistent-repo",
-		"first": float64(30),
+		"first": float64(10),
 		"after": (*string)(nil),
 	}
 
@@ -227,7 +227,7 @@ func Test_ListDiscussions(t *testing.T) {
 		"owner":      "owner",
 		"repo":       "repo",
 		"categoryId": "DIC_kwDOABC123",
-		"first":      float64(30),
+		"first":      float64(10),
 		"after":      (*string)(nil),
 	}
 
@@ -236,7 +236,7 @@ func Test_ListDiscussions(t *testing.T) {
 		"repo":             "repo",
 		"orderByField":     "CREATED_AT",
 		"orderByDirection": "ASC",
-		"first":            float64(30),
+		"first":            float64(10),
 		"after":            (*string)(nil),
 	}
 
@@ -245,7 +245,7 @@ func Test_ListDiscussions(t *testing.T) {
 		"repo":             "repo",
 		"orderByField":     "UPDATED_AT",
 		"orderByDirection": "DESC",
-		"first":            float64(30),
+		"first":            float64(10),
 		"after":            (*string)(nil),
 	}
 
@@ -255,14 +255,14 @@ func Test_ListDiscussions(t *testing.T) {
 		"categoryId":       "DIC_kwDOABC123",
 		"orderByField":     "CREATED_AT",
 		"orderByDirection": "DESC",
-		"first":            float64(30),
+		"first":            float64(10),
 		"after":            (*string)(nil),
 	}
 
 	varsOrgLevel := map[string]interface{}{
 		"owner": "owner",
 		"repo":  ".github", // This is what gets set when repo is not provided
-		"first": float64(30),
+		"first": float64(10),
 		"after": (*string)(nil),
 	}
 
@@ -442,17 +442,18 @@ func Test_ListDiscussions(t *testing.T) {
 			require.NoError(t, err)
 
 			// Parse the structured response with pagination info
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the response
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var response struct {
 				Discussions []*github.Discussion `json:"discussions"`
-				PageInfo    struct {
-					HasNextPage     bool   `json:"hasNextPage"`
-					HasPreviousPage bool   `json:"hasPreviousPage"`
-					StartCursor     string `json:"startCursor"`
-					EndCursor       string `json:"endCursor"`
-				} `json:"pageInfo"`
 				TotalCount int `json:"totalCount"`
 			}
-			err = json.Unmarshal([]byte(text), &response)
+			err = json.Unmarshal(dataBytes, &response)
 			require.NoError(t, err)
 
 			assert.Len(t, response.Discussions, tc.expectedCount, "Expected %d discussions, got %d", tc.expectedCount, len(response.Discussions))
@@ -577,7 +578,7 @@ func Test_GetDiscussionComments(t *testing.T) {
 		"owner":            "owner",
 		"repo":             "repo",
 		"discussionNumber": float64(1),
-		"first":            float64(30),
+		"first":            float64(10),
 		"after":            (*string)(nil),
 	}
 
@@ -618,17 +619,18 @@ func Test_GetDiscussionComments(t *testing.T) {
 
 	// (Lines removed)
 
+	var paginatedResponse PaginatedResponse
+	err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+	require.NoError(t, err)
+	
+	// The data field contains the response
+	dataBytes, err := json.Marshal(paginatedResponse.Data)
+	require.NoError(t, err)
 	var response struct {
 		Comments []*github.IssueComment `json:"comments"`
-		PageInfo struct {
-			HasNextPage     bool   `json:"hasNextPage"`
-			HasPreviousPage bool   `json:"hasPreviousPage"`
-			StartCursor     string `json:"startCursor"`
-			EndCursor       string `json:"endCursor"`
-		} `json:"pageInfo"`
 		TotalCount int `json:"totalCount"`
 	}
-	err = json.Unmarshal([]byte(textContent.Text), &response)
+	err = json.Unmarshal(dataBytes, &response)
 	require.NoError(t, err)
 	assert.Len(t, response.Comments, 2)
 	expectedBodies := []string{"This is the first comment", "This is the second comment"}

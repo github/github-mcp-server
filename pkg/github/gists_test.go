@@ -23,8 +23,7 @@ func Test_ListGists(t *testing.T) {
 	assert.NotEmpty(t, tool.Description)
 	assert.Contains(t, tool.InputSchema.Properties, "username")
 	assert.Contains(t, tool.InputSchema.Properties, "since")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
+	assert.Contains(t, tool.InputSchema.Properties, "cursor")
 	assert.Empty(t, tool.InputSchema.Required)
 
 	// Setup mock gists for success case
@@ -101,16 +100,15 @@ func Test_ListGists(t *testing.T) {
 					expectQueryParams(t, map[string]string{
 						"since":    "2023-01-01T00:00:00Z",
 						"page":     "2",
-						"per_page": "5",
+						"per_page": "11",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockGists),
 					),
 				),
 			),
 			requestArgs: map[string]interface{}{
-				"since":   "2023-01-01T00:00:00Z",
-				"page":    float64(2),
-				"perPage": float64(5),
+				"since":  "2023-01-01T00:00:00Z",
+				"cursor": "page=2;perPage=10",
 			},
 			expectError:   false,
 			expectedGists: mockGists,
@@ -177,8 +175,15 @@ func Test_ListGists(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the gists
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedGists []*github.Gist
-			err = json.Unmarshal([]byte(textContent.Text), &returnedGists)
+			err = json.Unmarshal(dataBytes, &returnedGists)
 			require.NoError(t, err)
 
 			assert.Len(t, returnedGists, len(tc.expectedGists))

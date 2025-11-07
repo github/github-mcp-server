@@ -590,8 +590,7 @@ func Test_ListPullRequests(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "base")
 	assert.Contains(t, tool.InputSchema.Properties, "sort")
 	assert.Contains(t, tool.InputSchema.Properties, "direction")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
+	assert.Contains(t, tool.InputSchema.Properties, "cursor")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
 
 	// Setup mock PRs for success case
@@ -627,7 +626,7 @@ func Test_ListPullRequests(t *testing.T) {
 						"state":     "all",
 						"sort":      "created",
 						"direction": "desc",
-						"per_page":  "30",
+						"per_page":  "11",
 						"page":      "1",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockPRs),
@@ -640,8 +639,6 @@ func Test_ListPullRequests(t *testing.T) {
 				"state":     "all",
 				"sort":      "created",
 				"direction": "desc",
-				"perPage":   float64(30),
-				"page":      float64(1),
 			},
 			expectError: false,
 			expectedPRs: mockPRs,
@@ -695,8 +692,15 @@ func Test_ListPullRequests(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the pull requests
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedPRs []*github.PullRequest
-			err = json.Unmarshal([]byte(textContent.Text), &returnedPRs)
+			err = json.Unmarshal(dataBytes, &returnedPRs)
 			require.NoError(t, err)
 			assert.Len(t, returnedPRs, 2)
 			assert.Equal(t, *tc.expectedPRs[0].Number, *returnedPRs[0].Number)
@@ -836,8 +840,7 @@ func Test_SearchPullRequests(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "sort")
 	assert.Contains(t, tool.InputSchema.Properties, "order")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
+	assert.Contains(t, tool.InputSchema.Properties, "cursor")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"query"})
 
 	mockSearchResult := &github.IssuesSearchResult{
@@ -889,7 +892,7 @@ func Test_SearchPullRequests(t *testing.T) {
 							"sort":     "created",
 							"order":    "desc",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -897,11 +900,9 @@ func Test_SearchPullRequests(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
-				"query":   "repo:owner/repo is:open",
-				"sort":    "created",
-				"order":   "desc",
-				"page":    float64(1),
-				"perPage": float64(30),
+				"query": "repo:owner/repo is:open",
+				"sort":  "created",
+				"order": "desc",
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
@@ -918,7 +919,7 @@ func Test_SearchPullRequests(t *testing.T) {
 							"sort":     "updated",
 							"order":    "asc",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -945,7 +946,7 @@ func Test_SearchPullRequests(t *testing.T) {
 						map[string]string{
 							"q":        "is:pr feature",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -969,7 +970,7 @@ func Test_SearchPullRequests(t *testing.T) {
 						map[string]string{
 							"q":        "is:pr review-required",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -1007,7 +1008,7 @@ func Test_SearchPullRequests(t *testing.T) {
 						map[string]string{
 							"q":        "is:pr repo:github/github-mcp-server is:open draft:false",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -1030,7 +1031,7 @@ func Test_SearchPullRequests(t *testing.T) {
 						map[string]string{
 							"q":        "is:pr repo:github/github-mcp-server author:octocat",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -1055,7 +1056,7 @@ func Test_SearchPullRequests(t *testing.T) {
 						map[string]string{
 							"q":        "is:pr repo:github/github-mcp-server (label:bug OR label:enhancement OR label:feature)",
 							"page":     "1",
-							"per_page": "30",
+							"per_page": "11",
 						},
 					).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
@@ -1112,8 +1113,15 @@ func Test_SearchPullRequests(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the search result
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedResult github.IssuesSearchResult
-			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
+			err = json.Unmarshal(dataBytes, &returnedResult)
 			require.NoError(t, err)
 			assert.Equal(t, *tc.expectedResult.Total, *returnedResult.Total)
 			assert.Equal(t, *tc.expectedResult.IncompleteResults, *returnedResult.IncompleteResults)
@@ -1142,8 +1150,7 @@ func Test_GetPullRequestFiles(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
+	assert.Contains(t, tool.InputSchema.Properties, "cursor")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "pullNumber"})
 
 	// Setup mock PR files for success case
@@ -1204,8 +1211,7 @@ func Test_GetPullRequestFiles(t *testing.T) {
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
-				"page":       float64(2),
-				"perPage":    float64(10),
+				"cursor":     "page=2;perPage=10",
 			},
 			expectError:   false,
 			expectedFiles: mockFiles,
@@ -1260,8 +1266,15 @@ func Test_GetPullRequestFiles(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the files
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedFiles []*github.CommitFile
-			err = json.Unmarshal([]byte(textContent.Text), &returnedFiles)
+			err = json.Unmarshal(dataBytes, &returnedFiles)
 			require.NoError(t, err)
 			assert.Len(t, returnedFiles, len(tc.expectedFiles))
 			for i, file := range returnedFiles {
@@ -1682,8 +1695,15 @@ func Test_GetPullRequestComments(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
+			var paginatedResponse PaginatedResponse
+			err = json.Unmarshal([]byte(textContent.Text), &paginatedResponse)
+			require.NoError(t, err)
+			
+			// The data field contains the comments
+			dataBytes, err := json.Marshal(paginatedResponse.Data)
+			require.NoError(t, err)
 			var returnedComments []*github.PullRequestComment
-			err = json.Unmarshal([]byte(textContent.Text), &returnedComments)
+			err = json.Unmarshal(dataBytes, &returnedComments)
 			require.NoError(t, err)
 			assert.Len(t, returnedComments, len(tc.expectedComments))
 			for i, comment := range returnedComments {

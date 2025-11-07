@@ -50,8 +50,8 @@ func ListWorkflows(getClient GetClientFn, t translations.TranslationHelperFunc) 
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			// Get optional pagination parameters
-			pagination, err := OptionalPaginationParams(request)
+			// Get cursor-based pagination parameters
+			cursorParams, err := GetCursorBasedParams(request)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -61,10 +61,10 @@ func ListWorkflows(getClient GetClientFn, t translations.TranslationHelperFunc) 
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			// Set up list options
+			// Set up list options - request one extra to check for more results
 			opts := &github.ListOptions{
-				PerPage: pagination.PerPage,
-				Page:    pagination.Page,
+				PerPage: cursorParams.PerPage + 1,
+				Page:    cursorParams.Page,
 			}
 
 			workflows, resp, err := client.Actions.ListWorkflows(ctx, owner, repo, opts)
@@ -73,12 +73,16 @@ func ListWorkflows(getClient GetClientFn, t translations.TranslationHelperFunc) 
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			r, err := json.Marshal(workflows)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			// Check if there are more results
+			hasMore := len(workflows.Workflows) > cursorParams.PerPage
+			if hasMore {
+				// Remove the extra item
+				workflows.Workflows = workflows.Workflows[:cursorParams.PerPage]
 			}
 
-			return mcp.NewToolResultText(string(r)), nil
+			// Create paginated response
+			paginatedResp := NewPaginatedRESTResponse(workflows, cursorParams.Page, cursorParams.PerPage, hasMore)
+			return MarshalPaginatedResponse(paginatedResp), nil
 		}
 }
 
@@ -183,8 +187,8 @@ func ListWorkflowRuns(getClient GetClientFn, t translations.TranslationHelperFun
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			// Get optional pagination parameters
-			pagination, err := OptionalPaginationParams(request)
+			// Get cursor-based pagination parameters
+			cursorParams, err := GetCursorBasedParams(request)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -194,15 +198,15 @@ func ListWorkflowRuns(getClient GetClientFn, t translations.TranslationHelperFun
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			// Set up list options
+			// Set up list options - request one extra to check for more results
 			opts := &github.ListWorkflowRunsOptions{
 				Actor:  actor,
 				Branch: branch,
 				Event:  event,
 				Status: status,
 				ListOptions: github.ListOptions{
-					PerPage: pagination.PerPage,
-					Page:    pagination.Page,
+					PerPage: cursorParams.PerPage + 1,
+					Page:    cursorParams.Page,
 				},
 			}
 
@@ -212,12 +216,16 @@ func ListWorkflowRuns(getClient GetClientFn, t translations.TranslationHelperFun
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			r, err := json.Marshal(workflowRuns)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			// Check if there are more results
+			hasMore := len(workflowRuns.WorkflowRuns) > cursorParams.PerPage
+			if hasMore {
+				// Remove the extra item
+				workflowRuns.WorkflowRuns = workflowRuns.WorkflowRuns[:cursorParams.PerPage]
 			}
 
-			return mcp.NewToolResultText(string(r)), nil
+			// Create paginated response
+			paginatedResp := NewPaginatedRESTResponse(workflowRuns, cursorParams.Page, cursorParams.PerPage, hasMore)
+			return MarshalPaginatedResponse(paginatedResp), nil
 		}
 }
 
@@ -489,8 +497,8 @@ func ListWorkflowJobs(getClient GetClientFn, t translations.TranslationHelperFun
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			// Get optional pagination parameters
-			pagination, err := OptionalPaginationParams(request)
+			// Get cursor-based pagination parameters
+			cursorParams, err := GetCursorBasedParams(request)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -500,12 +508,12 @@ func ListWorkflowJobs(getClient GetClientFn, t translations.TranslationHelperFun
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			// Set up list options
+			// Set up list options - request one extra to check for more results
 			opts := &github.ListWorkflowJobsOptions{
 				Filter: filter,
 				ListOptions: github.ListOptions{
-					PerPage: pagination.PerPage,
-					Page:    pagination.Page,
+					PerPage: cursorParams.PerPage + 1,
+					Page:    cursorParams.Page,
 				},
 			}
 
@@ -515,18 +523,22 @@ func ListWorkflowJobs(getClient GetClientFn, t translations.TranslationHelperFun
 			}
 			defer func() { _ = resp.Body.Close() }()
 
+			// Check if there are more results
+			hasMore := len(jobs.Jobs) > cursorParams.PerPage
+			if hasMore {
+				// Remove the extra item
+				jobs.Jobs = jobs.Jobs[:cursorParams.PerPage]
+			}
+
 			// Add optimization tip for failed job debugging
 			response := map[string]any{
 				"jobs":             jobs,
 				"optimization_tip": "For debugging failed jobs, consider using get_job_logs with failed_only=true and run_id=" + fmt.Sprintf("%d", runID) + " to get logs directly without needing to list jobs first",
 			}
 
-			r, err := json.Marshal(response)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			// Create paginated response
+			paginatedResp := NewPaginatedRESTResponse(response, cursorParams.Page, cursorParams.PerPage, hasMore)
+			return MarshalPaginatedResponse(paginatedResp), nil
 		}
 }
 
@@ -1006,8 +1018,8 @@ func ListWorkflowRunArtifacts(getClient GetClientFn, t translations.TranslationH
 			}
 			runID := int64(runIDInt)
 
-			// Get optional pagination parameters
-			pagination, err := OptionalPaginationParams(request)
+			// Get cursor-based pagination parameters
+			cursorParams, err := GetCursorBasedParams(request)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -1017,10 +1029,10 @@ func ListWorkflowRunArtifacts(getClient GetClientFn, t translations.TranslationH
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			// Set up list options
+			// Set up list options - request one extra to check for more results
 			opts := &github.ListOptions{
-				PerPage: pagination.PerPage,
-				Page:    pagination.Page,
+				PerPage: cursorParams.PerPage + 1,
+				Page:    cursorParams.Page,
 			}
 
 			artifacts, resp, err := client.Actions.ListWorkflowRunArtifacts(ctx, owner, repo, runID, opts)
@@ -1029,12 +1041,16 @@ func ListWorkflowRunArtifacts(getClient GetClientFn, t translations.TranslationH
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			r, err := json.Marshal(artifacts)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			// Check if there are more results
+			hasMore := len(artifacts.Artifacts) > cursorParams.PerPage
+			if hasMore {
+				// Remove the extra item
+				artifacts.Artifacts = artifacts.Artifacts[:cursorParams.PerPage]
 			}
 
-			return mcp.NewToolResultText(string(r)), nil
+			// Create paginated response
+			paginatedResp := NewPaginatedRESTResponse(artifacts, cursorParams.Page, cursorParams.PerPage, hasMore)
+			return MarshalPaginatedResponse(paginatedResp), nil
 		}
 }
 

@@ -73,7 +73,7 @@ Possible options:
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			pagination, err := OptionalPaginationParams(request)
+			cursorParams, err := GetCursorBasedParams(request)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -92,13 +92,13 @@ Possible options:
 			case "get_status":
 				return GetPullRequestStatus(ctx, client, owner, repo, pullNumber)
 			case "get_files":
-				return GetPullRequestFiles(ctx, client, owner, repo, pullNumber, pagination)
+				return GetPullRequestFiles(ctx, client, owner, repo, pullNumber, cursorParams)
 			case "get_review_comments":
-				return GetPullRequestReviewComments(ctx, client, owner, repo, pullNumber, pagination)
+				return GetPullRequestReviewComments(ctx, client, owner, repo, pullNumber, cursorParams)
 			case "get_reviews":
 				return GetPullRequestReviews(ctx, client, owner, repo, pullNumber)
 			case "get_comments":
-				return GetIssueComments(ctx, client, owner, repo, pullNumber, pagination)
+				return GetIssueComments(ctx, client, owner, repo, pullNumber, cursorParams)
 			default:
 				return nil, fmt.Errorf("unknown method: %s", method)
 			}
@@ -218,10 +218,10 @@ func GetPullRequestStatus(ctx context.Context, client *github.Client, owner, rep
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-func GetPullRequestFiles(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+func GetPullRequestFiles(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, cursorParams *DecodedCursor) (*mcp.CallToolResult, error) {
 	opts := &github.ListOptions{
-		PerPage: pagination.PerPage,
-		Page:    pagination.Page,
+		PerPage: cursorParams.PerPage + 1, // Request one extra
+		Page:    cursorParams.Page,
 	}
 	files, resp, err := client.PullRequests.ListFiles(ctx, owner, repo, pullNumber, opts)
 	if err != nil {
@@ -241,19 +241,23 @@ func GetPullRequestFiles(ctx context.Context, client *github.Client, owner, repo
 		return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request files: %s", string(body))), nil
 	}
 
-	r, err := json.Marshal(files)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	// Check if there are more results
+	hasMore := len(files) > cursorParams.PerPage
+	if hasMore {
+		// Remove the extra item
+		files = files[:cursorParams.PerPage]
 	}
 
-	return mcp.NewToolResultText(string(r)), nil
+	// Create paginated response
+	paginatedResp := NewPaginatedRESTResponse(files, cursorParams.Page, cursorParams.PerPage, hasMore)
+	return MarshalPaginatedResponse(paginatedResp), nil
 }
 
-func GetPullRequestReviewComments(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+func GetPullRequestReviewComments(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, cursorParams *DecodedCursor) (*mcp.CallToolResult, error) {
 	opts := &github.PullRequestListCommentsOptions{
 		ListOptions: github.ListOptions{
-			PerPage: pagination.PerPage,
-			Page:    pagination.Page,
+			PerPage: cursorParams.PerPage + 1, // Request one extra
+			Page:    cursorParams.Page,
 		},
 	}
 
@@ -275,12 +279,16 @@ func GetPullRequestReviewComments(ctx context.Context, client *github.Client, ow
 		return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request review comments: %s", string(body))), nil
 	}
 
-	r, err := json.Marshal(comments)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	// Check if there are more results
+	hasMore := len(comments) > cursorParams.PerPage
+	if hasMore {
+		// Remove the extra item
+		comments = comments[:cursorParams.PerPage]
 	}
 
-	return mcp.NewToolResultText(string(r)), nil
+	// Create paginated response
+	paginatedResp := NewPaginatedRESTResponse(comments, cursorParams.Page, cursorParams.PerPage, hasMore)
+	return MarshalPaginatedResponse(paginatedResp), nil
 }
 
 func GetPullRequestReviews(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
@@ -777,7 +785,7 @@ func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFun
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			pagination, err := OptionalPaginationParams(request)
+			cursorParams, err := GetCursorBasedParams(request)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -788,8 +796,8 @@ func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFun
 				Sort:      sort,
 				Direction: direction,
 				ListOptions: github.ListOptions{
-					PerPage: pagination.PerPage,
-					Page:    pagination.Page,
+					PerPage: cursorParams.PerPage + 1, // Request one extra
+					Page:    cursorParams.Page,
 				},
 			}
 
@@ -815,6 +823,13 @@ func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFun
 				return mcp.NewToolResultError(fmt.Sprintf("failed to list pull requests: %s", string(body))), nil
 			}
 
+			// Check if there are more results
+			hasMore := len(prs) > cursorParams.PerPage
+			if hasMore {
+				// Remove the extra item
+				prs = prs[:cursorParams.PerPage]
+			}
+
 			// sanitize title/body on each PR
 			for _, pr := range prs {
 				if pr == nil {
@@ -828,12 +843,9 @@ func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFun
 				}
 			}
 
-			r, err := json.Marshal(prs)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			// Create paginated response
+			paginatedResp := NewPaginatedRESTResponse(prs, cursorParams.Page, cursorParams.PerPage, hasMore)
+			return MarshalPaginatedResponse(paginatedResp), nil
 		}
 }
 
