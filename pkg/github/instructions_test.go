@@ -37,6 +37,11 @@ func TestGenerateInstructions(t *testing.T) {
 			expectedEmpty:   false,
 		},
 		{
+			name:            "github_docs toolset",
+			enabledToolsets: []string{"github_docs"},
+			expectedEmpty:   false,
+		},
+		{
 			name:            "multiple toolsets (context + pull_requests)",
 			enabledToolsets: []string{"context", "pull_requests"},
 			expectedEmpty:   false,
@@ -141,6 +146,10 @@ func TestGetToolsetInstructions(t *testing.T) {
 		},
 		{
 			toolset:       "discussions",
+			expectedEmpty: false,
+		},
+		{
+			toolset:       "github_docs",
 			expectedEmpty: false,
 		},
 		{
