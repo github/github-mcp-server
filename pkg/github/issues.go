@@ -326,8 +326,8 @@ func GetIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Cl
 	}
 
 	if flags.LockdownMode {
-		if issue.User != nil && issue.Repository != nil && issue.Repository.Owner != nil && issue.Repository.Name != nil {
-			shouldRemoveContent, err := lockdown.ShouldRemoveContent(ctx, gqlClient, *issue.User.Login, *issue.Repository.Owner.Login, *issue.Repository.Name)
+		if issue.User != nil {
+			shouldRemoveContent, err := lockdown.ShouldRemoveContent(ctx, gqlClient, *issue.User.Login, owner, repo)
 			if err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
 			}
