@@ -9,7 +9,7 @@ import (
 )
 
 func ShouldRemoveContent(ctx context.Context, client *githubv4.Client, username, owner, repo string) (bool, error) {
-	isPrivate, err := IsPrivateRepo(ctx, client, owner, repo)
+	isPrivate, hasPushAccess, err := repoAccessInfo(ctx, client, username, owner, repo)
 	if err != nil {
 		return false, err
 	}
@@ -18,21 +18,18 @@ func ShouldRemoveContent(ctx context.Context, client *githubv4.Client, username,
 	if isPrivate {
 		return false, nil
 	}
-	hasPushAccess, err := HasPushAccess(ctx, client, username, owner, repo)
-	if err != nil {
-		return false, err
-	}
 
 	return !hasPushAccess, nil
 }
 
-func HasPushAccess(ctx context.Context, client *githubv4.Client, username, owner, repo string) (bool, error) {
+func repoAccessInfo(ctx context.Context, client *githubv4.Client, username, owner, repo string) (bool, bool, error) {
 	if client == nil {
-		return false, fmt.Errorf("nil GraphQL client")
+		return false, false, fmt.Errorf("nil GraphQL client")
 	}
 
 	var query struct {
 		Repository struct {
+			IsPrivate     githubv4.Boolean
 			Collaborators struct {
 				Edges []struct {
 					Permission githubv4.String
@@ -52,7 +49,7 @@ func HasPushAccess(ctx context.Context, client *githubv4.Client, username, owner
 
 	err := client.Query(ctx, &query, variables)
 	if err != nil {
-		return false, fmt.Errorf("failed to query user permissions: %w", err)
+		return false, false, fmt.Errorf("failed to query repository access info: %w", err)
 	}
 
 	// Check if the user has push access
@@ -67,30 +64,5 @@ func HasPushAccess(ctx context.Context, client *githubv4.Client, username, owner
 		}
 	}
 
-	return hasPush, nil
-}
-
-// IsPrivateRepo checks if a repository is private using GraphQL
-func IsPrivateRepo(ctx context.Context, client *githubv4.Client, owner, repo string) (bool, error) {
-	if client == nil {
-		return false, fmt.Errorf("nil GraphQL client")
-	}
-
-	var query struct {
-		Repository struct {
-			IsPrivate githubv4.Boolean
-		} `graphql:"repository(owner: $owner, name: $name)"`
-	}
-
-	variables := map[string]interface{}{
-		"owner": githubv4.String(owner),
-		"name":  githubv4.String(repo),
-	}
-
-	err := client.Query(ctx, &query, variables)
-	if err != nil {
-		return false, fmt.Errorf("failed to query repository visibility: %w", err)
-	}
-
-	return bool(query.Repository.IsPrivate), nil
+	return bool(query.Repository.IsPrivate), hasPush, nil
 }

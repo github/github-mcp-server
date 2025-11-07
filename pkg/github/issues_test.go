@@ -108,16 +108,28 @@ func Test_GetIssue(t *testing.T) {
 				githubv4mock.NewQueryMatcher(
 					struct {
 						Repository struct {
-							IsPrivate githubv4.Boolean
+							IsPrivate     githubv4.Boolean
+							Collaborators struct {
+								Edges []struct {
+									Permission githubv4.String
+									Node       struct {
+										Login githubv4.String
+									}
+								}
+							} `graphql:"collaborators(query: $username, first: 1)"`
 						} `graphql:"repository(owner: $owner, name: $name)"`
 					}{},
 					map[string]any{
-						"owner": githubv4.String("owner"),
-						"name":  githubv4.String("repo"),
+						"owner":    githubv4.String("owner"),
+						"name":     githubv4.String("repo"),
+						"username": githubv4.String("testuser"),
 					},
 					githubv4mock.DataResponse(map[string]any{
 						"repository": map[string]any{
 							"isPrivate": true,
+							"collaborators": map[string]any{
+								"edges": []any{},
+							},
 						},
 					}),
 				),
@@ -143,22 +155,7 @@ func Test_GetIssue(t *testing.T) {
 				githubv4mock.NewQueryMatcher(
 					struct {
 						Repository struct {
-							IsPrivate githubv4.Boolean
-						} `graphql:"repository(owner: $owner, name: $name)"`
-					}{},
-					map[string]any{
-						"owner": githubv4.String("owner"),
-						"name":  githubv4.String("repo"),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"isPrivate": false,
-						},
-					}),
-				),
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
+							IsPrivate     githubv4.Boolean
 							Collaborators struct {
 								Edges []struct {
 									Permission githubv4.String
@@ -176,6 +173,7 @@ func Test_GetIssue(t *testing.T) {
 					},
 					githubv4mock.DataResponse(map[string]any{
 						"repository": map[string]any{
+							"isPrivate": false,
 							"collaborators": map[string]any{
 								"edges": []any{
 									map[string]any{
