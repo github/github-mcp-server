@@ -8,6 +8,9 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+// ShouldRemoveContent determines if content should be removed based on
+// lockdown mode rules. It checks if the repository is private and if the user
+// has push access to the repository.
 func ShouldRemoveContent(ctx context.Context, client *githubv4.Client, username, owner, repo string) (bool, error) {
 	isPrivate, hasPushAccess, err := repoAccessInfo(ctx, client, username, owner, repo)
 	if err != nil {
