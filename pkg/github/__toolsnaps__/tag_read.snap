@@ -1,13 +1,17 @@
 {
   "annotations": {
-    "title": "List commits",
+    "title": "Read operations for git tags",
     "readOnlyHint": true
   },
-  "description": "Get list of commits of a branch in a GitHub repository. Returns at least 30 results per page by default, but can return more if specified using the perPage parameter (up to 100).",
+  "description": "Read operations for Git tags in a repository.\n\nAvailable methods:\n- list: List all git tags in a repository.\n- get: Get details about a specific git tag.\n",
   "inputSchema": {
     "properties": {
-      "author": {
-        "description": "Author username or email address to filter commits by",
+      "method": {
+        "description": "The read operation to perform on tags.",
+        "enum": [
+          "list",
+          "get"
+        ],
         "type": "string"
       },
       "owner": {
@@ -29,16 +33,17 @@
         "description": "Repository name",
         "type": "string"
       },
-      "sha": {
-        "description": "Commit SHA, branch or tag name to list commits of. If not provided, uses the default branch of the repository. If a commit SHA is provided, will list commits up to that SHA.",
+      "tag": {
+        "description": "Tag name (required for get method)",
         "type": "string"
       }
     },
     "required": [
+      "method",
       "owner",
       "repo"
     ],
     "type": "object"
   },
-  "name": "list_commits"
+  "name": "tag_read"
 }

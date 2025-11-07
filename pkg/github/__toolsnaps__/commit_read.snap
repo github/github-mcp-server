@@ -1,0 +1,58 @@
+{
+  "annotations": {
+    "title": "Read commits",
+    "readOnlyHint": true
+  },
+  "description": "Read commit data from a GitHub repository. Supports getting a single commit or listing commits.",
+  "inputSchema": {
+    "properties": {
+      "author": {
+        "description": "For 'list' method: Author username or email address to filter commits by",
+        "type": "string"
+      },
+      "include_diff": {
+        "default": true,
+        "description": "For 'get' method: Whether to include file diffs and stats in the response. Default is true.",
+        "type": "boolean"
+      },
+      "method": {
+        "description": "Method to use: 'get' for getting a single commit, 'list' for listing commits",
+        "enum": [
+          "get",
+          "list"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "page": {
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "sha": {
+        "description": "For 'get': Commit SHA, branch name, or tag name (required). For 'list': Commit SHA, branch or tag name to list commits of (optional).",
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "commit_read"
+}

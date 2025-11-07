@@ -1,15 +1,19 @@
 {
   "annotations": {
-    "title": "Get commit details",
+    "title": "Read operations for releases",
     "readOnlyHint": true
   },
-  "description": "Get details for a commit from a GitHub repository",
+  "description": "Read operations for GitHub releases in a repository.\n\nAvailable methods:\n- list: List all releases in a repository.\n- get_latest: Get the latest release in a repository.\n- get_by_tag: Get a specific release by its tag name.\n",
   "inputSchema": {
     "properties": {
-      "include_diff": {
-        "default": true,
-        "description": "Whether to include file diffs and stats in the response. Default is true.",
-        "type": "boolean"
+      "method": {
+        "description": "The read operation to perform on releases.",
+        "enum": [
+          "list",
+          "get_latest",
+          "get_by_tag"
+        ],
+        "type": "string"
       },
       "owner": {
         "description": "Repository owner",
@@ -30,17 +34,17 @@
         "description": "Repository name",
         "type": "string"
       },
-      "sha": {
-        "description": "Commit SHA, branch name, or tag name",
+      "tag": {
+        "description": "Tag name (required for get_by_tag method)",
         "type": "string"
       }
     },
     "required": [
+      "method",
       "owner",
-      "repo",
-      "sha"
+      "repo"
     ],
     "type": "object"
   },
-  "name": "get_commit"
+  "name": "release_read"
 }

@@ -1,0 +1,80 @@
+{
+  "annotations": {
+    "title": "Write operations (create, update, delete, push_files) on repository files",
+    "readOnlyHint": false
+  },
+  "description": "Write operations (create, update, delete, push_files) on repository files.\n\nAvailable methods:\n- create: Create a new file in a repository.\n- update: Update an existing file in a repository. Requires the SHA of the file being replaced.\n- delete: Delete a file from a repository.\n- push_files: Push multiple files to a repository in a single commit.\n",
+  "inputSchema": {
+    "properties": {
+      "branch": {
+        "description": "Branch to perform the operation on",
+        "type": "string"
+      },
+      "content": {
+        "description": "Content of the file (required for create and update methods)",
+        "type": "string"
+      },
+      "files": {
+        "description": "Array of file objects to push (required for push_files method), each object with path (string) and content (string)",
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "content": {
+              "description": "file content",
+              "type": "string"
+            },
+            "path": {
+              "description": "path to the file",
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "content"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "message": {
+        "description": "Commit message",
+        "type": "string"
+      },
+      "method": {
+        "description": "The write operation to perform on repository files.",
+        "enum": [
+          "create",
+          "update",
+          "delete",
+          "push_files"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "path": {
+        "description": "Path to the file (required for create, update, delete methods)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "sha": {
+        "description": "Blob SHA of the file being replaced (required for update method)",
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo",
+      "branch",
+      "message"
+    ],
+    "type": "object"
+  },
+  "name": "file_write"
+}
