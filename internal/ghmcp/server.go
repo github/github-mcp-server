@@ -51,6 +51,9 @@ type MCPServerConfig struct {
 
 	// Content window size
 	ContentWindowSize int
+
+	// LockdownEnabled indicates if we should enable lockdown mode
+	LockdownEnabled bool
 }
 
 const stdioServerLogPrefix = "stdioserver"
@@ -154,7 +157,15 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 	}
 
 	// Create default toolsets
-	tsg := github.DefaultToolsetGroup(cfg.ReadOnly, getClient, getGQLClient, getRawClient, cfg.Translator, cfg.ContentWindowSize)
+	tsg := github.DefaultToolsetGroup(
+		cfg.ReadOnly,
+		getClient,
+		getGQLClient,
+		getRawClient,
+		cfg.Translator,
+		cfg.ContentWindowSize,
+		github.FeatureFlags{LockdownEnabled: cfg.LockdownEnabled},
+	)
 	err = tsg.EnableToolsets(enabledToolsets, nil)
 
 	if err != nil {
@@ -205,6 +216,9 @@ type StdioServerConfig struct {
 
 	// Content window size
 	ContentWindowSize int
+
+	// LockdownEnabled indicates if we should enable lockdown mode
+	LockdownEnabled bool
 }
 
 // RunStdioServer is not concurrent safe.
@@ -224,6 +238,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		ReadOnly:          cfg.ReadOnly,
 		Translator:        t,
 		ContentWindowSize: cfg.ContentWindowSize,
+		LockdownEnabled:   cfg.LockdownEnabled,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)
@@ -245,7 +260,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelInfo})
 	}
 	logger := slog.New(slogHandler)
-	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "dynamicToolsets", cfg.DynamicToolsets, "readOnly", cfg.ReadOnly)
+	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "dynamicToolsets", cfg.DynamicToolsets, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownEnabled)
 	stdLogger := log.New(logOutput, stdioServerLogPrefix, 0)
 	stdioServer.SetErrorLogger(stdLogger)
 
