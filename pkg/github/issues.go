@@ -10,6 +10,7 @@ import (
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/go-viper/mapstructure/v2"
@@ -227,7 +228,7 @@ func fragmentToIssue(fragment IssueFragment) *github.Issue {
 }
 
 // GetIssue creates a tool to get details of a specific issue in a GitHub repository.
-func IssueRead(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func IssueRead(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("issue_read",
 			mcp.WithDescription(t("TOOL_ISSUE_READ_DESCRIPTION", "Get information about a specific issue in a GitHub repository.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -296,20 +297,20 @@ Options are:
 
 			switch method {
 			case "get":
-				return GetIssue(ctx, client, owner, repo, issueNumber)
+				return GetIssue(ctx, client, gqlClient, owner, repo, issueNumber, flags)
 			case "get_comments":
-				return GetIssueComments(ctx, client, owner, repo, issueNumber, pagination)
+				return GetIssueComments(ctx, client, owner, repo, issueNumber, pagination, flags)
 			case "get_sub_issues":
-				return GetSubIssues(ctx, client, owner, repo, issueNumber, pagination)
+				return GetSubIssues(ctx, client, owner, repo, issueNumber, pagination, flags)
 			case "get_labels":
-				return GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
+				return GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber, flags)
 			default:
 				return mcp.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil
 			}
 		}
 }
 
-func GetIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
+func GetIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, flags FeatureFlags) (*mcp.CallToolResult, error) {
 	issue, resp, err := client.Issues.Get(ctx, owner, repo, issueNumber)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get issue: %w", err)
@@ -322,6 +323,18 @@ func GetIssue(ctx context.Context, client *github.Client, owner string, repo str
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return mcp.NewToolResultError(fmt.Sprintf("failed to get issue: %s", string(body))), nil
+	}
+
+	if flags.LockdownMode {
+		if issue.User != nil {
+			shouldRemoveContent, err := lockdown.ShouldRemoveContent(ctx, gqlClient, *issue.User.Login, owner, repo)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
+			}
+			if shouldRemoveContent {
+				return mcp.NewToolResultError("access to issue details is restricted by lockdown mode"), nil
+			}
+		}
 	}
 
 	// Sanitize title/body on response
@@ -342,7 +355,7 @@ func GetIssue(ctx context.Context, client *github.Client, owner string, repo str
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-func GetIssueComments(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+func GetIssueComments(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, pagination PaginationParams, _ FeatureFlags) (*mcp.CallToolResult, error) {
 	opts := &github.IssueListCommentsOptions{
 		ListOptions: github.ListOptions{
 			Page:    pagination.Page,
@@ -372,7 +385,7 @@ func GetIssueComments(ctx context.Context, client *github.Client, owner string, 
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-func GetSubIssues(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+func GetSubIssues(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, pagination PaginationParams, _ FeatureFlags) (*mcp.CallToolResult, error) {
 	opts := &github.IssueListOptions{
 		ListOptions: github.ListOptions{
 			Page:    pagination.Page,
@@ -407,7 +420,7 @@ func GetSubIssues(ctx context.Context, client *github.Client, owner string, repo
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
+func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, repo string, issueNumber int, _ FeatureFlags) (*mcp.CallToolResult, error) {
 	// Get current labels on the issue using GraphQL
 	var query struct {
 		Repository struct {

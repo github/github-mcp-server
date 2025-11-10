@@ -22,8 +22,8 @@ import (
 func Test_GetIssue(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	mockGQLClient := githubv4.NewClient(nil)
-	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(mockGQLClient), translations.NullTranslationHelper)
+	defaultGQLClient := githubv4.NewClient(nil)
+	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(defaultGQLClient), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "issue_read", tool.Name)
@@ -44,15 +44,24 @@ func Test_GetIssue(t *testing.T) {
 		User: &github.User{
 			Login: github.Ptr("testuser"),
 		},
+		Repository: &github.Repository{
+			Name: github.Ptr("repo"),
+			Owner: &github.User{
+				Login: github.Ptr("owner"),
+			},
+		},
 	}
 
 	tests := []struct {
-		name           string
-		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
-		expectError    bool
-		expectedIssue  *github.Issue
-		expectedErrMsg string
+		name               string
+		mockedClient       *http.Client
+		gqlHTTPClient      *http.Client
+		requestArgs        map[string]interface{}
+		expectHandlerError bool
+		expectResultError  bool
+		expectedIssue      *github.Issue
+		expectedErrMsg     string
+		lockdownEnabled    bool
 	}{
 		{
 			name: "successful issue retrieval",
@@ -68,7 +77,6 @@ func Test_GetIssue(t *testing.T) {
 				"repo":         "repo",
 				"issue_number": float64(42),
 			},
-			expectError:   false,
 			expectedIssue: mockIssue,
 		},
 		{
@@ -85,34 +93,147 @@ func Test_GetIssue(t *testing.T) {
 				"repo":         "repo",
 				"issue_number": float64(999),
 			},
-			expectError:    true,
-			expectedErrMsg: "failed to get issue",
+			expectHandlerError: true,
+			expectedErrMsg:     "failed to get issue",
+		},
+		{
+			name: "lockdown enabled - private repository",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
+					mockIssue,
+				),
+			),
+			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							IsPrivate     githubv4.Boolean
+							Collaborators struct {
+								Edges []struct {
+									Permission githubv4.String
+									Node       struct {
+										Login githubv4.String
+									}
+								}
+							} `graphql:"collaborators(query: $username, first: 1)"`
+						} `graphql:"repository(owner: $owner, name: $name)"`
+					}{},
+					map[string]any{
+						"owner":    githubv4.String("owner"),
+						"name":     githubv4.String("repo"),
+						"username": githubv4.String("testuser"),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"isPrivate": true,
+							"collaborators": map[string]any{
+								"edges": []any{},
+							},
+						},
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"method":       "get",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectedIssue:   mockIssue,
+			lockdownEnabled: true,
+		},
+		{
+			name: "lockdown enabled - user lacks push access",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
+					mockIssue,
+				),
+			),
+			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							IsPrivate     githubv4.Boolean
+							Collaborators struct {
+								Edges []struct {
+									Permission githubv4.String
+									Node       struct {
+										Login githubv4.String
+									}
+								}
+							} `graphql:"collaborators(query: $username, first: 1)"`
+						} `graphql:"repository(owner: $owner, name: $name)"`
+					}{},
+					map[string]any{
+						"owner":    githubv4.String("owner"),
+						"name":     githubv4.String("repo"),
+						"username": githubv4.String("testuser"),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"isPrivate": false,
+							"collaborators": map[string]any{
+								"edges": []any{
+									map[string]any{
+										"permission": "READ",
+										"node": map[string]any{
+											"login": "testuser",
+										},
+									},
+								},
+							},
+						},
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"method":       "get",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectResultError: true,
+			expectedErrMsg:    "access to issue details is restricted by lockdown mode",
+			lockdownEnabled:   true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(mockGQLClient), translations.NullTranslationHelper)
 
-			// Create call request
+			var gqlClient *githubv4.Client
+			if tc.gqlHTTPClient != nil {
+				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
+			} else {
+				gqlClient = defaultGQLClient
+			}
+
+			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
+			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper, flags)
+
 			request := createMCPRequest(tc.requestArgs)
-
-			// Call handler
 			result, err := handler(context.Background(), request)
 
-			// Verify results
-			if tc.expectError {
+			if tc.expectHandlerError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedErrMsg)
 				return
 			}
 
 			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			if tc.expectResultError {
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
 			var returnedIssue github.Issue
 			err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 			require.NoError(t, err)
@@ -1589,7 +1710,7 @@ func Test_GetIssueComments(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
 	gqlClient := githubv4.NewClient(nil)
-	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "issue_read", tool.Name)
@@ -1695,7 +1816,7 @@ func Test_GetIssueComments(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
 			gqlClient := githubv4.NewClient(nil)
-			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1732,7 +1853,7 @@ func Test_GetIssueLabels(t *testing.T) {
 	// Verify tool definition
 	mockGQClient := githubv4.NewClient(nil)
 	mockClient := github.NewClient(nil)
-	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(mockGQClient), translations.NullTranslationHelper)
+	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(mockGQClient), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "issue_read", tool.Name)
@@ -1807,7 +1928,7 @@ func Test_GetIssueLabels(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			gqlClient := githubv4.NewClient(tc.mockedClient)
 			client := github.NewClient(nil)
-			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 
 			request := createMCPRequest(tc.requestArgs)
 			result, err := handler(context.Background(), request)
@@ -2498,7 +2619,7 @@ func Test_GetSubIssues(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
 	gqlClient := githubv4.NewClient(nil)
-	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "issue_read", tool.Name)
@@ -2695,7 +2816,7 @@ func Test_GetSubIssues(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
 			gqlClient := githubv4.NewClient(nil)
-			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)

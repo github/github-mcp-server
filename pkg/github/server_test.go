@@ -38,6 +38,12 @@ func stubGetGQLClientFn(client *githubv4.Client) GetGQLClientFn {
 	}
 }
 
+func stubFeatureFlags(enabledFlags map[string]bool) FeatureFlags {
+	return FeatureFlags{
+		LockdownMode: enabledFlags["lockdown-mode"],
+	}
+}
+
 func stubGetRawClientFn(client *raw.Client) raw.GetRawClientFn {
 	return func(_ context.Context) (*raw.Client, error) {
 		return client, nil

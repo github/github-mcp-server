@@ -19,7 +19,7 @@ import (
 )
 
 // GetPullRequest creates a tool to get details of a specific pull request.
-func PullRequestRead(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+func PullRequestRead(getClient GetClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("pull_request_read",
 			mcp.WithDescription(t("TOOL_PULL_REQUEST_READ_DESCRIPTION", "Get information on a specific pull request in GitHub repository.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -98,7 +98,7 @@ Possible options:
 			case "get_reviews":
 				return GetPullRequestReviews(ctx, client, owner, repo, pullNumber)
 			case "get_comments":
-				return GetIssueComments(ctx, client, owner, repo, pullNumber, pagination)
+				return GetIssueComments(ctx, client, owner, repo, pullNumber, pagination, flags)
 			default:
 				return nil, fmt.Errorf("unknown method: %s", method)
 			}
