@@ -8,7 +8,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/toolsets"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v76/github"
+	"github.com/google/go-github/v77/github"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/shurcooL/githubv4"
 )
@@ -38,6 +38,10 @@ var (
 	ToolsetMetadataRepos = ToolsetMetadata{
 		ID:          "repos",
 		Description: "GitHub Repository related tools",
+	}
+	ToolsetMetadataGit = ToolsetMetadata{
+		ID:          "git",
+		Description: "GitHub Git API related tools for low-level Git operations",
 	}
 	ToolsetMetadataIssues = ToolsetMetadata{
 		ID:          "issues",
@@ -155,7 +159,7 @@ func GetDefaultToolsetIDs() []string {
 	}
 }
 
-func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetGQLClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc, contentWindowSize int) *toolsets.ToolsetGroup {
+func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetGQLClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc, contentWindowSize int, flags FeatureFlags) *toolsets.ToolsetGroup {
 	tsg := toolsets.NewToolsetGroup(readOnly)
 
 	// Define all available features with their default state (disabled)
@@ -189,9 +193,13 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerResourceTemplate(GetRepositoryResourceTagContent(getClient, getRawClient, t)),
 			toolsets.NewServerResourceTemplate(GetRepositoryResourcePrContent(getClient, getRawClient, t)),
 		)
+	git := toolsets.NewToolset(ToolsetMetadataGit.ID, ToolsetMetadataGit.Description).
+		AddReadTools(
+			toolsets.NewServerTool(GetRepositoryTree(getClient, t)),
+		)
 	issues := toolsets.NewToolset(ToolsetMetadataIssues.ID, ToolsetMetadataIssues.Description).
 		AddReadTools(
-			toolsets.NewServerTool(IssueRead(getClient, getGQLClient, t)),
+			toolsets.NewServerTool(IssueRead(getClient, getGQLClient, t, flags)),
 			toolsets.NewServerTool(SearchIssues(getClient, t)),
 			toolsets.NewServerTool(ListIssues(getGQLClient, t)),
 			toolsets.NewServerTool(ListIssueTypes(getClient, t)),
@@ -216,7 +224,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		)
 	pullRequests := toolsets.NewToolset(ToolsetMetadataPullRequests.ID, ToolsetMetadataPullRequests.Description).
 		AddReadTools(
-			toolsets.NewServerTool(PullRequestRead(getClient, t)),
+			toolsets.NewServerTool(PullRequestRead(getClient, t, flags)),
 			toolsets.NewServerTool(ListPullRequests(getClient, t)),
 			toolsets.NewServerTool(SearchPullRequests(getClient, t)),
 		).
@@ -353,6 +361,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	// Add toolsets to the group
 	tsg.AddToolset(contextTools)
 	tsg.AddToolset(repos)
+	tsg.AddToolset(git)
 	tsg.AddToolset(issues)
 	tsg.AddToolset(orgs)
 	tsg.AddToolset(users)

@@ -12,7 +12,7 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v76/github"
+	"github.com/google/go-github/v77/github"
 	"github.com/google/go-querystring/query"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -69,17 +69,22 @@ func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (
 
 			var resp *github.Response
 			var projects []*github.ProjectV2
-			minimalProjects := []MinimalProject{}
+			var queryPtr *string
 
+			if queryStr != "" {
+				queryPtr = &queryStr
+			}
+
+			minimalProjects := []MinimalProject{}
 			opts := &github.ListProjectsOptions{
-				ListProjectsPaginationOptions: github.ListProjectsPaginationOptions{PerPage: perPage},
-				Query:                         queryStr,
+				ListProjectsPaginationOptions: github.ListProjectsPaginationOptions{PerPage: &perPage},
+				Query:                         queryPtr,
 			}
 
 			if ownerType == "org" {
-				projects, resp, err = client.Projects.ListProjectsForOrg(ctx, owner, opts)
+				projects, resp, err = client.Projects.ListOrganizationProjects(ctx, owner, opts)
 			} else {
-				projects, resp, err = client.Projects.ListProjectsForUser(ctx, owner, opts)
+				projects, resp, err = client.Projects.ListUserProjects(ctx, owner, opts)
 			}
 
 			if err != nil {
@@ -157,9 +162,9 @@ func GetProject(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 			var project *github.ProjectV2
 
 			if ownerType == "org" {
-				project, resp, err = client.Projects.GetProjectForOrg(ctx, owner, projectNumber)
+				project, resp, err = client.Projects.GetOrganizationProject(ctx, owner, projectNumber)
 			} else {
-				project, resp, err = client.Projects.GetProjectForUser(ctx, owner, projectNumber)
+				project, resp, err = client.Projects.GetUserProject(ctx, owner, projectNumber)
 			}
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -232,27 +237,19 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			var url string
+			var resp *github.Response
+			var projectFields []*github.ProjectV2Field
+
+			opts := &github.ListProjectsOptions{
+				ListProjectsPaginationOptions: github.ListProjectsPaginationOptions{PerPage: &perPage},
+			}
+
 			if ownerType == "org" {
-				url = fmt.Sprintf("orgs/%s/projectsV2/%d/fields", owner, projectNumber)
+				projectFields, resp, err = client.Projects.ListOrganizationProjectFields(ctx, owner, projectNumber, opts)
 			} else {
-				url = fmt.Sprintf("users/%s/projectsV2/%d/fields", owner, projectNumber)
-			}
-			projectFields := []projectV2Field{}
-
-			opts := paginationOptions{PerPage: perPage}
-
-			url, err = addOptions(url, opts)
-			if err != nil {
-				return nil, fmt.Errorf("failed to add options to request: %w", err)
+				projectFields, resp, err = client.Projects.ListUserProjectFields(ctx, owner, projectNumber, opts)
 			}
 
-			httpRequest, err := client.NewRequest("GET", url, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create request: %w", err)
-			}
-
-			resp, err := client.Do(ctx, httpRequest, &projectFields)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to list project fields",
@@ -312,7 +309,7 @@ func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			fieldID, err := RequiredInt(req, "field_id")
+			fieldID, err := RequiredBigInt(req, "field_id")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -321,21 +318,15 @@ func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			var url string
+			var resp *github.Response
+			var projectField *github.ProjectV2Field
+
 			if ownerType == "org" {
-				url = fmt.Sprintf("orgs/%s/projectsV2/%d/fields/%d", owner, projectNumber, fieldID)
+				projectField, resp, err = client.Projects.GetOrganizationProjectField(ctx, owner, projectNumber, fieldID)
 			} else {
-				url = fmt.Sprintf("users/%s/projectsV2/%d/fields/%d", owner, projectNumber, fieldID)
+				projectField, resp, err = client.Projects.GetUserProjectField(ctx, owner, projectNumber, fieldID)
 			}
 
-			projectField := projectV2Field{}
-
-			httpRequest, err := client.NewRequest("GET", url, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create request: %w", err)
-			}
-
-			resp, err := client.Do(ctx, httpRequest, &projectField)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to get project field",
@@ -411,41 +402,37 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			fields, err := OptionalStringArrayParam(req, "fields")
+			fields, err := OptionalBigIntArrayParam(req, "fields")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-
 			client, err := getClient(ctx)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			var url string
+			var resp *github.Response
+			var projectItems []*github.ProjectV2Item
+			var queryPtr *string
+
+			if queryStr != "" {
+				queryPtr = &queryStr
+			}
+
+			opts := &github.ListProjectItemsOptions{
+				Fields: fields,
+				ListProjectsOptions: github.ListProjectsOptions{
+					ListProjectsPaginationOptions: github.ListProjectsPaginationOptions{PerPage: &perPage},
+					Query:                         queryPtr,
+				},
+			}
+
 			if ownerType == "org" {
-				url = fmt.Sprintf("orgs/%s/projectsV2/%d/items", owner, projectNumber)
+				projectItems, resp, err = client.Projects.ListOrganizationProjectItems(ctx, owner, projectNumber, opts)
 			} else {
-				url = fmt.Sprintf("users/%s/projectsV2/%d/items", owner, projectNumber)
-			}
-			projectItems := []projectV2Item{}
-
-			opts := listProjectItemsOptions{
-				paginationOptions:     paginationOptions{PerPage: perPage},
-				filterQueryOptions:    filterQueryOptions{Query: queryStr},
-				fieldSelectionOptions: fieldSelectionOptions{Fields: fields},
+				projectItems, resp, err = client.Projects.ListUserProjectItems(ctx, owner, projectNumber, opts)
 			}
 
-			url, err = addOptions(url, opts)
-			if err != nil {
-				return nil, fmt.Errorf("failed to add options to request: %w", err)
-			}
-
-			httpRequest, err := client.NewRequest("GET", url, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create request: %w", err)
-			}
-
-			resp, err := client.Do(ctx, httpRequest, &projectItems)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					ProjectListFailedError,
@@ -513,11 +500,11 @@ func GetProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			itemID, err := RequiredInt(req, "item_id")
+			itemID, err := RequiredBigInt(req, "item_id")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			fields, err := OptionalStringArrayParam(req, "fields")
+			fields, err := OptionalBigIntArrayParam(req, "fields")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -619,7 +606,7 @@ func AddProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			itemID, err := RequiredInt(req, "item_id")
+			itemID, err := RequiredBigInt(req, "item_id")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -637,24 +624,20 @@ func AddProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			var projectsURL string
-			if ownerType == "org" {
-				projectsURL = fmt.Sprintf("orgs/%s/projectsV2/%d/items", owner, projectNumber)
-			} else {
-				projectsURL = fmt.Sprintf("users/%s/projectsV2/%d/items", owner, projectNumber)
-			}
-
-			newItem := &newProjectItem{
-				ID:   int64(itemID),
+			newItem := &github.AddProjectItemOptions{
+				ID:   itemID,
 				Type: toNewProjectType(itemType),
 			}
-			httpRequest, err := client.NewRequest("POST", projectsURL, newItem)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create request: %w", err)
-			}
-			addedItem := projectV2Item{}
 
-			resp, err := client.Do(ctx, httpRequest, &addedItem)
+			var resp *github.Response
+			var addedItem *github.ProjectV2Item
+
+			if ownerType == "org" {
+				addedItem, resp, err = client.Projects.AddOrganizationProjectItem(ctx, owner, projectNumber, newItem)
+			} else {
+				addedItem, resp, err = client.Projects.AddUserProjectItem(ctx, owner, projectNumber, newItem)
+			}
+
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					ProjectAddFailedError,
@@ -822,7 +805,7 @@ func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			itemID, err := RequiredInt(req, "item_id")
+			itemID, err := RequiredBigInt(req, "item_id")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -831,19 +814,13 @@ func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			var projectsURL string
+			var resp *github.Response
 			if ownerType == "org" {
-				projectsURL = fmt.Sprintf("orgs/%s/projectsV2/%d/items/%d", owner, projectNumber, itemID)
+				resp, err = client.Projects.DeleteOrganizationProjectItem(ctx, owner, projectNumber, itemID)
 			} else {
-				projectsURL = fmt.Sprintf("users/%s/projectsV2/%d/items/%d", owner, projectNumber, itemID)
+				resp, err = client.Projects.DeleteUserProjectItem(ctx, owner, projectNumber, itemID)
 			}
 
-			httpRequest, err := client.NewRequest("DELETE", projectsURL, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create request: %w", err)
-			}
-
-			resp, err := client.Do(ctx, httpRequest, nil)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					ProjectDeleteFailedError,
@@ -864,9 +841,10 @@ func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 		}
 }
 
-type newProjectItem struct {
-	ID   int64  `json:"id,omitempty"`
-	Type string `json:"type,omitempty"`
+type fieldSelectionOptions struct {
+	// Specific list of field IDs to include in the response. If not provided, only the title field is included.
+	// The comma tag encodes the slice as comma-separated values: fields=102589,985201,169875
+	Fields []int64 `url:"fields,omitempty,comma"`
 }
 
 type updateProjectItemPayload struct {
@@ -876,17 +854,6 @@ type updateProjectItemPayload struct {
 type updateProjectItem struct {
 	ID    int `json:"id"`
 	Value any `json:"value"`
-}
-
-type projectV2Field struct {
-	ID        *int64            `json:"id,omitempty"`         // The unique identifier for this field.
-	NodeID    string            `json:"node_id,omitempty"`    // The GraphQL node ID for this field.
-	Name      string            `json:"name,omitempty"`       // The display name of the field.
-	DataType  string            `json:"data_type,omitempty"`  // The data type of the field (e.g., "text", "number", "date", "single_select", "multi_select").
-	URL       string            `json:"url,omitempty"`        // The API URL for this field.
-	Options   []*any            `json:"options,omitempty"`    // Available options for single_select and multi_select fields.
-	CreatedAt *github.Timestamp `json:"created_at,omitempty"` // The time when this field was created.
-	UpdatedAt *github.Timestamp `json:"updated_at,omitempty"` // The time when this field was last updated.
 }
 
 type projectV2ItemFieldValue struct {
@@ -924,26 +891,6 @@ type projectV2ItemContent struct {
 	Title       *string           `json:"title,omitempty"`
 	UpdatedAt   *github.Timestamp `json:"updated_at,omitempty"`
 	URL         *string           `json:"url,omitempty"`
-}
-
-type paginationOptions struct {
-	PerPage int `url:"per_page,omitempty"`
-}
-
-type filterQueryOptions struct {
-	Query string `url:"q,omitempty"`
-}
-
-type fieldSelectionOptions struct {
-	// Specific list of field IDs to include in the response. If not provided, only the title field is included.
-	// Example: fields=102589,985201,169875 or fields[]=102589&fields[]=985201&fields[]=169875
-	Fields []string `url:"fields,omitempty"`
-}
-
-type listProjectItemsOptions struct {
-	paginationOptions
-	filterQueryOptions
-	fieldSelectionOptions
 }
 
 func toNewProjectType(projType string) string {
@@ -989,18 +936,28 @@ func addOptions(s string, opts any) (string, error) {
 		return s, nil
 	}
 
-	u, err := url.Parse(s)
+	origURL, err := url.Parse(s)
 	if err != nil {
 		return s, err
 	}
 
-	qs, err := query.Values(opts)
+	origValues := origURL.Query()
+
+	// Use the github.com/google/go-querystring library to parse the struct
+	newValues, err := query.Values(opts)
 	if err != nil {
 		return s, err
 	}
 
-	u.RawQuery = qs.Encode()
-	return u.String(), nil
+	// Merge the values
+	for key, values := range newValues {
+		for _, value := range values {
+			origValues.Add(key, value)
+		}
+	}
+
+	origURL.RawQuery = origValues.Encode()
+	return origURL.String(), nil
 }
 
 func ManageProjectItemsPrompt(t translations.TranslationHelperFunc) (tool mcp.Prompt, handler server.PromptHandlerFunc) {
