@@ -433,6 +433,7 @@ The following sets of tools are available:
 | `discussions` | GitHub Discussions related tools |
 | `experiments` | Experimental features that are not considered stable yet |
 | `gists` | GitHub Gist related tools |
+| `git` | GitHub Git API related tools for low-level Git operations |
 | `issues` | GitHub Issues related tools |
 | `labels` | GitHub Labels related tools |
 | `notifications` | GitHub Notifications related tools |
@@ -658,6 +659,19 @@ The following sets of tools are available:
   - `description`: Updated description of the gist (string, optional)
   - `filename`: Filename to update or create (string, required)
   - `gist_id`: ID of the gist to update (string, required)
+
+</details>
+
+<details>
+
+<summary>Git</summary>
+
+- **get_repository_tree** - Get repository tree
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `path_filter`: Optional path prefix to filter the tree results (e.g., 'src/' to only show files in the src directory) (string, optional)
+  - `recursive`: Setting this parameter to true returns the objects or subtrees referenced by the tree. Default is false (boolean, optional)
+  - `repo`: Repository name (string, required)
+  - `tree_sha`: The SHA1 value or ref (branch or tag) name of the tree. Defaults to the repository's default branch (string, optional)
 
 </details>
 
@@ -1274,6 +1288,25 @@ docker run -i --rm \
   -e GITHUB_READ_ONLY=1 \
   ghcr.io/github/github-mcp-server
 ```
+
+## Lockdown Mode
+
+Lockdown mode limits the content that the server will surface from public repositories. When enabled, requests that fetch issue details will return an error if the issue was created by someone who does not have push access to the repository. Private repositories are unaffected, and collaborators can still access their own issues.
+
+```bash
+./github-mcp-server --lockdown-mode
+```
+
+When running with Docker, set the corresponding environment variable:
+
+```bash
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_LOCKDOWN_MODE=1 \
+  ghcr.io/github/github-mcp-server
+```
+
+At the moment lockdown mode applies to the issue read toolset, but it is designed to extend to additional data surfaces over time.
 
 ## i18n / Overriding Descriptions
 

@@ -9,7 +9,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	gh "github.com/google/go-github/v76/github"
+	gh "github.com/google/go-github/v77/github"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -653,8 +653,8 @@ func Test_ListProjectItems(t *testing.T) {
 					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodGet},
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						q := r.URL.Query()
-						fieldParams := q["fields"]
-						if len(fieldParams) == 3 && fieldParams[0] == "123" && fieldParams[1] == "456" && fieldParams[2] == "789" {
+						fieldParams := q.Get("fields")
+						if fieldParams == "123,456,789" {
 							w.WriteHeader(http.StatusOK)
 							_, _ = w.Write(mock.MustMarshal(orgItems))
 							return
@@ -852,8 +852,8 @@ func Test_GetProjectItem(t *testing.T) {
 					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodGet},
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						q := r.URL.Query()
-						fieldParams := q["fields"]
-						if len(fieldParams) == 2 && fieldParams[0] == "123" && fieldParams[1] == "456" {
+						fieldParams := q.Get("fields")
+						if fieldParams == "123,456" {
 							w.WriteHeader(http.StatusOK)
 							_, _ = w.Write(mock.MustMarshal(orgItem))
 							return

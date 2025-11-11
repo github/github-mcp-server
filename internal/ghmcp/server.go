@@ -19,7 +19,7 @@ import (
 	mcplog "github.com/github/github-mcp-server/pkg/log"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
-	gogithub "github.com/google/go-github/v76/github"
+	gogithub "github.com/google/go-github/v77/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/shurcooL/githubv4"
@@ -55,6 +55,9 @@ type MCPServerConfig struct {
 
 	// Content window size
 	ContentWindowSize int
+
+	// LockdownMode indicates if we should enable lockdown mode
+	LockdownMode bool
 }
 
 const stdioServerLogPrefix = "stdioserver"
@@ -158,7 +161,15 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 	}
 
 	// Create default toolsets
-	tsg := github.DefaultToolsetGroup(cfg.ReadOnly, getClient, getGQLClient, getRawClient, cfg.Translator, cfg.ContentWindowSize)
+	tsg := github.DefaultToolsetGroup(
+		cfg.ReadOnly,
+		getClient,
+		getGQLClient,
+		getRawClient,
+		cfg.Translator,
+		cfg.ContentWindowSize,
+		github.FeatureFlags{LockdownMode: cfg.LockdownMode},
+	)
 
 	// PRIORITY: If specific tools are configured, use tool-level registration
 	if len(cfg.EnabledTools) > 0 {
@@ -237,6 +248,9 @@ type StdioServerConfig struct {
 
 	// Content window size
 	ContentWindowSize int
+
+	// LockdownMode indicates if we should enable lockdown mode
+	LockdownMode bool
 }
 
 // RunStdioServer is not concurrent safe.
@@ -257,6 +271,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		ReadOnly:          cfg.ReadOnly,
 		Translator:        t,
 		ContentWindowSize: cfg.ContentWindowSize,
+		LockdownMode:      cfg.LockdownMode,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)
@@ -278,7 +293,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelInfo})
 	}
 	logger := slog.New(slogHandler)
-	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "dynamicToolsets", cfg.DynamicToolsets, "readOnly", cfg.ReadOnly)
+	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "dynamicToolsets", cfg.DynamicToolsets, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode)
 	stdLogger := log.New(logOutput, stdioServerLogPrefix, 0)
 	stdioServer.SetErrorLogger(stdLogger)
 
