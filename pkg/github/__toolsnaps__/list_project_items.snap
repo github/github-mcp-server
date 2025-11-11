@@ -3,11 +3,19 @@
     "title": "List project items",
     "readOnlyHint": true
   },
-  "description": "List Project items for a user or org",
+  "description": "Search project items with advanced filtering",
   "inputSchema": {
     "properties": {
+      "after": {
+        "description": "Forward pagination cursor from previous pageInfo.nextCursor.",
+        "type": "string"
+      },
+      "before": {
+        "description": "Backward pagination cursor from previous pageInfo.prevCursor (rare).",
+        "type": "string"
+      },
       "fields": {
-        "description": "Specific list of field IDs to include in the response (e.g. [\"102589\", \"985201\", \"169875\"]). If not provided, only the title field is included.",
+        "description": "Field IDs to include (e.g. [\"102589\", \"985201\"]). CRITICAL: Always provide to get field values. Without this, only titles returned.",
         "items": {
           "type": "string"
         },
@@ -26,7 +34,7 @@
         "type": "string"
       },
       "per_page": {
-        "description": "Number of results per page (max 100, default: 30)",
+        "description": "Results per page (max 50)",
         "type": "number"
       },
       "project_number": {
@@ -34,7 +42,7 @@
         "type": "number"
       },
       "query": {
-        "description": "Search query to filter items",
+        "description": "Query string for advanced filtering of project items using GitHub's project filtering syntax.",
         "type": "string"
       }
     },
