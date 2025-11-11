@@ -121,7 +121,7 @@ Syntax Essentials (items):
    Quote multi-word values. (status:"In Review" team-name:"Backend Team").
    Ranges: points:1..3, updated:<@today-30d.
    Wildcards: title:*crash*, label:bug*.
-	 Assigned to User: assignee:@me | assignee:username | no:assignee
+   Assigned to User: assignee:@me | assignee:username | no:assignee
 
 Common Qualifier Glossary (items):
    is:issue | is:pr | state:open|closed|merged | assignee:@me|username | label:NAME | status:VALUE |
