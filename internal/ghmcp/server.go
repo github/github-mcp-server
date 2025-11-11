@@ -39,6 +39,10 @@ type MCPServerConfig struct {
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration
 	EnabledToolsets []string
 
+	// EnabledTools is a list of specific tools to enable (takes priority over toolsets)
+	// When specified, only these tools will be registered, bypassing toolset enablement
+	EnabledTools []string
+
 	// Whether to enable dynamic toolsets
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#dynamic-tool-discovery
 	DynamicToolsets bool
@@ -155,18 +159,42 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 
 	// Create default toolsets
 	tsg := github.DefaultToolsetGroup(cfg.ReadOnly, getClient, getGQLClient, getRawClient, cfg.Translator, cfg.ContentWindowSize)
-	err = tsg.EnableToolsets(enabledToolsets, nil)
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to enable toolsets: %w", err)
-	}
+	// PRIORITY: If specific tools are configured, use tool-level registration
+	if len(cfg.EnabledTools) > 0 {
+		// Clean and validate tool names
+		enabledTools, invalidTools := github.CleanTools(cfg.EnabledTools)
 
-	// Register all mcp functionality with the server
-	tsg.RegisterAll(ghServer)
+		if len(invalidTools) > 0 {
+			fmt.Fprintf(os.Stderr, "Invalid tools ignored: %s\n", strings.Join(invalidTools, ", "))
+		}
 
-	if cfg.DynamicToolsets {
-		dynamic := github.InitDynamicToolset(ghServer, tsg, cfg.Translator)
-		dynamic.RegisterTools(ghServer)
+		// Register only the specified tools (bypasses toolset enablement)
+		err = tsg.RegisterSpecificTools(ghServer, enabledTools, cfg.ReadOnly)
+		if err != nil {
+			return nil, fmt.Errorf("failed to register tools: %w", err)
+		}
+
+		// Still register resources and prompts from all toolsets to maintain functionality
+		for _, toolset := range tsg.Toolsets {
+			toolset.RegisterResourcesTemplates(ghServer)
+			toolset.RegisterPrompts(ghServer)
+		}
+	} else {
+		// EXISTING FLOW: Use toolset-based registration
+		err = tsg.EnableToolsets(enabledToolsets, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to enable toolsets: %w", err)
+		}
+
+		// Register all mcp functionality with the server
+		tsg.RegisterAll(ghServer)
+
+		// Dynamic toolsets only work if no specific tools configured
+		if cfg.DynamicToolsets {
+			dynamic := github.InitDynamicToolset(ghServer, tsg, cfg.Translator)
+			dynamic.RegisterTools(ghServer)
+		}
 	}
 
 	return ghServer, nil
@@ -185,6 +213,10 @@ type StdioServerConfig struct {
 	// EnabledToolsets is a list of toolsets to enable
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration
 	EnabledToolsets []string
+
+	// EnabledTools is a list of specific tools to enable (takes priority over toolsets)
+	// When specified, only these tools will be registered, bypassing toolset enablement
+	EnabledTools []string
 
 	// Whether to enable dynamic toolsets
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#dynamic-tool-discovery
@@ -220,6 +252,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		Host:              cfg.Host,
 		Token:             cfg.Token,
 		EnabledToolsets:   cfg.EnabledToolsets,
+		EnabledTools:      cfg.EnabledTools,
 		DynamicToolsets:   cfg.DynamicToolsets,
 		ReadOnly:          cfg.ReadOnly,
 		Translator:        t,
