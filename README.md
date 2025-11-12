@@ -1262,6 +1262,25 @@ docker run -i --rm \
   ghcr.io/github/github-mcp-server
 ```
 
+## Lockdown Mode
+
+Lockdown mode limits the content that the server will surface from public repositories. When enabled, requests that fetch issue details will return an error if the issue was created by someone who does not have push access to the repository. Private repositories are unaffected, and collaborators can still access their own issues.
+
+```bash
+./github-mcp-server --lockdown-mode
+```
+
+When running with Docker, set the corresponding environment variable:
+
+```bash
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_LOCKDOWN_MODE=1 \
+  ghcr.io/github/github-mcp-server
+```
+
+At the moment lockdown mode applies to the issue read toolset, but it is designed to extend to additional data surfaces over time.
+
 ## i18n / Overriding Descriptions
 
 The descriptions of the tools can be overridden by creating a
