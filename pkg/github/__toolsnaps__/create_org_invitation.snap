@@ -1,0 +1,46 @@
+{
+  "annotations": {
+    "title": "Create Organization Invitation",
+    "readOnlyHint": false
+  },
+  "description": "Invite a user to join an organization by GitHub user ID or email address. Requires organization owner permissions. This endpoint triggers notifications and may be subject to rate limiting.",
+  "inputSchema": {
+    "properties": {
+      "email": {
+        "description": "Email address of the person you are inviting. Required unless invitee_id is provided.",
+        "type": "string"
+      },
+      "invitee_id": {
+        "description": "GitHub user ID for the person you are inviting. Required unless email is provided.",
+        "type": "number"
+      },
+      "org": {
+        "description": "The organization name (not case sensitive)",
+        "type": "string"
+      },
+      "role": {
+        "default": "direct_member",
+        "description": "The role for the new member",
+        "enum": [
+          "admin",
+          "direct_member",
+          "billing_manager",
+          "reinstate"
+        ],
+        "type": "string"
+      },
+      "team_ids": {
+        "description": "Team IDs to invite new members to",
+        "items": {
+          "type": "number"
+        },
+        "type": "array"
+      }
+    },
+    "required": [
+      "org"
+    ],
+    "type": "object"
+  },
+  "name": "create_org_invitation"
+}

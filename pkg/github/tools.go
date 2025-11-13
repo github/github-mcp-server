@@ -221,6 +221,9 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	orgs := toolsets.NewToolset(ToolsetMetadataOrgs.ID, ToolsetMetadataOrgs.Description).
 		AddReadTools(
 			toolsets.NewServerTool(SearchOrgs(getClient, t)),
+		).
+		AddWriteTools(
+			toolsets.NewServerTool(CreateOrgInvitation(getClient, t)),
 		)
 	pullRequests := toolsets.NewToolset(ToolsetMetadataPullRequests.ID, ToolsetMetadataPullRequests.Description).
 		AddReadTools(
