@@ -52,6 +52,23 @@ func Test_GetIssue(t *testing.T) {
 		},
 	}
 
+	mockPrivateIssue := &github.Issue{
+		Number:  github.Ptr(42),
+		Title:   github.Ptr("Test Issue"),
+		Body:    github.Ptr("This is a test issue"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
+		User: &github.User{
+			Login: github.Ptr("privateuser"),
+		},
+		Repository: &github.Repository{
+			Name: github.Ptr("repo"),
+			Owner: &github.User{
+				Login: github.Ptr("owner"),
+			},
+		},
+	}
+
 	tests := []struct {
 		name               string
 		mockedClient       *http.Client
@@ -101,7 +118,7 @@ func Test_GetIssue(t *testing.T) {
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatch(
 					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
-					mockIssue,
+					mockPrivateIssue,
 				),
 			),
 			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
@@ -122,7 +139,7 @@ func Test_GetIssue(t *testing.T) {
 					map[string]any{
 						"owner":    githubv4.String("owner"),
 						"name":     githubv4.String("repo"),
-						"username": githubv4.String("testuser"),
+						"username": githubv4.String("privateuser"),
 					},
 					githubv4mock.DataResponse(map[string]any{
 						"repository": map[string]any{
@@ -140,7 +157,7 @@ func Test_GetIssue(t *testing.T) {
 				"repo":         "repo",
 				"issue_number": float64(42),
 			},
-			expectedIssue:   mockIssue,
+			expectedIssue:   mockPrivateIssue,
 			lockdownEnabled: true,
 		},
 		{

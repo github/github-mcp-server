@@ -4,18 +4,69 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/shurcooL/githubv4"
 )
+
+type repoAccessKey struct {
+	owner    string
+	repo     string
+	username string
+}
+
+type repoAccessEntry struct {
+	isPrivate bool
+	hasPush   bool
+	loadedAt  time.Time
+}
+
+var (
+	repoAccessCache    sync.Map
+	repoAccessInfoFunc = repoAccessInfo
+	timeNow            = time.Now
+)
+
+// repoAccessRefreshInterval defines how long to cache repository access
+// information before refreshing it.
+const repoAccessRefreshInterval = 10 * time.Minute
+
+func newRepoAccessKey(username, owner, repo string) repoAccessKey {
+	return repoAccessKey{
+		owner:    strings.ToLower(owner),
+		repo:     strings.ToLower(repo),
+		username: strings.ToLower(username),
+	}
+}
 
 // ShouldRemoveContent determines if content should be removed based on
 // lockdown mode rules. It checks if the repository is private and if the user
 // has push access to the repository.
 func ShouldRemoveContent(ctx context.Context, client *githubv4.Client, username, owner, repo string) (bool, error) {
-	isPrivate, hasPushAccess, err := repoAccessInfo(ctx, client, username, owner, repo)
+	key := newRepoAccessKey(username, owner, repo)
+
+	now := timeNow()
+	if cached, ok := repoAccessCache.Load(key); ok {
+		entry := cached.(repoAccessEntry)
+		if now.Sub(entry.loadedAt) < repoAccessRefreshInterval {
+			if entry.isPrivate {
+				return false, nil
+			}
+			return !entry.hasPush, nil
+		}
+	}
+
+	isPrivate, hasPushAccess, err := repoAccessInfoFunc(ctx, client, username, owner, repo)
 	if err != nil {
 		return false, err
 	}
+
+	repoAccessCache.Store(key, repoAccessEntry{
+		isPrivate: isPrivate,
+		hasPush:   hasPushAccess,
+		loadedAt:  timeNow(),
+	})
 
 	// Do not filter content for private repositories
 	if isPrivate {
@@ -23,6 +74,14 @@ func ShouldRemoveContent(ctx context.Context, client *githubv4.Client, username,
 	}
 
 	return !hasPushAccess, nil
+}
+
+// clearRepoAccessCache removes all cached repository access information; used by tests.
+func clearRepoAccessCache() {
+	repoAccessCache.Range(func(key, _ any) bool {
+		repoAccessCache.Delete(key)
+		return true
+	})
 }
 
 func repoAccessInfo(ctx context.Context, client *githubv4.Client, username, owner, repo string) (bool, bool, error) {
