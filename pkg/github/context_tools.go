@@ -105,16 +105,6 @@ type OrganizationTeams struct {
 }
 
 func GetTeams(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	// return mcp.NewTool("get_teams",
-	// 		mcp.WithDescription(t("TOOL_GET_TEAMS_DESCRIPTION", "Get details of the teams the user is a member of. Limited to organizations accessible with current credentials")),
-	// 		mcp.WithString("user",
-	// 			mcp.Description(t("TOOL_GET_TEAMS_USER_DESCRIPTION", "Username to get teams for. If not provided, uses the authenticated user.")),
-	// 		),
-	// 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
-	// 			Title:        t("TOOL_GET_TEAMS_TITLE", "Get teams"),
-	// 			ReadOnlyHint: ToBoolPtr(true),
-	// 		}),
-	// 	),
 	return mcp.Tool{
 			Name:        "get_teams",
 			Description: t("TOOL_GET_TEAMS_DESCRIPTION", "Get details of the teams the user is a member of. Limited to organizations accessible with current credentials"),
