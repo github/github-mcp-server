@@ -9,7 +9,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/toolsets"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v77/github"
-	"github.com/mark3labs/mcp-go/server"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -309,8 +309,8 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	contextTools := toolsets.NewToolset(ToolsetMetadataContext.ID, ToolsetMetadataContext.Description).
 		AddReadTools(
 			toolsets.NewServerTool(GetMe(getClient, t)),
-			// toolsets.NewServerTool(GetTeams(getClient, getGQLClient, t)),
-			// toolsets.NewServerTool(GetTeamMembers(getGQLClient, t)),
+			toolsets.NewServerTool(GetTeams(getClient, getGQLClient, t)),
+			toolsets.NewServerTool(GetTeamMembers(getGQLClient, t)),
 		)
 
 	// gists := toolsets.NewToolset(ToolsetMetadataGists.ID, ToolsetMetadataGists.Description).
@@ -383,14 +383,14 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 }
 
 // InitDynamicToolset creates a dynamic toolset that can be used to enable other toolsets, and so requires the server and toolset group as arguments
-func InitDynamicToolset(s *server.MCPServer, tsg *toolsets.ToolsetGroup, t translations.TranslationHelperFunc) *toolsets.Toolset {
+func InitDynamicToolset(s *mcp.Server, tsg *toolsets.ToolsetGroup, t translations.TranslationHelperFunc) *toolsets.Toolset {
 	// Create a new dynamic toolset
 	// Need to add the dynamic toolset last so it can be used to enable other toolsets
 	dynamicToolSelection := toolsets.NewToolset(ToolsetMetadataDynamic.ID, ToolsetMetadataDynamic.Description).
 		AddReadTools(
-			toolsets.NewServerTool(ListAvailableToolsets(tsg, t)),
-			toolsets.NewServerTool(GetToolsetsTools(tsg, t)),
-			toolsets.NewServerTool(EnableToolset(s, tsg, t)),
+		// toolsets.NewServerTool(ListAvailableToolsets(tsg, t)),
+		// toolsets.NewServerTool(GetToolsetsTools(tsg, t)),
+		// toolsets.NewServerTool(EnableToolset(s, tsg, t)),
 		)
 
 	dynamicToolSelection.Enabled = true
