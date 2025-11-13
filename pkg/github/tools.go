@@ -164,220 +164,220 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 
 	// Define all available features with their default state (disabled)
 	// Create toolsets
-	repos := toolsets.NewToolset(ToolsetMetadataRepos.ID, ToolsetMetadataRepos.Description).
-		AddReadTools(
-			toolsets.NewServerTool(SearchRepositories(getClient, t)),
-			toolsets.NewServerTool(GetFileContents(getClient, getRawClient, t)),
-			toolsets.NewServerTool(ListCommits(getClient, t)),
-			toolsets.NewServerTool(SearchCode(getClient, t)),
-			toolsets.NewServerTool(GetCommit(getClient, t)),
-			toolsets.NewServerTool(ListBranches(getClient, t)),
-			toolsets.NewServerTool(ListTags(getClient, t)),
-			toolsets.NewServerTool(GetTag(getClient, t)),
-			toolsets.NewServerTool(ListReleases(getClient, t)),
-			toolsets.NewServerTool(GetLatestRelease(getClient, t)),
-			toolsets.NewServerTool(GetReleaseByTag(getClient, t)),
-		).
-		AddWriteTools(
-			toolsets.NewServerTool(CreateOrUpdateFile(getClient, t)),
-			toolsets.NewServerTool(CreateRepository(getClient, t)),
-			toolsets.NewServerTool(ForkRepository(getClient, t)),
-			toolsets.NewServerTool(CreateBranch(getClient, t)),
-			toolsets.NewServerTool(PushFiles(getClient, t)),
-			toolsets.NewServerTool(DeleteFile(getClient, t)),
-		).
-		AddResourceTemplates(
-			toolsets.NewServerResourceTemplate(GetRepositoryResourceContent(getClient, getRawClient, t)),
-			toolsets.NewServerResourceTemplate(GetRepositoryResourceBranchContent(getClient, getRawClient, t)),
-			toolsets.NewServerResourceTemplate(GetRepositoryResourceCommitContent(getClient, getRawClient, t)),
-			toolsets.NewServerResourceTemplate(GetRepositoryResourceTagContent(getClient, getRawClient, t)),
-			toolsets.NewServerResourceTemplate(GetRepositoryResourcePrContent(getClient, getRawClient, t)),
-		)
-	git := toolsets.NewToolset(ToolsetMetadataGit.ID, ToolsetMetadataGit.Description).
-		AddReadTools(
-			toolsets.NewServerTool(GetRepositoryTree(getClient, t)),
-		)
-	issues := toolsets.NewToolset(ToolsetMetadataIssues.ID, ToolsetMetadataIssues.Description).
-		AddReadTools(
-			toolsets.NewServerTool(IssueRead(getClient, getGQLClient, t, flags)),
-			toolsets.NewServerTool(SearchIssues(getClient, t)),
-			toolsets.NewServerTool(ListIssues(getGQLClient, t)),
-			toolsets.NewServerTool(ListIssueTypes(getClient, t)),
-			toolsets.NewServerTool(GetLabel(getGQLClient, t)),
-		).
-		AddWriteTools(
-			toolsets.NewServerTool(IssueWrite(getClient, getGQLClient, t)),
-			toolsets.NewServerTool(AddIssueComment(getClient, t)),
-			toolsets.NewServerTool(AssignCopilotToIssue(getGQLClient, t)),
-			toolsets.NewServerTool(SubIssueWrite(getClient, t)),
-		).AddPrompts(
-		toolsets.NewServerPrompt(AssignCodingAgentPrompt(t)),
-		toolsets.NewServerPrompt(IssueToFixWorkflowPrompt(t)),
-	)
-	users := toolsets.NewToolset(ToolsetMetadataUsers.ID, ToolsetMetadataUsers.Description).
-		AddReadTools(
-			toolsets.NewServerTool(SearchUsers(getClient, t)),
-		)
-	orgs := toolsets.NewToolset(ToolsetMetadataOrgs.ID, ToolsetMetadataOrgs.Description).
-		AddReadTools(
-			toolsets.NewServerTool(SearchOrgs(getClient, t)),
-		)
-	pullRequests := toolsets.NewToolset(ToolsetMetadataPullRequests.ID, ToolsetMetadataPullRequests.Description).
-		AddReadTools(
-			toolsets.NewServerTool(PullRequestRead(getClient, t, flags)),
-			toolsets.NewServerTool(ListPullRequests(getClient, t)),
-			toolsets.NewServerTool(SearchPullRequests(getClient, t)),
-		).
-		AddWriteTools(
-			toolsets.NewServerTool(MergePullRequest(getClient, t)),
-			toolsets.NewServerTool(UpdatePullRequestBranch(getClient, t)),
-			toolsets.NewServerTool(CreatePullRequest(getClient, t)),
-			toolsets.NewServerTool(UpdatePullRequest(getClient, getGQLClient, t)),
-			toolsets.NewServerTool(RequestCopilotReview(getClient, t)),
+	// repos := toolsets.NewToolset(ToolsetMetadataRepos.ID, ToolsetMetadataRepos.Description).
+	// 	AddReadTools(
+	// 		toolsets.NewServerTool(SearchRepositories(getClient, t)),
+	// 		toolsets.NewServerTool(GetFileContents(getClient, getRawClient, t)),
+	// 		toolsets.NewServerTool(ListCommits(getClient, t)),
+	// 		toolsets.NewServerTool(SearchCode(getClient, t)),
+	// 		toolsets.NewServerTool(GetCommit(getClient, t)),
+	// 		toolsets.NewServerTool(ListBranches(getClient, t)),
+	// 		toolsets.NewServerTool(ListTags(getClient, t)),
+	// 		toolsets.NewServerTool(GetTag(getClient, t)),
+	// 		toolsets.NewServerTool(ListReleases(getClient, t)),
+	// 		toolsets.NewServerTool(GetLatestRelease(getClient, t)),
+	// 		toolsets.NewServerTool(GetReleaseByTag(getClient, t)),
+	// 	).
+	// 	AddWriteTools(
+	// 		toolsets.NewServerTool(CreateOrUpdateFile(getClient, t)),
+	// 		toolsets.NewServerTool(CreateRepository(getClient, t)),
+	// 		toolsets.NewServerTool(ForkRepository(getClient, t)),
+	// 		toolsets.NewServerTool(CreateBranch(getClient, t)),
+	// 		toolsets.NewServerTool(PushFiles(getClient, t)),
+	// 		toolsets.NewServerTool(DeleteFile(getClient, t)),
+	// 	).
+	// 	AddResourceTemplates(
+	// 		toolsets.NewServerResourceTemplate(GetRepositoryResourceContent(getClient, getRawClient, t)),
+	// 		toolsets.NewServerResourceTemplate(GetRepositoryResourceBranchContent(getClient, getRawClient, t)),
+	// 		toolsets.NewServerResourceTemplate(GetRepositoryResourceCommitContent(getClient, getRawClient, t)),
+	// 		toolsets.NewServerResourceTemplate(GetRepositoryResourceTagContent(getClient, getRawClient, t)),
+	// 		toolsets.NewServerResourceTemplate(GetRepositoryResourcePrContent(getClient, getRawClient, t)),
+	// 	)
+	// git := toolsets.NewToolset(ToolsetMetadataGit.ID, ToolsetMetadataGit.Description).
+	// 	AddReadTools(
+	// 		toolsets.NewServerTool(GetRepositoryTree(getClient, t)),
+	// 	)
+	// issues := toolsets.NewToolset(ToolsetMetadataIssues.ID, ToolsetMetadataIssues.Description).
+	// 	AddReadTools(
+	// 		toolsets.NewServerTool(IssueRead(getClient, getGQLClient, t, flags)),
+	// 		toolsets.NewServerTool(SearchIssues(getClient, t)),
+	// 		toolsets.NewServerTool(ListIssues(getGQLClient, t)),
+	// 		toolsets.NewServerTool(ListIssueTypes(getClient, t)),
+	// 		toolsets.NewServerTool(GetLabel(getGQLClient, t)),
+	// 	).
+	// 	AddWriteTools(
+	// 		toolsets.NewServerTool(IssueWrite(getClient, getGQLClient, t)),
+	// 		toolsets.NewServerTool(AddIssueComment(getClient, t)),
+	// 		toolsets.NewServerTool(AssignCopilotToIssue(getGQLClient, t)),
+	// 		toolsets.NewServerTool(SubIssueWrite(getClient, t)),
+	// 	).AddPrompts(
+	// 	toolsets.NewServerPrompt(AssignCodingAgentPrompt(t)),
+	// 	toolsets.NewServerPrompt(IssueToFixWorkflowPrompt(t)),
+	// )
+	// users := toolsets.NewToolset(ToolsetMetadataUsers.ID, ToolsetMetadataUsers.Description).
+	// 	AddReadTools(
+	// 		toolsets.NewServerTool(SearchUsers(getClient, t)),
+	// 	)
+	// orgs := toolsets.NewToolset(ToolsetMetadataOrgs.ID, ToolsetMetadataOrgs.Description).
+	// 	AddReadTools(
+	// 		toolsets.NewServerTool(SearchOrgs(getClient, t)),
+	// 	)
+	// pullRequests := toolsets.NewToolset(ToolsetMetadataPullRequests.ID, ToolsetMetadataPullRequests.Description).
+	// 	AddReadTools(
+	// 		toolsets.NewServerTool(PullRequestRead(getClient, t, flags)),
+	// 		toolsets.NewServerTool(ListPullRequests(getClient, t)),
+	// 		toolsets.NewServerTool(SearchPullRequests(getClient, t)),
+	// 	).
+	// 	AddWriteTools(
+	// 		toolsets.NewServerTool(MergePullRequest(getClient, t)),
+	// 		toolsets.NewServerTool(UpdatePullRequestBranch(getClient, t)),
+	// 		toolsets.NewServerTool(CreatePullRequest(getClient, t)),
+	// 		toolsets.NewServerTool(UpdatePullRequest(getClient, getGQLClient, t)),
+	// 		toolsets.NewServerTool(RequestCopilotReview(getClient, t)),
 
-			// Reviews
-			toolsets.NewServerTool(PullRequestReviewWrite(getGQLClient, t)),
-			toolsets.NewServerTool(AddCommentToPendingReview(getGQLClient, t)),
-		)
-	codeSecurity := toolsets.NewToolset(ToolsetMetadataCodeSecurity.ID, ToolsetMetadataCodeSecurity.Description).
-		AddReadTools(
-			toolsets.NewServerTool(GetCodeScanningAlert(getClient, t)),
-			toolsets.NewServerTool(ListCodeScanningAlerts(getClient, t)),
-		)
-	secretProtection := toolsets.NewToolset(ToolsetMetadataSecretProtection.ID, ToolsetMetadataSecretProtection.Description).
-		AddReadTools(
-			toolsets.NewServerTool(GetSecretScanningAlert(getClient, t)),
-			toolsets.NewServerTool(ListSecretScanningAlerts(getClient, t)),
-		)
-	dependabot := toolsets.NewToolset(ToolsetMetadataDependabot.ID, ToolsetMetadataDependabot.Description).
-		AddReadTools(
-			toolsets.NewServerTool(GetDependabotAlert(getClient, t)),
-			toolsets.NewServerTool(ListDependabotAlerts(getClient, t)),
-		)
+	// 		// Reviews
+	// 		toolsets.NewServerTool(PullRequestReviewWrite(getGQLClient, t)),
+	// 		toolsets.NewServerTool(AddCommentToPendingReview(getGQLClient, t)),
+	// 	)
+	// codeSecurity := toolsets.NewToolset(ToolsetMetadataCodeSecurity.ID, ToolsetMetadataCodeSecurity.Description).
+	// 	AddReadTools(
+	// 		toolsets.NewServerTool(GetCodeScanningAlert(getClient, t)),
+	// 		toolsets.NewServerTool(ListCodeScanningAlerts(getClient, t)),
+	// 	)
+	// secretProtection := toolsets.NewToolset(ToolsetMetadataSecretProtection.ID, ToolsetMetadataSecretProtection.Description).
+	// 	AddReadTools(
+	// 		toolsets.NewServerTool(GetSecretScanningAlert(getClient, t)),
+	// 		toolsets.NewServerTool(ListSecretScanningAlerts(getClient, t)),
+	// 	)
+	// dependabot := toolsets.NewToolset(ToolsetMetadataDependabot.ID, ToolsetMetadataDependabot.Description).
+	// 	AddReadTools(
+	// 		toolsets.NewServerTool(GetDependabotAlert(getClient, t)),
+	// 		toolsets.NewServerTool(ListDependabotAlerts(getClient, t)),
+	// 	)
 
-	notifications := toolsets.NewToolset(ToolsetMetadataNotifications.ID, ToolsetMetadataNotifications.Description).
-		AddReadTools(
-			toolsets.NewServerTool(ListNotifications(getClient, t)),
-			toolsets.NewServerTool(GetNotificationDetails(getClient, t)),
-		).
-		AddWriteTools(
-			toolsets.NewServerTool(DismissNotification(getClient, t)),
-			toolsets.NewServerTool(MarkAllNotificationsRead(getClient, t)),
-			toolsets.NewServerTool(ManageNotificationSubscription(getClient, t)),
-			toolsets.NewServerTool(ManageRepositoryNotificationSubscription(getClient, t)),
-		)
+	// notifications := toolsets.NewToolset(ToolsetMetadataNotifications.ID, ToolsetMetadataNotifications.Description).
+	// 	AddReadTools(
+	// 		toolsets.NewServerTool(ListNotifications(getClient, t)),
+	// 		toolsets.NewServerTool(GetNotificationDetails(getClient, t)),
+	// 	).
+	// 	AddWriteTools(
+	// 		toolsets.NewServerTool(DismissNotification(getClient, t)),
+	// 		toolsets.NewServerTool(MarkAllNotificationsRead(getClient, t)),
+	// 		toolsets.NewServerTool(ManageNotificationSubscription(getClient, t)),
+	// 		toolsets.NewServerTool(ManageRepositoryNotificationSubscription(getClient, t)),
+	// 	)
 
-	discussions := toolsets.NewToolset(ToolsetMetadataDiscussions.ID, ToolsetMetadataDiscussions.Description).
-		AddReadTools(
-			toolsets.NewServerTool(ListDiscussions(getGQLClient, t)),
-			toolsets.NewServerTool(GetDiscussion(getGQLClient, t)),
-			toolsets.NewServerTool(GetDiscussionComments(getGQLClient, t)),
-			toolsets.NewServerTool(ListDiscussionCategories(getGQLClient, t)),
-		)
+	// discussions := toolsets.NewToolset(ToolsetMetadataDiscussions.ID, ToolsetMetadataDiscussions.Description).
+	// 	AddReadTools(
+	// 		toolsets.NewServerTool(ListDiscussions(getGQLClient, t)),
+	// 		toolsets.NewServerTool(GetDiscussion(getGQLClient, t)),
+	// 		toolsets.NewServerTool(GetDiscussionComments(getGQLClient, t)),
+	// 		toolsets.NewServerTool(ListDiscussionCategories(getGQLClient, t)),
+	// 	)
 
-	actions := toolsets.NewToolset(ToolsetMetadataActions.ID, ToolsetMetadataActions.Description).
-		AddReadTools(
-			toolsets.NewServerTool(ListWorkflows(getClient, t)),
-			toolsets.NewServerTool(ListWorkflowRuns(getClient, t)),
-			toolsets.NewServerTool(GetWorkflowRun(getClient, t)),
-			toolsets.NewServerTool(GetWorkflowRunLogs(getClient, t)),
-			toolsets.NewServerTool(ListWorkflowJobs(getClient, t)),
-			toolsets.NewServerTool(GetJobLogs(getClient, t, contentWindowSize)),
-			toolsets.NewServerTool(ListWorkflowRunArtifacts(getClient, t)),
-			toolsets.NewServerTool(DownloadWorkflowRunArtifact(getClient, t)),
-			toolsets.NewServerTool(GetWorkflowRunUsage(getClient, t)),
-		).
-		AddWriteTools(
-			toolsets.NewServerTool(RunWorkflow(getClient, t)),
-			toolsets.NewServerTool(RerunWorkflowRun(getClient, t)),
-			toolsets.NewServerTool(RerunFailedJobs(getClient, t)),
-			toolsets.NewServerTool(CancelWorkflowRun(getClient, t)),
-			toolsets.NewServerTool(DeleteWorkflowRunLogs(getClient, t)),
-		)
+	// actions := toolsets.NewToolset(ToolsetMetadataActions.ID, ToolsetMetadataActions.Description).
+	// 	AddReadTools(
+	// 		toolsets.NewServerTool(ListWorkflows(getClient, t)),
+	// 		toolsets.NewServerTool(ListWorkflowRuns(getClient, t)),
+	// 		toolsets.NewServerTool(GetWorkflowRun(getClient, t)),
+	// 		toolsets.NewServerTool(GetWorkflowRunLogs(getClient, t)),
+	// 		toolsets.NewServerTool(ListWorkflowJobs(getClient, t)),
+	// 		toolsets.NewServerTool(GetJobLogs(getClient, t, contentWindowSize)),
+	// 		toolsets.NewServerTool(ListWorkflowRunArtifacts(getClient, t)),
+	// 		toolsets.NewServerTool(DownloadWorkflowRunArtifact(getClient, t)),
+	// 		toolsets.NewServerTool(GetWorkflowRunUsage(getClient, t)),
+	// 	).
+	// 	AddWriteTools(
+	// 		toolsets.NewServerTool(RunWorkflow(getClient, t)),
+	// 		toolsets.NewServerTool(RerunWorkflowRun(getClient, t)),
+	// 		toolsets.NewServerTool(RerunFailedJobs(getClient, t)),
+	// 		toolsets.NewServerTool(CancelWorkflowRun(getClient, t)),
+	// 		toolsets.NewServerTool(DeleteWorkflowRunLogs(getClient, t)),
+	// 	)
 
-	securityAdvisories := toolsets.NewToolset(ToolsetMetadataSecurityAdvisories.ID, ToolsetMetadataSecurityAdvisories.Description).
-		AddReadTools(
-			toolsets.NewServerTool(ListGlobalSecurityAdvisories(getClient, t)),
-			toolsets.NewServerTool(GetGlobalSecurityAdvisory(getClient, t)),
-			toolsets.NewServerTool(ListRepositorySecurityAdvisories(getClient, t)),
-			toolsets.NewServerTool(ListOrgRepositorySecurityAdvisories(getClient, t)),
-		)
+	// securityAdvisories := toolsets.NewToolset(ToolsetMetadataSecurityAdvisories.ID, ToolsetMetadataSecurityAdvisories.Description).
+	// 	AddReadTools(
+	// 		toolsets.NewServerTool(ListGlobalSecurityAdvisories(getClient, t)),
+	// 		toolsets.NewServerTool(GetGlobalSecurityAdvisory(getClient, t)),
+	// 		toolsets.NewServerTool(ListRepositorySecurityAdvisories(getClient, t)),
+	// 		toolsets.NewServerTool(ListOrgRepositorySecurityAdvisories(getClient, t)),
+	// 	)
 
-	// Keep experiments alive so the system doesn't error out when it's always enabled
-	experiments := toolsets.NewToolset(ToolsetMetadataExperiments.ID, ToolsetMetadataExperiments.Description)
+	// // Keep experiments alive so the system doesn't error out when it's always enabled
+	// experiments := toolsets.NewToolset(ToolsetMetadataExperiments.ID, ToolsetMetadataExperiments.Description)
 
 	contextTools := toolsets.NewToolset(ToolsetMetadataContext.ID, ToolsetMetadataContext.Description).
 		AddReadTools(
 			toolsets.NewServerTool(GetMe(getClient, t)),
-			toolsets.NewServerTool(GetTeams(getClient, getGQLClient, t)),
-			toolsets.NewServerTool(GetTeamMembers(getGQLClient, t)),
+			// toolsets.NewServerTool(GetTeams(getClient, getGQLClient, t)),
+			// toolsets.NewServerTool(GetTeamMembers(getGQLClient, t)),
 		)
 
-	gists := toolsets.NewToolset(ToolsetMetadataGists.ID, ToolsetMetadataGists.Description).
-		AddReadTools(
-			toolsets.NewServerTool(ListGists(getClient, t)),
-			toolsets.NewServerTool(GetGist(getClient, t)),
-		).
-		AddWriteTools(
-			toolsets.NewServerTool(CreateGist(getClient, t)),
-			toolsets.NewServerTool(UpdateGist(getClient, t)),
-		)
+	// gists := toolsets.NewToolset(ToolsetMetadataGists.ID, ToolsetMetadataGists.Description).
+	// 	AddReadTools(
+	// 		toolsets.NewServerTool(ListGists(getClient, t)),
+	// 		toolsets.NewServerTool(GetGist(getClient, t)),
+	// 	).
+	// 	AddWriteTools(
+	// 		toolsets.NewServerTool(CreateGist(getClient, t)),
+	// 		toolsets.NewServerTool(UpdateGist(getClient, t)),
+	// 	)
 
-	projects := toolsets.NewToolset(ToolsetMetadataProjects.ID, ToolsetMetadataProjects.Description).
-		AddReadTools(
-			toolsets.NewServerTool(ListProjects(getClient, t)),
-			toolsets.NewServerTool(GetProject(getClient, t)),
-			toolsets.NewServerTool(ListProjectFields(getClient, t)),
-			toolsets.NewServerTool(GetProjectField(getClient, t)),
-			toolsets.NewServerTool(ListProjectItems(getClient, t)),
-			toolsets.NewServerTool(GetProjectItem(getClient, t)),
-		).
-		AddWriteTools(
-			toolsets.NewServerTool(AddProjectItem(getClient, t)),
-			toolsets.NewServerTool(DeleteProjectItem(getClient, t)),
-			toolsets.NewServerTool(UpdateProjectItem(getClient, t)),
-		).AddPrompts(
-		toolsets.NewServerPrompt(ManageProjectItemsPrompt(t)),
-	)
-	stargazers := toolsets.NewToolset(ToolsetMetadataStargazers.ID, ToolsetMetadataStargazers.Description).
-		AddReadTools(
-			toolsets.NewServerTool(ListStarredRepositories(getClient, t)),
-		).
-		AddWriteTools(
-			toolsets.NewServerTool(StarRepository(getClient, t)),
-			toolsets.NewServerTool(UnstarRepository(getClient, t)),
-		)
-	labels := toolsets.NewToolset(ToolsetLabels.ID, ToolsetLabels.Description).
-		AddReadTools(
-			// get
-			toolsets.NewServerTool(GetLabel(getGQLClient, t)),
-			// list labels on repo or issue
-			toolsets.NewServerTool(ListLabels(getGQLClient, t)),
-		).
-		AddWriteTools(
-			// create or update
-			toolsets.NewServerTool(LabelWrite(getGQLClient, t)),
-		)
-	// Add toolsets to the group
+	// projects := toolsets.NewToolset(ToolsetMetadataProjects.ID, ToolsetMetadataProjects.Description).
+	// 	AddReadTools(
+	// 		toolsets.NewServerTool(ListProjects(getClient, t)),
+	// 		toolsets.NewServerTool(GetProject(getClient, t)),
+	// 		toolsets.NewServerTool(ListProjectFields(getClient, t)),
+	// 		toolsets.NewServerTool(GetProjectField(getClient, t)),
+	// 		toolsets.NewServerTool(ListProjectItems(getClient, t)),
+	// 		toolsets.NewServerTool(GetProjectItem(getClient, t)),
+	// 	).
+	// 	AddWriteTools(
+	// 		toolsets.NewServerTool(AddProjectItem(getClient, t)),
+	// 		toolsets.NewServerTool(DeleteProjectItem(getClient, t)),
+	// 		toolsets.NewServerTool(UpdateProjectItem(getClient, t)),
+	// 	).AddPrompts(
+	// 	toolsets.NewServerPrompt(ManageProjectItemsPrompt(t)),
+	// )
+	// stargazers := toolsets.NewToolset(ToolsetMetadataStargazers.ID, ToolsetMetadataStargazers.Description).
+	// 	AddReadTools(
+	// 		toolsets.NewServerTool(ListStarredRepositories(getClient, t)),
+	// 	).
+	// 	AddWriteTools(
+	// 		toolsets.NewServerTool(StarRepository(getClient, t)),
+	// 		toolsets.NewServerTool(UnstarRepository(getClient, t)),
+	// 	)
+	// labels := toolsets.NewToolset(ToolsetLabels.ID, ToolsetLabels.Description).
+	// 	AddReadTools(
+	// 		// get
+	// 		toolsets.NewServerTool(GetLabel(getGQLClient, t)),
+	// 		// list labels on repo or issue
+	// 		toolsets.NewServerTool(ListLabels(getGQLClient, t)),
+	// 	).
+	// 	AddWriteTools(
+	// 		// create or update
+	// 		toolsets.NewServerTool(LabelWrite(getGQLClient, t)),
+	// 	)
+	// // Add toolsets to the group
 	tsg.AddToolset(contextTools)
-	tsg.AddToolset(repos)
-	tsg.AddToolset(git)
-	tsg.AddToolset(issues)
-	tsg.AddToolset(orgs)
-	tsg.AddToolset(users)
-	tsg.AddToolset(pullRequests)
-	tsg.AddToolset(actions)
-	tsg.AddToolset(codeSecurity)
-	tsg.AddToolset(secretProtection)
-	tsg.AddToolset(dependabot)
-	tsg.AddToolset(notifications)
-	tsg.AddToolset(experiments)
-	tsg.AddToolset(discussions)
-	tsg.AddToolset(gists)
-	tsg.AddToolset(securityAdvisories)
-	tsg.AddToolset(projects)
-	tsg.AddToolset(stargazers)
-	tsg.AddToolset(labels)
+	// tsg.AddToolset(repos)
+	// tsg.AddToolset(git)
+	// tsg.AddToolset(issues)
+	// tsg.AddToolset(orgs)
+	// tsg.AddToolset(users)
+	// tsg.AddToolset(pullRequests)
+	// tsg.AddToolset(actions)
+	// tsg.AddToolset(codeSecurity)
+	// tsg.AddToolset(secretProtection)
+	// tsg.AddToolset(dependabot)
+	// tsg.AddToolset(notifications)
+	// tsg.AddToolset(experiments)
+	// tsg.AddToolset(discussions)
+	// tsg.AddToolset(gists)
+	// tsg.AddToolset(securityAdvisories)
+	// tsg.AddToolset(projects)
+	// tsg.AddToolset(stargazers)
+	// tsg.AddToolset(labels)
 
 	return tsg
 }
