@@ -1763,10 +1763,12 @@ func Test_GetIssueComments(t *testing.T) {
 	tests := []struct {
 		name             string
 		mockedClient     *http.Client
+		gqlHTTPClient    *http.Client
 		requestArgs      map[string]interface{}
 		expectError      bool
 		expectedComments []*github.IssueComment
 		expectedErrMsg   string
+		lockdownEnabled  bool
 	}{
 		{
 			name: "successful comments retrieval",
@@ -1782,7 +1784,6 @@ func Test_GetIssueComments(t *testing.T) {
 				"repo":         "repo",
 				"issue_number": float64(42),
 			},
-			expectError:      false,
 			expectedComments: mockComments,
 		},
 		{
@@ -1810,6 +1811,27 @@ func Test_GetIssueComments(t *testing.T) {
 			expectedComments: mockComments,
 		},
 		{
+			name: "lockdown enabled removes comments without push access",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposIssuesCommentsByOwnerByRepoByIssueNumber,
+					mockComments,
+				),
+			),
+			gqlHTTPClient: newLockdownMockGQLHTTPClient(t, false, map[string]string{
+				"user1": "WRITE",
+				"user2": "READ",
+			}),
+			requestArgs: map[string]interface{}{
+				"method":       "get_comments",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectedComments: []*github.IssueComment{mockComments[0]},
+			lockdownEnabled:  true,
+		},
+		{
 			name: "issue not found",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
@@ -1832,8 +1854,14 @@ func Test_GetIssueComments(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			gqlClient := githubv4.NewClient(nil)
-			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+			var gqlClient *githubv4.Client
+			if tc.gqlHTTPClient != nil {
+				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
+			} else {
+				gqlClient = githubv4.NewClient(nil)
+			}
+			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
+			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper, flags)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1856,9 +1884,9 @@ func Test_GetIssueComments(t *testing.T) {
 			err = json.Unmarshal([]byte(textContent.Text), &returnedComments)
 			require.NoError(t, err)
 			assert.Equal(t, len(tc.expectedComments), len(returnedComments))
-			if len(returnedComments) > 0 {
-				assert.Equal(t, *tc.expectedComments[0].Body, *returnedComments[0].Body)
-				assert.Equal(t, *tc.expectedComments[0].User.Login, *returnedComments[0].User.Login)
+			for i := range returnedComments {
+				assert.Equal(t, *tc.expectedComments[i].Body, *returnedComments[i].Body)
+				assert.Equal(t, *tc.expectedComments[i].User.Login, *returnedComments[i].User.Login)
 			}
 		})
 	}
@@ -2686,10 +2714,12 @@ func Test_GetSubIssues(t *testing.T) {
 	tests := []struct {
 		name              string
 		mockedClient      *http.Client
+		gqlHTTPClient     *http.Client
 		requestArgs       map[string]interface{}
 		expectError       bool
 		expectedSubIssues []*github.Issue
 		expectedErrMsg    string
+		lockdownEnabled   bool
 	}{
 		{
 			name: "successful sub-issues listing with minimal parameters",
@@ -2729,7 +2759,6 @@ func Test_GetSubIssues(t *testing.T) {
 				"page":         float64(2),
 				"perPage":      float64(10),
 			},
-			expectError:       false,
 			expectedSubIssues: mockSubIssues,
 		},
 		{
@@ -2746,8 +2775,28 @@ func Test_GetSubIssues(t *testing.T) {
 				"repo":         "repo",
 				"issue_number": float64(42),
 			},
-			expectError:       false,
 			expectedSubIssues: []*github.Issue{},
+		},
+		{
+			name: "lockdown enabled filters sub-issues without push access",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber,
+					mockSubIssues,
+				),
+			),
+			gqlHTTPClient: newLockdownMockGQLHTTPClient(t, false, map[string]string{
+				"user1": "WRITE",
+				"user2": "READ",
+			}),
+			requestArgs: map[string]interface{}{
+				"method":       "get_sub_issues",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectedSubIssues: []*github.Issue{mockSubIssues[0]},
+			lockdownEnabled:   true,
 		},
 		{
 			name: "parent issue not found",
@@ -2832,8 +2881,14 @@ func Test_GetSubIssues(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			gqlClient := githubv4.NewClient(nil)
-			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+			var gqlClient *githubv4.Client
+			if tc.gqlHTTPClient != nil {
+				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
+			} else {
+				gqlClient = githubv4.NewClient(nil)
+			}
+			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
+			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper, flags)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)

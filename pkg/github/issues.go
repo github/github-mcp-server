@@ -299,9 +299,9 @@ Options are:
 			case "get":
 				return GetIssue(ctx, client, gqlClient, owner, repo, issueNumber, flags)
 			case "get_comments":
-				return GetIssueComments(ctx, client, owner, repo, issueNumber, pagination, flags)
+				return GetIssueComments(ctx, client, gqlClient, owner, repo, issueNumber, pagination, flags)
 			case "get_sub_issues":
-				return GetSubIssues(ctx, client, owner, repo, issueNumber, pagination, flags)
+				return GetSubIssues(ctx, client, gqlClient, owner, repo, issueNumber, pagination, flags)
 			case "get_labels":
 				return GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber, flags)
 			default:
@@ -355,7 +355,7 @@ func GetIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Cl
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-func GetIssueComments(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, pagination PaginationParams, _ FeatureFlags) (*mcp.CallToolResult, error) {
+func GetIssueComments(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, pagination PaginationParams, flags FeatureFlags) (*mcp.CallToolResult, error) {
 	opts := &github.IssueListCommentsOptions{
 		ListOptions: github.ListOptions{
 			Page:    pagination.Page,
@@ -377,6 +377,24 @@ func GetIssueComments(ctx context.Context, client *github.Client, owner string, 
 		return mcp.NewToolResultError(fmt.Sprintf("failed to get issue comments: %s", string(body))), nil
 	}
 
+	if flags.LockdownMode {
+		filtered := make([]*github.IssueComment, 0, len(comments))
+		for _, comment := range comments {
+			if comment == nil || comment.User == nil || comment.User.Login == nil {
+				continue
+			}
+			shouldRemove, err := lockdown.ShouldRemoveContent(ctx, gqlClient, comment.User.GetLogin(), owner, repo)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
+			}
+			if shouldRemove {
+				continue
+			}
+			filtered = append(filtered, comment)
+		}
+		comments = filtered
+	}
+
 	r, err := json.Marshal(comments)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -385,7 +403,7 @@ func GetIssueComments(ctx context.Context, client *github.Client, owner string, 
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-func GetSubIssues(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, pagination PaginationParams, _ FeatureFlags) (*mcp.CallToolResult, error) {
+func GetSubIssues(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, pagination PaginationParams, flags FeatureFlags) (*mcp.CallToolResult, error) {
 	opts := &github.IssueListOptions{
 		ListOptions: github.ListOptions{
 			Page:    pagination.Page,
@@ -410,6 +428,24 @@ func GetSubIssues(ctx context.Context, client *github.Client, owner string, repo
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return mcp.NewToolResultError(fmt.Sprintf("failed to list sub-issues: %s", string(body))), nil
+	}
+
+	if flags.LockdownMode {
+		filtered := make([]*github.SubIssue, 0, len(subIssues))
+		for _, subIssue := range subIssues {
+			if subIssue == nil || subIssue.User == nil || subIssue.User.Login == nil {
+				continue
+			}
+			shouldRemove, err := lockdown.ShouldRemoveContent(ctx, gqlClient, subIssue.User.GetLogin(), owner, repo)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
+			}
+			if shouldRemove {
+				continue
+			}
+			filtered = append(filtered, subIssue)
+		}
+		subIssues = filtered
 	}
 
 	r, err := json.Marshal(subIssues)

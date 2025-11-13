@@ -1,8 +1,12 @@
 package github
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -105,6 +109,74 @@ func mockResponse(t *testing.T, code int, body interface{}) http.HandlerFunc {
 		b, err := json.Marshal(body)
 		require.NoError(t, err)
 		_, _ = w.Write(b)
+	}
+}
+
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func newLockdownMockGQLHTTPClient(t *testing.T, isPrivate bool, permissions map[string]string) *http.Client {
+	t.Helper()
+
+	lowerPermissions := make(map[string]string, len(permissions))
+	for user, perm := range permissions {
+		lowerPermissions[strings.ToLower(user)] = perm
+	}
+
+	return &http.Client{
+		Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+			require.Equal(t, "/graphql", req.URL.Path)
+
+			bodyBytes, err := io.ReadAll(req.Body)
+			require.NoError(t, err)
+			_ = req.Body.Close()
+
+			var gqlRequest struct {
+				Variables map[string]any `json:"variables"`
+			}
+			require.NoError(t, json.Unmarshal(bodyBytes, &gqlRequest))
+
+			rawUsername, ok := gqlRequest.Variables["username"]
+			require.True(t, ok, "expected username variable in GraphQL request")
+
+			username := fmt.Sprint(rawUsername)
+			permission := lowerPermissions[strings.ToLower(username)]
+
+			edges := []any{}
+			if permission != "" {
+				edges = append(edges, map[string]any{
+					"permission": permission,
+					"node": map[string]any{
+						"login": username,
+					},
+				})
+			}
+
+			response := map[string]any{
+				"data": map[string]any{
+					"repository": map[string]any{
+						"isPrivate": isPrivate,
+						"collaborators": map[string]any{
+							"edges": edges,
+						},
+					},
+				},
+			}
+
+			respBytes, err := json.Marshal(response)
+			require.NoError(t, err)
+
+			res := &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(bytes.NewReader(respBytes)),
+			}
+			res.Header.Set("Content-Type", "application/json")
+			return res, nil
+		}),
 	}
 }
 
