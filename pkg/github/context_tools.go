@@ -112,7 +112,6 @@ func GetTeams(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations
 				Title:        t("TOOL_GET_TEAMS_TITLE", "Get teams"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: &jsonschema.Schema{},
 		},
 		func(ctx context.Context, request *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			user, err := OptionalParam[string](args, "user")
@@ -199,6 +198,7 @@ func GetTeamMembers(getGQLClient GetGQLClientFn, t translations.TranslationHelpe
 				ReadOnlyHint: true,
 			},
 			InputSchema: &jsonschema.Schema{
+				Type: "object",
 				Properties: map[string]*jsonschema.Schema{
 					"org": {
 						Type:        "string",
