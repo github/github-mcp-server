@@ -9,6 +9,8 @@ import (
 // IOLogger is a wrapper around io.Reader and io.Writer that can be used
 // to log the data being read and written from the underlying streams
 type IOLogger struct {
+	io.ReadWriteCloser
+
 	reader io.Reader
 	writer io.Writer
 	logger *slog.Logger
