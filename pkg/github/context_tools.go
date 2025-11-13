@@ -35,7 +35,7 @@ type UserDetails struct {
 }
 
 // GetMe creates a tool to get details of the authenticated user.
-func GetMe(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandler) {
+func GetMe(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 	tool := mcp.Tool{
 		Name:        "get_me",
 		Description: t("TOOL_GET_ME_DESCRIPTION", "Get details of the authenticated GitHub user. Use this when a request is about the user's own profile for GitHub. Or when information is missing to build other tool calls."),
@@ -45,10 +45,10 @@ func GetMe(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Too
 		},
 	}
 
-	handler := mcp.ToolHandler(func(ctx context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
 		client, err := getClient(ctx)
 		if err != nil {
-			return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), err
+			return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, err
 		}
 
 		user, res, err := client.Users.Get(ctx, "")
@@ -57,7 +57,7 @@ func GetMe(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Too
 				"failed to get user",
 				res,
 				err,
-			), err
+			), nil, err
 		}
 
 		// Create minimal user representation instead of returning full user object
@@ -87,7 +87,7 @@ func GetMe(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Too
 			},
 		}
 
-		return MarshalledTextResult(minimalUser), nil
+		return MarshalledTextResult(minimalUser), nil, nil
 	})
 
 	return tool, handler
@@ -200,11 +200,11 @@ func GetTeamMembers(getGQLClient GetGQLClientFn, t translations.TranslationHelpe
 			},
 			InputSchema: &jsonschema.Schema{
 				Properties: map[string]*jsonschema.Schema{
-					"org": &jsonschema.Schema{
+					"org": {
 						Type:        "string",
 						Description: t("TOOL_GET_TEAM_MEMBERS_ORG_DESCRIPTION", "Organization login (owner) that contains the team."),
 					},
-					"team_slug": &jsonschema.Schema{
+					"team_slug": {
 						Type:        "string",
 						Description: t("TOOL_GET_TEAM_MEMBERS_TEAM_SLUG_DESCRIPTION", "Team slug"),
 					},

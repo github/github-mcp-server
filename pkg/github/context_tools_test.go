@@ -25,7 +25,7 @@ func Test_GetMe(t *testing.T) {
 
 	// Verify some basic very important properties
 	assert.Equal(t, "get_me", tool.Name)
-	assert.True(t, *tool.Annotations.ReadOnlyHint, "get_me tool should be read-only")
+	assert.True(t, tool.Annotations.ReadOnlyHint, "get_me tool should be read-only")
 
 	// Setup mock user response
 	mockUser := &github.User{
@@ -111,7 +111,7 @@ func Test_GetMe(t *testing.T) {
 			_, handler := GetMe(tc.stubbedGetClientFn, translations.NullTranslationHelper)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 			require.NoError(t, err)
 			textContent := getTextResult(t, result)
 
@@ -150,7 +150,7 @@ func Test_GetTeams(t *testing.T) {
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "get_teams", tool.Name)
-	assert.True(t, *tool.Annotations.ReadOnlyHint, "get_teams tool should be read-only")
+	assert.True(t, tool.Annotations.ReadOnlyHint, "get_teams tool should be read-only")
 
 	mockUser := &github.User{
 		Login:           github.Ptr("testuser"),
@@ -335,7 +335,7 @@ func Test_GetTeams(t *testing.T) {
 			_, handler := GetTeams(tc.stubbedGetClientFn, tc.stubbedGetGQLClientFn, translations.NullTranslationHelper)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 			require.NoError(t, err)
 			textContent := getTextResult(t, result)
 
@@ -377,7 +377,7 @@ func Test_GetTeamMembers(t *testing.T) {
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "get_team_members", tool.Name)
-	assert.True(t, *tool.Annotations.ReadOnlyHint, "get_team_members tool should be read-only")
+	assert.True(t, tool.Annotations.ReadOnlyHint, "get_team_members tool should be read-only")
 
 	mockTeamMembersResponse := githubv4mock.DataResponse(map[string]any{
 		"organization": map[string]any{
@@ -471,7 +471,7 @@ func Test_GetTeamMembers(t *testing.T) {
 			_, handler := GetTeamMembers(tc.stubbedGetGQLClientFn, translations.NullTranslationHelper)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 			require.NoError(t, err)
 			textContent := getTextResult(t, result)
 
