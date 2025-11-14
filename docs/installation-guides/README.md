@@ -94,4 +94,5 @@ After installation, you may want to explore:
 - **Toolsets**: Enable/disable specific GitHub API capabilities
 - **Read-Only Mode**: Restrict to read-only operations
 - **Dynamic Tool Discovery**: Enable tools on-demand
+- **Lockdown Mode**: Hide public issue details created by users without push access
 
