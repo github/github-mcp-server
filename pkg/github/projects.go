@@ -256,29 +256,18 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
+			var resp *github.Response
+			var projectFields []*github.ProjectV2Field
+
 			opts := &github.ListProjectsOptions{
 				ListProjectsPaginationOptions: pagination,
 			}
 
-			var url string
 			if ownerType == "org" {
-				url = fmt.Sprintf("orgs/%s/projectsV2/%d/fields", owner, projectNumber)
+				projectFields, resp, err = client.Projects.ListOrganizationProjectFields(ctx, owner, projectNumber, opts)
 			} else {
-				url = fmt.Sprintf("users/%s/projectsV2/%d/fields", owner, projectNumber)
+				projectFields, resp, err = client.Projects.ListUserProjectFields(ctx, owner, projectNumber, opts)
 			}
-
-			url, err = addOptions(url, opts)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			httpRequest, err := client.NewRequest("GET", url, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create request: %w", err)
-			}
-
-			var projectFields []projectV2Field
-			resp, err := client.Do(ctx, httpRequest, &projectFields)
 
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -452,7 +441,7 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 			}
 
 			var resp *github.Response
-			var projectItems []projectV2Item
+			var projectItems []*github.ProjectV2Item
 			var queryPtr *string
 
 			if queryStr != "" {
@@ -467,24 +456,11 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 				},
 			}
 
-			var url string
 			if ownerType == "org" {
-				url = fmt.Sprintf("orgs/%s/projectsV2/%d/items", owner, projectNumber)
+				projectItems, resp, err = client.Projects.ListOrganizationProjectItems(ctx, owner, projectNumber, opts)
 			} else {
-				url = fmt.Sprintf("users/%s/projectsV2/%d/items", owner, projectNumber)
+				projectItems, resp, err = client.Projects.ListUserProjectItems(ctx, owner, projectNumber, opts)
 			}
-
-			url, err = addOptions(url, opts)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			httpRequest, err := client.NewRequest("GET", url, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create request: %w", err)
-			}
-
-			resp, err = client.Do(ctx, httpRequest, &projectItems)
 
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -566,32 +542,22 @@ func GetProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			var url string
-			if ownerType == "org" {
-				url = fmt.Sprintf("orgs/%s/projectsV2/%d/items/%d", owner, projectNumber, itemID)
-			} else {
-				url = fmt.Sprintf("users/%s/projectsV2/%d/items/%d", owner, projectNumber, itemID)
-			}
-
-			opts := fieldSelectionOptions{}
+			resp := &github.Response{}
+			projectItem := &github.ProjectV2Item{}
+			var opts *github.GetProjectItemOptions
 
 			if len(fields) > 0 {
-				opts.Fields = fields
+				opts = &github.GetProjectItemOptions{
+					Fields: fields,
+				}
 			}
 
-			url, err = addOptions(url, opts)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+			if ownerType == "org" {
+				projectItem, resp, err = client.Projects.GetOrganizationProjectItem(ctx, owner, projectNumber, itemID, opts)
+			} else {
+				projectItem, resp, err = client.Projects.GetUserProjectItem(ctx, owner, projectNumber, itemID, opts)
 			}
 
-			projectItem := projectV2Item{}
-
-			httpRequest, err := client.NewRequest("GET", url, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create request: %w", err)
-			}
-
-			resp, err := client.Do(ctx, httpRequest, &projectItem)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to get project item",
@@ -748,7 +714,7 @@ func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			itemID, err := RequiredInt(req, "item_id")
+			itemID, err := RequiredBigInt(req, "item_id")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -773,21 +739,15 @@ func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			var projectsURL string
-			if ownerType == "org" {
-				projectsURL = fmt.Sprintf("orgs/%s/projectsV2/%d/items/%d", owner, projectNumber, itemID)
-			} else {
-				projectsURL = fmt.Sprintf("users/%s/projectsV2/%d/items/%d", owner, projectNumber, itemID)
-			}
-			httpRequest, err := client.NewRequest("PATCH", projectsURL, updateProjectItemPayload{
-				Fields: []updateProjectItem{*updatePayload},
-			})
-			if err != nil {
-				return nil, fmt.Errorf("failed to create request: %w", err)
-			}
-			updatedItem := projectV2Item{}
+			var resp *github.Response
+			var updatedItem *github.ProjectV2Item
 
-			resp, err := client.Do(ctx, httpRequest, &updatedItem)
+			if ownerType == "org" {
+				updatedItem, resp, err = client.Projects.UpdateOrganizationProjectItem(ctx, owner, projectNumber, itemID, updatePayload)
+			} else {
+				updatedItem, resp, err = client.Projects.UpdateUserProjectItem(ctx, owner, projectNumber, itemID, updatePayload)
+			}
+
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					ProjectUpdateFailedError,
@@ -892,15 +852,6 @@ type fieldSelectionOptions struct {
 	Fields []int64 `url:"fields,omitempty,comma"`
 }
 
-type updateProjectItemPayload struct {
-	Fields []updateProjectItem `json:"fields"`
-}
-
-type updateProjectItem struct {
-	ID    int `json:"id"`
-	Value any `json:"value"`
-}
-
 type projectV2ItemFieldValue struct {
 	ID       *int64 `json:"id,omitempty"`
 	Name     string `json:"name,omitempty"`
@@ -967,7 +918,7 @@ func toNewProjectType(projType string) string {
 	}
 }
 
-func buildUpdateProjectItem(input map[string]any) (*updateProjectItem, error) {
+func buildUpdateProjectItem(input map[string]any) (*github.UpdateProjectItemOptions, error) {
 	if input == nil {
 		return nil, fmt.Errorf("updated_field must be an object")
 	}
@@ -986,7 +937,12 @@ func buildUpdateProjectItem(input map[string]any) (*updateProjectItem, error) {
 	if !ok {
 		return nil, fmt.Errorf("updated_field.value is required")
 	}
-	payload := &updateProjectItem{ID: int(idFieldAsFloat64), Value: valueField}
+	payload := &github.UpdateProjectItemOptions{
+		Fields: []*github.UpdateProjectV2Field{{
+			ID:    int64(idFieldAsFloat64),
+			Value: valueField,
+		}},
+	}
 
 	return payload, nil
 }
