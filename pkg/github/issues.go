@@ -299,11 +299,11 @@ Options are:
 			case "get":
 				return GetIssue(ctx, client, gqlClient, owner, repo, issueNumber, flags)
 			case "get_comments":
-				return GetIssueComments(ctx, client, owner, repo, issueNumber, pagination, flags)
+				return GetIssueComments(ctx, client, gqlClient, owner, repo, issueNumber, pagination, flags)
 			case "get_sub_issues":
-				return GetSubIssues(ctx, client, owner, repo, issueNumber, pagination, flags)
+				return GetSubIssues(ctx, client, gqlClient, owner, repo, issueNumber, pagination, flags)
 			case "get_labels":
-				return GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber, flags)
+				return GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
 			default:
 				return mcp.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil
 			}
@@ -327,11 +327,11 @@ func GetIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Cl
 
 	if flags.LockdownMode {
 		if issue.User != nil {
-			shouldRemoveContent, err := lockdown.ShouldRemoveContent(ctx, gqlClient, *issue.User.Login, owner, repo)
+			isPrivate, hasPushAccess, err := lockdown.GetRepoAccessInfo(ctx, gqlClient, *issue.User.Login, owner, repo)
 			if err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
 			}
-			if shouldRemoveContent {
+			if !isPrivate && !hasPushAccess {
 				return mcp.NewToolResultError("access to issue details is restricted by lockdown mode"), nil
 			}
 		}
@@ -355,7 +355,7 @@ func GetIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Cl
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-func GetIssueComments(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, pagination PaginationParams, _ FeatureFlags) (*mcp.CallToolResult, error) {
+func GetIssueComments(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, pagination PaginationParams, flags FeatureFlags) (*mcp.CallToolResult, error) {
 	opts := &github.IssueListCommentsOptions{
 		ListOptions: github.ListOptions{
 			Page:    pagination.Page,
@@ -376,6 +376,23 @@ func GetIssueComments(ctx context.Context, client *github.Client, owner string, 
 		}
 		return mcp.NewToolResultError(fmt.Sprintf("failed to get issue comments: %s", string(body))), nil
 	}
+	if flags.LockdownMode {
+		filteredComments := []*github.IssueComment{}
+		for _, comment := range comments {
+			isPrivate, hasPushAccess, err := lockdown.GetRepoAccessInfo(ctx, gqlClient, *comment.User.Login, owner, repo)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
+			}
+			// Do not filter content for private repositories
+			if isPrivate {
+				break
+			}
+			if hasPushAccess {
+				filteredComments = append(filteredComments, comment)
+			}
+		}
+		comments = filteredComments
+	}
 
 	r, err := json.Marshal(comments)
 	if err != nil {
@@ -385,7 +402,7 @@ func GetIssueComments(ctx context.Context, client *github.Client, owner string, 
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-func GetSubIssues(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, pagination PaginationParams, _ FeatureFlags) (*mcp.CallToolResult, error) {
+func GetSubIssues(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, pagination PaginationParams, featureFlags FeatureFlags) (*mcp.CallToolResult, error) {
 	opts := &github.IssueListOptions{
 		ListOptions: github.ListOptions{
 			Page:    pagination.Page,
@@ -412,6 +429,24 @@ func GetSubIssues(ctx context.Context, client *github.Client, owner string, repo
 		return mcp.NewToolResultError(fmt.Sprintf("failed to list sub-issues: %s", string(body))), nil
 	}
 
+	if featureFlags.LockdownMode {
+		filteredSubIssues := []*github.SubIssue{}
+		for _, subIssue := range subIssues {
+			isPrivate, hasPushAccess, err := lockdown.GetRepoAccessInfo(ctx, gqlClient, *subIssue.User.Login, owner, repo)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
+			}
+			// Repo is private, do not filter content
+			if isPrivate {
+				break
+			}
+			if hasPushAccess {
+				filteredSubIssues = append(filteredSubIssues, subIssue)
+			}
+		}
+		subIssues = filteredSubIssues
+	}
+
 	r, err := json.Marshal(subIssues)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -420,7 +455,7 @@ func GetSubIssues(ctx context.Context, client *github.Client, owner string, repo
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, repo string, issueNumber int, _ FeatureFlags) (*mcp.CallToolResult, error) {
+func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
 	// Get current labels on the issue using GraphQL
 	var query struct {
 		Repository struct {
