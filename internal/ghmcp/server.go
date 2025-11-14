@@ -613,6 +613,7 @@ func extractTokenFromAuthHeader(ctx context.Context, r *http.Request) context.Co
 		return context.WithValue(ctx, githubTokenKey{}, token)
 	}
 	return ctx
+}
 // cleanToolsets cleans and handles special toolset keywords:
 // - Duplicates are removed from the result
 // - Removes whitespaces
