@@ -861,6 +861,26 @@ func toNewProjectType(projType string) string {
 	}
 }
 
+// validateAndConvertToInt64 ensures the value is a number and converts it to int64.
+func validateAndConvertToInt64(value any) (int64, error) {
+	switch v := value.(type) {
+	case float64:
+		// Validate that the float64 can be safely converted to int64
+		intVal := int64(v)
+		if float64(intVal) != v {
+			return 0, fmt.Errorf("value must be a valid integer (got %v)", v)
+		}
+		return intVal, nil
+	case int64:
+		return v, nil
+	case int:
+		return int64(v), nil
+	default:
+		return 0, fmt.Errorf("value must be a number (got %T)", v)
+	}
+}
+
+// buildUpdateProjectItem constructs UpdateProjectItemOptions from the input map.
 func buildUpdateProjectItem(input map[string]any) (*github.UpdateProjectItemOptions, error) {
 	if input == nil {
 		return nil, fmt.Errorf("updated_field must be an object")
@@ -871,18 +891,19 @@ func buildUpdateProjectItem(input map[string]any) (*github.UpdateProjectItemOpti
 		return nil, fmt.Errorf("updated_field.id is required")
 	}
 
-	idFieldAsFloat64, ok := idField.(float64) // JSON numbers are float64
-	if !ok {
-		return nil, fmt.Errorf("updated_field.id must be a number")
+	fieldID, err := validateAndConvertToInt64(idField)
+	if err != nil {
+		return nil, fmt.Errorf("updated_field.id: %w", err)
 	}
 
 	valueField, ok := input["value"]
 	if !ok {
 		return nil, fmt.Errorf("updated_field.value is required")
 	}
+
 	payload := &github.UpdateProjectItemOptions{
 		Fields: []*github.UpdateProjectV2Field{{
-			ID:    int64(idFieldAsFloat64),
+			ID:    fieldID,
 			Value: valueField,
 		}},
 	}
