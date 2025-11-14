@@ -343,6 +343,28 @@ To specify toolsets you want available to the LLM, you can pass an allow-list in
 
 The environment variable `GITHUB_TOOLSETS` takes precedence over the command line argument if both are provided.
 
+#### Specifying Individual Tools
+
+You can also configure specific tools instead of entire toolsets using the `--tools` flag. When tools are specified, they take priority over toolsets configuration, read-only mode, and dynamic toolsets.
+
+1. **Using Command Line Argument**:
+
+   ```bash
+   github-mcp-server --tools get_file_contents,issue_read,create_pull_request
+   ```
+
+2. **Using Environment Variable**:
+   ```bash
+   GITHUB_TOOLS="get_file_contents,issue_read,create_pull_request" ./github-mcp-server
+   ```
+
+**Important Notes:**
+- When `--tools` is specified, only the listed tools are registered, bypassing toolset enablement
+- Read-only mode is still respected: write tools are skipped if `--read-only` is set, even if explicitly requested
+- Dynamic toolsets are disabled when specific tools are configured
+- Resources and prompts from all toolsets are still registered to maintain functionality
+- Tool names must match exactly (e.g., `get_file_contents`, not `getFileContents`)
+
 ### Using Toolsets With Docker
 
 When using Docker, you can pass the toolsets as environment variables:
@@ -351,6 +373,17 @@ When using Docker, you can pass the toolsets as environment variables:
 docker run -i --rm \
   -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
   -e GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security,experiments" \
+  ghcr.io/github/github-mcp-server
+```
+
+### Using Tools With Docker
+
+When using Docker, you can pass specific tools as environment variables:
+
+```bash
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_TOOLS="get_file_contents,issue_read,create_pull_request" \
   ghcr.io/github/github-mcp-server
 ```
 
