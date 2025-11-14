@@ -481,6 +481,88 @@ func CreateRepository(getClient GetClientFn, t translations.TranslationHelperFun
 		}
 }
 
+// CreateRepositoryFromTemplate creates a tool to create a new GitHub repository from a template.
+func CreateRepositoryFromTemplate(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("create_repository_from_template",
+			mcp.WithDescription(t("TOOL_CREATE_REPOSITORY_FROM_TEMPLATE_DESCRIPTION", "Create a new GitHub repository from template in your account")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_CREATE_REPOSITORY_FROM_TEMPLATE_USER_TITLE", "Create repository from template"),
+				ReadOnlyHint: ToBoolPtr(false),
+			}),
+			mcp.WithString("template_owner",
+				mcp.Required(),
+				mcp.Description("template owner"),
+			),
+			mcp.WithString("template_repo",
+				mcp.Required(),
+				mcp.Description("The name of the template repository"),
+			),
+			mcp.WithString("name",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithString("description",
+				mcp.Description("Repository description"),
+			),
+			mcp.WithBoolean("private",
+				mcp.Description("Whether repo should be private"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			templateOwner, err := RequiredParam[string](request, "template_owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			templateRepo, err := RequiredParam[string](request, "template_repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			name, err := RequiredParam[string](request, "name")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			description, err := OptionalParam[string](request, "description")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			private, err := OptionalParam[bool](request, "private")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			repo := &github.TemplateRepoRequest{
+				Name:        github.Ptr(name),
+				Description: github.Ptr(description),
+				Private:     github.Ptr(private),
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+			createdRepo, resp, err := client.Repositories.CreateFromTemplate(ctx, templateOwner, templateRepo, repo)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create repository from template: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusCreated {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to create repository from template: %s", string(body))), nil
+			}
+
+			r, err := json.Marshal(createdRepo)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
 // GetFileContents creates a tool to get the contents of a file or directory from a GitHub repository.
 func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("get_file_contents",
