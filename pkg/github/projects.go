@@ -6,14 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
-	"reflect"
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
-	"github.com/google/go-querystring/query"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -542,8 +539,8 @@ func GetProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			resp := &github.Response{}
-			projectItem := &github.ProjectV2Item{}
+			var resp *github.Response
+			var projectItem *github.ProjectV2Item
 			var opts *github.GetProjectItemOptions
 
 			if len(fields) > 0 {
@@ -846,65 +843,11 @@ func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 		}
 }
 
-type fieldSelectionOptions struct {
-	// Specific list of field IDs to include in the response. If not provided, only the title field is included.
-	// The comma tag encodes the slice as comma-separated values: fields=102589,985201,169875
-	Fields []int64 `url:"fields,omitempty,comma"`
-}
-
-type projectV2ItemFieldValue struct {
-	ID       *int64 `json:"id,omitempty"`
-	Name     string `json:"name,omitempty"`
-	DataType string `json:"data_type,omitempty"`
-	Value    any    `json:"value,omitempty"`
-}
-
-type projectV2Item struct {
-	ArchivedAt  *github.Timestamp          `json:"archived_at,omitempty"`
-	Content     *projectV2ItemContent      `json:"content,omitempty"`
-	ContentType *string                    `json:"content_type,omitempty"`
-	CreatedAt   *github.Timestamp          `json:"created_at,omitempty"`
-	Creator     *github.User               `json:"creator,omitempty"`
-	Description *string                    `json:"description,omitempty"`
-	Fields      []*projectV2ItemFieldValue `json:"fields,omitempty"`
-	ID          *int64                     `json:"id,omitempty"`
-	ItemURL     *string                    `json:"item_url,omitempty"`
-	NodeID      *string                    `json:"node_id,omitempty"`
-	ProjectURL  *string                    `json:"project_url,omitempty"`
-	Title       *string                    `json:"title,omitempty"`
-	UpdatedAt   *github.Timestamp          `json:"updated_at,omitempty"`
-}
-
-type projectV2ItemContent struct {
-	Body        *string           `json:"body,omitempty"`
-	ClosedAt    *github.Timestamp `json:"closed_at,omitempty"`
-	CreatedAt   *github.Timestamp `json:"created_at,omitempty"`
-	ID          *int64            `json:"id,omitempty"`
-	Number      *int              `json:"number,omitempty"`
-	State       *string           `json:"state,omitempty"`
-	StateReason *string           `json:"stateReason,omitempty"`
-	Title       *string           `json:"title,omitempty"`
-	UpdatedAt   *github.Timestamp `json:"updated_at,omitempty"`
-	URL         *string           `json:"url,omitempty"`
-}
-
 type pageInfo struct {
 	HasNextPage     bool   `json:"hasNextPage"`
 	HasPreviousPage bool   `json:"hasPreviousPage"`
 	NextCursor      string `json:"nextCursor,omitempty"`
 	PrevCursor      string `json:"prevCursor,omitempty"`
-}
-
-type projectV2Field struct {
-	ID            *int64            `json:"id,omitempty"`
-	NodeID        *string           `json:"node_id,omitempty"`
-	Name          *string           `json:"name,omitempty"`
-	DataType      *string           `json:"data_type,omitempty"`
-	ProjectURL    *string           `json:"project_url,omitempty"`
-	Options       []any             `json:"options,omitempty"`
-	Configuration any               `json:"configuration,omitempty"`
-	CreatedAt     *github.Timestamp `json:"created_at,omitempty"`
-	UpdatedAt     *github.Timestamp `json:"updated_at,omitempty"`
 }
 
 func toNewProjectType(projType string) string {
@@ -989,36 +932,4 @@ func extractPaginationOptions(request mcp.CallToolRequest) (github.ListProjectsP
 	}
 
 	return opts, nil
-}
-
-// addOptions adds the parameters in opts as URL query parameters to s. opts
-// must be a struct whose fields may contain "url" tags.
-func addOptions(s string, opts any) (string, error) {
-	v := reflect.ValueOf(opts)
-	if v.Kind() == reflect.Ptr && v.IsNil() {
-		return s, nil
-	}
-
-	origURL, err := url.Parse(s)
-	if err != nil {
-		return s, err
-	}
-
-	origValues := origURL.Query()
-
-	// Use the github.com/google/go-querystring library to parse the struct
-	newValues, err := query.Values(opts)
-	if err != nil {
-		return s, err
-	}
-
-	// Merge the values
-	for key, values := range newValues {
-		for _, value := range values {
-			origValues.Add(key, value)
-		}
-	}
-
-	origURL.RawQuery = origValues.Encode()
-	return origURL.String(), nil
 }
