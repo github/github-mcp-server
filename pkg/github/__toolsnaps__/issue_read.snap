@@ -1,7 +1,8 @@
 {
   "annotations": {
     "title": "Get issue details",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "openWorldHint": true
   },
   "description": "Get information about a specific issue in a GitHub repository.",
   "inputSchema": {
