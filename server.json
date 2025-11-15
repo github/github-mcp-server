@@ -3,7 +3,7 @@
   "name": "io.github.github/github-mcp-server",
   "description": "Connect AI assistants to GitHub - manage repos, issues, PRs, and workflows through natural language.",
   "title": "GitHub",
-  "status": "active",
+  "status": "closed",
   "repository": {
     "url": "https://github.com/github/github-mcp-server",
     "source": "github"
