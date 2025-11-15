@@ -1,0 +1,38 @@
+{
+  "annotations": {
+    "title": "Delete organization package",
+    "readOnlyHint": false
+  },
+  "description": "Delete an entire package from a GitHub organization. This will delete all versions of the package. Requires delete:packages scope.",
+  "inputSchema": {
+    "properties": {
+      "org": {
+        "description": "Organization name",
+        "type": "string"
+      },
+      "package_name": {
+        "description": "Package name",
+        "type": "string"
+      },
+      "package_type": {
+        "description": "Package type",
+        "enum": [
+          "npm",
+          "maven",
+          "rubygems",
+          "docker",
+          "nuget",
+          "container"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "org",
+      "package_type",
+      "package_name"
+    ],
+    "type": "object"
+  },
+  "name": "delete_org_package"
+}

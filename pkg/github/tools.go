@@ -111,6 +111,10 @@ var (
 		ID:          "labels",
 		Description: "GitHub Labels related tools",
 	}
+	ToolsetMetadataPackages = ToolsetMetadata{
+		ID:          "packages",
+		Description: "GitHub Packages related tools for managing and viewing package metadata, versions, and deletion operations",
+	}
 )
 
 func AvailableTools() []ToolsetMetadata {
@@ -134,6 +138,7 @@ func AvailableTools() []ToolsetMetadata {
 		ToolsetMetadataStargazers,
 		ToolsetMetadataDynamic,
 		ToolsetLabels,
+		ToolsetMetadataPackages,
 	}
 }
 
@@ -356,6 +361,20 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			// create or update
 			toolsets.NewServerTool(LabelWrite(getGQLClient, t)),
 		)
+	packages := toolsets.NewToolset(ToolsetMetadataPackages.ID, ToolsetMetadataPackages.Description).
+		AddReadTools(
+			toolsets.NewServerTool(ListOrgPackages(getClient, t)),
+			toolsets.NewServerTool(GetOrgPackage(getClient, t)),
+			toolsets.NewServerTool(ListPackageVersions(getClient, t)),
+			toolsets.NewServerTool(GetPackageVersion(getClient, t)),
+			toolsets.NewServerTool(ListUserPackages(getClient, t)),
+		).
+		AddWriteTools(
+			toolsets.NewServerTool(DeleteOrgPackage(getClient, t)),
+			toolsets.NewServerTool(DeleteOrgPackageVersion(getClient, t)),
+			toolsets.NewServerTool(DeleteUserPackage(getClient, t)),
+			toolsets.NewServerTool(DeleteUserPackageVersion(getClient, t)),
+		)
 	// Add toolsets to the group
 	tsg.AddToolset(contextTools)
 	tsg.AddToolset(repos)
@@ -376,6 +395,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(projects)
 	tsg.AddToolset(stargazers)
 	tsg.AddToolset(labels)
+	tsg.AddToolset(packages)
 
 	return tsg
 }
