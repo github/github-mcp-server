@@ -414,7 +414,7 @@ The following sets of tools are available:
 | `users` | GitHub User related tools |
 <!-- END AUTOMATED TOOLSETS -->
 
-### Additional Toolsets in Remote Github MCP Server
+### Additional Toolsets in Remote GitHub MCP Server
 
 | Toolset                 | Description                                                   |
 | ----------------------- | ------------------------------------------------------------- |
@@ -1188,7 +1188,7 @@ Possible options:
 </details>
 <!-- END AUTOMATED TOOLS -->
 
-### Additional Tools in Remote Github MCP Server
+### Additional Tools in Remote GitHub MCP Server
 
 <details>
 
