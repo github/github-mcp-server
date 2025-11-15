@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -73,18 +74,27 @@ func searchHandler(
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	pagination, err := OptionalPaginationParams(request)
+	pagination, err := OptionalFixedCursorPaginationParams(request)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
+	// WithFixedCursorPagination: fetch exactly pageSize items, use TotalCount to determine if there's more
+	pageSize := pagination.PerPage
+	// Determine current page from After cursor
+	page := 1
+	if pagination.After != "" {
+		decoded, err := decodePageCursor(pagination.After)
+		if err == nil && decoded > 0 {
+			page = decoded
+		}
+	}
 	opts := &github.SearchOptions{
-		// Default to "created" if no sort is provided, as it's a common use case.
 		Sort:  sort,
 		Order: order,
 		ListOptions: github.ListOptions{
-			Page:    pagination.Page,
-			PerPage: pagination.PerPage,
+			Page:    page,
+			PerPage: pageSize,
 		},
 	}
 
@@ -106,10 +116,79 @@ func searchHandler(
 		return mcp.NewToolResultError(fmt.Sprintf("%s: %s", errorPrefix, string(body))), nil
 	}
 
-	r, err := json.Marshal(result)
+	// Prepare paginated results
+	items := result.Issues
+	totalCount := result.GetTotal()
+
+	// Calculate if there's a next page based on total count and current position
+	currentItemCount := len(items)
+	itemsSeenSoFar := (page-1)*pageSize + currentItemCount
+	hasNextPage := itemsSeenSoFar < totalCount
+
+	nextCursor := ""
+	if hasNextPage {
+		nextPage := page + 1
+		nextCursor = encodePageCursor(nextPage)
+	}
+
+	pageInfo := struct {
+		HasNextPage bool   `json:"hasNextPage"`
+		EndCursor   string `json:"endCursor,omitempty"`
+	}{
+		HasNextPage: hasNextPage,
+		EndCursor:   nextCursor,
+	}
+
+	response := struct {
+		TotalCount        int             `json:"totalCount"`
+		IncompleteResults bool            `json:"incompleteResults"`
+		Items             []*github.Issue `json:"items"`
+		PageInfo          interface{}     `json:"pageInfo"`
+	}{
+		TotalCount:        totalCount,
+		IncompleteResults: result.GetIncompleteResults(),
+		Items:             items,
+		PageInfo:          pageInfo,
+	}
+
+	r, err := json.Marshal(response)
 	if err != nil {
 		return nil, fmt.Errorf("%s: failed to marshal response: %w", errorPrefix, err)
 	}
 
 	return mcp.NewToolResultText(string(r)), nil
+}
+
+// encodePageCursor encodes the page number as a base64 string
+func encodePageCursor(page int) string {
+	s := fmt.Sprintf("page=%d", page)
+	return b64Encode(s)
+}
+
+// decodePageCursor decodes a base64 cursor and extracts the page number
+func decodePageCursor(cursor string) (int, error) {
+	data, err := b64Decode(cursor)
+	if err != nil {
+		return 1, err
+	}
+	var page int
+	n, err := fmt.Sscanf(data, "page=%d", &page)
+	if err != nil || n != 1 {
+		return 1, fmt.Errorf("invalid cursor format")
+	}
+	return page, nil
+}
+
+// b64Encode encodes a string to base64
+func b64Encode(s string) string {
+	return base64.StdEncoding.EncodeToString([]byte(s))
+}
+
+// b64Decode decodes a base64 string
+func b64Decode(s string) (string, error) {
+	data, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
