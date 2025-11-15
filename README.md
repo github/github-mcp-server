@@ -184,22 +184,30 @@ the hostname for GitHub Enterprise Server or GitHub Enterprise Cloud with data r
 - For GitHub Enterprise Server, prefix the hostname with the `https://` URI scheme, as it otherwise defaults to `http://`, which GitHub Enterprise Server does not support.
 - For GitHub Enterprise Cloud with data residency, use `https://YOURSUBDOMAIN.ghe.com` as the hostname.
 ``` json
-"github": {
-    "command": "docker",
-    "args": [
-    "run",
-    "-i",
-    "--rm",
-    "-e",
-    "GITHUB_PERSONAL_ACCESS_TOKEN",
-    "-e",
-    "GITHUB_HOST",
-    "ghcr.io/github/github-mcp-server"
-    ],
-    "env": {
+{
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "github_token",
+      "description": "GitHub Personal Access Token",
+      "password": true
+    }
+  ],
+  "servers": {
+    "github": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "ghcr.io/github/github-mcp-server"
+      ],
+      "env": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}",
         "GITHUB_HOST": "https://<your GHES or ghe.com domain name>"
+      }
     }
+  }
 }
 ```
 
@@ -214,43 +222,6 @@ More about using MCP server tools in VS Code's [agent mode documentation](https:
 Install in GitHub Copilot on other IDEs (JetBrains, Visual Studio, Eclipse, etc.)
 
 Add the following JSON block to your IDE's MCP settings.
-
-```json
-{
-  "mcp": {
-    "inputs": [
-      {
-        "type": "promptString",
-        "id": "github_token",
-        "description": "GitHub Personal Access Token",
-        "password": true
-      }
-    ],
-    "servers": {
-      "github": {
-        "command": "docker",
-        "args": [
-          "run",
-          "-i",
-          "--rm",
-          "-e",
-          "GITHUB_PERSONAL_ACCESS_TOKEN",
-          "ghcr.io/github/github-mcp-server"
-        ],
-        "env": {
-          "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}"
-        }
-      }
-    }
-  }
-}
-```
-
-Optionally, you can add a similar example (i.e. without the mcp key) to a file called `.vscode/mcp.json` in your workspace. This will allow you to share the configuration with other host applications that accept the same format.
-
-<details>
-<summary><b>Example JSON block without the MCP key included</b></summary>
-<br>
 
 ```json
 {
@@ -280,8 +251,6 @@ Optionally, you can add a similar example (i.e. without the mcp key) to a file c
   }
 }
 ```
-
-</details>
 
 ### Install in Other MCP Hosts
 
