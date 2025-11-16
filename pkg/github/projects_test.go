@@ -9,7 +9,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	gh "github.com/google/go-github/v74/github"
+	gh "github.com/google/go-github/v79/github"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,8 +28,9 @@ func Test_ListProjects(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "per_page")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "owner_type"})
 
-	orgProjects := []map[string]any{{"id": 1, "title": "Org Project"}}
-	userProjects := []map[string]any{{"id": 2, "title": "User Project"}}
+	// API returns full ProjectV2 objects; we only need minimal fields for decoding.
+	orgProjects := []map[string]any{{"id": 1, "node_id": "NODE1", "title": "Org Project"}}
+	userProjects := []map[string]any{{"id": 2, "node_id": "NODE2", "title": "User Project"}}
 
 	tests := []struct {
 		name           string
@@ -44,7 +45,10 @@ func Test_ListProjects(t *testing.T) {
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
 					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2", Method: http.MethodGet},
-					mockResponse(t, http.StatusOK, orgProjects),
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write(mock.MustMarshal(orgProjects))
+					}),
 				),
 			),
 			requestArgs: map[string]interface{}{
@@ -59,7 +63,10 @@ func Test_ListProjects(t *testing.T) {
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
 					mock.EndpointPattern{Pattern: "/users/{username}/projectsV2", Method: http.MethodGet},
-					mockResponse(t, http.StatusOK, userProjects),
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write(mock.MustMarshal(userProjects))
+					}),
 				),
 			),
 			requestArgs: map[string]interface{}{
@@ -153,10 +160,15 @@ func Test_ListProjects(t *testing.T) {
 
 			require.False(t, result.IsError)
 			textContent := getTextResult(t, result)
-			var arr []map[string]any
-			err = json.Unmarshal([]byte(textContent.Text), &arr)
+			var response map[string]any
+			err = json.Unmarshal([]byte(textContent.Text), &response)
 			require.NoError(t, err)
-			assert.Equal(t, tc.expectedLength, len(arr))
+			projects, ok := response["projects"].([]interface{})
+			require.True(t, ok)
+			assert.Equal(t, tc.expectedLength, len(projects))
+			// pageInfo should exist
+			_, hasPageInfo := response["pageInfo"].(map[string]interface{})
+			assert.True(t, hasPageInfo)
 		})
 	}
 }
@@ -305,12 +317,8 @@ func Test_ListProjectFields(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "per_page")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number"})
 
-	orgFields := []map[string]any{
-		{"id": 101, "name": "Status", "dataType": "single_select"},
-	}
-	userFields := []map[string]any{
-		{"id": 201, "name": "Priority", "dataType": "single_select"},
-	}
+	orgFields := []map[string]any{{"id": 101, "name": "Status", "data_type": "single_select"}}
+	userFields := []map[string]any{{"id": 201, "name": "Priority", "data_type": "single_select"}}
 
 	tests := []struct {
 		name           string
@@ -325,7 +333,10 @@ func Test_ListProjectFields(t *testing.T) {
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
 					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/fields", Method: http.MethodGet},
-					mockResponse(t, http.StatusOK, orgFields),
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write(mock.MustMarshal(orgFields))
+					}),
 				),
 			),
 			requestArgs: map[string]interface{}{
@@ -433,10 +444,14 @@ func Test_ListProjectFields(t *testing.T) {
 
 			require.False(t, result.IsError)
 			textContent := getTextResult(t, result)
-			var fields []map[string]any
-			err = json.Unmarshal([]byte(textContent.Text), &fields)
+			var response map[string]any
+			err = json.Unmarshal([]byte(textContent.Text), &response)
 			require.NoError(t, err)
+			fields, ok := response["fields"].([]interface{})
+			require.True(t, ok)
 			assert.Equal(t, tc.expectedLength, len(fields))
+			_, hasPageInfo := response["pageInfo"].(map[string]interface{})
+			assert.True(t, hasPageInfo)
 		})
 	}
 }
@@ -609,10 +624,14 @@ func Test_ListProjectItems(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "project_number")
 	assert.Contains(t, tool.InputSchema.Properties, "query")
 	assert.Contains(t, tool.InputSchema.Properties, "per_page")
+	assert.Contains(t, tool.InputSchema.Properties, "fields")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number"})
 
 	orgItems := []map[string]any{
-		{"id": 301, "content_type": "Issue", "project_node_id": "PR_1"},
+		{"id": 301, "content_type": "Issue", "project_node_id": "PR_1", "fields": []map[string]any{
+			{"id": 123, "name": "Status", "data_type": "single_select", "value": "value1"},
+			{"id": 456, "name": "Priority", "data_type": "single_select", "value": "value2"},
+		}},
 	}
 	userItems := []map[string]any{
 		{"id": 401, "content_type": "PullRequest", "project_node_id": "PR_2"},
@@ -639,6 +658,31 @@ func Test_ListProjectItems(t *testing.T) {
 				"owner":          "octo-org",
 				"owner_type":     "org",
 				"project_number": float64(123),
+			},
+			expectedLength: 1,
+		},
+		{
+			name: "success organization items with fields",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodGet},
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						q := r.URL.Query()
+						if q.Get("fields") == "123,456,789" {
+							w.WriteHeader(http.StatusOK)
+							_, _ = w.Write(mock.MustMarshal(orgItems))
+							return
+						}
+						w.WriteHeader(http.StatusBadRequest)
+						_, _ = w.Write([]byte(`{"message":"unexpected query params"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(123),
+				"fields":         []interface{}{"123", "456", "789"},
 			},
 			expectedLength: 1,
 		},
@@ -697,7 +741,7 @@ func Test_ListProjectItems(t *testing.T) {
 				"project_number": float64(789),
 			},
 			expectError:    true,
-			expectedErrMsg: "failed to list project items",
+			expectedErrMsg: ProjectListFailedError,
 		},
 		{
 			name:         "missing owner",
@@ -756,10 +800,14 @@ func Test_ListProjectItems(t *testing.T) {
 
 			require.False(t, result.IsError)
 			textContent := getTextResult(t, result)
-			var items []map[string]any
-			err = json.Unmarshal([]byte(textContent.Text), &items)
+			var response map[string]any
+			err = json.Unmarshal([]byte(textContent.Text), &response)
 			require.NoError(t, err)
+			items, ok := response["items"].([]interface{})
+			require.True(t, ok)
 			assert.Equal(t, tc.expectedLength, len(items))
+			_, hasPageInfo := response["pageInfo"].(map[string]interface{})
+			assert.True(t, hasPageInfo)
 		})
 	}
 }
@@ -775,6 +823,7 @@ func Test_GetProjectItem(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "project_number")
 	assert.Contains(t, tool.InputSchema.Properties, "item_id")
+	assert.Contains(t, tool.InputSchema.Properties, "fields")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number", "item_id"})
 
 	orgItem := map[string]any{
@@ -811,6 +860,32 @@ func Test_GetProjectItem(t *testing.T) {
 				"owner_type":     "org",
 				"project_number": float64(123),
 				"item_id":        float64(301),
+			},
+			expectedID: 301,
+		},
+		{
+			name: "success organization item with fields",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodGet},
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						q := r.URL.Query()
+						if q.Get("fields") == "123,456" {
+							w.WriteHeader(http.StatusOK)
+							_, _ = w.Write(mock.MustMarshal(orgItem))
+							return
+						}
+						w.WriteHeader(http.StatusBadRequest)
+						_, _ = w.Write([]byte(`{"message":"unexpected query params"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(123),
+				"item_id":        float64(301),
+				"fields":         []interface{}{"123", "456"},
 			},
 			expectedID: 301,
 		},
@@ -1022,7 +1097,7 @@ func Test_AddProjectItem(t *testing.T) {
 						assert.NoError(t, json.Unmarshal(body, &payload))
 						assert.Equal(t, "PullRequest", payload.Type)
 						assert.Equal(t, 7654, payload.ID)
-						w.WriteHeader(http.StatusOK)
+						w.WriteHeader(http.StatusCreated)
 						_, _ = w.Write(mock.MustMarshal(userItem))
 					}),
 				),
@@ -1054,7 +1129,7 @@ func Test_AddProjectItem(t *testing.T) {
 				"item_id":        float64(8888),
 			},
 			expectError:    true,
-			expectedErrMsg: "failed to add a project item",
+			expectedErrMsg: ProjectAddFailedError,
 		},
 		{
 			name:         "missing owner",
@@ -1139,6 +1214,8 @@ func Test_AddProjectItem(t *testing.T) {
 					assert.Contains(t, text, "missing required parameter: item_type")
 				case "missing item_id":
 					assert.Contains(t, text, "missing required parameter: item_id")
+					// case "api error":
+					// 	assert.Contains(t, text, ProjectAddFailedError)
 				}
 				return
 			}
@@ -1157,6 +1234,281 @@ func Test_AddProjectItem(t *testing.T) {
 				creator, ok := item["creator"].(map[string]any)
 				require.True(t, ok)
 				assert.Equal(t, tc.expectedCreatorLogin, creator["login"])
+			}
+		})
+	}
+}
+
+func Test_UpdateProjectItem(t *testing.T) {
+	mockClient := gh.NewClient(nil)
+	tool, _ := UpdateProjectItem(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "update_project_item", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "project_number")
+	assert.Contains(t, tool.InputSchema.Properties, "item_id")
+	assert.Contains(t, tool.InputSchema.Properties, "updated_field")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number", "item_id", "updated_field"})
+
+	orgUpdatedItem := map[string]any{
+		"id":           801,
+		"content_type": "Issue",
+	}
+	userUpdatedItem := map[string]any{
+		"id":           802,
+		"content_type": "PullRequest",
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]any
+		expectError    bool
+		expectedErrMsg string
+		expectedID     int
+	}{
+		{
+			name: "success organization update",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodPatch},
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						body, err := io.ReadAll(r.Body)
+						assert.NoError(t, err)
+						var payload struct {
+							Fields []struct {
+								ID    int         `json:"id"`
+								Value interface{} `json:"value"`
+							} `json:"fields"`
+						}
+						assert.NoError(t, json.Unmarshal(body, &payload))
+						require.Len(t, payload.Fields, 1)
+						assert.Equal(t, 101, payload.Fields[0].ID)
+						assert.Equal(t, "Done", payload.Fields[0].Value)
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write(mock.MustMarshal(orgUpdatedItem))
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(1001),
+				"item_id":        float64(5555),
+				"updated_field": map[string]any{
+					"id":    float64(101),
+					"value": "Done",
+				},
+			},
+			expectedID: 801,
+		},
+		{
+			name: "success user update",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/items/{item_id}", Method: http.MethodPatch},
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						body, err := io.ReadAll(r.Body)
+						assert.NoError(t, err)
+						var payload struct {
+							Fields []struct {
+								ID    int         `json:"id"`
+								Value interface{} `json:"value"`
+							} `json:"fields"`
+						}
+						assert.NoError(t, json.Unmarshal(body, &payload))
+						require.Len(t, payload.Fields, 1)
+						assert.Equal(t, 202, payload.Fields[0].ID)
+						assert.Equal(t, 42.0, payload.Fields[0].Value)
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write(mock.MustMarshal(userUpdatedItem))
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":          "octocat",
+				"owner_type":     "user",
+				"project_number": float64(2002),
+				"item_id":        float64(6666),
+				"updated_field": map[string]any{
+					"id":    float64(202),
+					"value": float64(42),
+				},
+			},
+			expectedID: 802,
+		},
+		{
+			name: "api error",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodPatch},
+					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(3003),
+				"item_id":        float64(7777),
+				"updated_field": map[string]any{
+					"id":    float64(303),
+					"value": "In Progress",
+				},
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to update a project item",
+		},
+		{
+			name:         "missing owner",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner_type":     "org",
+				"project_number": float64(1),
+				"item_id":        float64(2),
+				"updated_field": map[string]any{
+					"id":    float64(1),
+					"value": "X",
+				},
+			},
+			expectError: true,
+		},
+		{
+			name:         "missing owner_type",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner":          "octo-org",
+				"project_number": float64(1),
+				"item_id":        float64(2),
+				"updated_field": map[string]any{
+					"id":    float64(1),
+					"value": "X",
+				},
+			},
+			expectError: true,
+		},
+		{
+			name:         "missing project_number",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner":      "octo-org",
+				"owner_type": "org",
+				"item_id":    float64(2),
+				"updated_field": map[string]any{
+					"id":    float64(1),
+					"value": "X",
+				},
+			},
+			expectError: true,
+		},
+		{
+			name:         "missing item_id",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(1),
+				"updated_field": map[string]any{
+					"id":    float64(1),
+					"value": "X",
+				},
+			},
+			expectError: true,
+		},
+		{
+			name:         "missing updated_field",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(1),
+				"item_id":        float64(2),
+			},
+			expectError: true,
+		},
+		{
+			name:         "updated_field not object",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(1),
+				"item_id":        float64(2),
+				"updated_field":  "not-an-object",
+			},
+			expectError: true,
+		},
+		{
+			name:         "updated_field missing id",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(1),
+				"item_id":        float64(2),
+				"updated_field":  map[string]any{},
+			},
+			expectError: true,
+		},
+		{
+			name:         "updated_field missing value",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(1),
+				"item_id":        float64(2),
+				"updated_field": map[string]any{
+					"id": float64(9),
+				},
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := gh.NewClient(tc.mockedClient)
+			_, handler := UpdateProjectItem(stubGetClientFn(client), translations.NullTranslationHelper)
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(context.Background(), request)
+
+			require.NoError(t, err)
+			if tc.expectError {
+				require.True(t, result.IsError)
+				text := getTextResult(t, result).Text
+				if tc.expectedErrMsg != "" {
+					assert.Contains(t, text, tc.expectedErrMsg)
+				}
+				switch tc.name {
+				case "missing owner":
+					assert.Contains(t, text, "missing required parameter: owner")
+				case "missing owner_type":
+					assert.Contains(t, text, "missing required parameter: owner_type")
+				case "missing project_number":
+					assert.Contains(t, text, "missing required parameter: project_number")
+				case "missing item_id":
+					assert.Contains(t, text, "missing required parameter: item_id")
+				case "missing updated_field":
+					assert.Contains(t, text, "missing required parameter: updated_field")
+				case "updated_field not object":
+					assert.Contains(t, text, "field_value must be an object")
+				case "updated_field missing id":
+					assert.Contains(t, text, "updated_field.id is required")
+				case "updated_field missing value":
+					assert.Contains(t, text, "updated_field.value is required")
+				}
+				return
+			}
+
+			require.False(t, result.IsError)
+			textContent := getTextResult(t, result)
+			var item map[string]any
+			require.NoError(t, json.Unmarshal([]byte(textContent.Text), &item))
+			if tc.expectedID != 0 {
+				assert.Equal(t, float64(tc.expectedID), item["id"])
 			}
 		})
 	}
@@ -1234,7 +1586,7 @@ func Test_DeleteProjectItem(t *testing.T) {
 				"item_id":        float64(999),
 			},
 			expectError:    true,
-			expectedErrMsg: "failed to delete a project item",
+			expectedErrMsg: ProjectDeleteFailedError,
 		},
 		{
 			name:         "missing owner",

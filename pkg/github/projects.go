@@ -12,67 +12,92 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v74/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/google/go-querystring/query"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
+const (
+	ProjectUpdateFailedError = "failed to update a project item"
+	ProjectAddFailedError    = "failed to add a project item"
+	ProjectDeleteFailedError = "failed to delete a project item"
+	ProjectListFailedError   = "failed to list project items"
+	MaxProjectsPerPage       = 50
+)
+
 func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("list_projects",
-			mcp.WithDescription(t("TOOL_LIST_PROJECTS_DESCRIPTION", "List Projects for a user or org")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{Title: t("TOOL_LIST_PROJECTS_USER_TITLE", "List projects"), ReadOnlyHint: ToBoolPtr(true)}),
-			mcp.WithString("owner_type", mcp.Required(), mcp.Description("Owner type"), mcp.Enum("user", "org")),
-			mcp.WithString("owner", mcp.Required(), mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.")),
-			mcp.WithString("query", mcp.Description("Filter projects by a search query (matches title and description)")),
-			mcp.WithNumber("per_page", mcp.Description("Number of results per page (max 100, default: 30)")),
+			mcp.WithDescription(t("TOOL_LIST_PROJECTS_DESCRIPTION", `List Projects for a user or organization`)),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_LIST_PROJECTS_USER_TITLE", "List projects"),
+				ReadOnlyHint: ToBoolPtr(true),
+			}),
+			mcp.WithString("owner_type",
+				mcp.Required(), mcp.Description("Owner type"), mcp.Enum("user", "org"),
+			),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive."),
+			),
+			mcp.WithString("query",
+				mcp.Description(`Filter projects by title text and open/closed state; permitted qualifiers: is:open, is:closed; examples: "roadmap is:open", "is:open feature planning".`),
+			),
+			mcp.WithNumber("per_page",
+				mcp.Description(fmt.Sprintf("Results per page (max %d)", MaxProjectsPerPage)),
+			),
+			mcp.WithString("after",
+				mcp.Description("Forward pagination cursor from previous pageInfo.nextCursor."),
+			),
+			mcp.WithString("before",
+				mcp.Description("Backward pagination cursor from previous pageInfo.prevCursor (rare)."),
+			),
 		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](req, "owner")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+
 			ownerType, err := RequiredParam[string](req, "owner_type")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+
 			queryStr, err := OptionalParam[string](req, "query")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			perPage, err := OptionalIntParamWithDefault(req, "per_page", 30)
+
+			pagination, err := extractPaginationOptions(req)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+
 			client, err := getClient(ctx)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			var url string
-			if ownerType == "org" {
-				url = fmt.Sprintf("orgs/%s/projectsV2", owner)
-			} else {
-				url = fmt.Sprintf("users/%s/projectsV2", owner)
-			}
-			projects := []github.ProjectV2{}
-			minimalProjects := []MinimalProject{}
-
-			opts := listProjectsOptions{PerPage: perPage}
+			var resp *github.Response
+			var projects []*github.ProjectV2
+			var queryPtr *string
 
 			if queryStr != "" {
-				opts.Query = queryStr
-			}
-			url, err = addOptions(url, opts)
-			if err != nil {
-				return nil, fmt.Errorf("failed to add options to request: %w", err)
+				queryPtr = &queryStr
 			}
 
-			httpRequest, err := client.NewRequest("GET", url, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create request: %w", err)
+			minimalProjects := []MinimalProject{}
+			opts := &github.ListProjectsOptions{
+				ListProjectsPaginationOptions: pagination,
+				Query:                         queryPtr,
 			}
 
-			resp, err := client.Do(ctx, httpRequest, &projects)
+			if ownerType == "org" {
+				projects, resp, err = client.Projects.ListOrganizationProjects(ctx, owner, opts)
+			} else {
+				projects, resp, err = client.Projects.ListUserProjects(ctx, owner, opts)
+			}
+
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to list projects",
@@ -83,17 +108,15 @@ func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (
 			defer func() { _ = resp.Body.Close() }()
 
 			for _, project := range projects {
-				minimalProjects = append(minimalProjects, *convertToMinimalProject(&project))
+				minimalProjects = append(minimalProjects, *convertToMinimalProject(project))
 			}
 
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to list projects: %s", string(body))), nil
+			response := map[string]any{
+				"projects": minimalProjects,
+				"pageInfo": buildPageInfo(resp),
 			}
-			r, err := json.Marshal(minimalProjects)
+
+			r, err := json.Marshal(response)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -105,10 +128,23 @@ func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (
 func GetProject(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("get_project",
 			mcp.WithDescription(t("TOOL_GET_PROJECT_DESCRIPTION", "Get Project for a user or org")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{Title: t("TOOL_GET_PROJECT_USER_TITLE", "Get project"), ReadOnlyHint: ToBoolPtr(true)}),
-			mcp.WithNumber("project_number", mcp.Required(), mcp.Description("The project's number")),
-			mcp.WithString("owner_type", mcp.Required(), mcp.Description("Owner type"), mcp.Enum("user", "org")),
-			mcp.WithString("owner", mcp.Required(), mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_GET_PROJECT_USER_TITLE", "Get project"),
+				ReadOnlyHint: ToBoolPtr(true),
+			}),
+			mcp.WithNumber("project_number",
+				mcp.Required(),
+				mcp.Description("The project's number"),
+			),
+			mcp.WithString("owner_type",
+				mcp.Required(),
+				mcp.Description("Owner type"),
+				mcp.Enum("user", "org"),
+			),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive."),
+			),
 		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 
 			projectNumber, err := RequiredInt(req, "project_number")
@@ -131,21 +167,14 @@ func GetProject(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			var url string
+			var resp *github.Response
+			var project *github.ProjectV2
+
 			if ownerType == "org" {
-				url = fmt.Sprintf("orgs/%s/projectsV2/%d", owner, projectNumber)
+				project, resp, err = client.Projects.GetOrganizationProject(ctx, owner, projectNumber)
 			} else {
-				url = fmt.Sprintf("users/%s/projectsV2/%d", owner, projectNumber)
+				project, resp, err = client.Projects.GetUserProject(ctx, owner, projectNumber)
 			}
-
-			project := github.ProjectV2{}
-
-			httpRequest, err := client.NewRequest("GET", url, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create request: %w", err)
-			}
-
-			resp, err := client.Do(ctx, httpRequest, &project)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to get project",
@@ -163,7 +192,7 @@ func GetProject(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get project: %s", string(body))), nil
 			}
 
-			minimalProject := convertToMinimalProject(&project)
+			minimalProject := convertToMinimalProject(project)
 			r, err := json.Marshal(minimalProject)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -176,31 +205,59 @@ func GetProject(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("list_project_fields",
 			mcp.WithDescription(t("TOOL_LIST_PROJECT_FIELDS_DESCRIPTION", "List Project fields for a user or org")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{Title: t("TOOL_LIST_PROJECT_FIELDS_USER_TITLE", "List project fields"), ReadOnlyHint: ToBoolPtr(true)}),
-			mcp.WithString("owner_type", mcp.Required(), mcp.Description("Owner type"), mcp.Enum("user", "org")),
-			mcp.WithString("owner", mcp.Required(), mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.")),
-			mcp.WithNumber("project_number", mcp.Required(), mcp.Description("The project's number.")),
-			mcp.WithNumber("per_page", mcp.Description("Number of results per page (max 100, default: 30)")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_LIST_PROJECT_FIELDS_USER_TITLE", "List project fields"),
+				ReadOnlyHint: ToBoolPtr(true),
+			}),
+			mcp.WithString("owner_type",
+				mcp.Required(),
+				mcp.Description("Owner type"),
+				mcp.Enum("user", "org")),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive."),
+			),
+			mcp.WithNumber("project_number",
+				mcp.Required(),
+				mcp.Description("The project's number."),
+			),
+			mcp.WithNumber("per_page",
+				mcp.Description(fmt.Sprintf("Results per page (max %d)", MaxProjectsPerPage)),
+			),
+			mcp.WithString("after",
+				mcp.Description("Forward pagination cursor from previous pageInfo.nextCursor."),
+			),
+			mcp.WithString("before",
+				mcp.Description("Backward pagination cursor from previous pageInfo.prevCursor (rare)."),
+			),
 		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](req, "owner")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+
 			ownerType, err := RequiredParam[string](req, "owner_type")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+
 			projectNumber, err := RequiredInt(req, "project_number")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			perPage, err := OptionalIntParamWithDefault(req, "per_page", 30)
+
+			pagination, err := extractPaginationOptions(req)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+
 			client, err := getClient(ctx)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			opts := &github.ListProjectsOptions{
+				ListProjectsPaginationOptions: pagination,
 			}
 
 			var url string
@@ -209,12 +266,10 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 			} else {
 				url = fmt.Sprintf("users/%s/projectsV2/%d/fields", owner, projectNumber)
 			}
-			projectFields := []projectV2Field{}
 
-			opts := listProjectsOptions{PerPage: perPage}
 			url, err = addOptions(url, opts)
 			if err != nil {
-				return nil, fmt.Errorf("failed to add options to request: %w", err)
+				return mcp.NewToolResultError(err.Error()), nil
 			}
 
 			httpRequest, err := client.NewRequest("GET", url, nil)
@@ -222,7 +277,9 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 				return nil, fmt.Errorf("failed to create request: %w", err)
 			}
 
+			var projectFields []projectV2Field
 			resp, err := client.Do(ctx, httpRequest, &projectFields)
+
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to list project fields",
@@ -232,14 +289,12 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to list project fields: %s", string(body))), nil
+			response := map[string]any{
+				"fields":   projectFields,
+				"pageInfo": buildPageInfo(resp),
 			}
-			r, err := json.Marshal(projectFields)
+
+			r, err := json.Marshal(response)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -251,11 +306,24 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("get_project_field",
 			mcp.WithDescription(t("TOOL_GET_PROJECT_FIELD_DESCRIPTION", "Get Project field for a user or org")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{Title: t("TOOL_GET_PROJECT_FIELD_USER_TITLE", "Get project field"), ReadOnlyHint: ToBoolPtr(true)}),
-			mcp.WithString("owner_type", mcp.Required(), mcp.Description("Owner type"), mcp.Enum("user", "org")),
-			mcp.WithString("owner", mcp.Required(), mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.")),
-			mcp.WithNumber("project_number", mcp.Required(), mcp.Description("The project's number.")),
-			mcp.WithNumber("field_id", mcp.Required(), mcp.Description("The field's id.")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_GET_PROJECT_FIELD_USER_TITLE", "Get project field"),
+				ReadOnlyHint: ToBoolPtr(true),
+			}),
+			mcp.WithString("owner_type",
+				mcp.Required(),
+				mcp.Description("Owner type"), mcp.Enum("user", "org")),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive."),
+			),
+			mcp.WithNumber("project_number",
+				mcp.Required(),
+				mcp.Description("The project's number.")),
+			mcp.WithNumber("field_id",
+				mcp.Required(),
+				mcp.Description("The field's id."),
+			),
 		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](req, "owner")
 			if err != nil {
@@ -269,7 +337,7 @@ func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			fieldID, err := RequiredInt(req, "field_id")
+			fieldID, err := RequiredBigInt(req, "field_id")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -278,21 +346,15 @@ func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			var url string
+			var resp *github.Response
+			var projectField *github.ProjectV2Field
+
 			if ownerType == "org" {
-				url = fmt.Sprintf("orgs/%s/projectsV2/%d/fields/%d", owner, projectNumber, fieldID)
+				projectField, resp, err = client.Projects.GetOrganizationProjectField(ctx, owner, projectNumber, fieldID)
 			} else {
-				url = fmt.Sprintf("users/%s/projectsV2/%d/fields/%d", owner, projectNumber, fieldID)
+				projectField, resp, err = client.Projects.GetUserProjectField(ctx, owner, projectNumber, fieldID)
 			}
 
-			projectField := projectV2Field{}
-
-			httpRequest, err := client.NewRequest("GET", url, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create request: %w", err)
-			}
-
-			resp, err := client.Do(ctx, httpRequest, &projectField)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to get project field",
@@ -320,37 +382,89 @@ func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc
 
 func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("list_project_items",
-			mcp.WithDescription(t("TOOL_LIST_PROJECT_ITEMS_DESCRIPTION", "List Project items for a user or org")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{Title: t("TOOL_LIST_PROJECT_ITEMS_USER_TITLE", "List project items"), ReadOnlyHint: ToBoolPtr(true)}),
-			mcp.WithString("owner_type", mcp.Required(), mcp.Description("Owner type"), mcp.Enum("user", "org")),
-			mcp.WithString("owner", mcp.Required(), mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.")),
-			mcp.WithNumber("project_number", mcp.Required(), mcp.Description("The project's number.")),
-			mcp.WithString("query", mcp.Description("Search query to filter items")),
-			mcp.WithNumber("per_page", mcp.Description("Number of results per page (max 100, default: 30)")),
+			mcp.WithDescription(t("TOOL_LIST_PROJECT_ITEMS_DESCRIPTION", `Search project items with advanced filtering`)),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_LIST_PROJECT_ITEMS_USER_TITLE", "List project items"),
+				ReadOnlyHint: ToBoolPtr(true),
+			}),
+			mcp.WithString("owner_type",
+				mcp.Required(),
+				mcp.Description("Owner type"),
+				mcp.Enum("user", "org"),
+			),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive."),
+			),
+			mcp.WithNumber("project_number", mcp.Required(),
+				mcp.Description("The project's number."),
+			),
+			mcp.WithString("query",
+				mcp.Description(`Query string for advanced filtering of project items using GitHub's project filtering syntax.`),
+			),
+			mcp.WithNumber("per_page",
+				mcp.Description(fmt.Sprintf("Results per page (max %d)", MaxProjectsPerPage)),
+			),
+			mcp.WithString("after",
+				mcp.Description("Forward pagination cursor from previous pageInfo.nextCursor."),
+			),
+			mcp.WithString("before",
+				mcp.Description("Backward pagination cursor from previous pageInfo.prevCursor (rare)."),
+			),
+			mcp.WithArray("fields",
+				mcp.Description("Field IDs to include (e.g. [\"102589\", \"985201\"]). CRITICAL: Always provide to get field values. Without this, only titles returned."),
+				mcp.WithStringItems(),
+			),
 		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](req, "owner")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+
 			ownerType, err := RequiredParam[string](req, "owner_type")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+
 			projectNumber, err := RequiredInt(req, "project_number")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			perPage, err := OptionalIntParamWithDefault(req, "per_page", 30)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
+
 			queryStr, err := OptionalParam[string](req, "query")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+
+			fields, err := OptionalBigIntArrayParam(req, "fields")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			pagination, err := extractPaginationOptions(req)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
 			client, err := getClient(ctx)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			var resp *github.Response
+			var projectItems []projectV2Item
+			var queryPtr *string
+
+			if queryStr != "" {
+				queryPtr = &queryStr
+			}
+
+			opts := &github.ListProjectItemsOptions{
+				Fields: fields,
+				ListProjectsOptions: github.ListProjectsOptions{
+					ListProjectsPaginationOptions: pagination,
+					Query:                         queryPtr,
+				},
 			}
 
 			var url string
@@ -359,15 +473,10 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 			} else {
 				url = fmt.Sprintf("users/%s/projectsV2/%d/items", owner, projectNumber)
 			}
-			projectItems := []projectV2Item{}
 
-			opts := listProjectsOptions{PerPage: perPage}
-			if queryStr != "" {
-				opts.Query = queryStr
-			}
 			url, err = addOptions(url, opts)
 			if err != nil {
-				return nil, fmt.Errorf("failed to add options to request: %w", err)
+				return mcp.NewToolResultError(err.Error()), nil
 			}
 
 			httpRequest, err := client.NewRequest("GET", url, nil)
@@ -375,28 +484,23 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 				return nil, fmt.Errorf("failed to create request: %w", err)
 			}
 
-			resp, err := client.Do(ctx, httpRequest, &projectItems)
+			resp, err = client.Do(ctx, httpRequest, &projectItems)
+
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to list project items",
+					ProjectListFailedError,
 					resp,
 					err,
 				), nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to list project items: %s", string(body))), nil
+			response := map[string]any{
+				"items":    projectItems,
+				"pageInfo": buildPageInfo(resp),
 			}
-			minimalProjectItems := []MinimalProjectItem{}
-			for _, item := range projectItems {
-				minimalProjectItems = append(minimalProjectItems, *convertToMinimalProjectItem(&item))
-			}
-			r, err := json.Marshal(minimalProjectItems)
+
+			r, err := json.Marshal(response)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -408,25 +512,51 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 func GetProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("get_project_item",
 			mcp.WithDescription(t("TOOL_GET_PROJECT_ITEM_DESCRIPTION", "Get a specific Project item for a user or org")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{Title: t("TOOL_GET_PROJECT_ITEM_USER_TITLE", "Get project item"), ReadOnlyHint: ToBoolPtr(true)}),
-			mcp.WithString("owner_type", mcp.Required(), mcp.Description("Owner type"), mcp.Enum("user", "org")),
-			mcp.WithString("owner", mcp.Required(), mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.")),
-			mcp.WithNumber("project_number", mcp.Required(), mcp.Description("The project's number.")),
-			mcp.WithNumber("item_id", mcp.Required(), mcp.Description("The item's ID.")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_GET_PROJECT_ITEM_USER_TITLE", "Get project item"),
+				ReadOnlyHint: ToBoolPtr(true),
+			}),
+			mcp.WithString("owner_type",
+				mcp.Required(),
+				mcp.Description("Owner type"),
+				mcp.Enum("user", "org"),
+			),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive."),
+			),
+			mcp.WithNumber("project_number",
+				mcp.Required(),
+				mcp.Description("The project's number."),
+			),
+			mcp.WithNumber("item_id",
+				mcp.Required(),
+				mcp.Description("The item's ID."),
+			),
+			mcp.WithArray("fields",
+				mcp.Description("Specific list of field IDs to include in the response (e.g. [\"102589\", \"985201\", \"169875\"]). If not provided, only the title field is included."),
+				mcp.WithStringItems(),
+			),
 		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](req, "owner")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+
 			ownerType, err := RequiredParam[string](req, "owner_type")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+
 			projectNumber, err := RequiredInt(req, "project_number")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			itemID, err := RequiredInt(req, "item_id")
+			itemID, err := RequiredBigInt(req, "item_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			fields, err := OptionalBigIntArrayParam(req, "fields")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -442,6 +572,18 @@ func GetProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 			} else {
 				url = fmt.Sprintf("users/%s/projectsV2/%d/items/%d", owner, projectNumber, itemID)
 			}
+
+			opts := fieldSelectionOptions{}
+
+			if len(fields) > 0 {
+				opts.Fields = fields
+			}
+
+			url, err = addOptions(url, opts)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
 			projectItem := projectV2Item{}
 
 			httpRequest, err := client.NewRequest("GET", url, nil)
@@ -459,14 +601,7 @@ func GetProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get project item: %s", string(body))), nil
-			}
-			r, err := json.Marshal(convertToMinimalProjectItem(&projectItem))
+			r, err := json.Marshal(projectItem)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -478,12 +613,31 @@ func GetProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 func AddProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("add_project_item",
 			mcp.WithDescription(t("TOOL_ADD_PROJECT_ITEM_DESCRIPTION", "Add a specific Project item for a user or org")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{Title: t("TOOL_ADD_PROJECT_ITEM_USER_TITLE", "Add project item"), ReadOnlyHint: ToBoolPtr(false)}),
-			mcp.WithString("owner_type", mcp.Required(), mcp.Description("Owner type"), mcp.Enum("user", "org")),
-			mcp.WithString("owner", mcp.Required(), mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.")),
-			mcp.WithNumber("project_number", mcp.Required(), mcp.Description("The project's number.")),
-			mcp.WithString("item_type", mcp.Required(), mcp.Description("The item's type, either issue or pull_request."), mcp.Enum("issue", "pull_request")),
-			mcp.WithNumber("item_id", mcp.Required(), mcp.Description("The numeric ID of the issue or pull request to add to the project.")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_ADD_PROJECT_ITEM_USER_TITLE", "Add project item"),
+				ReadOnlyHint: ToBoolPtr(false),
+			}),
+			mcp.WithString("owner_type",
+				mcp.Required(),
+				mcp.Description("Owner type"), mcp.Enum("user", "org"),
+			),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive."),
+			),
+			mcp.WithNumber("project_number",
+				mcp.Required(),
+				mcp.Description("The project's number."),
+			),
+			mcp.WithString("item_type",
+				mcp.Required(),
+				mcp.Description("The item's type, either issue or pull_request."),
+				mcp.Enum("issue", "pull_request"),
+			),
+			mcp.WithNumber("item_id",
+				mcp.Required(),
+				mcp.Description("The numeric ID of the issue or pull request to add to the project."),
+			),
 		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](req, "owner")
 			if err != nil {
@@ -497,7 +651,7 @@ func AddProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			itemID, err := RequiredInt(req, "item_id")
+			itemID, err := RequiredBigInt(req, "item_id")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -515,41 +669,37 @@ func AddProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			var projectsURL string
-			if ownerType == "org" {
-				projectsURL = fmt.Sprintf("orgs/%s/projectsV2/%d/items", owner, projectNumber)
-			} else {
-				projectsURL = fmt.Sprintf("users/%s/projectsV2/%d/items", owner, projectNumber)
-			}
-
-			newProjectItem := &newProjectItem{
-				ID:   int64(itemID),
+			newItem := &github.AddProjectItemOptions{
+				ID:   itemID,
 				Type: toNewProjectType(itemType),
 			}
-			httpRequest, err := client.NewRequest("POST", projectsURL, newProjectItem)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create request: %w", err)
-			}
-			addedItem := projectV2Item{}
 
-			resp, err := client.Do(ctx, httpRequest, &addedItem)
+			var resp *github.Response
+			var addedItem *github.ProjectV2Item
+
+			if ownerType == "org" {
+				addedItem, resp, err = client.Projects.AddOrganizationProjectItem(ctx, owner, projectNumber, newItem)
+			} else {
+				addedItem, resp, err = client.Projects.AddUserProjectItem(ctx, owner, projectNumber, newItem)
+			}
+
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to add a project item",
+					ProjectAddFailedError,
 					resp,
 					err,
 				), nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+			if resp.StatusCode != http.StatusCreated {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
 					return nil, fmt.Errorf("failed to read response body: %w", err)
 				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to add a project item: %s", string(body))), nil
+				return mcp.NewToolResultError(fmt.Sprintf("%s: %s", ProjectAddFailedError, string(body))), nil
 			}
-			r, err := json.Marshal(convertToMinimalProjectItem(&addedItem))
+			r, err := json.Marshal(addedItem)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -558,14 +708,33 @@ func AddProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 		}
 }
 
-func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("delete_project_item",
-			mcp.WithDescription(t("TOOL_DELETE_PROJECT_ITEM_DESCRIPTION", "Delete a specific Project item for a user or org")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{Title: t("TOOL_DELETE_PROJECT_ITEM_USER_TITLE", "Delete project item"), ReadOnlyHint: ToBoolPtr(false)}),
-			mcp.WithString("owner_type", mcp.Required(), mcp.Description("Owner type"), mcp.Enum("user", "org")),
-			mcp.WithString("owner", mcp.Required(), mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.")),
-			mcp.WithNumber("project_number", mcp.Required(), mcp.Description("The project's number.")),
-			mcp.WithNumber("item_id", mcp.Required(), mcp.Description("The internal project item ID to delete from the project (not the issue or pull request ID).")),
+func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("update_project_item",
+			mcp.WithDescription(t("TOOL_UPDATE_PROJECT_ITEM_DESCRIPTION", "Update a specific Project item for a user or org")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_UPDATE_PROJECT_ITEM_USER_TITLE", "Update project item"),
+				ReadOnlyHint: ToBoolPtr(false),
+			}),
+			mcp.WithString("owner_type",
+				mcp.Required(), mcp.Description("Owner type"),
+				mcp.Enum("user", "org"),
+			),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive."),
+			),
+			mcp.WithNumber("project_number",
+				mcp.Required(),
+				mcp.Description("The project's number."),
+			),
+			mcp.WithNumber("item_id",
+				mcp.Required(),
+				mcp.Description("The unique identifier of the project item. This is not the issue or pull request ID."),
+			),
+			mcp.WithObject("updated_field",
+				mcp.Required(),
+				mcp.Description("Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}"),
+			),
 		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](req, "owner")
 			if err != nil {
@@ -583,6 +752,22 @@ func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+
+			rawUpdatedField, exists := req.GetArguments()["updated_field"]
+			if !exists {
+				return mcp.NewToolResultError("missing required parameter: updated_field"), nil
+			}
+
+			fieldValue, ok := rawUpdatedField.(map[string]any)
+			if !ok || fieldValue == nil {
+				return mcp.NewToolResultError("field_value must be an object"), nil
+			}
+
+			updatePayload, err := buildUpdateProjectItem(fieldValue)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
 			client, err := getClient(ctx)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
@@ -594,16 +779,96 @@ func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 			} else {
 				projectsURL = fmt.Sprintf("users/%s/projectsV2/%d/items/%d", owner, projectNumber, itemID)
 			}
-
-			httpRequest, err := client.NewRequest("DELETE", projectsURL, nil)
+			httpRequest, err := client.NewRequest("PATCH", projectsURL, updateProjectItemPayload{
+				Fields: []updateProjectItem{*updatePayload},
+			})
 			if err != nil {
 				return nil, fmt.Errorf("failed to create request: %w", err)
 			}
+			updatedItem := projectV2Item{}
 
-			resp, err := client.Do(ctx, httpRequest, nil)
+			resp, err := client.Do(ctx, httpRequest, &updatedItem)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to delete a project item",
+					ProjectUpdateFailedError,
+					resp,
+					err,
+				), nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("%s: %s", ProjectUpdateFailedError, string(body))), nil
+			}
+			r, err := json.Marshal(updatedItem)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
+func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("delete_project_item",
+			mcp.WithDescription(t("TOOL_DELETE_PROJECT_ITEM_DESCRIPTION", "Delete a specific Project item for a user or org")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_DELETE_PROJECT_ITEM_USER_TITLE", "Delete project item"),
+				ReadOnlyHint: ToBoolPtr(false),
+			}),
+			mcp.WithString("owner_type",
+				mcp.Required(),
+				mcp.Description("Owner type"),
+				mcp.Enum("user", "org"),
+			),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive."),
+			),
+			mcp.WithNumber("project_number",
+				mcp.Required(),
+				mcp.Description("The project's number."),
+			),
+			mcp.WithNumber("item_id",
+				mcp.Required(),
+				mcp.Description("The internal project item ID to delete from the project (not the issue or pull request ID)."),
+			),
+		), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := RequiredParam[string](req, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			ownerType, err := RequiredParam[string](req, "owner_type")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			projectNumber, err := RequiredInt(req, "project_number")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			itemID, err := RequiredBigInt(req, "item_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			client, err := getClient(ctx)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			var resp *github.Response
+			if ownerType == "org" {
+				resp, err = client.Projects.DeleteOrganizationProjectItem(ctx, owner, projectNumber, itemID)
+			} else {
+				resp, err = client.Projects.DeleteUserProjectItem(ctx, owner, projectNumber, itemID)
+			}
+
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					ProjectDeleteFailedError,
 					resp,
 					err,
 				), nil
@@ -615,41 +880,80 @@ func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 				if err != nil {
 					return nil, fmt.Errorf("failed to read response body: %w", err)
 				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to delete a project item: %s", string(body))), nil
+				return mcp.NewToolResultError(fmt.Sprintf("%s: %s", ProjectDeleteFailedError, string(body))), nil
 			}
 			return mcp.NewToolResultText("project item successfully deleted"), nil
 		}
 }
 
-type newProjectItem struct {
-	ID   int64  `json:"id,omitempty"` // Issue or Pull Request ID to add to the project.
-	Type string `json:"type,omitempty"`
+type fieldSelectionOptions struct {
+	// Specific list of field IDs to include in the response. If not provided, only the title field is included.
+	// The comma tag encodes the slice as comma-separated values: fields=102589,985201,169875
+	Fields []int64 `url:"fields,omitempty,comma"`
 }
 
-type projectV2Field struct {
-	ID        *int64            `json:"id,omitempty"`         // The unique identifier for this field.
-	NodeID    string            `json:"node_id,omitempty"`    // The GraphQL node ID for this field.
-	Name      string            `json:"name,omitempty"`       // The display name of the field.
-	DataType  string            `json:"dataType,omitempty"`   // The data type of the field (e.g., "text", "number", "date", "single_select", "multi_select").
-	URL       string            `json:"url,omitempty"`        // The API URL for this field.
-	Options   []*any            `json:"options,omitempty"`    // Available options for single_select and multi_select fields.
-	CreatedAt *github.Timestamp `json:"created_at,omitempty"` // The time when this field was created.
-	UpdatedAt *github.Timestamp `json:"updated_at,omitempty"` // The time when this field was last updated.
+type updateProjectItemPayload struct {
+	Fields []updateProjectItem `json:"fields"`
+}
+
+type updateProjectItem struct {
+	ID    int `json:"id"`
+	Value any `json:"value"`
+}
+
+type projectV2ItemFieldValue struct {
+	ID       *int64 `json:"id,omitempty"`
+	Name     string `json:"name,omitempty"`
+	DataType string `json:"data_type,omitempty"`
+	Value    any    `json:"value,omitempty"`
 }
 
 type projectV2Item struct {
+	ArchivedAt  *github.Timestamp          `json:"archived_at,omitempty"`
+	Content     *projectV2ItemContent      `json:"content,omitempty"`
+	ContentType *string                    `json:"content_type,omitempty"`
+	CreatedAt   *github.Timestamp          `json:"created_at,omitempty"`
+	Creator     *github.User               `json:"creator,omitempty"`
+	Description *string                    `json:"description,omitempty"`
+	Fields      []*projectV2ItemFieldValue `json:"fields,omitempty"`
+	ID          *int64                     `json:"id,omitempty"`
+	ItemURL     *string                    `json:"item_url,omitempty"`
+	NodeID      *string                    `json:"node_id,omitempty"`
+	ProjectURL  *string                    `json:"project_url,omitempty"`
+	Title       *string                    `json:"title,omitempty"`
+	UpdatedAt   *github.Timestamp          `json:"updated_at,omitempty"`
+}
+
+type projectV2ItemContent struct {
+	Body        *string           `json:"body,omitempty"`
+	ClosedAt    *github.Timestamp `json:"closed_at,omitempty"`
+	CreatedAt   *github.Timestamp `json:"created_at,omitempty"`
+	ID          *int64            `json:"id,omitempty"`
+	Number      *int              `json:"number,omitempty"`
+	State       *string           `json:"state,omitempty"`
+	StateReason *string           `json:"stateReason,omitempty"`
+	Title       *string           `json:"title,omitempty"`
+	UpdatedAt   *github.Timestamp `json:"updated_at,omitempty"`
+	URL         *string           `json:"url,omitempty"`
+}
+
+type pageInfo struct {
+	HasNextPage     bool   `json:"hasNextPage"`
+	HasPreviousPage bool   `json:"hasPreviousPage"`
+	NextCursor      string `json:"nextCursor,omitempty"`
+	PrevCursor      string `json:"prevCursor,omitempty"`
+}
+
+type projectV2Field struct {
 	ID            *int64            `json:"id,omitempty"`
 	NodeID        *string           `json:"node_id,omitempty"`
-	ProjectNodeID *string           `json:"project_node_id,omitempty"`
-	ContentNodeID *string           `json:"content_node_id,omitempty"`
+	Name          *string           `json:"name,omitempty"`
+	DataType      *string           `json:"data_type,omitempty"`
 	ProjectURL    *string           `json:"project_url,omitempty"`
-	ContentType   *string           `json:"content_type,omitempty"`
-	Creator       *github.User      `json:"creator,omitempty"`
+	Options       []any             `json:"options,omitempty"`
+	Configuration any               `json:"configuration,omitempty"`
 	CreatedAt     *github.Timestamp `json:"created_at,omitempty"`
 	UpdatedAt     *github.Timestamp `json:"updated_at,omitempty"`
-	ArchivedAt    *github.Timestamp `json:"archived_at,omitempty"`
-	ItemURL       *string           `json:"item_url,omitempty"`
-	Fields        []*projectV2Field `json:"fields,omitempty"`
 }
 
 func toNewProjectType(projType string) string {
@@ -663,12 +967,72 @@ func toNewProjectType(projType string) string {
 	}
 }
 
-type listProjectsOptions struct {
-	// For paginated result sets, the number of results to include per page.
-	PerPage int `url:"per_page,omitempty"`
+func buildUpdateProjectItem(input map[string]any) (*updateProjectItem, error) {
+	if input == nil {
+		return nil, fmt.Errorf("updated_field must be an object")
+	}
 
-	// Query Limit results to projects of the specified type.
-	Query string `url:"q,omitempty"`
+	idField, ok := input["id"]
+	if !ok {
+		return nil, fmt.Errorf("updated_field.id is required")
+	}
+
+	idFieldAsFloat64, ok := idField.(float64) // JSON numbers are float64
+	if !ok {
+		return nil, fmt.Errorf("updated_field.id must be a number")
+	}
+
+	valueField, ok := input["value"]
+	if !ok {
+		return nil, fmt.Errorf("updated_field.value is required")
+	}
+	payload := &updateProjectItem{ID: int(idFieldAsFloat64), Value: valueField}
+
+	return payload, nil
+}
+
+func buildPageInfo(resp *github.Response) pageInfo {
+	return pageInfo{
+		HasNextPage:     resp.After != "",
+		HasPreviousPage: resp.Before != "",
+		NextCursor:      resp.After,
+		PrevCursor:      resp.Before,
+	}
+}
+
+func extractPaginationOptions(request mcp.CallToolRequest) (github.ListProjectsPaginationOptions, error) {
+	perPage, err := OptionalIntParamWithDefault(request, "per_page", MaxProjectsPerPage)
+	if err != nil {
+		return github.ListProjectsPaginationOptions{}, err
+	}
+	if perPage > MaxProjectsPerPage {
+		perPage = MaxProjectsPerPage
+	}
+
+	after, err := OptionalParam[string](request, "after")
+	if err != nil {
+		return github.ListProjectsPaginationOptions{}, err
+	}
+
+	before, err := OptionalParam[string](request, "before")
+	if err != nil {
+		return github.ListProjectsPaginationOptions{}, err
+	}
+
+	opts := github.ListProjectsPaginationOptions{
+		PerPage: &perPage,
+	}
+
+	// Only set After/Before if they have non-empty values
+	if after != "" {
+		opts.After = &after
+	}
+
+	if before != "" {
+		opts.Before = &before
+	}
+
+	return opts, nil
 }
 
 // addOptions adds the parameters in opts as URL query parameters to s. opts
@@ -679,16 +1043,26 @@ func addOptions(s string, opts any) (string, error) {
 		return s, nil
 	}
 
-	u, err := url.Parse(s)
+	origURL, err := url.Parse(s)
 	if err != nil {
 		return s, err
 	}
 
-	qs, err := query.Values(opts)
+	origValues := origURL.Query()
+
+	// Use the github.com/google/go-querystring library to parse the struct
+	newValues, err := query.Values(opts)
 	if err != nil {
 		return s, err
 	}
 
-	u.RawQuery = qs.Encode()
-	return u.String(), nil
+	// Merge the values
+	for key, values := range newValues {
+		for _, value := range values {
+			origValues.Add(key, value)
+		}
+	}
+
+	origURL.RawQuery = origValues.Encode()
+	return origURL.String(), nil
 }
