@@ -8,17 +8,18 @@ import (
 	"net/http"
 
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/google/go-github/v74/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/shurcooL/githubv4"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/translations"
 )
 
 // GetPullRequest creates a tool to get details of a specific pull request.
-func PullRequestRead(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+func PullRequestRead(getClient GetClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("pull_request_read",
 			mcp.WithDescription(t("TOOL_PULL_REQUEST_READ_DESCRIPTION", "Get information on a specific pull request in GitHub repository.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -97,7 +98,7 @@ Possible options:
 			case "get_reviews":
 				return GetPullRequestReviews(ctx, client, owner, repo, pullNumber)
 			case "get_comments":
-				return GetIssueComments(ctx, client, owner, repo, pullNumber, pagination)
+				return GetIssueComments(ctx, client, owner, repo, pullNumber, pagination, flags)
 			default:
 				return nil, fmt.Errorf("unknown method: %s", method)
 			}
@@ -121,6 +122,16 @@ func GetPullRequest(ctx context.Context, client *github.Client, owner, repo stri
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request: %s", string(body))), nil
+	}
+
+	// sanitize title/body on response
+	if pr != nil {
+		if pr.Title != nil {
+			pr.Title = github.Ptr(sanitize.Sanitize(*pr.Title))
+		}
+		if pr.Body != nil {
+			pr.Body = github.Ptr(sanitize.Sanitize(*pr.Body))
+		}
 	}
 
 	r, err := json.Marshal(pr)
@@ -802,6 +813,19 @@ func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFun
 					return nil, fmt.Errorf("failed to read response body: %w", err)
 				}
 				return mcp.NewToolResultError(fmt.Sprintf("failed to list pull requests: %s", string(body))), nil
+			}
+
+			// sanitize title/body on each PR
+			for _, pr := range prs {
+				if pr == nil {
+					continue
+				}
+				if pr.Title != nil {
+					pr.Title = github.Ptr(sanitize.Sanitize(*pr.Title))
+				}
+				if pr.Body != nil {
+					pr.Body = github.Ptr(sanitize.Sanitize(*pr.Body))
+				}
 			}
 
 			r, err := json.Marshal(prs)

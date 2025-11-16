@@ -27,7 +27,7 @@
         "type": "number"
       },
       "updated_field": {
-        "description": "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set \"value\" to null. Example: {\"id\": 123456, \"value\": \"New Value\"}",
+        "description": "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}",
         "properties": {},
         "type": "object"
       }

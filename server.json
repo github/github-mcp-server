@@ -1,7 +1,8 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
   "name": "io.github.github/github-mcp-server",
   "description": "Connect AI assistants to GitHub - manage repos, issues, PRs, and workflows through natural language.",
+  "title": "GitHub",
   "status": "active",
   "repository": {
     "url": "https://github.com/github/github-mcp-server",
@@ -11,9 +12,7 @@
   "packages": [
     {
       "registryType": "oci",
-      "registryBaseUrl": "https://ghcr.io",
-      "identifier": "github/github-mcp-server",
-      "version": "${VERSION}",
+      "identifier": "ghcr.io/github/github-mcp-server:${VERSION}",
       "transport": {
         "type": "stdio"
       },
@@ -21,43 +20,58 @@
         {
           "type": "positional",
           "value": "run",
-          "description": "The runtime command to execute"
+          "description": "The runtime command to execute",
+          "isRequired": true
         },
         {
           "type": "named",
           "name": "-i",
-          "description": "Run container in interactive mode"
+          "value": "true",
+          "description": "Run container in interactive mode",
+          "format": "boolean",
+          "isRequired": true
         },
         {
           "type": "named",
           "name": "--rm",
-          "description": "Automatically remove the container when it exits"
+          "value": "true",
+          "description": "Automatically remove the container when it exits",
+          "format": "boolean"
         },
         {
           "type": "named",
           "name": "-e",
-          "description": "Set an environment variable in the runtime"
-        },
-        {
-          "type": "positional",
-          "valueHint": "env_var_name",
-          "value": "GITHUB_PERSONAL_ACCESS_TOKEN",
-          "description": "Environment variable name"
+          "description": "Set an environment variable in the runtime",
+          "value": "GITHUB_PERSONAL_ACCESS_TOKEN={token}",
+          "isRequired": true,
+          "variables": {
+            "token": {
+              "isRequired": true,
+              "isSecret": true,
+              "format": "string"
+            }
+          }
         },
         {
           "type": "positional",
           "valueHint": "image_name",
           "value": "ghcr.io/github/github-mcp-server",
-          "description": "The container image to run"
+          "description": "The container image to run",
+          "isRequired": true
         }
-      ],
-      "environmentVariables": [
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": [
         {
-          "description": "Your GitHub personal access token with appropriate scopes.",
+          "name": "Authorization",
+          "description": "Authentication token (PAT or App token)",
           "isRequired": true,
-          "format": "string",
-          "isSecret": true,
-          "name": "GITHUB_PERSONAL_ACCESS_TOKEN"
+          "isSecret": true
         }
       ]
     }

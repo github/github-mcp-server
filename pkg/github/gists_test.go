@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v74/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -188,6 +188,115 @@ func Test_ListGists(t *testing.T) {
 				assert.Equal(t, *tc.expectedGists[i].HTMLURL, *gist.HTMLURL)
 				assert.Equal(t, *tc.expectedGists[i].Public, *gist.Public)
 			}
+		})
+	}
+}
+
+func Test_GetGist(t *testing.T) {
+	// Verify tool definition
+	mockClient := github.NewClient(nil)
+	tool, _ := GetGist(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	assert.Equal(t, "get_gist", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "gist_id")
+
+	assert.Contains(t, tool.InputSchema.Required, "gist_id")
+
+	// Setup mock gist for success case
+	mockGist := github.Gist{
+		ID:          github.Ptr("gist1"),
+		Description: github.Ptr("First Gist"),
+		HTMLURL:     github.Ptr("https://gist.github.com/user/gist1"),
+		Public:      github.Ptr(true),
+		CreatedAt:   &github.Timestamp{Time: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)},
+		Owner:       &github.User{Login: github.Ptr("user")},
+		Files: map[github.GistFilename]github.GistFile{
+			github.GistFilename("file1.txt"): {
+				Filename: github.Ptr("file1.txt"),
+				Content:  github.Ptr("content of file 1"),
+			},
+		},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedGists  github.Gist
+		expectedErrMsg string
+	}{
+		{
+			name: "Successful fetching different gist",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetGistsByGistId,
+					mockResponse(t, http.StatusOK, mockGist),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"gist_id": "gist1",
+			},
+			expectError:   false,
+			expectedGists: mockGist,
+		},
+		{
+			name: "gist_id parameter missing",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetGistsByGistId,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusUnprocessableEntity)
+						_, _ = w.Write([]byte(`{"message": "Invalid Request"}`))
+					}),
+				),
+			),
+			requestArgs:    map[string]interface{}{},
+			expectError:    true,
+			expectedErrMsg: "missing required parameter: gist_id",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := GetGist(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError {
+				if err != nil {
+					assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				} else {
+					// For errors returned as part of the result, not as an error
+					assert.NotNil(t, result)
+					textContent := getTextResult(t, result)
+					assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				}
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Parse the result and get the text content if no error
+			textContent := getTextResult(t, result)
+
+			// Unmarshal and verify the result
+			var returnedGists github.Gist
+			err = json.Unmarshal([]byte(textContent.Text), &returnedGists)
+			require.NoError(t, err)
+
+			assert.Equal(t, *tc.expectedGists.ID, *returnedGists.ID)
+			assert.Equal(t, *tc.expectedGists.Description, *returnedGists.Description)
+			assert.Equal(t, *tc.expectedGists.HTMLURL, *returnedGists.HTMLURL)
+			assert.Equal(t, *tc.expectedGists.Public, *returnedGists.Public)
 		})
 	}
 }

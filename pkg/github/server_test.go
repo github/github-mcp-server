@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/google/go-github/v74/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 )
@@ -35,6 +35,12 @@ func stubGetClientFnErr(err string) GetClientFn {
 func stubGetGQLClientFn(client *githubv4.Client) GetGQLClientFn {
 	return func(_ context.Context) (*githubv4.Client, error) {
 		return client, nil
+	}
+}
+
+func stubFeatureFlags(enabledFlags map[string]bool) FeatureFlags {
+	return FeatureFlags{
+		LockdownMode: enabledFlags["lockdown-mode"],
 	}
 }
 
