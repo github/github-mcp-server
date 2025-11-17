@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/google/go-github/v79/github"
 	"github.com/shurcooL/githubv4"
@@ -36,6 +37,10 @@ func stubGetGQLClientFn(client *githubv4.Client) GetGQLClientFn {
 	return func(_ context.Context) (*githubv4.Client, error) {
 		return client, nil
 	}
+}
+
+func stubRepoAccessCache(client *githubv4.Client) *lockdown.RepoAccessCache {
+	return lockdown.NewRepoAccessCache(client)
 }
 
 func stubFeatureFlags(enabledFlags map[string]bool) FeatureFlags {

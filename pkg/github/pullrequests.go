@@ -20,7 +20,7 @@ import (
 )
 
 // GetPullRequest creates a tool to get details of a specific pull request.
-func PullRequestRead(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, server.ToolHandlerFunc) {
+func PullRequestRead(getClient GetClientFn, cache *lockdown.RepoAccessCache, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("pull_request_read",
 			mcp.WithDescription(t("TOOL_PULL_REQUEST_READ_DESCRIPTION", "Get information on a specific pull request in GitHub repository.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -84,15 +84,10 @@ Possible options:
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			gqlClient, err := getGQLClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub GraphQL client: %w", err)
-			}
-
 			switch method {
 
 			case "get":
-				return GetPullRequest(ctx, client, gqlClient, owner, repo, pullNumber, flags)
+				return GetPullRequest(ctx, client, cache, owner, repo, pullNumber, flags)
 			case "get_diff":
 				return GetPullRequestDiff(ctx, client, owner, repo, pullNumber)
 			case "get_status":
@@ -100,18 +95,18 @@ Possible options:
 			case "get_files":
 				return GetPullRequestFiles(ctx, client, owner, repo, pullNumber, pagination)
 			case "get_review_comments":
-				return GetPullRequestReviewComments(ctx, client, gqlClient, owner, repo, pullNumber, pagination, flags)
+				return GetPullRequestReviewComments(ctx, client, cache, owner, repo, pullNumber, pagination, flags)
 			case "get_reviews":
-				return GetPullRequestReviews(ctx, client, gqlClient, owner, repo, pullNumber, flags)
+				return GetPullRequestReviews(ctx, client, cache, owner, repo, pullNumber, flags)
 			case "get_comments":
-				return GetIssueComments(ctx, client, gqlClient, owner, repo, pullNumber, pagination, flags)
+				return GetIssueComments(ctx, client, cache, owner, repo, pullNumber, pagination, flags)
 			default:
 				return nil, fmt.Errorf("unknown method: %s", method)
 			}
 		}
 }
 
-func GetPullRequest(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner, repo string, pullNumber int, ff FeatureFlags) (*mcp.CallToolResult, error) {
+func GetPullRequest(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner, repo string, pullNumber int, ff FeatureFlags) (*mcp.CallToolResult, error) {
 	pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -141,13 +136,19 @@ func GetPullRequest(ctx context.Context, client *github.Client, gqlClient *githu
 	}
 
 	if ff.LockdownMode {
-		isPrivate, hasPushAccess, err := lockdown.GetRepoAccessInfo(ctx, gqlClient, pr.GetUser().GetLogin(), owner, repo)
-		if err != nil {
-			return nil, fmt.Errorf("failed to check content removal: %w", err)
+		if cache == nil {
+			return nil, fmt.Errorf("lockdown cache is not configured")
 		}
+		login := pr.GetUser().GetLogin()
+		if login != "" {
+			isPrivate, hasPushAccess, err := cache.GetRepoAccessInfo(ctx, login, owner, repo)
+			if err != nil {
+				return nil, fmt.Errorf("failed to check content removal: %w", err)
+			}
 
-		if !isPrivate && !hasPushAccess {
-			return mcp.NewToolResultError("access to pull request is restricted by lockdown mode"), nil
+			if !isPrivate && !hasPushAccess {
+				return mcp.NewToolResultError("access to pull request is restricted by lockdown mode"), nil
+			}
 		}
 	}
 
@@ -266,7 +267,7 @@ func GetPullRequestFiles(ctx context.Context, client *github.Client, owner, repo
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-func GetPullRequestReviewComments(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner, repo string, pullNumber int, pagination PaginationParams, ff FeatureFlags) (*mcp.CallToolResult, error) {
+func GetPullRequestReviewComments(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner, repo string, pullNumber int, pagination PaginationParams, ff FeatureFlags) (*mcp.CallToolResult, error) {
 	opts := &github.PullRequestListCommentsOptions{
 		ListOptions: github.ListOptions{
 			PerPage: pagination.PerPage,
@@ -293,12 +294,20 @@ func GetPullRequestReviewComments(ctx context.Context, client *github.Client, gq
 	}
 
 	if ff.LockdownMode {
-		isPrivate, hasPushAccess, err := lockdown.GetRepoAccessInfo(ctx, gqlClient, comments[0].GetUser().GetLogin(), owner, repo)
-		if err != nil {
-			return nil, fmt.Errorf("failed to check content removal: %w", err)
+		if cache == nil {
+			return nil, fmt.Errorf("lockdown cache is not configured")
 		}
-		if !isPrivate && !hasPushAccess {
-			return mcp.NewToolResultError("access to pull request review comments is restricted by lockdown mode"), nil
+		if len(comments) > 0 {
+			login := comments[0].GetUser().GetLogin()
+			if login != "" {
+				isPrivate, hasPushAccess, err := cache.GetRepoAccessInfo(ctx, login, owner, repo)
+				if err != nil {
+					return nil, fmt.Errorf("failed to check content removal: %w", err)
+				}
+				if !isPrivate && !hasPushAccess {
+					return mcp.NewToolResultError("access to pull request review comments is restricted by lockdown mode"), nil
+				}
+			}
 		}
 	}
 
@@ -310,7 +319,7 @@ func GetPullRequestReviewComments(ctx context.Context, client *github.Client, gq
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-func GetPullRequestReviews(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner, repo string, pullNumber int, ff FeatureFlags) (*mcp.CallToolResult, error) {
+func GetPullRequestReviews(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner, repo string, pullNumber int, ff FeatureFlags) (*mcp.CallToolResult, error) {
 	reviews, resp, err := client.PullRequests.ListReviews(ctx, owner, repo, pullNumber, nil)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -330,12 +339,20 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, gqlClient
 	}
 
 	if ff.LockdownMode {
-		isPrivate, hasPushAccess, err := lockdown.GetRepoAccessInfo(ctx, gqlClient, reviews[0].GetUser().GetLogin(), owner, repo)
-		if err != nil {
-			return nil, fmt.Errorf("failed to check content removal: %w", err)
+		if cache == nil {
+			return nil, fmt.Errorf("lockdown cache is not configured")
 		}
-		if !isPrivate && !hasPushAccess {
-			return mcp.NewToolResultError("access to pull request reviews is restricted by lockdown mode"), nil
+		if len(reviews) > 0 {
+			login := reviews[0].GetUser().GetLogin()
+			if login != "" {
+				isPrivate, hasPushAccess, err := cache.GetRepoAccessInfo(ctx, login, owner, repo)
+				if err != nil {
+					return nil, fmt.Errorf("failed to check content removal: %w", err)
+				}
+				if !isPrivate && !hasPushAccess {
+					return mcp.NewToolResultError("access to pull request reviews is restricted by lockdown mode"), nil
+				}
+			}
 		}
 	}
 
