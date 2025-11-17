@@ -25,7 +25,7 @@ cd migrate-go-sdk-<toolset>
 
 ## Migration Process
 
-You should focus on ONLY the toolset provided to you and it's corresponding test file. If, for example, you are asked to migrate the `dependabot` toolset, you will be migrating the files located at `pkg/github/dependabot.go` and `pkg/github/dependabot_test.go`. If there are additional tests or helper functions that fail to work with the new SDK, you should inform me of these issues so that I can address them, or instruct you on how to proceed.
+You should focus on ONLY the toolset provided to you and it's corresponding test file. If, for example, you are asked to migrate the `dependabot` toolset, you will be migrating the files located at `.tools-to-be-migrated/dependabot.go` and `.tools-to-be-migrated/dependabot_test.go`. The migrated version should be placed in the `github` package directory, `pkg/github` (e.g. `pkg/github/dependabot.go` and `pkg/github/dependabot_test.go`). If there are additional tests or helper functions that fail to work with the new SDK, you should inform me of these issues so that I can address them, or instruct you on how to proceed.
 
 When generating the migration guide, consider the following aspects:
 
@@ -115,7 +115,7 @@ return mcp.Tool{
 }
 ```
 
-### Running tests
+### Tests
 
 After migrating the tool code and test file, ensure that all tests pass successfully. If any tests fail, review the error messages and adjust the migrated code as necessary to resolve any issues. If you encounter any challenges or need further assistance during the migration process, please let me know.
 
