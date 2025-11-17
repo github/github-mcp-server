@@ -102,17 +102,16 @@ func (c *RepoAccessCache) GetRepoAccessInfo(ctx context.Context, username, owner
 	key := cacheKey(owner, repo)
 	userKey := strings.ToLower(username)
 	c.mu.Lock()
+	defer c.mu.Unlock()
 	entry := c.ensureEntry(key)
 	if entry.ready {
 		if cachedHasPush, known := entry.knownUsers[userKey]; known {
 			entry.scheduleExpiry(c, key)
 			c.logDebug("repo access cache hit", "owner", owner, "repo", repo, "user", username)
 			cachedPrivate := entry.isPrivate
-			c.mu.Unlock()
 			return cachedPrivate, cachedHasPush, nil
 		}
 	}
-	c.mu.Unlock()
 	c.logDebug("repo access cache miss", "owner", owner, "repo", repo, "user", username)
 
 	isPrivate, hasPush, err := c.queryRepoAccessInfo(ctx, username, owner, repo)
@@ -120,13 +119,11 @@ func (c *RepoAccessCache) GetRepoAccessInfo(ctx context.Context, username, owner
 		return false, false, err
 	}
 
-	c.mu.Lock()
 	entry = c.ensureEntry(key)
 	entry.ready = true
 	entry.isPrivate = isPrivate
 	entry.knownUsers[userKey] = hasPush
 	entry.scheduleExpiry(c, key)
-	c.mu.Unlock()
 
 	return isPrivate, hasPush, nil
 }

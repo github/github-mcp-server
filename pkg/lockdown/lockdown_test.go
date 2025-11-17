@@ -98,10 +98,9 @@ func requireAccess(ctx context.Context, t *testing.T, cache *RepoAccessCache) {
 
 func TestRepoAccessCacheEvictsAfterTTL(t *testing.T) {
 	t.Parallel()
+	ctx := t.Context()
 
 	cache, transport := newMockRepoAccessCache(t, 5*time.Millisecond)
-	ctx := context.Background()
-
 	requireAccess(ctx, t, cache)
 	requireAccess(ctx, t, cache)
 	require.EqualValues(t, 1, transport.CallCount())
@@ -113,10 +112,10 @@ func TestRepoAccessCacheEvictsAfterTTL(t *testing.T) {
 }
 
 func TestRepoAccessCacheTTLDisabled(t *testing.T) {
+	ctx := t.Context()
 	t.Parallel()
 
 	cache, transport := newMockRepoAccessCache(t, 0)
-	ctx := context.Background()
 
 	requireAccess(ctx, t, cache)
 	requireAccess(ctx, t, cache)
@@ -129,10 +128,10 @@ func TestRepoAccessCacheTTLDisabled(t *testing.T) {
 }
 
 func TestRepoAccessCacheSetTTLReschedulesExistingEntry(t *testing.T) {
+	ctx := t.Context()
 	t.Parallel()
 
 	cache, transport := newMockRepoAccessCache(t, 0)
-	ctx := context.Background()
 
 	requireAccess(ctx, t, cache)
 	require.EqualValues(t, 1, transport.CallCount())
