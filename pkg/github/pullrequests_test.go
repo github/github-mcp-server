@@ -578,7 +578,7 @@ func Test_UpdatePullRequest_Draft(t *testing.T) {
 func Test_ListPullRequests(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := ListPullRequests(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := ListPullRequests(stubGetClientFn(mockClient), translations.NullTranslationHelper, FeatureFlags{JSONFormat: true})
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_pull_requests", tool.Name)
@@ -671,7 +671,7 @@ func Test_ListPullRequests(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListPullRequests(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ListPullRequests(stubGetClientFn(client), translations.NullTranslationHelper, FeatureFlags{JSONFormat: true})
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)

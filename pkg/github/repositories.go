@@ -18,7 +18,7 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-func GetCommit(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func GetCommit(getClient GetClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("get_commit",
 			mcp.WithDescription(t("TOOL_GET_COMMITS_DESCRIPTION", "Get details for a commit from a GitHub repository")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -101,11 +101,12 @@ func GetCommit(getClient GetClientFn, t translations.TranslationHelperFunc) (too
 			}
 
 			return mcp.NewToolResultText(string(r)), nil
+			// return FormatResponse(minimalCommit, flags, "")
 		}
 }
 
 // ListCommits creates a tool to get commits of a branch in a repository.
-func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("list_commits",
 			mcp.WithDescription(t("TOOL_LIST_COMMITS_DESCRIPTION", "Get list of commits of a branch in a GitHub repository. Returns at least 30 results per page by default, but can return more if specified using the perPage parameter (up to 100).")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -191,12 +192,7 @@ func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 				minimalCommits[i] = convertToMinimalCommit(commit, false)
 			}
 
-			r, err := json.Marshal(minimalCommits)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			return FormatResponse(minimalCommits, flags, "")
 		}
 }
 

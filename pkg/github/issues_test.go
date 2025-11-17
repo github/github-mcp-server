@@ -857,7 +857,7 @@ func Test_CreateIssue(t *testing.T) {
 func Test_ListIssues(t *testing.T) {
 	// Verify tool definition
 	mockClient := githubv4.NewClient(nil)
-	tool, _ := ListIssues(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := ListIssues(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper, FeatureFlags{JSONFormat: true})
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_issues", tool.Name)
@@ -1118,7 +1118,7 @@ func Test_ListIssues(t *testing.T) {
 			}
 
 			gqlClient := githubv4.NewClient(httpClient)
-			_, handler := ListIssues(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+			_, handler := ListIssues(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper, FeatureFlags{JSONFormat: true})
 
 			req := createMCPRequest(tc.reqParams)
 			res, err := handler(context.Background(), req)

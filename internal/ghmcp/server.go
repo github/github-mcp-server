@@ -54,6 +54,12 @@ type MCPServerConfig struct {
 
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
+
+	// JSONFormat controls whether tools return a JSON response
+	JSONFormat bool
+
+	// TOONFormat controls whether tools return a TOON response
+	TOONFormat bool
 }
 
 const stdioServerLogPrefix = "stdioserver"
@@ -164,7 +170,7 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 		getRawClient,
 		cfg.Translator,
 		cfg.ContentWindowSize,
-		github.FeatureFlags{LockdownMode: cfg.LockdownMode},
+		github.FeatureFlags{LockdownMode: cfg.LockdownMode, JSONFormat: cfg.JSONFormat, TOONFormat: cfg.TOONFormat},
 	)
 	err = tsg.EnableToolsets(enabledToolsets, nil)
 
@@ -219,6 +225,12 @@ type StdioServerConfig struct {
 
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
+
+	// JSONFormat controls whether tools return a JSON response
+	JSONFormat bool
+
+	// TOONFormat controls whether tools return a TOON response
+	TOONFormat bool
 }
 
 // RunStdioServer is not concurrent safe.
@@ -239,6 +251,8 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		Translator:        t,
 		ContentWindowSize: cfg.ContentWindowSize,
 		LockdownMode:      cfg.LockdownMode,
+		JSONFormat:        cfg.JSONFormat,
+		TOONFormat:        cfg.TOONFormat,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)

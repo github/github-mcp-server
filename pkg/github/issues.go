@@ -1192,7 +1192,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 }
 
 // ListIssues creates a tool to list and filter repository issues
-func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("list_issues",
 			mcp.WithDescription(t("TOOL_LIST_ISSUES_DESCRIPTION", "List issues in a GitHub repository. For pagination, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -1384,9 +1384,8 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 				totalCount = fragment.TotalCount
 			}
 
-			// Create response with issues
-			response := map[string]interface{}{
-				"issues": issues,
+			// Create metadata for pagination
+			metadata := map[string]interface{}{
 				"pageInfo": map[string]interface{}{
 					"hasNextPage":     pageInfo.HasNextPage,
 					"hasPreviousPage": pageInfo.HasPreviousPage,
@@ -1395,11 +1394,8 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 				},
 				"totalCount": totalCount,
 			}
-			out, err := json.Marshal(response)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal issues: %w", err)
-			}
-			return mcp.NewToolResultText(string(out)), nil
+
+			return FormatResponse(issues, flags, "issues", metadata)
 		}
 }
 

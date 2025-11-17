@@ -627,7 +627,7 @@ func Test_CreateBranch(t *testing.T) {
 func Test_GetCommit(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := GetCommit(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := GetCommit(stubGetClientFn(mockClient), translations.NullTranslationHelper, FeatureFlags{JSONFormat: true})
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "get_commit", tool.Name)
@@ -717,7 +717,7 @@ func Test_GetCommit(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetCommit(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := GetCommit(stubGetClientFn(client), translations.NullTranslationHelper, FeatureFlags{JSONFormat: true})
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -756,7 +756,7 @@ func Test_GetCommit(t *testing.T) {
 func Test_ListCommits(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := ListCommits(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := ListCommits(stubGetClientFn(mockClient), translations.NullTranslationHelper, FeatureFlags{JSONFormat: true})
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_commits", tool.Name)
@@ -937,7 +937,7 @@ func Test_ListCommits(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListCommits(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ListCommits(stubGetClientFn(client), translations.NullTranslationHelper, FeatureFlags{JSONFormat: true})
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
