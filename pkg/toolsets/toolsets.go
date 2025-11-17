@@ -29,12 +29,14 @@ func NewToolsetDoesNotExistError(name string) *ToolsetDoesNotExistError {
 }
 
 type ServerTool struct {
-	Tool    mcp.Tool
-	Handler mcp.ToolHandlerFor[map[string]any, any]
+	Tool         mcp.Tool
+	RegisterFunc func(s *mcp.Server)
 }
 
-func NewServerTool(tool mcp.Tool, handler mcp.ToolHandlerFor[map[string]any, any]) ServerTool {
-	return ServerTool{Tool: tool, Handler: handler}
+func NewServerTool[In, Out any](tool mcp.Tool, handler mcp.ToolHandlerFor[In, Out]) ServerTool {
+	return ServerTool{Tool: tool, RegisterFunc: func(s *mcp.Server) {
+		mcp.AddTool(s, &tool, handler)
+	}}
 }
 
 type ServerResourceTemplate struct {
@@ -98,11 +100,11 @@ func (t *Toolset) RegisterTools(s *mcp.Server) {
 		return
 	}
 	for _, tool := range t.readTools {
-		mcp.AddTool(s, &tool.Tool, tool.Handler)
+		tool.RegisterFunc(s)
 	}
 	if !t.readOnly {
 		for _, tool := range t.writeTools {
-			mcp.AddTool(s, &tool.Tool, tool.Handler)
+			tool.RegisterFunc(s)
 		}
 	}
 }
