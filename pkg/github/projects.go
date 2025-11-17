@@ -6,14 +6,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
-	"reflect"
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v77/github"
-	"github.com/google/go-querystring/query"
+	"github.com/google/go-github/v79/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -256,29 +253,18 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
+			var resp *github.Response
+			var projectFields []*github.ProjectV2Field
+
 			opts := &github.ListProjectsOptions{
 				ListProjectsPaginationOptions: pagination,
 			}
 
-			var url string
 			if ownerType == "org" {
-				url = fmt.Sprintf("orgs/%s/projectsV2/%d/fields", owner, projectNumber)
+				projectFields, resp, err = client.Projects.ListOrganizationProjectFields(ctx, owner, projectNumber, opts)
 			} else {
-				url = fmt.Sprintf("users/%s/projectsV2/%d/fields", owner, projectNumber)
+				projectFields, resp, err = client.Projects.ListUserProjectFields(ctx, owner, projectNumber, opts)
 			}
-
-			url, err = addOptions(url, opts)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			httpRequest, err := client.NewRequest("GET", url, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create request: %w", err)
-			}
-
-			var projectFields []projectV2Field
-			resp, err := client.Do(ctx, httpRequest, &projectFields)
 
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -452,7 +438,7 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 			}
 
 			var resp *github.Response
-			var projectItems []projectV2Item
+			var projectItems []*github.ProjectV2Item
 			var queryPtr *string
 
 			if queryStr != "" {
@@ -467,24 +453,11 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 				},
 			}
 
-			var url string
 			if ownerType == "org" {
-				url = fmt.Sprintf("orgs/%s/projectsV2/%d/items", owner, projectNumber)
+				projectItems, resp, err = client.Projects.ListOrganizationProjectItems(ctx, owner, projectNumber, opts)
 			} else {
-				url = fmt.Sprintf("users/%s/projectsV2/%d/items", owner, projectNumber)
+				projectItems, resp, err = client.Projects.ListUserProjectItems(ctx, owner, projectNumber, opts)
 			}
-
-			url, err = addOptions(url, opts)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			httpRequest, err := client.NewRequest("GET", url, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create request: %w", err)
-			}
-
-			resp, err = client.Do(ctx, httpRequest, &projectItems)
 
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -566,32 +539,22 @@ func GetProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			var url string
-			if ownerType == "org" {
-				url = fmt.Sprintf("orgs/%s/projectsV2/%d/items/%d", owner, projectNumber, itemID)
-			} else {
-				url = fmt.Sprintf("users/%s/projectsV2/%d/items/%d", owner, projectNumber, itemID)
-			}
-
-			opts := fieldSelectionOptions{}
+			var resp *github.Response
+			var projectItem *github.ProjectV2Item
+			var opts *github.GetProjectItemOptions
 
 			if len(fields) > 0 {
-				opts.Fields = fields
+				opts = &github.GetProjectItemOptions{
+					Fields: fields,
+				}
 			}
 
-			url, err = addOptions(url, opts)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+			if ownerType == "org" {
+				projectItem, resp, err = client.Projects.GetOrganizationProjectItem(ctx, owner, projectNumber, itemID, opts)
+			} else {
+				projectItem, resp, err = client.Projects.GetUserProjectItem(ctx, owner, projectNumber, itemID, opts)
 			}
 
-			projectItem := projectV2Item{}
-
-			httpRequest, err := client.NewRequest("GET", url, nil)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create request: %w", err)
-			}
-
-			resp, err := client.Do(ctx, httpRequest, &projectItem)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to get project item",
@@ -748,7 +711,7 @@ func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			itemID, err := RequiredInt(req, "item_id")
+			itemID, err := RequiredBigInt(req, "item_id")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -773,21 +736,15 @@ func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			var projectsURL string
-			if ownerType == "org" {
-				projectsURL = fmt.Sprintf("orgs/%s/projectsV2/%d/items/%d", owner, projectNumber, itemID)
-			} else {
-				projectsURL = fmt.Sprintf("users/%s/projectsV2/%d/items/%d", owner, projectNumber, itemID)
-			}
-			httpRequest, err := client.NewRequest("PATCH", projectsURL, updateProjectItemPayload{
-				Fields: []updateProjectItem{*updatePayload},
-			})
-			if err != nil {
-				return nil, fmt.Errorf("failed to create request: %w", err)
-			}
-			updatedItem := projectV2Item{}
+			var resp *github.Response
+			var updatedItem *github.ProjectV2Item
 
-			resp, err := client.Do(ctx, httpRequest, &updatedItem)
+			if ownerType == "org" {
+				updatedItem, resp, err = client.Projects.UpdateOrganizationProjectItem(ctx, owner, projectNumber, itemID, updatePayload)
+			} else {
+				updatedItem, resp, err = client.Projects.UpdateUserProjectItem(ctx, owner, projectNumber, itemID, updatePayload)
+			}
+
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					ProjectUpdateFailedError,
@@ -886,74 +843,11 @@ func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 		}
 }
 
-type fieldSelectionOptions struct {
-	// Specific list of field IDs to include in the response. If not provided, only the title field is included.
-	// The comma tag encodes the slice as comma-separated values: fields=102589,985201,169875
-	Fields []int64 `url:"fields,omitempty,comma"`
-}
-
-type updateProjectItemPayload struct {
-	Fields []updateProjectItem `json:"fields"`
-}
-
-type updateProjectItem struct {
-	ID    int `json:"id"`
-	Value any `json:"value"`
-}
-
-type projectV2ItemFieldValue struct {
-	ID       *int64 `json:"id,omitempty"`
-	Name     string `json:"name,omitempty"`
-	DataType string `json:"data_type,omitempty"`
-	Value    any    `json:"value,omitempty"`
-}
-
-type projectV2Item struct {
-	ArchivedAt  *github.Timestamp          `json:"archived_at,omitempty"`
-	Content     *projectV2ItemContent      `json:"content,omitempty"`
-	ContentType *string                    `json:"content_type,omitempty"`
-	CreatedAt   *github.Timestamp          `json:"created_at,omitempty"`
-	Creator     *github.User               `json:"creator,omitempty"`
-	Description *string                    `json:"description,omitempty"`
-	Fields      []*projectV2ItemFieldValue `json:"fields,omitempty"`
-	ID          *int64                     `json:"id,omitempty"`
-	ItemURL     *string                    `json:"item_url,omitempty"`
-	NodeID      *string                    `json:"node_id,omitempty"`
-	ProjectURL  *string                    `json:"project_url,omitempty"`
-	Title       *string                    `json:"title,omitempty"`
-	UpdatedAt   *github.Timestamp          `json:"updated_at,omitempty"`
-}
-
-type projectV2ItemContent struct {
-	Body        *string           `json:"body,omitempty"`
-	ClosedAt    *github.Timestamp `json:"closed_at,omitempty"`
-	CreatedAt   *github.Timestamp `json:"created_at,omitempty"`
-	ID          *int64            `json:"id,omitempty"`
-	Number      *int              `json:"number,omitempty"`
-	State       *string           `json:"state,omitempty"`
-	StateReason *string           `json:"stateReason,omitempty"`
-	Title       *string           `json:"title,omitempty"`
-	UpdatedAt   *github.Timestamp `json:"updated_at,omitempty"`
-	URL         *string           `json:"url,omitempty"`
-}
-
 type pageInfo struct {
 	HasNextPage     bool   `json:"hasNextPage"`
 	HasPreviousPage bool   `json:"hasPreviousPage"`
 	NextCursor      string `json:"nextCursor,omitempty"`
 	PrevCursor      string `json:"prevCursor,omitempty"`
-}
-
-type projectV2Field struct {
-	ID            *int64            `json:"id,omitempty"`
-	NodeID        *string           `json:"node_id,omitempty"`
-	Name          *string           `json:"name,omitempty"`
-	DataType      *string           `json:"data_type,omitempty"`
-	ProjectURL    *string           `json:"project_url,omitempty"`
-	Options       []any             `json:"options,omitempty"`
-	Configuration any               `json:"configuration,omitempty"`
-	CreatedAt     *github.Timestamp `json:"created_at,omitempty"`
-	UpdatedAt     *github.Timestamp `json:"updated_at,omitempty"`
 }
 
 func toNewProjectType(projType string) string {
@@ -967,7 +861,27 @@ func toNewProjectType(projType string) string {
 	}
 }
 
-func buildUpdateProjectItem(input map[string]any) (*updateProjectItem, error) {
+// validateAndConvertToInt64 ensures the value is a number and converts it to int64.
+func validateAndConvertToInt64(value any) (int64, error) {
+	switch v := value.(type) {
+	case float64:
+		// Validate that the float64 can be safely converted to int64
+		intVal := int64(v)
+		if float64(intVal) != v {
+			return 0, fmt.Errorf("value must be a valid integer (got %v)", v)
+		}
+		return intVal, nil
+	case int64:
+		return v, nil
+	case int:
+		return int64(v), nil
+	default:
+		return 0, fmt.Errorf("value must be a number (got %T)", v)
+	}
+}
+
+// buildUpdateProjectItem constructs UpdateProjectItemOptions from the input map.
+func buildUpdateProjectItem(input map[string]any) (*github.UpdateProjectItemOptions, error) {
 	if input == nil {
 		return nil, fmt.Errorf("updated_field must be an object")
 	}
@@ -977,16 +891,22 @@ func buildUpdateProjectItem(input map[string]any) (*updateProjectItem, error) {
 		return nil, fmt.Errorf("updated_field.id is required")
 	}
 
-	idFieldAsFloat64, ok := idField.(float64) // JSON numbers are float64
-	if !ok {
-		return nil, fmt.Errorf("updated_field.id must be a number")
+	fieldID, err := validateAndConvertToInt64(idField)
+	if err != nil {
+		return nil, fmt.Errorf("updated_field.id: %w", err)
 	}
 
 	valueField, ok := input["value"]
 	if !ok {
 		return nil, fmt.Errorf("updated_field.value is required")
 	}
-	payload := &updateProjectItem{ID: int(idFieldAsFloat64), Value: valueField}
+
+	payload := &github.UpdateProjectItemOptions{
+		Fields: []*github.UpdateProjectV2Field{{
+			ID:    fieldID,
+			Value: valueField,
+		}},
+	}
 
 	return payload, nil
 }
@@ -1033,36 +953,4 @@ func extractPaginationOptions(request mcp.CallToolRequest) (github.ListProjectsP
 	}
 
 	return opts, nil
-}
-
-// addOptions adds the parameters in opts as URL query parameters to s. opts
-// must be a struct whose fields may contain "url" tags.
-func addOptions(s string, opts any) (string, error) {
-	v := reflect.ValueOf(opts)
-	if v.Kind() == reflect.Ptr && v.IsNil() {
-		return s, nil
-	}
-
-	origURL, err := url.Parse(s)
-	if err != nil {
-		return s, err
-	}
-
-	origValues := origURL.Query()
-
-	// Use the github.com/google/go-querystring library to parse the struct
-	newValues, err := query.Values(opts)
-	if err != nil {
-		return s, err
-	}
-
-	// Merge the values
-	for key, values := range newValues {
-		for _, value := range values {
-			origValues.Add(key, value)
-		}
-	}
-
-	origURL.RawQuery = origValues.Encode()
-	return origURL.String(), nil
 }
