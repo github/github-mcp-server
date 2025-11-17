@@ -122,7 +122,7 @@ func GetTeams(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations
 				},
 			},
 		},
-		func(ctx context.Context, request *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			user, err := OptionalParam[string](args, "user")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -221,7 +221,7 @@ func GetTeamMembers(getGQLClient GetGQLClientFn, t translations.TranslationHelpe
 				Required: []string{"org", "team_slug"},
 			},
 		},
-		func(ctx context.Context, request *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			org, err := RequiredParam[string](args, "org")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
