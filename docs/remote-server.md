@@ -63,7 +63,7 @@ The Remote GitHub MCP server has optional headers equivalent to the Local server
     - If this header is empty, "false", "f", "no", "n", "0", or "off" (ignoring whitespace and case), it will be interpreted as false. All other values are interpreted as true.
 - `X-MCP-Lockdown`: Enables lockdown mode, hiding public issue details created by users without push access.
     - Equivalent to `GITHUB_LOCKDOWN_MODE` env var for Local server.
-    - If this header is empty, "false", "f", "no", "n", "0", or "off" (ignoring whitespace and case), it will be interpreted as false. All other values are interpreted as true and lockdown mode will be enabled.
+    - If this header is empty, "false", "f", "no", "n", "0", or "off" (ignoring whitespace and case), it will be interpreted as false. All other values are interpreted as true.
 
 Example:
 
