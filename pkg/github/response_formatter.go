@@ -119,14 +119,13 @@ func toCSV(data interface{}) (string, error) {
 	// How much values does it add? Using CSV for a single object feels a bit odd
 	// 		-> honestly none imo - tested current implementation on get_commit and this does more harm than good
 	//       as we lose insight on certain, deeply nested, fields
-	if v.Kind() == reflect.Struct || v.Kind() == reflect.Map {
+	if v.Kind() == reflect.Struct {
 		slice := reflect.MakeSlice(reflect.SliceOf(v.Type()), 1, 1)
 		slice.Index(0).Set(v)
 		return sliceToCSV(slice)
 	}
 
-	// Return any primitive as is
-	return fmt.Sprintf("%v", data), nil
+	return "", fmt.Errorf("unsupported data type: %v", v.Kind())
 }
 
 // unwrap dereferences pointers and interfaces until reaching a concrete value
@@ -154,7 +153,11 @@ func sliceToCSV(slice reflect.Value) (string, error) {
 
 	// Get all possible headers from first element
 	firstElem := slice.Index(0)
-	allHeaders := extractHeaders(firstElem)
+	firstElem, isNil := unwrap(firstElem)
+	if isNil {
+		return "", nil
+	}
+	allHeaders := extractStructHeaders(firstElem, "")
 	if len(allHeaders) == 0 {
 		return "", fmt.Errorf("no fields found in data")
 	}
@@ -220,22 +223,6 @@ func sliceToCSV(slice reflect.Value) (string, error) {
 	return buf.String(), nil
 }
 
-// extractHeaders gets all field names from an object, flattening nested structures
-func extractHeaders(v reflect.Value) []string {
-	v, isNil := unwrap(v)
-	if isNil {
-		return nil
-	}
-
-	if v.Kind() == reflect.Struct {
-		return extractStructHeaders(v, "")
-	}
-	if v.Kind() == reflect.Map {
-		return extractMapKeys(v)
-	}
-	return nil
-}
-
 // getFieldName extracts field name from struct field, preferring json tag
 func getFieldName(field reflect.StructField) string {
 	if jsonTag := field.Tag.Get("json"); jsonTag != "" && jsonTag != "-" {
@@ -272,13 +259,13 @@ func extractStructHeaders(v reflect.Value, prefix string) []string {
 
 			kind := fieldValue.Kind()
 
-			// Skip complex types (arrays, maps, interfaces), only allow primitives and timestamps
+			// Skip complex types (arrays, slices, interfaces), only allow primitives and timestamps
 			if kind == reflect.Struct {
 				typeName := fieldValue.Type().Name()
 				if typeName != "Timestamp" && typeName != "Time" {
 					continue
 				}
-			} else if kind == reflect.Slice || kind == reflect.Array || kind == reflect.Map || kind == reflect.Interface {
+			} else if kind == reflect.Slice || kind == reflect.Array || kind == reflect.Interface {
 				continue
 			}
 		}
@@ -329,8 +316,7 @@ func hasPrimitiveFields(v reflect.Value) bool {
 		kind := field.Kind()
 
 		// Check for any primitive types
-		if kind == reflect.String || kind == reflect.Int || kind == reflect.Int64 ||
-			kind == reflect.Bool || kind == reflect.Float32 || kind == reflect.Float64 {
+		if kind == reflect.String || kind == reflect.Int || kind == reflect.Int64 || kind == reflect.Bool {
 			return true
 		}
 
@@ -346,20 +332,7 @@ func hasPrimitiveFields(v reflect.Value) bool {
 	return false
 }
 
-// extractMapKeys gets keys from a map
-func extractMapKeys(v reflect.Value) []string {
-	var keys []string
-	iter := v.MapRange()
-	for iter.Next() {
-		if key := iter.Key(); key.Kind() == reflect.String {
-			keys = append(keys, key.String())
-		}
-	}
-
-	return keys
-}
-
-// extractValues gets field values from an object in the same order as headers
+// extractValues gets field values from a struct in the same order as headers
 func extractValues(v reflect.Value, headers []string) []string {
 	v, isNil := unwrap(v)
 	values := make([]string, len(headers))
@@ -386,12 +359,9 @@ func extractFieldValue(v reflect.Value, path string) string {
 			return ""
 		}
 
-		switch v.Kind() {
-		case reflect.Struct:
+		if v.Kind() == reflect.Struct {
 			v = getStructField(v, part)
-		case reflect.Map:
-			v = v.MapIndex(reflect.ValueOf(part))
-		default:
+		} else {
 			return ""
 		}
 	}
@@ -438,19 +408,9 @@ func formatValue(v reflect.Value) string {
 		return strings.Join(strings.Fields(v.String()), " ")
 
 	// Handle numeric and boolean types
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+	case reflect.Int, reflect.Int64:
 		if n := v.Int(); n != 0 {
 			return fmt.Sprintf("%d", n)
-		}
-
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		if n := v.Uint(); n != 0 {
-			return fmt.Sprintf("%d", n)
-		}
-
-	case reflect.Float32, reflect.Float64:
-		if n := v.Float(); n != 0 {
-			return fmt.Sprintf("%g", n)
 		}
 
 	case reflect.Bool:
