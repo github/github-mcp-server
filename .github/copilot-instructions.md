@@ -1,72 +1,104 @@
-Your task is to "onboard" this repository to Copilot coding agent by adding a .github/copilot-instructions.md file in the repository that contains information describing how a coding agent seeing it for the first time can work most efficiently.
+# Copilot Onboarding Instructions for MCP Server Go Project
 
-You will do this task only one time per repository and doing a good job can SIGNIFICANTLY improve the quality of the agent's work, so take your time, think carefully, and search thoroughly before writing the instructions.
+## Overview
 
-<Goals>
-- Reduce the likelihood of a coding agent pull request getting rejected by the user due to
-generating code that fails the continuous integration build, fails a validation pipeline, or
-having misbehavior.
-- Minimize bash command and build failures.
-- Allow the agent to complete its task more quickly by minimizing the need for exploration using grep, find, str_replace_editor, and code search tools.
-</Goals>
+This repository contains the MCP Server, implemented in Go. The MCP Server is responsible for managing and processing MCP (Message Control Protocol) requests, providing a backend service for clients to interact with MCP resources. It exposes a RESTful API and handles authentication, authorization, and data persistence.
 
-<Limitations>
-- Instructions must be no longer than 2 pages.
-- Instructions must not be task specific.
-</Limitations>
+- **Language:** Go (Golang)
+- **Frameworks/Libraries:** Standard Go libraries, plus any listed in `go.mod`
+- **Project Type:** Backend server/service
+- **Repo Size:** Medium (typically <100 files, mostly Go source)
 
-<WhatToAdd>
+## Build Instructions
 
-Add the following high level details about the codebase to reduce the amount of searching the agent has to do to understand the codebase each time:
-<HighLevelDetails>
+1. **Prerequisites**
+   - Go version >= 1.19 (check `go.mod` for minimum required version)
+   - Git
+   - (Optional) Docker, if you wish to run the server in a container
 
-- A summary of what the repository does.
-- High level repository information, such as the size of the repo, the type of the project, the languages, frameworks, or target runtimes in use.
-</HighLevelDetails>
+2. **Bootstrap**
+   - Clone the repository:  
+     ```
+     git clone <repo-url>
+     cd <repo-directory>
+     ```
+   - Ensure Go modules are enabled:  
+     ```
+     export GO111MODULE=on
+     ```
+   - Download dependencies:  
+     ```
+     go mod tidy
+     ```
 
-Add information about how to build and validate changes so the agent does not need to search and find it each time.
-<BuildInstructions>
+3. **Build**
+   - Build the server binary:  
+     ```
+     go build -o mcp-server ./cmd/server
+     ```
+   - The output binary will be `mcp-server` in the repo root.
 
-- For each of bootstrap, build, test, run, lint, and any other scripted step, document the sequence of steps to take to run it successfully as well as the versions of any runtime or build tools used.
-- Each command should be validated by running it to ensure that it works correctly as well as any preconditions and postconditions.
-- Try cleaning the repo and environment and running commands in different orders and document errors and misbehavior observed as well as any steps used to mitigate the problem.
-- Run the tests and document the order of steps required to run the tests.
-- Make a change to the codebase. Document any unexpected build issues as well as the workarounds.
-- Document environment setup steps that seem optional but that you have validated are actually required.
-- Document the time required for commands that failed due to timing out.
-- When you find a sequence of commands that work for a particular purpose, document them in detail.
-- Use language to indicate when something should always be done. For example: "always run npm install before building".
-- Record any validation steps from documentation.
-</BuildInstructions>
+4. **Run**
+   - Start the server:  
+     ```
+     ./mcp-server
+     ```
+   - Configuration may be provided via environment variables or config files (see README or `cmd/server/main.go` for details).
 
-List key facts about the layout and architecture of the codebase to help the agent find where to make changes with minimal searching.
-<ProjectLayout>
+5. **Lint**
+   - Run linter (if configured):  
+     ```
+     golangci-lint run
+     ```
+   - Ensure `golangci-lint` is installed (`go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest`)
 
-- A description of the major architectural elements of the project, including the relative paths to the main project files, the location
-of configuration files for linting, compilation, testing, and preferences.
-- A description of the checks run prior to check in, including any GitHub workflows, continuous integration builds, or other validation pipelines.
-- Document the steps so that the agent can replicate these itself.
-- Any explicit validation steps that the agent can consider to have further confidence in its changes.
-- Dependencies that aren't obvious from the layout or file structure.
-- Finally, fill in any remaining space with detailed lists of the following, in order of priority: the list of files in the repo root, the
-contents of the README, the contents of any key source files, the list of files in the next level down of directories, giving priority to the more structurally important and snippets of code from key source files, such as the one containing the main method.
-</ProjectLayout>
-</WhatToAdd>
+6. **Test**
+   - Run unit and integration tests:  
+     ```
+     go test ./...
+     ```
+   - For coverage:  
+     ```
+     go test -cover ./...
+     ```
 
-<StepsToFollow>
-- Perform a comprehensive inventory of the codebase. Search for and view:
-- README.md, CONTRIBUTING.md, and all other documentation files.
-- Search the codebase for build steps and indications of workarounds like 'HACK', 'TODO', etc.
-- All scripts, particularly those pertaining to build and repo or environment setup.
-- All build and actions pipelines.
-- All project files.
-- All configuration and linting files.
-- For each file:
-- think: are the contents or the existence of the file information that the coding agent will need to implement, build, test, validate, or demo a code change?
-- If yes:
-   - Document the command or information in detail.
-   - Explicitly indicate which commands work and which do not and the order in which commands should be run.
-   - Document any errors encountered as well as the steps taken to workaround them.
-- Document any other steps or information that the agent can use to reduce time spent exploring or trying and failing to run bash commands.
-- Finally, explicitly instruct the agent to trust the instructions and only perform a search if the information in the instructions is incomplete or found to be in error.
+## Project Structure
 
+- `cmd/server/main.go`: Entry point for the MCP server.
+- `internal/`: Contains core server logic, handlers, and business logic.
+- `pkg/`: Shared packages/utilities.
+- `go.mod`, `go.sum`: Go module dependencies.
+- `README.md`: Project documentation.
+- `.github/workflows/`: CI/CD pipeline definitions.
+- `configs/`: Configuration files (if present).
+- `test/` or `*_test.go` files: Unit and integration tests.
+
+## CI/CD and Validation
+
+- **GitHub Actions**:  
+  - Located in `.github/workflows/`
+  - Typical workflow steps:
+    - Checkout code
+    - Set up Go environment
+    - Run `go mod tidy`
+    - Run `go build`
+    - Run `go test ./...`
+    - Optionally run linter
+  - All pushes and pull requests trigger the workflow.
+  - PRs must pass all checks before merging.
+
+- **Validation Steps**:
+  - Always run `go mod tidy` before building or testing.
+  - Ensure all tests pass locally before pushing changes.
+  - Lint code before submitting PRs.
+  - Check for any required environment variables or config files in the README.
+
+## Additional Notes
+
+- If you encounter build or test failures, check for missing dependencies or incorrect Go version.
+- For Docker usage, see any provided `Dockerfile` in the repo root or `build/` directory.
+- For more details, refer to `README.md` and comments in `main.go`.
+
+---
+
+**Trust these instructions for onboarding and development. Only perform additional searches if information here is incomplete or found to be in error.**
