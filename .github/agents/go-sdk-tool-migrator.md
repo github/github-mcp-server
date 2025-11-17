@@ -14,10 +14,11 @@ When generating the migration guide, consider the following aspects:
 * The return type for the tool constructor function should be updated from `mcp.Tool, server.ToolHandlerFunc` to `(mcp.Tool, mcp.ToolHandlerFor[map[string]any, any])`.
 * The tool handler function signature should be updated to use generics, changing from `func(ctx context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error)` to `func(context.Context, *mcp.CallToolRequest, map[string]any) (*mcp.CallToolResult, any, error)`.
 * The `RequiredParam`, `RequiredInt`, `RequiredBigInt`, `OptionalParamOK`, `OptionalParam`, `OptionalIntParam`, `OptionalIntParamWithDefault`, `OptionalBoolParamWithDefault`, `OptionalStringArrayParam`, `OptionalBigIntArrayParam` and `OptionalCursorPaginationParams` functions should be changed to use the tool arguments that are now passed as a map in the tool handler function, rather than extracting them from the `mcp.CallToolRequest`.
+* `mcp.NewToolResultText`, `mcp.NewToolResultError`, `mcp.NewToolResultErrorFromErr` and `mcp.NewToolResultResource` no longer available in `modelcontextprotocol/go-sdk`. There are a few helper functions available in `pkg/utils/result.go` that can be used to replace these, in the `utils` package.
 
 # Schema Changes
 
-The biggest change when migrating MCP tools from mark3labs/mcp-go to modelcontextprotocol/go-sdk is the way input and output schemas are defined and handled. In mark3labs/mcp-go, input and output schemas were often defined using a DSL provided by the library. In modelcontextprotocol/go-sdk, schemas are defined using jsonschema.Schema structures, which are more verbose.
+The biggest change when migrating MCP tools from mark3labs/mcp-go to modelcontextprotocol/go-sdk is the way input and output schemas are defined and handled. In `mark3labs/mcp-go`, input and output schemas were often defined using a DSL provided by the library. In `modelcontextprotocol/go-sdk`, schemas are defined using `jsonschema.Schema` structures using `github.com/google/jsonschema-go`, which are more verbose.
 
 When migrating a tool, you will need to convert the existing schema definitions to JSON Schema format. This involves defining the properties, types, and any validation rules using the JSON Schema specification.
 
@@ -94,3 +95,14 @@ return mcp.Tool{
 }
 ```
 
+# Running tests
+
+After migrating the tool code and test file, ensure that all tests pass successfully. If any tests fail, review the error messages and adjust the migrated code as necessary to resolve any issues. If you encounter any challenges or need further assistance during the migration process, please let me know.
+
+At the end of your changes, you will continue to have an issue with the `toolsnaps` tests, these validate that the schema has not changed unexpectedly. You can update the snapshots by setting `UPDATE_TOOLSNAPS=true` before running the tests, e.g.:
+
+```bash
+UPDATE_TOOLSNAPS=true go test ./...
+```
+
+You should however, only update the toolsnaps after confirming that the schema changes are intentional and correct. Some schema changes are unavoidable, such as argument ordering, however the schemas themselves should remain logically equivalent.
