@@ -10,9 +10,11 @@ import (
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/lockdown"
+	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/google/go-github/v74/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/shurcooL/githubv4"
@@ -211,7 +213,7 @@ func fragmentToIssue(fragment IssueFragment) *github.Issue {
 
 	return &github.Issue{
 		Number:    github.Ptr(int(fragment.Number)),
-		Title:     github.Ptr(string(fragment.Title)),
+		Title:     github.Ptr(sanitize.Sanitize(string(fragment.Title))),
 		CreatedAt: &github.Timestamp{Time: fragment.CreatedAt.Time},
 		UpdatedAt: &github.Timestamp{Time: fragment.UpdatedAt.Time},
 		User: &github.User{
@@ -219,14 +221,14 @@ func fragmentToIssue(fragment IssueFragment) *github.Issue {
 		},
 		State:    github.Ptr(string(fragment.State)),
 		ID:       github.Ptr(fragment.DatabaseID),
-		Body:     github.Ptr(string(fragment.Body)),
+		Body:     github.Ptr(sanitize.Sanitize(string(fragment.Body))),
 		Labels:   foundLabels,
 		Comments: github.Ptr(int(fragment.Comments.TotalCount)),
 	}
 }
 
 // GetIssue creates a tool to get details of a specific issue in a GitHub repository.
-func IssueRead(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func IssueRead(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("issue_read",
 			mcp.WithDescription(t("TOOL_ISSUE_READ_DESCRIPTION", "Get information about a specific issue in a GitHub repository.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -295,20 +297,20 @@ Options are:
 
 			switch method {
 			case "get":
-				return GetIssue(ctx, client, owner, repo, issueNumber)
+				return GetIssue(ctx, client, gqlClient, owner, repo, issueNumber, flags)
 			case "get_comments":
-				return GetIssueComments(ctx, client, owner, repo, issueNumber, pagination)
+				return GetIssueComments(ctx, client, owner, repo, issueNumber, pagination, flags)
 			case "get_sub_issues":
-				return GetSubIssues(ctx, client, owner, repo, issueNumber, pagination)
+				return GetSubIssues(ctx, client, owner, repo, issueNumber, pagination, flags)
 			case "get_labels":
-				return GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
+				return GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber, flags)
 			default:
 				return mcp.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil
 			}
 		}
 }
 
-func GetIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
+func GetIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, flags FeatureFlags) (*mcp.CallToolResult, error) {
 	issue, resp, err := client.Issues.Get(ctx, owner, repo, issueNumber)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get issue: %w", err)
@@ -323,6 +325,28 @@ func GetIssue(ctx context.Context, client *github.Client, owner string, repo str
 		return mcp.NewToolResultError(fmt.Sprintf("failed to get issue: %s", string(body))), nil
 	}
 
+	if flags.LockdownMode {
+		if issue.User != nil {
+			shouldRemoveContent, err := lockdown.ShouldRemoveContent(ctx, gqlClient, *issue.User.Login, owner, repo)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
+			}
+			if shouldRemoveContent {
+				return mcp.NewToolResultError("access to issue details is restricted by lockdown mode"), nil
+			}
+		}
+	}
+
+	// Sanitize title/body on response
+	if issue != nil {
+		if issue.Title != nil {
+			issue.Title = github.Ptr(sanitize.Sanitize(*issue.Title))
+		}
+		if issue.Body != nil {
+			issue.Body = github.Ptr(sanitize.Sanitize(*issue.Body))
+		}
+	}
+
 	r, err := json.Marshal(issue)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal issue: %w", err)
@@ -331,7 +355,7 @@ func GetIssue(ctx context.Context, client *github.Client, owner string, repo str
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-func GetIssueComments(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+func GetIssueComments(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, pagination PaginationParams, _ FeatureFlags) (*mcp.CallToolResult, error) {
 	opts := &github.IssueListCommentsOptions{
 		ListOptions: github.ListOptions{
 			Page:    pagination.Page,
@@ -361,7 +385,7 @@ func GetIssueComments(ctx context.Context, client *github.Client, owner string, 
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-func GetSubIssues(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+func GetSubIssues(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, pagination PaginationParams, _ FeatureFlags) (*mcp.CallToolResult, error) {
 	opts := &github.IssueListOptions{
 		ListOptions: github.ListOptions{
 			Page:    pagination.Page,
@@ -396,7 +420,7 @@ func GetSubIssues(ctx context.Context, client *github.Client, owner string, repo
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
+func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, repo string, issueNumber int, _ FeatureFlags) (*mcp.CallToolResult, error) {
 	// Get current labels on the issue using GraphQL
 	var query struct {
 		Repository struct {
@@ -881,7 +905,7 @@ Options are:
 				mcp.Description("Milestone number"),
 			),
 			mcp.WithString("type",
-				mcp.Description("Type of this issue"),
+				mcp.Description("Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter."),
 			),
 			mcp.WithString("state",
 				mcp.Description("New state"),
@@ -1004,7 +1028,10 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 		Body:      github.Ptr(body),
 		Assignees: &assignees,
 		Labels:    &labels,
-		Milestone: &milestoneNum,
+	}
+
+	if milestoneNum != 0 {
+		issueRequest.Milestone = &milestoneNum
 	}
 
 	if issueType != "" {
