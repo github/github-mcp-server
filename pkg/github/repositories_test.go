@@ -1161,7 +1161,7 @@ func Test_CreateRepository(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "name")
 	assert.Contains(t, tool.InputSchema.Properties, "description")
 	assert.Contains(t, tool.InputSchema.Properties, "organization")
-	assert.Contains(t, tool.InputSchema.Properties, "private")
+	assert.Contains(t, tool.InputSchema.Properties, "visibility")
 	assert.Contains(t, tool.InputSchema.Properties, "autoInit")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"name"})
 
@@ -1196,7 +1196,7 @@ func Test_CreateRepository(t *testing.T) {
 					expectRequestBody(t, map[string]interface{}{
 						"name":        "test-repo",
 						"description": "Test repository",
-						"private":     true,
+						"visibility":  "private",
 						"auto_init":   true,
 					}).andThen(
 						mockResponse(t, http.StatusCreated, mockRepo),
@@ -1206,14 +1206,14 @@ func Test_CreateRepository(t *testing.T) {
 			requestArgs: map[string]interface{}{
 				"name":        "test-repo",
 				"description": "Test repository",
-				"private":     true,
+				"visibility":  "private",
 				"autoInit":    true,
 			},
 			expectError:  false,
 			expectedRepo: mockRepo,
 		},
 		{
-			name: "successful repository creation in organization",
+			name: "successful repository creation in organization with internal visibility",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
 					mock.EndpointPattern{
@@ -1223,7 +1223,7 @@ func Test_CreateRepository(t *testing.T) {
 					expectRequestBody(t, map[string]interface{}{
 						"name":        "test-repo",
 						"description": "Test repository",
-						"private":     false,
+						"visibility":  "internal",
 						"auto_init":   true,
 					}).andThen(
 						mockResponse(t, http.StatusCreated, mockRepo),
@@ -1234,14 +1234,14 @@ func Test_CreateRepository(t *testing.T) {
 				"name":         "test-repo",
 				"description":  "Test repository",
 				"organization": "testorg",
-				"private":      false,
+				"visibility":   "internal",
 				"autoInit":     true,
 			},
 			expectError:  false,
 			expectedRepo: mockRepo,
 		},
 		{
-			name: "successful repository creation with minimal parameters",
+			name: "successful repository creation with minimal parameters defaults to private",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
 					mock.EndpointPattern{
@@ -1252,7 +1252,7 @@ func Test_CreateRepository(t *testing.T) {
 						"name":        "test-repo",
 						"auto_init":   false,
 						"description": "",
-						"private":     false,
+						"visibility":  "private",
 					}).andThen(
 						mockResponse(t, http.StatusCreated, mockRepo),
 					),

@@ -408,8 +408,10 @@ func CreateRepository(getClient GetClientFn, t translations.TranslationHelperFun
 			mcp.WithString("organization",
 				mcp.Description("Organization to create the repository in (omit to create in your personal account)"),
 			),
-			mcp.WithBoolean("private",
-				mcp.Description("Whether repo should be private"),
+			mcp.WithString("visibility",
+				mcp.Description("Repository visibility. Can be 'private' or 'internal'. For enterprise accounts, 'internal' makes the repository visible to all enterprise members. Defaults to 'private'."),
+				mcp.Enum("private", "internal"),
+				mcp.DefaultString("private"),
 			),
 			mcp.WithBoolean("autoInit",
 				mcp.Description("Initialize with README"),
@@ -428,9 +430,17 @@ func CreateRepository(getClient GetClientFn, t translations.TranslationHelperFun
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			private, err := OptionalParam[bool](request, "private")
+			visibility, err := OptionalParam[string](request, "visibility")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
+			}
+			// Default to private if not specified
+			if visibility == "" {
+				visibility = "private"
+			}
+			// Validate that visibility is only private or internal (not public)
+			if visibility != "private" && visibility != "internal" {
+				return mcp.NewToolResultError("visibility must be either 'private' or 'internal'"), nil
 			}
 			autoInit, err := OptionalParam[bool](request, "autoInit")
 			if err != nil {
@@ -440,7 +450,7 @@ func CreateRepository(getClient GetClientFn, t translations.TranslationHelperFun
 			repo := &github.Repository{
 				Name:        github.Ptr(name),
 				Description: github.Ptr(description),
-				Private:     github.Ptr(private),
+				Visibility:  github.Ptr(visibility),
 				AutoInit:    github.Ptr(autoInit),
 			}
 

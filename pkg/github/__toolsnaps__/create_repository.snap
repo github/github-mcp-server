@@ -22,9 +22,14 @@
         "description": "Organization to create the repository in (omit to create in your personal account)",
         "type": "string"
       },
-      "private": {
-        "description": "Whether repo should be private",
-        "type": "boolean"
+      "visibility": {
+        "default": "private",
+        "description": "Repository visibility. Can be 'private' or 'internal'. For enterprise accounts, 'internal' makes the repository visible to all enterprise members. Defaults to 'private'.",
+        "enum": [
+          "private",
+          "internal"
+        ],
+        "type": "string"
       }
     },
     "required": [
