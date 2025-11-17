@@ -133,8 +133,8 @@ func getTextResult(t *testing.T, result *mcp.CallToolResult) *mcp.TextContent {
 	t.Helper()
 	assert.NotNil(t, result)
 	require.Len(t, result.Content, 1)
-	require.IsType(t, mcp.TextContent{}, result.Content[0])
-	textContent := result.Content[0].(*mcp.TextContent)
+	textContent, ok := result.Content[0].(*mcp.TextContent)
+	require.True(t, ok, "expected content to be of type TextContent")
 	return textContent
 }
 
@@ -151,7 +151,8 @@ func getTextResourceResult(t *testing.T, result *mcp.CallToolResult) *mcp.Resour
 	require.Len(t, result.Content, 2)
 	content := result.Content[1]
 	require.IsType(t, mcp.EmbeddedResource{}, content)
-	resource := content.(*mcp.EmbeddedResource)
+	resource, ok := content.(*mcp.EmbeddedResource)
+	require.True(t, ok, "expected content to be of type EmbeddedResource")
 
 	require.IsType(t, mcp.ResourceContents{}, resource.Resource)
 	require.NotEmpty(t, resource.Resource.Text)

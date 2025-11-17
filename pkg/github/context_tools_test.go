@@ -112,10 +112,10 @@ func Test_GetMe(t *testing.T) {
 
 			request := createMCPRequest(tc.requestArgs)
 			result, _, err := handler(context.Background(), &request, tc.requestArgs)
-			require.NoError(t, err)
 			textContent := getTextResult(t, result)
 
 			if tc.expectToolError {
+				assert.Error(t, err)
 				assert.True(t, result.IsError, "expected tool call result to be an error")
 				assert.Contains(t, textContent.Text, tc.expectedToolErrMsg)
 				return
