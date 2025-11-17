@@ -25,25 +25,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ========================================================
-      #
-      # Step 1: Build your artifacts.
-      #
-      # ========================================================
+      
+      
+      
+      
+      
       - name: Build artifacts
         run: |
             # These are some amazing artifacts.
             echo "artifact1" > artifact1
             echo "artifact2" > artifact2
 
-      # ========================================================
-      #
-      # Step 2: Add a step to generate the provenance subjects
-      #         as shown below. Update the sha256 sum arguments
-      #         to include all binaries that you generate
-      #         provenance for.
-      #
-      # ========================================================
+      
+      
+      
+      
+      
+      
+      
+      
       - name: Generate subject for provenance
         id: hash
         run: |
