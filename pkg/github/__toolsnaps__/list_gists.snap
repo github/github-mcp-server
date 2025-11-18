@@ -8,12 +8,12 @@
     "type": "object",
     "properties": {
       "page": {
-        "type": "Number",
+        "type": "number",
         "description": "Page number for pagination (min 1)",
         "minimum": 1
       },
       "perPage": {
-        "type": "Number",
+        "type": "number",
         "description": "Results per page for pagination (min 1, max 100)",
         "minimum": 1,
         "maximum": 100
