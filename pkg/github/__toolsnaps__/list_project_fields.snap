@@ -6,6 +6,14 @@
   "description": "List Project fields for a user or org",
   "inputSchema": {
     "properties": {
+      "after": {
+        "description": "Forward pagination cursor from previous pageInfo.nextCursor.",
+        "type": "string"
+      },
+      "before": {
+        "description": "Backward pagination cursor from previous pageInfo.prevCursor (rare).",
+        "type": "string"
+      },
       "owner": {
         "description": "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.",
         "type": "string"
@@ -19,7 +27,7 @@
         "type": "string"
       },
       "per_page": {
-        "description": "Number of results per page (max 100, default: 30)",
+        "description": "Results per page (max 50)",
         "type": "number"
       },
       "project_number": {
