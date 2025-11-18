@@ -29,6 +29,12 @@ type repoAccessCacheEntry struct {
 
 const defaultRepoAccessTTL = 5 * time.Minute
 
+var (
+	instance     *RepoAccessCache
+	instanceOnce sync.Once
+	instanceMu   sync.RWMutex
+)
+
 // RepoAccessOption configures RepoAccessCache at construction time.
 type RepoAccessOption func(*RepoAccessCache)
 
@@ -47,10 +53,43 @@ func WithLogger(logger *slog.Logger) RepoAccessOption {
 	}
 }
 
-// NewRepoAccessCache returns a cache bound to the provided GitHub GraphQL
-// client. The cache is safe for concurrent use.
+// GetInstance returns the singleton instance of RepoAccessCache.
+// It initializes the instance on first call with the provided client and options.
+// Subsequent calls ignore the client and options parameters and return the existing instance.
+// This is the preferred way to access the cache in production code.
+func GetInstance(client *githubv4.Client, opts ...RepoAccessOption) *RepoAccessCache {
+	instanceOnce.Do(func() {
+		instance = newRepoAccessCache(client, opts...)
+	})
+	return instance
+}
+
+// ResetInstance clears the singleton instance. This is primarily for testing purposes.
+// It flushes the cache and allows re-initialization with different parameters.
+// Note: This should not be called while the instance is in use.
+func ResetInstance() {
+	instanceMu.Lock()
+	defer instanceMu.Unlock()
+	if instance != nil {
+		instance.cache.Flush()
+	}
+	instance = nil
+	instanceOnce = sync.Once{}
+}
+
+// NewRepoAccessCache returns a cache bound to the provided GitHub GraphQL client.
+// The cache is safe for concurrent use.
+//
+// For production code, consider using GetInstance() to ensure singleton behavior and
+// consistent configuration across the application. NewRepoAccessCache is appropriate
+// for testing scenarios where independent cache instances are needed.
 func NewRepoAccessCache(client *githubv4.Client, opts ...RepoAccessOption) *RepoAccessCache {
-	// Use a unique cache name for each instance to avoid sharing state between tests
+	return newRepoAccessCache(client, opts...)
+}
+
+// newRepoAccessCache creates a new cache instance. This is a private helper function
+// used by GetInstance.
+func newRepoAccessCache(client *githubv4.Client, opts ...RepoAccessOption) *RepoAccessCache {
 	cacheName := "repo-access-cache"
 	c := &RepoAccessCache{
 		client: client,

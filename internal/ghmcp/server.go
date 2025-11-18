@@ -90,7 +90,7 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 	}
 	var repoAccessCache *lockdown.RepoAccessCache
 	if cfg.LockdownMode {
-		repoAccessCache = lockdown.NewRepoAccessCache(gqlClient, repoAccessOpts...)
+		repoAccessCache = lockdown.GetInstance(gqlClient, repoAccessOpts...)
 	}
 
 	// When a client send an initialize request, update the user agent to include the client info.

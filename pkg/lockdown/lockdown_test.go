@@ -145,3 +145,58 @@ func TestRepoAccessCacheSetTTLReschedulesExistingEntry(t *testing.T) {
 	requireAccess(ctx, t, cache)
 	require.EqualValues(t, 2, transport.CallCount())
 }
+
+func TestGetInstanceReturnsSingleton(t *testing.T) {
+	// Reset any existing singleton
+	ResetInstance()
+	defer ResetInstance() // Clean up after test
+
+	gqlClient := githubv4.NewClient(nil)
+
+	// Get instance twice, should return the same instance
+	instance1 := GetInstance(gqlClient)
+	instance2 := GetInstance(gqlClient)
+
+	// Verify they're the same instance (same pointer)
+	require.Same(t, instance1, instance2, "GetInstance should return the same singleton instance")
+
+	// Verify subsequent calls with different options are ignored
+	instance3 := GetInstance(gqlClient, WithTTL(1*time.Second))
+	require.Same(t, instance1, instance3, "GetInstance should ignore options on subsequent calls")
+	require.Equal(t, defaultRepoAccessTTL, instance3.ttl, "TTL should remain unchanged after first initialization")
+}
+
+func TestResetInstanceClearsSingleton(t *testing.T) {
+	// Reset any existing singleton
+	ResetInstance()
+	defer ResetInstance() // Clean up after test
+
+	gqlClient := githubv4.NewClient(nil)
+
+	// Get first instance with default TTL
+	instance1 := GetInstance(gqlClient)
+	require.Equal(t, defaultRepoAccessTTL, instance1.ttl)
+
+	// Reset the singleton
+	ResetInstance()
+
+	// Get new instance with custom TTL
+	customTTL := 10 * time.Second
+	instance2 := GetInstance(gqlClient, WithTTL(customTTL))
+	require.NotSame(t, instance1, instance2, "After reset, GetInstance should return a new instance")
+	require.Equal(t, customTTL, instance2.ttl, "New instance should have the custom TTL")
+}
+
+func TestNewRepoAccessCacheCreatesIndependentInstances(t *testing.T) {
+	t.Parallel()
+
+	gqlClient := githubv4.NewClient(nil)
+
+	// NewRepoAccessCache should create independent instances
+	cache1 := NewRepoAccessCache(gqlClient, WithTTL(1*time.Second))
+	cache2 := NewRepoAccessCache(gqlClient, WithTTL(2*time.Second))
+
+	require.NotSame(t, cache1, cache2, "NewRepoAccessCache should create different instances")
+	require.Equal(t, 1*time.Second, cache1.ttl)
+	require.Equal(t, 2*time.Second, cache2.ttl)
+}
