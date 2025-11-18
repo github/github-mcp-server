@@ -247,10 +247,9 @@ func generateToolDoc(tool mcp.Tool) string {
 				requiredStr = "required"
 			}
 
-			// Get the type and description
-			typeStr := "unknown"
-			description := ""
+			var typeStr, description string
 
+			// Get the type and description
 			switch prop.Type {
 			case "array":
 				if prop.Items != nil {
