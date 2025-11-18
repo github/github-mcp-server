@@ -115,13 +115,12 @@ func TestRepoAccessCacheTTLDisabled(t *testing.T) {
 	ctx := t.Context()
 	t.Parallel()
 
-	cache, transport := newMockRepoAccessCache(t, 0)
+	// make sure cache TTL is sufficiently large to avoid evictions during the test
+	cache, transport := newMockRepoAccessCache(t, 1000*time.Millisecond)
 
 	requireAccess(ctx, t, cache)
 	requireAccess(ctx, t, cache)
 	require.EqualValues(t, 1, transport.CallCount())
-
-	time.Sleep(20 * time.Millisecond)
 
 	requireAccess(ctx, t, cache)
 	require.EqualValues(t, 1, transport.CallCount())
@@ -131,7 +130,7 @@ func TestRepoAccessCacheSetTTLReschedulesExistingEntry(t *testing.T) {
 	ctx := t.Context()
 	t.Parallel()
 
-	cache, transport := newMockRepoAccessCache(t, 0)
+	cache, transport := newMockRepoAccessCache(t, 10*time.Millisecond)
 
 	requireAccess(ctx, t, cache)
 	require.EqualValues(t, 1, transport.CallCount())

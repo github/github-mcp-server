@@ -120,8 +120,8 @@ func Test_GetIssue(t *testing.T) {
 						} `graphql:"repository(owner: $owner, name: $name)"`
 					}{},
 					map[string]any{
-						"owner":    githubv4.String("owner"),
-						"name":     githubv4.String("repo"),
+						"owner":    githubv4.String("github"),
+						"name":     githubv4.String("github-mcp-server"),
 						"username": githubv4.String("testuser"),
 					},
 					githubv4mock.DataResponse(map[string]any{
@@ -136,8 +136,8 @@ func Test_GetIssue(t *testing.T) {
 			),
 			requestArgs: map[string]interface{}{
 				"method":       "get",
-				"owner":        "owner",
-				"repo":         "repo",
+				"owner":        "github",
+				"repo":         "github-mcp-server",
 				"issue_number": float64(42),
 			},
 			expectedIssue:   mockIssue,

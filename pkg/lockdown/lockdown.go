@@ -6,14 +6,11 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/muesli/cache2go"
 	"github.com/shurcooL/githubv4"
 )
-
-var cacheNameCounter atomic.Uint64
 
 // RepoAccessCache caches repository metadata related to lockdown checks so that
 // multiple tools can reuse the same access information safely across goroutines.
@@ -28,7 +25,6 @@ type RepoAccessCache struct {
 type repoAccessCacheEntry struct {
 	isPrivate  bool
 	knownUsers map[string]bool // normalized login -> has push access
-	ready      bool
 }
 
 const defaultRepoAccessTTL = 5 * time.Minute
@@ -55,7 +51,7 @@ func WithLogger(logger *slog.Logger) RepoAccessOption {
 // client. The cache is safe for concurrent use.
 func NewRepoAccessCache(client *githubv4.Client, opts ...RepoAccessOption) *RepoAccessCache {
 	// Use a unique cache name for each instance to avoid sharing state between tests
-	cacheName := fmt.Sprintf("repoAccess-%d", cacheNameCounter.Add(1))
+	cacheName := "repo-access-cache"
 	c := &RepoAccessCache{
 		client: client,
 		cache:  cache2go.Cache(cacheName),
@@ -77,16 +73,16 @@ func (c *RepoAccessCache) SetTTL(ttl time.Duration) {
 	defer c.mu.Unlock()
 	c.ttl = ttl
 	c.logInfo("repo access cache TTL updated", "ttl", ttl)
-	
+
 	// Collect all current entries
 	entries := make(map[interface{}]*repoAccessCacheEntry)
 	c.cache.Foreach(func(key interface{}, item *cache2go.CacheItem) {
 		entries[key] = item.Data().(*repoAccessCacheEntry)
 	})
-	
+
 	// Flush the cache
 	c.cache.Flush()
-	
+
 	// Re-add all entries with the new TTL
 	for key, entry := range entries {
 		c.cache.Add(key, ttl, entry)
@@ -119,16 +115,14 @@ func (c *RepoAccessCache) GetRepoAccessInfo(ctx context.Context, username, owner
 	userKey := strings.ToLower(username)
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	// Try to get entry from cache - this will keep the item alive if it exists
 	cacheItem, err := c.cache.Value(key)
 	if err == nil {
 		entry := cacheItem.Data().(*repoAccessCacheEntry)
-		if entry.ready {
-			if cachedHasPush, known := entry.knownUsers[userKey]; known {
-				c.logDebug("repo access cache hit", "owner", owner, "repo", repo, "user", username)
-				return entry.isPrivate, cachedHasPush, nil
-			}
+		if cachedHasPush, known := entry.knownUsers[userKey]; known {
+			c.logDebug("repo access cache hit", "owner", owner, "repo", repo, "user", username)
+			return entry.isPrivate, cachedHasPush, nil
 		}
 		// Entry exists but user not in knownUsers, need to query
 	}
@@ -139,26 +133,22 @@ func (c *RepoAccessCache) GetRepoAccessInfo(ctx context.Context, username, owner
 		return false, false, queryErr
 	}
 
-	// Get or create entry - don't use Value() here to avoid keeping alive unnecessarily
+	// Repo access info retrieved, update or create cache entry
 	var entry *repoAccessCacheEntry
 	if err == nil && cacheItem != nil {
-		// Entry already existed, just update it
 		entry = cacheItem.Data().(*repoAccessCacheEntry)
-	} else {
-		// Create new entry
-		entry = &repoAccessCacheEntry{
-			knownUsers: make(map[string]bool),
-		}
+		entry.knownUsers[userKey] = hasPush
+		return entry.isPrivate, entry.knownUsers[userKey], nil
 	}
-	
-	entry.ready = true
-	entry.isPrivate = isPrivate
-	entry.knownUsers[userKey] = hasPush
-	
-	// Add or update the entry in cache with TTL
+
+	// Create new entry
+	entry = &repoAccessCacheEntry{
+		knownUsers: map[string]bool{userKey: hasPush},
+		isPrivate:  isPrivate,
+	}
 	c.cache.Add(key, c.ttl, entry)
 
-	return isPrivate, hasPush, nil
+	return entry.isPrivate, entry.knownUsers[userKey], nil
 }
 
 func (c *RepoAccessCache) queryRepoAccessInfo(ctx context.Context, username, owner, repo string) (bool, bool, error) {
@@ -205,14 +195,6 @@ func (c *RepoAccessCache) queryRepoAccessInfo(ctx context.Context, username, own
 
 func cacheKey(owner, repo string) string {
 	return fmt.Sprintf("%s/%s", strings.ToLower(owner), strings.ToLower(repo))
-}
-
-func splitKey(key string) (string, string) {
-	owner, rest, found := strings.Cut(key, "/")
-	if !found {
-		return key, ""
-	}
-	return owner, rest
 }
 
 func (c *RepoAccessCache) logDebug(msg string, args ...any) {
