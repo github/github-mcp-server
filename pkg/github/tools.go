@@ -239,11 +239,11 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	// 		toolsets.NewServerTool(PullRequestReviewWrite(getGQLClient, t)),
 	// 		toolsets.NewServerTool(AddCommentToPendingReview(getGQLClient, t)),
 	// 	)
-	// codeSecurity := toolsets.NewToolset(ToolsetMetadataCodeSecurity.ID, ToolsetMetadataCodeSecurity.Description).
-	// 	AddReadTools(
-	// 		toolsets.NewServerTool(GetCodeScanningAlert(getClient, t)),
-	// 		toolsets.NewServerTool(ListCodeScanningAlerts(getClient, t)),
-	// 	)
+	codeSecurity := toolsets.NewToolset(ToolsetMetadataCodeSecurity.ID, ToolsetMetadataCodeSecurity.Description).
+		AddReadTools(
+			toolsets.NewServerTool(GetCodeScanningAlert(getClient, t)),
+			toolsets.NewServerTool(ListCodeScanningAlerts(getClient, t)),
+		)
 	// secretProtection := toolsets.NewToolset(ToolsetMetadataSecretProtection.ID, ToolsetMetadataSecretProtection.Description).
 	// 	AddReadTools(
 	// 		toolsets.NewServerTool(GetSecretScanningAlert(getClient, t)),
@@ -366,7 +366,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	// tsg.AddToolset(users)
 	// tsg.AddToolset(pullRequests)
 	// tsg.AddToolset(actions)
-	// tsg.AddToolset(codeSecurity)
+	tsg.AddToolset(codeSecurity)
 	// tsg.AddToolset(secretProtection)
 	// tsg.AddToolset(dependabot)
 	// tsg.AddToolset(notifications)
