@@ -1,5 +1,3 @@
-//go:build ignore
-
 package github
 
 import (
@@ -10,6 +8,7 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,10 +20,13 @@ func Test_ListGlobalSecurityAdvisories(t *testing.T) {
 
 	assert.Equal(t, "list_global_security_advisories", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "ecosystem")
-	assert.Contains(t, tool.InputSchema.Properties, "severity")
-	assert.Contains(t, tool.InputSchema.Properties, "ghsaId")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{})
+	
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be of type *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "ecosystem")
+	assert.Contains(t, schema.Properties, "severity")
+	assert.Contains(t, schema.Properties, "ghsaId")
+	assert.Empty(t, schema.Required)
 
 	// Setup mock advisory for success case
 	mockAdvisory := &github.GlobalSecurityAdvisory{
@@ -104,8 +106,8 @@ func Test_ListGlobalSecurityAdvisories(t *testing.T) {
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
-			result, err := handler(context.Background(), request)
+			// Call handler - note the new signature with 3 parameters and 3 return values
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -140,8 +142,11 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 
 	assert.Equal(t, "get_global_security_advisory", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "ghsaId")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"ghsaId"})
+	
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be of type *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "ghsaId")
+	assert.ElementsMatch(t, schema.Required, []string{"ghsaId"})
 
 	// Setup mock advisory for success case
 	mockAdvisory := &github.GlobalSecurityAdvisory{
@@ -220,8 +225,8 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
-			result, err := handler(context.Background(), request)
+			// Call handler - note the new signature with 3 parameters and 3 return values
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -251,12 +256,15 @@ func Test_ListRepositorySecurityAdvisories(t *testing.T) {
 
 	assert.Equal(t, "list_repository_security_advisories", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "direction")
-	assert.Contains(t, tool.InputSchema.Properties, "sort")
-	assert.Contains(t, tool.InputSchema.Properties, "state")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
+	
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be of type *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "direction")
+	assert.Contains(t, schema.Properties, "sort")
+	assert.Contains(t, schema.Properties, "state")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
 	// Local endpoint pattern for repository security advisories
 	var GetReposSecurityAdvisoriesByOwnerByRepo = mock.EndpointPattern{
@@ -362,7 +370,8 @@ func Test_ListRepositorySecurityAdvisories(t *testing.T) {
 
 			request := createMCPRequest(tc.requestArgs)
 
-			result, err := handler(context.Background(), request)
+			// Call handler - note the new signature with 3 parameters and 3 return values
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -395,11 +404,14 @@ func Test_ListOrgRepositorySecurityAdvisories(t *testing.T) {
 
 	assert.Equal(t, "list_org_repository_security_advisories", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "org")
-	assert.Contains(t, tool.InputSchema.Properties, "direction")
-	assert.Contains(t, tool.InputSchema.Properties, "sort")
-	assert.Contains(t, tool.InputSchema.Properties, "state")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"org"})
+	
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be of type *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "org")
+	assert.Contains(t, schema.Properties, "direction")
+	assert.Contains(t, schema.Properties, "sort")
+	assert.Contains(t, schema.Properties, "state")
+	assert.ElementsMatch(t, schema.Required, []string{"org"})
 
 	// Endpoint pattern for org repository security advisories
 	var GetOrgsSecurityAdvisoriesByOrg = mock.EndpointPattern{
@@ -501,7 +513,8 @@ func Test_ListOrgRepositorySecurityAdvisories(t *testing.T) {
 
 			request := createMCPRequest(tc.requestArgs)
 
-			result, err := handler(context.Background(), request)
+			// Call handler - note the new signature with 3 parameters and 3 return values
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			if tc.expectError {
 				require.Error(t, err)
