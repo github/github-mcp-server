@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/muesli/cache2go"
@@ -31,10 +30,9 @@ type repoAccessCacheEntry struct {
 const defaultRepoAccessTTL = 5 * time.Minute
 
 var (
-	instance       *RepoAccessCache
-	instanceOnce   sync.Once
-	instanceMu     sync.RWMutex
-	cacheIDCounter atomic.Uint64
+	instance     *RepoAccessCache
+	instanceOnce sync.Once
+	instanceMu   sync.RWMutex
 )
 
 // RepoAccessOption configures RepoAccessCache at construction time.
@@ -92,9 +90,7 @@ func NewRepoAccessCache(client *githubv4.Client, opts ...RepoAccessOption) *Repo
 // newRepoAccessCache creates a new cache instance. This is a private helper function
 // used by GetInstance.
 func newRepoAccessCache(client *githubv4.Client, opts ...RepoAccessOption) *RepoAccessCache {
-	// Use a unique cache name for each instance to avoid sharing state between instances
-	cacheID := cacheIDCounter.Add(1)
-	cacheName := fmt.Sprintf("repo-access-cache-%d", cacheID)
+	cacheName := "repo-access-cache"
 	c := &RepoAccessCache{
 		client: client,
 		cache:  cache2go.Cache(cacheName),
