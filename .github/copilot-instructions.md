@@ -26,7 +26,7 @@ This is the **GitHub MCP Server**, a Model Context Protocol (MCP) server that co
 
 **ALWAYS run these commands in this exact order before using report_progress or finishing work:**
 
-1. **Format Code:** `script/lint` (this runs `gofmt -s -w .` then `golangci-lint`)
+1. **Format Code:** `script/lint` (runs `gofmt -s -w .` then `golangci-lint`)
 2. **Run Tests:** `script/test` (runs `go test -race ./...`)
 3. **Update Documentation:** `script/generate-docs` (if you modified MCP tools/toolsets)
 
@@ -115,7 +115,7 @@ go test ./pkg/github -run TestGetMe
 All workflows run on push/PR unless noted. Located in `.github/workflows/`:
 
 1. **go.yml** - Build and test on ubuntu/windows/macos. Runs `script/test` and builds binary
-2. **lint.yml** - Runs golangci-lint v2.5 with actions/setup-go stable
+2. **lint.yml** - Runs golangci-lint-action v2.5 (GitHub Action) with actions/setup-go stable
 3. **docs-check.yml** - Verifies README.md is up-to-date by running generate-docs and checking git diff
 4. **code-scanning.yml** - CodeQL security analysis for Go and GitHub Actions
 5. **license-check.yml** - Runs `script/licenses-check` to validate compliance
@@ -160,7 +160,7 @@ All workflows run on push/PR unless noted. Located in `.github/workflows/`:
 ### Go Code Requirements
 
 - **gofmt with simplify flag (-s)** - Automatically run by `script/lint`
-- **golangci-lint v2.5.0** with these linters enabled:
+- **golangci-lint** with these linters enabled:
   - bodyclose, gocritic, gosec, makezero, misspell, nakedret, revive
   - errcheck, staticcheck, govet, ineffassign, unused
 - Exclusions for: third_party/, builtin/, examples/, generated code
