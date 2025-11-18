@@ -8,7 +8,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/toolsets"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v77/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/shurcooL/githubv4"
 )
@@ -336,9 +336,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(AddProjectItem(getClient, t)),
 			toolsets.NewServerTool(DeleteProjectItem(getClient, t)),
 			toolsets.NewServerTool(UpdateProjectItem(getClient, t)),
-		).AddPrompts(
-		toolsets.NewServerPrompt(ManageProjectItemsPrompt(t)),
-	)
+		)
 	stargazers := toolsets.NewToolset(ToolsetMetadataStargazers.ID, ToolsetMetadataStargazers.Description).
 		AddReadTools(
 			toolsets.NewServerTool(ListStarredRepositories(getClient, t)),

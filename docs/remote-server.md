@@ -57,7 +57,7 @@ The Remote GitHub MCP server has optional headers equivalent to the Local server
 
 - `X-MCP-Toolsets`: Comma-separated list of toolsets to enable. E.g. "repos,issues".
     - Equivalent to `GITHUB_TOOLSETS` env var for Local server.
-    - If the list is empty, default toolsets will be used. If a bad toolset is provided, the server will fail to start and emit a 400 bad request status. Whitespace is ignored.
+    - If the list is empty, default toolsets will be used. Invalid or unknown toolsets are silently ignored without error and will not prevent the server from starting. Whitespace is ignored.
 - `X-MCP-Readonly`: Enables only "read" tools.
     - Equivalent to `GITHUB_READ_ONLY` env var for Local server.
     - If this header is empty, "false", "f", "no", "n", "0", or "off" (ignoring whitespace and case), it will be interpreted as false. All other values are interpreted as true.
