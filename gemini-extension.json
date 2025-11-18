@@ -1,0 +1,13 @@
+{
+	"name": "github",
+	"version": "1.0.0",
+	"mcpServers": {
+		"github": {
+			"description": "Connect AI assistants to GitHub - manage repos, issues, PRs, and workflows through natural language.",
+			"httpUrl": "https://api.githubcopilot.com/mcp/",
+			"headers": {
+				"Authorization": "Bearer $GITHUB_MCP_PAT"
+			}
+		}
+	}
+}

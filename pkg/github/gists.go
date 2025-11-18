@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v74/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -81,6 +81,53 @@ func ListGists(getClient GetClientFn, t translations.TranslationHelperFunc) (too
 			}
 
 			r, err := json.Marshal(gists)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
+// GetGist creates a tool to get the content of a gist
+func GetGist(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+	return mcp.NewTool("get_gist",
+			mcp.WithDescription(t("TOOL_GET_GIST_DESCRIPTION", "Get gist content of a particular gist, by gist ID")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_GET_GIST", "Get Gist Content"),
+				ReadOnlyHint: ToBoolPtr(true),
+			}),
+			mcp.WithString("gist_id",
+				mcp.Required(),
+				mcp.Description("The ID of the gist"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			gistID, err := RequiredParam[string](request, "gist_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			gist, resp, err := client.Gists.Get(ctx, gistID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get gist: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to get gist: %s", string(body))), nil
+			}
+
+			r, err := json.Marshal(gist)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}

@@ -203,7 +203,17 @@ func (tg *ToolsetGroup) IsEnabled(name string) bool {
 	return feature.Enabled
 }
 
-func (tg *ToolsetGroup) EnableToolsets(names []string) error {
+type EnableToolsetsOptions struct {
+	ErrorOnUnknown bool
+}
+
+func (tg *ToolsetGroup) EnableToolsets(names []string, options *EnableToolsetsOptions) error {
+	if options == nil {
+		options = &EnableToolsetsOptions{
+			ErrorOnUnknown: false,
+		}
+	}
+
 	// Special case for "all"
 	for _, name := range names {
 		if name == "all" {
@@ -211,7 +221,7 @@ func (tg *ToolsetGroup) EnableToolsets(names []string) error {
 			break
 		}
 		err := tg.EnableToolset(name)
-		if err != nil {
+		if err != nil && options.ErrorOnUnknown {
 			return err
 		}
 	}
@@ -219,7 +229,7 @@ func (tg *ToolsetGroup) EnableToolsets(names []string) error {
 	if tg.everythingOn {
 		for name := range tg.Toolsets {
 			err := tg.EnableToolset(name)
-			if err != nil {
+			if err != nil && options.ErrorOnUnknown {
 				return err
 			}
 		}
