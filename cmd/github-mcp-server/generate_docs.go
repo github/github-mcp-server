@@ -65,7 +65,7 @@ func generateReadmeDocs(readmePath string) error {
 	t, _ := translations.TranslationHelper()
 
 	// Create toolset group with mock clients
-	repoAccessCache := lockdown.NewRepoAccessCache(nil)
+	repoAccessCache := lockdown.GetInstance(nil)
 	tsg := github.DefaultToolsetGroup(false, mockGetClient, mockGetGQLClient, mockGetRawClient, t, 5000, github.FeatureFlags{}, repoAccessCache)
 
 	// Generate toolsets documentation
@@ -304,7 +304,7 @@ func generateRemoteToolsetsDoc() string {
 	t, _ := translations.TranslationHelper()
 
 	// Create toolset group with mock clients
-	repoAccessCache := lockdown.NewRepoAccessCache(nil)
+	repoAccessCache := lockdown.GetInstance(nil)
 	tsg := github.DefaultToolsetGroup(false, mockGetClient, mockGetGQLClient, mockGetRawClient, t, 5000, github.FeatureFlags{}, repoAccessCache)
 
 	// Generate table header

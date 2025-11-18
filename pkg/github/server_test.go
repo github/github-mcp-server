@@ -40,7 +40,7 @@ func stubGetGQLClientFn(client *githubv4.Client) GetGQLClientFn {
 }
 
 func stubRepoAccessCache(client *githubv4.Client) *lockdown.RepoAccessCache {
-	return lockdown.NewRepoAccessCache(client)
+	return lockdown.GetInstance(client)
 }
 
 func stubFeatureFlags(enabledFlags map[string]bool) FeatureFlags {
