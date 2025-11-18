@@ -1,6 +1,6 @@
 package github
 
-import "github.com/google/go-github/v76/github"
+import "github.com/google/go-github/v79/github"
 
 // MinimalUser is the output type for user and organization search results.
 type MinimalUser struct {

@@ -3,7 +3,7 @@ module github.com/github/github-mcp-server
 go 1.24.0
 
 require (
-	github.com/google/go-github/v76 v76.0.0
+	github.com/google/go-github/v79 v79.0.0
 	github.com/josephburnett/jd v1.9.2
 	github.com/mark3labs/mcp-go v0.36.0
 	github.com/microcosm-cc/bluemonday v1.0.27
@@ -29,7 +29,7 @@ require (
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
-	golang.org/x/net v0.26.0 // indirect
+	golang.org/x/net v0.38.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 

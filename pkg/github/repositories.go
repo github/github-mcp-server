@@ -13,7 +13,7 @@ import (
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v76/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -560,7 +560,7 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 					), nil
 				}
 				if fileContent == nil || fileContent.SHA == nil {
-					return mcp.NewToolResultError("file content SHA is nil"), nil
+					return mcp.NewToolResultError("file content SHA is nil, if a directory was requested, path parameters should end with a trailing slash '/'"), nil
 				}
 				fileSHA = *fileContent.SHA
 

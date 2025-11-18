@@ -7,7 +7,7 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/google/go-github/v76/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/shurcooL/githubv4"
@@ -44,11 +44,14 @@ type DiscussionFragment struct {
 }
 
 type NodeFragment struct {
-	Number    githubv4.Int
-	Title     githubv4.String
-	CreatedAt githubv4.DateTime
-	UpdatedAt githubv4.DateTime
-	Author    struct {
+	Number         githubv4.Int
+	Title          githubv4.String
+	CreatedAt      githubv4.DateTime
+	UpdatedAt      githubv4.DateTime
+	Closed         githubv4.Boolean
+	IsAnswered     githubv4.Boolean
+	AnswerChosenAt *githubv4.DateTime
+	Author         struct {
 		Login githubv4.String
 	}
 	Category struct {
@@ -294,12 +297,15 @@ func GetDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelper
 			var q struct {
 				Repository struct {
 					Discussion struct {
-						Number    githubv4.Int
-						Title     githubv4.String
-						Body      githubv4.String
-						CreatedAt githubv4.DateTime
-						URL       githubv4.String `graphql:"url"`
-						Category  struct {
+						Number         githubv4.Int
+						Title          githubv4.String
+						Body           githubv4.String
+						CreatedAt      githubv4.DateTime
+						Closed         githubv4.Boolean
+						IsAnswered     githubv4.Boolean
+						AnswerChosenAt *githubv4.DateTime
+						URL            githubv4.String `graphql:"url"`
+						Category       struct {
 							Name githubv4.String
 						} `graphql:"category"`
 					} `graphql:"discussion(number: $discussionNumber)"`
@@ -314,17 +320,30 @@ func GetDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelper
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 			d := q.Repository.Discussion
-			discussion := &github.Discussion{
-				Number:    github.Ptr(int(d.Number)),
-				Title:     github.Ptr(string(d.Title)),
-				Body:      github.Ptr(string(d.Body)),
-				HTMLURL:   github.Ptr(string(d.URL)),
-				CreatedAt: &github.Timestamp{Time: d.CreatedAt.Time},
-				DiscussionCategory: &github.DiscussionCategory{
-					Name: github.Ptr(string(d.Category.Name)),
+
+			// Build response as map to include fields not present in go-github's Discussion struct.
+			// The go-github library's Discussion type lacks isAnswered and answerChosenAt fields,
+			// so we use map[string]interface{} for the response (consistent with other functions
+			// like ListDiscussions and GetDiscussionComments).
+			response := map[string]interface{}{
+				"number":     int(d.Number),
+				"title":      string(d.Title),
+				"body":       string(d.Body),
+				"url":        string(d.URL),
+				"closed":     bool(d.Closed),
+				"isAnswered": bool(d.IsAnswered),
+				"createdAt":  d.CreatedAt.Time,
+				"category": map[string]interface{}{
+					"name": string(d.Category.Name),
 				},
 			}
-			out, err := json.Marshal(discussion)
+
+			// Add optional timestamp fields if present
+			if d.AnswerChosenAt != nil {
+				response["answerChosenAt"] = d.AnswerChosenAt.Time
+			}
+
+			out, err := json.Marshal(response)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal discussion: %w", err)
 			}
