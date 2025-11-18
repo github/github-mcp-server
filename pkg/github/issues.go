@@ -1,5 +1,3 @@
-//go:build ignore
-
 package github
 
 import (
@@ -15,10 +13,11 @@ import (
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/google/go-github/v79/github"
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
+	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -229,85 +228,97 @@ func fragmentToIssue(fragment IssueFragment) *github.Issue {
 	}
 }
 
-// GetIssue creates a tool to get details of a specific issue in a GitHub repository.
-func IssueRead(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("issue_read",
-			mcp.WithDescription(t("TOOL_ISSUE_READ_DESCRIPTION", "Get information about a specific issue in a GitHub repository.")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_ISSUE_READ_USER_TITLE", "Get issue details"),
-				ReadOnlyHint: ToBoolPtr(true),
-			}),
-			mcp.WithString("method",
-				mcp.Required(),
-				mcp.Description(`The read operation to perform on a single issue.
+// IssueRead creates a tool to get details of a specific issue in a GitHub repository.
+func IssueRead(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	schema := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"method": {
+				Type: "string",
+				Description: `The read operation to perform on a single issue.
 Options are:
 1. get - Get details of a specific issue.
 2. get_comments - Get issue comments.
 3. get_sub_issues - Get sub-issues of the issue.
 4. get_labels - Get labels assigned to the issue.
-`),
+`,
+				Enum: []any{"get", "get_comments", "get_sub_issues", "get_labels"},
+			},
+			"owner": {
+				Type:        "string",
+				Description: "The owner of the repository",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "The name of the repository",
+			},
+			"issue_number": {
+				Type:        "number",
+				Description: "The number of the issue",
+			},
+		},
+		Required: []string{"method", "owner", "repo", "issue_number"},
+	}
+	WithPagination(schema)
 
-				mcp.Enum("get", "get_comments", "get_sub_issues", "get_labels"),
-			),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("The owner of the repository"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("The name of the repository"),
-			),
-			mcp.WithNumber("issue_number",
-				mcp.Required(),
-				mcp.Description("The number of the issue"),
-			),
-			WithPagination(),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			method, err := RequiredParam[string](request, "method")
+	return mcp.Tool{
+			Name:        "issue_read",
+			Description: t("TOOL_ISSUE_READ_DESCRIPTION", "Get information about a specific issue in a GitHub repository."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_ISSUE_READ_USER_TITLE", "Get issue details"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: schema,
+		},
+		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			method, err := RequiredParam[string](args, "method")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			owner, err := RequiredParam[string](request, "owner")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			repo, err := RequiredParam[string](request, "repo")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			issueNumber, err := RequiredInt(request, "issue_number")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			pagination, err := OptionalPaginationParams(request)
+			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			issueNumber, err := RequiredInt(args, "issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			pagination, err := OptionalPaginationParams(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			client, err := getClient(ctx)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			gqlClient, err := getGQLClient(ctx)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub graphql client: %w", err)
+				return utils.NewToolResultErrorFromErr("failed to get GitHub graphql client", err), nil, nil
 			}
 
 			switch method {
 			case "get":
-				return GetIssue(ctx, client, gqlClient, owner, repo, issueNumber, flags)
+				result, err := GetIssue(ctx, client, gqlClient, owner, repo, issueNumber, flags)
+				return result, nil, err
 			case "get_comments":
-				return GetIssueComments(ctx, client, owner, repo, issueNumber, pagination, flags)
+				result, err := GetIssueComments(ctx, client, owner, repo, issueNumber, pagination, flags)
+				return result, nil, err
 			case "get_sub_issues":
-				return GetSubIssues(ctx, client, owner, repo, issueNumber, pagination, flags)
+				result, err := GetSubIssues(ctx, client, owner, repo, issueNumber, pagination, flags)
+				return result, nil, err
 			case "get_labels":
-				return GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber, flags)
+				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber, flags)
+				return result, nil, err
 			default:
-				return mcp.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		}
 }
@@ -324,17 +335,17 @@ func GetIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Cl
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return mcp.NewToolResultError(fmt.Sprintf("failed to get issue: %s", string(body))), nil
+		return utils.NewToolResultError(fmt.Sprintf("failed to get issue: %s", string(body))), nil
 	}
 
 	if flags.LockdownMode {
 		if issue.User != nil {
 			shouldRemoveContent, err := lockdown.ShouldRemoveContent(ctx, gqlClient, *issue.User.Login, owner, repo)
 			if err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
+				return utils.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
 			}
 			if shouldRemoveContent {
-				return mcp.NewToolResultError("access to issue details is restricted by lockdown mode"), nil
+				return utils.NewToolResultError("access to issue details is restricted by lockdown mode"), nil
 			}
 		}
 	}
@@ -354,7 +365,7 @@ func GetIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Cl
 		return nil, fmt.Errorf("failed to marshal issue: %w", err)
 	}
 
-	return mcp.NewToolResultText(string(r)), nil
+	return utils.NewToolResultText(string(r)), nil
 }
 
 func GetIssueComments(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, pagination PaginationParams, _ FeatureFlags) (*mcp.CallToolResult, error) {
@@ -376,7 +387,7 @@ func GetIssueComments(ctx context.Context, client *github.Client, owner string, 
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return mcp.NewToolResultError(fmt.Sprintf("failed to get issue comments: %s", string(body))), nil
+		return utils.NewToolResultError(fmt.Sprintf("failed to get issue comments: %s", string(body))), nil
 	}
 
 	r, err := json.Marshal(comments)
@@ -384,7 +395,7 @@ func GetIssueComments(ctx context.Context, client *github.Client, owner string, 
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return mcp.NewToolResultText(string(r)), nil
+	return utils.NewToolResultText(string(r)), nil
 }
 
 func GetSubIssues(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, pagination PaginationParams, _ FeatureFlags) (*mcp.CallToolResult, error) {
@@ -411,7 +422,7 @@ func GetSubIssues(ctx context.Context, client *github.Client, owner string, repo
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return mcp.NewToolResultError(fmt.Sprintf("failed to list sub-issues: %s", string(body))), nil
+		return utils.NewToolResultError(fmt.Sprintf("failed to list sub-issues: %s", string(body))), nil
 	}
 
 	r, err := json.Marshal(subIssues)
@@ -419,7 +430,7 @@ func GetSubIssues(ctx context.Context, client *github.Client, owner string, repo
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return mcp.NewToolResultText(string(r)), nil
+	return utils.NewToolResultText(string(r)), nil
 }
 
 func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, repo string, issueNumber int, _ FeatureFlags) (*mcp.CallToolResult, error) {
@@ -471,54 +482,60 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return mcp.NewToolResultText(string(out)), nil
+	return utils.NewToolResultText(string(out)), nil
 
 }
 
 // ListIssueTypes creates a tool to list defined issue types for an organization. This can be used to understand supported issue type values for creating or updating issues.
-func ListIssueTypes(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-
-	return mcp.NewTool("list_issue_types",
-			mcp.WithDescription(t("TOOL_LIST_ISSUE_TYPES_FOR_ORG", "List supported issue types for repository owner (organization).")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+func ListIssueTypes(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	return mcp.Tool{
+			Name:        "list_issue_types",
+			Description: t("TOOL_LIST_ISSUE_TYPES_FOR_ORG", "List supported issue types for repository owner (organization)."),
+			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_ISSUE_TYPES_USER_TITLE", "List available issue types"),
-				ReadOnlyHint: ToBoolPtr(true),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("The organization owner of the repository"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := RequiredParam[string](request, "owner")
+				ReadOnlyHint: true,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "The organization owner of the repository",
+					},
+				},
+				Required: []string{"owner"},
+			},
+		},
+		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			client, err := getClient(ctx)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 			issueTypes, resp, err := client.Organizations.ListIssueTypes(ctx, owner)
 			if err != nil {
-				return nil, fmt.Errorf("failed to list issue types: %w", err)
+				return utils.NewToolResultErrorFromErr("failed to list issue types", err), nil, nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 
 			if resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to list issue types: %s", string(body))), nil
+				return utils.NewToolResultError(fmt.Sprintf("failed to list issue types: %s", string(body))), nil, nil
 			}
 
 			r, err := json.Marshal(issueTypes)
 			if err != nil {
-				return nil, fmt.Errorf("failed to marshal issue types: %w", err)
+				return utils.NewToolResultErrorFromErr("failed to marshal issue types", err), nil, nil
 			}
 
-			return mcp.NewToolResultText(string(r)), nil
+			return utils.NewToolResultText(string(r)), nil, nil
 		}
 }
 
