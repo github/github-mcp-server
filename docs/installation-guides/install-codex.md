@@ -95,7 +95,6 @@ Use the principle of least privilege: add scopes only when a tool request fails 
 
 ## Security Best Practices
 1. Never commit tokens into version control
-2. Prefer environment variables or secret managers
 3. Rotate tokens periodically
 4. Restrict scopes up front; expand only when required
 5. Remove unused PATs from your GitHub account
