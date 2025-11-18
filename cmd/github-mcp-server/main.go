@@ -45,15 +45,15 @@ var (
 				return fmt.Errorf("failed to unmarshal toolsets: %w", err)
 			}
 
-			// No passed toolsets configuration means we enable the default toolset
-			if len(enabledToolsets) == 0 {
-				enabledToolsets = []string{github.ToolsetMetadataDefault.ID}
-			}
-
 			// Parse tools (similar to toolsets)
 			var enabledTools []string
 			if err := viper.UnmarshalKey("tools", &enabledTools); err != nil {
 				return fmt.Errorf("failed to unmarshal tools: %w", err)
+			}
+
+			// If neither toolset config nor tools config is passed we enable the default toolset
+			if len(enabledToolsets) == 0 && len(enabledTools) == 0 {
+				enabledToolsets = []string{github.ToolsetMetadataDefault.ID}
 			}
 
 			stdioServerConfig := ghmcp.StdioServerConfig{

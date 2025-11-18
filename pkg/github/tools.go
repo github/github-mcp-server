@@ -524,16 +524,11 @@ func ContainsToolset(tools []string, toCheck string) bool {
 	return false
 }
 
-// CleanTools validates and cleans tool names:
-// - Duplicates are removed from the result
-// - Removes whitespaces
-// - Validation of tool existence is done during registration
-// Returns: (cleaned tools, invalid tools)
-// Note: Invalid tools are identified during registration, so this function only cleans and deduplicates.
-func CleanTools(toolNames []string) ([]string, []string) {
+// CleanTools cleans tool names by removing duplicates and trimming whitespace.
+// Validation of tool existence is done during registration.
+func CleanTools(toolNames []string) []string {
 	seen := make(map[string]bool)
 	result := make([]string, 0, len(toolNames))
-	invalid := make([]string, 0)
 
 	// Remove duplicates and trim whitespace
 	for _, tool := range toolNames {
@@ -547,6 +542,5 @@ func CleanTools(toolNames []string) ([]string, []string) {
 		}
 	}
 
-	// Validation will happen during registration, so we return empty invalid list here
-	return result, invalid
+	return result
 }

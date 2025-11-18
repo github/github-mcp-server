@@ -345,7 +345,7 @@ The environment variable `GITHUB_TOOLSETS` takes precedence over the command lin
 
 #### Specifying Individual Tools
 
-You can also configure specific tools instead of entire toolsets using the `--tools` flag. When tools are specified, they take priority over toolsets configuration, read-only mode, and dynamic toolsets.
+You can also configure specific tools using the `--tools` flag. Tools can be used independently or combined with toolsets and dynamic toolsets discovery for fine-grained control.
 
 1. **Using Command Line Argument**:
 
@@ -358,12 +358,24 @@ You can also configure specific tools instead of entire toolsets using the `--to
    GITHUB_TOOLS="get_file_contents,issue_read,create_pull_request" ./github-mcp-server
    ```
 
+3. **Combining with Toolsets** (additive):
+   ```bash
+   github-mcp-server --toolsets repos,issues --tools get_file_contents,search_code
+   ```
+   This registers all tools from `repos` and `issues` toolsets, plus `get_file_contents` and `search_code`.
+
+4. **Combining with Dynamic Toolsets** (additive):
+   ```bash
+   github-mcp-server --tools get_file_contents --dynamic-toolsets
+   ```
+   This registers `get_file_contents` plus the dynamic toolset tools (`enable_toolset`, `list_available_toolsets`, `get_toolset_tools`).
+
 **Important Notes:**
-- When `--tools` is specified, only the listed tools are registered, bypassing toolset enablement
-- Read-only mode is still respected: write tools are skipped if `--read-only` is set, even if explicitly requested
-- Dynamic toolsets are disabled when specific tools are configured
-- Resources and prompts from all toolsets are still registered to maintain functionality
+- Tools, toolsets, and dynamic toolsets can all be used together - they are additive
+- Read-only mode takes priority: write tools are skipped if `--read-only` is set, even if explicitly requested via `--tools`
+- When write tools are skipped due to read-only mode, a warning is logged to stderr
 - Tool names must match exactly (e.g., `get_file_contents`, not `getFileContents`)
+- Invalid tool names will cause the server to fail at startup with an error message
 
 ### Using Toolsets With Docker
 
@@ -378,12 +390,20 @@ docker run -i --rm \
 
 ### Using Tools With Docker
 
-When using Docker, you can pass specific tools as environment variables:
+When using Docker, you can pass specific tools as environment variables. You can also combine tools with toolsets:
 
 ```bash
+# Tools only
 docker run -i --rm \
   -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
   -e GITHUB_TOOLS="get_file_contents,issue_read,create_pull_request" \
+  ghcr.io/github/github-mcp-server
+
+# Tools combined with toolsets (additive)
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_TOOLSETS="repos,issues" \
+  -e GITHUB_TOOLS="search_code,search_repositories" \
   ghcr.io/github/github-mcp-server
 ```
 

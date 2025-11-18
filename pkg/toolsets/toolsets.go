@@ -2,6 +2,8 @@ package toolsets
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -300,6 +302,7 @@ func (tg *ToolsetGroup) FindToolByName(toolName string) (*server.ServerTool, str
 // Respects read-only mode (skips write tools if readOnly=true).
 // Returns error if any tool is not found.
 func (tg *ToolsetGroup) RegisterSpecificTools(s *server.MCPServer, toolNames []string, readOnly bool) error {
+	var skippedTools []string
 	for _, toolName := range toolNames {
 		tool, toolsetName, err := tg.FindToolByName(toolName)
 		if err != nil {
@@ -312,6 +315,7 @@ func (tg *ToolsetGroup) RegisterSpecificTools(s *server.MCPServer, toolNames []s
 			isWriteTool := !*tool.Tool.Annotations.ReadOnlyHint
 			if isWriteTool && readOnly {
 				// Skip write tools in read-only mode
+				skippedTools = append(skippedTools, toolName)
 				continue
 			}
 		}
@@ -320,5 +324,11 @@ func (tg *ToolsetGroup) RegisterSpecificTools(s *server.MCPServer, toolNames []s
 		s.AddTool(tool.Tool, tool.Handler)
 		_ = toolsetName // toolsetName is available for potential future use (logging, etc.)
 	}
+
+	// Log skipped write tools if any
+	if len(skippedTools) > 0 {
+		fmt.Fprintf(os.Stderr, "Write tools skipped due to read-only mode: %s\n", strings.Join(skippedTools, ", "))
+	}
+
 	return nil
 }
