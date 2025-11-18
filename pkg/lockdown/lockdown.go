@@ -63,6 +63,13 @@ func GetInstance(client *githubv4.Client, opts ...RepoAccessOption) *RepoAccessC
 	return instance
 }
 
+// ResetInstance resets the singleton instance of RepoAccessCache.
+// This function is intended for testing purposes only and should not be used in production code.
+func ResetInstance() {
+	instance = nil
+	instanceOnce = sync.Once{}
+}
+
 // newRepoAccessCache creates a new cache instance. This is a private helper function
 // used by GetInstance.
 func newRepoAccessCache(client *githubv4.Client, opts ...RepoAccessOption) *RepoAccessCache {

@@ -11,6 +11,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
@@ -20,9 +21,13 @@ import (
 )
 
 func Test_GetIssue(t *testing.T) {
+	// Initialize lockdown cache once for this test
+	defaultGQLClient := githubv4.NewClient(nil)
+	lockdown.ResetInstance()
+	lockdown.GetInstance(defaultGQLClient, lockdown.WithTTL(5*time.Minute))
+
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	defaultGQLClient := githubv4.NewClient(nil)
 	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(defaultGQLClient), stubRepoAccessCache(defaultGQLClient, 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
@@ -206,6 +211,8 @@ func Test_GetIssue(t *testing.T) {
 
 			var gqlClient *githubv4.Client
 			if tc.gqlHTTPClient != nil {
+				// Reset lockdown cache singleton when using a custom GQL client
+				lockdown.ResetInstance()
 				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
 			} else {
 				gqlClient = defaultGQLClient
@@ -1707,9 +1714,13 @@ func Test_ParseISOTimestamp(t *testing.T) {
 }
 
 func Test_GetIssueComments(t *testing.T) {
+	// Initialize lockdown cache once for this test
+	gqlClient := githubv4.NewClient(nil)
+	lockdown.ResetInstance()
+	lockdown.GetInstance(gqlClient, lockdown.WithTTL(5*time.Minute))
+
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	gqlClient := githubv4.NewClient(nil)
 	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
@@ -1850,8 +1861,12 @@ func Test_GetIssueComments(t *testing.T) {
 func Test_GetIssueLabels(t *testing.T) {
 	t.Parallel()
 
-	// Verify tool definition
+	// Initialize lockdown cache once for this test
 	mockGQClient := githubv4.NewClient(nil)
+	lockdown.ResetInstance()
+	lockdown.GetInstance(mockGQClient, lockdown.WithTTL(5*time.Minute))
+
+	// Verify tool definition
 	mockClient := github.NewClient(nil)
 	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(mockGQClient), stubRepoAccessCache(mockGQClient, 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
@@ -2616,9 +2631,13 @@ func Test_AddSubIssue(t *testing.T) {
 }
 
 func Test_GetSubIssues(t *testing.T) {
+	// Initialize lockdown cache once for this test
+	gqlClient := githubv4.NewClient(nil)
+	lockdown.ResetInstance()
+	lockdown.GetInstance(gqlClient, lockdown.WithTTL(5*time.Minute))
+
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	gqlClient := githubv4.NewClient(nil)
 	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
