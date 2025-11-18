@@ -41,7 +41,8 @@ func stubGetGQLClientFn(client *githubv4.Client) GetGQLClientFn {
 }
 
 func stubRepoAccessCache(client *githubv4.Client, ttl time.Duration) *lockdown.RepoAccessCache {
-	return lockdown.GetInstance(client, lockdown.WithTTL(ttl))
+	cacheName := fmt.Sprintf("repo-access-cache-test-%d", time.Now().UnixNano())
+	return lockdown.NewRepoAccessCache(client, lockdown.WithTTL(ttl), lockdown.WithCacheName(cacheName))
 }
 
 func stubFeatureFlags(enabledFlags map[string]bool) FeatureFlags {

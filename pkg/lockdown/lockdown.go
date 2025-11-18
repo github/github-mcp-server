@@ -27,11 +27,14 @@ type repoAccessCacheEntry struct {
 	knownUsers map[string]bool // normalized login -> has push access
 }
 
-const defaultRepoAccessTTL = 5 * time.Minute
+const (
+	defaultRepoAccessTTL      = 5 * time.Minute
+	defaultRepoAccessCacheKey = "repo-access-cache"
+)
 
 var (
-	instance     *RepoAccessCache
-	instanceOnce sync.Once
+	instance   *RepoAccessCache
+	instanceMu sync.Mutex
 )
 
 // RepoAccessOption configures RepoAccessCache at construction time.
@@ -52,30 +55,50 @@ func WithLogger(logger *slog.Logger) RepoAccessOption {
 	}
 }
 
+// WithCacheName overrides the cache table name used for storing entries. This option is intended for tests
+// that need isolated cache instances.
+func WithCacheName(name string) RepoAccessOption {
+	return func(c *RepoAccessCache) {
+		if name != "" {
+			c.cache = cache2go.Cache(name)
+		}
+	}
+}
+
 // GetInstance returns the singleton instance of RepoAccessCache.
 // It initializes the instance on first call with the provided client and options.
 // Subsequent calls ignore the client and options parameters and return the existing instance.
 // This is the preferred way to access the cache in production code.
 func GetInstance(client *githubv4.Client, opts ...RepoAccessOption) *RepoAccessCache {
-	instanceOnce.Do(func() {
+	instanceMu.Lock()
+	defer instanceMu.Unlock()
+	if instance == nil {
 		instance = newRepoAccessCache(client, opts...)
-	})
+	}
 	return instance
+}
+
+// NewRepoAccessCache constructs a repo access cache without mutating the global singleton.
+// This helper is useful for tests that need isolated cache instances.
+func NewRepoAccessCache(client *githubv4.Client, opts ...RepoAccessOption) *RepoAccessCache {
+	return newRepoAccessCache(client, opts...)
 }
 
 // newRepoAccessCache creates a new cache instance. This is a private helper function
 // used by GetInstance.
 func newRepoAccessCache(client *githubv4.Client, opts ...RepoAccessOption) *RepoAccessCache {
-	cacheName := "repo-access-cache"
 	c := &RepoAccessCache{
 		client: client,
-		cache:  cache2go.Cache(cacheName),
+		cache:  cache2go.Cache(defaultRepoAccessCacheKey),
 		ttl:    defaultRepoAccessTTL,
 	}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(c)
 		}
+	}
+	if c.cache == nil {
+		c.cache = cache2go.Cache(defaultRepoAccessCacheKey)
 	}
 	c.logInfo("repo access cache initialized", "ttl", c.ttl)
 	return c
