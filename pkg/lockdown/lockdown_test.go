@@ -90,6 +90,10 @@ func TestRepoAccessCacheEvictsAfterTTL(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
+	// Reset singleton before test
+	ResetInstance()
+	defer ResetInstance()
+
 	cache, transport := newMockRepoAccessCache(t, 5*time.Millisecond)
 	_, _, err := cache.GetRepoAccessInfo(ctx, testUser, testOwner, testRepo)
 	require.NoError(t, err)

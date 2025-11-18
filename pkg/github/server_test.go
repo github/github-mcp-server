@@ -41,6 +41,8 @@ func stubGetGQLClientFn(client *githubv4.Client) GetGQLClientFn {
 }
 
 func stubRepoAccessCache(client *githubv4.Client, ttl time.Duration) *lockdown.RepoAccessCache {
+	// Return the singleton instance that was initialized in TestMain
+	// The client and ttl parameters are ignored since the instance is already created
 	return lockdown.GetInstance(client, lockdown.WithTTL(ttl))
 }
 
