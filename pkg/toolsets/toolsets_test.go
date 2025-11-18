@@ -250,3 +250,104 @@ func TestToolsetGroup_GetToolset(t *testing.T) {
 		t.Errorf("expected error to be ToolsetDoesNotExistError, got %v", err)
 	}
 }
+
+func TestEnableToolsets_AllWithOtherNames(t *testing.T) {
+	tsg := NewToolsetGroup(false)
+
+	// Add toolsets
+	toolset1 := NewToolset("toolset1", "Feature 1")
+	toolset2 := NewToolset("toolset2", "Feature 2")
+	tsg.AddToolset(toolset1)
+	tsg.AddToolset(toolset2)
+
+	// Test enabling "all" along with specific names - "all" should take precedence
+	err := tsg.EnableToolsets([]string{"toolset1", "all", "toolset2"})
+	if err != nil {
+		t.Errorf("Expected no error, got: %v", err)
+	}
+
+	if !tsg.everythingOn {
+		t.Error("Expected everythingOn to be true")
+	}
+
+	// Both toolsets should be enabled
+	if !tsg.IsEnabled("toolset1") {
+		t.Error("Expected toolset1 to be enabled")
+	}
+
+	if !tsg.IsEnabled("toolset2") {
+		t.Error("Expected toolset2 to be enabled")
+	}
+
+	// Even non-existent toolsets should return true when everythingOn is true
+	if !tsg.IsEnabled("non-existent") {
+		t.Error("Expected non-existent toolset to be enabled when everythingOn is true")
+	}
+}
+
+func TestEnableToolsets_AllWithEmptyToolsets(t *testing.T) {
+	// Test enabling "all" when there are no toolsets in the group
+	tsg := NewToolsetGroup(false)
+
+	err := tsg.EnableToolsets([]string{"all"})
+	if err != nil {
+		t.Errorf("Expected no error when enabling 'all' with empty toolsets, got: %v", err)
+	}
+
+	if !tsg.everythingOn {
+		t.Error("Expected everythingOn to be true")
+	}
+
+	// IsEnabled should still return true for any toolset name
+	if !tsg.IsEnabled("any-toolset") {
+		t.Error("Expected IsEnabled to return true when everythingOn is true, even with empty toolsets")
+	}
+}
+
+func TestEnableToolsets_ExhaustiveCoverage(t *testing.T) {
+	// Test various combinations to ensure full coverage
+	
+	// Test 1: "all" at the beginning
+	tsg1 := NewToolsetGroup(false)
+	toolset1 := NewToolset("t1", "T1")
+	tsg1.AddToolset(toolset1)
+	err := tsg1.EnableToolsets([]string{"all", "t1"})
+	if err != nil {
+		t.Errorf("Test 1 failed: %v", err)
+	}
+	
+	// Test 2: "all" in the middle
+	tsg2 := NewToolsetGroup(false)
+	toolset2 := NewToolset("t2", "T2")
+	toolset3 := NewToolset("t3", "T3")
+	tsg2.AddToolset(toolset2)
+	tsg2.AddToolset(toolset3)
+	err = tsg2.EnableToolsets([]string{"t2", "all", "t3"})
+	if err != nil {
+		t.Errorf("Test 2 failed: %v", err)
+	}
+	
+	// Test 3: "all" at the end
+	tsg3 := NewToolsetGroup(false)
+	toolset4 := NewToolset("t4", "T4")
+	tsg3.AddToolset(toolset4)
+	err = tsg3.EnableToolsets([]string{"t4", "all"})
+	if err != nil {
+		t.Errorf("Test 3 failed: %v", err)
+	}
+	
+	// Test 4: Only "all"
+	tsg4 := NewToolsetGroup(false)
+	toolset5 := NewToolset("t5", "T5")
+	toolset6 := NewToolset("t6", "T6")
+	tsg4.AddToolset(toolset5)
+	tsg4.AddToolset(toolset6)
+	err = tsg4.EnableToolsets([]string{"all"})
+	if err != nil {
+		t.Errorf("Test 4 failed: %v", err)
+	}
+	// Verify both are enabled
+	if !tsg4.IsEnabled("t5") || !tsg4.IsEnabled("t6") {
+		t.Error("Test 4: Expected all toolsets to be enabled")
+	}
+}

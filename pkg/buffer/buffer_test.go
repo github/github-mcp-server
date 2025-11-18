@@ -326,3 +326,37 @@ func TestProcessResponseAsRingBufferToEnd_ReturnsResponseObject(t *testing.T) {
 	assert.Equal(t, http.StatusOK, returnedResp.StatusCode)
 	assert.Equal(t, "text/plain", returnedResp.Header.Get("Content-Type"))
 }
+
+// errorReader is a custom reader that always returns an error
+type errorReader struct {
+	errorAfterBytes int
+	bytesRead       int
+}
+
+func (er *errorReader) Read(p []byte) (n int, err error) {
+	if er.bytesRead >= er.errorAfterBytes {
+		return 0, io.ErrUnexpectedEOF
+	}
+	// Return some data first
+	if len(p) > 0 {
+		n = copy(p, []byte("test line\n"))
+		er.bytesRead += n
+		return n, nil
+	}
+	return 0, nil
+}
+
+func TestProcessResponseAsRingBufferToEnd_ScannerError(t *testing.T) {
+	// Test that scanner errors are properly handled
+	resp := &http.Response{
+		Body: io.NopCloser(&errorReader{errorAfterBytes: 20}),
+	}
+
+	result, totalLines, returnedResp, err := ProcessResponseAsRingBufferToEnd(resp, 10)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to read log content")
+	assert.Equal(t, "", result)
+	assert.Equal(t, 0, totalLines)
+	assert.Equal(t, resp, returnedResp)
+}

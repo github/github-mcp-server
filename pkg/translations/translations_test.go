@@ -491,3 +491,81 @@ func TestTranslationHelper_ConcurrentAccess(t *testing.T) {
 	assert.Equal(t, "value2", result2)
 }
 
+func TestDumpTranslationKeyMap_CreateFileError(t *testing.T) {
+	// Create a temporary directory for this test
+	tmpDir := t.TempDir()
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	err := os.Chdir(tmpDir)
+	require.NoError(t, err)
+
+	// Create a directory with the same name as the target file to cause os.Create to fail
+	err = os.Mkdir("github-mcp-server-config.json", 0755)
+	require.NoError(t, err)
+
+	testMap := map[string]string{"KEY1": "value1"}
+	err = DumpTranslationKeyMap(testMap)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "error creating file")
+}
+
+func TestDumpTranslationKeyMap_WriteError(t *testing.T) {
+	// Create a temporary directory for this test
+	tmpDir := t.TempDir()
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	err := os.Chdir(tmpDir)
+	require.NoError(t, err)
+
+	// Create a symlink to /dev/full to simulate disk full error
+	// /dev/full always returns "no space left on device" error when writing
+	err = os.Symlink("/dev/full", "github-mcp-server-config.json")
+	require.NoError(t, err)
+
+	testMap := map[string]string{"KEY1": "value1"}
+	err = DumpTranslationKeyMap(testMap)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "error writing to file")
+}
+
+func TestTranslationHelper_DumpFunctionError(t *testing.T) {
+	// This test verifies the dump function handles errors
+	// Note: The dump function calls log.Fatalf on error, which terminates the process
+	// This makes it difficult to test directly. Instead, we test that DumpTranslationKeyMap
+	// properly returns errors in error conditions (tested above)
+
+	// Create a temporary directory for this test
+	tmpDir := t.TempDir()
+	originalDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(originalDir) }()
+
+	err := os.Chdir(tmpDir)
+	require.NoError(t, err)
+
+	helper, dump := TranslationHelper()
+
+	// Use the helper to populate some translation keys
+	helper("TEST_KEY", "test value")
+
+	// Create a directory with the same name as the target file to cause dump to fail
+	err = os.Mkdir("github-mcp-server-config.json", 0755)
+	require.NoError(t, err)
+
+	// Note: We can't actually call dump() here because it will call log.Fatalf
+	// which terminates the test process. The line calling log.Fatalf (lines 53-55)
+	// is defensive error handling that's difficult to test without process isolation.
+	// The actual error path in DumpTranslationKeyMap is tested in TestDumpTranslationKeyMap_CreateFileError
+
+	// Instead, verify that DumpTranslationKeyMap would return an error in this scenario
+	testMap := map[string]string{"KEY1": "value1"}
+	err = DumpTranslationKeyMap(testMap)
+	require.Error(t, err)
+
+	// Ensure dump is not nil
+	assert.NotNil(t, dump)
+}
+
