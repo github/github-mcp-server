@@ -5,6 +5,25 @@
 1. OpenAI Codex (MCP-enabled) installed / available
 2. A [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new)
 
+> The remote GitHub MCP server is hosted by GitHub at `https://api.githubcopilot.com/mcp/` and supports Streamable HTTP.
+
+## Remote Configuration
+
+Edit `~/.codex/config.toml` (shared by CLI and IDE extension) and add:
+
+```toml
+[mcp_servers.github]
+url = "https://api.githubcopilot.com/mcp/"
+# Replace with your real PAT (least-privilege scopes). Do NOT commit this.
+bearer_token_env_var = "GITHUB_PAT_TOKEN"
+```
+
+You can also add it via the Codex CLI:
+
+```cli
+codex mcp add github --url https://api.githubcopilot.com/mcp/  
+```
+
 <details>
 <summary><b>Storing Your PAT Securely</b></summary>
 <br>
@@ -21,19 +40,6 @@ GITHUB_PAT_TOKEN=ghp_your_token_here
 echo -e ".env" >> .gitignore
 ```
 </details>
-
-> The remote GitHub MCP server is hosted by GitHub at `https://api.githubcopilot.com/mcp/` and supports Streamable HTTP.
-
-## Remote Configuration
-
-Edit `~/.codex/config.toml` (shared by CLI and IDE extension) and add:
-
-```toml
-[mcp_servers.github]
-url = "https://api.githubcopilot.com/mcp/"
-# Replace with your real PAT (least-privilege scopes). Do NOT commit this.
-bearer_token_env_var = "GITHUB_PAT_TOKEN"
-```
 
 ## Local Docker Configuration
 
@@ -88,7 +94,7 @@ Use the principle of least privilege: add scopes only when a tool request fails 
 | Issue | Possible Cause | Fix |
 |-------|----------------|-----|
 | Authentication failed | Missing/incorrect PAT scope | Regenerate PAT; ensure `repo` scope present |
-| 401 Unauthorized (remote) | Token expired/revoked | Create new PAT; update `bearer_token` |
+| 401 Unauthorized (remote) | Token expired/revoked | Create new PAT; update `bearer_token_env_var` |
 | Server not listed | Wrong table name or syntax error | Use `[mcp_servers.github]`; validate TOML |
 | Tools missing / zero tools | Insufficient PAT scopes | Add needed scopes (workflow, gist, etc.) |
 | Token in file risks leakage | Committed accidentally | Rotate token; add file to `.gitignore` |
