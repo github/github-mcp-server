@@ -775,6 +775,15 @@ func TestWriteQuery(t *testing.T) {
 			}{},
 			expected: "{issues{title}}",
 		},
+		{
+			name: "struct with json.Unmarshaler field (scalar)",
+			queryObj: struct {
+				User struct {
+					CreatedAt githubv4.DateTime
+				}
+			}{},
+			expected: "{user{createdAt}}",
+		},
 	}
 
 	for _, tt := range tests {

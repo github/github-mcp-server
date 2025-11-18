@@ -71,3 +71,59 @@ func TestObjectsAreEqualValues(t *testing.T) {
 		})
 	}
 }
+
+func TestObjectsAreEqual_ByteSlices(t *testing.T) {
+	cases := []struct {
+		name     string
+		expected interface{}
+		actual   interface{}
+		result   bool
+	}{
+		{
+			name:     "equal byte slices",
+			expected: []byte("hello"),
+			actual:   []byte("hello"),
+			result:   true,
+		},
+		{
+			name:     "different byte slices",
+			expected: []byte("hello"),
+			actual:   []byte("world"),
+			result:   false,
+		},
+		{
+			name:     "byte slice vs non-byte slice",
+			expected: []byte("hello"),
+			actual:   "hello",
+			result:   false,
+		},
+		{
+			name:     "nil byte slices",
+			expected: []byte(nil),
+			actual:   []byte(nil),
+			result:   true,
+		},
+		{
+			name:     "nil vs non-nil byte slice",
+			expected: []byte(nil),
+			actual:   []byte("hello"),
+			result:   false,
+		},
+		{
+			name:     "non-nil vs nil byte slice",
+			expected: []byte("hello"),
+			actual:   []byte(nil),
+			result:   false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			res := objectsAreEqual(c.expected, c.actual)
+
+			if res != c.result {
+				t.Errorf("objectsAreEqual(%#v, %#v) should return %#v", c.expected, c.actual, c.result)
+			}
+		})
+	}
+}
