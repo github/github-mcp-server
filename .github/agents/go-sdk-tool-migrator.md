@@ -25,11 +25,11 @@ cd migrate-go-sdk-<toolset>
 
 ## Migration Process
 
-You should focus on ONLY the toolset provided to you and it's corresponding test file. If, for example, you are asked to migrate the `dependabot` toolset, you will be migrating the files located at `.tools-to-be-migrated/dependabot.go` and `.tools-to-be-migrated/dependabot_test.go`. The migrated version should be placed in the `github` package directory, `pkg/github` (e.g. `pkg/github/dependabot.go` and `pkg/github/dependabot_test.go`). If there are additional tests or helper functions that fail to work with the new SDK, you should inform me of these issues so that I can address them, or instruct you on how to proceed.
+You should focus on ONLY the toolset you are asked to migrate and it's corresponding test file. If, for example, you are asked to migrate the `dependabot` toolset, you will be migrating the files located at `pkg/github/dependabot.go` and `pkg/github/dependabot_test.go`. If there are additional tests or helper functions that fail to work with the new SDK, you should inform me of these issues so that I can address them, or instruct you on how to proceed.
 
 When generating the migration guide, consider the following aspects:
 
-* The initial tool file and it's corresponding test file will be fully commented out, as the tests will fail if the code is uncommented. The code should be uncommented before work begins. 
+* The initial tool file and it's corresponding test file will have the `//go:build ignore` build tag, as the tests will fail if the code is not ignored. The `ignore` build tag should be removed before work begins.
 * The import for `github.com/mark3labs/mcp-go/mcp` should be changed to `github.com/modelcontextprotocol/go-sdk/mcp`
 * The return type for the tool constructor function should be updated from `mcp.Tool, server.ToolHandlerFunc` to `(mcp.Tool, mcp.ToolHandlerFor[map[string]any, any])`.
 * The tool handler function signature should be updated to use generics, changing from `func(ctx context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error)` to `func(context.Context, *mcp.CallToolRequest, map[string]any) (*mcp.CallToolResult, any, error)`.
