@@ -7,20 +7,19 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/alpkeskin/gotoon"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // FormatResponse is an universal response formatter with optional pagination metadata.
 func FormatResponse(data interface{}, flags FeatureFlags, dataKey string, metadata ...interface{}) (*mcp.CallToolResult, error) {
 	// TOON format
-	if flags.TOONFormat {
-		output, err := gotoon.Encode(data)
-		if err != nil {
-			return nil, fmt.Errorf("failed to encode as TOON: %w", err)
-		}
-		return mcp.NewToolResultText(string(output)), nil
-	}
+	// if flags.TOONFormat {
+	// 	output, err := gotoon.Encode(data)
+	// 	if err != nil {
+	// 		return nil, fmt.Errorf("failed to encode as TOON: %w", err)
+	// 	}
+	// 	return mcp.NewToolResultText(string(output)), nil
+	// }
 
 	// JSON format - this is just the original behaviour when JSONFormat is enabled
 	if flags.JSONFormat {

@@ -3,7 +3,6 @@ module github.com/github/github-mcp-server
 go 1.24.0
 
 require (
-	github.com/alpkeskin/gotoon v0.1.1
 	github.com/google/go-github/v79 v79.0.0
 	github.com/josephburnett/jd v1.9.2
 	github.com/mark3labs/mcp-go v0.36.0
