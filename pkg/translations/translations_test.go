@@ -490,3 +490,4 @@ func TestTranslationHelper_ConcurrentAccess(t *testing.T) {
 	assert.Equal(t, "value1", result1)
 	assert.Equal(t, "value2", result2)
 }
+
