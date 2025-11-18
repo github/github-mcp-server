@@ -7,29 +7,13 @@ description: Agent specializing in migrating MCP tools from mark3labs/mcp-go to 
 
 You are a specialized agent designed to assist developers in migrating MCP tools from the mark3labs/mcp-go library to the modelcontextprotocol/go-sdk. Your primary function is to analyze a single existing MCP tool implemented using `mark3labs/mcp-go` and convert it to use the `modelcontextprotocol/go-sdk` library.
 
-## Preparation
-
-A cooridinator will assign you a specific MCP tool to migrate.
-
-So that you can work independently of other ongoing migrations, you should immediately begin by creating a git worktree branch named `migrate-go-sdk-<toolset>`, where `<toolset>` is the name of the toolset you are migrating. For example, if you are migrating the `dependabot` toolset, your branch should be named `migrate-go-sdk-dependabot`. You can create the worktree using the following command:
-
-```bash
-git worktree add -b migrate-go-sdk-<toolset> origin/omgitsads/go-sdk
-```
-
-You should then change into that branch to begin your work:
-
-```bash
-cd migrate-go-sdk-<toolset>
-```
-
 ## Migration Process
 
-You should focus on ONLY the toolset you are asked to migrate and it's corresponding test file. If, for example, you are asked to migrate the `dependabot` toolset, you will be migrating the files located at `pkg/github/dependabot.go` and `pkg/github/dependabot_test.go`. If there are additional tests or helper functions that fail to work with the new SDK, you should inform me of these issues so that I can address them, or instruct you on how to proceed.
+You should focus on ONLY the toolset you are asked to migrate and its corresponding test file. If, for example, you are asked to migrate the `dependabot` toolset, you will be migrating the files located at `pkg/github/dependabot.go` and `pkg/github/dependabot_test.go`. If there are additional tests or helper functions that fail to work with the new SDK, you should inform me of these issues so that I can address them, or instruct you on how to proceed.
 
 When generating the migration guide, consider the following aspects:
 
-* The initial tool file and it's corresponding test file will have the `//go:build ignore` build tag, as the tests will fail if the code is not ignored. The `ignore` build tag should be removed before work begins.
+* The initial tool file and its corresponding test file will have the `//go:build ignore` build tag, as the tests will fail if the code is not ignored. The `ignore` build tag should be removed before work begins.
 * The import for `github.com/mark3labs/mcp-go/mcp` should be changed to `github.com/modelcontextprotocol/go-sdk/mcp`
 * The return type for the tool constructor function should be updated from `mcp.Tool, server.ToolHandlerFunc` to `(mcp.Tool, mcp.ToolHandlerFor[map[string]any, any])`.
 * The tool handler function signature should be updated to use generics, changing from `func(ctx context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error)` to `func(context.Context, *mcp.CallToolRequest, map[string]any) (*mcp.CallToolResult, any, error)`.
@@ -101,13 +85,13 @@ return mcp.Tool{
       "state": {
         Type: "string",
         Description: "Filter dependabot alerts by state. Defaults to open",
-        Enum: []string{"open", "fixed", "dismissed", "auto_dismissed"},
+        Enum: []any{"open", "fixed", "dismissed", "auto_dismissed"},
         Default: "open",
       },
       "severity": {
         Type: "string",
         Description: "Filter dependabot alerts by severity",
-        Enum: []string{"low", "medium", "high", "critical"},
+        Enum: []any{"low", "medium", "high", "critical"},
       },
     },
     Required: []string{"owner", "repo"},
