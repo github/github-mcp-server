@@ -13,6 +13,7 @@ import (
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -28,11 +29,11 @@ func Test_GetIssue(t *testing.T) {
 
 	assert.Equal(t, "issue_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "method")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number"})
 
 	// Setup mock issue for success case
 	mockIssue := &github.Issue{
@@ -256,11 +257,11 @@ func Test_AddIssueComment(t *testing.T) {
 	assert.Equal(t, "add_issue_comment", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
-	assert.Contains(t, tool.InputSchema.Properties, "body")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "issue_number", "body"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "body")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo", "issue_number", "body"})
 
 	// Setup mock comment for success case
 	mockComment := &github.IssueComment{
@@ -370,14 +371,14 @@ func Test_SearchIssues(t *testing.T) {
 
 	assert.Equal(t, "search_issues", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "query")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "sort")
-	assert.Contains(t, tool.InputSchema.Properties, "order")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"query"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "query")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "sort")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "order")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "perPage")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "page")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"query"})
 
 	// Setup mock search results
 	mockSearchResult := &github.IssuesSearchResult{
@@ -664,12 +665,16 @@ func Test_SearchIssues(t *testing.T) {
 
 			// Verify results
 			if tc.expectError {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				require.NoError(t, err) // No Go error, but result should be an error
+				require.NotNil(t, result)
+				require.True(t, result.IsError, "expected result to be an error")
+				textContent := getErrorResult(t, result)
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
 				return
 			}
 
 			require.NoError(t, err)
+			require.False(t, result.IsError, "expected result to not be an error")
 
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
@@ -701,16 +706,16 @@ func Test_CreateIssue(t *testing.T) {
 
 	assert.Equal(t, "issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "method")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "title")
-	assert.Contains(t, tool.InputSchema.Properties, "body")
-	assert.Contains(t, tool.InputSchema.Properties, "assignees")
-	assert.Contains(t, tool.InputSchema.Properties, "labels")
-	assert.Contains(t, tool.InputSchema.Properties, "milestone")
-	assert.Contains(t, tool.InputSchema.Properties, "type")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "title")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "body")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "assignees")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "labels")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "milestone")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "type")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo"})
 
 	// Setup mock issue for success case
 	mockIssue := &github.Issue{
@@ -862,16 +867,16 @@ func Test_ListIssues(t *testing.T) {
 
 	assert.Equal(t, "list_issues", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "state")
-	assert.Contains(t, tool.InputSchema.Properties, "labels")
-	assert.Contains(t, tool.InputSchema.Properties, "orderBy")
-	assert.Contains(t, tool.InputSchema.Properties, "direction")
-	assert.Contains(t, tool.InputSchema.Properties, "since")
-	assert.Contains(t, tool.InputSchema.Properties, "after")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "state")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "labels")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "orderBy")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "direction")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "since")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "after")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "perPage")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo"})
 
 	// Mock issues data
 	mockIssuesAll := []map[string]any{
@@ -1171,20 +1176,20 @@ func Test_UpdateIssue(t *testing.T) {
 
 	assert.Equal(t, "issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "method")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
-	assert.Contains(t, tool.InputSchema.Properties, "title")
-	assert.Contains(t, tool.InputSchema.Properties, "body")
-	assert.Contains(t, tool.InputSchema.Properties, "labels")
-	assert.Contains(t, tool.InputSchema.Properties, "assignees")
-	assert.Contains(t, tool.InputSchema.Properties, "milestone")
-	assert.Contains(t, tool.InputSchema.Properties, "type")
-	assert.Contains(t, tool.InputSchema.Properties, "state")
-	assert.Contains(t, tool.InputSchema.Properties, "state_reason")
-	assert.Contains(t, tool.InputSchema.Properties, "duplicate_of")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "title")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "body")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "labels")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "assignees")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "milestone")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "type")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "state")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "state_reason")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "duplicate_of")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo"})
 
 	// Mock issues for reuse across test cases
 	mockBaseIssue := &github.Issue{
@@ -1715,13 +1720,13 @@ func Test_GetIssueComments(t *testing.T) {
 
 	assert.Equal(t, "issue_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "method")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "page")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "perPage")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number"})
 
 	// Setup mock comments for success case
 	mockComments := []*github.IssueComment{
@@ -1858,11 +1863,11 @@ func Test_GetIssueLabels(t *testing.T) {
 
 	assert.Equal(t, "issue_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "method")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number"})
 
 	tests := []struct {
 		name               string
@@ -1959,10 +1964,10 @@ func TestAssignCopilotToIssue(t *testing.T) {
 
 	assert.Equal(t, "assign_copilot_to_issue", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "issueNumber")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "issueNumber"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issueNumber")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo", "issueNumber"})
 
 	var pageOfFakeBots = func(n int) []struct{} {
 		// We don't _really_ need real bots here, just objects that count as entries for the page
@@ -2377,13 +2382,13 @@ func Test_AddSubIssue(t *testing.T) {
 
 	assert.Equal(t, "sub_issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "method")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
-	assert.Contains(t, tool.InputSchema.Properties, "sub_issue_id")
-	assert.Contains(t, tool.InputSchema.Properties, "replace_parent")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number", "sub_issue_id"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "sub_issue_id")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "replace_parent")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number", "sub_issue_id"})
 
 	// Setup mock issue for success case (matches GitHub API response format)
 	mockIssue := &github.Issue{
@@ -2624,13 +2629,13 @@ func Test_GetSubIssues(t *testing.T) {
 
 	assert.Equal(t, "issue_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "method")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "page")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "perPage")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number"})
 
 	// Setup mock sub-issues for success case
 	mockSubIssues := []*github.Issue{
@@ -2874,12 +2879,12 @@ func Test_RemoveSubIssue(t *testing.T) {
 
 	assert.Equal(t, "sub_issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "method")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
-	assert.Contains(t, tool.InputSchema.Properties, "sub_issue_id")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number", "sub_issue_id"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "sub_issue_id")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number", "sub_issue_id"})
 
 	// Setup mock issue for success case (matches GitHub API response format - the updated parent issue)
 	mockIssue := &github.Issue{
@@ -3099,14 +3104,14 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 
 	assert.Equal(t, "sub_issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "method")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
-	assert.Contains(t, tool.InputSchema.Properties, "sub_issue_id")
-	assert.Contains(t, tool.InputSchema.Properties, "after_id")
-	assert.Contains(t, tool.InputSchema.Properties, "before_id")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number", "sub_issue_id"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "sub_issue_id")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "after_id")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "before_id")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number", "sub_issue_id"})
 
 	// Setup mock issue for success case (matches GitHub API response format - the updated parent issue)
 	mockIssue := &github.Issue{
@@ -3385,8 +3390,8 @@ func Test_ListIssueTypes(t *testing.T) {
 
 	assert.Equal(t, "list_issue_types", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner"})
 
 	// Setup mock issue types for success case
 	mockIssueTypes := []*github.IssueType{
