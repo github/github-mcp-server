@@ -904,115 +904,128 @@ func SearchIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (
 		}
 }
 
-// CreateIssue creates a tool to create a new issue in a GitHub repository.
-func IssueWrite(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("issue_write",
-			mcp.WithDescription(t("TOOL_ISSUE_WRITE_DESCRIPTION", "Create a new or update an existing issue in a GitHub repository.")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+// IssueWrite creates a tool to create a new or update an existing issue in a GitHub repository.
+func IssueWrite(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	return mcp.Tool{
+			Name:        "issue_write",
+			Description: t("TOOL_ISSUE_WRITE_DESCRIPTION", "Create a new or update an existing issue in a GitHub repository."),
+			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_ISSUE_WRITE_USER_TITLE", "Create or update issue."),
-				ReadOnlyHint: ToBoolPtr(false),
-			}),
-			mcp.WithString("method",
-				mcp.Required(),
-				mcp.Description(`Write operation to perform on a single issue.
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"method": {
+						Type: "string",
+						Description: `Write operation to perform on a single issue.
 Options are:
 - 'create' - creates a new issue.
 - 'update' - updates an existing issue.
-`),
-				mcp.Enum("create", "update"),
-			),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-			mcp.WithNumber("issue_number",
-				mcp.Description("Issue number to update"),
-			),
-			mcp.WithString("title",
-				mcp.Description("Issue title"),
-			),
-			mcp.WithString("body",
-				mcp.Description("Issue body content"),
-			),
-			mcp.WithArray("assignees",
-				mcp.Description("Usernames to assign to this issue"),
-				mcp.Items(
-					map[string]any{
-						"type": "string",
+`,
+						Enum: []any{"create", "update"},
 					},
-				),
-			),
-			mcp.WithArray("labels",
-				mcp.Description("Labels to apply to this issue"),
-				mcp.Items(
-					map[string]any{
-						"type": "string",
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
 					},
-				),
-			),
-			mcp.WithNumber("milestone",
-				mcp.Description("Milestone number"),
-			),
-			mcp.WithString("type",
-				mcp.Description("Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter."),
-			),
-			mcp.WithString("state",
-				mcp.Description("New state"),
-				mcp.Enum("open", "closed"),
-			),
-			mcp.WithString("state_reason",
-				mcp.Description("Reason for the state change. Ignored unless state is changed."),
-				mcp.Enum("completed", "not_planned", "duplicate"),
-			),
-			mcp.WithNumber("duplicate_of",
-				mcp.Description("Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'."),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			method, err := RequiredParam[string](request, "method")
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"issue_number": {
+						Type:        "number",
+						Description: "Issue number to update",
+					},
+					"title": {
+						Type:        "string",
+						Description: "Issue title",
+					},
+					"body": {
+						Type:        "string",
+						Description: "Issue body content",
+					},
+					"assignees": {
+						Type:        "array",
+						Description: "Usernames to assign to this issue",
+						Items: &jsonschema.Schema{
+							Type: "string",
+						},
+					},
+					"labels": {
+						Type:        "array",
+						Description: "Labels to apply to this issue",
+						Items: &jsonschema.Schema{
+							Type: "string",
+						},
+					},
+					"milestone": {
+						Type:        "number",
+						Description: "Milestone number",
+					},
+					"type": {
+						Type:        "string",
+						Description: "Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter.",
+					},
+					"state": {
+						Type:        "string",
+						Description: "New state",
+						Enum:        []any{"open", "closed"},
+					},
+					"state_reason": {
+						Type:        "string",
+						Description: "Reason for the state change. Ignored unless state is changed.",
+						Enum:        []any{"completed", "not_planned", "duplicate"},
+					},
+					"duplicate_of": {
+						Type:        "number",
+						Description: "Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'.",
+					},
+				},
+				Required: []string{"method", "owner", "repo"},
+			},
+		},
+		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			method, err := RequiredParam[string](args, "method")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			owner, err := RequiredParam[string](request, "owner")
+			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			repo, err := RequiredParam[string](request, "repo")
+			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			title, err := OptionalParam[string](request, "title")
+			title, err := OptionalParam[string](args, "title")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			// Optional parameters
-			body, err := OptionalParam[string](request, "body")
+			body, err := OptionalParam[string](args, "body")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			// Get assignees
-			assignees, err := OptionalStringArrayParam(request, "assignees")
+			assignees, err := OptionalStringArrayParam(args, "assignees")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			// Get labels
-			labels, err := OptionalStringArrayParam(request, "labels")
+			labels, err := OptionalStringArrayParam(args, "labels")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			// Get optional milestone
-			milestone, err := OptionalIntParam(request, "milestone")
+			milestone, err := OptionalIntParam(args, "milestone")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			var milestoneNum int
@@ -1021,58 +1034,60 @@ Options are:
 			}
 
 			// Get optional type
-			issueType, err := OptionalParam[string](request, "type")
+			issueType, err := OptionalParam[string](args, "type")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			// Handle state, state_reason and duplicateOf parameters
-			state, err := OptionalParam[string](request, "state")
+			state, err := OptionalParam[string](args, "state")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			stateReason, err := OptionalParam[string](request, "state_reason")
+			stateReason, err := OptionalParam[string](args, "state_reason")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			duplicateOf, err := OptionalIntParam(request, "duplicate_of")
+			duplicateOf, err := OptionalIntParam(args, "duplicate_of")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			if duplicateOf != 0 && stateReason != "duplicate" {
-				return mcp.NewToolResultError("duplicate_of can only be used when state_reason is 'duplicate'"), nil
+				return utils.NewToolResultError("duplicate_of can only be used when state_reason is 'duplicate'"), nil, nil
 			}
 
 			client, err := getClient(ctx)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			gqlClient, err := getGQLClient(ctx)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get GraphQL client: %w", err)
+				return utils.NewToolResultErrorFromErr("failed to get GraphQL client", err), nil, nil
 			}
 
 			switch method {
 			case "create":
-				return CreateIssue(ctx, client, owner, repo, title, body, assignees, labels, milestoneNum, issueType)
+				result, err := CreateIssue(ctx, client, owner, repo, title, body, assignees, labels, milestoneNum, issueType)
+				return result, nil, err
 			case "update":
-				issueNumber, err := RequiredInt(request, "issue_number")
+				issueNumber, err := RequiredInt(args, "issue_number")
 				if err != nil {
-					return mcp.NewToolResultError(err.Error()), nil
+					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				return UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, state, stateReason, duplicateOf)
+				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, state, stateReason, duplicateOf)
+				return result, nil, err
 			default:
-				return mcp.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil
+				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
 			}
 		}
 }
 
 func CreateIssue(ctx context.Context, client *github.Client, owner string, repo string, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string) (*mcp.CallToolResult, error) {
 	if title == "" {
-		return mcp.NewToolResultError("missing required parameter: title"), nil
+		return utils.NewToolResultError("missing required parameter: title"), nil
 	}
 
 	// Create the issue request
@@ -1093,16 +1108,16 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 
 	issue, resp, err := client.Issues.Create(ctx, owner, repo, issueRequest)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create issue: %w", err)
+		return utils.NewToolResultErrorFromErr("failed to create issue", err), nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+			return utils.NewToolResultErrorFromErr("failed to read response body", err), nil
 		}
-		return mcp.NewToolResultError(fmt.Sprintf("failed to create issue: %s", string(body))), nil
+		return utils.NewToolResultError(fmt.Sprintf("failed to create issue: %s", string(body))), nil
 	}
 
 	// Return minimal response with just essential information
@@ -1113,10 +1128,10 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 
 	r, err := json.Marshal(minimalResponse)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+		return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil
 	}
 
-	return mcp.NewToolResultText(string(r)), nil
+	return utils.NewToolResultText(string(r)), nil
 }
 
 func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, state string, stateReason string, duplicateOf int) (*mcp.CallToolResult, error) {
@@ -1163,14 +1178,14 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return mcp.NewToolResultError(fmt.Sprintf("failed to update issue: %s", string(body))), nil
+		return utils.NewToolResultError(fmt.Sprintf("failed to update issue: %s", string(body))), nil
 	}
 
 	// Use GraphQL API for state updates
 	if state != "" {
 		// Mandate specifying duplicateOf when trying to close as duplicate
 		if state == "closed" && stateReason == "duplicate" && duplicateOf == 0 {
-			return mcp.NewToolResultError("duplicate_of must be provided when state_reason is 'duplicate'"), nil
+			return utils.NewToolResultError("duplicate_of must be provided when state_reason is 'duplicate'"), nil
 		}
 
 		// Get target issue ID (and duplicate issue ID if needed)
@@ -1241,7 +1256,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return mcp.NewToolResultText(string(r)), nil
+	return utils.NewToolResultText(string(r)), nil
 }
 
 // ListIssues creates a tool to list and filter repository issues
@@ -1288,17 +1303,17 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](request, "owner")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil
 			}
 			repo, err := RequiredParam[string](request, "repo")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil
 			}
 
 			// Set optional parameters if provided
 			state, err := OptionalParam[string](request, "state")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil
 			}
 
 			// If the state has a value, cast into an array of strings
@@ -1312,17 +1327,17 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 			// Get labels
 			labels, err := OptionalStringArrayParam(request, "labels")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil
 			}
 
 			orderBy, err := OptionalParam[string](request, "orderBy")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil
 			}
 
 			direction, err := OptionalParam[string](request, "direction")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil
 			}
 
 			// These variables are required for the GraphQL query to be set by default
@@ -1337,7 +1352,7 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 
 			since, err := OptionalParam[string](request, "since")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil
 			}
 
 			// There are two optional parameters: since and labels.
@@ -1346,7 +1361,7 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 			if since != "" {
 				sinceTime, err = parseISOTimestamp(since)
 				if err != nil {
-					return mcp.NewToolResultError(fmt.Sprintf("failed to list issues: %s", err.Error())), nil
+					return utils.NewToolResultError(fmt.Sprintf("failed to list issues: %s", err.Error())), nil
 				}
 				hasSince = true
 			}
@@ -1360,7 +1375,7 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 
 			// Check if someone tried to use page-based pagination instead of cursor-based
 			if _, pageProvided := request.GetArguments()["page"]; pageProvided {
-				return mcp.NewToolResultError("This tool uses cursor-based pagination. Use the 'after' parameter with the 'endCursor' value from the previous response instead of 'page'."), nil
+				return utils.NewToolResultError("This tool uses cursor-based pagination. Use the 'after' parameter with the 'endCursor' value from the previous response instead of 'page'."), nil
 			}
 
 			// Check if pagination parameters were explicitly provided
@@ -1380,7 +1395,7 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 
 			client, err := getGQLClient(ctx)
 			if err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil
+				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil
 			}
 
 			vars := map[string]interface{}{
@@ -1415,7 +1430,7 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 
 			issueQuery := getIssueQueryType(hasLabels, hasSince)
 			if err := client.Query(ctx, issueQuery, vars); err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil
 			}
 
 			// Extract and convert all issue nodes using the common interface
@@ -1452,7 +1467,7 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal issues: %w", err)
 			}
-			return mcp.NewToolResultText(string(out)), nil
+			return utils.NewToolResultText(string(out)), nil
 		}
 }
 
@@ -1524,7 +1539,7 @@ func AssignCopilotToIssue(getGQLClient GetGQLClientFn, t translations.Translatio
 				IssueNumber int32
 			}
 			if err := mapstructure.Decode(request.Params.Arguments, &params); err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil
 			}
 
 			client, err := getGQLClient(ctx)
@@ -1587,7 +1602,7 @@ func AssignCopilotToIssue(getGQLClient GetGQLClientFn, t translations.Translatio
 			// If we didn't find the copilot bot, we can't proceed any further.
 			if copilotAssignee == nil {
 				// The e2e tests depend upon this specific message to skip the test.
-				return mcp.NewToolResultError("copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot for more information."), nil
+				return utils.NewToolResultError("copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot for more information."), nil
 			}
 
 			// Next let's get the GQL Node ID and current assignees for this issue because the only way to
@@ -1612,7 +1627,7 @@ func AssignCopilotToIssue(getGQLClient GetGQLClientFn, t translations.Translatio
 			}
 
 			if err := client.Query(ctx, &getIssueQuery, variables); err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get issue ID: %v", err)), nil
+				return utils.NewToolResultError(fmt.Sprintf("failed to get issue ID: %v", err)), nil
 			}
 
 			// Finally, do the assignment. Just for reference, assigning copilot to an issue that it is already
@@ -1641,7 +1656,7 @@ func AssignCopilotToIssue(getGQLClient GetGQLClientFn, t translations.Translatio
 				return nil, fmt.Errorf("failed to replace actors for assignable: %w", err)
 			}
 
-			return mcp.NewToolResultText("successfully assigned copilot to issue"), nil
+			return utils.NewToolResultText("successfully assigned copilot to issue"), nil
 		}
 }
 
