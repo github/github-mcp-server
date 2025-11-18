@@ -1,5 +1,3 @@
-//go:build ignore
-
 package github
 
 import (
@@ -217,7 +215,7 @@ func Test_GetIssue(t *testing.T) {
 			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper, flags)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			if tc.expectHandlerError {
 				require.Error(t, err)
@@ -331,7 +329,7 @@ func Test_AddIssueComment(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -662,7 +660,7 @@ func Test_SearchIssues(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -827,7 +825,7 @@ func Test_CreateIssue(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -1123,7 +1121,7 @@ func Test_ListIssues(t *testing.T) {
 			_, handler := ListIssues(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
 
 			req := createMCPRequest(tc.reqParams)
-			res, err := handler(context.Background(), req)
+			res, _, err := handler(context.Background(), &req, tc.reqParams)
 			text := getTextResult(t, res).Text
 
 			if tc.expectError {
@@ -1625,7 +1623,7 @@ func Test_UpdateIssue(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError || tc.expectedErrMsg != "" {
@@ -1824,7 +1822,7 @@ func Test_GetIssueComments(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -1933,7 +1931,7 @@ func Test_GetIssueLabels(t *testing.T) {
 			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			require.NoError(t, err)
 			assert.NotNil(t, result)
@@ -2354,7 +2352,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 			require.NoError(t, err)
 
 			textContent := getTextResult(t, result)
@@ -2582,7 +2580,7 @@ func Test_AddSubIssue(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -2824,7 +2822,7 @@ func Test_GetSubIssues(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -3058,7 +3056,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -3344,7 +3342,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -3475,7 +3473,7 @@ func Test_ListIssueTypes(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {

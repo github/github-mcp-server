@@ -21,6 +21,11 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+const (
+	// DefaultGraphQLPageSize is the default page size for GraphQL queries
+	DefaultGraphQLPageSize = 30
+)
+
 // CloseIssueInput represents the input for closing an issue via the GraphQL API.
 // Used to extend the functionality of the githubv4 library to support closing issues as duplicates.
 type CloseIssueInput struct {
@@ -335,17 +340,17 @@ func GetIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Cl
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to get issue: %s", string(body))), nil, nil
+		return utils.NewToolResultError(fmt.Sprintf("failed to get issue: %s", string(body))), nil
 	}
 
 	if flags.LockdownMode {
 		if issue.User != nil {
 			shouldRemoveContent, err := lockdown.ShouldRemoveContent(ctx, gqlClient, *issue.User.Login, owner, repo)
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
 			}
 			if shouldRemoveContent {
-				return utils.NewToolResultError("access to issue details is restricted by lockdown mode"), nil, nil
+				return utils.NewToolResultError("access to issue details is restricted by lockdown mode"), nil
 			}
 		}
 	}
@@ -365,7 +370,7 @@ func GetIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Cl
 		return nil, fmt.Errorf("failed to marshal issue: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), nil
 }
 
 func GetIssueComments(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, pagination PaginationParams, _ FeatureFlags) (*mcp.CallToolResult, error) {
@@ -387,7 +392,7 @@ func GetIssueComments(ctx context.Context, client *github.Client, owner string, 
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to get issue comments: %s", string(body))), nil, nil
+		return utils.NewToolResultError(fmt.Sprintf("failed to get issue comments: %s", string(body))), nil
 	}
 
 	r, err := json.Marshal(comments)
@@ -395,7 +400,7 @@ func GetIssueComments(ctx context.Context, client *github.Client, owner string, 
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), nil
 }
 
 func GetSubIssues(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, pagination PaginationParams, _ FeatureFlags) (*mcp.CallToolResult, error) {
@@ -422,7 +427,7 @@ func GetSubIssues(ctx context.Context, client *github.Client, owner string, repo
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to list sub-issues: %s", string(body))), nil, nil
+		return utils.NewToolResultError(fmt.Sprintf("failed to list sub-issues: %s", string(body))), nil
 	}
 
 	r, err := json.Marshal(subIssues)
@@ -430,7 +435,7 @@ func GetSubIssues(ctx context.Context, client *github.Client, owner string, repo
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), nil
 }
 
 func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, repo string, issueNumber int, _ FeatureFlags) (*mcp.CallToolResult, error) {
@@ -458,7 +463,7 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 	}
 
 	if err := client.Query(ctx, &query, vars); err != nil {
-		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to get issue labels", err), nil, nil
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to get issue labels", err), nil
 	}
 
 	// Extract label information
@@ -482,7 +487,7 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(out)), nil, nil
+	return utils.NewToolResultText(string(out)), nil
 
 }
 
@@ -753,7 +758,7 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to add sub-issue: %s", string(body))), nil, nil
+		return utils.NewToolResultError(fmt.Sprintf("failed to add sub-issue: %s", string(body))), nil
 	}
 
 	r, err := json.Marshal(subIssue)
@@ -761,7 +766,7 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), nil
 
 }
 
@@ -785,7 +790,7 @@ func RemoveSubIssue(ctx context.Context, client *github.Client, owner string, re
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to remove sub-issue: %s", string(body))), nil, nil
+		return utils.NewToolResultError(fmt.Sprintf("failed to remove sub-issue: %s", string(body))), nil
 	}
 
 	r, err := json.Marshal(subIssue)
@@ -793,16 +798,16 @@ func RemoveSubIssue(ctx context.Context, client *github.Client, owner string, re
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), nil
 }
 
 func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int, afterID int, beforeID int) (*mcp.CallToolResult, error) {
 	// Validate that either after_id or before_id is specified, but not both
 	if afterID == 0 && beforeID == 0 {
-		return utils.NewToolResultError("either after_id or before_id must be specified"), nil, nil
+		return utils.NewToolResultError("either after_id or before_id must be specified"), nil
 	}
 	if afterID != 0 && beforeID != 0 {
-		return utils.NewToolResultError("only one of after_id or before_id should be specified, not both"), nil, nil
+		return utils.NewToolResultError("only one of after_id or before_id should be specified, not both"), nil
 	}
 
 	subIssueRequest := github.SubIssueRequest{
@@ -834,7 +839,7 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to reprioritize sub-issue: %s", string(body))), nil, nil
+		return utils.NewToolResultError(fmt.Sprintf("failed to reprioritize sub-issue: %s", string(body))), nil
 	}
 
 	r, err := json.Marshal(subIssue)
@@ -842,7 +847,7 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), nil
 }
 
 // SearchIssues creates a tool to search for issues.
@@ -1087,7 +1092,7 @@ Options are:
 
 func CreateIssue(ctx context.Context, client *github.Client, owner string, repo string, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string) (*mcp.CallToolResult, error) {
 	if title == "" {
-		return utils.NewToolResultError("missing required parameter: title"), nil, nil
+		return utils.NewToolResultError("missing required parameter: title"), nil
 	}
 
 	// Create the issue request
@@ -1117,7 +1122,7 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 		if err != nil {
 			return utils.NewToolResultErrorFromErr("failed to read response body", err), nil
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to create issue: %s", string(body))), nil, nil
+		return utils.NewToolResultError(fmt.Sprintf("failed to create issue: %s", string(body))), nil
 	}
 
 	// Return minimal response with just essential information
@@ -1131,7 +1136,7 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 		return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), nil
 }
 
 func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, state string, stateReason string, duplicateOf int) (*mcp.CallToolResult, error) {
@@ -1178,20 +1183,20 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to update issue: %s", string(body))), nil, nil
+		return utils.NewToolResultError(fmt.Sprintf("failed to update issue: %s", string(body))), nil
 	}
 
 	// Use GraphQL API for state updates
 	if state != "" {
 		// Mandate specifying duplicateOf when trying to close as duplicate
 		if state == "closed" && stateReason == "duplicate" && duplicateOf == 0 {
-			return utils.NewToolResultError("duplicate_of must be provided when state_reason is 'duplicate'"), nil, nil
+			return utils.NewToolResultError("duplicate_of must be provided when state_reason is 'duplicate'"), nil
 		}
 
 		// Get target issue ID (and duplicate issue ID if needed)
 		issueID, duplicateIssueID, err := fetchIssueIDs(ctx, gqlClient, owner, repo, issueNumber, duplicateOf)
 		if err != nil {
-			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to find issues", err), nil, nil
+			return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to find issues", err), nil
 		}
 
 		switch state {
@@ -1212,7 +1217,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 				IssueID: issueID,
 			}, nil)
 			if err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to reopen issue", err), nil, nil
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to reopen issue", err), nil
 			}
 		case "closed":
 			// Use CloseIssue mutation for closing
@@ -1240,7 +1245,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 
 			err = gqlClient.Mutate(ctx, &mutation, closeInput, nil)
 			if err != nil {
-				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to close issue", err), nil, nil
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to close issue", err), nil
 			}
 		}
 	}
@@ -1256,7 +1261,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return utils.NewToolResultText(string(r)), nil
 }
 
 // ListIssues creates a tool to list and filter repository issues
@@ -1382,21 +1387,21 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 			// Get pagination parameters and convert to GraphQL format
 			pagination, err := OptionalCursorPaginationParams(args)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 
 			// Check if someone tried to use page-based pagination instead of cursor-based
-			if _, pageProvided := request.GetArguments()["page"]; pageProvided {
+			if _, pageProvided := args["page"]; pageProvided {
 				return utils.NewToolResultError("This tool uses cursor-based pagination. Use the 'after' parameter with the 'endCursor' value from the previous response instead of 'page'."), nil, nil
 			}
 
 			// Check if pagination parameters were explicitly provided
-			_, perPageProvided := request.GetArguments()["perPage"]
+			_, perPageProvided := args["perPage"]
 			paginationExplicit := perPageProvided
 
 			paginationParams, err := pagination.ToGraphQLParams()
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 
 			// Use default of 30 if pagination was not explicitly provided
@@ -1477,7 +1482,7 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 			}
 			out, err := json.Marshal(response)
 			if err != nil {
-				return nil, fmt.Errorf("failed to marshal issues: %w", err)
+				return nil, nil, fmt.Errorf("failed to marshal issues: %w", err)
 			}
 			return utils.NewToolResultText(string(out)), nil, nil
 		}
@@ -1563,7 +1568,7 @@ func AssignCopilotToIssue(getGQLClient GetGQLClientFn, t translations.Translatio
 
 			client, err := getGQLClient(ctx)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
 			// Firstly, we try to find the copilot bot in the suggested actors for the repository.
@@ -1600,7 +1605,7 @@ func AssignCopilotToIssue(getGQLClient GetGQLClientFn, t translations.Translatio
 				var query suggestedActorsQuery
 				err := client.Query(ctx, &query, variables)
 				if err != nil {
-					return nil, err
+					return nil, nil, err
 				}
 
 				// Iterate all the returned nodes looking for the copilot bot, which is supposed to have the
@@ -1672,7 +1677,7 @@ func AssignCopilotToIssue(getGQLClient GetGQLClientFn, t translations.Translatio
 				},
 				nil,
 			); err != nil {
-				return nil, fmt.Errorf("failed to replace actors for assignable: %w", err)
+				return nil, nil, fmt.Errorf("failed to replace actors for assignable: %w", err)
 			}
 
 			return utils.NewToolResultText("successfully assigned copilot to issue"), nil, nil
@@ -1708,63 +1713,54 @@ func parseISOTimestamp(timestamp string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("invalid ISO 8601 timestamp: %s (supported formats: YYYY-MM-DDThh:mm:ssZ or YYYY-MM-DD)", timestamp)
 }
 
-func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) (mcp.Prompt, mcp.PromptHandlerFor[map[string]any]) {
+func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) (mcp.Prompt, mcp.PromptHandler) {
 	return mcp.Prompt{
 			Name:        "AssignCodingAgent",
 			Description: t("PROMPT_ASSIGN_CODING_AGENT_DESCRIPTION", "Assign GitHub Coding Agent to multiple tasks in a GitHub repository."),
-			Arguments: []mcp.PromptArgument{
+			Arguments: []*mcp.PromptArgument{
 				{
 					Name:        "repo",
 					Description: "The repository to assign tasks in (owner/repo).",
 					Required:    true,
 				},
 			},
-		}, func(_ context.Context, _ *mcp.GetPromptRequest, args map[string]any) (*mcp.GetPromptResult, error) {
-			repo, ok := args["repo"].(string)
-			if !ok {
-				repo = ""
-			}
+		}, func(_ context.Context, request *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+			repo := request.Params.Arguments["repo"]
 
-			messages := []mcp.PromptMessage{
+			messages := []*mcp.PromptMessage{
 				{
-					Role: mcp.RoleUser,
-					Content: mcp.TextContent{
-						Type: "text",
+					Role: "user",
+					Content: &mcp.TextContent{
 						Text: "You are a personal assistant for GitHub the Copilot GitHub Coding Agent. Your task is to help the user assign tasks to the Coding Agent based on their open GitHub issues. You can use `assign_copilot_to_issue` tool to assign the Coding Agent to issues that are suitable for autonomous work, and `search_issues` tool to find issues that match the user's criteria. You can also use `list_issues` to get a list of issues in the repository.",
 					},
 				},
 				{
-					Role: mcp.RoleUser,
-					Content: mcp.TextContent{
-						Type: "text",
+					Role: "user",
+					Content: &mcp.TextContent{
 						Text: fmt.Sprintf("Please go and get a list of the most recent 10 issues from the %s GitHub repository", repo),
 					},
 				},
 				{
-					Role: mcp.RoleAssistant,
-					Content: mcp.TextContent{
-						Type: "text",
+					Role: "assistant",
+					Content: &mcp.TextContent{
 						Text: fmt.Sprintf("Sure! I will get a list of the 10 most recent issues for the repo %s.", repo),
 					},
 				},
 				{
-					Role: mcp.RoleUser,
-					Content: mcp.TextContent{
-						Type: "text",
+					Role: "user",
+					Content: &mcp.TextContent{
 						Text: "For each issue, please check if it is a clearly defined coding task with acceptance criteria and a low to medium complexity to identify issues that are suitable for an AI Coding Agent to work on. Then assign each of the identified issues to Copilot.",
 					},
 				},
 				{
-					Role: mcp.RoleAssistant,
-					Content: mcp.TextContent{
-						Type: "text",
+					Role: "assistant",
+					Content: &mcp.TextContent{
 						Text: "Certainly! Let me carefully check which ones are clearly scoped issues that are good to assign to the coding agent, and I will summarize and assign them now.",
 					},
 				},
 				{
-					Role: mcp.RoleUser,
-					Content: mcp.TextContent{
-						Type: "text",
+					Role: "user",
+					Content: &mcp.TextContent{
 						Text: "Great, if you are unsure if an issue is good to assign, ask me first, rather than assigning copilot. If you are certain the issue is clear and suitable you can assign it to Copilot without asking.",
 					},
 				},
