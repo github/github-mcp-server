@@ -846,26 +846,26 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 }
 
 // SearchIssues creates a tool to search for issues.
-func SearchIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("search_issues",
-			mcp.WithDescription(t("TOOL_SEARCH_ISSUES_DESCRIPTION", "Search for issues in GitHub repositories using issues search syntax already scoped to is:issue")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_SEARCH_ISSUES_USER_TITLE", "Search issues"),
-				ReadOnlyHint: ToBoolPtr(true),
-			}),
-			mcp.WithString("query",
-				mcp.Required(),
-				mcp.Description("Search query using GitHub issues search syntax"),
-			),
-			mcp.WithString("owner",
-				mcp.Description("Optional repository owner. If provided with repo, only issues for this repository are listed."),
-			),
-			mcp.WithString("repo",
-				mcp.Description("Optional repository name. If provided with owner, only issues for this repository are listed."),
-			),
-			mcp.WithString("sort",
-				mcp.Description("Sort field by number of matches of categories, defaults to best match"),
-				mcp.Enum(
+func SearchIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	schema := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"query": {
+				Type:        "string",
+				Description: "Search query using GitHub issues search syntax",
+			},
+			"owner": {
+				Type:        "string",
+				Description: "Optional repository owner. If provided with repo, only issues for this repository are listed.",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Optional repository name. If provided with owner, only issues for this repository are listed.",
+			},
+			"sort": {
+				Type:        "string",
+				Description: "Sort field by number of matches of categories, defaults to best match",
+				Enum: []any{
 					"comments",
 					"reactions",
 					"reactions-+1",
@@ -877,16 +877,30 @@ func SearchIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (
 					"interactions",
 					"created",
 					"updated",
-				),
-			),
-			mcp.WithString("order",
-				mcp.Description("Sort order"),
-				mcp.Enum("asc", "desc"),
-			),
-			WithPagination(),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return searchHandler(ctx, getClient, request, "issue", "failed to search issues")
+				},
+			},
+			"order": {
+				Type:        "string",
+				Description: "Sort order",
+				Enum:        []any{"asc", "desc"},
+			},
+		},
+		Required: []string{"query"},
+	}
+	WithPagination(schema)
+
+	return mcp.Tool{
+			Name:        "search_issues",
+			Description: t("TOOL_SEARCH_ISSUES_DESCRIPTION", "Search for issues in GitHub repositories using issues search syntax already scoped to is:issue"),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_SEARCH_ISSUES_USER_TITLE", "Search issues"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: schema,
+		},
+		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			result, err := searchHandler(ctx, getClient, args, "issue", "failed to search issues")
+			return result, nil, err
 		}
 }
 
