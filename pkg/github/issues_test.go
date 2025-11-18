@@ -22,8 +22,64 @@ import (
 func Test_GetIssue(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	defaultGQLClient := githubv4.NewClient(nil)
-	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(defaultGQLClient), stubRepoAccessCache(defaultGQLClient, 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+	type repoAccessQuery struct {
+		Repository struct {
+			IsPrivate     githubv4.Boolean
+			Collaborators struct {
+				Edges []struct {
+					Permission githubv4.String
+					Node       struct {
+						Login githubv4.String
+					}
+				}
+			} `graphql:"collaborators(query: $username, first: 1)"`
+		} `graphql:"repository(owner: $owner, name: $name)"`
+	}
+
+	lockdownHTTPClient := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			repoAccessQuery{},
+			map[string]any{
+				"owner":    githubv4.String("github"),
+				"name":     githubv4.String("github-mcp-server"),
+				"username": githubv4.String("testuser"),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"isPrivate": true,
+					"collaborators": map[string]any{
+						"edges": []any{},
+					},
+				},
+			}),
+		),
+		githubv4mock.NewQueryMatcher(
+			repoAccessQuery{},
+			map[string]any{
+				"owner":    githubv4.String("owner"),
+				"name":     githubv4.String("repo"),
+				"username": githubv4.String("testuser"),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"isPrivate": false,
+					"collaborators": map[string]any{
+						"edges": []any{
+							map[string]any{
+								"permission": "READ",
+								"node": map[string]any{
+									"login": "testuser",
+								},
+							},
+						},
+					},
+				},
+			}),
+		),
+	)
+	defaultGQLClient := githubv4.NewClient(lockdownHTTPClient)
+	repoAccessCache := stubRepoAccessCache(defaultGQLClient, 15*time.Minute)
+	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(defaultGQLClient), repoAccessCache, translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "issue_read", tool.Name)
@@ -55,7 +111,6 @@ func Test_GetIssue(t *testing.T) {
 	tests := []struct {
 		name               string
 		mockedClient       *http.Client
-		gqlHTTPClient      *http.Client
 		requestArgs        map[string]interface{}
 		expectHandlerError bool
 		expectResultError  bool
@@ -104,36 +159,6 @@ func Test_GetIssue(t *testing.T) {
 					mockIssue,
 				),
 			),
-			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							IsPrivate     githubv4.Boolean
-							Collaborators struct {
-								Edges []struct {
-									Permission githubv4.String
-									Node       struct {
-										Login githubv4.String
-									}
-								}
-							} `graphql:"collaborators(query: $username, first: 1)"`
-						} `graphql:"repository(owner: $owner, name: $name)"`
-					}{},
-					map[string]any{
-						"owner":    githubv4.String("github"),
-						"name":     githubv4.String("github-mcp-server"),
-						"username": githubv4.String("testuser"),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"isPrivate": true,
-							"collaborators": map[string]any{
-								"edges": []any{},
-							},
-						},
-					}),
-				),
-			),
 			requestArgs: map[string]interface{}{
 				"method":       "get",
 				"owner":        "github",
@@ -149,43 +174,6 @@ func Test_GetIssue(t *testing.T) {
 				mock.WithRequestMatch(
 					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
 					mockIssue,
-				),
-			),
-			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
-				githubv4mock.NewQueryMatcher(
-					struct {
-						Repository struct {
-							IsPrivate     githubv4.Boolean
-							Collaborators struct {
-								Edges []struct {
-									Permission githubv4.String
-									Node       struct {
-										Login githubv4.String
-									}
-								}
-							} `graphql:"collaborators(query: $username, first: 1)"`
-						} `graphql:"repository(owner: $owner, name: $name)"`
-					}{},
-					map[string]any{
-						"owner":    githubv4.String("owner"),
-						"name":     githubv4.String("repo"),
-						"username": githubv4.String("testuser"),
-					},
-					githubv4mock.DataResponse(map[string]any{
-						"repository": map[string]any{
-							"isPrivate": false,
-							"collaborators": map[string]any{
-								"edges": []any{
-									map[string]any{
-										"permission": "READ",
-										"node": map[string]any{
-											"login": "testuser",
-										},
-									},
-								},
-							},
-						},
-					}),
 				),
 			),
 			requestArgs: map[string]interface{}{
@@ -204,15 +192,10 @@ func Test_GetIssue(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 
-			var gqlClient *githubv4.Client
-			if tc.gqlHTTPClient != nil {
-				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
-			} else {
-				gqlClient = defaultGQLClient
-			}
+			gqlClient := defaultGQLClient
 
 			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
-			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, flags)
+			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), repoAccessCache, translations.NullTranslationHelper, flags)
 
 			request := createMCPRequest(tc.requestArgs)
 			result, err := handler(context.Background(), request)
