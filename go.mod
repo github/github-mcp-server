@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	github.com/google/go-github/v77 v77.0.0
+	github.com/google/jsonschema-go v0.3.0
 	github.com/josephburnett/jd v1.9.2
 	github.com/mark3labs/mcp-go v0.36.0
 	github.com/microcosm-cc/bluemonday v1.0.27
@@ -20,7 +21,6 @@ require (
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/swag v0.21.1 // indirect
 	github.com/google/go-github/v71 v71.0.0 // indirect
-	github.com/google/jsonschema-go v0.3.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
