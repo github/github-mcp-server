@@ -540,46 +540,53 @@ func ListIssueTypes(getClient GetClientFn, t translations.TranslationHelperFunc)
 }
 
 // AddIssueComment creates a tool to add a comment to an issue.
-func AddIssueComment(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("add_issue_comment",
-			mcp.WithDescription(t("TOOL_ADD_ISSUE_COMMENT_DESCRIPTION", "Add a comment to a specific issue in a GitHub repository. Use this tool to add comments to pull requests as well (in this case pass pull request number as issue_number), but only if user is not asking specifically to add review comments.")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+func AddIssueComment(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	return mcp.Tool{
+			Name:        "add_issue_comment",
+			Description: t("TOOL_ADD_ISSUE_COMMENT_DESCRIPTION", "Add a comment to a specific issue in a GitHub repository. Use this tool to add comments to pull requests as well (in this case pass pull request number as issue_number), but only if user is not asking specifically to add review comments."),
+			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_ADD_ISSUE_COMMENT_USER_TITLE", "Add comment to issue"),
-				ReadOnlyHint: ToBoolPtr(false),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-			mcp.WithNumber("issue_number",
-				mcp.Required(),
-				mcp.Description("Issue number to comment on"),
-			),
-			mcp.WithString("body",
-				mcp.Required(),
-				mcp.Description("Comment content"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := RequiredParam[string](request, "owner")
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"issue_number": {
+						Type:        "number",
+						Description: "Issue number to comment on",
+					},
+					"body": {
+						Type:        "string",
+						Description: "Comment content",
+					},
+				},
+				Required: []string{"owner", "repo", "issue_number", "body"},
+			},
+		},
+		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			repo, err := RequiredParam[string](request, "repo")
+			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			issueNumber, err := RequiredInt(request, "issue_number")
+			issueNumber, err := RequiredInt(args, "issue_number")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			body, err := RequiredParam[string](request, "body")
+			body, err := RequiredParam[string](args, "body")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			comment := &github.IssueComment{
@@ -588,125 +595,138 @@ func AddIssueComment(getClient GetClientFn, t translations.TranslationHelperFunc
 
 			client, err := getClient(ctx)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 			createdComment, resp, err := client.Issues.CreateComment(ctx, owner, repo, issueNumber, comment)
 			if err != nil {
-				return nil, fmt.Errorf("failed to create comment: %w", err)
+				return utils.NewToolResultErrorFromErr("failed to create comment", err), nil, nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 
 			if resp.StatusCode != http.StatusCreated {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to create comment: %s", string(body))), nil
+				return utils.NewToolResultError(fmt.Sprintf("failed to create comment: %s", string(body))), nil, nil
 			}
 
 			r, err := json.Marshal(createdComment)
 			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			return mcp.NewToolResultText(string(r)), nil
+			return utils.NewToolResultText(string(r)), nil, nil
 		}
 }
 
 // SubIssueWrite creates a tool to add a sub-issue to a parent issue.
-func SubIssueWrite(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("sub_issue_write",
-			mcp.WithDescription(t("TOOL_SUB_ISSUE_WRITE_DESCRIPTION", "Add a sub-issue to a parent issue in a GitHub repository.")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+func SubIssueWrite(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	return mcp.Tool{
+			Name:        "sub_issue_write",
+			Description: t("TOOL_SUB_ISSUE_WRITE_DESCRIPTION", "Add a sub-issue to a parent issue in a GitHub repository."),
+			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_SUB_ISSUE_WRITE_USER_TITLE", "Change sub-issue"),
-				ReadOnlyHint: ToBoolPtr(false),
-			}),
-			mcp.WithString("method",
-				mcp.Required(),
-				mcp.Description(`The action to perform on a single sub-issue
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"method": {
+						Type: "string",
+						Description: `The action to perform on a single sub-issue
 Options are:
 - 'add' - add a sub-issue to a parent issue in a GitHub repository.
 - 'remove' - remove a sub-issue from a parent issue in a GitHub repository.
 - 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.
-				`),
-			),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-			mcp.WithNumber("issue_number",
-				mcp.Required(),
-				mcp.Description("The number of the parent issue"),
-			),
-			mcp.WithNumber("sub_issue_id",
-				mcp.Required(),
-				mcp.Description("The ID of the sub-issue to add. ID is not the same as issue number"),
-			),
-			mcp.WithBoolean("replace_parent",
-				mcp.Description("When true, replaces the sub-issue's current parent issue. Use with 'add' method only."),
-			),
-			mcp.WithNumber("after_id",
-				mcp.Description("The ID of the sub-issue to be prioritized after (either after_id OR before_id should be specified)"),
-			),
-			mcp.WithNumber("before_id",
-				mcp.Description("The ID of the sub-issue to be prioritized before (either after_id OR before_id should be specified)"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			method, err := RequiredParam[string](request, "method")
+				`,
+					},
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"issue_number": {
+						Type:        "number",
+						Description: "The number of the parent issue",
+					},
+					"sub_issue_id": {
+						Type:        "number",
+						Description: "The ID of the sub-issue to add. ID is not the same as issue number",
+					},
+					"replace_parent": {
+						Type:        "boolean",
+						Description: "When true, replaces the sub-issue's current parent issue. Use with 'add' method only.",
+					},
+					"after_id": {
+						Type:        "number",
+						Description: "The ID of the sub-issue to be prioritized after (either after_id OR before_id should be specified)",
+					},
+					"before_id": {
+						Type:        "number",
+						Description: "The ID of the sub-issue to be prioritized before (either after_id OR before_id should be specified)",
+					},
+				},
+				Required: []string{"method", "owner", "repo", "issue_number", "sub_issue_id"},
+			},
+		},
+		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			method, err := RequiredParam[string](args, "method")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			owner, err := RequiredParam[string](request, "owner")
+			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			repo, err := RequiredParam[string](request, "repo")
+			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			issueNumber, err := RequiredInt(request, "issue_number")
+			issueNumber, err := RequiredInt(args, "issue_number")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			subIssueID, err := RequiredInt(request, "sub_issue_id")
+			subIssueID, err := RequiredInt(args, "sub_issue_id")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			replaceParent, err := OptionalParam[bool](request, "replace_parent")
+			replaceParent, err := OptionalParam[bool](args, "replace_parent")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			afterID, err := OptionalIntParam(request, "after_id")
+			afterID, err := OptionalIntParam(args, "after_id")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			beforeID, err := OptionalIntParam(request, "before_id")
+			beforeID, err := OptionalIntParam(args, "before_id")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			client, err := getClient(ctx)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			switch strings.ToLower(method) {
 			case "add":
-				return AddSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, replaceParent)
+				result, err := AddSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, replaceParent)
+				return result, nil, err
 			case "remove":
 				// Call the remove sub-issue function
-				return RemoveSubIssue(ctx, client, owner, repo, issueNumber, subIssueID)
+				result, err := RemoveSubIssue(ctx, client, owner, repo, issueNumber, subIssueID)
+				return result, nil, err
 			case "reprioritize":
 				// Call the reprioritize sub-issue function
-				return ReprioritizeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, afterID, beforeID)
+				result, err := ReprioritizeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, afterID, beforeID)
+				return result, nil, err
 			default:
-				return mcp.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		}
 }
@@ -733,7 +753,7 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return mcp.NewToolResultError(fmt.Sprintf("failed to add sub-issue: %s", string(body))), nil
+		return utils.NewToolResultError(fmt.Sprintf("failed to add sub-issue: %s", string(body))), nil
 	}
 
 	r, err := json.Marshal(subIssue)
@@ -741,7 +761,7 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return mcp.NewToolResultText(string(r)), nil
+	return utils.NewToolResultText(string(r)), nil
 
 }
 
@@ -765,7 +785,7 @@ func RemoveSubIssue(ctx context.Context, client *github.Client, owner string, re
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return mcp.NewToolResultError(fmt.Sprintf("failed to remove sub-issue: %s", string(body))), nil
+		return utils.NewToolResultError(fmt.Sprintf("failed to remove sub-issue: %s", string(body))), nil
 	}
 
 	r, err := json.Marshal(subIssue)
@@ -773,16 +793,16 @@ func RemoveSubIssue(ctx context.Context, client *github.Client, owner string, re
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return mcp.NewToolResultText(string(r)), nil
+	return utils.NewToolResultText(string(r)), nil
 }
 
 func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int, afterID int, beforeID int) (*mcp.CallToolResult, error) {
 	// Validate that either after_id or before_id is specified, but not both
 	if afterID == 0 && beforeID == 0 {
-		return mcp.NewToolResultError("either after_id or before_id must be specified"), nil
+		return utils.NewToolResultError("either after_id or before_id must be specified"), nil
 	}
 	if afterID != 0 && beforeID != 0 {
-		return mcp.NewToolResultError("only one of after_id or before_id should be specified, not both"), nil
+		return utils.NewToolResultError("only one of after_id or before_id should be specified, not both"), nil
 	}
 
 	subIssueRequest := github.SubIssueRequest{
@@ -814,7 +834,7 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return mcp.NewToolResultError(fmt.Sprintf("failed to reprioritize sub-issue: %s", string(body))), nil
+		return utils.NewToolResultError(fmt.Sprintf("failed to reprioritize sub-issue: %s", string(body))), nil
 	}
 
 	r, err := json.Marshal(subIssue)
@@ -822,7 +842,7 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return mcp.NewToolResultText(string(r)), nil
+	return utils.NewToolResultText(string(r)), nil
 }
 
 // SearchIssues creates a tool to search for issues.
