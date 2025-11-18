@@ -225,8 +225,12 @@ func generateToolDoc(tool mcp.Tool) string {
 	lines = append(lines, fmt.Sprintf("- **%s** - %s", tool.Name, tool.Annotations.Title))
 
 	// Parameters
+	if tool.InputSchema == nil {
+		lines = append(lines, "  - No parameters required")
+		return strings.Join(lines, "\n")
+	}
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	if !ok {
+	if !ok || schema == nil {
 		lines = append(lines, "  - No parameters required")
 		return strings.Join(lines, "\n")
 	}
