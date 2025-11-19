@@ -18,6 +18,9 @@ const (
 )
 
 type repoAccessQuery struct {
+	Viewer struct {
+		Login githubv4.String
+	}
 	Repository struct {
 		IsPrivate     githubv4.Boolean
 		Collaborators struct {
@@ -62,6 +65,9 @@ func newMockRepoAccessCache(t *testing.T, ttl time.Duration) (*RepoAccessCache, 
 	}
 
 	response := githubv4mock.DataResponse(map[string]any{
+		"viewer": map[string]any{
+			"login": testUser,
+		},
 		"repository": map[string]any{
 			"isPrivate": false,
 			"collaborators": map[string]any{
@@ -90,13 +96,17 @@ func TestRepoAccessCacheEvictsAfterTTL(t *testing.T) {
 	ctx := t.Context()
 
 	cache, transport := newMockRepoAccessCache(t, 5*time.Millisecond)
-	_, _, err := cache.GetRepoAccessInfo(ctx, testUser, testOwner, testRepo)
+	info, err := cache.GetRepoAccessInfo(ctx, testUser, testOwner, testRepo)
 	require.NoError(t, err)
+	require.Equal(t, testUser, info.ViewerLogin)
+	require.True(t, info.HasPushAccess)
 	require.EqualValues(t, 1, transport.CallCount())
 
 	time.Sleep(20 * time.Millisecond)
 
-	_, _, err = cache.GetRepoAccessInfo(ctx, testUser, testOwner, testRepo)
+	info, err = cache.GetRepoAccessInfo(ctx, testUser, testOwner, testRepo)
 	require.NoError(t, err)
+	require.Equal(t, testUser, info.ViewerLogin)
+	require.True(t, info.HasPushAccess)
 	require.EqualValues(t, 2, transport.CallCount())
 }

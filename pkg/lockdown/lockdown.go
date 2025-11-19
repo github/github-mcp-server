@@ -23,8 +23,16 @@ type RepoAccessCache struct {
 }
 
 type repoAccessCacheEntry struct {
-	isPrivate  bool
-	knownUsers map[string]bool // normalized login -> has push access
+	isPrivate   bool
+	knownUsers  map[string]bool // normalized login -> has push access
+	viewerLogin string
+}
+
+// RepoAccessInfo captures repository metadata needed for lockdown decisions.
+type RepoAccessInfo struct {
+	IsPrivate     bool
+	HasPushAccess bool
+	ViewerLogin   string
 }
 
 const (
@@ -101,12 +109,11 @@ type CacheStats struct {
 	Evictions int64
 }
 
-// GetRepoAccessInfo returns the repository's privacy status and whether the
-// specified user has push permissions. Results are cached per repository to
-// avoid repeated GraphQL round-trips.
-func (c *RepoAccessCache) GetRepoAccessInfo(ctx context.Context, username, owner, repo string) (bool, bool, error) {
+// GetRepoAccessInfo returns repository access metadata for the provided user.
+// Results are cached per repository to avoid repeated GraphQL round-trips.
+func (c *RepoAccessCache) GetRepoAccessInfo(ctx context.Context, username, owner, repo string) (RepoAccessInfo, error) {
 	if c == nil {
-		return false, false, fmt.Errorf("nil repo access cache")
+		return RepoAccessInfo{}, fmt.Errorf("nil repo access cache")
 	}
 
 	key := cacheKey(owner, repo)
@@ -120,41 +127,59 @@ func (c *RepoAccessCache) GetRepoAccessInfo(ctx context.Context, username, owner
 		entry := cacheItem.Data().(*repoAccessCacheEntry)
 		if cachedHasPush, known := entry.knownUsers[userKey]; known {
 			c.logDebug("repo access cache hit", "owner", owner, "repo", repo, "user", username)
-			return entry.isPrivate, cachedHasPush, nil
+			return RepoAccessInfo{
+				IsPrivate:     entry.isPrivate,
+				HasPushAccess: cachedHasPush,
+				ViewerLogin:   entry.viewerLogin,
+			}, nil
 		}
 		c.logDebug("known users cache miss", "owner", owner, "repo", repo, "user", username)
-		_, hasPush, queryErr := c.queryRepoAccessInfo(ctx, username, owner, repo)
+		info, queryErr := c.queryRepoAccessInfo(ctx, username, owner, repo)
 		if queryErr != nil {
-			return false, false, queryErr
+			return RepoAccessInfo{}, queryErr
 		}
-		entry.knownUsers[userKey] = hasPush
+		entry.knownUsers[userKey] = info.HasPushAccess
+		entry.viewerLogin = info.ViewerLogin
+		entry.isPrivate = info.IsPrivate
 		c.cache.Add(key, c.ttl, entry)
-		return entry.isPrivate, entry.knownUsers[userKey], nil
+		return RepoAccessInfo{
+			IsPrivate:     entry.isPrivate,
+			HasPushAccess: entry.knownUsers[userKey],
+			ViewerLogin:   entry.viewerLogin,
+		}, nil
 	}
 
 	c.logDebug("repo access cache miss", "owner", owner, "repo", repo, "user", username)
 
-	isPrivate, hasPush, queryErr := c.queryRepoAccessInfo(ctx, username, owner, repo)
+	info, queryErr := c.queryRepoAccessInfo(ctx, username, owner, repo)
 	if queryErr != nil {
-		return false, false, queryErr
+		return RepoAccessInfo{}, queryErr
 	}
 
 	// Create new entry
 	entry := &repoAccessCacheEntry{
-		knownUsers: map[string]bool{userKey: hasPush},
-		isPrivate:  isPrivate,
+		knownUsers:  map[string]bool{userKey: info.HasPushAccess},
+		isPrivate:   info.IsPrivate,
+		viewerLogin: info.ViewerLogin,
 	}
 	c.cache.Add(key, c.ttl, entry)
 
-	return entry.isPrivate, entry.knownUsers[userKey], nil
+	return RepoAccessInfo{
+		IsPrivate:     entry.isPrivate,
+		HasPushAccess: entry.knownUsers[userKey],
+		ViewerLogin:   entry.viewerLogin,
+	}, nil
 }
 
-func (c *RepoAccessCache) queryRepoAccessInfo(ctx context.Context, username, owner, repo string) (bool, bool, error) {
+func (c *RepoAccessCache) queryRepoAccessInfo(ctx context.Context, username, owner, repo string) (RepoAccessInfo, error) {
 	if c.client == nil {
-		return false, false, fmt.Errorf("nil GraphQL client")
+		return RepoAccessInfo{}, fmt.Errorf("nil GraphQL client")
 	}
 
 	var query struct {
+		Viewer struct {
+			Login githubv4.String
+		}
 		Repository struct {
 			IsPrivate     githubv4.Boolean
 			Collaborators struct {
@@ -175,7 +200,7 @@ func (c *RepoAccessCache) queryRepoAccessInfo(ctx context.Context, username, own
 	}
 
 	if err := c.client.Query(ctx, &query, variables); err != nil {
-		return false, false, fmt.Errorf("failed to query repository access info: %w", err)
+		return RepoAccessInfo{}, fmt.Errorf("failed to query repository access info: %w", err)
 	}
 
 	hasPush := false
@@ -188,7 +213,11 @@ func (c *RepoAccessCache) queryRepoAccessInfo(ctx context.Context, username, own
 		}
 	}
 
-	return bool(query.Repository.IsPrivate), hasPush, nil
+	return RepoAccessInfo{
+		IsPrivate:     bool(query.Repository.IsPrivate),
+		HasPushAccess: hasPush,
+		ViewerLogin:   string(query.Viewer.Login),
+	}, nil
 }
 
 func cacheKey(owner, repo string) string {
