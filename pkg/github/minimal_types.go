@@ -1,9 +1,6 @@
 package github
 
 import (
-	"fmt"
-	"time"
-
 	"github.com/google/go-github/v79/github"
 )
 
@@ -260,25 +257,4 @@ func convertToMinimalBranch(branch *github.Branch) MinimalBranch {
 		SHA:       branch.GetCommit().GetSHA(),
 		Protected: branch.GetProtected(),
 	}
-}
-
-// parseISOTimestamp parses an ISO 8601 timestamp string
-func parseISOTimestamp(timestamp string) (time.Time, error) {
-	if timestamp == "" {
-		return time.Time{}, fmt.Errorf("empty timestamp")
-	}
-
-	// Try RFC3339 format (standard ISO 8601 with time)
-	t, err := time.Parse(time.RFC3339, timestamp)
-	if err == nil {
-		return t, nil
-	}
-
-	// Try simple date format (YYYY-MM-DD)
-	t, err = time.Parse("2006-01-02", timestamp)
-	if err == nil {
-		return t, nil
-	}
-
-	return time.Time{}, fmt.Errorf("invalid timestamp format: %s", timestamp)
 }
