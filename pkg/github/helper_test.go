@@ -117,7 +117,9 @@ func createMCPRequest(args any) mcp.CallToolRequest {
 	}
 
 	argsJSON, err := json.Marshal(argsMap)
-	require.NoError(nil, err)
+	if err != nil {
+		return mcp.CallToolRequest{}
+	}
 
 	jsonRawMessage := json.RawMessage(argsJSON)
 
