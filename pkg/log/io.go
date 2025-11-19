@@ -45,3 +45,17 @@ func (l *IOLogger) Write(p []byte) (n int, err error) {
 	l.logger.Info("[stdout]: sending bytes", "count", len(p), "data", string(p))
 	return l.writer.Write(p)
 }
+
+func (l *IOLogger) Close() error {
+	var errReader, errWriter error
+	if closer, ok := l.reader.(io.Closer); ok {
+		errReader = closer.Close()
+	}
+	if closer, ok := l.writer.(io.Closer); ok {
+		errWriter = closer.Close()
+	}
+	if errReader != nil {
+		return errReader
+	}
+	return errWriter
+}
