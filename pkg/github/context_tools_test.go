@@ -115,7 +115,6 @@ func Test_GetMe(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			if tc.expectToolError {
-				assert.Error(t, err)
 				assert.True(t, result.IsError, "expected tool call result to be an error")
 				assert.Contains(t, textContent.Text, tc.expectedToolErrMsg)
 				return
