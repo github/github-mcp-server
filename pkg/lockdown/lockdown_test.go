@@ -87,7 +87,6 @@ func newMockRepoAccessCache(t *testing.T, ttl time.Duration) (*RepoAccessCache, 
 }
 
 func TestRepoAccessCacheEvictsAfterTTL(t *testing.T) {
-	t.Parallel()
 	ctx := t.Context()
 
 	cache, transport := newMockRepoAccessCache(t, 5*time.Millisecond)

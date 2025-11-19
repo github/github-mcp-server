@@ -104,29 +104,6 @@ func newRepoAccessCache(client *githubv4.Client, opts ...RepoAccessOption) *Repo
 	return c
 }
 
-// SetTTL overrides the default time-to-live used for cache entries. A non-positive
-// duration disables expiration.
-func (c *RepoAccessCache) SetTTL(ttl time.Duration) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.ttl = ttl
-	c.logInfo("repo access cache TTL updated", "ttl", ttl)
-
-	// Collect all current entries
-	entries := make(map[interface{}]*repoAccessCacheEntry)
-	c.cache.Foreach(func(key interface{}, item *cache2go.CacheItem) {
-		entries[key] = item.Data().(*repoAccessCacheEntry)
-	})
-
-	// Flush the cache
-	c.cache.Flush()
-
-	// Re-add all entries with the new TTL
-	for key, entry := range entries {
-		c.cache.Add(key, ttl, entry)
-	}
-}
-
 // SetLogger updates the logger used for cache diagnostics.
 func (c *RepoAccessCache) SetLogger(logger *slog.Logger) {
 	c.mu.Lock()
@@ -162,8 +139,16 @@ func (c *RepoAccessCache) GetRepoAccessInfo(ctx context.Context, username, owner
 			c.logDebug("repo access cache hit", "owner", owner, "repo", repo, "user", username)
 			return entry.isPrivate, cachedHasPush, nil
 		}
-		// Entry exists but user not in knownUsers, need to query
+		c.logDebug("known users cache miss", "owner", owner, "repo", repo, "user", username)
+		_, hasPush, queryErr := c.queryRepoAccessInfo(ctx, username, owner, repo)
+		if queryErr != nil {
+			return false, false, queryErr
+		}
+		entry.knownUsers[userKey] = hasPush
+		c.cache.Add(key, c.ttl, entry)
+		return entry.isPrivate, entry.knownUsers[userKey], nil
 	}
+
 	c.logDebug("repo access cache miss", "owner", owner, "repo", repo, "user", username)
 
 	isPrivate, hasPush, queryErr := c.queryRepoAccessInfo(ctx, username, owner, repo)
@@ -171,16 +156,8 @@ func (c *RepoAccessCache) GetRepoAccessInfo(ctx context.Context, username, owner
 		return false, false, queryErr
 	}
 
-	// Repo access info retrieved, update or create cache entry
-	var entry *repoAccessCacheEntry
-	if err == nil && cacheItem != nil {
-		entry = cacheItem.Data().(*repoAccessCacheEntry)
-		entry.knownUsers[userKey] = hasPush
-		return entry.isPrivate, entry.knownUsers[userKey], nil
-	}
-
 	// Create new entry
-	entry = &repoAccessCacheEntry{
+	entry := &repoAccessCacheEntry{
 		knownUsers: map[string]bool{userKey: hasPush},
 		isPrivate:  isPrivate,
 	}
