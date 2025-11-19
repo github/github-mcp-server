@@ -273,19 +273,19 @@ func UpdateGist(getClient GetClientFn, t translations.TranslationHelperFunc) (mc
 			Properties: map[string]*jsonschema.Schema{
 				"gist_id": {
 					Type:        "string",
-					Description: t("TOOL_UPDATE_GIST_GIST_ID_DESCRIPTION", "ID of the gist to update"),
+					Description: "ID of the gist to update",
 				},
 				"description": {
 					Type:        "string",
-					Description: t("TOOL_UPDATE_GIST_DESCRIPTION_DESCRIPTION", "Updated description of the gist"),
+					Description: "Updated description of the gist",
 				},
 				"filename": {
 					Type:        "string",
-					Description: t("TOOL_UPDATE_GIST_FILENAME_DESCRIPTION", "Filename to update or create"),
+					Description: "Filename to update or create",
 				},
 				"content": {
 					Type:        "string",
-					Description: t("TOOL_UPDATE_GIST_CONTENT_DESCRIPTION", "Content for the file"),
+					Description: "Content for the file",
 				},
 			},
 			Required: []string{"gist_id", "filename", "content"},
