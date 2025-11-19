@@ -400,6 +400,7 @@ func GetIssueComments(ctx context.Context, client *github.Client, cache *lockdow
 			}
 			// Do not filter content for private repositories
 			if isPrivate {
+				filteredComments = comments
 				break
 			}
 			if hasPushAccess {
@@ -464,6 +465,7 @@ func GetSubIssues(ctx context.Context, client *github.Client, cache *lockdown.Re
 			}
 			// Repo is private, do not filter content
 			if isPrivate {
+				filteredSubIssues = subIssues
 				break
 			}
 			if hasPushAccess {

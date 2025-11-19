@@ -297,18 +297,25 @@ func GetPullRequestReviewComments(ctx context.Context, client *github.Client, ca
 		if cache == nil {
 			return nil, fmt.Errorf("lockdown cache is not configured")
 		}
-		if len(comments) > 0 {
-			login := comments[0].GetUser().GetLogin()
-			if login != "" {
-				isPrivate, hasPushAccess, err := cache.GetRepoAccessInfo(ctx, login, owner, repo)
-				if err != nil {
-					return nil, fmt.Errorf("failed to check content removal: %w", err)
-				}
-				if !isPrivate && !hasPushAccess {
-					return mcp.NewToolResultError("access to pull request review comments is restricted by lockdown mode"), nil
-				}
+		filteredComments := make([]*github.PullRequestComment, 0, len(comments))
+		for _, comment := range comments {
+			user := comment.GetUser()
+			if user == nil {
+				continue
+			}
+			isPrivate, hasPushAccess, err := cache.GetRepoAccessInfo(ctx, user.GetLogin(), owner, repo)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
+			}
+			if isPrivate {
+				filteredComments = comments
+				break
+			}
+			if hasPushAccess {
+				filteredComments = append(filteredComments, comment)
 			}
 		}
+		comments = filteredComments
 	}
 
 	r, err := json.Marshal(comments)
@@ -342,16 +349,21 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, cache *lo
 		if cache == nil {
 			return nil, fmt.Errorf("lockdown cache is not configured")
 		}
-		if len(reviews) > 0 {
-			login := reviews[0].GetUser().GetLogin()
+		filteredReviews := make([]*github.PullRequestReview, 0, len(reviews))
+		for _, review := range reviews {
+			login := review.GetUser().GetLogin()
 			if login != "" {
 				isPrivate, hasPushAccess, err := cache.GetRepoAccessInfo(ctx, login, owner, repo)
 				if err != nil {
-					return nil, fmt.Errorf("failed to check content removal: %w", err)
+					return nil, fmt.Errorf("failed to check lockdown mode: %w", err)
 				}
-				if !isPrivate && !hasPushAccess {
-					return mcp.NewToolResultError("access to pull request reviews is restricted by lockdown mode"), nil
+				if isPrivate {
+					filteredReviews = reviews
 				}
+				if hasPushAccess {
+					filteredReviews = append(filteredReviews, review)
+				}
+				reviews = filteredReviews
 			}
 		}
 	}
