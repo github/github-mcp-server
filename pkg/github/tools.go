@@ -194,10 +194,10 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	// 		toolsets.NewServerResourceTemplate(GetRepositoryResourceTagContent(getClient, getRawClient, t)),
 	// 		toolsets.NewServerResourceTemplate(GetRepositoryResourcePrContent(getClient, getRawClient, t)),
 	// 	)
-	// git := toolsets.NewToolset(ToolsetMetadataGit.ID, ToolsetMetadataGit.Description).
-	// 	AddReadTools(
-	// 		toolsets.NewServerTool(GetRepositoryTree(getClient, t)),
-	// 	)
+	git := toolsets.NewToolset(ToolsetMetadataGit.ID, ToolsetMetadataGit.Description).
+		AddReadTools(
+			toolsets.NewServerTool(GetRepositoryTree(getClient, t)),
+		)
 	// issues := toolsets.NewToolset(ToolsetMetadataIssues.ID, ToolsetMetadataIssues.Description).
 	// 	AddReadTools(
 	// 		toolsets.NewServerTool(IssueRead(getClient, getGQLClient, t, flags)),
@@ -361,7 +361,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	// Add toolsets to the group
 	tsg.AddToolset(contextTools)
 	// tsg.AddToolset(repos)
-	// tsg.AddToolset(git)
+	tsg.AddToolset(git)
 	// tsg.AddToolset(issues)
 	// tsg.AddToolset(orgs)
 	// tsg.AddToolset(users)
