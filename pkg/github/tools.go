@@ -346,17 +346,17 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	// 		toolsets.NewServerTool(StarRepository(getClient, t)),
 	// 		toolsets.NewServerTool(UnstarRepository(getClient, t)),
 	// 	)
-	// labels := toolsets.NewToolset(ToolsetLabels.ID, ToolsetLabels.Description).
-	// 	AddReadTools(
-	// 		// get
-	// 		toolsets.NewServerTool(GetLabel(getGQLClient, t)),
-	// 		// list labels on repo or issue
-	// 		toolsets.NewServerTool(ListLabels(getGQLClient, t)),
-	// 	).
-	// 	AddWriteTools(
-	// 		// create or update
-	// 		toolsets.NewServerTool(LabelWrite(getGQLClient, t)),
-	// 	)
+	labels := toolsets.NewToolset(ToolsetLabels.ID, ToolsetLabels.Description).
+		AddReadTools(
+			// get
+			toolsets.NewServerTool(GetLabel(getGQLClient, t)),
+			// list labels on repo or issue
+			toolsets.NewServerTool(ListLabels(getGQLClient, t)),
+		).
+		AddWriteTools(
+			// create or update
+			toolsets.NewServerTool(LabelWrite(getGQLClient, t)),
+		)
 
 	// Add toolsets to the group
 	tsg.AddToolset(contextTools)
@@ -377,7 +377,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(securityAdvisories)
 	// tsg.AddToolset(projects)
 	// tsg.AddToolset(stargazers)
-	// tsg.AddToolset(labels)
+	tsg.AddToolset(labels)
 
 	return tsg
 }
