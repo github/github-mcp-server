@@ -313,15 +313,15 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(GetTeamMembers(getGQLClient, t)),
 		)
 
-	// gists := toolsets.NewToolset(ToolsetMetadataGists.ID, ToolsetMetadataGists.Description).
-	// 	AddReadTools(
-	// 		toolsets.NewServerTool(ListGists(getClient, t)),
-	// 		toolsets.NewServerTool(GetGist(getClient, t)),
-	// 	).
-	// 	AddWriteTools(
-	// 		toolsets.NewServerTool(CreateGist(getClient, t)),
-	// 		toolsets.NewServerTool(UpdateGist(getClient, t)),
-	// 	)
+	gists := toolsets.NewToolset(ToolsetMetadataGists.ID, ToolsetMetadataGists.Description).
+		AddReadTools(
+			toolsets.NewServerTool(ListGists(getClient, t)),
+			toolsets.NewServerTool(GetGist(getClient, t)),
+		).
+		AddWriteTools(
+			toolsets.NewServerTool(CreateGist(getClient, t)),
+			toolsets.NewServerTool(UpdateGist(getClient, t)),
+		)
 
 	// projects := toolsets.NewToolset(ToolsetMetadataProjects.ID, ToolsetMetadataProjects.Description).
 	// 	AddReadTools(
@@ -372,7 +372,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	// tsg.AddToolset(notifications)
 	// tsg.AddToolset(experiments)
 	// tsg.AddToolset(discussions)
-	// tsg.AddToolset(gists)
+	tsg.AddToolset(gists)
 	// tsg.AddToolset(securityAdvisories)
 	// tsg.AddToolset(projects)
 	// tsg.AddToolset(stargazers)
