@@ -428,20 +428,40 @@ The following sets of tools are available:
 
 <summary>Actions</summary>
 
-- **cancel_workflow_run** - Cancel workflow run
+- **actions_get** - Get details of GitHub Actions resources (workflows, workflow runs, jobs, and artifacts)
+  - `action`: The action to perform (string, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
-  - `run_id`: The unique identifier of the workflow run (number, required)
+  - `resource_id`: The unique identifier of the resource. This will vary based on the "action" provided, so ensure you provide the correct ID:
+- Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'get_workflow' action.
+- Provide a workflow run ID for 'get_workflow_run', 'download_workflow_run_artifact' and 'get_workflow_run_usage' actions.
+- Provide a job ID for the 'get_workflow_job' action.
+ (string, required)
+
+- **actions_list** - List GitHub Actions workflows in a repository
+  - `action`: The action to perform (string, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
+  - `resource_id`: The unique identifier of the resource. This will vary based on the "action" provided, so ensure you provide the correct ID:
+- Do not provide any resource ID for 'list_workflows' action.
+- Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'list_workflow_runs' actions.
+- Provide a workflow run ID for 'list_workflow_jobs' and 'list_workflow_run_artifacts' actions.
+ (string, optional)
+  - `workflow_jobs_filter`: Filters for workflow jobs. **ONLY** used when action is 'list_workflow_jobs' (object, optional)
+  - `workflow_runs_filter`: Filters for workflow runs. **ONLY** used when action is 'list_workflow_runs' (object, optional)
+
+- **actions_run_trigger** - Trigger GitHub Actions workflow actions for a specific workflow run.
+  - `action`: The action to trigger (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `run_id`: The ID of the workflow run to trigger (number, required)
 
 - **delete_workflow_run_logs** - Delete workflow logs
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)
-
-- **download_workflow_run_artifact** - Download workflow artifact
-  - `artifact_id`: The unique identifier of the artifact (number, required)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
 
 - **get_job_logs** - Get job logs
   - `failed_only`: When true, gets logs for all failed jobs in run_id (boolean, optional)
@@ -452,59 +472,7 @@ The following sets of tools are available:
   - `run_id`: Workflow run ID (required when using failed_only) (number, optional)
   - `tail_lines`: Number of lines to return from the end of the log (number, optional)
 
-- **get_workflow_run** - Get workflow run
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `run_id`: The unique identifier of the workflow run (number, required)
-
 - **get_workflow_run_logs** - Get workflow run logs
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `run_id`: The unique identifier of the workflow run (number, required)
-
-- **get_workflow_run_usage** - Get workflow usage
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `run_id`: The unique identifier of the workflow run (number, required)
-
-- **list_workflow_jobs** - List workflow jobs
-  - `filter`: Filters jobs by their completed_at timestamp (string, optional)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-  - `run_id`: The unique identifier of the workflow run (number, required)
-
-- **list_workflow_run_artifacts** - List workflow artifacts
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-  - `run_id`: The unique identifier of the workflow run (number, required)
-
-- **list_workflow_runs** - List workflow runs
-  - `actor`: Returns someone's workflow runs. Use the login for the user who created the workflow run. (string, optional)
-  - `branch`: Returns workflow runs associated with a branch. Use the name of the branch. (string, optional)
-  - `event`: Returns workflow runs for a specific event type (string, optional)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-  - `status`: Returns workflow runs with the check run status (string, optional)
-  - `workflow_id`: The workflow ID or workflow file name (string, required)
-
-- **list_workflows** - List workflows
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `repo`: Repository name (string, required)
-
-- **rerun_failed_jobs** - Rerun failed jobs
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `run_id`: The unique identifier of the workflow run (number, required)
-
-- **rerun_workflow_run** - Rerun workflow run
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)
