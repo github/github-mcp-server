@@ -295,13 +295,13 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	// 		toolsets.NewServerTool(DeleteWorkflowRunLogs(getClient, t)),
 	// 	)
 
-	// securityAdvisories := toolsets.NewToolset(ToolsetMetadataSecurityAdvisories.ID, ToolsetMetadataSecurityAdvisories.Description).
-	// 	AddReadTools(
-	// 		toolsets.NewServerTool(ListGlobalSecurityAdvisories(getClient, t)),
-	// 		toolsets.NewServerTool(GetGlobalSecurityAdvisory(getClient, t)),
-	// 		toolsets.NewServerTool(ListRepositorySecurityAdvisories(getClient, t)),
-	// 		toolsets.NewServerTool(ListOrgRepositorySecurityAdvisories(getClient, t)),
-	// 	)
+	securityAdvisories := toolsets.NewToolset(ToolsetMetadataSecurityAdvisories.ID, ToolsetMetadataSecurityAdvisories.Description).
+		AddReadTools(
+			toolsets.NewServerTool(ListGlobalSecurityAdvisories(getClient, t)),
+			toolsets.NewServerTool(GetGlobalSecurityAdvisory(getClient, t)),
+			toolsets.NewServerTool(ListRepositorySecurityAdvisories(getClient, t)),
+			toolsets.NewServerTool(ListOrgRepositorySecurityAdvisories(getClient, t)),
+		)
 
 	// // Keep experiments alive so the system doesn't error out when it's always enabled
 	// experiments := toolsets.NewToolset(ToolsetMetadataExperiments.ID, ToolsetMetadataExperiments.Description)
@@ -373,7 +373,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	// tsg.AddToolset(experiments)
 	// tsg.AddToolset(discussions)
 	// tsg.AddToolset(gists)
-	// tsg.AddToolset(securityAdvisories)
+	tsg.AddToolset(securityAdvisories)
 	// tsg.AddToolset(projects)
 	// tsg.AddToolset(stargazers)
 	// tsg.AddToolset(labels)
