@@ -268,13 +268,13 @@ func OptionalBigIntArrayParam(args map[string]any, p string) ([]int64, error) {
 // https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api
 func WithPagination(schema *jsonschema.Schema) *jsonschema.Schema {
 	schema.Properties["page"] = &jsonschema.Schema{
-		Type:        "Number",
+		Type:        "number",
 		Description: "Page number for pagination (min 1)",
 		Minimum:     jsonschema.Ptr(1.0),
 	}
 
 	schema.Properties["perPage"] = &jsonschema.Schema{
-		Type:        "Number",
+		Type:        "number",
 		Description: "Results per page for pagination (min 1, max 100)",
 		Minimum:     jsonschema.Ptr(1.0),
 		Maximum:     jsonschema.Ptr(100.0),
@@ -287,20 +287,20 @@ func WithPagination(schema *jsonschema.Schema) *jsonschema.Schema {
 // GraphQL tools will use this and convert page/perPage to GraphQL cursor parameters internally.
 func WithUnifiedPagination(schema *jsonschema.Schema) *jsonschema.Schema {
 	schema.Properties["page"] = &jsonschema.Schema{
-		Type:        "Number",
+		Type:        "number",
 		Description: "Page number for pagination (min 1)",
 		Minimum:     jsonschema.Ptr(1.0),
 	}
 
 	schema.Properties["perPage"] = &jsonschema.Schema{
-		Type:        "Number",
+		Type:        "number",
 		Description: "Results per page for pagination (min 1, max 100)",
 		Minimum:     jsonschema.Ptr(1.0),
 		Maximum:     jsonschema.Ptr(100.0),
 	}
 
 	schema.Properties["after"] = &jsonschema.Schema{
-		Type:        "String",
+		Type:        "string",
 		Description: "Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs.",
 	}
 
@@ -310,14 +310,14 @@ func WithUnifiedPagination(schema *jsonschema.Schema) *jsonschema.Schema {
 // WithCursorPagination adds only cursor-based pagination parameters to a tool (no page parameter).
 func WithCursorPagination(schema *jsonschema.Schema) *jsonschema.Schema {
 	schema.Properties["perPage"] = &jsonschema.Schema{
-		Type:        "Number",
+		Type:        "number",
 		Description: "Results per page for pagination (min 1, max 100)",
 		Minimum:     jsonschema.Ptr(1.0),
 		Maximum:     jsonschema.Ptr(100.0),
 	}
 
 	schema.Properties["after"] = &jsonschema.Schema{
-		Type:        "String",
+		Type:        "string",
 		Description: "Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs.",
 	}
 

@@ -36,61 +36,58 @@ type UserDetails struct {
 
 // GetMe creates a tool to get details of the authenticated user.
 func GetMe(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	tool := mcp.Tool{
-		Name:        "get_me",
-		Description: t("TOOL_GET_ME_DESCRIPTION", "Get details of the authenticated GitHub user. Use this when a request is about the user's own profile for GitHub. Or when information is missing to build other tool calls."),
-		Annotations: &mcp.ToolAnnotations{
-			Title:        t("TOOL_GET_ME_USER_TITLE", "Get my user profile"),
-			ReadOnlyHint: true,
-		},
-	}
-
-	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
-		client, err := getClient(ctx)
-		if err != nil {
-			return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, err
-		}
-
-		user, res, err := client.Users.Get(ctx, "")
-		if err != nil {
-			return ghErrors.NewGitHubAPIErrorResponse(ctx,
-				"failed to get user",
-				res,
-				err,
-			), nil, err
-		}
-
-		// Create minimal user representation instead of returning full user object
-		minimalUser := MinimalUser{
-			Login:      user.GetLogin(),
-			ID:         user.GetID(),
-			ProfileURL: user.GetHTMLURL(),
-			AvatarURL:  user.GetAvatarURL(),
-			Details: &UserDetails{
-				Name:              user.GetName(),
-				Company:           user.GetCompany(),
-				Blog:              user.GetBlog(),
-				Location:          user.GetLocation(),
-				Email:             user.GetEmail(),
-				Hireable:          user.GetHireable(),
-				Bio:               user.GetBio(),
-				TwitterUsername:   user.GetTwitterUsername(),
-				PublicRepos:       user.GetPublicRepos(),
-				PublicGists:       user.GetPublicGists(),
-				Followers:         user.GetFollowers(),
-				Following:         user.GetFollowing(),
-				CreatedAt:         user.GetCreatedAt().Time,
-				UpdatedAt:         user.GetUpdatedAt().Time,
-				PrivateGists:      user.GetPrivateGists(),
-				TotalPrivateRepos: user.GetTotalPrivateRepos(),
-				OwnedPrivateRepos: user.GetOwnedPrivateRepos(),
+	return mcp.Tool{
+			Name:        "get_me",
+			Description: t("TOOL_GET_ME_DESCRIPTION", "Get details of the authenticated GitHub user. Use this when a request is about the user's own profile for GitHub. Or when information is missing to build other tool calls."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_GET_ME_USER_TITLE", "Get my user profile"),
+				ReadOnlyHint: true,
 			},
-		}
+		},
+		mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
+			client, err := getClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, err
+			}
 
-		return MarshalledTextResult(minimalUser), nil, nil
-	})
+			user, res, err := client.Users.Get(ctx, "")
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to get user",
+					res,
+					err,
+				), nil, err
+			}
 
-	return tool, handler
+			// Create minimal user representation instead of returning full user object
+			minimalUser := MinimalUser{
+				Login:      user.GetLogin(),
+				ID:         user.GetID(),
+				ProfileURL: user.GetHTMLURL(),
+				AvatarURL:  user.GetAvatarURL(),
+				Details: &UserDetails{
+					Name:              user.GetName(),
+					Company:           user.GetCompany(),
+					Blog:              user.GetBlog(),
+					Location:          user.GetLocation(),
+					Email:             user.GetEmail(),
+					Hireable:          user.GetHireable(),
+					Bio:               user.GetBio(),
+					TwitterUsername:   user.GetTwitterUsername(),
+					PublicRepos:       user.GetPublicRepos(),
+					PublicGists:       user.GetPublicGists(),
+					Followers:         user.GetFollowers(),
+					Following:         user.GetFollowing(),
+					CreatedAt:         user.GetCreatedAt().Time,
+					UpdatedAt:         user.GetUpdatedAt().Time,
+					PrivateGists:      user.GetPrivateGists(),
+					TotalPrivateRepos: user.GetTotalPrivateRepos(),
+					OwnedPrivateRepos: user.GetOwnedPrivateRepos(),
+				},
+			}
+
+			return MarshalledTextResult(minimalUser), nil, nil
+		})
 }
 
 type TeamInfo struct {
