@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/google/go-github/v76/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/require"
 )

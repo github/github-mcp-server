@@ -10,7 +10,7 @@ import (
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v76/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/shurcooL/githubv4"
 
 	"github.com/migueleliasweb/go-github-mock/src/mock"
@@ -21,7 +21,7 @@ import (
 func Test_GetPullRequest(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := PullRequestRead(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := PullRequestRead(stubGetClientFn(mockClient), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "pull_request_read", tool.Name)
@@ -102,7 +102,7 @@ func Test_GetPullRequest(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := PullRequestRead(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := PullRequestRead(stubGetClientFn(client), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1133,7 +1133,7 @@ func Test_SearchPullRequests(t *testing.T) {
 func Test_GetPullRequestFiles(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := PullRequestRead(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := PullRequestRead(stubGetClientFn(mockClient), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "pull_request_read", tool.Name)
@@ -1236,7 +1236,7 @@ func Test_GetPullRequestFiles(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := PullRequestRead(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := PullRequestRead(stubGetClientFn(client), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1277,7 +1277,7 @@ func Test_GetPullRequestFiles(t *testing.T) {
 func Test_GetPullRequestStatus(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := PullRequestRead(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := PullRequestRead(stubGetClientFn(mockClient), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "pull_request_read", tool.Name)
@@ -1404,7 +1404,7 @@ func Test_GetPullRequestStatus(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := PullRequestRead(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := PullRequestRead(stubGetClientFn(client), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1566,7 +1566,7 @@ func Test_UpdatePullRequestBranch(t *testing.T) {
 func Test_GetPullRequestComments(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := PullRequestRead(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := PullRequestRead(stubGetClientFn(mockClient), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "pull_request_read", tool.Name)
@@ -1658,7 +1658,7 @@ func Test_GetPullRequestComments(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := PullRequestRead(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := PullRequestRead(stubGetClientFn(client), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1700,7 +1700,7 @@ func Test_GetPullRequestComments(t *testing.T) {
 func Test_GetPullRequestReviews(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := PullRequestRead(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := PullRequestRead(stubGetClientFn(mockClient), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "pull_request_read", tool.Name)
@@ -1788,7 +1788,7 @@ func Test_GetPullRequestReviews(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := PullRequestRead(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := PullRequestRead(stubGetClientFn(client), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -2555,9 +2555,74 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 						PullRequestReviewID: githubv4.NewID("PR_kwDODKw3uc6WYN1T"),
 					},
 					nil,
-					githubv4mock.DataResponse(map[string]any{}),
+					githubv4mock.DataResponse(map[string]any{
+						"addPullRequestReviewThread": map[string]any{
+							"thread": map[string]any{
+								"id": "MDEyOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMTIzNDU2",
+							},
+						},
+					}),
 				),
 			),
+		},
+		{
+			name: "thread ID is nil - invalid line number",
+			requestArgs: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"pullNumber":  float64(42),
+				"path":        "file.go",
+				"body":        "Comment on non-existent line",
+				"subjectType": "LINE",
+				"line":        float64(999),
+				"side":        "RIGHT",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				viewerQuery("williammartin"),
+				getLatestPendingReviewQuery(getLatestPendingReviewQueryParams{
+					author: "williammartin",
+					owner:  "owner",
+					repo:   "repo",
+					prNum:  42,
+
+					reviews: []getLatestPendingReviewQueryReview{
+						{
+							id:    "PR_kwDODKw3uc6WYN1T",
+							state: "PENDING",
+							url:   "https://github.com/owner/repo/pull/42",
+						},
+					},
+				}),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						AddPullRequestReviewThread struct {
+							Thread struct {
+								ID githubv4.ID
+							}
+						} `graphql:"addPullRequestReviewThread(input: $input)"`
+					}{},
+					githubv4.AddPullRequestReviewThreadInput{
+						Path:                githubv4.String("file.go"),
+						Body:                githubv4.String("Comment on non-existent line"),
+						SubjectType:         githubv4mock.Ptr(githubv4.PullRequestReviewThreadSubjectTypeLine),
+						Line:                githubv4.NewInt(999),
+						Side:                githubv4mock.Ptr(githubv4.DiffSideRight),
+						StartLine:           nil,
+						StartSide:           nil,
+						PullRequestReviewID: githubv4.NewID("PR_kwDODKw3uc6WYN1T"),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"addPullRequestReviewThread": map[string]any{
+							"thread": map[string]any{
+								"id": nil,
+							},
+						},
+					}),
+				),
+			),
+			expectToolError:    true,
+			expectedToolErrMsg: "Failed to add comment to pending review",
 		},
 	}
 
@@ -2789,7 +2854,7 @@ func TestGetPullRequestDiff(t *testing.T) {
 
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := PullRequestRead(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := PullRequestRead(stubGetClientFn(mockClient), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "pull_request_read", tool.Name)
@@ -2847,7 +2912,7 @@ index 5d6e7b2..8a4f5c3 100644
 
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := PullRequestRead(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := PullRequestRead(stubGetClientFn(client), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
