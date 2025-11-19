@@ -10,14 +10,6 @@ import (
 
 // IssueToFixWorkflowPrompt provides a guided workflow for creating an issue and then generating a PR to fix it
 func IssueToFixWorkflowPrompt(t translations.TranslationHelperFunc) (tool mcp.Prompt, handler mcp.PromptHandler) {
-	// return mcp.NewPrompt("IssueToFixWorkflow",
-	// 		mcp.WithPromptDescription(t("PROMPT_ISSUE_TO_FIX_WORKFLOW_DESCRIPTION", "Create an issue for a problem and then generate a pull request to fix it")),
-	// 		mcp.WithArgument("owner", mcp.ArgumentDescription("Repository owner"), mcp.RequiredArgument()),
-	// 		mcp.WithArgument("repo", mcp.ArgumentDescription("Repository name"), mcp.RequiredArgument()),
-	// 		mcp.WithArgument("title", mcp.ArgumentDescription("Issue title"), mcp.RequiredArgument()),
-	// 		mcp.WithArgument("description", mcp.ArgumentDescription("Issue description"), mcp.RequiredArgument()),
-	// 		mcp.WithArgument("labels", mcp.ArgumentDescription("Comma-separated list of labels to apply (optional)")),
-	// 		mcp.WithArgument("assignees", mcp.ArgumentDescription("Comma-separated list of assignees (optional)")),
 	return mcp.Prompt{
 			Name:        "issue_to_fix_workflow",
 			Description: t("PROMPT_ISSUE_TO_FIX_WORKFLOW_DESCRIPTION", "Create an issue for a problem and then generate a pull request to fix it"),
