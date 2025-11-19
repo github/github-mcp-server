@@ -1,9 +1,11 @@
 package github
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -20,8 +22,102 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var defaultGQLClient *githubv4.Client = githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
+var defaultGQLClient *githubv4.Client = githubv4.NewClient(newRepoAccessHTTPClient())
 var repoAccessCache *lockdown.RepoAccessCache = stubRepoAccessCache(defaultGQLClient, 15*time.Minute)
+
+type repoAccessKey struct {
+	owner    string
+	repo     string
+	username string
+}
+
+type repoAccessValue struct {
+	isPrivate  bool
+	permission string
+}
+
+type repoAccessMockTransport struct {
+	responses map[repoAccessKey]repoAccessValue
+}
+
+func newRepoAccessHTTPClient() *http.Client {
+	responses := map[repoAccessKey]repoAccessValue{
+		{owner: "owner2", repo: "repo2", username: "testuser2"}: {isPrivate: true},
+		{owner: "owner", repo: "repo", username: "testuser"}:    {isPrivate: false, permission: "READ"},
+	}
+
+	return &http.Client{Transport: &repoAccessMockTransport{responses: responses}}
+}
+
+func (rt *repoAccessMockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Body == nil {
+		return nil, fmt.Errorf("missing request body")
+	}
+
+	var payload struct {
+		Query     string         `json:"query"`
+		Variables map[string]any `json:"variables"`
+	}
+
+	if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+	_ = req.Body.Close()
+
+	owner := toString(payload.Variables["owner"])
+	repo := toString(payload.Variables["name"])
+	username := toString(payload.Variables["username"])
+
+	value, ok := rt.responses[repoAccessKey{owner: owner, repo: repo, username: username}]
+	if !ok {
+		value = repoAccessValue{isPrivate: false, permission: "WRITE"}
+	}
+
+	edges := []any{}
+	if value.permission != "" {
+		edges = append(edges, map[string]any{
+			"permission": value.permission,
+			"node": map[string]any{
+				"login": username,
+			},
+		})
+	}
+
+	responseBody, err := json.Marshal(map[string]any{
+		"data": map[string]any{
+			"repository": map[string]any{
+				"isPrivate": value.isPrivate,
+				"collaborators": map[string]any{
+					"edges": edges,
+				},
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(bytes.NewReader(responseBody)),
+	}
+	resp.Header.Set("Content-Type", "application/json")
+	return resp, nil
+}
+
+func toString(v any) string {
+	switch value := v.(type) {
+	case string:
+		return value
+	case fmt.Stringer:
+		return value.String()
+	case nil:
+		return ""
+	default:
+		return fmt.Sprintf("%v", value)
+	}
+}
 
 func Test_GetIssue(t *testing.T) {
 	// Verify tool definition once
@@ -55,6 +151,22 @@ func Test_GetIssue(t *testing.T) {
 			},
 		},
 	}
+	mockIssue2 := &github.Issue{
+		Number:  github.Ptr(422),
+		Title:   github.Ptr("Test Issue 2"),
+		Body:    github.Ptr("This is a test issue 2"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
+		User: &github.User{
+			Login: github.Ptr("testuser2"),
+		},
+		Repository: &github.Repository{
+			Name: github.Ptr("repo2"),
+			Owner: &github.User{
+				Login: github.Ptr("owner2"),
+			},
+		},
+	}
 
 	tests := []struct {
 		name               string
@@ -77,8 +189,8 @@ func Test_GetIssue(t *testing.T) {
 			),
 			requestArgs: map[string]interface{}{
 				"method":       "get",
-				"owner":        "owner",
-				"repo":         "repo",
+				"owner":        "owner2",
+				"repo":         "repo2",
 				"issue_number": float64(42),
 			},
 			expectedIssue: mockIssue,
@@ -105,7 +217,7 @@ func Test_GetIssue(t *testing.T) {
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatch(
 					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
-					mockIssue,
+					mockIssue2,
 				),
 			),
 			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
@@ -124,9 +236,9 @@ func Test_GetIssue(t *testing.T) {
 						} `graphql:"repository(owner: $owner, name: $name)"`
 					}{},
 					map[string]any{
-						"owner":    githubv4.String("owner"),
-						"name":     githubv4.String("repo"),
-						"username": githubv4.String("testuser"),
+						"owner":    githubv4.String("owner2"),
+						"name":     githubv4.String("repo2"),
+						"username": githubv4.String("testuser2"),
 					},
 					githubv4mock.DataResponse(map[string]any{
 						"repository": map[string]any{
@@ -140,11 +252,11 @@ func Test_GetIssue(t *testing.T) {
 			),
 			requestArgs: map[string]interface{}{
 				"method":       "get",
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(42),
+				"owner":        "owner2",
+				"repo":         "repo2",
+				"issue_number": float64(422),
 			},
-			expectedIssue:   mockIssue,
+			expectedIssue:   mockIssue2,
 			lockdownEnabled: true,
 		},
 		{

@@ -73,35 +73,18 @@ func GetInstance(client *githubv4.Client, opts ...RepoAccessOption) *RepoAccessC
 	instanceMu.Lock()
 	defer instanceMu.Unlock()
 	if instance == nil {
-		instance = newRepoAccessCache(client, opts...)
-	}
-	return instance
-}
-
-// NewRepoAccessCache constructs a repo access cache without mutating the global singleton.
-// This helper is useful for tests that need isolated cache instances.
-func NewRepoAccessCache(client *githubv4.Client, opts ...RepoAccessOption) *RepoAccessCache {
-	return newRepoAccessCache(client, opts...)
-}
-
-// newRepoAccessCache creates a new cache instance. This is a private helper function
-// used by GetInstance.
-func newRepoAccessCache(client *githubv4.Client, opts ...RepoAccessOption) *RepoAccessCache {
-	c := &RepoAccessCache{
-		client: client,
-		cache:  cache2go.Cache(defaultRepoAccessCacheKey),
-		ttl:    defaultRepoAccessTTL,
-	}
-	for _, opt := range opts {
-		if opt != nil {
-			opt(c)
+		instance = &RepoAccessCache{
+			client: client,
+			cache:  cache2go.Cache(defaultRepoAccessCacheKey),
+			ttl:    defaultRepoAccessTTL,
+		}
+		for _, opt := range opts {
+			if opt != nil {
+				opt(instance)
+			}
 		}
 	}
-	if c.cache == nil {
-		c.cache = cache2go.Cache(defaultRepoAccessCacheKey)
-	}
-	c.logInfo("repo access cache initialized", "ttl", c.ttl)
-	return c
+	return instance
 }
 
 // SetLogger updates the logger used for cache diagnostics.
@@ -215,11 +198,5 @@ func cacheKey(owner, repo string) string {
 func (c *RepoAccessCache) logDebug(msg string, args ...any) {
 	if c != nil && c.logger != nil {
 		c.logger.Debug(msg, args...)
-	}
-}
-
-func (c *RepoAccessCache) logInfo(msg string, args ...any) {
-	if c != nil && c.logger != nil {
-		c.logger.Info(msg, args...)
 	}
 }
