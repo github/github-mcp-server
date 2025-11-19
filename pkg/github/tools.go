@@ -159,6 +159,7 @@ func GetDefaultToolsetIDs() []string {
 	}
 }
 
+//nolint:unused
 func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetGQLClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc, contentWindowSize int, flags FeatureFlags) *toolsets.ToolsetGroup {
 	tsg := toolsets.NewToolsetGroup(readOnly)
 
@@ -239,11 +240,11 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	// 		toolsets.NewServerTool(PullRequestReviewWrite(getGQLClient, t)),
 	// 		toolsets.NewServerTool(AddCommentToPendingReview(getGQLClient, t)),
 	// 	)
-	// codeSecurity := toolsets.NewToolset(ToolsetMetadataCodeSecurity.ID, ToolsetMetadataCodeSecurity.Description).
-	// 	AddReadTools(
-	// 		toolsets.NewServerTool(GetCodeScanningAlert(getClient, t)),
-	// 		toolsets.NewServerTool(ListCodeScanningAlerts(getClient, t)),
-	// 	)
+	codeSecurity := toolsets.NewToolset(ToolsetMetadataCodeSecurity.ID, ToolsetMetadataCodeSecurity.Description).
+		AddReadTools(
+			toolsets.NewServerTool(GetCodeScanningAlert(getClient, t)),
+			toolsets.NewServerTool(ListCodeScanningAlerts(getClient, t)),
+		)
 	// secretProtection := toolsets.NewToolset(ToolsetMetadataSecretProtection.ID, ToolsetMetadataSecretProtection.Description).
 	// 	AddReadTools(
 	// 		toolsets.NewServerTool(GetSecretScanningAlert(getClient, t)),
@@ -313,15 +314,15 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(GetTeamMembers(getGQLClient, t)),
 		)
 
-	// gists := toolsets.NewToolset(ToolsetMetadataGists.ID, ToolsetMetadataGists.Description).
-	// 	AddReadTools(
-	// 		toolsets.NewServerTool(ListGists(getClient, t)),
-	// 		toolsets.NewServerTool(GetGist(getClient, t)),
-	// 	).
-	// 	AddWriteTools(
-	// 		toolsets.NewServerTool(CreateGist(getClient, t)),
-	// 		toolsets.NewServerTool(UpdateGist(getClient, t)),
-	// 	)
+	gists := toolsets.NewToolset(ToolsetMetadataGists.ID, ToolsetMetadataGists.Description).
+		AddReadTools(
+			toolsets.NewServerTool(ListGists(getClient, t)),
+			toolsets.NewServerTool(GetGist(getClient, t)),
+		).
+		AddWriteTools(
+			toolsets.NewServerTool(CreateGist(getClient, t)),
+			toolsets.NewServerTool(UpdateGist(getClient, t)),
+		)
 
 	// projects := toolsets.NewToolset(ToolsetMetadataProjects.ID, ToolsetMetadataProjects.Description).
 	// 	AddReadTools(
@@ -366,13 +367,13 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	// tsg.AddToolset(users)
 	// tsg.AddToolset(pullRequests)
 	// tsg.AddToolset(actions)
-	// tsg.AddToolset(codeSecurity)
+	tsg.AddToolset(codeSecurity)
 	// tsg.AddToolset(secretProtection)
 	// tsg.AddToolset(dependabot)
 	// tsg.AddToolset(notifications)
 	// tsg.AddToolset(experiments)
 	// tsg.AddToolset(discussions)
-	// tsg.AddToolset(gists)
+	tsg.AddToolset(gists)
 	tsg.AddToolset(securityAdvisories)
 	// tsg.AddToolset(projects)
 	// tsg.AddToolset(stargazers)
@@ -382,6 +383,8 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 }
 
 // InitDynamicToolset creates a dynamic toolset that can be used to enable other toolsets, and so requires the server and toolset group as arguments
+//
+//nolint:unused
 func InitDynamicToolset(s *mcp.Server, tsg *toolsets.ToolsetGroup, t translations.TranslationHelperFunc) *toolsets.Toolset {
 	// Create a new dynamic toolset
 	// Need to add the dynamic toolset last so it can be used to enable other toolsets

@@ -57,8 +57,6 @@ type MCPServerConfig struct {
 	Logger *slog.Logger
 }
 
-const stdioServerLogPrefix = "stdioserver"
-
 func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	apiHost, err := parseAPIHost(cfg.Host)
 	if err != nil {
