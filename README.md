@@ -400,6 +400,7 @@ The following sets of tools are available:
 | `discussions` | GitHub Discussions related tools |
 | `experiments` | Experimental features that are not considered stable yet |
 | `gists` | GitHub Gist related tools |
+| `git` | GitHub Git API related tools for low-level Git operations |
 | `issues` | GitHub Issues related tools |
 | `labels` | GitHub Labels related tools |
 | `notifications` | GitHub Notifications related tools |
@@ -413,7 +414,7 @@ The following sets of tools are available:
 | `users` | GitHub User related tools |
 <!-- END AUTOMATED TOOLSETS -->
 
-### Additional Toolsets in Remote Github MCP Server
+### Additional Toolsets in Remote GitHub MCP Server
 
 | Toolset                 | Description                                                   |
 | ----------------------- | ------------------------------------------------------------- |
@@ -593,6 +594,19 @@ The following sets of tools are available:
   - `description`: Updated description of the gist (string, optional)
   - `filename`: Filename to update or create (string, required)
   - `gist_id`: ID of the gist to update (string, required)
+
+</details>
+
+<details>
+
+<summary>Git</summary>
+
+- **get_repository_tree** - Get repository tree
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `path_filter`: Optional path prefix to filter the tree results (e.g., 'src/' to only show files in the src directory) (string, optional)
+  - `recursive`: Setting this parameter to true returns the objects or subtrees referenced by the tree. Default is false (boolean, optional)
+  - `repo`: Repository name (string, required)
+  - `tree_sha`: The SHA1 value or ref (branch or tag) name of the tree. Defaults to the repository's default branch (string, optional)
 
 </details>
 
@@ -798,24 +812,30 @@ Options are:
   - `project_number`: The project's number. (number, required)
 
 - **list_project_fields** - List project fields
+  - `after`: Forward pagination cursor from previous pageInfo.nextCursor. (string, optional)
+  - `before`: Backward pagination cursor from previous pageInfo.prevCursor (rare). (string, optional)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
-  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
+  - `per_page`: Results per page (max 50) (number, optional)
   - `project_number`: The project's number. (number, required)
 
 - **list_project_items** - List project items
-  - `fields`: Specific list of field IDs to include in the response (e.g. ["102589", "985201", "169875"]). If not provided, only the title field is included. (string[], optional)
+  - `after`: Forward pagination cursor from previous pageInfo.nextCursor. (string, optional)
+  - `before`: Backward pagination cursor from previous pageInfo.prevCursor (rare). (string, optional)
+  - `fields`: Field IDs to include (e.g. ["102589", "985201"]). CRITICAL: Always provide to get field values. Without this, only titles returned. (string[], optional)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
-  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
+  - `per_page`: Results per page (max 50) (number, optional)
   - `project_number`: The project's number. (number, required)
-  - `query`: Search query to filter items (string, optional)
+  - `query`: Query string for advanced filtering of project items using GitHub's project filtering syntax. (string, optional)
 
 - **list_projects** - List projects
+  - `after`: Forward pagination cursor from previous pageInfo.nextCursor. (string, optional)
+  - `before`: Backward pagination cursor from previous pageInfo.prevCursor (rare). (string, optional)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
-  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
-  - `query`: Filter projects by a search query (matches title and description) (string, optional)
+  - `per_page`: Results per page (max 50) (number, optional)
+  - `query`: Filter projects by title text and open/closed state; permitted qualifiers: is:open, is:closed; examples: "roadmap is:open", "is:open feature planning". (string, optional)
 
 - **update_project_item** - Update project item
   - `item_id`: The unique identifier of the project item. This is not the issue or pull request ID. (number, required)
@@ -1136,7 +1156,7 @@ Possible options:
 </details>
 <!-- END AUTOMATED TOOLS -->
 
-### Additional Tools in Remote Github MCP Server
+### Additional Tools in Remote GitHub MCP Server
 
 <details>
 
@@ -1172,7 +1192,7 @@ Possible options:
 
 ## Dynamic Tool Discovery
 
-**Note**: This feature is currently in beta and may not be available in all environments. Please test it out and let us know if you encounter any issues.
+**Note**: This feature is currently in beta and is not available in the Remote GitHub MCP Server. Please test it out and let us know if you encounter any issues.
 
 Instead of starting with all tools enabled, you can turn on dynamic toolset discovery. Dynamic toolsets allow the MCP host to list and enable toolsets in response to a user prompt. This should help to avoid situations where the model gets confused by the sheer number of tools available.
 
@@ -1209,6 +1229,25 @@ docker run -i --rm \
   -e GITHUB_READ_ONLY=1 \
   ghcr.io/github/github-mcp-server
 ```
+
+## Lockdown Mode
+
+Lockdown mode limits the content that the server will surface from public repositories. When enabled, requests that fetch issue details will return an error if the issue was created by someone who does not have push access to the repository. Private repositories are unaffected, and collaborators can still access their own issues.
+
+```bash
+./github-mcp-server --lockdown-mode
+```
+
+When running with Docker, set the corresponding environment variable:
+
+```bash
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_LOCKDOWN_MODE=1 \
+  ghcr.io/github/github-mcp-server
+```
+
+At the moment lockdown mode applies to the issue read toolset, but it is designed to extend to additional data surfaces over time.
 
 ## i18n / Overriding Descriptions
 

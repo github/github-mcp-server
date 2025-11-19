@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 
-	"github.com/google/go-github/v76/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -99,6 +100,26 @@ func RequiredInt(r mcp.CallToolRequest, p string) (int, error) {
 	return int(v), nil
 }
 
+// RequiredBigInt is a helper function that can be used to fetch a requested parameter from the request.
+// It does the following checks:
+// 1. Checks if the parameter is present in the request.
+// 2. Checks if the parameter is of the expected type (float64).
+// 3. Checks if the parameter is not empty, i.e: non-zero value.
+// 4. Validates that the float64 value can be safely converted to int64 without truncation.
+func RequiredBigInt(r mcp.CallToolRequest, p string) (int64, error) {
+	v, err := RequiredParam[float64](r, p)
+	if err != nil {
+		return 0, err
+	}
+
+	result := int64(v)
+	// Check if converting back produces the same value to avoid silent truncation
+	if float64(result) != v {
+		return 0, fmt.Errorf("parameter %s value %f is too large to fit in int64", p, v)
+	}
+	return result, nil
+}
+
 // OptionalParam is a helper function that can be used to fetch a requested parameter from the request.
 // It does the following checks:
 // 1. Checks if the parameter is present in the request, if not, it returns its zero-value
@@ -186,6 +207,60 @@ func OptionalStringArrayParam(r mcp.CallToolRequest, p string) ([]string, error)
 		return strSlice, nil
 	default:
 		return []string{}, fmt.Errorf("parameter %s could not be coerced to []string, is %T", p, r.GetArguments()[p])
+	}
+}
+
+func convertStringSliceToBigIntSlice(s []string) ([]int64, error) {
+	int64Slice := make([]int64, len(s))
+	for i, str := range s {
+		val, err := convertStringToBigInt(str, 0)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert element %d (%s) to int64: %w", i, str, err)
+		}
+		int64Slice[i] = val
+	}
+	return int64Slice, nil
+}
+
+func convertStringToBigInt(s string, def int64) (int64, error) {
+	v, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return def, fmt.Errorf("failed to convert string %s to int64: %w", s, err)
+	}
+	return v, nil
+}
+
+// OptionalBigIntArrayParam is a helper function that can be used to fetch a requested parameter from the request.
+// It does the following checks:
+// 1. Checks if the parameter is present in the request, if not, it returns an empty slice
+// 2. If it is present, iterates the elements, checks each is a string, and converts them to int64 values
+func OptionalBigIntArrayParam(r mcp.CallToolRequest, p string) ([]int64, error) {
+	// Check if the parameter is present in the request
+	if _, ok := r.GetArguments()[p]; !ok {
+		return []int64{}, nil
+	}
+
+	switch v := r.GetArguments()[p].(type) {
+	case nil:
+		return []int64{}, nil
+	case []string:
+		return convertStringSliceToBigIntSlice(v)
+	case []any:
+		int64Slice := make([]int64, len(v))
+		for i, v := range v {
+			s, ok := v.(string)
+			if !ok {
+				return []int64{}, fmt.Errorf("parameter %s is not of type string, is %T", p, v)
+			}
+			val, err := convertStringToBigInt(s, 0)
+			if err != nil {
+				return []int64{}, fmt.Errorf("parameter %s: failed to convert element %d (%s) to int64: %w", p, i, s, err)
+			}
+			int64Slice[i] = val
+		}
+		return int64Slice, nil
+	default:
+		return []int64{}, fmt.Errorf("parameter %s could not be coerced to []int64, is %T", p, r.GetArguments()[p])
 	}
 }
 

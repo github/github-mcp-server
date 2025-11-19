@@ -61,6 +61,7 @@ var (
 				EnableCommandLogging: viper.GetBool("enable-command-logging"),
 				LogFilePath:          viper.GetString("log-file"),
 				ContentWindowSize:    viper.GetInt("content-window-size"),
+				LockdownMode:         viper.GetBool("lockdown-mode"),
 			}
 			return ghmcp.RunStdioServer(stdioServerConfig)
 		},
@@ -82,6 +83,7 @@ func init() {
 	rootCmd.PersistentFlags().Bool("export-translations", false, "Save translations to a JSON file")
 	rootCmd.PersistentFlags().String("gh-host", "", "Specify the GitHub hostname (for GitHub Enterprise etc.)")
 	rootCmd.PersistentFlags().Int("content-window-size", 5000, "Specify the content window size")
+	rootCmd.PersistentFlags().Bool("lockdown-mode", false, "Enable lockdown mode")
 
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
@@ -92,6 +94,7 @@ func init() {
 	_ = viper.BindPFlag("export-translations", rootCmd.PersistentFlags().Lookup("export-translations"))
 	_ = viper.BindPFlag("host", rootCmd.PersistentFlags().Lookup("gh-host"))
 	_ = viper.BindPFlag("content-window-size", rootCmd.PersistentFlags().Lookup("content-window-size"))
+	_ = viper.BindPFlag("lockdown-mode", rootCmd.PersistentFlags().Lookup("lockdown-mode"))
 
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)
