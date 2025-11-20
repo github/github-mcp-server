@@ -179,11 +179,11 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 			return nil, fmt.Errorf("failed to enable toolsets: %w", err)
 		}
 
-		// Register all mcp functionality with the server (tools, resources, prompts)
+		// Register all mcp functionality with the server
 		tsg.RegisterAll(ghServer)
 	}
 
-	// Register specific tools if configured (additive to toolsets)
+	// Register specific tools if configured
 	if len(cfg.EnabledTools) > 0 {
 		// Clean and validate tool names
 		enabledTools := github.CleanTools(cfg.EnabledTools)
