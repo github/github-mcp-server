@@ -1350,3 +1350,93 @@ func Test_MemoryUsage_SlidingWindow_vs_NoWindow(t *testing.T) {
 	t.Logf("Sliding window: %s", profile1.String())
 	t.Logf("No window: %s", profile2.String())
 }
+
+func Test_ListWorkflowRuns(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := ListWorkflowRuns(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "list_workflow_runs", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	inputSchema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, inputSchema.Properties, "owner")
+	assert.Contains(t, inputSchema.Properties, "repo")
+	assert.Contains(t, inputSchema.Properties, "workflow_id")
+	assert.ElementsMatch(t, inputSchema.Required, []string{"owner", "repo", "workflow_id"})
+}
+
+func Test_GetWorkflowRun(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := GetWorkflowRun(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "get_workflow_run", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	inputSchema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, inputSchema.Properties, "owner")
+	assert.Contains(t, inputSchema.Properties, "repo")
+	assert.Contains(t, inputSchema.Properties, "run_id")
+	assert.ElementsMatch(t, inputSchema.Required, []string{"owner", "repo", "run_id"})
+}
+
+func Test_GetWorkflowRunLogs(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := GetWorkflowRunLogs(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "get_workflow_run_logs", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	inputSchema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, inputSchema.Properties, "owner")
+	assert.Contains(t, inputSchema.Properties, "repo")
+	assert.Contains(t, inputSchema.Properties, "run_id")
+	assert.ElementsMatch(t, inputSchema.Required, []string{"owner", "repo", "run_id"})
+}
+
+func Test_ListWorkflowJobs(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := ListWorkflowJobs(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "list_workflow_jobs", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	inputSchema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, inputSchema.Properties, "owner")
+	assert.Contains(t, inputSchema.Properties, "repo")
+	assert.Contains(t, inputSchema.Properties, "run_id")
+	assert.ElementsMatch(t, inputSchema.Required, []string{"owner", "repo", "run_id"})
+}
+
+func Test_RerunWorkflowRun(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := RerunWorkflowRun(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "rerun_workflow_run", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	inputSchema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, inputSchema.Properties, "owner")
+	assert.Contains(t, inputSchema.Properties, "repo")
+	assert.Contains(t, inputSchema.Properties, "run_id")
+	assert.ElementsMatch(t, inputSchema.Required, []string{"owner", "repo", "run_id"})
+}
+
+func Test_RerunFailedJobs(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := RerunFailedJobs(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "rerun_failed_jobs", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	inputSchema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, inputSchema.Properties, "owner")
+	assert.Contains(t, inputSchema.Properties, "repo")
+	assert.Contains(t, inputSchema.Properties, "run_id")
+	assert.ElementsMatch(t, inputSchema.Required, []string{"owner", "repo", "run_id"})
+}
