@@ -1,35 +1,34 @@
 {
   "annotations": {
-    "title": "Manage repository notification subscription",
-    "readOnlyHint": false
+    "title": "Manage repository notification subscription"
   },
   "description": "Manage a repository notification subscription: ignore, watch, or delete repository notifications subscription for the provided repository.",
   "inputSchema": {
-    "properties": {
-      "action": {
-        "description": "Action to perform: ignore, watch, or delete the repository notification subscription.",
-        "enum": [
-          "ignore",
-          "watch",
-          "delete"
-        ],
-        "type": "string"
-      },
-      "owner": {
-        "description": "The account owner of the repository.",
-        "type": "string"
-      },
-      "repo": {
-        "description": "The name of the repository.",
-        "type": "string"
-      }
-    },
+    "type": "object",
     "required": [
       "owner",
       "repo",
       "action"
     ],
-    "type": "object"
+    "properties": {
+      "action": {
+        "type": "string",
+        "description": "Action to perform: ignore, watch, or delete the repository notification subscription.",
+        "enum": [
+          "ignore",
+          "watch",
+          "delete"
+        ]
+      },
+      "owner": {
+        "type": "string",
+        "description": "The account owner of the repository."
+      },
+      "repo": {
+        "type": "string",
+        "description": "The name of the repository."
+      }
+    }
   },
   "name": "manage_repository_notification_subscription"
 }
