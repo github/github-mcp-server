@@ -307,6 +307,8 @@ Phase 3 has been successfully completed. Comprehensive tests have been added for
 
 **Commit:** 8d6c3a9 - "Add comprehensive tests for ReplyToReviewComment tool"
 
+**Phase PR:** https://github.com/lossyrob/github-mcp-server/pull/4
+
 **Notes for Reviewers:**
 - E2E test requires `GITHUB_MCP_SERVER_E2E_TOKEN` to run and cannot be executed without a valid GitHub PAT
 - Mock endpoint pattern discovered: go-github's `CreateCommentInReplyTo` uses `/repos/{owner}/{repo}/pulls/{pull_number}/comments` not the `/replies` endpoint
