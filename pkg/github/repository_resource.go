@@ -79,10 +79,10 @@ func GetRepositoryResourcePrContent(getClient GetClientFn, getRawClient raw.GetR
 }
 
 // RepositoryResourceContentsHandler returns a handler function for repository content requests.
-func RepositoryResourceContentsHandler(getClient GetClientFn, getRawClient raw.GetRawClientFn, resourceUriTemplate *uritemplate.Template) mcp.ResourceHandler {
+func RepositoryResourceContentsHandler(getClient GetClientFn, getRawClient raw.GetRawClientFn, resourceURITemplate *uritemplate.Template) mcp.ResourceHandler {
 	return func(ctx context.Context, request *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 		// Match the URI to extract parameters
-		uriValues := resourceUriTemplate.Match(request.Params.URI)
+		uriValues := resourceURITemplate.Match(request.Params.URI)
 		if uriValues == nil {
 			return nil, fmt.Errorf("failed to match URI: %s", request.Params.URI)
 		}
