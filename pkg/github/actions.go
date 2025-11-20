@@ -412,7 +412,7 @@ func ActionsRunTrigger(getClient GetClientFn, t translations.TranslationHelperFu
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
 				Title:           t("TOOL_ACTIONS_TRIGGER_USER_TITLE", "Trigger GitHub Actions workflow actions"),
 				ReadOnlyHint:    ToBoolPtr(false),
-				DestructiveHint: ToBoolPtr(false),
+				DestructiveHint: ToBoolPtr(true),
 			}),
 			mcp.WithString("action",
 				mcp.Required(),
