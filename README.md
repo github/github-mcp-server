@@ -949,6 +949,13 @@ Possible options:
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
+- **reply_to_review_comment** - Reply to a review comment
+  - `body`: Reply text supporting GitHub-flavored Markdown (string, required)
+  - `comment_id`: Review comment ID from pull_request_read (number, required)
+  - `owner`: Repository owner (string, required)
+  - `pull_number`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
 - **request_copilot_review** - Request Copilot review
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
