@@ -125,19 +125,6 @@ func Test_ActionsList_ListWorkflows(t *testing.T) {
 }
 
 func Test_RunWorkflow(t *testing.T) {
-	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := RunWorkflow(stubGetClientFn(mockClient), translations.NullTranslationHelper)
-
-	assert.Equal(t, "run_workflow", tool.Name)
-	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "workflow_id")
-	assert.Contains(t, tool.InputSchema.Properties, "ref")
-	assert.Contains(t, tool.InputSchema.Properties, "inputs")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "workflow_id", "ref"})
-
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
@@ -156,7 +143,7 @@ func Test_RunWorkflow(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      actionsActionTypeGetWorkflowJobLogs.String(),
+				"action":      actionsActionTypeRunWorkflow.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"workflow_id": "12345",
@@ -168,13 +155,13 @@ func Test_RunWorkflow(t *testing.T) {
 			name:         "missing required parameter workflow_id",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
-				"action": actionsActionTypeGetWorkflowJobLogs.String(),
+				"action": actionsActionTypeRunWorkflow.String(),
 				"owner":  "owner",
 				"repo":   "repo",
 				"ref":    "main",
 			},
 			expectError:    true,
-			expectedErrMsg: "missing required parameter: workflow_id",
+			expectedErrMsg: "workflow_id is required for run_workflow action",
 		},
 	}
 
@@ -182,7 +169,7 @@ func Test_RunWorkflow(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := RunWorkflow(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsRunTrigger(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -212,7 +199,7 @@ func Test_RunWorkflow(t *testing.T) {
 }
 
 func Test_RunWorkflow_WithFilename(t *testing.T) {
-	// Test the unified RunWorkflow function with filenames
+	// Test the unified runWorkflow function with filenames
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
@@ -231,7 +218,7 @@ func Test_RunWorkflow_WithFilename(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      actionsActionTypeGetWorkflowJobLogs.String(),
+				"action":      actionsActionTypeRunWorkflow.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"workflow_id": "ci.yml",
@@ -250,7 +237,7 @@ func Test_RunWorkflow_WithFilename(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action":      actionsActionTypeGetWorkflowJobLogs.String(),
+				"action":      actionsActionTypeRunWorkflow.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"workflow_id": "12345",
@@ -262,13 +249,13 @@ func Test_RunWorkflow_WithFilename(t *testing.T) {
 			name:         "missing required parameter workflow_id",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
-				"action": actionsActionTypeGetWorkflowJobLogs.String(),
+				"action": actionsActionTypeRunWorkflow.String(),
 				"owner":  "owner",
 				"repo":   "repo",
 				"ref":    "main",
 			},
 			expectError:    true,
-			expectedErrMsg: "missing required parameter: workflow_id",
+			expectedErrMsg: "workflow_id is required for run_workflow action",
 		},
 	}
 
@@ -276,7 +263,7 @@ func Test_RunWorkflow_WithFilename(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := RunWorkflow(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsRunTrigger(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -316,7 +303,10 @@ func Test_ActionsRunTrigger(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "run_id")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"action", "owner", "repo", "run_id"})
+	assert.Contains(t, tool.InputSchema.Properties, "workflow_id")
+	assert.Contains(t, tool.InputSchema.Properties, "ref")
+	assert.Contains(t, tool.InputSchema.Properties, "inputs")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"action", "owner", "repo"})
 }
 
 func Test_CancelWorkflowRun(t *testing.T) {
@@ -631,7 +621,7 @@ func Test_DeleteWorkflowRunLogs(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
-				"action": actionsActionTypeGetWorkflowJobLogs.String(),
+				"action": actionsActionTypeDeleteWorkflowRunLogs.String(),
 				"owner":  "owner",
 				"repo":   "repo",
 				"run_id": float64(12345),
@@ -642,12 +632,12 @@ func Test_DeleteWorkflowRunLogs(t *testing.T) {
 			name:         "missing required parameter run_id",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
-				"action": actionsActionTypeGetWorkflowJobLogs.String(),
+				"action": actionsActionTypeDeleteWorkflowRunLogs.String(),
 				"owner":  "owner",
 				"repo":   "repo",
 			},
 			expectError:    true,
-			expectedErrMsg: "missing required parameter: run_id",
+			expectedErrMsg: "run_id is required for this action",
 		},
 	}
 
@@ -655,7 +645,7 @@ func Test_DeleteWorkflowRunLogs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := DeleteWorkflowRunLogs(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsRunTrigger(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)

@@ -41,6 +41,7 @@ const (
 	actionsActionTypeRerunWorkflowRun
 	actionsActionTypeRerunFailedJobs
 	actionsActionTypeCancelWorkflowRun
+	actionsActionTypeDeleteWorkflowRunLogs
 )
 
 var actionsResourceTypes = map[actionsActionType]string{
@@ -59,6 +60,7 @@ var actionsResourceTypes = map[actionsActionType]string{
 	actionsActionTypeRerunWorkflowRun:         "rerun_workflow_run",
 	actionsActionTypeRerunFailedJobs:          "rerun_failed_jobs",
 	actionsActionTypeCancelWorkflowRun:        "cancel_workflow_run",
+	actionsActionTypeDeleteWorkflowRunLogs:    "delete_workflow_run_logs",
 }
 
 func (r actionsActionType) String() string {
@@ -406,23 +408,22 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 
 func ActionsRunTrigger(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("actions_run_trigger",
-			mcp.WithDescription(t("TOOL_ACTIONS_TRIGGER_DESCRIPTION", "Trigger GitHub Actions workflow actions for a specific workflow run.")),
+			mcp.WithDescription(t("TOOL_ACTIONS_TRIGGER_DESCRIPTION", "Trigger GitHub Actions workflow actions, including running, re-running, cancelling, and deleting workflow runs.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_ACTIONS_TRIGGER_USER_TITLE", "Trigger GitHub Actions workflow actions for a specific workflow run."),
-				ReadOnlyHint: ToBoolPtr(false),
+				Title:           t("TOOL_ACTIONS_TRIGGER_USER_TITLE", "Trigger GitHub Actions workflow actions"),
+				ReadOnlyHint:    ToBoolPtr(false),
+				DestructiveHint: ToBoolPtr(false),
 			}),
 			mcp.WithString("action",
 				mcp.Required(),
 				mcp.Description("The action to trigger"),
 				mcp.Enum(
+					actionsActionTypeRunWorkflow.String(),
 					actionsActionTypeRerunWorkflowRun.String(),
 					actionsActionTypeRerunFailedJobs.String(),
 					actionsActionTypeCancelWorkflowRun.String(),
+					actionsActionTypeDeleteWorkflowRunLogs.String(),
 				),
-			),
-			mcp.WithNumber("run_id",
-				mcp.Required(),
-				mcp.Description("The ID of the workflow run to trigger"),
 			),
 			mcp.WithString("owner",
 				mcp.Required(),
@@ -431,6 +432,18 @@ func ActionsRunTrigger(getClient GetClientFn, t translations.TranslationHelperFu
 			mcp.WithString("repo",
 				mcp.Required(),
 				mcp.Description(DescriptionRepositoryName),
+			),
+			mcp.WithString("workflow_id",
+				mcp.Description("The workflow ID (numeric) or workflow file name (e.g., main.yml, ci.yaml). Required for 'run_workflow' action."),
+			),
+			mcp.WithString("ref",
+				mcp.Description("The git reference for the workflow. The reference can be a branch or tag name. Required for 'run_workflow' action."),
+			),
+			mcp.WithObject("inputs",
+				mcp.Description("Inputs the workflow accepts. Only used for 'run_workflow' action."),
+			),
+			mcp.WithNumber("run_id",
+				mcp.Description("The ID of the workflow run. Required for all actions except 'run_workflow'."),
 			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -452,9 +465,29 @@ func ActionsRunTrigger(getClient GetClientFn, t translations.TranslationHelperFu
 				return mcp.NewToolResultError(fmt.Sprintf("unknown action: %s", actionTypeStr)), nil
 			}
 
-			runID, err := RequiredInt(request, "run_id")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+			// Get optional parameters
+			workflowID, _ := OptionalParam[string](request, "workflow_id")
+			ref, _ := OptionalParam[string](request, "ref")
+			runID, _ := OptionalIntParam(request, "run_id")
+
+			// Get optional inputs parameter
+			var inputs map[string]interface{}
+			if requestInputs, ok := request.GetArguments()["inputs"]; ok {
+				if inputsMap, ok := requestInputs.(map[string]interface{}); ok {
+					inputs = inputsMap
+				}
+			}
+
+			// Validate required parameters based on action type
+			if resourceType == actionsActionTypeRunWorkflow {
+				if workflowID == "" {
+					return mcp.NewToolResultError("workflow_id is required for run_workflow action"), nil
+				}
+				if ref == "" {
+					return mcp.NewToolResultError("ref is required for run_workflow action"), nil
+				}
+			} else if runID == 0 {
+				return mcp.NewToolResultError("run_id is required for this action"), nil
 			}
 
 			client, err := getClient(ctx)
@@ -463,12 +496,16 @@ func ActionsRunTrigger(getClient GetClientFn, t translations.TranslationHelperFu
 			}
 
 			switch resourceType {
+			case actionsActionTypeRunWorkflow:
+				return runWorkflow(ctx, client, request, owner, repo, workflowID, ref, inputs)
 			case actionsActionTypeRerunWorkflowRun:
 				return rerunWorkflowRun(ctx, client, request, owner, repo, int64(runID))
 			case actionsActionTypeRerunFailedJobs:
 				return rerunFailedJobs(ctx, client, request, owner, repo, int64(runID))
 			case actionsActionTypeCancelWorkflowRun:
 				return cancelWorkflowRun(ctx, client, request, owner, repo, int64(runID))
+			case actionsActionTypeDeleteWorkflowRunLogs:
+				return deleteWorkflowRunLogs(ctx, client, request, owner, repo, int64(runID))
 			case actionsActionTypeUnknown:
 				return mcp.NewToolResultError(fmt.Sprintf("unknown action: %s", actionTypeStr)), nil
 			default:
@@ -684,103 +721,46 @@ func listWorkflows(ctx context.Context, client *github.Client, _ mcp.CallToolReq
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-// RunWorkflow creates a tool to run an Actions workflow
-func RunWorkflow(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("run_workflow",
-			mcp.WithDescription(t("TOOL_RUN_WORKFLOW_DESCRIPTION", "Run an Actions workflow by workflow ID or filename")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_RUN_WORKFLOW_USER_TITLE", "Run workflow"),
-				ReadOnlyHint: ToBoolPtr(false),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description(DescriptionRepositoryOwner),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description(DescriptionRepositoryName),
-			),
-			mcp.WithString("workflow_id",
-				mcp.Required(),
-				mcp.Description("The workflow ID (numeric) or workflow file name (e.g., main.yml, ci.yaml)"),
-			),
-			mcp.WithString("ref",
-				mcp.Required(),
-				mcp.Description("The git reference for the workflow. The reference can be a branch or tag name."),
-			),
-			mcp.WithObject("inputs",
-				mcp.Description("Inputs the workflow accepts"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := RequiredParam[string](request, "owner")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			repo, err := RequiredParam[string](request, "repo")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			workflowID, err := RequiredParam[string](request, "workflow_id")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			ref, err := RequiredParam[string](request, "ref")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
+// runWorkflow runs an Actions workflow by workflow ID or filename
+func runWorkflow(ctx context.Context, client *github.Client, _ mcp.CallToolRequest, owner, repo, workflowID, ref string, inputs map[string]interface{}) (*mcp.CallToolResult, error) {
+	event := github.CreateWorkflowDispatchEventRequest{
+		Ref:    ref,
+		Inputs: inputs,
+	}
 
-			// Get optional inputs parameter
-			var inputs map[string]interface{}
-			if requestInputs, ok := request.GetArguments()["inputs"]; ok {
-				if inputsMap, ok := requestInputs.(map[string]interface{}); ok {
-					inputs = inputsMap
-				}
-			}
+	var resp *github.Response
+	var err error
+	var workflowType string
 
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
+	if workflowIDInt, parseErr := strconv.ParseInt(workflowID, 10, 64); parseErr == nil {
+		resp, err = client.Actions.CreateWorkflowDispatchEventByID(ctx, owner, repo, workflowIDInt, event)
+		workflowType = "workflow_id"
+	} else {
+		resp, err = client.Actions.CreateWorkflowDispatchEventByFileName(ctx, owner, repo, workflowID, event)
+		workflowType = "workflow_file"
+	}
 
-			event := github.CreateWorkflowDispatchEventRequest{
-				Ref:    ref,
-				Inputs: inputs,
-			}
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to run workflow", resp, err), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
 
-			var resp *github.Response
-			var workflowType string
+	result := map[string]any{
+		"message":       "Workflow run has been queued",
+		"workflow_type": workflowType,
+		"workflow_id":   workflowID,
+		"ref":           ref,
+		"inputs":        inputs,
+		"status":        resp.Status,
+		"status_code":   resp.StatusCode,
+	}
 
-			if workflowIDInt, parseErr := strconv.ParseInt(workflowID, 10, 64); parseErr == nil {
-				resp, err = client.Actions.CreateWorkflowDispatchEventByID(ctx, owner, repo, workflowIDInt, event)
-				workflowType = "workflow_id"
-			} else {
-				resp, err = client.Actions.CreateWorkflowDispatchEventByFileName(ctx, owner, repo, workflowID, event)
-				workflowType = "workflow_file"
-			}
+	r, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
 
-			if err != nil {
-				return nil, fmt.Errorf("failed to run workflow: %w", err)
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			result := map[string]any{
-				"message":       "Workflow run has been queued",
-				"workflow_type": workflowType,
-				"workflow_id":   workflowID,
-				"ref":           ref,
-				"inputs":        inputs,
-				"status":        resp.Status,
-				"status_code":   resp.StatusCode,
-			}
-
-			r, err := json.Marshal(result)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
-		}
+	return mcp.NewToolResultText(string(r)), nil
 }
 
 // GetWorkflowRunLogs creates a tool to download logs for a specific workflow run
@@ -1060,68 +1040,27 @@ func cancelWorkflowRun(ctx context.Context, client *github.Client, _ mcp.CallToo
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-// DeleteWorkflowRunLogs creates a tool to delete logs for a workflow run
-func DeleteWorkflowRunLogs(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("delete_workflow_run_logs",
-			mcp.WithDescription(t("TOOL_DELETE_WORKFLOW_RUN_LOGS_DESCRIPTION", "Delete logs for a workflow run")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:           t("TOOL_DELETE_WORKFLOW_RUN_LOGS_USER_TITLE", "Delete workflow logs"),
-				ReadOnlyHint:    ToBoolPtr(false),
-				DestructiveHint: ToBoolPtr(true),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description(DescriptionRepositoryOwner),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description(DescriptionRepositoryName),
-			),
-			mcp.WithNumber("run_id",
-				mcp.Required(),
-				mcp.Description("The unique identifier of the workflow run"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := RequiredParam[string](request, "owner")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			repo, err := RequiredParam[string](request, "repo")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			runIDInt, err := RequiredInt(request, "run_id")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			runID := int64(runIDInt)
+// deleteWorkflowRunLogs deletes logs for a workflow run
+func deleteWorkflowRunLogs(ctx context.Context, client *github.Client, _ mcp.CallToolRequest, owner, repo string, runID int64) (*mcp.CallToolResult, error) {
+	resp, err := client.Actions.DeleteWorkflowRunLogs(ctx, owner, repo, runID)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to delete workflow run logs", resp, err), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
 
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
+	result := map[string]any{
+		"message":     "Workflow run logs have been deleted",
+		"run_id":      runID,
+		"status":      resp.Status,
+		"status_code": resp.StatusCode,
+	}
 
-			resp, err := client.Actions.DeleteWorkflowRunLogs(ctx, owner, repo, runID)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to delete workflow run logs", resp, err), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
+	r, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
 
-			result := map[string]any{
-				"message":     "Workflow run logs have been deleted",
-				"run_id":      runID,
-				"status":      resp.Status,
-				"status_code": resp.StatusCode,
-			}
-
-			r, err := json.Marshal(result)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
-		}
+	return mcp.NewToolResultText(string(r)), nil
 }
 
 // GetWorkflowRunUsage creates a tool to get usage metrics for a workflow run

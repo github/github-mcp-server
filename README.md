@@ -458,23 +458,14 @@ The following sets of tools are available:
   - `workflow_jobs_filter`: Filters for workflow jobs. **ONLY** used when action is 'list_workflow_jobs' (object, optional)
   - `workflow_runs_filter`: Filters for workflow runs. **ONLY** used when action is 'list_workflow_runs' (object, optional)
 
-- **actions_run_trigger** - Trigger GitHub Actions workflow actions for a specific workflow run.
+- **actions_run_trigger** - Trigger GitHub Actions workflow actions
   - `action`: The action to trigger (string, required)
+  - `inputs`: Inputs the workflow accepts. Only used for 'run_workflow' action. (object, optional)
   - `owner`: Repository owner (string, required)
+  - `ref`: The git reference for the workflow. The reference can be a branch or tag name. Required for 'run_workflow' action. (string, optional)
   - `repo`: Repository name (string, required)
-  - `run_id`: The ID of the workflow run to trigger (number, required)
-
-- **delete_workflow_run_logs** - Delete workflow logs
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `run_id`: The unique identifier of the workflow run (number, required)
-
-- **run_workflow** - Run workflow
-  - `inputs`: Inputs the workflow accepts (object, optional)
-  - `owner`: Repository owner (string, required)
-  - `ref`: The git reference for the workflow. The reference can be a branch or tag name. (string, required)
-  - `repo`: Repository name (string, required)
-  - `workflow_id`: The workflow ID (numeric) or workflow file name (e.g., main.yml, ci.yaml) (string, required)
+  - `run_id`: The ID of the workflow run. Required for all actions except 'run_workflow'. (number, optional)
+  - `workflow_id`: The workflow ID (numeric) or workflow file name (e.g., main.yml, ci.yaml). Required for 'run_workflow' action. (string, optional)
 
 </details>
 

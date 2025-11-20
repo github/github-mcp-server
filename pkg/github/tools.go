@@ -281,9 +281,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(ActionsList(getClient, t, contentWindowSize)),
 		).
 		AddWriteTools(
-			toolsets.NewServerTool(RunWorkflow(getClient, t)),
 			toolsets.NewServerTool(ActionsRunTrigger(getClient, t)),
-			toolsets.NewServerTool(DeleteWorkflowRunLogs(getClient, t)),
 		)
 
 	securityAdvisories := toolsets.NewToolset(ToolsetMetadataSecurityAdvisories.ID, ToolsetMetadataSecurityAdvisories.Description).
