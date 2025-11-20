@@ -187,8 +187,13 @@ func RepositoryResourceContentsHandler(getClient GetClientFn, getRawClient raw.G
 			default:
 				var buf bytes.Buffer
 				base64Encoder := base64.NewEncoder(base64.RawStdEncoding, &buf)
-				base64Encoder.Write(content)
-				defer base64Encoder.Close()
+				_, err := base64Encoder.Write(content)
+				if err != nil {
+					return nil, fmt.Errorf("failed to base64 encode content: %w", err)
+				}
+				if err := base64Encoder.Close(); err != nil {
+					return nil, fmt.Errorf("failed to close base64 encoder: %w", err)
+				}
 
 				return &mcp.ReadResourceResult{
 					Contents: []*mcp.ResourceContents{
