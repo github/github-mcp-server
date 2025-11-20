@@ -304,13 +304,12 @@ func (tg *ToolsetGroup) FindToolByName(toolName string) (*server.ServerTool, str
 func (tg *ToolsetGroup) RegisterSpecificTools(s *server.MCPServer, toolNames []string, readOnly bool) error {
 	var skippedTools []string
 	for _, toolName := range toolNames {
-		tool, toolsetName, err := tg.FindToolByName(toolName)
+		tool, _, err := tg.FindToolByName(toolName)
 		if err != nil {
 			return fmt.Errorf("tool %s not found: %w", toolName, err)
 		}
 
 		// Check if it's a write tool and we're in read-only mode
-		// ReadOnlyHint should always be set, but add defensive check
 		if tool.Tool.Annotations.ReadOnlyHint != nil {
 			isWriteTool := !*tool.Tool.Annotations.ReadOnlyHint
 			if isWriteTool && readOnly {
@@ -322,7 +321,6 @@ func (tg *ToolsetGroup) RegisterSpecificTools(s *server.MCPServer, toolNames []s
 
 		// Register the tool
 		s.AddTool(tool.Tool, tool.Handler)
-		_ = toolsetName // toolsetName is available for potential future use (logging, etc.)
 	}
 
 	// Log skipped write tools if any
