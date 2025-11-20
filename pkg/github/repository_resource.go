@@ -99,7 +99,15 @@ func RepositoryResourceContentsHandler(getClient GetClientFn, getRawClient raw.G
 			return nil, errors.New("repo is required")
 		}
 
-		path := uriValues.Get("path").String()
+		pathValue := uriValues.Get("path")
+		pathComponents := pathValue.List()
+		var path string
+
+		if len(pathComponents) == 0 {
+			path = pathValue.String()
+		} else {
+			path = strings.Join(pathComponents, "/")
+		}
 
 		opts := &github.RepositoryContentGetOptions{}
 		rawOpts := &raw.ContentOpts{}
