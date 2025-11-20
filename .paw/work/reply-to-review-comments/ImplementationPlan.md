@@ -190,7 +190,7 @@ Phase 2 has been successfully completed. The `ReplyToReviewComment` tool has bee
 - Tool registration follows established pattern (uses REST client via getClient parameter)
 - Tool is correctly categorized as a write tool (ReadOnlyHint set to false in Phase 1)
 
-**Commit:** Pending - to be created after verification
+**Commit:** 31c8768 - "Register ReplyToReviewComment tool in pull_requests toolset"
 
 **Next Phase:** Phase 3 - Testing (add unit tests with toolsnap validation and table-driven behavioral tests)
 
