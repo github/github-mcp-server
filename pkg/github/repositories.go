@@ -2,7 +2,6 @@ package github
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -45,7 +44,7 @@ func GetCommit(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp
 				"include_diff": {
 					Type:        "boolean",
 					Description: "Whether to include file diffs and stats in the response. Default is true.",
-					Default:     true,
+					Default:     json.RawMessage(`true`),
 				},
 			},
 			Required: []string{"owner", "repo", "sha"},
@@ -560,7 +559,7 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 				"path": {
 					Type:        "string",
 					Description: "Path to file/directory (directories must end with a slash '/')",
-					Default:     "/",
+					Default:     json.RawMessage(`"/"`),
 				},
 				"ref": {
 					Type:        "string",
@@ -678,10 +677,10 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 					strings.HasSuffix(contentType, "+xml")
 
 				if isTextContent {
-					result := &mcp.TextResourceContents{
+					result := &mcp.ResourceContents{
 						URI:      resourceURI,
 						Text:     string(body),
-						MIMEType: &contentType,
+						MIMEType: contentType,
 					}
 					// Include SHA in the result metadata
 					if fileSHA != "" {
@@ -690,10 +689,10 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 					return utils.NewToolResultResource("successfully downloaded text file", result), nil, nil
 				}
 
-				result := &mcp.BlobResourceContents{
+				result := &mcp.ResourceContents{
 					URI:      resourceURI,
-					Blob:     base64.StdEncoding.EncodeToString(body),
-					MIMEType: &contentType,
+					Blob:     body,
+					MIMEType: contentType,
 				}
 				// Include SHA in the result metadata
 				if fileSHA != "" {
@@ -853,795 +852,872 @@ func ForkRepository(getClient GetClientFn, t translations.TranslationHelperFunc)
 // unlike how the endpoint backing the create_or_update_files tool does. This appears to be a quirk of the API.
 // The approach implemented here gets automatic commit signing when used with either the github-actions user or as an app,
 // both of which suit an LLM well.
-func DeleteFile(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("delete_file",
-			mcp.WithDescription(t("TOOL_DELETE_FILE_DESCRIPTION", "Delete a file from a GitHub repository")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:           t("TOOL_DELETE_FILE_USER_TITLE", "Delete file"),
-				ReadOnlyHint:    ToBoolPtr(false),
-				DestructiveHint: ToBoolPtr(true),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner (username or organization)"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-			mcp.WithString("path",
-				mcp.Required(),
-				mcp.Description("Path to the file to delete"),
-			),
-			mcp.WithString("message",
-				mcp.Required(),
-				mcp.Description("Commit message"),
-			),
-			mcp.WithString("branch",
-				mcp.Required(),
-				mcp.Description("Branch to delete the file from"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := RequiredParam[string](request, "owner")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			repo, err := RequiredParam[string](request, "repo")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			path, err := RequiredParam[string](request, "path")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			message, err := RequiredParam[string](request, "message")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			branch, err := RequiredParam[string](request, "branch")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-
-			// Get the reference for the branch
-			ref, resp, err := client.Git.GetRef(ctx, owner, repo, "refs/heads/"+branch)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get branch reference: %w", err)
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			// Get the commit object that the branch points to
-			baseCommit, resp, err := client.Git.GetCommit(ctx, owner, repo, *ref.Object.SHA)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get base commit",
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get commit: %s", string(body))), nil
-			}
-
-			// Create a tree entry for the file deletion by setting SHA to nil
-			treeEntries := []*github.TreeEntry{
-				{
-					Path: github.Ptr(path),
-					Mode: github.Ptr("100644"), // Regular file mode
-					Type: github.Ptr("blob"),
-					SHA:  nil, // Setting SHA to nil deletes the file
+func DeleteFile(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	tool := mcp.Tool{
+		Name:        "delete_file",
+		Description: t("TOOL_DELETE_FILE_DESCRIPTION", "Delete a file from a GitHub repository"),
+		Annotations: &mcp.ToolAnnotations{
+			Title:           t("TOOL_DELETE_FILE_USER_TITLE", "Delete file"),
+			ReadOnlyHint:    false,
+			DestructiveHint: github.Ptr(true),
+		},
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"owner": {
+					Type:        "string",
+					Description: "Repository owner (username or organization)",
 				},
-			}
+				"repo": {
+					Type:        "string",
+					Description: "Repository name",
+				},
+				"path": {
+					Type:        "string",
+					Description: "Path to the file to delete",
+				},
+				"message": {
+					Type:        "string",
+					Description: "Commit message",
+				},
+				"branch": {
+					Type:        "string",
+					Description: "Branch to delete the file from",
+				},
+			},
+			Required: []string{"owner", "repo", "path", "message", "branch"},
+		},
+	}
 
-			// Create a new tree with the deletion
-			newTree, resp, err := client.Git.CreateTree(ctx, owner, repo, *baseCommit.Tree.SHA, treeEntries)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to create tree",
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusCreated {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to create tree: %s", string(body))), nil
-			}
-
-			// Create a new commit with the new tree
-			commit := github.Commit{
-				Message: github.Ptr(message),
-				Tree:    newTree,
-				Parents: []*github.Commit{{SHA: baseCommit.SHA}},
-			}
-			newCommit, resp, err := client.Git.CreateCommit(ctx, owner, repo, commit, nil)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to create commit",
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusCreated {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to create commit: %s", string(body))), nil
-			}
-
-			// Update the branch reference to point to the new commit
-			ref.Object.SHA = newCommit.SHA
-			_, resp, err = client.Git.UpdateRef(ctx, owner, repo, *ref.Ref, github.UpdateRef{
-				SHA:   *newCommit.SHA,
-				Force: github.Ptr(false),
-			})
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to update reference",
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to update reference: %s", string(body))), nil
-			}
-
-			// Create a response similar to what the DeleteFile API would return
-			response := map[string]interface{}{
-				"commit":  newCommit,
-				"content": nil,
-			}
-
-			r, err := json.Marshal(response)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		owner, err := RequiredParam[string](args, "owner")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
 		}
+		repo, err := RequiredParam[string](args, "repo")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		path, err := RequiredParam[string](args, "path")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		message, err := RequiredParam[string](args, "message")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		branch, err := RequiredParam[string](args, "branch")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+
+		client, err := getClient(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+		}
+
+		// Get the reference for the branch
+		ref, resp, err := client.Git.GetRef(ctx, owner, repo, "refs/heads/"+branch)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get branch reference: %w", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		// Get the commit object that the branch points to
+		baseCommit, resp, err := client.Git.GetCommit(ctx, owner, repo, *ref.Object.SHA)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				"failed to get base commit",
+				resp,
+				err,
+			), nil, nil
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusOK {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			}
+			return utils.NewToolResultError(fmt.Sprintf("failed to get commit: %s", string(body))), nil, nil
+		}
+
+		// Create a tree entry for the file deletion by setting SHA to nil
+		treeEntries := []*github.TreeEntry{
+			{
+				Path: github.Ptr(path),
+				Mode: github.Ptr("100644"), // Regular file mode
+				Type: github.Ptr("blob"),
+				SHA:  nil, // Setting SHA to nil deletes the file
+			},
+		}
+
+		// Create a new tree with the deletion
+		newTree, resp, err := client.Git.CreateTree(ctx, owner, repo, *baseCommit.Tree.SHA, treeEntries)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				"failed to create tree",
+				resp,
+				err,
+			), nil, nil
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusCreated {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			}
+			return utils.NewToolResultError(fmt.Sprintf("failed to create tree: %s", string(body))), nil, nil
+		}
+
+		// Create a new commit with the new tree
+		commit := github.Commit{
+			Message: github.Ptr(message),
+			Tree:    newTree,
+			Parents: []*github.Commit{{SHA: baseCommit.SHA}},
+		}
+		newCommit, resp, err := client.Git.CreateCommit(ctx, owner, repo, commit, nil)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				"failed to create commit",
+				resp,
+				err,
+			), nil, nil
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusCreated {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			}
+			return utils.NewToolResultError(fmt.Sprintf("failed to create commit: %s", string(body))), nil, nil
+		}
+
+		// Update the branch reference to point to the new commit
+		ref.Object.SHA = newCommit.SHA
+		_, resp, err = client.Git.UpdateRef(ctx, owner, repo, *ref.Ref, github.UpdateRef{
+			SHA:   *newCommit.SHA,
+			Force: github.Ptr(false),
+		})
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				"failed to update reference",
+				resp,
+				err,
+			), nil, nil
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusOK {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			}
+			return utils.NewToolResultError(fmt.Sprintf("failed to update reference: %s", string(body))), nil, nil
+		}
+
+		// Create a response similar to what the DeleteFile API would return
+		response := map[string]interface{}{
+			"commit":  newCommit,
+			"content": nil,
+		}
+
+		r, err := json.Marshal(response)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+		}
+
+		return utils.NewToolResultText(string(r)), nil, nil
+	})
+
+	return tool, handler
 }
 
 // CreateBranch creates a tool to create a new branch.
-func CreateBranch(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("create_branch",
-			mcp.WithDescription(t("TOOL_CREATE_BRANCH_DESCRIPTION", "Create a new branch in a GitHub repository")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_CREATE_BRANCH_USER_TITLE", "Create branch"),
-				ReadOnlyHint: ToBoolPtr(false),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-			mcp.WithString("branch",
-				mcp.Required(),
-				mcp.Description("Name for new branch"),
-			),
-			mcp.WithString("from_branch",
-				mcp.Description("Source branch (defaults to repo default)"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := RequiredParam[string](request, "owner")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			repo, err := RequiredParam[string](request, "repo")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			branch, err := RequiredParam[string](request, "branch")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			fromBranch, err := OptionalParam[string](request, "from_branch")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
+func CreateBranch(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	tool := mcp.Tool{
+		Name:        "create_branch",
+		Description: t("TOOL_CREATE_BRANCH_DESCRIPTION", "Create a new branch in a GitHub repository"),
+		Annotations: &mcp.ToolAnnotations{
+			Title:        t("TOOL_CREATE_BRANCH_USER_TITLE", "Create branch"),
+			ReadOnlyHint: false,
+		},
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"owner": {
+					Type:        "string",
+					Description: "Repository owner",
+				},
+				"repo": {
+					Type:        "string",
+					Description: "Repository name",
+				},
+				"branch": {
+					Type:        "string",
+					Description: "Name for new branch",
+				},
+				"from_branch": {
+					Type:        "string",
+					Description: "Source branch (defaults to repo default)",
+				},
+			},
+			Required: []string{"owner", "repo", "branch"},
+		},
+	}
 
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-
-			// Get the source branch SHA
-			var ref *github.Reference
-
-			if fromBranch == "" {
-				// Get default branch if from_branch not specified
-				repository, resp, err := client.Repositories.Get(ctx, owner, repo)
-				if err != nil {
-					return ghErrors.NewGitHubAPIErrorResponse(ctx,
-						"failed to get repository",
-						resp,
-						err,
-					), nil
-				}
-				defer func() { _ = resp.Body.Close() }()
-
-				fromBranch = *repository.DefaultBranch
-			}
-
-			// Get SHA of source branch
-			ref, resp, err := client.Git.GetRef(ctx, owner, repo, "refs/heads/"+fromBranch)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get reference",
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			// Create new branch
-			newRef := github.CreateRef{
-				Ref: "refs/heads/" + branch,
-				SHA: *ref.Object.SHA,
-			}
-
-			createdRef, resp, err := client.Git.CreateRef(ctx, owner, repo, newRef)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to create branch",
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			r, err := json.Marshal(createdRef)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		owner, err := RequiredParam[string](args, "owner")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
 		}
+		repo, err := RequiredParam[string](args, "repo")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		branch, err := RequiredParam[string](args, "branch")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		fromBranch, err := OptionalParam[string](args, "from_branch")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+
+		client, err := getClient(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+		}
+
+		// Get the source branch SHA
+		var ref *github.Reference
+
+		if fromBranch == "" {
+			// Get default branch if from_branch not specified
+			repository, resp, err := client.Repositories.Get(ctx, owner, repo)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to get repository",
+					resp,
+					err,
+				), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			fromBranch = *repository.DefaultBranch
+		}
+
+		// Get SHA of source branch
+		ref, resp, err := client.Git.GetRef(ctx, owner, repo, "refs/heads/"+fromBranch)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				"failed to get reference",
+				resp,
+				err,
+			), nil, nil
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		// Create new branch
+		newRef := github.CreateRef{
+			Ref: "refs/heads/" + branch,
+			SHA: *ref.Object.SHA,
+		}
+
+		createdRef, resp, err := client.Git.CreateRef(ctx, owner, repo, newRef)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				"failed to create branch",
+				resp,
+				err,
+			), nil, nil
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		r, err := json.Marshal(createdRef)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+		}
+
+		return utils.NewToolResultText(string(r)), nil, nil
+	})
+
+	return tool, handler
 }
 
 // PushFiles creates a tool to push multiple files in a single commit to a GitHub repository.
-func PushFiles(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("push_files",
-			mcp.WithDescription(t("TOOL_PUSH_FILES_DESCRIPTION", "Push multiple files to a GitHub repository in a single commit")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_PUSH_FILES_USER_TITLE", "Push files to repository"),
-				ReadOnlyHint: ToBoolPtr(false),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-			mcp.WithString("branch",
-				mcp.Required(),
-				mcp.Description("Branch to push to"),
-			),
-			mcp.WithArray("files",
-				mcp.Required(),
-				mcp.Items(
-					map[string]interface{}{
-						"type":                 "object",
-						"additionalProperties": false,
-						"required":             []string{"path", "content"},
-						"properties": map[string]interface{}{
-							"path": map[string]interface{}{
-								"type":        "string",
-								"description": "path to the file",
+func PushFiles(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	tool := mcp.Tool{
+		Name:        "push_files",
+		Description: t("TOOL_PUSH_FILES_DESCRIPTION", "Push multiple files to a GitHub repository in a single commit"),
+		Annotations: &mcp.ToolAnnotations{
+			Title:        t("TOOL_PUSH_FILES_USER_TITLE", "Push files to repository"),
+			ReadOnlyHint: false,
+		},
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"owner": {
+					Type:        "string",
+					Description: "Repository owner",
+				},
+				"repo": {
+					Type:        "string",
+					Description: "Repository name",
+				},
+				"branch": {
+					Type:        "string",
+					Description: "Branch to push to",
+				},
+				"files": {
+					Type:        "array",
+					Description: "Array of file objects to push, each object with path (string) and content (string)",
+					Items: &jsonschema.Schema{
+						Type: "object",
+						Properties: map[string]*jsonschema.Schema{
+							"path": {
+								Type:        "string",
+								Description: "path to the file",
 							},
-							"content": map[string]interface{}{
-								"type":        "string",
-								"description": "file content",
+							"content": {
+								Type:        "string",
+								Description: "file content",
 							},
 						},
-					}),
-				mcp.Description("Array of file objects to push, each object with path (string) and content (string)"),
-			),
-			mcp.WithString("message",
-				mcp.Required(),
-				mcp.Description("Commit message"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := RequiredParam[string](request, "owner")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			repo, err := RequiredParam[string](request, "repo")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			branch, err := RequiredParam[string](request, "branch")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			message, err := RequiredParam[string](request, "message")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
+						Required:             []string{"path", "content"},
+					},
+				},
+				"message": {
+					Type:        "string",
+					Description: "Commit message",
+				},
+			},
+			Required: []string{"owner", "repo", "branch", "files", "message"},
+		},
+	}
 
-			// Parse files parameter - this should be an array of objects with path and content
-			filesObj, ok := request.GetArguments()["files"].([]interface{})
-			if !ok {
-				return mcp.NewToolResultError("files parameter must be an array of objects with path and content"), nil
-			}
-
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-
-			// Get the reference for the branch
-			ref, resp, err := client.Git.GetRef(ctx, owner, repo, "refs/heads/"+branch)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get branch reference",
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			// Get the commit object that the branch points to
-			baseCommit, resp, err := client.Git.GetCommit(ctx, owner, repo, *ref.Object.SHA)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get base commit",
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			// Create tree entries for all files
-			var entries []*github.TreeEntry
-
-			for _, file := range filesObj {
-				fileMap, ok := file.(map[string]interface{})
-				if !ok {
-					return mcp.NewToolResultError("each file must be an object with path and content"), nil
-				}
-
-				path, ok := fileMap["path"].(string)
-				if !ok || path == "" {
-					return mcp.NewToolResultError("each file must have a path"), nil
-				}
-
-				content, ok := fileMap["content"].(string)
-				if !ok {
-					return mcp.NewToolResultError("each file must have content"), nil
-				}
-
-				// Create a tree entry for the file
-				entries = append(entries, &github.TreeEntry{
-					Path:    github.Ptr(path),
-					Mode:    github.Ptr("100644"), // Regular file mode
-					Type:    github.Ptr("blob"),
-					Content: github.Ptr(content),
-				})
-			}
-
-			// Create a new tree with the file entries
-			newTree, resp, err := client.Git.CreateTree(ctx, owner, repo, *baseCommit.Tree.SHA, entries)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to create tree",
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			// Create a new commit
-			commit := github.Commit{
-				Message: github.Ptr(message),
-				Tree:    newTree,
-				Parents: []*github.Commit{{SHA: baseCommit.SHA}},
-			}
-			newCommit, resp, err := client.Git.CreateCommit(ctx, owner, repo, commit, nil)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to create commit",
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			// Update the reference to point to the new commit
-			ref.Object.SHA = newCommit.SHA
-			updatedRef, resp, err := client.Git.UpdateRef(ctx, owner, repo, *ref.Ref, github.UpdateRef{
-				SHA:   *newCommit.SHA,
-				Force: github.Ptr(false),
-			})
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to update reference",
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			r, err := json.Marshal(updatedRef)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		owner, err := RequiredParam[string](args, "owner")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
 		}
+		repo, err := RequiredParam[string](args, "repo")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		branch, err := RequiredParam[string](args, "branch")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		message, err := RequiredParam[string](args, "message")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+
+		// Parse files parameter - this should be an array of objects with path and content
+		filesObj, ok := args["files"].([]interface{})
+		if !ok {
+			return utils.NewToolResultError("files parameter must be an array of objects with path and content"), nil, nil
+		}
+
+		client, err := getClient(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+		}
+
+		// Get the reference for the branch
+		ref, resp, err := client.Git.GetRef(ctx, owner, repo, "refs/heads/"+branch)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				"failed to get branch reference",
+				resp,
+				err,
+			), nil, nil
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		// Get the commit object that the branch points to
+		baseCommit, resp, err := client.Git.GetCommit(ctx, owner, repo, *ref.Object.SHA)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				"failed to get base commit",
+				resp,
+				err,
+			), nil, nil
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		// Create tree entries for all files
+		var entries []*github.TreeEntry
+
+		for _, file := range filesObj {
+			fileMap, ok := file.(map[string]interface{})
+			if !ok {
+				return utils.NewToolResultError("each file must be an object with path and content"), nil, nil
+			}
+
+			path, ok := fileMap["path"].(string)
+			if !ok || path == "" {
+				return utils.NewToolResultError("each file must have a path"), nil, nil
+			}
+
+			content, ok := fileMap["content"].(string)
+			if !ok {
+				return utils.NewToolResultError("each file must have content"), nil, nil
+			}
+
+			// Create a tree entry for the file
+			entries = append(entries, &github.TreeEntry{
+				Path:    github.Ptr(path),
+				Mode:    github.Ptr("100644"), // Regular file mode
+				Type:    github.Ptr("blob"),
+				Content: github.Ptr(content),
+			})
+		}
+
+		// Create a new tree with the file entries
+		newTree, resp, err := client.Git.CreateTree(ctx, owner, repo, *baseCommit.Tree.SHA, entries)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				"failed to create tree",
+				resp,
+				err,
+			), nil, nil
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		// Create a new commit
+		commit := github.Commit{
+			Message: github.Ptr(message),
+			Tree:    newTree,
+			Parents: []*github.Commit{{SHA: baseCommit.SHA}},
+		}
+		newCommit, resp, err := client.Git.CreateCommit(ctx, owner, repo, commit, nil)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				"failed to create commit",
+				resp,
+				err,
+			), nil, nil
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		// Update the reference to point to the new commit
+		ref.Object.SHA = newCommit.SHA
+		updatedRef, resp, err := client.Git.UpdateRef(ctx, owner, repo, *ref.Ref, github.UpdateRef{
+			SHA:   *newCommit.SHA,
+			Force: github.Ptr(false),
+		})
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				"failed to update reference",
+				resp,
+				err,
+			), nil, nil
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		r, err := json.Marshal(updatedRef)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+		}
+
+		return utils.NewToolResultText(string(r)), nil, nil
+	})
+
+	return tool, handler
 }
 
 // ListTags creates a tool to list tags in a GitHub repository.
-func ListTags(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("list_tags",
-			mcp.WithDescription(t("TOOL_LIST_TAGS_DESCRIPTION", "List git tags in a GitHub repository")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_LIST_TAGS_USER_TITLE", "List tags"),
-				ReadOnlyHint: ToBoolPtr(true),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-			WithPagination(),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := RequiredParam[string](request, "owner")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			repo, err := RequiredParam[string](request, "repo")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			pagination, err := OptionalPaginationParams(request)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
+func ListTags(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	tool := mcp.Tool{
+		Name:        "list_tags",
+		Description: t("TOOL_LIST_TAGS_DESCRIPTION", "List git tags in a GitHub repository"),
+		Annotations: &mcp.ToolAnnotations{
+			Title:        t("TOOL_LIST_TAGS_USER_TITLE", "List tags"),
+			ReadOnlyHint: true,
+		},
+		InputSchema: WithPagination(&jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"owner": {
+					Type:        "string",
+					Description: "Repository owner",
+				},
+				"repo": {
+					Type:        "string",
+					Description: "Repository name",
+				},
+			},
+			Required: []string{"owner", "repo"},
+		}),
+	}
 
-			opts := &github.ListOptions{
-				Page:    pagination.Page,
-				PerPage: pagination.PerPage,
-			}
-
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-
-			tags, resp, err := client.Repositories.ListTags(ctx, owner, repo, opts)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to list tags",
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to list tags: %s", string(body))), nil
-			}
-
-			r, err := json.Marshal(tags)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		owner, err := RequiredParam[string](args, "owner")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
 		}
+		repo, err := RequiredParam[string](args, "repo")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		pagination, err := OptionalPaginationParams(args)
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+
+		opts := &github.ListOptions{
+			Page:    pagination.Page,
+			PerPage: pagination.PerPage,
+		}
+
+		client, err := getClient(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+		}
+
+		tags, resp, err := client.Repositories.ListTags(ctx, owner, repo, opts)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				"failed to list tags",
+				resp,
+				err,
+			), nil, nil
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusOK {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			}
+			return utils.NewToolResultError(fmt.Sprintf("failed to list tags: %s", string(body))), nil, nil
+		}
+
+		r, err := json.Marshal(tags)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+		}
+
+		return utils.NewToolResultText(string(r)), nil, nil
+	})
+
+	return tool, handler
 }
 
 // GetTag creates a tool to get details about a specific tag in a GitHub repository.
-func GetTag(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("get_tag",
-			mcp.WithDescription(t("TOOL_GET_TAG_DESCRIPTION", "Get details about a specific git tag in a GitHub repository")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_GET_TAG_USER_TITLE", "Get tag details"),
-				ReadOnlyHint: ToBoolPtr(true),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-			mcp.WithString("tag",
-				mcp.Required(),
-				mcp.Description("Tag name"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := RequiredParam[string](request, "owner")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			repo, err := RequiredParam[string](request, "repo")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			tag, err := RequiredParam[string](request, "tag")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
+func GetTag(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	tool := mcp.Tool{
+		Name:        "get_tag",
+		Description: t("TOOL_GET_TAG_DESCRIPTION", "Get details about a specific git tag in a GitHub repository"),
+		Annotations: &mcp.ToolAnnotations{
+			Title:        t("TOOL_GET_TAG_USER_TITLE", "Get tag details"),
+			ReadOnlyHint: true,
+		},
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"owner": {
+					Type:        "string",
+					Description: "Repository owner",
+				},
+				"repo": {
+					Type:        "string",
+					Description: "Repository name",
+				},
+				"tag": {
+					Type:        "string",
+					Description: "Tag name",
+				},
+			},
+			Required: []string{"owner", "repo", "tag"},
+		},
+	}
 
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-
-			// First get the tag reference
-			ref, resp, err := client.Git.GetRef(ctx, owner, repo, "refs/tags/"+tag)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get tag reference",
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get tag reference: %s", string(body))), nil
-			}
-
-			// Then get the tag object
-			tagObj, resp, err := client.Git.GetTag(ctx, owner, repo, *ref.Object.SHA)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get tag object",
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get tag object: %s", string(body))), nil
-			}
-
-			r, err := json.Marshal(tagObj)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		owner, err := RequiredParam[string](args, "owner")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
 		}
+		repo, err := RequiredParam[string](args, "repo")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		tag, err := RequiredParam[string](args, "tag")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+
+		client, err := getClient(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+		}
+
+		// First get the tag reference
+		ref, resp, err := client.Git.GetRef(ctx, owner, repo, "refs/tags/"+tag)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				"failed to get tag reference",
+				resp,
+				err,
+			), nil, nil
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusOK {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			}
+			return utils.NewToolResultError(fmt.Sprintf("failed to get tag reference: %s", string(body))), nil, nil
+		}
+
+		// Then get the tag object
+		tagObj, resp, err := client.Git.GetTag(ctx, owner, repo, *ref.Object.SHA)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				"failed to get tag object",
+				resp,
+				err,
+			), nil, nil
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusOK {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			}
+			return utils.NewToolResultError(fmt.Sprintf("failed to get tag object: %s", string(body))), nil, nil
+		}
+
+		r, err := json.Marshal(tagObj)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+		}
+
+		return utils.NewToolResultText(string(r)), nil, nil
+	})
+
+	return tool, handler
 }
 
 // ListReleases creates a tool to list releases in a GitHub repository.
-func ListReleases(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("list_releases",
-			mcp.WithDescription(t("TOOL_LIST_RELEASES_DESCRIPTION", "List releases in a GitHub repository")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_LIST_RELEASES_USER_TITLE", "List releases"),
-				ReadOnlyHint: ToBoolPtr(true),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-			WithPagination(),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := RequiredParam[string](request, "owner")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			repo, err := RequiredParam[string](request, "repo")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			pagination, err := OptionalPaginationParams(request)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
+func ListReleases(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	tool := mcp.Tool{
+		Name:        "list_releases",
+		Description: t("TOOL_LIST_RELEASES_DESCRIPTION", "List releases in a GitHub repository"),
+		Annotations: &mcp.ToolAnnotations{
+			Title:        t("TOOL_LIST_RELEASES_USER_TITLE", "List releases"),
+			ReadOnlyHint: true,
+		},
+		InputSchema: WithPagination(&jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"owner": {
+					Type:        "string",
+					Description: "Repository owner",
+				},
+				"repo": {
+					Type:        "string",
+					Description: "Repository name",
+				},
+			},
+			Required: []string{"owner", "repo"},
+		}),
+	}
 
-			opts := &github.ListOptions{
-				Page:    pagination.Page,
-				PerPage: pagination.PerPage,
-			}
-
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-
-			releases, resp, err := client.Repositories.ListReleases(ctx, owner, repo, opts)
-			if err != nil {
-				return nil, fmt.Errorf("failed to list releases: %w", err)
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to list releases: %s", string(body))), nil
-			}
-
-			r, err := json.Marshal(releases)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		owner, err := RequiredParam[string](args, "owner")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
 		}
+		repo, err := RequiredParam[string](args, "repo")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		pagination, err := OptionalPaginationParams(args)
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+
+		opts := &github.ListOptions{
+			Page:    pagination.Page,
+			PerPage: pagination.PerPage,
+		}
+
+		client, err := getClient(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+		}
+
+		releases, resp, err := client.Repositories.ListReleases(ctx, owner, repo, opts)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to list releases: %w", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusOK {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			}
+			return utils.NewToolResultError(fmt.Sprintf("failed to list releases: %s", string(body))), nil, nil
+		}
+
+		r, err := json.Marshal(releases)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+		}
+
+		return utils.NewToolResultText(string(r)), nil, nil
+	})
+
+	return tool, handler
 }
 
 // GetLatestRelease creates a tool to get the latest release in a GitHub repository.
-func GetLatestRelease(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("get_latest_release",
-			mcp.WithDescription(t("TOOL_GET_LATEST_RELEASE_DESCRIPTION", "Get the latest release in a GitHub repository")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_GET_LATEST_RELEASE_USER_TITLE", "Get latest release"),
-				ReadOnlyHint: ToBoolPtr(true),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := RequiredParam[string](request, "owner")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			repo, err := RequiredParam[string](request, "repo")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
+func GetLatestRelease(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	tool := mcp.Tool{
+		Name:        "get_latest_release",
+		Description: t("TOOL_GET_LATEST_RELEASE_DESCRIPTION", "Get the latest release in a GitHub repository"),
+		Annotations: &mcp.ToolAnnotations{
+			Title:        t("TOOL_GET_LATEST_RELEASE_USER_TITLE", "Get latest release"),
+			ReadOnlyHint: true,
+		},
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"owner": {
+					Type:        "string",
+					Description: "Repository owner",
+				},
+				"repo": {
+					Type:        "string",
+					Description: "Repository name",
+				},
+			},
+			Required: []string{"owner", "repo"},
+		},
+	}
 
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-
-			release, resp, err := client.Repositories.GetLatestRelease(ctx, owner, repo)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get latest release: %w", err)
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get latest release: %s", string(body))), nil
-			}
-
-			r, err := json.Marshal(release)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		owner, err := RequiredParam[string](args, "owner")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
 		}
+		repo, err := RequiredParam[string](args, "repo")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+
+		client, err := getClient(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+		}
+
+		release, resp, err := client.Repositories.GetLatestRelease(ctx, owner, repo)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get latest release: %w", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusOK {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			}
+			return utils.NewToolResultError(fmt.Sprintf("failed to get latest release: %s", string(body))), nil, nil
+		}
+
+		r, err := json.Marshal(release)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+		}
+
+		return utils.NewToolResultText(string(r)), nil, nil
+	})
+
+	return tool, handler
 }
 
-func GetReleaseByTag(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("get_release_by_tag",
-			mcp.WithDescription(t("TOOL_GET_RELEASE_BY_TAG_DESCRIPTION", "Get a specific release by its tag name in a GitHub repository")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_GET_RELEASE_BY_TAG_USER_TITLE", "Get a release by tag name"),
-				ReadOnlyHint: ToBoolPtr(true),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-			mcp.WithString("tag",
-				mcp.Required(),
-				mcp.Description("Tag name (e.g., 'v1.0.0')"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := RequiredParam[string](request, "owner")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			repo, err := RequiredParam[string](request, "repo")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			tag, err := RequiredParam[string](request, "tag")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
+func GetReleaseByTag(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	tool := mcp.Tool{
+		Name:        "get_release_by_tag",
+		Description: t("TOOL_GET_RELEASE_BY_TAG_DESCRIPTION", "Get a specific release by its tag name in a GitHub repository"),
+		Annotations: &mcp.ToolAnnotations{
+			Title:        t("TOOL_GET_RELEASE_BY_TAG_USER_TITLE", "Get a release by tag name"),
+			ReadOnlyHint: true,
+		},
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"owner": {
+					Type:        "string",
+					Description: "Repository owner",
+				},
+				"repo": {
+					Type:        "string",
+					Description: "Repository name",
+				},
+				"tag": {
+					Type:        "string",
+					Description: "Tag name (e.g., 'v1.0.0')",
+				},
+			},
+			Required: []string{"owner", "repo", "tag"},
+		},
+	}
 
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-
-			release, resp, err := client.Repositories.GetReleaseByTag(ctx, owner, repo, tag)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					fmt.Sprintf("failed to get release by tag: %s", tag),
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get release by tag: %s", string(body))), nil
-			}
-
-			r, err := json.Marshal(release)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		owner, err := RequiredParam[string](args, "owner")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
 		}
+		repo, err := RequiredParam[string](args, "repo")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		tag, err := RequiredParam[string](args, "tag")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+
+		client, err := getClient(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+		}
+
+		release, resp, err := client.Repositories.GetReleaseByTag(ctx, owner, repo, tag)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				fmt.Sprintf("failed to get release by tag: %s", tag),
+				resp,
+				err,
+			), nil, nil
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusOK {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			}
+			return utils.NewToolResultError(fmt.Sprintf("failed to get release by tag: %s", string(body))), nil, nil
+		}
+
+		r, err := json.Marshal(release)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+		}
+
+		return utils.NewToolResultText(string(r)), nil, nil
+	})
+
+	return tool, handler
 }
 
 // filterPaths filters the entries in a GitHub tree to find paths that
@@ -1780,229 +1856,260 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 }
 
 // ListStarredRepositories creates a tool to list starred repositories for the authenticated user or a specified user.
-func ListStarredRepositories(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("list_starred_repositories",
-			mcp.WithDescription(t("TOOL_LIST_STARRED_REPOSITORIES_DESCRIPTION", "List starred repositories")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_LIST_STARRED_REPOSITORIES_USER_TITLE", "List starred repositories"),
-				ReadOnlyHint: ToBoolPtr(true),
-			}),
-			mcp.WithString("username",
-				mcp.Description("Username to list starred repositories for. Defaults to the authenticated user."),
-			),
-			mcp.WithString("sort",
-				mcp.Description("How to sort the results. Can be either 'created' (when the repository was starred) or 'updated' (when the repository was last pushed to)."),
-				mcp.Enum("created", "updated"),
-			),
-			mcp.WithString("direction",
-				mcp.Description("The direction to sort the results by."),
-				mcp.Enum("asc", "desc"),
-			),
-			WithPagination(),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			username, err := OptionalParam[string](request, "username")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			sort, err := OptionalParam[string](request, "sort")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			direction, err := OptionalParam[string](request, "direction")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			pagination, err := OptionalPaginationParams(request)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-
-			opts := &github.ActivityListStarredOptions{
-				ListOptions: github.ListOptions{
-					Page:    pagination.Page,
-					PerPage: pagination.PerPage,
+func ListStarredRepositories(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	tool := mcp.Tool{
+		Name:        "list_starred_repositories",
+		Description: t("TOOL_LIST_STARRED_REPOSITORIES_DESCRIPTION", "List starred repositories"),
+		Annotations: &mcp.ToolAnnotations{
+			Title:        t("TOOL_LIST_STARRED_REPOSITORIES_USER_TITLE", "List starred repositories"),
+			ReadOnlyHint: true,
+		},
+		InputSchema: WithPagination(&jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"username": {
+					Type:        "string",
+					Description: "Username to list starred repositories for. Defaults to the authenticated user.",
 				},
-			}
-			if sort != "" {
-				opts.Sort = sort
-			}
-			if direction != "" {
-				opts.Direction = direction
-			}
+				"sort": {
+					Type:        "string",
+					Description: "How to sort the results. Can be either 'created' (when the repository was starred) or 'updated' (when the repository was last pushed to).",
+					Enum:        []any{"created", "updated"},
+				},
+				"direction": {
+					Type:        "string",
+					Description: "The direction to sort the results by.",
+					Enum:        []any{"asc", "desc"},
+				},
+			},
+		}),
+	}
 
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-
-			var repos []*github.StarredRepository
-			var resp *github.Response
-			if username == "" {
-				// List starred repositories for the authenticated user
-				repos, resp, err = client.Activity.ListStarred(ctx, "", opts)
-			} else {
-				// List starred repositories for a specific user
-				repos, resp, err = client.Activity.ListStarred(ctx, username, opts)
-			}
-
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					fmt.Sprintf("failed to list starred repositories for user '%s'", username),
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != 200 {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to list starred repositories: %s", string(body))), nil
-			}
-
-			// Convert to minimal format
-			minimalRepos := make([]MinimalRepository, 0, len(repos))
-			for _, starredRepo := range repos {
-				repo := starredRepo.Repository
-				minimalRepo := MinimalRepository{
-					ID:            repo.GetID(),
-					Name:          repo.GetName(),
-					FullName:      repo.GetFullName(),
-					Description:   repo.GetDescription(),
-					HTMLURL:       repo.GetHTMLURL(),
-					Language:      repo.GetLanguage(),
-					Stars:         repo.GetStargazersCount(),
-					Forks:         repo.GetForksCount(),
-					OpenIssues:    repo.GetOpenIssuesCount(),
-					Private:       repo.GetPrivate(),
-					Fork:          repo.GetFork(),
-					Archived:      repo.GetArchived(),
-					DefaultBranch: repo.GetDefaultBranch(),
-				}
-
-				if repo.UpdatedAt != nil {
-					minimalRepo.UpdatedAt = repo.UpdatedAt.Format("2006-01-02T15:04:05Z")
-				}
-
-				minimalRepos = append(minimalRepos, minimalRepo)
-			}
-
-			r, err := json.Marshal(minimalRepos)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal starred repositories: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		username, err := OptionalParam[string](args, "username")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
 		}
+		sort, err := OptionalParam[string](args, "sort")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		direction, err := OptionalParam[string](args, "direction")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		pagination, err := OptionalPaginationParams(args)
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+
+		opts := &github.ActivityListStarredOptions{
+			ListOptions: github.ListOptions{
+				Page:    pagination.Page,
+				PerPage: pagination.PerPage,
+			},
+		}
+		if sort != "" {
+			opts.Sort = sort
+		}
+		if direction != "" {
+			opts.Direction = direction
+		}
+
+		client, err := getClient(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+		}
+
+		var repos []*github.StarredRepository
+		var resp *github.Response
+		if username == "" {
+			// List starred repositories for the authenticated user
+			repos, resp, err = client.Activity.ListStarred(ctx, "", opts)
+		} else {
+			// List starred repositories for a specific user
+			repos, resp, err = client.Activity.ListStarred(ctx, username, opts)
+		}
+
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				fmt.Sprintf("failed to list starred repositories for user '%s'", username),
+				resp,
+				err,
+			), nil, nil
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != 200 {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			}
+			return utils.NewToolResultError(fmt.Sprintf("failed to list starred repositories: %s", string(body))), nil, nil
+		}
+
+		// Convert to minimal format
+		minimalRepos := make([]MinimalRepository, 0, len(repos))
+		for _, starredRepo := range repos {
+			repo := starredRepo.Repository
+			minimalRepo := MinimalRepository{
+				ID:            repo.GetID(),
+				Name:          repo.GetName(),
+				FullName:      repo.GetFullName(),
+				Description:   repo.GetDescription(),
+				HTMLURL:       repo.GetHTMLURL(),
+				Language:      repo.GetLanguage(),
+				Stars:         repo.GetStargazersCount(),
+				Forks:         repo.GetForksCount(),
+				OpenIssues:    repo.GetOpenIssuesCount(),
+				Private:       repo.GetPrivate(),
+				Fork:          repo.GetFork(),
+				Archived:      repo.GetArchived(),
+				DefaultBranch: repo.GetDefaultBranch(),
+			}
+
+			if repo.UpdatedAt != nil {
+				minimalRepo.UpdatedAt = repo.UpdatedAt.Format("2006-01-02T15:04:05Z")
+			}
+
+			minimalRepos = append(minimalRepos, minimalRepo)
+		}
+
+		r, err := json.Marshal(minimalRepos)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to marshal starred repositories: %w", err)
+		}
+
+		return utils.NewToolResultText(string(r)), nil, nil
+	})
+
+	return tool, handler
 }
 
 // StarRepository creates a tool to star a repository.
-func StarRepository(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("star_repository",
-			mcp.WithDescription(t("TOOL_STAR_REPOSITORY_DESCRIPTION", "Star a GitHub repository")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_STAR_REPOSITORY_USER_TITLE", "Star repository"),
-				ReadOnlyHint: ToBoolPtr(false),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := RequiredParam[string](request, "owner")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			repo, err := RequiredParam[string](request, "repo")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
+func StarRepository(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	tool := mcp.Tool{
+		Name:        "star_repository",
+		Description: t("TOOL_STAR_REPOSITORY_DESCRIPTION", "Star a GitHub repository"),
+		Annotations: &mcp.ToolAnnotations{
+			Title:        t("TOOL_STAR_REPOSITORY_USER_TITLE", "Star repository"),
+			ReadOnlyHint: false,
+		},
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"owner": {
+					Type:        "string",
+					Description: "Repository owner",
+				},
+				"repo": {
+					Type:        "string",
+					Description: "Repository name",
+				},
+			},
+			Required: []string{"owner", "repo"},
+		},
+	}
 
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-
-			resp, err := client.Activity.Star(ctx, owner, repo)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					fmt.Sprintf("failed to star repository %s/%s", owner, repo),
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != 204 {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to star repository: %s", string(body))), nil
-			}
-
-			return mcp.NewToolResultText(fmt.Sprintf("Successfully starred repository %s/%s", owner, repo)), nil
+	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		owner, err := RequiredParam[string](args, "owner")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
 		}
+		repo, err := RequiredParam[string](args, "repo")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+
+		client, err := getClient(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+		}
+
+		resp, err := client.Activity.Star(ctx, owner, repo)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				fmt.Sprintf("failed to star repository %s/%s", owner, repo),
+				resp,
+				err,
+			), nil, nil
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != 204 {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			}
+			return utils.NewToolResultError(fmt.Sprintf("failed to star repository: %s", string(body))), nil, nil
+		}
+
+		return utils.NewToolResultText(fmt.Sprintf("Successfully starred repository %s/%s", owner, repo)), nil, nil
+	})
+
+	return tool, handler
 }
 
 // UnstarRepository creates a tool to unstar a repository.
-func UnstarRepository(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("unstar_repository",
-			mcp.WithDescription(t("TOOL_UNSTAR_REPOSITORY_DESCRIPTION", "Unstar a GitHub repository")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_UNSTAR_REPOSITORY_USER_TITLE", "Unstar repository"),
-				ReadOnlyHint: ToBoolPtr(false),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := RequiredParam[string](request, "owner")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			repo, err := RequiredParam[string](request, "repo")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
+func UnstarRepository(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	tool := mcp.Tool{
+		Name:        "unstar_repository",
+		Description: t("TOOL_UNSTAR_REPOSITORY_DESCRIPTION", "Unstar a GitHub repository"),
+		Annotations: &mcp.ToolAnnotations{
+			Title:        t("TOOL_UNSTAR_REPOSITORY_USER_TITLE", "Unstar repository"),
+			ReadOnlyHint: false,
+		},
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"owner": {
+					Type:        "string",
+					Description: "Repository owner",
+				},
+				"repo": {
+					Type:        "string",
+					Description: "Repository name",
+				},
+			},
+			Required: []string{"owner", "repo"},
+		},
+	}
 
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-
-			resp, err := client.Activity.Unstar(ctx, owner, repo)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					fmt.Sprintf("failed to unstar repository %s/%s", owner, repo),
-					resp,
-					err,
-				), nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != 204 {
-				body, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
-				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to unstar repository: %s", string(body))), nil
-			}
-
-			return mcp.NewToolResultText(fmt.Sprintf("Successfully unstarred repository %s/%s", owner, repo)), nil
+	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		owner, err := RequiredParam[string](args, "owner")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
 		}
+		repo, err := RequiredParam[string](args, "repo")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+
+		client, err := getClient(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+		}
+
+		resp, err := client.Activity.Unstar(ctx, owner, repo)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				fmt.Sprintf("failed to unstar repository %s/%s", owner, repo),
+				resp,
+				err,
+			), nil, nil
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != 204 {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			}
+			return utils.NewToolResultError(fmt.Sprintf("failed to unstar repository: %s", string(body))), nil, nil
+		}
+
+		return utils.NewToolResultText(fmt.Sprintf("Successfully unstarred repository %s/%s", owner, repo)), nil, nil
+	})
+
+	return tool, handler
 }
