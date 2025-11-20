@@ -60,7 +60,6 @@ func Test_repositoryResourceContents(t *testing.T) {
 					raw.GetRawReposContentsByOwnerByRepoByBranchByPath,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.Header().Set("Content-Type", "text/markdown")
-						// as this is given as a png, it will return the content as a blob
 						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
 						require.NoError(t, err)
 					}),
