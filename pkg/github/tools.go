@@ -390,9 +390,9 @@ func InitDynamicToolset(s *mcp.Server, tsg *toolsets.ToolsetGroup, t translation
 	// Need to add the dynamic toolset last so it can be used to enable other toolsets
 	dynamicToolSelection := toolsets.NewToolset(ToolsetMetadataDynamic.ID, ToolsetMetadataDynamic.Description).
 		AddReadTools(
-		// toolsets.NewServerTool(ListAvailableToolsets(tsg, t)),
-		// toolsets.NewServerTool(GetToolsetsTools(tsg, t)),
-		// toolsets.NewServerTool(EnableToolset(s, tsg, t)),
+			toolsets.NewServerTool(ListAvailableToolsets(tsg, t)),
+			toolsets.NewServerTool(GetToolsetsTools(tsg, t)),
+			toolsets.NewServerTool(EnableToolset(s, tsg, t)),
 		)
 
 	dynamicToolSelection.Enabled = true
