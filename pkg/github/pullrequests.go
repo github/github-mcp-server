@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/go-viper/mapstructure/v2"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -41,9 +40,8 @@ Possible options:
  4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
  5. get_review_comments - Get the review comments on a pull request. They are comments made on a portion of the unified diff during a pull request review. Use with pagination parameters to control the number of results returned.
  6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
- 7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
 `,
-					Enum: []any{"get", "get_diff", "get_status", "get_files", "get_review_comments", "get_reviews", "get_comments"},
+					Enum: []any{"get", "get_diff", "get_status", "get_files", "get_review_comments", "get_reviews"},
 				},
 				"owner": {
 					Type:        "string",
@@ -107,8 +105,9 @@ Possible options:
 				result, handlerErr = GetPullRequestReviewComments(ctx, client, owner, repo, pullNumber, pagination)
 			case "get_reviews":
 				result, handlerErr = GetPullRequestReviews(ctx, client, owner, repo, pullNumber)
-			case "get_comments":
-				result, handlerErr = GetIssueComments(ctx, client, owner, repo, pullNumber, pagination, flags)
+			// TODO: Uncomment once issues.go is migrated
+			// case "get_comments":
+			// 	result, handlerErr = GetIssueComments(ctx, client, owner, repo, pullNumber, pagination, flags)
 			default:
 				return nil, nil, fmt.Errorf("unknown method: %s", method)
 			}
@@ -134,7 +133,7 @@ func GetPullRequest(ctx context.Context, client *github.Client, owner, repo stri
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return utils.NewToolResultError(fmt.Sprintf("failed to get pull request: %s", string(body))), nil
 	}
@@ -151,7 +150,7 @@ func GetPullRequest(ctx context.Context, client *github.Client, owner, repo stri
 
 	r, err := json.Marshal(pr)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
 	return utils.NewToolResultText(string(r)), nil
@@ -176,7 +175,7 @@ func GetPullRequestDiff(ctx context.Context, client *github.Client, owner, repo 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return utils.NewToolResultError(fmt.Sprintf("failed to get pull request diff: %s", string(body))), nil
 	}
@@ -201,7 +200,7 @@ func GetPullRequestStatus(ctx context.Context, client *github.Client, owner, rep
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return utils.NewToolResultError(fmt.Sprintf("failed to get pull request: %s", string(body))), nil
 	}
@@ -220,14 +219,14 @@ func GetPullRequestStatus(ctx context.Context, client *github.Client, owner, rep
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return utils.NewToolResultError(fmt.Sprintf("failed to get combined status: %s", string(body))), nil
 	}
 
 	r, err := json.Marshal(status)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
 	return utils.NewToolResultText(string(r)), nil
@@ -251,14 +250,14 @@ func GetPullRequestFiles(ctx context.Context, client *github.Client, owner, repo
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return utils.NewToolResultError(fmt.Sprintf("failed to get pull request files: %s", string(body))), nil
 	}
 
 	r, err := json.Marshal(files)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
 	return utils.NewToolResultText(string(r)), nil
@@ -285,14 +284,14 @@ func GetPullRequestReviewComments(ctx context.Context, client *github.Client, ow
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return utils.NewToolResultError(fmt.Sprintf("failed to get pull request review comments: %s", string(body))), nil
 	}
 
 	r, err := json.Marshal(comments)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
 	return utils.NewToolResultText(string(r)), nil
@@ -312,14 +311,14 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, owner, re
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return utils.NewToolResultError(fmt.Sprintf("failed to get pull request reviews: %s", string(body))), nil
 	}
 
 	r, err := json.Marshal(reviews)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
 	return utils.NewToolResultText(string(r)), nil
@@ -466,6 +465,8 @@ func CreatePullRequest(getClient GetClientFn, t translations.TranslationHelperFu
 }
 
 // UpdatePullRequest creates a tool to update an existing pull request.
+// TODO: MIGRATE THIS TOOL
+/*
 func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 	return mcp.NewTool("update_pull_request",
 			mcp.WithDescription(t("TOOL_UPDATE_PULL_REQUEST_DESCRIPTION", "Update an existing pull request in a GitHub repository.")),
@@ -514,15 +515,15 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			pullNumber, err := RequiredInt(args, "pullNumber")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			// Check if draft parameter is provided
@@ -531,7 +532,7 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 			if draftProvided {
 				draftValue, err = OptionalParam[bool](args, "draft")
 				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil
+					return utils.NewToolResultError(err.Error()), nil, nil
 				}
 			}
 
@@ -540,35 +541,35 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 			restUpdateNeeded := false
 
 			if title, ok, err := OptionalParamOK[string](args, "title"); err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			} else if ok {
 				update.Title = github.Ptr(title)
 				restUpdateNeeded = true
 			}
 
 			if body, ok, err := OptionalParamOK[string](args, "body"); err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			} else if ok {
 				update.Body = github.Ptr(body)
 				restUpdateNeeded = true
 			}
 
 			if state, ok, err := OptionalParamOK[string](args, "state"); err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			} else if ok {
 				update.State = github.Ptr(state)
 				restUpdateNeeded = true
 			}
 
 			if base, ok, err := OptionalParamOK[string](args, "base"); err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			} else if ok {
 				update.Base = &github.PullRequestBranch{Ref: github.Ptr(base)}
 				restUpdateNeeded = true
 			}
 
 			if maintainerCanModify, ok, err := OptionalParamOK[bool](args, "maintainer_can_modify"); err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			} else if ok {
 				update.MaintainerCanModify = github.Ptr(maintainerCanModify)
 				restUpdateNeeded = true
@@ -577,19 +578,19 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 			// Handle reviewers separately
 			reviewers, err := OptionalStringArrayParam(args, "reviewers")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			// If no updates, no draft change, and no reviewers, return error early
 			if !restUpdateNeeded && !draftProvided && len(reviewers) == 0 {
-				return utils.NewToolResultError("No update parameters provided."), nil
+				return utils.NewToolResultError("No update parameters provided."), nil, nil
 			}
 
 			// Handle REST API updates (title, body, state, base, maintainer_can_modify)
 			if restUpdateNeeded {
 				client, err := getClient(ctx)
 				if err != nil {
-					return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+					return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 				}
 
 				_, resp, err := client.PullRequests.Edit(ctx, owner, repo, pullNumber, update)
@@ -598,16 +599,16 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 						"failed to update pull request",
 						resp,
 						err,
-					), nil
+					), nil, nil
 				}
 				defer func() { _ = resp.Body.Close() }()
 
 				if resp.StatusCode != http.StatusOK {
 					body, err := io.ReadAll(resp.Body)
 					if err != nil {
-						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+						return nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to update pull request: %s", string(body))), nil
+					return utils.NewToolResultError(fmt.Sprintf("failed to update pull request: %s", string(body))), nil, nil
 				}
 			}
 
@@ -615,7 +616,7 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 			if draftProvided {
 				gqlClient, err := getGQLClient(ctx)
 				if err != nil {
-					return nil, nil, fmt.Errorf("failed to get GitHub GraphQL client: %w", err)
+					return nil, fmt.Errorf("failed to get GitHub GraphQL client: %w", err)
 				}
 
 				var prQuery struct {
@@ -633,7 +634,7 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 					"prNum": githubv4.Int(pullNumber), // #nosec G115 - pull request numbers are always small positive integers
 				})
 				if err != nil {
-					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to find pull request", err), nil
+					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to find pull request", err), nil, nil
 				}
 
 				currentIsDraft := bool(prQuery.Repository.PullRequest.IsDraft)
@@ -654,7 +655,7 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 							PullRequestID: prQuery.Repository.PullRequest.ID,
 						}, nil)
 						if err != nil {
-							return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to convert pull request to draft", err), nil
+							return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to convert pull request to draft", err), nil, nil
 						}
 					} else {
 						// Mark as ready for review
@@ -671,7 +672,7 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 							PullRequestID: prQuery.Repository.PullRequest.ID,
 						}, nil)
 						if err != nil {
-							return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to mark pull request ready for review", err), nil
+							return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to mark pull request ready for review", err), nil, nil
 						}
 					}
 				}
@@ -681,7 +682,7 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 			if len(reviewers) > 0 {
 				client, err := getClient(ctx)
 				if err != nil {
-					return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+					return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 				}
 
 				reviewersRequest := github.ReviewersRequest{
@@ -694,7 +695,7 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 						"failed to request reviewers",
 						resp,
 						err,
-					), nil
+					), nil, nil
 				}
 				defer func() {
 					if resp != nil && resp.Body != nil {
@@ -705,9 +706,9 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 				if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 					body, err := io.ReadAll(resp.Body)
 					if err != nil {
-						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+						return nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to request reviewers: %s", string(body))), nil
+					return utils.NewToolResultError(fmt.Sprintf("failed to request reviewers: %s", string(body))), nil, nil
 				}
 			}
 
@@ -719,7 +720,7 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 
 			finalPR, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
 			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx, "Failed to get pull request", resp, err), nil
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "Failed to get pull request", resp, err), nil, nil
 			}
 			defer func() {
 				if resp != nil && resp.Body != nil {
@@ -735,14 +736,18 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 
 			r, err := json.Marshal(minimalResponse)
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("Failed to marshal response: %v", err)), nil
+				return utils.NewToolResultError(fmt.Sprintf("Failed to marshal response: %v", err)), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil
+			return utils.NewToolResultText(string(r)), nil, nil
 		}
 }
+*/
+
 
 // ListPullRequests creates a tool to list and filter repository pull requests.
+// TODO: MIGRATE THIS TOOL
+/*
 func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 	return mcp.NewTool("list_pull_requests",
 			mcp.WithDescription(t("TOOL_LIST_PULL_REQUESTS_DESCRIPTION", "List pull requests in a GitHub repository. If the user specifies an author, then DO NOT use this tool and use the search_pull_requests tool instead.")),
@@ -781,35 +786,35 @@ func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFun
 		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			state, err := OptionalParam[string](args, "state")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			head, err := OptionalParam[string](args, "head")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			base, err := OptionalParam[string](args, "base")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			sort, err := OptionalParam[string](args, "sort")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			direction, err := OptionalParam[string](args, "direction")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			opts := &github.PullRequestListOptions{
 				State:     state,
@@ -825,7 +830,7 @@ func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFun
 
 			client, err := getClient(ctx)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 			prs, resp, err := client.PullRequests.List(ctx, owner, repo, opts)
 			if err != nil {
@@ -833,16 +838,16 @@ func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFun
 					"failed to list pull requests",
 					resp,
 					err,
-				), nil
+				), nil, nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 
 			if resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+					return nil, fmt.Errorf("failed to read response body: %w", err)
 				}
-				return utils.NewToolResultError(fmt.Sprintf("failed to list pull requests: %s", string(body))), nil
+				return utils.NewToolResultError(fmt.Sprintf("failed to list pull requests: %s", string(body))), nil, nil
 			}
 
 			// sanitize title/body on each PR
@@ -860,14 +865,18 @@ func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFun
 
 			r, err := json.Marshal(prs)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil
+			return utils.NewToolResultText(string(r)), nil, nil
 		}
 }
+*/
+
 
 // MergePullRequest creates a tool to merge a pull request.
+// TODO: MIGRATE THIS TOOL
+/*
 func MergePullRequest(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 	return mcp.NewTool("merge_pull_request",
 			mcp.WithDescription(t("TOOL_MERGE_PULL_REQUEST_DESCRIPTION", "Merge a pull request in a GitHub repository.")),
@@ -901,27 +910,27 @@ func MergePullRequest(getClient GetClientFn, t translations.TranslationHelperFun
 		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			pullNumber, err := RequiredInt(args, "pullNumber")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			commitTitle, err := OptionalParam[string](args, "commit_title")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			commitMessage, err := OptionalParam[string](args, "commit_message")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			mergeMethod, err := OptionalParam[string](args, "merge_method")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			options := &github.PullRequestOptions{
@@ -931,7 +940,7 @@ func MergePullRequest(getClient GetClientFn, t translations.TranslationHelperFun
 
 			client, err := getClient(ctx)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 			result, resp, err := client.PullRequests.Merge(ctx, owner, repo, pullNumber, commitMessage, options)
 			if err != nil {
@@ -939,28 +948,32 @@ func MergePullRequest(getClient GetClientFn, t translations.TranslationHelperFun
 					"failed to merge pull request",
 					resp,
 					err,
-				), nil
+				), nil, nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 
 			if resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+					return nil, fmt.Errorf("failed to read response body: %w", err)
 				}
-				return utils.NewToolResultError(fmt.Sprintf("failed to merge pull request: %s", string(body))), nil
+				return utils.NewToolResultError(fmt.Sprintf("failed to merge pull request: %s", string(body))), nil, nil
 			}
 
 			r, err := json.Marshal(result)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil
+			return utils.NewToolResultText(string(r)), nil, nil
 		}
 }
+*/
+
 
 // SearchPullRequests creates a tool to search for pull requests.
+// TODO: MIGRATE THIS TOOL
+/*
 func SearchPullRequests(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("search_pull_requests",
 			mcp.WithDescription(t("TOOL_SEARCH_PULL_REQUESTS_DESCRIPTION", "Search for pull requests in GitHub repositories using issues search syntax already scoped to is:pr")),
@@ -1004,8 +1017,12 @@ func SearchPullRequests(getClient GetClientFn, t translations.TranslationHelperF
 			return searchHandler(ctx, getClient, request, "pr", "failed to search pull requests")
 		}
 }
+*/
+
 
 // UpdatePullRequestBranch creates a tool to update a pull request branch with the latest changes from the base branch.
+// TODO: MIGRATE THIS TOOL
+/*
 func UpdatePullRequestBranch(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 	return mcp.NewTool("update_pull_request_branch",
 			mcp.WithDescription(t("TOOL_UPDATE_PULL_REQUEST_BRANCH_DESCRIPTION", "Update the branch of a pull request with the latest changes from the base branch.")),
@@ -1032,19 +1049,19 @@ func UpdatePullRequestBranch(getClient GetClientFn, t translations.TranslationHe
 		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			pullNumber, err := RequiredInt(args, "pullNumber")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			expectedHeadSHA, err := OptionalParam[string](args, "expectedHeadSha")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			opts := &github.PullRequestBranchUpdateOptions{}
 			if expectedHeadSHA != "" {
@@ -1053,39 +1070,41 @@ func UpdatePullRequestBranch(getClient GetClientFn, t translations.TranslationHe
 
 			client, err := getClient(ctx)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 			result, resp, err := client.PullRequests.UpdateBranch(ctx, owner, repo, pullNumber, opts)
 			if err != nil {
 				// Check if it's an acceptedError. An acceptedError indicates that the update is in progress,
 				// and it's not a real error.
 				if resp != nil && resp.StatusCode == http.StatusAccepted && isAcceptedError(err) {
-					return utils.NewToolResultText("Pull request branch update is in progress"), nil
+					return utils.NewToolResultText("Pull request branch update is in progress"), nil, nil
 				}
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to update pull request branch",
 					resp,
 					err,
-				), nil
+				), nil, nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 
 			if resp.StatusCode != http.StatusAccepted {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+					return nil, fmt.Errorf("failed to read response body: %w", err)
 				}
-				return utils.NewToolResultError(fmt.Sprintf("failed to update pull request branch: %s", string(body))), nil
+				return utils.NewToolResultError(fmt.Sprintf("failed to update pull request branch: %s", string(body))), nil, nil
 			}
 
 			r, err := json.Marshal(result)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil
+			return utils.NewToolResultText(string(r)), nil, nil
 		}
 }
+*/
+
 
 type PullRequestReviewWriteParams struct {
 	Method     string
@@ -1097,6 +1116,8 @@ type PullRequestReviewWriteParams struct {
 	CommitID   *string
 }
 
+// TODO: MIGRATE THIS TOOL
+/*
 func PullRequestReviewWrite(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 	return mcp.NewTool("pull_request_review_write",
 			mcp.WithDescription(t("TOOL_PULL_REQUEST_REVIEW_WRITE_DESCRIPTION", `Create and/or submit, delete review of a pull request.
@@ -1144,13 +1165,13 @@ Available methods:
 		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			var params PullRequestReviewWriteParams
 			if err := mapstructure.Decode(request.Params.Arguments, &params); err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			// Given our owner, repo and PR number, lookup the GQL ID of the PR.
 			client, err := getGQLClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil
+				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
 
 			switch params.Method {
@@ -1161,10 +1182,12 @@ Available methods:
 			case "delete_pending":
 				return DeletePendingPullRequestReview(ctx, client, params)
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
 			}
 		}
 }
+*/
+
 
 func CreatePullRequestReview(ctx context.Context, client *githubv4.Client, params PullRequestReviewWriteParams) (*mcp.CallToolResult, error) {
 	var getPullRequestQuery struct {
@@ -1390,6 +1413,8 @@ func DeletePendingPullRequestReview(ctx context.Context, client *githubv4.Client
 }
 
 // AddCommentToPendingReview creates a tool to add a comment to a pull request review.
+// TODO: MIGRATE THIS TOOL
+/*
 func AddCommentToPendingReview(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 	return mcp.NewTool("add_comment_to_pending_review",
 			mcp.WithDescription(t("TOOL_ADD_COMMENT_TO_PENDING_REVIEW_DESCRIPTION", "Add review comment to the requester's latest pending pull request review. A pending review needs to already exist to call this (check with the user if not sure).")),
@@ -1460,12 +1485,12 @@ func AddCommentToPendingReview(getGQLClient GetGQLClientFn, t translations.Trans
 				StartSide   *string
 			}
 			if err := mapstructure.Decode(request.Params.Arguments, &params); err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			client, err := getGQLClient(ctx)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get GitHub GQL client: %w", err)
+				return nil, fmt.Errorf("failed to get GitHub GQL client: %w", err)
 			}
 
 			// First we'll get the current user
@@ -1479,7 +1504,7 @@ func AddCommentToPendingReview(getGQLClient GetGQLClientFn, t translations.Trans
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
 					"failed to get current user",
 					err,
-				), nil
+				), nil, nil
 			}
 
 			var getLatestReviewForViewerQuery struct {
@@ -1507,18 +1532,18 @@ func AddCommentToPendingReview(getGQLClient GetGQLClientFn, t translations.Trans
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
 					"failed to get latest review for current user",
 					err,
-				), nil
+				), nil, nil
 			}
 
 			// Validate there is one review and the state is pending
 			if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
-				return utils.NewToolResultError("No pending review found for the viewer"), nil
+				return utils.NewToolResultError("No pending review found for the viewer"), nil, nil
 			}
 
 			review := getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes[0]
 			if review.State != githubv4.PullRequestReviewStatePending {
 				errText := fmt.Sprintf("The latest review, found at %s is not pending", review.URL)
-				return utils.NewToolResultError(errText), nil
+				return utils.NewToolResultError(errText), nil, nil
 			}
 
 			// Then we can create a new review thread comment on the review.
@@ -1545,19 +1570,23 @@ func AddCommentToPendingReview(getGQLClient GetGQLClientFn, t translations.Trans
 				},
 				nil,
 			); err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			// Return nothing interesting, just indicate success for the time being.
 			// In future, we may want to return the review ID, but for the moment, we're not leaking
 			// API implementation details to the LLM.
-			return utils.NewToolResultText("pull request review comment successfully added to pending review"), nil
+			return utils.NewToolResultText("pull request review comment successfully added to pending review"), nil, nil
 		}
 }
+*/
+
 
 // RequestCopilotReview creates a tool to request a Copilot review for a pull request.
 // Note that this tool will not work on GHES where this feature is unsupported. In future, we should not expose this
 // tool if the configured host does not support it.
+// TODO: MIGRATE THIS TOOL
+/*
 func RequestCopilotReview(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 	return mcp.NewTool("request_copilot_review",
 			mcp.WithDescription(t("TOOL_REQUEST_COPILOT_REVIEW_DESCRIPTION", "Request a GitHub Copilot code review for a pull request. Use this for automated feedback on pull requests, usually before requesting a human reviewer.")),
@@ -1581,22 +1610,22 @@ func RequestCopilotReview(getClient GetClientFn, t translations.TranslationHelpe
 		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			pullNumber, err := RequiredInt(args, "pullNumber")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			client, err := getClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			_, resp, err := client.PullRequests.RequestReviewers(
@@ -1614,22 +1643,24 @@ func RequestCopilotReview(getClient GetClientFn, t translations.TranslationHelpe
 					"failed to request copilot review",
 					resp,
 					err,
-				), nil
+				), nil, nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 
 			if resp.StatusCode != http.StatusCreated {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+					return nil, fmt.Errorf("failed to read response body: %w", err)
 				}
-				return utils.NewToolResultError(fmt.Sprintf("failed to request copilot review: %s", string(body))), nil
+				return utils.NewToolResultError(fmt.Sprintf("failed to request copilot review: %s", string(body))), nil, nil
 			}
 
 			// Return nothing on success, as there's not much value in returning the Pull Request itself
-			return utils.NewToolResultText(""), nil
+			return utils.NewToolResultText(""), nil, nil
 		}
 }
+*/
+
 
 // newGQLString like takes something that approximates a string (of which there are many types in shurcooL/githubv4)
 // and constructs a pointer to it, or nil if the string is empty. This is extremely useful because when we parse
