@@ -9,6 +9,7 @@ import (
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,8 +23,18 @@ func Test_ListNotifications(t *testing.T) {
 
 	assert.Equal(t, "list_notifications", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	// All fields are optional, so Required should be empty (note: InputSchema.Required is []string, not an assertion property)
 
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "filter")
+	assert.Contains(t, schema.Properties, "since")
+	assert.Contains(t, schema.Properties, "before")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "page")
+	assert.Contains(t, schema.Properties, "perPage")
+	// All fields are optional, so Required should be empty
+	assert.Empty(t, schema.Required)
 	mockNotification := &github.Notification{
 		ID:     github.Ptr("123"),
 		Reason: github.Ptr("mention"),
@@ -149,6 +160,12 @@ func Test_ManageNotificationSubscription(t *testing.T) {
 
 	assert.Equal(t, "manage_notification_subscription", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "notificationID")
+	assert.Contains(t, schema.Properties, "action")
+	assert.Equal(t, []string{"notificationID", "action"}, schema.Required)
 
 	mockSub := &github.Subscription{Ignored: github.Ptr(true)}
 	mockSubWatch := &github.Subscription{Ignored: github.Ptr(false), Subscribed: github.Ptr(true)}
@@ -284,6 +301,13 @@ func Test_ManageRepositoryNotificationSubscription(t *testing.T) {
 
 	assert.Equal(t, "manage_repository_notification_subscription", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "action")
+	assert.Equal(t, []string{"owner", "repo", "action"}, schema.Required)
 
 	mockSub := &github.Subscription{Ignored: github.Ptr(true)}
 	mockWatchSub := &github.Subscription{Ignored: github.Ptr(false), Subscribed: github.Ptr(true)}
@@ -444,6 +468,12 @@ func Test_DismissNotification(t *testing.T) {
 	assert.Equal(t, "dismiss_notification", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "threadID")
+	assert.Contains(t, schema.Properties, "state")
+	assert.Equal(t, []string{"threadID", "state"}, schema.Required)
+
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
@@ -573,6 +603,13 @@ func Test_MarkAllNotificationsRead(t *testing.T) {
 	assert.Equal(t, "mark_all_notifications_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "lastReadAt")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Empty(t, schema.Required)
+
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
@@ -671,6 +708,11 @@ func Test_GetNotificationDetails(t *testing.T) {
 
 	assert.Equal(t, "get_notification_details", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "notificationID")
+	assert.Equal(t, []string{"notificationID"}, schema.Required)
 
 	mockThread := &github.Notification{ID: github.Ptr("123"), Reason: github.Ptr("mention")}
 
