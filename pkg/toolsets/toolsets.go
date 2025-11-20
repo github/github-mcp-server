@@ -298,7 +298,7 @@ func (tg *ToolsetGroup) FindToolByName(toolName string) (*server.ServerTool, str
 	return nil, "", NewToolDoesNotExistError(toolName)
 }
 
-// RegisterSpecificTools registers only the specified tools, bypassing toolset enablement.
+// RegisterSpecificTools registers only the specified tools.
 // Respects read-only mode (skips write tools if readOnly=true).
 // Returns error if any tool is not found.
 func (tg *ToolsetGroup) RegisterSpecificTools(s *server.MCPServer, toolNames []string, readOnly bool) error {
