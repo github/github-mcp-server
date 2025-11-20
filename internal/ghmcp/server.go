@@ -219,7 +219,7 @@ type StdioServerConfig struct {
 	EnabledToolsets []string
 
 	// EnabledTools is a list of specific tools to enable (additive to toolsets)
-	// When specified, these tools are registered in addition to any specifiedtoolset tools
+	// When specified, these tools are registered in addition to any specified toolset tools
 	EnabledTools []string
 
 	// Whether to enable dynamic toolsets
