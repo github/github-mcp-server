@@ -763,7 +763,7 @@ func runWorkflow(ctx context.Context, client *github.Client, _ mcp.CallToolReque
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-// GetWorkflowRunLogs creates a tool to download logs for a specific workflow run
+// getWorkflowRunLogs is a helper function that retrieves the download URL for logs of a specific workflow run.
 func getWorkflowRunLogs(ctx context.Context, client *github.Client, _ mcp.CallToolRequest, owner, repo string, runID int64) (*mcp.CallToolResult, error) {
 	// Get the download URL for the logs
 	url, resp, err := client.Actions.GetWorkflowRunLogs(ctx, owner, repo, runID, 1)
