@@ -1518,6 +1518,14 @@ func AddCommentToPendingReview(getGQLClient GetGQLClientFn, t translations.Trans
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
+			if addPullRequestReviewThreadMutation.AddPullRequestReviewThread.Thread.ID == nil {
+				return mcp.NewToolResultError(`Failed to add comment to pending review. Possible reasons:
+	- The line number doesn't exist in the pull request diff
+	- The file path is incorrect
+	- The side (LEFT/RIGHT) is invalid for the specified line
+`), nil
+			}
+
 			// Return nothing interesting, just indicate success for the time being.
 			// In future, we may want to return the review ID, but for the moment, we're not leaking
 			// API implementation details to the LLM.
