@@ -360,9 +360,9 @@ You can also configure specific tools using the `--tools` flag. Tools can be use
 
 3. **Combining with Toolsets** (additive):
    ```bash
-   github-mcp-server --toolsets repos,issues --tools get_file_contents,search_code
+   github-mcp-server --toolsets repos,issues --tools get_gist
    ```
-   This registers all tools from `repos` and `issues` toolsets, plus `get_file_contents` and `search_code`.
+   This registers all tools from `repos` and `issues` toolsets, plus `get_gist`.
 
 4. **Combining with Dynamic Toolsets** (additive):
    ```bash
@@ -371,11 +371,9 @@ You can also configure specific tools using the `--tools` flag. Tools can be use
    This registers `get_file_contents` plus the dynamic toolset tools (`enable_toolset`, `list_available_toolsets`, `get_toolset_tools`).
 
 **Important Notes:**
-- Tools, toolsets, and dynamic toolsets can all be used together - they are additive
+- Tools, toolsets, and dynamic toolsets can all be used together
 - Read-only mode takes priority: write tools are skipped if `--read-only` is set, even if explicitly requested via `--tools`
-- When write tools are skipped due to read-only mode, a warning is logged to stderr
-- Tool names must match exactly (e.g., `get_file_contents`, not `getFileContents`)
-- Invalid tool names will cause the server to fail at startup with an error message
+- Tool names must match exactly (e.g., `get_file_contents`, not `getFileContents`). Invalid tool names will cause the server to fail at startup with an error message
 
 ### Using Toolsets With Docker
 
