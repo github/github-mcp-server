@@ -101,20 +101,43 @@ Create the `ReplyToReviewComment` function in `pkg/github/pullrequests.go` follo
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Code compiles without errors: `go build ./cmd/github-mcp-server`
-- [ ] No linting errors: `script/lint`
-- [ ] Function signature matches pattern: returns `(mcp.Tool, server.ToolHandlerFunc)`
-- [ ] Tool definition includes all required parameters with correct types
-- [ ] Parameter validation uses appropriate helpers (RequiredParam, RequiredInt, RequiredBigInt)
-- [ ] Error handling follows ghErrors.NewGitHubAPIErrorResponse pattern
-- [ ] Response format uses MinimalResponse with ID and URL fields
+- [x] Code compiles without errors: `go build ./cmd/github-mcp-server`
+- [x] No linting errors: `script/lint`
+- [x] Function signature matches pattern: returns `(mcp.Tool, server.ToolHandlerFunc)`
+- [x] Tool definition includes all required parameters with correct types
+- [x] Parameter validation uses appropriate helpers (RequiredParam, RequiredInt, RequiredBigInt)
+- [x] Error handling follows ghErrors.NewGitHubAPIErrorResponse pattern
+- [x] Response format uses MinimalResponse with ID and URL fields
 
 #### Manual Verification:
-- [ ] Tool function is properly exported (capitalized function name)
-- [ ] Handler function parameter extraction order is logical (owner, repo, pull_number, comment_id, body)
-- [ ] HTTP status check uses correct constant (http.StatusCreated for 201)
-- [ ] Response body is deferred closed after API call
-- [ ] Go-github method signature matches: `CreateCommentInReplyTo(ctx, owner, repo, number, body, commentID)`
+- [x] Tool function is properly exported (capitalized function name)
+- [x] Handler function parameter extraction order is logical (owner, repo, pull_number, comment_id, body)
+- [x] HTTP status check uses correct constant (http.StatusCreated for 201)
+- [x] Response body is deferred closed after API call
+- [x] Go-github method signature matches: `CreateCommentInReplyTo(ctx, owner, repo, number, body, commentID)`
+
+### Phase 1 Completion Summary
+
+Phase 1 has been successfully completed. The `ReplyToReviewComment` function was implemented in `pkg/github/pullrequests.go` following the established MCP tool pattern.
+
+**Implementation Details:**
+- Added `ReplyToReviewComment` function at line 1612 (after `RequestCopilotReview`)
+- Tool name: `reply_to_review_comment`
+- All required parameters properly defined: owner, repo, pull_number, comment_id, body
+- Uses `RequiredBigInt` for comment_id to handle int64 type
+- Calls `client.PullRequests.CreateCommentInReplyTo(ctx, owner, repo, pullNumber, body, commentID)`
+- Returns `MinimalResponse` with reply ID and URL on success (HTTP 201)
+- Proper error handling with `ghErrors.NewGitHubAPIErrorResponse`
+- Response body deferred close after API call
+
+**Verification Results:**
+- Code compiles successfully
+- Linting passes with 0 issues
+- All manual verification checks confirmed
+
+**Commit:** f5140d4 - "Add ReplyToReviewComment tool for replying to PR review comments"
+
+**Next Phase:** Phase 2 - Toolset Integration (register the tool in the pull_requests toolset)
 
 ---
 
@@ -142,15 +165,34 @@ Register the new `ReplyToReviewComment` tool in the pull_requests toolset within
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Code compiles after registration: `go build ./cmd/github-mcp-server`
-- [ ] No linting errors: `script/lint`
-- [ ] Server starts without errors: `./github-mcp-server stdio` exits cleanly on interrupt
+- [x] Code compiles after registration: `go build ./cmd/github-mcp-server`
+- [x] No linting errors: `script/lint`
+- [x] Server starts without errors: `./github-mcp-server stdio` exits cleanly on interrupt
 
 #### Manual Verification:
-- [ ] Tool appears in the MCP tool list when server is queried
-- [ ] Tool is categorized as a write tool (not read-only)
-- [ ] Tool registration follows the established pattern (uses `toolsets.NewServerTool` wrapper)
-- [ ] Tool is positioned logically with other review-related write tools
+- [x] Tool appears in the MCP tool list when server is queried
+- [x] Tool is categorized as a write tool (not read-only)
+- [x] Tool registration follows the established pattern (uses `toolsets.NewServerTool` wrapper)
+- [x] Tool is positioned logically with other review-related write tools
+
+### Phase 2 Completion Summary
+
+Phase 2 has been successfully completed. The `ReplyToReviewComment` tool has been registered in the pull_requests toolset.
+
+**Implementation Details:**
+- Added `toolsets.NewServerTool(ReplyToReviewComment(getClient, t))` to the `AddWriteTools` section in `pkg/github/tools.go`
+- Positioned after `AddCommentToPendingReview` to group review-related write tools together
+- Tool is now part of the pull_requests/repository_management toolset
+
+**Verification Results:**
+- Build completes successfully with no errors
+- Linting passes with 0 issues
+- Tool registration follows established pattern (uses REST client via getClient parameter)
+- Tool is correctly categorized as a write tool (ReadOnlyHint set to false in Phase 1)
+
+**Commit:** 31c8768 - "Register ReplyToReviewComment tool in pull_requests toolset"
+
+**Next Phase:** Phase 3 - Testing (add unit tests with toolsnap validation and table-driven behavioral tests)
 
 ---
 
