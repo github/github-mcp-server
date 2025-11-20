@@ -198,23 +198,23 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		AddReadTools(
 			toolsets.NewServerTool(GetRepositoryTree(getClient, t)),
 		)
-	// issues := toolsets.NewToolset(ToolsetMetadataIssues.ID, ToolsetMetadataIssues.Description).
-	// 	AddReadTools(
-	// 		toolsets.NewServerTool(IssueRead(getClient, getGQLClient, t, flags)),
-	// 		toolsets.NewServerTool(SearchIssues(getClient, t)),
-	// 		toolsets.NewServerTool(ListIssues(getGQLClient, t)),
-	// 		toolsets.NewServerTool(ListIssueTypes(getClient, t)),
-	// 		toolsets.NewServerTool(GetLabel(getGQLClient, t)),
-	// 	).
-	// 	AddWriteTools(
-	// 		toolsets.NewServerTool(IssueWrite(getClient, getGQLClient, t)),
-	// 		toolsets.NewServerTool(AddIssueComment(getClient, t)),
-	// 		toolsets.NewServerTool(AssignCopilotToIssue(getGQLClient, t)),
-	// 		toolsets.NewServerTool(SubIssueWrite(getClient, t)),
-	// 	).AddPrompts(
-	// 	toolsets.NewServerPrompt(AssignCodingAgentPrompt(t)),
-	// 	toolsets.NewServerPrompt(IssueToFixWorkflowPrompt(t)),
-	// )
+	issues := toolsets.NewToolset(ToolsetMetadataIssues.ID, ToolsetMetadataIssues.Description).
+		AddReadTools(
+			toolsets.NewServerTool(IssueRead(getClient, getGQLClient, t, flags)),
+			toolsets.NewServerTool(SearchIssues(getClient, t)),
+			toolsets.NewServerTool(ListIssues(getGQLClient, t)),
+			toolsets.NewServerTool(ListIssueTypes(getClient, t)),
+			// toolsets.NewServerTool(GetLabel(getGQLClient, t)),
+		).
+		AddWriteTools(
+			toolsets.NewServerTool(IssueWrite(getClient, getGQLClient, t)),
+			toolsets.NewServerTool(AddIssueComment(getClient, t)),
+			toolsets.NewServerTool(AssignCopilotToIssue(getGQLClient, t)),
+			toolsets.NewServerTool(SubIssueWrite(getClient, t)),
+		).AddPrompts(
+		toolsets.NewServerPrompt(AssignCodingAgentPrompt(t)),
+		toolsets.NewServerPrompt(IssueToFixWorkflowPrompt(t)),
+	)
 	// users := toolsets.NewToolset(ToolsetMetadataUsers.ID, ToolsetMetadataUsers.Description).
 	// 	AddReadTools(
 	// 		toolsets.NewServerTool(SearchUsers(getClient, t)),
@@ -250,11 +250,11 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(GetSecretScanningAlert(getClient, t)),
 			toolsets.NewServerTool(ListSecretScanningAlerts(getClient, t)),
 		)
-	// dependabot := toolsets.NewToolset(ToolsetMetadataDependabot.ID, ToolsetMetadataDependabot.Description).
-	// 	AddReadTools(
-	// 		toolsets.NewServerTool(GetDependabotAlert(getClient, t)),
-	// 		toolsets.NewServerTool(ListDependabotAlerts(getClient, t)),
-	// 	)
+	dependabot := toolsets.NewToolset(ToolsetMetadataDependabot.ID, ToolsetMetadataDependabot.Description).
+		AddReadTools(
+			toolsets.NewServerTool(GetDependabotAlert(getClient, t)),
+			toolsets.NewServerTool(ListDependabotAlerts(getClient, t)),
+		)
 
 	// notifications := toolsets.NewToolset(ToolsetMetadataNotifications.ID, ToolsetMetadataNotifications.Description).
 	// 	AddReadTools(
@@ -362,14 +362,14 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(contextTools)
 	// tsg.AddToolset(repos)
 	tsg.AddToolset(git)
-	// tsg.AddToolset(issues)
+	tsg.AddToolset(issues)
 	// tsg.AddToolset(orgs)
 	// tsg.AddToolset(users)
 	// tsg.AddToolset(pullRequests)
 	// tsg.AddToolset(actions)
 	tsg.AddToolset(codeSecurity)
+	tsg.AddToolset(dependabot)
 	tsg.AddToolset(secretProtection)
-	// tsg.AddToolset(dependabot)
 	// tsg.AddToolset(notifications)
 	// tsg.AddToolset(experiments)
 	tsg.AddToolset(discussions)
