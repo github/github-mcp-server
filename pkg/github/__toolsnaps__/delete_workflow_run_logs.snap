@@ -1,0 +1,30 @@
+{
+  "annotations": {
+    "destructiveHint": true,
+    "title": "Delete workflow logs"
+  },
+  "description": "Delete logs for a workflow run",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "owner",
+      "repo",
+      "run_id"
+    ],
+    "properties": {
+      "owner": {
+        "type": "string",
+        "description": "Repository owner"
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      },
+      "run_id": {
+        "type": "number",
+        "description": "The unique identifier of the workflow run"
+      }
+    }
+  },
+  "name": "delete_workflow_run_logs"
+}

@@ -1,0 +1,46 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get job logs"
+  },
+  "description": "Download logs for a specific workflow job or efficiently get all failed job logs for a workflow run",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "properties": {
+      "failed_only": {
+        "type": "boolean",
+        "description": "When true, gets logs for all failed jobs in run_id"
+      },
+      "job_id": {
+        "type": "number",
+        "description": "The unique identifier of the workflow job (required for single job logs)"
+      },
+      "owner": {
+        "type": "string",
+        "description": "Repository owner"
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      },
+      "return_content": {
+        "type": "boolean",
+        "description": "Returns actual log content instead of URLs"
+      },
+      "run_id": {
+        "type": "number",
+        "description": "Workflow run ID (required when using failed_only)"
+      },
+      "tail_lines": {
+        "type": "number",
+        "description": "Number of lines to return from the end of the log",
+        "default": 500
+      }
+    }
+  },
+  "name": "get_job_logs"
+}
