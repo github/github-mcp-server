@@ -1186,7 +1186,7 @@ func PushFiles(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp
 								Description: "file content",
 							},
 						},
-						Required:             []string{"path", "content"},
+						Required: []string{"path", "content"},
 					},
 				},
 				"message": {

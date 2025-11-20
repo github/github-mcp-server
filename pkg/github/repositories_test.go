@@ -2,7 +2,6 @@ package github
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -13,10 +12,11 @@ import (
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -278,7 +278,7 @@ func Test_GetFileContents(t *testing.T) {
 				"ref":   "refs/heads/main",
 			},
 			expectError:    false,
-			expectedResult: mcp.NewToolResultError("Failed to get file contents. The path does not point to a file or directory, or the file does not exist in the repository."),
+			expectedResult: utils.NewToolResultError("Failed to get file contents. The path does not point to a file or directory, or the file does not exist in the repository."),
 		},
 	}
 
@@ -293,7 +293,7 @@ func Test_GetFileContents(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -306,11 +306,9 @@ func Test_GetFileContents(t *testing.T) {
 			// Use the correct result helper based on the expected type
 			switch expected := tc.expectedResult.(type) {
 			case mcp.ResourceContents:
-				textResource := getTextResourceResult(t, result)
-				assert.Equal(t, expected, textResource)
-			case mcp.ResourceContents:
-				blobResource := getBlobResourceResult(t, result)
-				assert.Equal(t, expected, blobResource)
+				// Handle both text and blob resources
+				resource := getResourceResult(t, result)
+				assert.Equal(t, expected, *resource)
 			case []*github.RepositoryContent:
 				// Directory content fetch returns a text result (JSON array)
 				textContent := getTextResult(t, result)
@@ -336,9 +334,6 @@ func Test_ForkRepository(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := ForkRepository(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -417,7 +412,7 @@ func Test_ForkRepository(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -444,9 +439,6 @@ func Test_CreateBranch(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := CreateBranch(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -613,7 +605,7 @@ func Test_CreateBranch(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -645,9 +637,6 @@ func Test_GetCommit(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := GetCommit(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -745,7 +734,7 @@ func Test_GetCommit(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -780,9 +769,6 @@ func Test_ListCommits(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := ListCommits(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -971,7 +957,7 @@ func Test_ListCommits(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -1016,9 +1002,6 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := CreateOrUpdateFile(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -1150,7 +1133,7 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -1189,9 +1172,6 @@ func Test_CreateRepository(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := CreateRepository(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -1336,7 +1316,7 @@ func Test_CreateRepository(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -1369,9 +1349,6 @@ func Test_PushFiles(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := PushFiles(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -1675,7 +1652,7 @@ func Test_PushFiles(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -1716,9 +1693,6 @@ func Test_ListBranches(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := ListBranches(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -1796,7 +1770,7 @@ func Test_ListBranches(t *testing.T) {
 			request := createMCPRequest(tt.args)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tt.args)
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.errContains != "" {
@@ -1833,9 +1807,6 @@ func Test_DeleteFile(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := DeleteFile(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -1983,7 +1954,7 @@ func Test_DeleteFile(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -2017,9 +1988,6 @@ func Test_ListTags(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := ListTags(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -2110,7 +2078,7 @@ func Test_ListTags(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -2147,9 +2115,6 @@ func Test_GetTag(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := GetTag(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -2270,7 +2235,7 @@ func Test_GetTag(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -2304,6 +2269,9 @@ func Test_GetTag(t *testing.T) {
 func Test_ListReleases(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := ListReleases(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 
 	assert.Equal(t, "list_releases", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -2372,7 +2340,7 @@ func Test_ListReleases(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 			_, handler := ListReleases(stubGetClientFn(client), translations.NullTranslationHelper)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -2395,6 +2363,9 @@ func Test_ListReleases(t *testing.T) {
 func Test_GetLatestRelease(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := GetLatestRelease(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 
 	assert.Equal(t, "get_latest_release", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -2456,7 +2427,7 @@ func Test_GetLatestRelease(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 			_, handler := GetLatestRelease(stubGetClientFn(client), translations.NullTranslationHelper)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -2478,9 +2449,6 @@ func Test_GetReleaseByTag(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := GetReleaseByTag(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -2606,7 +2574,7 @@ func Test_GetReleaseByTag(t *testing.T) {
 
 			request := createMCPRequest(tc.requestArgs)
 
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -2997,9 +2965,6 @@ func Test_ListStarredRepositories(t *testing.T) {
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
-
 	assert.Equal(t, "list_starred_repositories", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	assert.Contains(t, schema.Properties, "username")
@@ -3120,12 +3085,12 @@ func Test_ListStarredRepositories(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
 				require.NotNil(t, result)
-				textResult, ok := result.Content[0].(mcp.TextContent)
+				textResult, ok := result.Content[0].(*mcp.TextContent)
 				require.True(t, ok, "Expected text content")
 				assert.Contains(t, textResult.Text, tc.expectedErrMsg)
 			} else {
@@ -3155,9 +3120,6 @@ func Test_StarRepository(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := StarRepository(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -3221,12 +3183,12 @@ func Test_StarRepository(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
 				require.NotNil(t, result)
-				textResult, ok := result.Content[0].(mcp.TextContent)
+				textResult, ok := result.Content[0].(*mcp.TextContent)
 				require.True(t, ok, "Expected text content")
 				assert.Contains(t, textResult.Text, tc.expectedErrMsg)
 			} else {
@@ -3246,9 +3208,6 @@ func Test_UnstarRepository(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := UnstarRepository(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -3312,12 +3271,12 @@ func Test_UnstarRepository(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
 				require.NotNil(t, result)
-				textResult, ok := result.Content[0].(mcp.TextContent)
+				textResult, ok := result.Content[0].(*mcp.TextContent)
 				require.True(t, ok, "Expected text content")
 				assert.Contains(t, textResult.Text, tc.expectedErrMsg)
 			} else {
@@ -3337,9 +3296,6 @@ func Test_RepositoriesGetRepositoryTree(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := GetRepositoryTree(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
