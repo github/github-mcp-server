@@ -637,7 +637,7 @@ func Test_DeleteWorkflowRunLogs(t *testing.T) {
 				"repo":   "repo",
 			},
 			expectError:    true,
-			expectedErrMsg: "run_id is required for this action",
+			expectedErrMsg: "missing required parameter: run_id",
 		},
 	}
 

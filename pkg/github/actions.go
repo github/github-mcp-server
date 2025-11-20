@@ -487,7 +487,7 @@ func ActionsRunTrigger(getClient GetClientFn, t translations.TranslationHelperFu
 					return mcp.NewToolResultError("ref is required for run_workflow action"), nil
 				}
 			} else if runID == 0 {
-				return mcp.NewToolResultError("run_id is required for this action"), nil
+				return mcp.NewToolResultError("missing required parameter: run_id"), nil
 			}
 
 			client, err := getClient(ctx)
