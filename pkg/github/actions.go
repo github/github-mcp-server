@@ -76,7 +76,6 @@ func actionFromString(s string) actionsActionType {
 
 func ActionsList(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("actions_list",
-			mcp.WithDescription(t("TOOL_ACTIONS_LIST_DESCRIPTION", "List GitHub Actions workflows in a repository.")),
 			mcp.WithDescription(t("TOOL_ACTIONS_LIST_DESCRIPTION", `Tools for listing GitHub Actions resources.
 Use this tool to list workflows in a repository, or list workflow runs, jobs, and artifacts for a specific workflow or workflow run.
 `)),
@@ -609,7 +608,7 @@ func listWorkflowArtifacts(ctx context.Context, client *github.Client, _ mcp.Cal
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-// ListWorkflows creates a tool to list workflows in a repository
+// listWorkflows lists workflows in a repository.
 func listWorkflows(ctx context.Context, client *github.Client, _ mcp.CallToolRequest, owner, repo string, pagination PaginationParams) (*mcp.CallToolResult, error) {
 	// Set up list options
 	opts := &github.ListOptions{
