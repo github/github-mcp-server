@@ -431,13 +431,18 @@ The following sets of tools are available:
 
 - **actions_get** - Get details of GitHub Actions resources (workflows, workflow runs, jobs, and artifacts)
   - `action`: The action to perform (string, required)
+  - `failed_only`: When true, gets logs for all failed jobs in the workflow run specified by resource_id (only for 'get_job_logs' action) (boolean, optional)
+  - `job_id`: The unique identifier of the workflow job (required for single job logs when action is 'get_job_logs') (number, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `resource_id`: The unique identifier of the resource. This will vary based on the "action" provided, so ensure you provide the correct ID:
 - Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'get_workflow' action.
-- Provide a workflow run ID for 'get_workflow_run', 'download_workflow_run_artifact' and 'get_workflow_run_usage' actions.
+- Provide a workflow run ID for 'get_workflow_run', 'download_workflow_run_artifact', 'get_workflow_run_usage', and 'get_workflow_run_logs' actions.
 - Provide a job ID for the 'get_workflow_job' action.
- (string, required)
+- Provide a workflow run ID for 'get_job_logs' action when using failed_only parameter.
+ (string, optional)
+  - `return_content`: Returns actual log content instead of URLs (only for 'get_job_logs' action) (boolean, optional)
+  - `tail_lines`: Number of lines to return from the end of the log (only for 'get_job_logs' action) (number, optional)
 
 - **actions_list** - List GitHub Actions workflows in a repository
   - `action`: The action to perform (string, required)
@@ -460,20 +465,6 @@ The following sets of tools are available:
   - `run_id`: The ID of the workflow run to trigger (number, required)
 
 - **delete_workflow_run_logs** - Delete workflow logs
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `run_id`: The unique identifier of the workflow run (number, required)
-
-- **get_job_logs** - Get job logs
-  - `failed_only`: When true, gets logs for all failed jobs in run_id (boolean, optional)
-  - `job_id`: The unique identifier of the workflow job (required for single job logs) (number, optional)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `return_content`: Returns actual log content instead of URLs (boolean, optional)
-  - `run_id`: Workflow run ID (required when using failed_only) (number, optional)
-  - `tail_lines`: Number of lines to return from the end of the log (number, optional)
-
-- **get_workflow_run_logs** - Get workflow run logs
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)

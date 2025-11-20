@@ -783,12 +783,14 @@ func Test_GetJobLogs(t *testing.T) {
 
 	assert.Equal(t, "actions_get", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "action")
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "resource_id")
 	assert.Contains(t, tool.InputSchema.Properties, "job_id")
-	assert.Contains(t, tool.InputSchema.Properties, "run_id")
 	assert.Contains(t, tool.InputSchema.Properties, "failed_only")
 	assert.Contains(t, tool.InputSchema.Properties, "return_content")
+	assert.Contains(t, tool.InputSchema.Properties, "tail_lines")
 	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"action", "owner", "repo"})
 
 	tests := []struct {
@@ -1307,7 +1309,7 @@ func Test_ActionsGet(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "resource_id")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"action", "owner", "repo", "resource_id"})
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"action", "owner", "repo"})
 
 	tests := []struct {
 		name           string
@@ -1320,7 +1322,6 @@ func Test_ActionsGet(t *testing.T) {
 			name:         "missing required parameter action",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
-				"action":      actionsActionTypeGetWorkflowJobLogs.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"resource_id": "123",
@@ -2112,7 +2113,7 @@ func Test_ActionsResourceRead_GetWorkflowUsage(t *testing.T) {
 									TotalMS: github.Ptr(int64(60000)),
 									Jobs:    github.Ptr(1),
 									JobRuns: []*github.WorkflowRunJobRun{
-										&github.WorkflowRunJobRun{
+										{
 											JobID:      github.Ptr(1),
 											DurationMS: github.Ptr(int64(600)),
 										},
