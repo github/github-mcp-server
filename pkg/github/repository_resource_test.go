@@ -124,6 +124,33 @@ func Test_repositoryResourceContents(t *testing.T) {
 				}}},
 		},
 		{
+			name: "successful text content fetch (HEAD)",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					raw.GetRawReposContentsByOwnerByRepoByPath,
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						w.Header().Set("Content-Type", "text/plain")
+
+						require.Contains(t, r.URL.Path, "pkg/github/actions.go")
+						_, err := w.Write([]byte("package actions\n\nfunc main() {\n    // Sample Go file content\n}\n"))
+						require.NoError(t, err)
+					}),
+				),
+			),
+			uri: "repo://owner/repo/contents/pkg/github/actions.go",
+			handlerFn: func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler {
+				_, handler := GetRepositoryResourceContent(getClient, getRawClient, t)
+				return handler
+			},
+			expectedResponseType: resourceResponseTypeText,
+			expectedResult: &mcp.ReadResourceResult{
+				Contents: []*mcp.ResourceContents{{
+					Text:     "package actions\n\nfunc main() {\n    // Sample Go file content\n}\n",
+					MIMEType: "text/plain",
+					URI:      "",
+				}}},
+		},
+		{
 			name: "successful text content fetch (branch)",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
