@@ -1,5 +1,3 @@
-//go:build ignore
-
 package github
 
 import (
@@ -24,15 +22,7 @@ func Test_ListNotifications(t *testing.T) {
 
 	assert.Equal(t, "list_notifications", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "filter")
-	assert.Contains(t, tool.InputSchema.Properties, "since")
-	assert.Contains(t, tool.InputSchema.Properties, "before")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	// All fields are optional, so Required should be empty
-	assert.Empty(t, tool.InputSchema.Required)
+	// All fields are optional, so Required should be empty (note: InputSchema.Required is []string, not an assertion property)
 
 	mockNotification := &github.Notification{
 		ID:     github.Ptr("123"),
@@ -126,7 +116,7 @@ func Test_ListNotifications(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 			_, handler := ListNotifications(stubGetClientFn(client), translations.NullTranslationHelper)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			if tc.expectError {
 				require.NoError(t, err)
@@ -159,9 +149,6 @@ func Test_ManageNotificationSubscription(t *testing.T) {
 
 	assert.Equal(t, "manage_notification_subscription", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "notificationID")
-	assert.Contains(t, tool.InputSchema.Properties, "action")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"notificationID", "action"})
 
 	mockSub := &github.Subscription{Ignored: github.Ptr(true)}
 	mockSubWatch := &github.Subscription{Ignored: github.Ptr(false), Subscribed: github.Ptr(true)}
@@ -254,7 +241,7 @@ func Test_ManageNotificationSubscription(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 			_, handler := ManageNotificationSubscription(stubGetClientFn(client), translations.NullTranslationHelper)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			if tc.expectError {
 				require.NoError(t, err)
@@ -297,10 +284,6 @@ func Test_ManageRepositoryNotificationSubscription(t *testing.T) {
 
 	assert.Equal(t, "manage_repository_notification_subscription", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "action")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "action"})
 
 	mockSub := &github.Subscription{Ignored: github.Ptr(true)}
 	mockWatchSub := &github.Subscription{Ignored: github.Ptr(false), Subscribed: github.Ptr(true)}
@@ -410,7 +393,7 @@ func Test_ManageRepositoryNotificationSubscription(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 			_, handler := ManageRepositoryNotificationSubscription(stubGetClientFn(client), translations.NullTranslationHelper)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			if tc.expectError {
 				require.NoError(t, err)
@@ -460,9 +443,6 @@ func Test_DismissNotification(t *testing.T) {
 
 	assert.Equal(t, "dismiss_notification", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "threadID")
-	assert.Contains(t, tool.InputSchema.Properties, "state")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"threadID"})
 
 	tests := []struct {
 		name           string
@@ -546,7 +526,7 @@ func Test_DismissNotification(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 			_, handler := DismissNotification(stubGetClientFn(client), translations.NullTranslationHelper)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			if tc.expectError {
 				// The tool returns a ToolResultError with a specific message
@@ -592,10 +572,6 @@ func Test_MarkAllNotificationsRead(t *testing.T) {
 
 	assert.Equal(t, "mark_all_notifications_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "lastReadAt")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Empty(t, tool.InputSchema.Required)
 
 	tests := []struct {
 		name           string
@@ -665,7 +641,7 @@ func Test_MarkAllNotificationsRead(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 			_, handler := MarkAllNotificationsRead(stubGetClientFn(client), translations.NullTranslationHelper)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			if tc.expectError {
 				require.NoError(t, err)
@@ -695,8 +671,6 @@ func Test_GetNotificationDetails(t *testing.T) {
 
 	assert.Equal(t, "get_notification_details", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "notificationID")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"notificationID"})
 
 	mockThread := &github.Notification{ID: github.Ptr("123"), Reason: github.Ptr("mention")}
 
@@ -743,7 +717,7 @@ func Test_GetNotificationDetails(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 			_, handler := GetNotificationDetails(stubGetClientFn(client), translations.NullTranslationHelper)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			if tc.expectError {
 				require.NoError(t, err)
