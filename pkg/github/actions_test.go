@@ -199,7 +199,7 @@ func Test_RunWorkflow(t *testing.T) {
 }
 
 func Test_RunWorkflow_WithFilename(t *testing.T) {
-	// Test the unified runWorkflow function with filenames
+	// Test the unified ActionsRunTrigger tool with filenames
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
