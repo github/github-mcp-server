@@ -34,6 +34,8 @@ const (
 	actionsActionTypeGetWorkflowRun
 	actionsActionTypeGetWorkflowJob
 	actionsActionTypeGetWorkflowRunUsage
+	actionsActionTypeGetWorkflowRunLogs
+	actionsActionTypeGetWorkflowJobLogs
 	actionsActionTypeDownloadWorkflowArtifact
 	actionsActionTypeRunWorkflow
 	actionsActionTypeRerunWorkflowRun
@@ -49,6 +51,8 @@ var actionsResourceTypes = map[actionsActionType]string{
 	actionsActionTypeGetWorkflow:              "get_workflow",
 	actionsActionTypeGetWorkflowRun:           "get_workflow_run",
 	actionsActionTypeGetWorkflowJob:           "get_workflow_job",
+	actionsActionTypeGetWorkflowRunLogs:       "get_workflow_run_logs",
+	actionsActionTypeGetWorkflowJobLogs:       "get_job_logs",
 	actionsActionTypeGetWorkflowRunUsage:      "get_workflow_run_usage",
 	actionsActionTypeDownloadWorkflowArtifact: "download_workflow_run_artifact",
 	actionsActionTypeRunWorkflow:              "run_workflow",
@@ -74,7 +78,7 @@ func actionFromString(s string) actionsActionType {
 	return actionsActionTypeUnknown
 }
 
-func ActionsList(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func ActionsList(getClient GetClientFn, t translations.TranslationHelperFunc, contentWindowSize int) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("actions_list",
 			mcp.WithDescription(t("TOOL_ACTIONS_LIST_DESCRIPTION", `Tools for listing GitHub Actions resources.
 Use this tool to list workflows in a repository, or list workflow runs, jobs, and artifacts for a specific workflow or workflow run.
@@ -247,7 +251,7 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 		}
 }
 
-func ActionsGet(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func ActionsGet(getClient GetClientFn, t translations.TranslationHelperFunc, contentWindowSize int) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("actions_get",
 			mcp.WithDescription(t("TOOL_ACTIONS_READ_DESCRIPTION", `Tools for reading specific GitHub Actions resources.
 Use this tool to get details about individual workflows, workflow runs, jobs, and artifacts, by using their unique IDs.
@@ -265,6 +269,8 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 					actionsActionTypeGetWorkflowJob.String(),
 					actionsActionTypeDownloadWorkflowArtifact.String(),
 					actionsActionTypeGetWorkflowRunUsage.String(),
+					actionsActionTypeGetWorkflowRunLogs.String(),
+					actionsActionTypeGetWorkflowJobLogs.String(),
 				),
 			),
 			mcp.WithString("owner",
@@ -276,12 +282,25 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 				mcp.Description(DescriptionRepositoryName),
 			),
 			mcp.WithString("resource_id",
-				mcp.Required(),
 				mcp.Description(`The unique identifier of the resource. This will vary based on the "action" provided, so ensure you provide the correct ID:
 - Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'get_workflow' action.
-- Provide a workflow run ID for 'get_workflow_run', 'download_workflow_run_artifact' and 'get_workflow_run_usage' actions.
+- Provide a workflow run ID for 'get_workflow_run', 'download_workflow_run_artifact', 'get_workflow_run_usage', and 'get_workflow_run_logs' actions.
 - Provide a job ID for the 'get_workflow_job' action.
+- Provide a workflow run ID for 'get_job_logs' action when using failed_only parameter.
 `),
+			),
+			mcp.WithBoolean("job_id",
+				mcp.Description("The ID of the job to get logs for (only for 'get_job_logs' action)"),
+			),
+			mcp.WithBoolean("failed_only",
+				mcp.Description("When true, gets logs for all failed jobs in the workflow run specified by resource_id (only for 'get_job_logs' action)"),
+			),
+			mcp.WithBoolean("return_content",
+				mcp.Description("Returns actual log content instead of URLs (only for 'get_job_logs' action)"),
+			),
+			mcp.WithNumber("tail_lines",
+				mcp.Description("Number of lines to return from the end of the log (only for 'get_job_logs' action)"),
+				mcp.DefaultNumber(500),
 			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -303,7 +322,36 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 				return mcp.NewToolResultError(fmt.Sprintf("unknown action: %s", actionTypeStr)), nil
 			}
 
-			resourceID, err := RequiredParam[string](request, "resource_id")
+			var resourceID string
+			if resourceType == actionsActionTypeGetWorkflowJobLogs {
+				resourceID, err = OptionalParam[string](request, "resource_id")
+				if err != nil {
+					return mcp.NewToolResultError(err.Error()), nil
+				}
+			} else {
+				resourceID, err = RequiredParam[string](request, "resource_id")
+				if err != nil {
+					return mcp.NewToolResultError(err.Error()), nil
+				}
+			}
+
+			// Get optional parameters for get_job_logs
+			jobID, err := OptionalParam[int64](request, "job_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			failedOnly, err := OptionalParam[bool](request, "failed_only")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			returnContent, err := OptionalParam[bool](request, "return_content")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			tailLines, err := OptionalParam[int](request, "tail_lines")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -320,13 +368,15 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 				// Do nothing, we accept both a string workflow ID or filename
 			default:
 				if resourceID == "" {
-					return mcp.NewToolResultError(fmt.Sprintf("missing required parameter for action %s: resource_id", actionTypeStr)), nil
-				}
-
-				// For other actions, resource ID must be an integer
-				resourceIDInt, parseErr = strconv.ParseInt(resourceID, 10, 64)
-				if parseErr != nil {
-					return mcp.NewToolResultError(fmt.Sprintf("invalid resource_id, must be an integer for action %s: %v", actionTypeStr, parseErr)), nil
+					if resourceType != actionsActionTypeGetWorkflowJobLogs {
+						return mcp.NewToolResultError(fmt.Sprintf("missing required parameter for action %s: resource_id", actionTypeStr)), nil
+					}
+				} else {
+					// For other actions, resource ID must be an integer
+					resourceIDInt, parseErr = strconv.ParseInt(resourceID, 10, 64)
+					if parseErr != nil {
+						return mcp.NewToolResultError(fmt.Sprintf("invalid resource_id, must be an integer for action %s: %v", actionTypeStr, parseErr)), nil
+					}
 				}
 			}
 
@@ -341,6 +391,10 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 				return downloadWorkflowArtifact(ctx, client, request, owner, repo, resourceIDInt)
 			case actionsActionTypeGetWorkflowRunUsage:
 				return getWorkflowRunUsage(ctx, client, request, owner, repo, resourceIDInt)
+			case actionsActionTypeGetWorkflowRunLogs:
+				return getWorkflowRunLogs(ctx, client, request, owner, repo, resourceIDInt)
+			case actionsActionTypeGetWorkflowJobLogs:
+				return getWorkflowJobLogs(ctx, client, request, owner, repo, resourceIDInt, jobID, returnContent, failedOnly, tailLines, contentWindowSize)
 			case actionsActionTypeUnknown:
 				return mcp.NewToolResultError(fmt.Sprintf("unknown action: %s", actionTypeStr)), nil
 			default:
@@ -730,163 +784,55 @@ func RunWorkflow(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 }
 
 // GetWorkflowRunLogs creates a tool to download logs for a specific workflow run
-func GetWorkflowRunLogs(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("get_workflow_run_logs",
-			mcp.WithDescription(t("TOOL_GET_WORKFLOW_RUN_LOGS_DESCRIPTION", "Download logs for a specific workflow run (EXPENSIVE: downloads ALL logs as ZIP. Consider using get_job_logs with failed_only=true for debugging failed jobs)")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_GET_WORKFLOW_RUN_LOGS_USER_TITLE", "Get workflow run logs"),
-				ReadOnlyHint: ToBoolPtr(true),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description(DescriptionRepositoryOwner),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description(DescriptionRepositoryName),
-			),
-			mcp.WithNumber("run_id",
-				mcp.Required(),
-				mcp.Description("The unique identifier of the workflow run"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := RequiredParam[string](request, "owner")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			repo, err := RequiredParam[string](request, "repo")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			runIDInt, err := RequiredInt(request, "run_id")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			runID := int64(runIDInt)
+func getWorkflowRunLogs(ctx context.Context, client *github.Client, _ mcp.CallToolRequest, owner, repo string, runID int64) (*mcp.CallToolResult, error) {
+	// Get the download URL for the logs
+	url, resp, err := client.Actions.GetWorkflowRunLogs(ctx, owner, repo, runID, 1)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workflow run logs: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
 
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
+	// Create response with the logs URL and information
+	result := map[string]any{
+		"logs_url":         url.String(),
+		"message":          "Workflow run logs are available for download",
+		"note":             "The logs_url provides a download link for the complete workflow run logs as a ZIP archive. You can download this archive to extract and examine individual job logs.",
+		"warning":          "This downloads ALL logs as a ZIP file which can be large and expensive. For debugging failed jobs, consider using get_job_logs with failed_only=true and run_id instead.",
+		"optimization_tip": "Use: get_job_logs with parameters {run_id: " + fmt.Sprintf("%d", runID) + ", failed_only: true} for more efficient failed job debugging",
+	}
 
-			// Get the download URL for the logs
-			url, resp, err := client.Actions.GetWorkflowRunLogs(ctx, owner, repo, runID, 1)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get workflow run logs: %w", err)
-			}
-			defer func() { _ = resp.Body.Close() }()
+	r, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
 
-			// Create response with the logs URL and information
-			result := map[string]any{
-				"logs_url":         url.String(),
-				"message":          "Workflow run logs are available for download",
-				"note":             "The logs_url provides a download link for the complete workflow run logs as a ZIP archive. You can download this archive to extract and examine individual job logs.",
-				"warning":          "This downloads ALL logs as a ZIP file which can be large and expensive. For debugging failed jobs, consider using get_job_logs with failed_only=true and run_id instead.",
-				"optimization_tip": "Use: get_job_logs with parameters {run_id: " + fmt.Sprintf("%d", runID) + ", failed_only: true} for more efficient failed job debugging",
-			}
-
-			r, err := json.Marshal(result)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
-		}
+	return mcp.NewToolResultText(string(r)), nil
 }
 
-// GetJobLogs creates a tool to download logs for a specific workflow job or efficiently get all failed job logs for a workflow run
-func GetJobLogs(getClient GetClientFn, t translations.TranslationHelperFunc, contentWindowSize int) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("get_job_logs",
-			mcp.WithDescription(t("TOOL_GET_JOB_LOGS_DESCRIPTION", "Download logs for a specific workflow job or efficiently get all failed job logs for a workflow run")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_GET_JOB_LOGS_USER_TITLE", "Get job logs"),
-				ReadOnlyHint: ToBoolPtr(true),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description(DescriptionRepositoryOwner),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description(DescriptionRepositoryName),
-			),
-			mcp.WithNumber("job_id",
-				mcp.Description("The unique identifier of the workflow job (required for single job logs)"),
-			),
-			mcp.WithNumber("run_id",
-				mcp.Description("Workflow run ID (required when using failed_only)"),
-			),
-			mcp.WithBoolean("failed_only",
-				mcp.Description("When true, gets logs for all failed jobs in run_id"),
-			),
-			mcp.WithBoolean("return_content",
-				mcp.Description("Returns actual log content instead of URLs"),
-			),
-			mcp.WithNumber("tail_lines",
-				mcp.Description("Number of lines to return from the end of the log"),
-				mcp.DefaultNumber(500),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := RequiredParam[string](request, "owner")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			repo, err := RequiredParam[string](request, "repo")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
+// getWorkflowJobLogs downloads logs for a specific workflow job or efficiently gets all failed job logs for a workflow run
+func getWorkflowJobLogs(ctx context.Context, client *github.Client, request mcp.CallToolRequest, owner, repo string, runID int64, jobID int64, returnContent bool, failedOnly bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, error) {
+	// Default to 500 lines if not specified
+	if tailLines == 0 {
+		tailLines = 500
+	}
 
-			// Get optional parameters
-			jobID, err := OptionalIntParam(request, "job_id")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			runID, err := OptionalIntParam(request, "run_id")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			failedOnly, err := OptionalParam[bool](request, "failed_only")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			returnContent, err := OptionalParam[bool](request, "return_content")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			tailLines, err := OptionalIntParam(request, "tail_lines")
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			// Default to 500 lines if not specified
-			if tailLines == 0 {
-				tailLines = 500
-			}
+	// Validate parameters
+	if failedOnly && runID == 0 {
+		return mcp.NewToolResultError("resource_id is required when failed_only is true"), nil
+	}
+	if !failedOnly && jobID == 0 {
+		return mcp.NewToolResultError("job_id is required when failed_only is false"), nil
+	}
 
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
+	if failedOnly && runID > 0 {
+		// Handle failed-only mode: get logs for all failed jobs in the workflow run
+		return handleFailedJobLogs(ctx, client, owner, repo, runID, returnContent, tailLines, contentWindowSize)
+	} else if jobID > 0 {
+		// Handle single job mode
+		return handleSingleJobLogs(ctx, client, owner, repo, int64(jobID), returnContent, tailLines, contentWindowSize)
+	}
 
-			// Validate parameters
-			if failedOnly && runID == 0 {
-				return mcp.NewToolResultError("run_id is required when failed_only is true"), nil
-			}
-			if !failedOnly && jobID == 0 {
-				return mcp.NewToolResultError("job_id is required when failed_only is false"), nil
-			}
-
-			if failedOnly && runID > 0 {
-				// Handle failed-only mode: get logs for all failed jobs in the workflow run
-				return handleFailedJobLogs(ctx, client, owner, repo, int64(runID), returnContent, tailLines, contentWindowSize)
-			} else if jobID > 0 {
-				// Handle single job mode
-				return handleSingleJobLogs(ctx, client, owner, repo, int64(jobID), returnContent, tailLines, contentWindowSize)
-			}
-
-			return mcp.NewToolResultError("Either job_id must be provided for single job logs, or run_id with failed_only=true for failed job logs"), nil
-		}
+	return mcp.NewToolResultError("Either job_id must be provided for single job logs, or resource_id with failed_only=true for failed job logs"), nil
 }
 
 // handleFailedJobLogs gets logs for all failed jobs in a workflow run

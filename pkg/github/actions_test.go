@@ -94,7 +94,7 @@ func Test_ActionsList_ListWorkflows(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsList(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsList(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -156,6 +156,7 @@ func Test_RunWorkflow(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
+				"action":      actionsActionTypeGetWorkflowJobLogs.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"workflow_id": "12345",
@@ -167,9 +168,10 @@ func Test_RunWorkflow(t *testing.T) {
 			name:         "missing required parameter workflow_id",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
-				"owner": "owner",
-				"repo":  "repo",
-				"ref":   "main",
+				"action": actionsActionTypeGetWorkflowJobLogs.String(),
+				"owner":  "owner",
+				"repo":   "repo",
+				"ref":    "main",
 			},
 			expectError:    true,
 			expectedErrMsg: "missing required parameter: workflow_id",
@@ -229,6 +231,7 @@ func Test_RunWorkflow_WithFilename(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
+				"action":      actionsActionTypeGetWorkflowJobLogs.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"workflow_id": "ci.yml",
@@ -247,6 +250,7 @@ func Test_RunWorkflow_WithFilename(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
+				"action":      actionsActionTypeGetWorkflowJobLogs.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"workflow_id": "12345",
@@ -258,9 +262,10 @@ func Test_RunWorkflow_WithFilename(t *testing.T) {
 			name:         "missing required parameter workflow_id",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
-				"owner": "owner",
-				"repo":  "repo",
-				"ref":   "main",
+				"action": actionsActionTypeGetWorkflowJobLogs.String(),
+				"owner":  "owner",
+				"repo":   "repo",
+				"ref":    "main",
 			},
 			expectError:    true,
 			expectedErrMsg: "missing required parameter: workflow_id",
@@ -498,7 +503,7 @@ func Test_ListWorkflowRunArtifacts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsList(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsList(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -576,7 +581,7 @@ func Test_DownloadWorkflowRunArtifact(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -626,6 +631,7 @@ func Test_DeleteWorkflowRunLogs(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
+				"action": actionsActionTypeGetWorkflowJobLogs.String(),
 				"owner":  "owner",
 				"repo":   "repo",
 				"run_id": float64(12345),
@@ -636,8 +642,9 @@ func Test_DeleteWorkflowRunLogs(t *testing.T) {
 			name:         "missing required parameter run_id",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
-				"owner": "owner",
-				"repo":  "repo",
+				"action": actionsActionTypeGetWorkflowJobLogs.String(),
+				"owner":  "owner",
+				"repo":   "repo",
 			},
 			expectError:    true,
 			expectedErrMsg: "missing required parameter: run_id",
@@ -740,7 +747,7 @@ func Test_GetWorkflowRunUsage(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -772,9 +779,9 @@ func Test_GetWorkflowRunUsage(t *testing.T) {
 func Test_GetJobLogs(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := GetJobLogs(stubGetClientFn(mockClient), translations.NullTranslationHelper, 5000)
+	tool, _ := ActionsGet(stubGetClientFn(mockClient), translations.NullTranslationHelper, 5000)
 
-	assert.Equal(t, "get_job_logs", tool.Name)
+	assert.Equal(t, "actions_get", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
@@ -782,7 +789,7 @@ func Test_GetJobLogs(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "run_id")
 	assert.Contains(t, tool.InputSchema.Properties, "failed_only")
 	assert.Contains(t, tool.InputSchema.Properties, "return_content")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"action", "owner", "repo"})
 
 	tests := []struct {
 		name           string
@@ -804,6 +811,7 @@ func Test_GetJobLogs(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
+				"action": actionsActionTypeGetWorkflowJobLogs.String(),
 				"owner":  "owner",
 				"repo":   "repo",
 				"job_id": float64(123),
@@ -855,9 +863,10 @@ func Test_GetJobLogs(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
+				"action":      actionsActionTypeGetWorkflowJobLogs.String(),
 				"owner":       "owner",
 				"repo":        "repo",
-				"run_id":      float64(456),
+				"resource_id": "456",
 				"failed_only": true,
 			},
 			expectError: false,
@@ -900,9 +909,10 @@ func Test_GetJobLogs(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
+				"action":      actionsActionTypeGetWorkflowJobLogs.String(),
 				"owner":       "owner",
 				"repo":        "repo",
-				"run_id":      float64(456),
+				"resource_id": "456",
 				"failed_only": true,
 			},
 			expectError: false,
@@ -917,8 +927,9 @@ func Test_GetJobLogs(t *testing.T) {
 			name:         "missing job_id when not using failed_only",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
-				"owner": "owner",
-				"repo":  "repo",
+				"action": actionsActionTypeGetWorkflowJobLogs.String(),
+				"owner":  "owner",
+				"repo":   "repo",
 			},
 			expectError:    true,
 			expectedErrMsg: "job_id is required when failed_only is false",
@@ -927,12 +938,13 @@ func Test_GetJobLogs(t *testing.T) {
 			name:         "missing run_id when using failed_only",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
+				"action":      actionsActionTypeGetWorkflowJobLogs.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"failed_only": true,
 			},
 			expectError:    true,
-			expectedErrMsg: "run_id is required when failed_only is true",
+			expectedErrMsg: "resource_id is required when failed_only is true",
 		},
 		{
 			name:         "missing required parameter owner",
@@ -948,6 +960,7 @@ func Test_GetJobLogs(t *testing.T) {
 			name:         "missing required parameter repo",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
+				"action": actionsActionTypeGetWorkflowJobLogs.String(),
 				"owner":  "owner",
 				"job_id": float64(123),
 			},
@@ -968,6 +981,7 @@ func Test_GetJobLogs(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
+				"action": actionsActionTypeGetWorkflowJobLogs.String(),
 				"owner":  "owner",
 				"repo":   "repo",
 				"job_id": float64(999),
@@ -988,9 +1002,10 @@ func Test_GetJobLogs(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
+				"action":      actionsActionTypeGetWorkflowJobLogs.String(),
 				"owner":       "owner",
 				"repo":        "repo",
-				"run_id":      float64(999),
+				"resource_id": "999",
 				"failed_only": true,
 			},
 			expectError: true,
@@ -1001,7 +1016,7 @@ func Test_GetJobLogs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetJobLogs(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
+			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1060,9 +1075,10 @@ func Test_GetJobLogs_WithContentReturn(t *testing.T) {
 	)
 
 	client := github.NewClient(mockedClient)
-	_, handler := GetJobLogs(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
+	_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
 
 	request := createMCPRequest(map[string]any{
+		"action":         actionsActionTypeGetWorkflowJobLogs.String(),
 		"owner":          "owner",
 		"repo":           "repo",
 		"job_id":         float64(123),
@@ -1107,9 +1123,10 @@ func Test_GetJobLogs_WithContentReturnAndTailLines(t *testing.T) {
 	)
 
 	client := github.NewClient(mockedClient)
-	_, handler := GetJobLogs(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
+	_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
 
 	request := createMCPRequest(map[string]any{
+		"action":         actionsActionTypeGetWorkflowJobLogs.String(),
 		"owner":          "owner",
 		"repo":           "repo",
 		"job_id":         float64(123),
@@ -1154,9 +1171,10 @@ func Test_GetJobLogs_WithContentReturnAndLargeTailLines(t *testing.T) {
 	)
 
 	client := github.NewClient(mockedClient)
-	_, handler := GetJobLogs(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
+	_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
 
 	request := createMCPRequest(map[string]any{
+		"action":         actionsActionTypeGetWorkflowJobLogs.String(),
 		"owner":          "owner",
 		"repo":           "repo",
 		"job_id":         float64(123),
@@ -1281,7 +1299,7 @@ func Test_MemoryUsage_SlidingWindow_vs_NoWindow(t *testing.T) {
 func Test_ActionsGet(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := ActionsGet(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := ActionsGet(stubGetClientFn(mockClient), translations.NullTranslationHelper, 5000)
 
 	assert.Equal(t, "actions_get", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -1302,6 +1320,7 @@ func Test_ActionsGet(t *testing.T) {
 			name:         "missing required parameter action",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
+				"action":      actionsActionTypeGetWorkflowJobLogs.String(),
 				"owner":       "owner",
 				"repo":        "repo",
 				"resource_id": "123",
@@ -1360,7 +1379,7 @@ func Test_ActionsGet(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1442,7 +1461,7 @@ func Test_ActionsResourceRead_GetWorkflow(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1537,7 +1556,7 @@ func Test_ActionsResourceRead_GetWorkflowRun(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1689,7 +1708,7 @@ func Test_ActionsResourceRead_ListWorkflowRuns(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsList(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsList(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1775,7 +1794,7 @@ func Test_ActionsResourceRead_GetWorkflowJob(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1872,7 +1891,7 @@ func Test_ActionsResourceRead_ListWorkflowJobs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsList(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsList(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1952,7 +1971,7 @@ func Test_ActionsResourceRead_DownloadWorkflowArtifact(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -2045,7 +2064,7 @@ func Test_ActionsResourceRead_ListWorkflowArtifacts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsList(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsList(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -2140,7 +2159,7 @@ func Test_ActionsResourceRead_GetWorkflowUsage(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ActionsGet(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
