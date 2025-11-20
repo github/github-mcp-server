@@ -21,11 +21,6 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
-const (
-	// DefaultGraphQLPageSize is the default page size for GraphQL queries
-	DefaultGraphQLPageSize = 30
-)
-
 // CloseIssueInput represents the input for closing an issue via the GraphQL API.
 // Used to extend the functionality of the githubv4 library to support closing issues as duplicates.
 type CloseIssueInput struct {
