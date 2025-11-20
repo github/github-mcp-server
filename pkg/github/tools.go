@@ -250,11 +250,11 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(GetSecretScanningAlert(getClient, t)),
 			toolsets.NewServerTool(ListSecretScanningAlerts(getClient, t)),
 		)
-	// dependabot := toolsets.NewToolset(ToolsetMetadataDependabot.ID, ToolsetMetadataDependabot.Description).
-	// 	AddReadTools(
-	// 		toolsets.NewServerTool(GetDependabotAlert(getClient, t)),
-	// 		toolsets.NewServerTool(ListDependabotAlerts(getClient, t)),
-	// 	)
+	dependabot := toolsets.NewToolset(ToolsetMetadataDependabot.ID, ToolsetMetadataDependabot.Description).
+		AddReadTools(
+			toolsets.NewServerTool(GetDependabotAlert(getClient, t)),
+			toolsets.NewServerTool(ListDependabotAlerts(getClient, t)),
+		)
 
 	// notifications := toolsets.NewToolset(ToolsetMetadataNotifications.ID, ToolsetMetadataNotifications.Description).
 	// 	AddReadTools(
@@ -368,8 +368,8 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	// tsg.AddToolset(pullRequests)
 	// tsg.AddToolset(actions)
 	tsg.AddToolset(codeSecurity)
+	tsg.AddToolset(dependabot)
 	tsg.AddToolset(secretProtection)
-	// tsg.AddToolset(dependabot)
 	// tsg.AddToolset(notifications)
 	// tsg.AddToolset(experiments)
 	// tsg.AddToolset(discussions)
