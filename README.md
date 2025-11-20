@@ -401,7 +401,7 @@ docker run -i --rm \
 docker run -i --rm \
   -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
   -e GITHUB_TOOLSETS="repos,issues" \
-  -e GITHUB_TOOLS="search_code,search_repositories" \
+  -e GITHUB_TOOLS="get_gist" \
   ghcr.io/github/github-mcp-server
 ```
 
