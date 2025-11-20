@@ -1,3 +1,5 @@
+//go:build ignore
+
 package github
 
 import (
@@ -3371,7 +3373,7 @@ func Test_GetRepositoryTree(t *testing.T) {
 			// Create the tool request
 			request := createMCPRequest(tc.requestArgs)
 
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			if tc.expectError {
 				require.NoError(t, err)

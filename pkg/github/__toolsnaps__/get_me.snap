@@ -1,12 +1,9 @@
 {
   "annotations": {
-    "title": "Get my user profile",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "Get my user profile"
   },
   "description": "Get details of the authenticated GitHub user. Use this when a request is about the user's own profile for GitHub. Or when information is missing to build other tool calls.",
-  "inputSchema": {
-    "properties": {},
-    "type": "object"
-  },
+  "inputSchema": null,
   "name": "get_me"
 }

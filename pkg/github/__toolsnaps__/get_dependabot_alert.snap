@@ -1,30 +1,30 @@
 {
   "annotations": {
-    "title": "Get dependabot alert",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "Get dependabot alert"
   },
   "description": "Get details of a specific dependabot alert in a GitHub repository.",
   "inputSchema": {
-    "properties": {
-      "alertNumber": {
-        "description": "The number of the alert.",
-        "type": "number"
-      },
-      "owner": {
-        "description": "The owner of the repository.",
-        "type": "string"
-      },
-      "repo": {
-        "description": "The name of the repository.",
-        "type": "string"
-      }
-    },
+    "type": "object",
     "required": [
       "owner",
       "repo",
       "alertNumber"
     ],
-    "type": "object"
+    "properties": {
+      "alertNumber": {
+        "type": "number",
+        "description": "The number of the alert."
+      },
+      "owner": {
+        "type": "string",
+        "description": "The owner of the repository."
+      },
+      "repo": {
+        "type": "string",
+        "description": "The name of the repository."
+      }
+    }
   },
   "name": "get_dependabot_alert"
 }
