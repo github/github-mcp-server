@@ -1680,15 +1680,12 @@ func ReplyToReviewComment(getClient GetClientFn, t translations.TranslationHelpe
 			defer func() { _ = resp.Body.Close() }()
 
 			if resp.StatusCode != http.StatusCreated {
-				// Note: intentionally shadowing the 'body' parameter here with response body bytes.
-				// This is a common pattern in this file (see CreatePullRequest, etc.)
-				body, err := io.ReadAll(resp.Body)
+				responseBody, err := io.ReadAll(resp.Body)
 				if err != nil {
 					return nil, fmt.Errorf("failed to read response body: %w", err)
 				}
-				return mcp.NewToolResultError(fmt.Sprintf("failed to create reply to review comment: %s", string(body))), nil
+				return mcp.NewToolResultError(fmt.Sprintf("failed to create reply to review comment: %s", string(responseBody))), nil
 			}
-
 			// Return minimal response with just essential information
 			minimalResponse := MinimalResponse{
 				ID:  fmt.Sprintf("%d", comment.GetID()),
