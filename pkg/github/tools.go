@@ -165,35 +165,35 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 
 	// Define all available features with their default state (disabled)
 	// Create toolsets
-	// repos := toolsets.NewToolset(ToolsetMetadataRepos.ID, ToolsetMetadataRepos.Description).
-	// 	AddReadTools(
-	// 		toolsets.NewServerTool(SearchRepositories(getClient, t)),
-	// 		toolsets.NewServerTool(GetFileContents(getClient, getRawClient, t)),
-	// 		toolsets.NewServerTool(ListCommits(getClient, t)),
-	// 		toolsets.NewServerTool(SearchCode(getClient, t)),
-	// 		toolsets.NewServerTool(GetCommit(getClient, t)),
-	// 		toolsets.NewServerTool(ListBranches(getClient, t)),
-	// 		toolsets.NewServerTool(ListTags(getClient, t)),
-	// 		toolsets.NewServerTool(GetTag(getClient, t)),
-	// 		toolsets.NewServerTool(ListReleases(getClient, t)),
-	// 		toolsets.NewServerTool(GetLatestRelease(getClient, t)),
-	// 		toolsets.NewServerTool(GetReleaseByTag(getClient, t)),
-	// 	).
-	// 	AddWriteTools(
-	// 		toolsets.NewServerTool(CreateOrUpdateFile(getClient, t)),
-	// 		toolsets.NewServerTool(CreateRepository(getClient, t)),
-	// 		toolsets.NewServerTool(ForkRepository(getClient, t)),
-	// 		toolsets.NewServerTool(CreateBranch(getClient, t)),
-	// 		toolsets.NewServerTool(PushFiles(getClient, t)),
-	// 		toolsets.NewServerTool(DeleteFile(getClient, t)),
-	// 	).
-	// 	AddResourceTemplates(
-	// 		toolsets.NewServerResourceTemplate(GetRepositoryResourceContent(getClient, getRawClient, t)),
-	// 		toolsets.NewServerResourceTemplate(GetRepositoryResourceBranchContent(getClient, getRawClient, t)),
-	// 		toolsets.NewServerResourceTemplate(GetRepositoryResourceCommitContent(getClient, getRawClient, t)),
-	// 		toolsets.NewServerResourceTemplate(GetRepositoryResourceTagContent(getClient, getRawClient, t)),
-	// 		toolsets.NewServerResourceTemplate(GetRepositoryResourcePrContent(getClient, getRawClient, t)),
-	// 	)
+	repos := toolsets.NewToolset(ToolsetMetadataRepos.ID, ToolsetMetadataRepos.Description).
+		// AddReadTools(
+		// 		toolsets.NewServerTool(SearchRepositories(getClient, t)),
+		// 		toolsets.NewServerTool(GetFileContents(getClient, getRawClient, t)),
+		// 		toolsets.NewServerTool(ListCommits(getClient, t)),
+		// 		toolsets.NewServerTool(SearchCode(getClient, t)),
+		// 		toolsets.NewServerTool(GetCommit(getClient, t)),
+		// 		toolsets.NewServerTool(ListBranches(getClient, t)),
+		// 		toolsets.NewServerTool(ListTags(getClient, t)),
+		// 		toolsets.NewServerTool(GetTag(getClient, t)),
+		// 		toolsets.NewServerTool(ListReleases(getClient, t)),
+		// 		toolsets.NewServerTool(GetLatestRelease(getClient, t)),
+		// 		toolsets.NewServerTool(GetReleaseByTag(getClient, t)),
+		// 	).
+		// 	AddWriteTools(
+		// 		toolsets.NewServerTool(CreateOrUpdateFile(getClient, t)),
+		// 		toolsets.NewServerTool(CreateRepository(getClient, t)),
+		// 		toolsets.NewServerTool(ForkRepository(getClient, t)),
+		// 		toolsets.NewServerTool(CreateBranch(getClient, t)),
+		// 		toolsets.NewServerTool(PushFiles(getClient, t)),
+		// 		toolsets.NewServerTool(DeleteFile(getClient, t)),
+		// 	).
+		AddResourceTemplates(
+			toolsets.NewServerResourceTemplate(GetRepositoryResourceContent(getClient, getRawClient, t)),
+			toolsets.NewServerResourceTemplate(GetRepositoryResourceBranchContent(getClient, getRawClient, t)),
+			toolsets.NewServerResourceTemplate(GetRepositoryResourceCommitContent(getClient, getRawClient, t)),
+			toolsets.NewServerResourceTemplate(GetRepositoryResourceTagContent(getClient, getRawClient, t)),
+			toolsets.NewServerResourceTemplate(GetRepositoryResourcePrContent(getClient, getRawClient, t)),
+		)
 	git := toolsets.NewToolset(ToolsetMetadataGit.ID, ToolsetMetadataGit.Description).
 		AddReadTools(
 			toolsets.NewServerTool(GetRepositoryTree(getClient, t)),
@@ -360,7 +360,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 
 	// Add toolsets to the group
 	tsg.AddToolset(contextTools)
-	// tsg.AddToolset(repos)
+	tsg.AddToolset(repos)
 	tsg.AddToolset(git)
 	tsg.AddToolset(issues)
 	// tsg.AddToolset(orgs)
@@ -390,9 +390,9 @@ func InitDynamicToolset(s *mcp.Server, tsg *toolsets.ToolsetGroup, t translation
 	// Need to add the dynamic toolset last so it can be used to enable other toolsets
 	dynamicToolSelection := toolsets.NewToolset(ToolsetMetadataDynamic.ID, ToolsetMetadataDynamic.Description).
 		AddReadTools(
-		// toolsets.NewServerTool(ListAvailableToolsets(tsg, t)),
-		// toolsets.NewServerTool(GetToolsetsTools(tsg, t)),
-		// toolsets.NewServerTool(EnableToolset(s, tsg, t)),
+			toolsets.NewServerTool(ListAvailableToolsets(tsg, t)),
+			toolsets.NewServerTool(GetToolsetsTools(tsg, t)),
+			toolsets.NewServerTool(EnableToolset(s, tsg, t)),
 		)
 
 	dynamicToolSelection.Enabled = true
