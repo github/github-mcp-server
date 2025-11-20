@@ -109,9 +109,19 @@ type CacheStats struct {
 	Evictions int64
 }
 
-// GetRepoAccessInfo returns repository access metadata for the provided user.
-// Results are cached per repository to avoid repeated GraphQL round-trips.
-func (c *RepoAccessCache) GetRepoAccessInfo(ctx context.Context, username, owner, repo string) (RepoAccessInfo, error) {
+func (c *RepoAccessCache) IsSafeContent(ctx context.Context, username, owner, repo string) (bool, error) {
+	repoInfo, err := c.getRepoAccessInfo(ctx, username, owner, repo)
+	if err != nil {
+		c.logDebug("error checking repo access info for content filtering", "owner", owner, "repo", repo, "user", username, "error", err)
+		return false, err
+	}
+	if repoInfo.IsPrivate || repoInfo.ViewerLogin == username {
+		return true, nil
+	}
+	return repoInfo.HasPushAccess, nil
+}
+
+func (c *RepoAccessCache) getRepoAccessInfo(ctx context.Context, username, owner, repo string) (RepoAccessInfo, error) {
 	if c == nil {
 		return RepoAccessInfo{}, fmt.Errorf("nil repo access cache")
 	}

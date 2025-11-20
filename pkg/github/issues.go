@@ -331,11 +331,11 @@ func GetIssue(ctx context.Context, client *github.Client, cache *lockdown.RepoAc
 		}
 		login := issue.GetUser().GetLogin()
 		if login != "" {
-			info, err := cache.GetRepoAccessInfo(ctx, login, owner, repo)
+			isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
 			if err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
 			}
-			if info.ViewerLogin != login && !info.IsPrivate && !info.HasPushAccess {
+			if !isSafeContent {
 				return mcp.NewToolResultError("access to issue details is restricted by lockdown mode"), nil
 			}
 		}
@@ -394,16 +394,11 @@ func GetIssueComments(ctx context.Context, client *github.Client, cache *lockdow
 			if login == "" {
 				continue
 			}
-			info, err := cache.GetRepoAccessInfo(ctx, login, owner, repo)
+			isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
 			if err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
 			}
-			// Do not filter content for private repositories or if the comment author is the viewer
-			if info.IsPrivate || info.ViewerLogin == login {
-				filteredComments = comments
-				break
-			}
-			if info.HasPushAccess {
+			if !isSafeContent {
 				filteredComments = append(filteredComments, comment)
 			}
 		}
@@ -459,16 +454,11 @@ func GetSubIssues(ctx context.Context, client *github.Client, cache *lockdown.Re
 			if login == "" {
 				continue
 			}
-			info, err := cache.GetRepoAccessInfo(ctx, login, owner, repo)
+			isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
 			if err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
 			}
-			// Repo is private or the comment author is the viewer, do not filter content
-			if info.IsPrivate || info.ViewerLogin == login {
-				filteredSubIssues = subIssues
-				break
-			}
-			if info.HasPushAccess {
+			if !isSafeContent {
 				filteredSubIssues = append(filteredSubIssues, subIssue)
 			}
 		}

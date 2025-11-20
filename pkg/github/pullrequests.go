@@ -141,12 +141,12 @@ func GetPullRequest(ctx context.Context, client *github.Client, cache *lockdown.
 		}
 		login := pr.GetUser().GetLogin()
 		if login != "" {
-			info, err := cache.GetRepoAccessInfo(ctx, login, owner, repo)
+			isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
 			if err != nil {
 				return nil, fmt.Errorf("failed to check content removal: %w", err)
 			}
 
-			if info.ViewerLogin != login && !info.IsPrivate && !info.HasPushAccess {
+			if !isSafeContent {
 				return mcp.NewToolResultError("access to pull request is restricted by lockdown mode"), nil
 			}
 		}
@@ -303,16 +303,11 @@ func GetPullRequestReviewComments(ctx context.Context, client *github.Client, ca
 			if user == nil {
 				continue
 			}
-			info, err := cache.GetRepoAccessInfo(ctx, user.GetLogin(), owner, repo)
+			isSafeContent, err := cache.IsSafeContent(ctx, user.GetLogin(), owner, repo)
 			if err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
 			}
-			// Do not filter content for private repositories or if the comment author is the viewer
-			if info.IsPrivate || info.ViewerLogin == user.GetLogin() {
-				filteredComments = comments
-				break
-			}
-			if info.HasPushAccess {
+			if !isSafeContent {
 				filteredComments = append(filteredComments, comment)
 			}
 		}
@@ -354,14 +349,11 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, cache *lo
 		for _, review := range reviews {
 			login := review.GetUser().GetLogin()
 			if login != "" {
-				info, err := cache.GetRepoAccessInfo(ctx, login, owner, repo)
+				isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
 				if err != nil {
 					return nil, fmt.Errorf("failed to check lockdown mode: %w", err)
 				}
-				if info.IsPrivate || info.ViewerLogin == login {
-					filteredReviews = reviews
-				}
-				if info.HasPushAccess {
+				if !isSafeContent {
 					filteredReviews = append(filteredReviews, review)
 				}
 				reviews = filteredReviews

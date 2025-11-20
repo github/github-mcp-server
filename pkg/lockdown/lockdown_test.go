@@ -96,7 +96,7 @@ func TestRepoAccessCacheEvictsAfterTTL(t *testing.T) {
 	ctx := t.Context()
 
 	cache, transport := newMockRepoAccessCache(t, 5*time.Millisecond)
-	info, err := cache.GetRepoAccessInfo(ctx, testUser, testOwner, testRepo)
+	info, err := cache.getRepoAccessInfo(ctx, testUser, testOwner, testRepo)
 	require.NoError(t, err)
 	require.Equal(t, testUser, info.ViewerLogin)
 	require.True(t, info.HasPushAccess)
@@ -104,7 +104,7 @@ func TestRepoAccessCacheEvictsAfterTTL(t *testing.T) {
 
 	time.Sleep(20 * time.Millisecond)
 
-	info, err = cache.GetRepoAccessInfo(ctx, testUser, testOwner, testRepo)
+	info, err = cache.getRepoAccessInfo(ctx, testUser, testOwner, testRepo)
 	require.NoError(t, err)
 	require.Equal(t, testUser, info.ViewerLogin)
 	require.True(t, info.HasPushAccess)
