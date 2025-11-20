@@ -52,7 +52,7 @@ var actionsResourceTypes = map[actionsActionType]string{
 	actionsActionTypeGetWorkflowRun:           "get_workflow_run",
 	actionsActionTypeGetWorkflowJob:           "get_workflow_job",
 	actionsActionTypeGetWorkflowRunLogs:       "get_workflow_run_logs",
-	actionsActionTypeGetWorkflowJobLogs:       "get_job_logs",
+	actionsActionTypeGetWorkflowJobLogs:       "get_workflow_job_logs",
 	actionsActionTypeGetWorkflowRunUsage:      "get_workflow_run_usage",
 	actionsActionTypeDownloadWorkflowArtifact: "download_workflow_run_artifact",
 	actionsActionTypeRunWorkflow:              "run_workflow",
@@ -286,20 +286,20 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 - Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'get_workflow' action.
 - Provide a workflow run ID for 'get_workflow_run', 'download_workflow_run_artifact', 'get_workflow_run_usage', and 'get_workflow_run_logs' actions.
 - Provide a job ID for the 'get_workflow_job' action.
-- Provide a workflow run ID for 'get_job_logs' action when using failed_only parameter.
+- Provide a workflow run ID for 'get_workflow_job_logs' action when using failed_only parameter.
 `),
 			),
 			mcp.WithNumber("job_id",
-				mcp.Description("The unique identifier of the workflow job (required for single job logs when action is 'get_job_logs')"),
+				mcp.Description("The unique identifier of the workflow job (required for single job logs when action is 'get_workflow_job_logs')"),
 			),
 			mcp.WithBoolean("failed_only",
-				mcp.Description("When true, gets logs for all failed jobs in the workflow run specified by resource_id (only for 'get_job_logs' action)"),
+				mcp.Description("When true, gets logs for all failed jobs in the workflow run specified by resource_id (only for 'get_workflow_job_logs' action)"),
 			),
 			mcp.WithBoolean("return_content",
-				mcp.Description("Returns actual log content instead of URLs (only for 'get_job_logs' action)"),
+				mcp.Description("Returns actual log content instead of URLs (only for 'get_workflow_job_logs' action)"),
 			),
 			mcp.WithNumber("tail_lines",
-				mcp.Description("Number of lines to return from the end of the log (only for 'get_job_logs' action)"),
+				mcp.Description("Number of lines to return from the end of the log (only for 'get_workflow_job_logs' action)"),
 				mcp.DefaultNumber(500),
 			),
 		),
@@ -335,7 +335,7 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 				}
 			}
 
-			// Get optional parameters for get_job_logs
+			// Get optional parameters for get_workflow_job_logs
 			jobID, err := OptionalIntParam(request, "job_id")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
@@ -605,7 +605,7 @@ func listWorkflowJobs(ctx context.Context, client *github.Client, request mcp.Ca
 	// Add optimization tip for failed job debugging
 	response := map[string]any{
 		"jobs":             workflowJobs,
-		"optimization_tip": "For debugging failed jobs, consider using get_job_logs with failed_only=true and run_id=" + fmt.Sprintf("%d", resourceID) + " to get logs directly without needing to list jobs first",
+		"optimization_tip": "For debugging failed jobs, consider using get_workflow_job_logs with failed_only=true and run_id=" + fmt.Sprintf("%d", resourceID) + " to get logs directly without needing to list jobs first",
 	}
 
 	defer func() { _ = resp.Body.Close() }()
@@ -797,8 +797,8 @@ func getWorkflowRunLogs(ctx context.Context, client *github.Client, _ mcp.CallTo
 		"logs_url":         url.String(),
 		"message":          "Workflow run logs are available for download",
 		"note":             "The logs_url provides a download link for the complete workflow run logs as a ZIP archive. You can download this archive to extract and examine individual job logs.",
-		"warning":          "This downloads ALL logs as a ZIP file which can be large and expensive. For debugging failed jobs, consider using get_job_logs with failed_only=true and run_id instead.",
-		"optimization_tip": "Use: get_job_logs with parameters {run_id: " + fmt.Sprintf("%d", runID) + ", failed_only: true} for more efficient failed job debugging",
+		"warning":          "This downloads ALL logs as a ZIP file which can be large and expensive. For debugging failed jobs, consider using get_workflow_job_logs with failed_only=true and run_id instead.",
+		"optimization_tip": "Use: get_workflow_job_logs with parameters {run_id: " + fmt.Sprintf("%d", runID) + ", failed_only: true} for more efficient failed job debugging",
 	}
 
 	r, err := json.Marshal(result)
