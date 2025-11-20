@@ -186,7 +186,7 @@ func RepositoryResourceContentsHandler(getClient GetClientFn, getRawClient raw.G
 				}, nil
 			default:
 				var buf bytes.Buffer
-				base64Encoder := base64.NewEncoder(base64.RawStdEncoding, &buf)
+				base64Encoder := base64.NewEncoder(base64.StdEncoding, &buf)
 				_, err := base64Encoder.Write(content)
 				if err != nil {
 					return nil, fmt.Errorf("failed to base64 encode content: %w", err)
