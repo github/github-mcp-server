@@ -3006,3 +3006,259 @@ func getLatestPendingReviewQuery(p getLatestPendingReviewQueryParams) githubv4mo
 		),
 	)
 }
+
+func Test_ReplyToReviewComment(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := ReplyToReviewComment(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "reply_to_review_comment", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "pull_number")
+	assert.Contains(t, tool.InputSchema.Properties, "comment_id")
+	assert.Contains(t, tool.InputSchema.Properties, "body")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pull_number", "comment_id", "body"})
+
+	// Verify ReadOnlyHint is false for write operation
+	assert.NotNil(t, tool.Annotations)
+	assert.NotNil(t, tool.Annotations.ReadOnlyHint)
+	assert.False(t, *tool.Annotations.ReadOnlyHint)
+
+	// Setup mock comment for success case
+	mockComment := &github.PullRequestComment{
+		ID:      github.Ptr(int64(67890)),
+		Body:    github.Ptr("Thanks for the review!"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42#discussion_r67890"),
+		User: &github.User{
+			Login: github.Ptr("testuser"),
+		},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedReply  *github.PullRequestComment
+		expectedErrMsg string
+	}{
+		{
+			name: "successful reply creation",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/pulls/42/comments",
+						Method:  http.MethodPost,
+					},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusCreated)
+						responseBody, _ := json.Marshal(mockComment)
+						_, _ = w.Write(responseBody)
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":       "owner",
+				"repo":        "repo",
+				"pull_number": float64(42),
+				"comment_id":  float64(12345),
+				"body":        "Thanks for the review!",
+			},
+			expectError:   false,
+			expectedReply: mockComment,
+		},
+		{
+			name: "comment not found",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/pulls/42/comments",
+						Method:  http.MethodPost,
+					},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":       "owner",
+				"repo":        "repo",
+				"pull_number": float64(42),
+				"comment_id":  float64(99999),
+				"body":        "Reply",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to create reply to review comment",
+		},
+		{
+			name: "permission denied",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/pulls/42/comments",
+						Method:  http.MethodPost,
+					},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusForbidden)
+						_, _ = w.Write([]byte(`{"message": "Forbidden"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":       "owner",
+				"repo":        "repo",
+				"pull_number": float64(42),
+				"comment_id":  float64(12345),
+				"body":        "Reply",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to create reply to review comment",
+		},
+		{
+			name: "validation failure - unprocessable entity",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/pulls/42/comments",
+						Method:  http.MethodPost,
+					},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusUnprocessableEntity)
+						_, _ = w.Write([]byte(`{"message":"Validation failed","errors":[{"resource":"PullRequestComment","code":"invalid"}]}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":       "owner",
+				"repo":        "repo",
+				"pull_number": float64(42),
+				"comment_id":  float64(12345),
+				"body":        "Some reply text",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to create reply to review comment",
+		},
+		{
+			name:         "missing required parameter - owner",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]interface{}{
+				"repo":        "repo",
+				"pull_number": float64(42),
+				"comment_id":  float64(12345),
+				"body":        "Reply",
+			},
+			expectError:    true,
+			expectedErrMsg: "missing required parameter: owner",
+		},
+		{
+			name:         "missing required parameter - repo",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]interface{}{
+				"owner":       "owner",
+				"pull_number": float64(42),
+				"comment_id":  float64(12345),
+				"body":        "Reply",
+			},
+			expectError:    true,
+			expectedErrMsg: "missing required parameter: repo",
+		},
+		{
+			name:         "missing required parameter - pull_number",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"comment_id": float64(12345),
+				"body":       "Reply",
+			},
+			expectError:    true,
+			expectedErrMsg: "missing required parameter: pull_number",
+		},
+		{
+			name:         "missing required parameter - comment_id",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]interface{}{
+				"owner":       "owner",
+				"repo":        "repo",
+				"pull_number": float64(42),
+				"body":        "Reply",
+			},
+			expectError:    true,
+			expectedErrMsg: "missing required parameter: comment_id",
+		},
+		{
+			name:         "missing required parameter - body",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]interface{}{
+				"owner":       "owner",
+				"repo":        "repo",
+				"pull_number": float64(42),
+				"comment_id":  float64(12345),
+			},
+			expectError:    true,
+			expectedErrMsg: "missing required parameter: body",
+		},
+		{
+			name:         "invalid comment_id type",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]interface{}{
+				"owner":       "owner",
+				"repo":        "repo",
+				"pull_number": float64(42),
+				"comment_id":  "not-a-number",
+				"body":        "Reply",
+			},
+			expectError:    true,
+			expectedErrMsg: "comment_id",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := ReplyToReviewComment(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(context.Background(), request)
+
+			// Verify results
+			if tc.expectError {
+				if err != nil {
+					assert.Contains(t, err.Error(), tc.expectedErrMsg)
+					return
+				}
+
+				// If no error returned but result contains error
+				textContent := getTextResult(t, result)
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Debug: check if result is an error
+			if result.IsError {
+				textContent := getTextResult(t, result)
+				t.Fatalf("Expected successful result but got error: %s", textContent.Text)
+			}
+
+			// Parse the result and get the text content if no error
+			textContent := getTextResult(t, result)
+
+			// Unmarshal and verify the minimal result
+			var returnedReply MinimalResponse
+			err = json.Unmarshal([]byte(textContent.Text), &returnedReply)
+			require.NoError(t, err)
+			assert.Equal(t, "67890", returnedReply.ID)
+			assert.Equal(t, tc.expectedReply.GetHTMLURL(), returnedReply.URL)
+		})
+	}
+}
