@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/internal/profiler"
+	"github.com/github/github-mcp-server/internal/toolsnaps"
 	buffer "github.com/github/github-mcp-server/pkg/buffer"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
@@ -26,6 +27,7 @@ func Test_ListWorkflows(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
 	tool, _ := ListWorkflows(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_workflows", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -138,6 +140,7 @@ func Test_RunWorkflow(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
 	tool, _ := RunWorkflow(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "run_workflow", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -314,6 +317,7 @@ func Test_CancelWorkflowRun(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
 	tool, _ := CancelWorkflowRun(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "cancel_workflow_run", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -419,6 +423,7 @@ func Test_ListWorkflowRunArtifacts(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
 	tool, _ := ListWorkflowRunArtifacts(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_workflow_run_artifacts", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -547,6 +552,7 @@ func Test_DownloadWorkflowRunArtifact(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
 	tool, _ := DownloadWorkflowRunArtifact(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "download_workflow_run_artifact", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -635,6 +641,7 @@ func Test_DeleteWorkflowRunLogs(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
 	tool, _ := DeleteWorkflowRunLogs(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "delete_workflow_run_logs", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -716,6 +723,7 @@ func Test_GetWorkflowRunUsage(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
 	tool, _ := GetWorkflowRunUsage(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "get_workflow_run_usage", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -817,6 +825,7 @@ func Test_GetJobLogs(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
 	tool, _ := GetJobLogs(stubGetClientFn(mockClient), translations.NullTranslationHelper, 5000)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "get_job_logs", tool.Name)
 	assert.NotEmpty(t, tool.Description)
