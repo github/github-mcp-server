@@ -1680,6 +1680,8 @@ func ReplyToReviewComment(getClient GetClientFn, t translations.TranslationHelpe
 			defer func() { _ = resp.Body.Close() }()
 
 			if resp.StatusCode != http.StatusCreated {
+				// Note: intentionally shadowing the 'body' parameter here with response body bytes.
+				// This is a common pattern in this file (see CreatePullRequest, etc.)
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
 					return nil, fmt.Errorf("failed to read response body: %w", err)
