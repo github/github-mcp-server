@@ -1,0 +1,11 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "List available toolsets"
+  },
+  "description": "List all available toolsets this GitHub MCP server can offer, providing the enabled status of each. Use this when a task could be achieved with a GitHub tool and the currently available tools aren't enough. Call get_toolset_tools with these toolset names to discover specific tools you can call",
+  "inputSchema": {
+    "type": "object"
+  },
+  "name": "list_available_toolsets"
+}

@@ -1,0 +1,23 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "List all tools in a toolset"
+  },
+  "description": "Lists all the capabilities that are enabled with the specified toolset, use this to get clarity on whether enabling a toolset would help you to complete a task",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "toolset"
+    ],
+    "properties": {
+      "toolset": {
+        "type": "string",
+        "description": "The name of the toolset you want to get the tools for",
+        "enum": [
+          "mock-toolset"
+        ]
+      }
+    }
+  },
+  "name": "get_toolset_tools"
+}
