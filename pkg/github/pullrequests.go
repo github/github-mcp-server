@@ -1609,6 +1609,99 @@ func RequestCopilotReview(getClient GetClientFn, t translations.TranslationHelpe
 		}
 }
 
+// ReplyToReviewComment creates a tool to reply to a review comment on a pull request.
+func ReplyToReviewComment(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+	return mcp.NewTool("reply_to_review_comment",
+			mcp.WithDescription(t("TOOL_REPLY_TO_REVIEW_COMMENT_DESCRIPTION", "Reply to a review comment on a pull request. Use this to respond directly within pull request review comment threads, maintaining conversation context at specific code locations.")),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_REPLY_TO_REVIEW_COMMENT_USER_TITLE", "Reply to a review comment"),
+				ReadOnlyHint: ToBoolPtr(false),
+			}),
+			mcp.WithString("owner",
+				mcp.Required(),
+				mcp.Description("Repository owner"),
+			),
+			mcp.WithString("repo",
+				mcp.Required(),
+				mcp.Description("Repository name"),
+			),
+			mcp.WithNumber("pull_number",
+				mcp.Required(),
+				mcp.Description("Pull request number"),
+			),
+			mcp.WithNumber("comment_id",
+				mcp.Required(),
+				mcp.Description("Review comment ID from pull_request_read"),
+			),
+			mcp.WithString("body",
+				mcp.Required(),
+				mcp.Description("Reply text supporting GitHub-flavored Markdown"),
+			),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			owner, err := RequiredParam[string](request, "owner")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			repo, err := RequiredParam[string](request, "repo")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			pullNumber, err := RequiredInt(request, "pull_number")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			commentID, err := RequiredBigInt(request, "comment_id")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			body, err := RequiredParam[string](request, "body")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			comment, resp, err := client.PullRequests.CreateCommentInReplyTo(ctx, owner, repo, pullNumber, body, commentID)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to create reply to review comment",
+					resp,
+					err,
+				), nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusCreated {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return mcp.NewToolResultError(fmt.Sprintf("failed to create reply to review comment: %s", string(body))), nil
+			}
+
+			// Return minimal response with just essential information
+			minimalResponse := MinimalResponse{
+				ID:  fmt.Sprintf("%d", comment.GetID()),
+				URL: comment.GetHTMLURL(),
+			}
+
+			r, err := json.Marshal(minimalResponse)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return mcp.NewToolResultText(string(r)), nil
+		}
+}
+
 // newGQLString like takes something that approximates a string (of which there are many types in shurcooL/githubv4)
 // and constructs a pointer to it, or nil if the string is empty. This is extremely useful because when we parse
 // params from the MCP request, we need to convert them to types that are pointers of type def strings and it's
