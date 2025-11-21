@@ -2,7 +2,6 @@ package github
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -41,6 +40,7 @@ func searchHandler(
 	request mcp.CallToolRequest,
 	searchType string,
 	errorPrefix string,
+	flags FeatureFlags,
 ) (*mcp.CallToolResult, error) {
 	query, err := RequiredParam[string](request, "query")
 	if err != nil {
@@ -106,10 +106,5 @@ func searchHandler(
 		return mcp.NewToolResultError(fmt.Sprintf("%s: %s", errorPrefix, string(body))), nil
 	}
 
-	r, err := json.Marshal(result)
-	if err != nil {
-		return nil, fmt.Errorf("%s: failed to marshal response: %w", errorPrefix, err)
-	}
-
-	return mcp.NewToolResultText(string(r)), nil
+	return FormatResponse(result, flags)
 }

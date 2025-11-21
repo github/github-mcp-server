@@ -131,14 +131,17 @@ type IssueQueryResult interface {
 	GetIssueFragment() IssueQueryFragment
 }
 
+// PageInfo contains pagination information
+type PageInfo struct {
+	HasNextPage     githubv4.Boolean `json:"hasNextPage"`
+	HasPreviousPage githubv4.Boolean `json:"hasPreviousPage"`
+	StartCursor     githubv4.String  `json:"startCursor"`
+	EndCursor       githubv4.String  `json:"endCursor"`
+}
+
 type IssueQueryFragment struct {
-	Nodes    []IssueFragment `graphql:"nodes"`
-	PageInfo struct {
-		HasNextPage     githubv4.Boolean
-		HasPreviousPage githubv4.Boolean
-		StartCursor     githubv4.String
-		EndCursor       githubv4.String
-	}
+	Nodes      []IssueFragment `graphql:"nodes"`
+	PageInfo   PageInfo
 	TotalCount int
 }
 
@@ -474,7 +477,7 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 }
 
 // ListIssueTypes creates a tool to list defined issue types for an organization. This can be used to understand supported issue type values for creating or updating issues.
-func ListIssueTypes(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func ListIssueTypes(getClient GetClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 
 	return mcp.NewTool("list_issue_types",
 			mcp.WithDescription(t("TOOL_LIST_ISSUE_TYPES_FOR_ORG", "List supported issue types for repository owner (organization).")),
@@ -511,12 +514,7 @@ func ListIssueTypes(getClient GetClientFn, t translations.TranslationHelperFunc)
 				return mcp.NewToolResultError(fmt.Sprintf("failed to list issue types: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(issueTypes)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal issue types: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			return FormatResponse(issueTypes, flags)
 		}
 }
 
@@ -807,7 +805,7 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 }
 
 // SearchIssues creates a tool to search for issues.
-func SearchIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func SearchIssues(getClient GetClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("search_issues",
 			mcp.WithDescription(t("TOOL_SEARCH_ISSUES_DESCRIPTION", "Search for issues in GitHub repositories using issues search syntax already scoped to is:issue")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -847,7 +845,7 @@ func SearchIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (
 			WithPagination(),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return searchHandler(ctx, getClient, request, "issue", "failed to search issues")
+			return searchHandler(ctx, getClient, request, "issue", "failed to search issues", flags)
 		}
 }
 
@@ -1367,36 +1365,31 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 
 			// Extract and convert all issue nodes using the common interface
 			var issues []*github.Issue
-			var pageInfo struct {
-				HasNextPage     githubv4.Boolean
-				HasPreviousPage githubv4.Boolean
-				StartCursor     githubv4.String
-				EndCursor       githubv4.String
-			}
-			var totalCount int
+			var fragment IssueQueryFragment
 
 			if queryResult, ok := issueQuery.(IssueQueryResult); ok {
-				fragment := queryResult.GetIssueFragment()
+				fragment = queryResult.GetIssueFragment()
 				for _, issue := range fragment.Nodes {
 					issues = append(issues, fragmentToIssue(issue))
 				}
-				pageInfo = fragment.PageInfo
-				totalCount = fragment.TotalCount
 			}
 
-			// Create metadata for pagination
-			metadata := map[string]interface{}{
-				"pageInfo": map[string]interface{}{
-					"hasNextPage":     pageInfo.HasNextPage,
-					"hasPreviousPage": pageInfo.HasPreviousPage,
-					"startCursor":     string(pageInfo.StartCursor),
-					"endCursor":       string(pageInfo.EndCursor),
-				},
-				"totalCount": totalCount,
+			// Create response with issues
+			response := &IssuesListResponse{
+				Issues:     issues,
+				PageInfo:   fragment.PageInfo,
+				TotalCount: fragment.TotalCount,
 			}
 
-			return FormatResponse(issues, flags, "issues", metadata)
+			return FormatResponse(response, flags)
 		}
+}
+
+// IssuesListResponse represents the response from list_issues with pagination
+type IssuesListResponse struct {
+	Issues     []*github.Issue `json:"issues"`
+	PageInfo   PageInfo        `json:"pageInfo"`
+	TotalCount int             `json:"totalCount"`
 }
 
 // mvpDescription is an MVP idea for generating tool descriptions from structured data in a shared format.

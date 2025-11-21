@@ -627,7 +627,7 @@ func Test_CreateBranch(t *testing.T) {
 func Test_GetCommit(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := GetCommit(stubGetClientFn(mockClient), translations.NullTranslationHelper, FeatureFlags{JSONFormat: true})
+	tool, _ := GetCommit(stubGetClientFn(mockClient), translations.NullTranslationHelper, stubFeatureFlags(nil))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "get_commit", tool.Name)
@@ -717,7 +717,7 @@ func Test_GetCommit(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetCommit(stubGetClientFn(client), translations.NullTranslationHelper, FeatureFlags{JSONFormat: true})
+			_, handler := GetCommit(stubGetClientFn(client), translations.NullTranslationHelper, stubFeatureFlags(nil))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -756,7 +756,7 @@ func Test_GetCommit(t *testing.T) {
 func Test_ListCommits(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := ListCommits(stubGetClientFn(mockClient), translations.NullTranslationHelper, FeatureFlags{JSONFormat: true})
+	tool, _ := ListCommits(stubGetClientFn(mockClient), translations.NullTranslationHelper, stubFeatureFlags(nil))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_commits", tool.Name)
@@ -937,7 +937,7 @@ func Test_ListCommits(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListCommits(stubGetClientFn(client), translations.NullTranslationHelper, FeatureFlags{JSONFormat: true})
+			_, handler := ListCommits(stubGetClientFn(client), translations.NullTranslationHelper, stubFeatureFlags(nil))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1668,7 +1668,7 @@ func Test_PushFiles(t *testing.T) {
 func Test_ListBranches(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := ListBranches(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := ListBranches(stubGetClientFn(mockClient), translations.NullTranslationHelper, stubFeatureFlags(nil))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_branches", tool.Name)
@@ -1738,7 +1738,7 @@ func Test_ListBranches(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mock client
 			mockClient := github.NewClient(mock.NewMockedHTTPClient(tt.mockResponses...))
-			_, handler := ListBranches(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+			_, handler := ListBranches(stubGetClientFn(mockClient), translations.NullTranslationHelper, stubFeatureFlags(nil))
 
 			// Create request
 			request := createMCPRequest(tt.args)
@@ -1957,7 +1957,7 @@ func Test_DeleteFile(t *testing.T) {
 func Test_ListTags(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := ListTags(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := ListTags(stubGetClientFn(mockClient), translations.NullTranslationHelper, stubFeatureFlags(nil))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_tags", tool.Name)
@@ -2040,7 +2040,7 @@ func Test_ListTags(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListTags(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ListTags(stubGetClientFn(client), translations.NullTranslationHelper, stubFeatureFlags(nil))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -2233,7 +2233,7 @@ func Test_GetTag(t *testing.T) {
 
 func Test_ListReleases(t *testing.T) {
 	mockClient := github.NewClient(nil)
-	tool, _ := ListReleases(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := ListReleases(stubGetClientFn(mockClient), translations.NullTranslationHelper, stubFeatureFlags(nil))
 
 	assert.Equal(t, "list_releases", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -2300,7 +2300,7 @@ func Test_ListReleases(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListReleases(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ListReleases(stubGetClientFn(client), translations.NullTranslationHelper, stubFeatureFlags(nil))
 			request := createMCPRequest(tc.requestArgs)
 			result, err := handler(context.Background(), request)
 

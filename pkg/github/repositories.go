@@ -101,7 +101,7 @@ func GetCommit(getClient GetClientFn, t translations.TranslationHelperFunc, flag
 			}
 
 			return mcp.NewToolResultText(string(r)), nil
-			// return FormatResponse(minimalCommit, flags, "")
+			// return FormatResponse(minimalCommit, flags)
 		}
 }
 
@@ -192,12 +192,12 @@ func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc, fl
 				minimalCommits[i] = convertToMinimalCommit(commit, false)
 			}
 
-			return FormatResponse(minimalCommits, flags, "")
+			return FormatResponse(minimalCommits, flags)
 		}
 }
 
 // ListBranches creates a tool to list branches in a GitHub repository.
-func ListBranches(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func ListBranches(getClient GetClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("list_branches",
 			mcp.WithDescription(t("TOOL_LIST_BRANCHES_DESCRIPTION", "List branches in a GitHub repository")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -264,12 +264,7 @@ func ListBranches(getClient GetClientFn, t translations.TranslationHelperFunc) (
 				minimalBranches = append(minimalBranches, convertToMinimalBranch(branch))
 			}
 
-			r, err := json.Marshal(minimalBranches)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			return FormatResponse(minimalBranches, flags)
 		}
 }
 
@@ -1219,7 +1214,7 @@ func PushFiles(getClient GetClientFn, t translations.TranslationHelperFunc) (too
 }
 
 // ListTags creates a tool to list tags in a GitHub repository.
-func ListTags(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func ListTags(getClient GetClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("list_tags",
 			mcp.WithDescription(t("TOOL_LIST_TAGS_DESCRIPTION", "List git tags in a GitHub repository")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -1278,12 +1273,7 @@ func ListTags(getClient GetClientFn, t translations.TranslationHelperFunc) (tool
 				return mcp.NewToolResultError(fmt.Sprintf("failed to list tags: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(tags)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			return FormatResponse(tags, flags)
 		}
 }
 
@@ -1375,7 +1365,7 @@ func GetTag(getClient GetClientFn, t translations.TranslationHelperFunc) (tool m
 }
 
 // ListReleases creates a tool to list releases in a GitHub repository.
-func ListReleases(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func ListReleases(getClient GetClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("list_releases",
 			mcp.WithDescription(t("TOOL_LIST_RELEASES_DESCRIPTION", "List releases in a GitHub repository")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -1430,12 +1420,7 @@ func ListReleases(getClient GetClientFn, t translations.TranslationHelperFunc) (
 				return mcp.NewToolResultError(fmt.Sprintf("failed to list releases: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(releases)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			return FormatResponse(releases, flags)
 		}
 }
 

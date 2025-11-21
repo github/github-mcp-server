@@ -828,7 +828,7 @@ func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFun
 				}
 			}
 
-			return FormatResponse(prs, flags, "")
+			return FormatResponse(prs, flags)
 		}
 }
 
@@ -926,7 +926,7 @@ func MergePullRequest(getClient GetClientFn, t translations.TranslationHelperFun
 }
 
 // SearchPullRequests creates a tool to search for pull requests.
-func SearchPullRequests(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func SearchPullRequests(getClient GetClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("search_pull_requests",
 			mcp.WithDescription(t("TOOL_SEARCH_PULL_REQUESTS_DESCRIPTION", "Search for pull requests in GitHub repositories using issues search syntax already scoped to is:pr")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -966,7 +966,7 @@ func SearchPullRequests(getClient GetClientFn, t translations.TranslationHelperF
 			WithPagination(),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return searchHandler(ctx, getClient, request, "pr", "failed to search pull requests")
+			return searchHandler(ctx, getClient, request, "pr", "failed to search pull requests", flags)
 		}
 }
 

@@ -55,8 +55,8 @@ type MCPServerConfig struct {
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
 
-	// JSONFormat controls whether tools return a JSON response
-	JSONFormat bool
+	// CSVFormat controls whether tools return a CSV response
+	CSVFormat bool
 
 	// TOONFormat controls whether tools return a TOON response
 	TOONFormat bool
@@ -170,7 +170,7 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 		getRawClient,
 		cfg.Translator,
 		cfg.ContentWindowSize,
-		github.FeatureFlags{LockdownMode: cfg.LockdownMode, JSONFormat: cfg.JSONFormat, TOONFormat: cfg.TOONFormat},
+		github.FeatureFlags{LockdownMode: cfg.LockdownMode, CSVFormat: cfg.CSVFormat, TOONFormat: cfg.TOONFormat},
 	)
 	err = tsg.EnableToolsets(enabledToolsets, nil)
 
@@ -226,8 +226,8 @@ type StdioServerConfig struct {
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
 
-	// JSONFormat controls whether tools return a JSON response
-	JSONFormat bool
+	// CSVFormat controls whether tools return a CSV response
+	CSVFormat bool
 
 	// TOONFormat controls whether tools return a TOON response
 	TOONFormat bool
@@ -251,7 +251,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		Translator:        t,
 		ContentWindowSize: cfg.ContentWindowSize,
 		LockdownMode:      cfg.LockdownMode,
-		JSONFormat:        cfg.JSONFormat,
+		CSVFormat:         cfg.CSVFormat,
 		TOONFormat:        cfg.TOONFormat,
 	})
 	if err != nil {

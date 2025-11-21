@@ -365,7 +365,7 @@ func Test_AddIssueComment(t *testing.T) {
 func Test_SearchIssues(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := SearchIssues(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := SearchIssues(stubGetClientFn(mockClient), translations.NullTranslationHelper, stubFeatureFlags(nil))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "search_issues", tool.Name)
@@ -654,7 +654,7 @@ func Test_SearchIssues(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := SearchIssues(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := SearchIssues(stubGetClientFn(client), translations.NullTranslationHelper, stubFeatureFlags(nil))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -857,7 +857,7 @@ func Test_CreateIssue(t *testing.T) {
 func Test_ListIssues(t *testing.T) {
 	// Verify tool definition
 	mockClient := githubv4.NewClient(nil)
-	tool, _ := ListIssues(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper, FeatureFlags{JSONFormat: true})
+	tool, _ := ListIssues(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper, stubFeatureFlags(nil))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_issues", tool.Name)
@@ -1118,7 +1118,7 @@ func Test_ListIssues(t *testing.T) {
 			}
 
 			gqlClient := githubv4.NewClient(httpClient)
-			_, handler := ListIssues(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper, FeatureFlags{JSONFormat: true})
+			_, handler := ListIssues(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper, stubFeatureFlags(nil))
 
 			req := createMCPRequest(tc.reqParams)
 			res, err := handler(context.Background(), req)
@@ -3380,7 +3380,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 func Test_ListIssueTypes(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := ListIssueTypes(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := ListIssueTypes(stubGetClientFn(mockClient), translations.NullTranslationHelper, stubFeatureFlags(nil))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_issue_types", tool.Name)
@@ -3467,7 +3467,7 @@ func Test_ListIssueTypes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListIssueTypes(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := ListIssueTypes(stubGetClientFn(client), translations.NullTranslationHelper, stubFeatureFlags(nil))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)

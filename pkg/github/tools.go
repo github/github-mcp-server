@@ -171,10 +171,10 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(ListCommits(getClient, t, flags)),
 			toolsets.NewServerTool(SearchCode(getClient, t)),
 			toolsets.NewServerTool(GetCommit(getClient, t, flags)),
-			toolsets.NewServerTool(ListBranches(getClient, t)),
-			toolsets.NewServerTool(ListTags(getClient, t)),
+			toolsets.NewServerTool(ListBranches(getClient, t, flags)),
+			toolsets.NewServerTool(ListTags(getClient, t, flags)),
 			toolsets.NewServerTool(GetTag(getClient, t)),
-			toolsets.NewServerTool(ListReleases(getClient, t)),
+			toolsets.NewServerTool(ListReleases(getClient, t, flags)),
 			toolsets.NewServerTool(GetLatestRelease(getClient, t)),
 			toolsets.NewServerTool(GetReleaseByTag(getClient, t)),
 		).
@@ -200,9 +200,9 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	issues := toolsets.NewToolset(ToolsetMetadataIssues.ID, ToolsetMetadataIssues.Description).
 		AddReadTools(
 			toolsets.NewServerTool(IssueRead(getClient, getGQLClient, t, flags)),
-			toolsets.NewServerTool(SearchIssues(getClient, t)),
+			toolsets.NewServerTool(SearchIssues(getClient, t, flags)),
 			toolsets.NewServerTool(ListIssues(getGQLClient, t, flags)),
-			toolsets.NewServerTool(ListIssueTypes(getClient, t)),
+			toolsets.NewServerTool(ListIssueTypes(getClient, t, flags)),
 			toolsets.NewServerTool(GetLabel(getGQLClient, t)),
 		).
 		AddWriteTools(
@@ -226,7 +226,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		AddReadTools(
 			toolsets.NewServerTool(PullRequestRead(getClient, t, flags)),
 			toolsets.NewServerTool(ListPullRequests(getClient, t, flags)),
-			toolsets.NewServerTool(SearchPullRequests(getClient, t)),
+			toolsets.NewServerTool(SearchPullRequests(getClient, t, flags)),
 		).
 		AddWriteTools(
 			toolsets.NewServerTool(MergePullRequest(getClient, t)),

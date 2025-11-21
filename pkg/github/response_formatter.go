@@ -10,9 +10,9 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// FormatResponse is an universal response formatter with optional pagination metadata.
-func FormatResponse(data interface{}, flags FeatureFlags, dataKey string, metadata ...interface{}) (*mcp.CallToolResult, error) {
-	// TOON format
+// FormatResponse is an universal response formatter
+func FormatResponse(data any, flags FeatureFlags) (*mcp.CallToolResult, error) {
+	// Use TOON format when TOONFormat is enabled
 	// if flags.TOONFormat {
 	// 	output, err := gotoon.Encode(data)
 	// 	if err != nil {
@@ -21,110 +21,110 @@ func FormatResponse(data interface{}, flags FeatureFlags, dataKey string, metada
 	// 	return mcp.NewToolResultText(string(output)), nil
 	// }
 
-	// JSON format - this is just the original behaviour when JSONFormat is enabled
-	if flags.JSONFormat {
-		var responseData interface{} = data
-		if len(metadata) > 0 && dataKey != "" {
-			if m, ok := metadata[0].(map[string]interface{}); ok {
-				// Build response with data under dataKey + metadata fields
-				response := map[string]interface{}{
-					dataKey: data,
-				}
-				for key, value := range m {
-					response[key] = value
-				}
+	// Use CSV format when CSVFormat is enabled
+	if flags.CSVFormat {
+		// Extract actual data and metadata (search and pagination info)
+		itemsData, metadata := extractDataAndMetadata(data)
 
-				responseData = response
-			}
-		}
-
-		output, err := json.Marshal(responseData)
+		csvOutput, err := toCSV(itemsData)
 		if err != nil {
-			return nil, fmt.Errorf("failed to encode as JSON: %w", err)
+			return nil, fmt.Errorf("failed to format as CSV: %w", err)
 		}
-		return mcp.NewToolResultText(string(output)), nil
+
+		if csvOutput == "" {
+			return mcp.NewToolResultText("No data has been found"), nil
+		}
+
+		// Prepend metadata as comments if provided
+		if metadata != "" {
+			csvOutput = metadata + csvOutput
+		}
+
+		return mcp.NewToolResultText(csvOutput), nil
 	}
 
-	// Default CSV format (only applied to `list_commits`, `list_issues`, and `list_pull_requests` for now)
-	csvOutput, err := toCSV(data)
+	// Default to original JSON format
+	output, err := json.Marshal(data)
 	if err != nil {
-		return nil, fmt.Errorf("failed to format as CSV: %w", err)
+		return nil, fmt.Errorf("failed to encode as JSON: %w", err)
 	}
-
-	// Prepend metadata as comments if provided
-	if len(metadata) > 0 {
-		csvOutput = formatMetadata(metadata[0]) + csvOutput
-	}
-
-	return mcp.NewToolResultText(csvOutput), nil
+	return mcp.NewToolResultText(string(output)), nil
 }
 
-// formatMetadata formats pagination metadata as CSV comments
-// TODO: When expanding this response format to other `list_` tools, what is the best way to generalize metadata extraction?
-// i..e, REST vs GraphQL based tools
-func formatMetadata(metadata interface{}) string {
-	m, ok := metadata.(map[string]interface{})
-	if !ok {
-		return ""
+// extractDataAndMetadata separates main data and metadata from the response
+func extractDataAndMetadata(data any) (any, string) {
+	v := reflect.ValueOf(data)
+	v, isNil := unwrap(v)
+	if isNil || !v.IsValid() || v.Kind() != reflect.Struct {
+		return data, ""
 	}
 
-	var buf strings.Builder
-	buf.WriteString("# Pagination Metadata\n")
+	t := v.Type()
 
-	// Extract metadata
-	if pageInfo, ok := m["pageInfo"].(map[string]interface{}); ok {
-		if hasNextPage, ok := pageInfo["hasNextPage"].(bool); ok && hasNextPage {
-			buf.WriteString(fmt.Sprintf("# pageInfo.hasNextPage: %t\n", hasNextPage))
+	// Find the first slice/array field (the main data) and collect metadata from other fields
+	arrayFieldIndex := -1
+	var metadataStr strings.Builder
+
+	for i := 0; i < v.NumField(); i++ {
+		field := t.Field(i)
+		if !field.IsExported() {
+			continue
 		}
-		if hasPreviousPage, ok := pageInfo["hasPreviousPage"].(bool); ok && hasPreviousPage {
-			buf.WriteString(fmt.Sprintf("# pageInfo.hasPreviousPage: %t\n", hasPreviousPage))
+
+		fieldKind := v.Field(i).Kind()
+		isArray := fieldKind == reflect.Slice || fieldKind == reflect.Array
+
+		// First array field becomes the data
+		if isArray && arrayFieldIndex < 0 {
+			arrayFieldIndex = i
+			continue
 		}
-		if startCursor, ok := pageInfo["startCursor"].(string); ok && startCursor != "" {
-			buf.WriteString(fmt.Sprintf("# pageInfo.startCursor: %s\n", startCursor))
-		}
-		if endCursor, ok := pageInfo["endCursor"].(string); ok && endCursor != "" {
-			buf.WriteString(fmt.Sprintf("# pageInfo.endCursor: %s\n", endCursor))
+
+		// All other exported fields become metadata (whether we found array yet or not)
+		if !isArray {
+			if metadataStr.Len() == 0 {
+				metadataStr.WriteString("# Metadata\n")
+			}
+			jsonBytes, _ := json.Marshal(v.Field(i).Interface())
+			metadataStr.WriteString(fmt.Sprintf("# %s: %s\n", getFieldName(field), string(jsonBytes)))
 		}
 	}
 
-	if totalCount, ok := m["totalCount"].(int); ok && totalCount > 0 {
-		buf.WriteString(fmt.Sprintf("# totalCount: %d\n", totalCount))
+	// No array field found - return struct as-is
+	if arrayFieldIndex < 0 {
+		return v.Interface(), ""
 	}
 
-	buf.WriteString("#\n")
-	return buf.String()
+	arrayData := v.Field(arrayFieldIndex).Interface()
+
+	if metadataStr.Len() > 0 {
+		metadataStr.WriteString("#\n")
+		return arrayData, metadataStr.String()
+	}
+
+	return arrayData, ""
 }
 
-// toCSV converts any data to CSV format with the following rules:
+// toCSV converts data to CSV format with the following rules:
 // - Nested objects are flattened one level with dot notation (e.g., "user.login")
 // - Only primitive fields are extracted from nested structs (we skip complex objects)
 // - URL fields are filtered out to reduce token cost
 // - Empty columns are automatically removed
-func toCSV(data interface{}) (string, error) {
+func toCSV(data any) (string, error) {
 	v, isNil := unwrap(reflect.ValueOf(data))
 	if isNil {
 		return "", nil
 	}
 
-	// Handle arrays/slices
-	if v.Kind() == reflect.Slice || v.Kind() == reflect.Array {
-		if v.Len() == 0 {
-			return "", nil
-		}
-		return sliceToCSV(v)
+	if v.Kind() != reflect.Slice && v.Kind() != reflect.Array {
+		return "", fmt.Errorf("toCSV expects slice/array, got %v", v.Kind())
 	}
 
-	// NOTE: Should we handle single objects, for instance, for non list_ tools - i.e., single object retrieval?
-	// How much values does it add? Using CSV for a single object feels a bit odd
-	// 		-> honestly none imo - tested current implementation on get_commit and this does more harm than good
-	//       as we lose insight on certain, deeply nested, fields
-	if v.Kind() == reflect.Struct {
-		slice := reflect.MakeSlice(reflect.SliceOf(v.Type()), 1, 1)
-		slice.Index(0).Set(v)
-		return sliceToCSV(slice)
+	if v.Len() == 0 {
+		return "", nil
 	}
 
-	return "", fmt.Errorf("unsupported data type: %v", v.Kind())
+	return sliceToCSV(v)
 }
 
 // unwrap dereferences pointers and interfaces until reaching a concrete value
@@ -142,7 +142,7 @@ func unwrap(v reflect.Value) (reflect.Value, bool) {
 // - First pass: collect all data and count non-empty values per column
 // - Second pass: build CSV with only columns that have sufficient data
 //
-// Two passes are needed just because we opted to try the fill rate filtering approach.
+// NOTE: Two passes are needed just because we opted to try the fill rate filtering approach.
 // If we decide to not go with this (e.g., maybe just check if the column is empty),
 // we can simplify to a single pass where we stream directly to CSV.
 func sliceToCSV(slice reflect.Value) (string, error) {
@@ -151,8 +151,7 @@ func sliceToCSV(slice reflect.Value) (string, error) {
 	}
 
 	// Get all possible headers from first element
-	firstElem := slice.Index(0)
-	firstElem, isNil := unwrap(firstElem)
+	firstElem, isNil := unwrap(slice.Index(0))
 	if isNil {
 		return "", nil
 	}
@@ -333,8 +332,8 @@ func hasPrimitiveFields(v reflect.Value) bool {
 
 // extractValues gets field values from a struct in the same order as headers
 func extractValues(v reflect.Value, headers []string) []string {
-	v, isNil := unwrap(v)
 	values := make([]string, len(headers))
+	v, isNil := unwrap(v)
 	if isNil {
 		return values
 	}
