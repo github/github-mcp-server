@@ -1,5 +1,3 @@
-//go:build ignore
-
 package github
 
 import (
@@ -11,6 +9,7 @@ import (
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,12 +23,15 @@ func Test_SearchRepositories(t *testing.T) {
 
 	assert.Equal(t, "search_repositories", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "query")
-	assert.Contains(t, tool.InputSchema.Properties, "sort")
-	assert.Contains(t, tool.InputSchema.Properties, "order")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"query"})
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "query")
+	assert.Contains(t, schema.Properties, "sort")
+	assert.Contains(t, schema.Properties, "order")
+	assert.Contains(t, schema.Properties, "page")
+	assert.Contains(t, schema.Properties, "perPage")
+	assert.ElementsMatch(t, schema.Required, []string{"query"})
 
 	// Setup mock search results
 	mockSearchResult := &github.RepositoriesSearchResult{
@@ -138,7 +140,7 @@ func Test_SearchRepositories(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -210,7 +212,10 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 		"minimal_output": false,
 	})
 
-	result, err := handlerTest(context.Background(), request)
+	result, _, err := handlerTest(context.Background(), &request, map[string]interface{}{
+		"query":          "golang test",
+		"minimal_output": false,
+	})
 
 	require.NoError(t, err)
 	require.False(t, result.IsError)
@@ -238,12 +243,15 @@ func Test_SearchCode(t *testing.T) {
 
 	assert.Equal(t, "search_code", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "query")
-	assert.Contains(t, tool.InputSchema.Properties, "sort")
-	assert.Contains(t, tool.InputSchema.Properties, "order")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"query"})
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "query")
+	assert.Contains(t, schema.Properties, "sort")
+	assert.Contains(t, schema.Properties, "order")
+	assert.Contains(t, schema.Properties, "perPage")
+	assert.Contains(t, schema.Properties, "page")
+	assert.ElementsMatch(t, schema.Required, []string{"query"})
 
 	// Setup mock search results
 	mockSearchResult := &github.CodeSearchResult{
@@ -350,7 +358,7 @@ func Test_SearchCode(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -393,12 +401,15 @@ func Test_SearchUsers(t *testing.T) {
 
 	assert.Equal(t, "search_users", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "query")
-	assert.Contains(t, tool.InputSchema.Properties, "sort")
-	assert.Contains(t, tool.InputSchema.Properties, "order")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"query"})
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "query")
+	assert.Contains(t, schema.Properties, "sort")
+	assert.Contains(t, schema.Properties, "order")
+	assert.Contains(t, schema.Properties, "perPage")
+	assert.Contains(t, schema.Properties, "page")
+	assert.ElementsMatch(t, schema.Required, []string{"query"})
 
 	// Setup mock search results
 	mockSearchResult := &github.UsersSearchResult{
@@ -544,7 +555,7 @@ func Test_SearchUsers(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -587,12 +598,15 @@ func Test_SearchOrgs(t *testing.T) {
 
 	assert.Equal(t, "search_orgs", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "query")
-	assert.Contains(t, tool.InputSchema.Properties, "sort")
-	assert.Contains(t, tool.InputSchema.Properties, "order")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"query"})
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "query")
+	assert.Contains(t, schema.Properties, "sort")
+	assert.Contains(t, schema.Properties, "order")
+	assert.Contains(t, schema.Properties, "perPage")
+	assert.Contains(t, schema.Properties, "page")
+	assert.ElementsMatch(t, schema.Required, []string{"query"})
 
 	// Setup mock search results
 	mockSearchResult := &github.UsersSearchResult{
@@ -711,7 +725,7 @@ func Test_SearchOrgs(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
