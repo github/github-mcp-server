@@ -15,17 +15,19 @@ import (
 // RepoAccessCache caches repository metadata related to lockdown checks so that
 // multiple tools can reuse the same access information safely across goroutines.
 type RepoAccessCache struct {
-	client *githubv4.Client
-	mu     sync.Mutex
-	cache  *cache2go.CacheTable
-	ttl    time.Duration
-	logger *slog.Logger
+	client           *githubv4.Client
+	mu               sync.Mutex
+	cache            *cache2go.CacheTable
+	ttl              time.Duration
+	logger           *slog.Logger
+	trustedBotLogins map[string]struct{}
 }
 
 type repoAccessCacheEntry struct {
 	isPrivate   bool
 	knownUsers  map[string]bool // normalized login -> has push access
 	viewerLogin string
+	viewerType  string
 }
 
 // RepoAccessInfo captures repository metadata needed for lockdown decisions.
@@ -33,6 +35,7 @@ type RepoAccessInfo struct {
 	IsPrivate     bool
 	HasPushAccess bool
 	ViewerLogin   string
+	ViewerType    string
 }
 
 const (
@@ -85,6 +88,12 @@ func GetInstance(client *githubv4.Client, opts ...RepoAccessOption) *RepoAccessC
 			client: client,
 			cache:  cache2go.Cache(defaultRepoAccessCacheKey),
 			ttl:    defaultRepoAccessTTL,
+			trustedBotLogins: map[string]struct{}{
+				"dependabot[bot]":         {},
+				"dependabot-preview[bot]": {},
+				"github-actions[bot]":     {},
+				"github-copilot[bot]":     {},
+			},
 		}
 		for _, opt := range opts {
 			if opt != nil {
@@ -115,7 +124,8 @@ func (c *RepoAccessCache) IsSafeContent(ctx context.Context, username, owner, re
 		c.logDebug("error checking repo access info for content filtering", "owner", owner, "repo", repo, "user", username, "error", err)
 		return false, err
 	}
-	if repoInfo.IsPrivate || repoInfo.ViewerLogin == username {
+
+	if c.isTrustedBot(username, repoInfo.ViewerType) || repoInfo.IsPrivate || repoInfo.ViewerLogin == strings.ToLower(username) {
 		return true, nil
 	}
 	return repoInfo.HasPushAccess, nil
@@ -150,12 +160,14 @@ func (c *RepoAccessCache) getRepoAccessInfo(ctx context.Context, username, owner
 		}
 		entry.knownUsers[userKey] = info.HasPushAccess
 		entry.viewerLogin = info.ViewerLogin
+		entry.viewerType = info.ViewerType
 		entry.isPrivate = info.IsPrivate
 		c.cache.Add(key, c.ttl, entry)
 		return RepoAccessInfo{
 			IsPrivate:     entry.isPrivate,
 			HasPushAccess: entry.knownUsers[userKey],
 			ViewerLogin:   entry.viewerLogin,
+			ViewerType:    entry.viewerType,
 		}, nil
 	}
 
@@ -171,6 +183,7 @@ func (c *RepoAccessCache) getRepoAccessInfo(ctx context.Context, username, owner
 		knownUsers:  map[string]bool{userKey: info.HasPushAccess},
 		isPrivate:   info.IsPrivate,
 		viewerLogin: info.ViewerLogin,
+		viewerType:  info.ViewerType,
 	}
 	c.cache.Add(key, c.ttl, entry)
 
@@ -178,6 +191,7 @@ func (c *RepoAccessCache) getRepoAccessInfo(ctx context.Context, username, owner
 		IsPrivate:     entry.isPrivate,
 		HasPushAccess: entry.knownUsers[userKey],
 		ViewerLogin:   entry.viewerLogin,
+		ViewerType:    entry.viewerType,
 	}, nil
 }
 
@@ -188,7 +202,8 @@ func (c *RepoAccessCache) queryRepoAccessInfo(ctx context.Context, username, own
 
 	var query struct {
 		Viewer struct {
-			Login githubv4.String
+			Typename string `graphql:"__typename"`
+			Login    githubv4.String
 		}
 		Repository struct {
 			IsPrivate     githubv4.Boolean
@@ -227,15 +242,24 @@ func (c *RepoAccessCache) queryRepoAccessInfo(ctx context.Context, username, own
 		IsPrivate:     bool(query.Repository.IsPrivate),
 		HasPushAccess: hasPush,
 		ViewerLogin:   string(query.Viewer.Login),
+		ViewerType:    query.Viewer.Typename,
 	}, nil
-}
-
-func cacheKey(owner, repo string) string {
-	return fmt.Sprintf("%s/%s", strings.ToLower(owner), strings.ToLower(repo))
 }
 
 func (c *RepoAccessCache) logDebug(msg string, args ...any) {
 	if c != nil && c.logger != nil {
 		c.logger.Debug(msg, args...)
 	}
+}
+
+func (c *RepoAccessCache) isTrustedBot(username string, viewerType string) bool {
+	if viewerType != "Bot" {
+		return false
+	}
+	_, ok := c.trustedBotLogins[strings.ToLower(username)]
+	return ok
+}
+
+func cacheKey(owner, repo string) string {
+	return fmt.Sprintf("%s/%s", strings.ToLower(owner), strings.ToLower(repo))
 }

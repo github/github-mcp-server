@@ -19,7 +19,8 @@ const (
 
 type repoAccessQuery struct {
 	Viewer struct {
-		Login githubv4.String
+		Typename string `graphql:"__typename"`
+		Login    githubv4.String
 	}
 	Repository struct {
 		IsPrivate     githubv4.Boolean
@@ -66,7 +67,8 @@ func newMockRepoAccessCache(t *testing.T, ttl time.Duration) (*RepoAccessCache, 
 
 	response := githubv4mock.DataResponse(map[string]any{
 		"viewer": map[string]any{
-			"login": testUser,
+			"__typename": "User",
+			"login":      testUser,
 		},
 		"repository": map[string]any{
 			"isPrivate": false,
@@ -99,6 +101,7 @@ func TestRepoAccessCacheEvictsAfterTTL(t *testing.T) {
 	info, err := cache.getRepoAccessInfo(ctx, testUser, testOwner, testRepo)
 	require.NoError(t, err)
 	require.Equal(t, testUser, info.ViewerLogin)
+	require.Equal(t, "User", info.ViewerType)
 	require.True(t, info.HasPushAccess)
 	require.EqualValues(t, 1, transport.CallCount())
 
@@ -107,6 +110,7 @@ func TestRepoAccessCacheEvictsAfterTTL(t *testing.T) {
 	info, err = cache.getRepoAccessInfo(ctx, testUser, testOwner, testRepo)
 	require.NoError(t, err)
 	require.Equal(t, testUser, info.ViewerLogin)
+	require.Equal(t, "User", info.ViewerType)
 	require.True(t, info.HasPushAccess)
 	require.EqualValues(t, 2, transport.CallCount())
 }
