@@ -596,6 +596,8 @@ func Test_SearchOrgs(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := SearchOrgs(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
 	assert.Equal(t, "search_orgs", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 
