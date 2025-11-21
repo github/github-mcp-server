@@ -398,7 +398,7 @@ func GetIssueComments(ctx context.Context, client *github.Client, cache *lockdow
 			if err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
 			}
-			if !isSafeContent {
+			if isSafeContent {
 				filteredComments = append(filteredComments, comment)
 			}
 		}
@@ -458,7 +458,7 @@ func GetSubIssues(ctx context.Context, client *github.Client, cache *lockdown.Re
 			if err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
 			}
-			if !isSafeContent {
+			if isSafeContent {
 				filteredSubIssues = append(filteredSubIssues, subIssue)
 			}
 		}

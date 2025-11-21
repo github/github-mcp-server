@@ -307,7 +307,7 @@ func GetPullRequestReviewComments(ctx context.Context, client *github.Client, ca
 			if err != nil {
 				return mcp.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
 			}
-			if !isSafeContent {
+			if isSafeContent {
 				filteredComments = append(filteredComments, comment)
 			}
 		}
@@ -353,7 +353,7 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, cache *lo
 				if err != nil {
 					return nil, fmt.Errorf("failed to check lockdown mode: %w", err)
 				}
-				if !isSafeContent {
+				if isSafeContent {
 					filteredReviews = append(filteredReviews, review)
 				}
 				reviews = filteredReviews

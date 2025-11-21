@@ -36,7 +36,7 @@ type RepoAccessInfo struct {
 }
 
 const (
-	defaultRepoAccessTTL      = 5 * time.Minute
+	defaultRepoAccessTTL      = 20 * time.Minute
 	defaultRepoAccessCacheKey = "repo-access-cache"
 )
 
