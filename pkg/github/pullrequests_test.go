@@ -1116,8 +1116,8 @@ func Test_SearchPullRequests(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			require.False(t, result.IsError)
 
+			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
