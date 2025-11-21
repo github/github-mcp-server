@@ -27,7 +27,6 @@ type repoAccessCacheEntry struct {
 	isPrivate   bool
 	knownUsers  map[string]bool // normalized login -> has push access
 	viewerLogin string
-	viewerType  string
 }
 
 // RepoAccessInfo captures repository metadata needed for lockdown decisions.
@@ -35,7 +34,6 @@ type RepoAccessInfo struct {
 	IsPrivate     bool
 	HasPushAccess bool
 	ViewerLogin   string
-	ViewerType    string
 }
 
 const (
@@ -89,10 +87,7 @@ func GetInstance(client *githubv4.Client, opts ...RepoAccessOption) *RepoAccessC
 			cache:  cache2go.Cache(defaultRepoAccessCacheKey),
 			ttl:    defaultRepoAccessTTL,
 			trustedBotLogins: map[string]struct{}{
-				"dependabot[bot]":         {},
-				"dependabot-preview[bot]": {},
-				"github-actions[bot]":     {},
-				"github-copilot[bot]":     {},
+				"copilot": {},
 			},
 		}
 		for _, opt := range opts {
@@ -121,11 +116,13 @@ type CacheStats struct {
 func (c *RepoAccessCache) IsSafeContent(ctx context.Context, username, owner, repo string) (bool, error) {
 	repoInfo, err := c.getRepoAccessInfo(ctx, username, owner, repo)
 	if err != nil {
-		c.logDebug("error checking repo access info for content filtering", "owner", owner, "repo", repo, "user", username, "error", err)
 		return false, err
 	}
 
-	if c.isTrustedBot(username, repoInfo.ViewerType) || repoInfo.IsPrivate || repoInfo.ViewerLogin == strings.ToLower(username) {
+	c.logInfo(ctx, fmt.Sprintf("evaluated repo access fur user %s to %s/%s for content filtering, result: hasPushAccess=%t, isPrivate=%t",
+		username, owner, repo, repoInfo.HasPushAccess, repoInfo.IsPrivate))
+
+	if c.isTrustedBot(username) || repoInfo.IsPrivate || repoInfo.ViewerLogin == strings.ToLower(username) {
 		return true, nil
 	}
 	return repoInfo.HasPushAccess, nil
@@ -146,32 +143,34 @@ func (c *RepoAccessCache) getRepoAccessInfo(ctx context.Context, username, owner
 	if err == nil {
 		entry := cacheItem.Data().(*repoAccessCacheEntry)
 		if cachedHasPush, known := entry.knownUsers[userKey]; known {
-			c.logDebug("repo access cache hit", "owner", owner, "repo", repo, "user", username)
+			c.logDebug(ctx, "repo access cache hit")
 			return RepoAccessInfo{
 				IsPrivate:     entry.isPrivate,
 				HasPushAccess: cachedHasPush,
 				ViewerLogin:   entry.viewerLogin,
 			}, nil
 		}
-		c.logDebug("known users cache miss", "owner", owner, "repo", repo, "user", username)
+
+		c.logDebug(ctx, "known users cache miss")
+
 		info, queryErr := c.queryRepoAccessInfo(ctx, username, owner, repo)
 		if queryErr != nil {
 			return RepoAccessInfo{}, queryErr
 		}
+
 		entry.knownUsers[userKey] = info.HasPushAccess
 		entry.viewerLogin = info.ViewerLogin
-		entry.viewerType = info.ViewerType
 		entry.isPrivate = info.IsPrivate
 		c.cache.Add(key, c.ttl, entry)
+
 		return RepoAccessInfo{
 			IsPrivate:     entry.isPrivate,
 			HasPushAccess: entry.knownUsers[userKey],
 			ViewerLogin:   entry.viewerLogin,
-			ViewerType:    entry.viewerType,
 		}, nil
 	}
 
-	c.logDebug("repo access cache miss", "owner", owner, "repo", repo, "user", username)
+	c.logDebug(ctx, "repo access cache miss")
 
 	info, queryErr := c.queryRepoAccessInfo(ctx, username, owner, repo)
 	if queryErr != nil {
@@ -183,7 +182,6 @@ func (c *RepoAccessCache) getRepoAccessInfo(ctx context.Context, username, owner
 		knownUsers:  map[string]bool{userKey: info.HasPushAccess},
 		isPrivate:   info.IsPrivate,
 		viewerLogin: info.ViewerLogin,
-		viewerType:  info.ViewerType,
 	}
 	c.cache.Add(key, c.ttl, entry)
 
@@ -191,7 +189,6 @@ func (c *RepoAccessCache) getRepoAccessInfo(ctx context.Context, username, owner
 		IsPrivate:     entry.isPrivate,
 		HasPushAccess: entry.knownUsers[userKey],
 		ViewerLogin:   entry.viewerLogin,
-		ViewerType:    entry.viewerType,
 	}, nil
 }
 
@@ -202,8 +199,7 @@ func (c *RepoAccessCache) queryRepoAccessInfo(ctx context.Context, username, own
 
 	var query struct {
 		Viewer struct {
-			Typename string `graphql:"__typename"`
-			Login    githubv4.String
+			Login githubv4.String
 		}
 		Repository struct {
 			IsPrivate     githubv4.Boolean
@@ -242,20 +238,28 @@ func (c *RepoAccessCache) queryRepoAccessInfo(ctx context.Context, username, own
 		IsPrivate:     bool(query.Repository.IsPrivate),
 		HasPushAccess: hasPush,
 		ViewerLogin:   string(query.Viewer.Login),
-		ViewerType:    query.Viewer.Typename,
 	}, nil
 }
 
-func (c *RepoAccessCache) logDebug(msg string, args ...any) {
-	if c != nil && c.logger != nil {
-		c.logger.Debug(msg, args...)
+func (c *RepoAccessCache) log(ctx context.Context, level slog.Level, msg string, attrs ...slog.Attr) {
+	if c == nil || c.logger == nil {
+		return
 	}
+	if !c.logger.Enabled(ctx, level) {
+		return
+	}
+	c.logger.LogAttrs(ctx, level, msg, attrs...)
 }
 
-func (c *RepoAccessCache) isTrustedBot(username string, viewerType string) bool {
-	if viewerType != "Bot" {
-		return false
-	}
+func (c *RepoAccessCache) logDebug(ctx context.Context, msg string, attrs ...slog.Attr) {
+	c.log(ctx, slog.LevelDebug, msg, attrs...)
+}
+
+func (c *RepoAccessCache) logInfo(ctx context.Context, msg string, attrs ...slog.Attr) {
+	c.log(ctx, slog.LevelInfo, msg, attrs...)
+}
+
+func (c *RepoAccessCache) isTrustedBot(username string) bool {
 	_, ok := c.trustedBotLogins[strings.ToLower(username)]
 	return ok
 }
