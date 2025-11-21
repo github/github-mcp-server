@@ -223,23 +223,23 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	// 	AddReadTools(
 	// 		toolsets.NewServerTool(SearchOrgs(getClient, t)),
 	// 	)
-	// pullRequests := toolsets.NewToolset(ToolsetMetadataPullRequests.ID, ToolsetMetadataPullRequests.Description).
-	// 	AddReadTools(
-	// 		toolsets.NewServerTool(PullRequestRead(getClient, t, flags)),
-	// 		toolsets.NewServerTool(ListPullRequests(getClient, t)),
-	// 		toolsets.NewServerTool(SearchPullRequests(getClient, t)),
-	// 	).
-	// 	AddWriteTools(
-	// 		toolsets.NewServerTool(MergePullRequest(getClient, t)),
-	// 		toolsets.NewServerTool(UpdatePullRequestBranch(getClient, t)),
-	// 		toolsets.NewServerTool(CreatePullRequest(getClient, t)),
-	// 		toolsets.NewServerTool(UpdatePullRequest(getClient, getGQLClient, t)),
-	// 		toolsets.NewServerTool(RequestCopilotReview(getClient, t)),
+	pullRequests := toolsets.NewToolset(ToolsetMetadataPullRequests.ID, ToolsetMetadataPullRequests.Description).
+		AddReadTools(
+			toolsets.NewServerTool(PullRequestRead(getClient, t, flags)),
+			toolsets.NewServerTool(ListPullRequests(getClient, t)),
+			toolsets.NewServerTool(SearchPullRequests(getClient, t)),
+		).
+		AddWriteTools(
+			toolsets.NewServerTool(MergePullRequest(getClient, t)),
+			toolsets.NewServerTool(UpdatePullRequestBranch(getClient, t)),
+			toolsets.NewServerTool(CreatePullRequest(getClient, t)),
+			toolsets.NewServerTool(UpdatePullRequest(getClient, getGQLClient, t)),
+			toolsets.NewServerTool(RequestCopilotReview(getClient, t)),
 
-	// 		// Reviews
-	// 		toolsets.NewServerTool(PullRequestReviewWrite(getGQLClient, t)),
-	// 		toolsets.NewServerTool(AddCommentToPendingReview(getGQLClient, t)),
-	// 	)
+			// Reviews
+			toolsets.NewServerTool(PullRequestReviewWrite(getGQLClient, t)),
+			toolsets.NewServerTool(AddCommentToPendingReview(getGQLClient, t)),
+		)
 	codeSecurity := toolsets.NewToolset(ToolsetMetadataCodeSecurity.ID, ToolsetMetadataCodeSecurity.Description).
 		AddReadTools(
 			toolsets.NewServerTool(GetCodeScanningAlert(getClient, t)),
@@ -365,7 +365,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(issues)
 	// tsg.AddToolset(orgs)
 	// tsg.AddToolset(users)
-	// tsg.AddToolset(pullRequests)
+	tsg.AddToolset(pullRequests)
 	// tsg.AddToolset(actions)
 	tsg.AddToolset(codeSecurity)
 	tsg.AddToolset(dependabot)

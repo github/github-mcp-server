@@ -1,34 +1,33 @@
 {
   "annotations": {
-    "title": "Update pull request branch",
-    "readOnlyHint": false
+    "title": "Update pull request branch"
   },
   "description": "Update the branch of a pull request with the latest changes from the base branch.",
   "inputSchema": {
-    "properties": {
-      "expectedHeadSha": {
-        "description": "The expected SHA of the pull request's HEAD ref",
-        "type": "string"
-      },
-      "owner": {
-        "description": "Repository owner",
-        "type": "string"
-      },
-      "pullNumber": {
-        "description": "Pull request number",
-        "type": "number"
-      },
-      "repo": {
-        "description": "Repository name",
-        "type": "string"
-      }
-    },
+    "type": "object",
     "required": [
       "owner",
       "repo",
       "pullNumber"
     ],
-    "type": "object"
+    "properties": {
+      "expectedHeadSha": {
+        "type": "string",
+        "description": "The expected SHA of the pull request's HEAD ref"
+      },
+      "owner": {
+        "type": "string",
+        "description": "Repository owner"
+      },
+      "pullNumber": {
+        "type": "number",
+        "description": "Pull request number"
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      }
+    }
   },
   "name": "update_pull_request_branch"
 }
