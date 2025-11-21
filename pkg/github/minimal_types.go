@@ -1,6 +1,6 @@
 package github
 
-import "github.com/google/go-github/v74/github"
+import "github.com/google/go-github/v79/github"
 
 // MinimalUser is the output type for user and organization search results.
 type MinimalUser struct {
@@ -114,7 +114,60 @@ type MinimalResponse struct {
 	URL string `json:"url"`
 }
 
+type MinimalProject struct {
+	ID               *int64            `json:"id,omitempty"`
+	NodeID           *string           `json:"node_id,omitempty"`
+	Owner            *MinimalUser      `json:"owner,omitempty"`
+	Creator          *MinimalUser      `json:"creator,omitempty"`
+	Title            *string           `json:"title,omitempty"`
+	Description      *string           `json:"description,omitempty"`
+	Public           *bool             `json:"public,omitempty"`
+	ClosedAt         *github.Timestamp `json:"closed_at,omitempty"`
+	CreatedAt        *github.Timestamp `json:"created_at,omitempty"`
+	UpdatedAt        *github.Timestamp `json:"updated_at,omitempty"`
+	DeletedAt        *github.Timestamp `json:"deleted_at,omitempty"`
+	Number           *int              `json:"number,omitempty"`
+	ShortDescription *string           `json:"short_description,omitempty"`
+	DeletedBy        *MinimalUser      `json:"deleted_by,omitempty"`
+}
+
 // Helper functions
+
+func convertToMinimalProject(fullProject *github.ProjectV2) *MinimalProject {
+	if fullProject == nil {
+		return nil
+	}
+
+	return &MinimalProject{
+		ID:               github.Ptr(fullProject.GetID()),
+		NodeID:           github.Ptr(fullProject.GetNodeID()),
+		Owner:            convertToMinimalUser(fullProject.GetOwner()),
+		Creator:          convertToMinimalUser(fullProject.GetCreator()),
+		Title:            github.Ptr(fullProject.GetTitle()),
+		Description:      github.Ptr(fullProject.GetDescription()),
+		Public:           github.Ptr(fullProject.GetPublic()),
+		ClosedAt:         github.Ptr(fullProject.GetClosedAt()),
+		CreatedAt:        github.Ptr(fullProject.GetCreatedAt()),
+		UpdatedAt:        github.Ptr(fullProject.GetUpdatedAt()),
+		DeletedAt:        github.Ptr(fullProject.GetDeletedAt()),
+		Number:           github.Ptr(fullProject.GetNumber()),
+		ShortDescription: github.Ptr(fullProject.GetShortDescription()),
+		DeletedBy:        convertToMinimalUser(fullProject.GetDeletedBy()),
+	}
+}
+
+func convertToMinimalUser(user *github.User) *MinimalUser {
+	if user == nil {
+		return nil
+	}
+
+	return &MinimalUser{
+		Login:      user.GetLogin(),
+		ID:         user.GetID(),
+		ProfileURL: user.GetHTMLURL(),
+		AvatarURL:  user.GetAvatarURL(),
+	}
+}
 
 // convertToMinimalCommit converts a GitHub API RepositoryCommit to MinimalCommit
 func convertToMinimalCommit(commit *github.RepositoryCommit, includeDiffs bool) MinimalCommit {

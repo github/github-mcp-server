@@ -1,0 +1,89 @@
+{
+  "annotations": {
+    "title": "Create or update issue.",
+    "readOnlyHint": false
+  },
+  "description": "Create a new or update an existing issue in a GitHub repository.",
+  "inputSchema": {
+    "properties": {
+      "assignees": {
+        "description": "Usernames to assign to this issue",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "body": {
+        "description": "Issue body content",
+        "type": "string"
+      },
+      "duplicate_of": {
+        "description": "Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'.",
+        "type": "number"
+      },
+      "issue_number": {
+        "description": "Issue number to update",
+        "type": "number"
+      },
+      "labels": {
+        "description": "Labels to apply to this issue",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "method": {
+        "description": "Write operation to perform on a single issue.\nOptions are: \n- 'create' - creates a new issue. \n- 'update' - updates an existing issue.\n",
+        "enum": [
+          "create",
+          "update"
+        ],
+        "type": "string"
+      },
+      "milestone": {
+        "description": "Milestone number",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "state": {
+        "description": "New state",
+        "enum": [
+          "open",
+          "closed"
+        ],
+        "type": "string"
+      },
+      "state_reason": {
+        "description": "Reason for the state change. Ignored unless state is changed.",
+        "enum": [
+          "completed",
+          "not_planned",
+          "duplicate"
+        ],
+        "type": "string"
+      },
+      "title": {
+        "description": "Issue title",
+        "type": "string"
+      },
+      "type": {
+        "description": "Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "issue_write"
+}

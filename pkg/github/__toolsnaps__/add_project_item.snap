@@ -1,0 +1,48 @@
+{
+  "annotations": {
+    "title": "Add project item",
+    "readOnlyHint": false
+  },
+  "description": "Add a specific Project item for a user or org",
+  "inputSchema": {
+    "properties": {
+      "item_id": {
+        "description": "The numeric ID of the issue or pull request to add to the project.",
+        "type": "number"
+      },
+      "item_type": {
+        "description": "The item's type, either issue or pull_request.",
+        "enum": [
+          "issue",
+          "pull_request"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.",
+        "type": "string"
+      },
+      "owner_type": {
+        "description": "Owner type",
+        "enum": [
+          "user",
+          "org"
+        ],
+        "type": "string"
+      },
+      "project_number": {
+        "description": "The project's number.",
+        "type": "number"
+      }
+    },
+    "required": [
+      "owner_type",
+      "owner",
+      "project_number",
+      "item_type",
+      "item_id"
+    ],
+    "type": "object"
+  },
+  "name": "add_project_item"
+}
