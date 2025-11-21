@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/github/github-mcp-server/internal/profiler"
 	buffer "github.com/github/github-mcp-server/pkg/buffer"
+	"github.com/github/github-mcp-server/pkg/profiler"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
