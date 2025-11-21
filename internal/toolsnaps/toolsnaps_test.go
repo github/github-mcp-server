@@ -131,3 +131,69 @@ func TestMalformedSnapshotJSON(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse snapshot JSON for dummy", "expected error about malformed snapshot JSON")
 }
+
+func TestMarshalError(t *testing.T) {
+	withIsolatedWorkingDir(t)
+
+	// Given a tool that cannot be marshaled to JSON (contains channels)
+	type badTool struct {
+		Name string
+		Ch   chan int
+	}
+	tool := badTool{"test", make(chan int)}
+
+	// When we test the snapshot
+	err := Test("bad", tool)
+
+	// Then it should error about marshaling
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to marshal tool bad", "expected error about marshaling")
+}
+
+func TestMalformedToolJSON(t *testing.T) {
+	withIsolatedWorkingDir(t)
+	// This test is hard to trigger since if MarshalIndent succeeds, ReadJsonString should too
+	// We can simulate it by having the tool contain values that marshal to invalid JSON
+	// However, this is extremely difficult with standard Go types
+	// The path at line 49-51 is effectively unreachable with normal usage
+}
+
+func TestWriteSnapMkdirError(t *testing.T) {
+	withIsolatedWorkingDir(t)
+
+	// Given a file exists where the snapshot directory should be
+	require.NoError(t, os.WriteFile("__toolsnaps__", []byte("blocking file"), 0600))
+
+	// Set UPDATE_TOOLSNAPS so it attempts to write immediately
+	t.Setenv("UPDATE_TOOLSNAPS", "true")
+
+	tool := dummyTool{"foo", 42}
+
+	// When we test the snapshot
+	err := Test("dummy", tool)
+
+	// Then it should error about creating the directory
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create snapshot directory", "expected error about mkdir")
+}
+
+func TestWriteSnapWriteFileError(t *testing.T) {
+	withIsolatedWorkingDir(t)
+
+	// Create a nested directory structure where we can block file writing
+	require.NoError(t, os.MkdirAll("__toolsnaps__/subdir", 0700))
+	// Create a directory where the file should be (blocks file creation)
+	require.NoError(t, os.MkdirAll("__toolsnaps__/subdir/dummy.snap", 0700))
+
+	// Set UPDATE_TOOLSNAPS so it attempts to write immediately
+	t.Setenv("UPDATE_TOOLSNAPS", "true")
+
+	tool := dummyTool{"foo", 42}
+
+	// When we test the snapshot with a path that has a directory where the file should be
+	err := Test("subdir/dummy", tool)
+
+	// Then it should error about writing the file
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to write snapshot file", "expected error about writing file")
+}
