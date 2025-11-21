@@ -1,7 +1,8 @@
 {
   "annotations": {
     "title": "List issues",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "openWorldHint": true
   },
   "description": "List issues in a GitHub repository. For pagination, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter.",
   "inputSchema": {
