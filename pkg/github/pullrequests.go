@@ -413,16 +413,17 @@ func CreatePullRequest(getClient GetClientFn, t translations.TranslationHelperFu
 			}
 
 			newPR := &github.NewPullRequest{
-				Title:               github.Ptr(title),
-				Head:                github.Ptr(head),
-				Base:                github.Ptr(base),
-				Draft:               github.Ptr(draft),
-				MaintainerCanModify: github.Ptr(maintainerCanModify),
+				Title: github.Ptr(title),
+				Head:  github.Ptr(head),
+				Base:  github.Ptr(base),
 			}
 
 			if body != "" {
 				newPR.Body = github.Ptr(body)
 			}
+
+			newPR.Draft = github.Ptr(draft)
+			newPR.MaintainerCanModify = github.Ptr(maintainerCanModify)
 
 			client, err := getClient(ctx)
 			if err != nil {
@@ -584,15 +585,18 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 				restUpdateNeeded = true
 			}
 
+			// Handle reviewers separately
 			reviewers, err := OptionalStringArrayParam(args, "reviewers")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			// If no updates, no draft change, and no reviewers, return error early
 			if !restUpdateNeeded && !draftProvided && len(reviewers) == 0 {
 				return utils.NewToolResultError("No update parameters provided."), nil, nil
 			}
 
+			// Handle REST API updates (title, body, state, base, maintainer_can_modify)
 			if restUpdateNeeded {
 				client, err := getClient(ctx)
 				if err != nil {
@@ -618,6 +622,7 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 				}
 			}
 
+			// Handle draft status changes using GraphQL
 			if draftProvided {
 				gqlClient, err := getGQLClient(ctx)
 				if err != nil {
@@ -636,7 +641,7 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 				err = gqlClient.Query(ctx, &prQuery, map[string]interface{}{
 					"owner": githubv4.String(owner),
 					"repo":  githubv4.String(repo),
-					"prNum": githubv4.Int(pullNumber),
+					"prNum": githubv4.Int(pullNumber), // #nosec G115 - pull request numbers are always small positive integers
 				})
 				if err != nil {
 					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to find pull request", err), nil, nil
@@ -646,6 +651,7 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 
 				if currentIsDraft != draftValue {
 					if draftValue {
+						// Convert to draft
 						var mutation struct {
 							ConvertPullRequestToDraft struct {
 								PullRequest struct {
@@ -662,6 +668,7 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 							return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to convert pull request to draft", err), nil, nil
 						}
 					} else {
+						// Mark as ready for review
 						var mutation struct {
 							MarkPullRequestReadyForReview struct {
 								PullRequest struct {
@@ -681,6 +688,7 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 				}
 			}
 
+			// Handle reviewer requests
 			if len(reviewers) > 0 {
 				client, err := getClient(ctx)
 				if err != nil {
@@ -714,6 +722,7 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 				}
 			}
 
+			// Get the final state of the PR to return
 			client, err := getClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
@@ -729,6 +738,7 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 				}
 			}()
 
+			// Return minimal response with just essential information
 			minimalResponse := MinimalResponse{
 				ID:  fmt.Sprintf("%d", finalPR.GetID()),
 				URL: finalPR.GetHTMLURL(),
@@ -861,6 +871,7 @@ func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFun
 				return utils.NewToolResultError(fmt.Sprintf("failed to list pull requests: %s", string(bodyBytes))), nil, nil
 			}
 
+			// sanitize title/body on each PR
 			for _, pr := range prs {
 				if pr == nil {
 					continue
@@ -1108,6 +1119,8 @@ func UpdatePullRequestBranch(getClient GetClientFn, t translations.TranslationHe
 			}
 			result, resp, err := client.PullRequests.UpdateBranch(ctx, owner, repo, pullNumber, opts)
 			if err != nil {
+				// Check if it's an acceptedError. An acceptedError indicates that the update is in progress,
+				// and it's not a real error.
 				if resp != nil && resp.StatusCode == http.StatusAccepted && isAcceptedError(err) {
 					return utils.NewToolResultText("Pull request branch update is in progress"), nil, nil
 				}
@@ -1150,6 +1163,9 @@ func PullRequestReviewWrite(getGQLClient GetGQLClientFn, t translations.Translat
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
+			// Either we need the PR GQL Id directly, or we need owner, repo and PR number to look it up.
+			// Since our other Pull Request tools are working with the REST Client, will handle the lookup
+			// internally for now.
 			"method": {
 				Type:        "string",
 				Description: `The write operation to perform on pull request review.`,
@@ -1205,6 +1221,7 @@ Available methods:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			// Given our owner, repo and PR number, lookup the GQL ID of the PR.
 			client, err := getGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
@@ -1454,6 +1471,15 @@ func AddCommentToPendingReview(getGQLClient GetGQLClientFn, t translations.Trans
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
+			// Ideally, for performance sake this would just accept the pullRequestReviewID. However, we would need to
+			// add a new tool to get that ID for clients that aren't in the same context as the original pending review
+			// creation. So for now, we'll just accept the owner, repo and pull number and assume this is adding a comment
+			// the latest review from a user, since only one can be active at a time. It can later be extended with
+			// a pullRequestReviewID parameter if targeting other reviews is desired:
+			// mcp.WithString("pullRequestReviewID",
+			// 	mcp.Required(),
+			// 	mcp.Description("The ID of the pull request review to add a comment to"),
+			// ),
 			"owner": {
 				Type:        "string",
 				Description: "Repository owner",
@@ -1532,6 +1558,7 @@ func AddCommentToPendingReview(getGQLClient GetGQLClientFn, t translations.Trans
 				return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
 			}
 
+			// First we'll get the current user
 			var getViewerQuery struct {
 				Viewer struct {
 					Login githubv4.String
@@ -1573,6 +1600,7 @@ func AddCommentToPendingReview(getGQLClient GetGQLClientFn, t translations.Trans
 				), nil, nil
 			}
 
+			// Validate there is one review and the state is pending
 			if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
 				return utils.NewToolResultError("No pending review found for the viewer"), nil, nil
 			}
@@ -1583,10 +1611,11 @@ func AddCommentToPendingReview(getGQLClient GetGQLClientFn, t translations.Trans
 				return utils.NewToolResultError(errText), nil, nil
 			}
 
+			// Then we can create a new review thread comment on the review.
 			var addPullRequestReviewThreadMutation struct {
 				AddPullRequestReviewThread struct {
 					Thread struct {
-						ID githubv4.ID
+						ID githubv4.ID // We don't need this, but a selector is required or GQL complains.
 					}
 				} `graphql:"addPullRequestReviewThread(input: $input)"`
 			}
@@ -1609,11 +1638,16 @@ func AddCommentToPendingReview(getGQLClient GetGQLClientFn, t translations.Trans
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			// Return nothing interesting, just indicate success for the time being.
+			// In future, we may want to return the review ID, but for the moment, we're not leaking
+			// API implementation details to the LLM.
 			return utils.NewToolResultText("pull request review comment successfully added to pending review"), nil, nil
 		}
 }
 
 // RequestCopilotReview creates a tool to request a Copilot review for a pull request.
+// Note that this tool will not work on GHES where this feature is unsupported. In future, we should not expose this
+// tool if the configured host does not support it.
 func RequestCopilotReview(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 	schema := &jsonschema.Schema{
 		Type: "object",
@@ -1670,6 +1704,7 @@ func RequestCopilotReview(getClient GetClientFn, t translations.TranslationHelpe
 				repo,
 				pullNumber,
 				github.ReviewersRequest{
+					// The login name of the copilot reviewer bot
 					Reviewers: []string{"copilot-pull-request-reviewer[bot]"},
 				},
 			)
@@ -1690,6 +1725,7 @@ func RequestCopilotReview(getClient GetClientFn, t translations.TranslationHelpe
 				return utils.NewToolResultError(fmt.Sprintf("failed to request copilot review: %s", string(bodyBytes))), nil, nil
 			}
 
+			// Return nothing on success, as there's not much value in returning the Pull Request itself
 			return utils.NewToolResultText(""), nil, nil
 		}
 }
