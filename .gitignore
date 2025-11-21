@@ -12,6 +12,8 @@ __debug_bin*
 # Go
 vendor
 bin/
+coverage.out
+*.test
 
 # macOS
 .DS_Store
