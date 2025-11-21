@@ -6,6 +6,11 @@
   "description": "Find GitHub repositories by name, description, readme, topics, or other metadata. Perfect for discovering projects, finding examples, or locating specific repositories across GitHub.",
   "inputSchema": {
     "properties": {
+      "include_archived": {
+        "default": true,
+        "description": "Include archived repositories in search results (default: true). When false, excludes archived repositories.",
+        "type": "boolean"
+      },
       "minimal_output": {
         "default": true,
         "description": "Return minimal repository information (default: true). When false, returns full GitHub API repository objects.",
