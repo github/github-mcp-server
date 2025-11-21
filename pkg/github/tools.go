@@ -166,19 +166,19 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	// Define all available features with their default state (disabled)
 	// Create toolsets
 	repos := toolsets.NewToolset(ToolsetMetadataRepos.ID, ToolsetMetadataRepos.Description).
-		// AddReadTools(
-		// 		toolsets.NewServerTool(SearchRepositories(getClient, t)),
-		// 		toolsets.NewServerTool(GetFileContents(getClient, getRawClient, t)),
-		// 		toolsets.NewServerTool(ListCommits(getClient, t)),
-		// 		toolsets.NewServerTool(SearchCode(getClient, t)),
-		// 		toolsets.NewServerTool(GetCommit(getClient, t)),
-		// 		toolsets.NewServerTool(ListBranches(getClient, t)),
-		// 		toolsets.NewServerTool(ListTags(getClient, t)),
-		// 		toolsets.NewServerTool(GetTag(getClient, t)),
-		// 		toolsets.NewServerTool(ListReleases(getClient, t)),
-		// 		toolsets.NewServerTool(GetLatestRelease(getClient, t)),
-		// 		toolsets.NewServerTool(GetReleaseByTag(getClient, t)),
-		// 	).
+		AddReadTools(
+			toolsets.NewServerTool(SearchRepositories(getClient, t)),
+			// 		toolsets.NewServerTool(GetFileContents(getClient, getRawClient, t)),
+			// 		toolsets.NewServerTool(ListCommits(getClient, t)),
+			toolsets.NewServerTool(SearchCode(getClient, t)),
+			// 		toolsets.NewServerTool(GetCommit(getClient, t)),
+			// 		toolsets.NewServerTool(ListBranches(getClient, t)),
+			// 		toolsets.NewServerTool(ListTags(getClient, t)),
+			// 		toolsets.NewServerTool(GetTag(getClient, t)),
+			// 		toolsets.NewServerTool(ListReleases(getClient, t)),
+			// 		toolsets.NewServerTool(GetLatestRelease(getClient, t)),
+			// 		toolsets.NewServerTool(GetReleaseByTag(getClient, t)),
+		).
 		// 	AddWriteTools(
 		// 		toolsets.NewServerTool(CreateOrUpdateFile(getClient, t)),
 		// 		toolsets.NewServerTool(CreateRepository(getClient, t)),
@@ -215,14 +215,14 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		toolsets.NewServerPrompt(AssignCodingAgentPrompt(t)),
 		toolsets.NewServerPrompt(IssueToFixWorkflowPrompt(t)),
 	)
-	// users := toolsets.NewToolset(ToolsetMetadataUsers.ID, ToolsetMetadataUsers.Description).
-	// 	AddReadTools(
-	// 		toolsets.NewServerTool(SearchUsers(getClient, t)),
-	// 	)
-	// orgs := toolsets.NewToolset(ToolsetMetadataOrgs.ID, ToolsetMetadataOrgs.Description).
-	// 	AddReadTools(
-	// 		toolsets.NewServerTool(SearchOrgs(getClient, t)),
-	// 	)
+	users := toolsets.NewToolset(ToolsetMetadataUsers.ID, ToolsetMetadataUsers.Description).
+		AddReadTools(
+			toolsets.NewServerTool(SearchUsers(getClient, t)),
+		)
+	orgs := toolsets.NewToolset(ToolsetMetadataOrgs.ID, ToolsetMetadataOrgs.Description).
+		AddReadTools(
+			toolsets.NewServerTool(SearchOrgs(getClient, t)),
+		)
 	// pullRequests := toolsets.NewToolset(ToolsetMetadataPullRequests.ID, ToolsetMetadataPullRequests.Description).
 	// 	AddReadTools(
 	// 		toolsets.NewServerTool(PullRequestRead(getClient, t, flags)),
@@ -363,8 +363,8 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(repos)
 	tsg.AddToolset(git)
 	tsg.AddToolset(issues)
-	// tsg.AddToolset(orgs)
-	// tsg.AddToolset(users)
+	tsg.AddToolset(orgs)
+	tsg.AddToolset(users)
 	// tsg.AddToolset(pullRequests)
 	// tsg.AddToolset(actions)
 	tsg.AddToolset(codeSecurity)
