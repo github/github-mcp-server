@@ -897,7 +897,7 @@ func SearchIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (
 				mcp.Description("Sort order"),
 				mcp.Enum("asc", "desc"),
 			),
-			WithPagination(),
+			WithFixedCursorPagination(),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return searchHandler(ctx, getClient, request, "issue", "failed to search issues")
