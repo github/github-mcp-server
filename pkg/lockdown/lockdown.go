@@ -15,11 +15,12 @@ import (
 // RepoAccessCache caches repository metadata related to lockdown checks so that
 // multiple tools can reuse the same access information safely across goroutines.
 type RepoAccessCache struct {
-	client *githubv4.Client
-	mu     sync.Mutex
-	cache  *cache2go.CacheTable
-	ttl    time.Duration
-	logger *slog.Logger
+	client           *githubv4.Client
+	mu               sync.Mutex
+	cache            *cache2go.CacheTable
+	ttl              time.Duration
+	logger           *slog.Logger
+	trustedBotLogins map[string]struct{}
 }
 
 type repoAccessCacheEntry struct {
@@ -85,6 +86,9 @@ func GetInstance(client *githubv4.Client, opts ...RepoAccessOption) *RepoAccessC
 			client: client,
 			cache:  cache2go.Cache(defaultRepoAccessCacheKey),
 			ttl:    defaultRepoAccessTTL,
+			trustedBotLogins: map[string]struct{}{
+				"copilot": {},
+			},
 		}
 		for _, opt := range opts {
 			if opt != nil {
@@ -112,10 +116,13 @@ type CacheStats struct {
 func (c *RepoAccessCache) IsSafeContent(ctx context.Context, username, owner, repo string) (bool, error) {
 	repoInfo, err := c.getRepoAccessInfo(ctx, username, owner, repo)
 	if err != nil {
-		c.logDebug("error checking repo access info for content filtering", "owner", owner, "repo", repo, "user", username, "error", err)
 		return false, err
 	}
-	if repoInfo.IsPrivate || repoInfo.ViewerLogin == username {
+
+	c.logInfo(ctx, fmt.Sprintf("evaluated repo access fur user %s to %s/%s for content filtering, result: hasPushAccess=%t, isPrivate=%t",
+		username, owner, repo, repoInfo.HasPushAccess, repoInfo.IsPrivate))
+
+	if c.isTrustedBot(username) || repoInfo.IsPrivate || repoInfo.ViewerLogin == strings.ToLower(username) {
 		return true, nil
 	}
 	return repoInfo.HasPushAccess, nil
@@ -136,22 +143,26 @@ func (c *RepoAccessCache) getRepoAccessInfo(ctx context.Context, username, owner
 	if err == nil {
 		entry := cacheItem.Data().(*repoAccessCacheEntry)
 		if cachedHasPush, known := entry.knownUsers[userKey]; known {
-			c.logDebug("repo access cache hit", "owner", owner, "repo", repo, "user", username)
+			c.logDebug(ctx, "repo access cache hit")
 			return RepoAccessInfo{
 				IsPrivate:     entry.isPrivate,
 				HasPushAccess: cachedHasPush,
 				ViewerLogin:   entry.viewerLogin,
 			}, nil
 		}
-		c.logDebug("known users cache miss", "owner", owner, "repo", repo, "user", username)
+
+		c.logDebug(ctx, "known users cache miss")
+
 		info, queryErr := c.queryRepoAccessInfo(ctx, username, owner, repo)
 		if queryErr != nil {
 			return RepoAccessInfo{}, queryErr
 		}
+
 		entry.knownUsers[userKey] = info.HasPushAccess
 		entry.viewerLogin = info.ViewerLogin
 		entry.isPrivate = info.IsPrivate
 		c.cache.Add(key, c.ttl, entry)
+
 		return RepoAccessInfo{
 			IsPrivate:     entry.isPrivate,
 			HasPushAccess: entry.knownUsers[userKey],
@@ -159,7 +170,7 @@ func (c *RepoAccessCache) getRepoAccessInfo(ctx context.Context, username, owner
 		}, nil
 	}
 
-	c.logDebug("repo access cache miss", "owner", owner, "repo", repo, "user", username)
+	c.logDebug(ctx, "repo access cache miss")
 
 	info, queryErr := c.queryRepoAccessInfo(ctx, username, owner, repo)
 	if queryErr != nil {
@@ -230,12 +241,29 @@ func (c *RepoAccessCache) queryRepoAccessInfo(ctx context.Context, username, own
 	}, nil
 }
 
-func cacheKey(owner, repo string) string {
-	return fmt.Sprintf("%s/%s", strings.ToLower(owner), strings.ToLower(repo))
+func (c *RepoAccessCache) log(ctx context.Context, level slog.Level, msg string, attrs ...slog.Attr) {
+	if c == nil || c.logger == nil {
+		return
+	}
+	if !c.logger.Enabled(ctx, level) {
+		return
+	}
+	c.logger.LogAttrs(ctx, level, msg, attrs...)
 }
 
-func (c *RepoAccessCache) logDebug(msg string, args ...any) {
-	if c != nil && c.logger != nil {
-		c.logger.Debug(msg, args...)
-	}
+func (c *RepoAccessCache) logDebug(ctx context.Context, msg string, attrs ...slog.Attr) {
+	c.log(ctx, slog.LevelDebug, msg, attrs...)
+}
+
+func (c *RepoAccessCache) logInfo(ctx context.Context, msg string, attrs ...slog.Attr) {
+	c.log(ctx, slog.LevelInfo, msg, attrs...)
+}
+
+func (c *RepoAccessCache) isTrustedBot(username string) bool {
+	_, ok := c.trustedBotLogins[strings.ToLower(username)]
+	return ok
+}
+
+func cacheKey(owner, repo string) string {
+	return fmt.Sprintf("%s/%s", strings.ToLower(owner), strings.ToLower(repo))
 }
