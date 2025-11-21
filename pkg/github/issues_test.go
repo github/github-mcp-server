@@ -1864,10 +1864,12 @@ func Test_GetIssueComments(t *testing.T) {
 	tests := []struct {
 		name             string
 		mockedClient     *http.Client
+		gqlHTTPClient    *http.Client
 		requestArgs      map[string]interface{}
 		expectError      bool
 		expectedComments []*github.IssueComment
 		expectedErrMsg   string
+		lockdownEnabled  bool
 	}{
 		{
 			name: "successful comments retrieval",
@@ -1927,14 +1929,57 @@ func Test_GetIssueComments(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to get issue comments",
 		},
+		{
+			name: "lockdown enabled filters comments without push access",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposIssuesCommentsByOwnerByRepoByIssueNumber,
+					[]*github.IssueComment{
+						{
+							ID:   github.Ptr(int64(789)),
+							Body: github.Ptr("Maintainer comment"),
+							User: &github.User{Login: github.Ptr("maintainer")},
+						},
+						{
+							ID:   github.Ptr(int64(790)),
+							Body: github.Ptr("External user comment"),
+							User: &github.User{Login: github.Ptr("testuser")},
+						},
+					},
+				),
+			),
+			gqlHTTPClient: newRepoAccessHTTPClient(),
+			requestArgs: map[string]interface{}{
+				"method":       "get_comments",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectError: false,
+			expectedComments: []*github.IssueComment{
+				{
+					ID:   github.Ptr(int64(789)),
+					Body: github.Ptr("Maintainer comment"),
+					User: &github.User{Login: github.Ptr("maintainer")},
+				},
+			},
+			lockdownEnabled: true,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			gqlClient := githubv4.NewClient(nil)
-			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+			var gqlClient *githubv4.Client
+			if tc.gqlHTTPClient != nil {
+				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
+			} else {
+				gqlClient = githubv4.NewClient(nil)
+			}
+			cache := stubRepoAccessCache(gqlClient, 15*time.Minute)
+			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
+			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), cache, translations.NullTranslationHelper, flags)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1957,9 +2002,12 @@ func Test_GetIssueComments(t *testing.T) {
 			err = json.Unmarshal([]byte(textContent.Text), &returnedComments)
 			require.NoError(t, err)
 			assert.Equal(t, len(tc.expectedComments), len(returnedComments))
-			if len(returnedComments) > 0 {
-				assert.Equal(t, *tc.expectedComments[0].Body, *returnedComments[0].Body)
-				assert.Equal(t, *tc.expectedComments[0].User.Login, *returnedComments[0].User.Login)
+			for i := range tc.expectedComments {
+				require.NotNil(t, tc.expectedComments[i].User)
+				require.NotNil(t, returnedComments[i].User)
+				assert.Equal(t, tc.expectedComments[i].GetID(), returnedComments[i].GetID())
+				assert.Equal(t, tc.expectedComments[i].GetBody(), returnedComments[i].GetBody())
+				assert.Equal(t, tc.expectedComments[i].GetUser().GetLogin(), returnedComments[i].GetUser().GetLogin())
 			}
 		})
 	}
