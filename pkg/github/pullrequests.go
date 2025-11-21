@@ -19,7 +19,7 @@ import (
 )
 
 // GetPullRequest creates a tool to get details of a specific pull request.
-func PullRequestRead(getClient GetClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, server.ToolHandlerFunc) {
+func PullRequestRead(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("pull_request_read",
 			mcp.WithDescription(t("TOOL_PULL_REQUEST_READ_DESCRIPTION", "Get information on a specific pull request in GitHub repository.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -34,7 +34,7 @@ Possible options:
  2. get_diff - Get the diff of a pull request.
  3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
  4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
- 5. get_review_comments - Get the review comments on a pull request. They are comments made on a portion of the unified diff during a pull request review. Use with pagination parameters to control the number of results returned.
+ 5. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Use cursor-based pagination (perPage, after) to control results.
  6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
  7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
 `),
@@ -94,7 +94,11 @@ Possible options:
 			case "get_files":
 				return GetPullRequestFiles(ctx, client, owner, repo, pullNumber, pagination)
 			case "get_review_comments":
-				return GetPullRequestReviewComments(ctx, client, owner, repo, pullNumber, pagination)
+				gqlClient, err := getGQLClient(ctx)
+				if err != nil {
+					return mcp.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil
+				}
+				return GetPullRequestReviewComments(ctx, gqlClient, owner, repo, pullNumber, pagination)
 			case "get_reviews":
 				return GetPullRequestReviews(ctx, client, owner, repo, pullNumber)
 			case "get_comments":
@@ -249,33 +253,104 @@ func GetPullRequestFiles(ctx context.Context, client *github.Client, owner, repo
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-func GetPullRequestReviewComments(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
-	opts := &github.PullRequestListCommentsOptions{
-		ListOptions: github.ListOptions{
-			PerPage: pagination.PerPage,
-			Page:    pagination.Page,
-		},
+// GraphQL types for review threads query
+type reviewThreadsQuery struct {
+	Repository struct {
+		PullRequest struct {
+			ReviewThreads struct {
+				Nodes      []reviewThreadNode
+				PageInfo   pageInfoFragment
+				TotalCount githubv4.Int
+			} `graphql:"reviewThreads(first: $first, after: $after)"`
+		} `graphql:"pullRequest(number: $prNum)"`
+	} `graphql:"repository(owner: $owner, name: $repo)"`
+}
+
+type reviewThreadNode struct {
+	ID          githubv4.ID
+	IsResolved  githubv4.Boolean
+	IsOutdated  githubv4.Boolean
+	IsCollapsed githubv4.Boolean
+	Comments    struct {
+		Nodes      []reviewCommentNode
+		TotalCount githubv4.Int
+	} `graphql:"comments(first: $commentsPerThread)"`
+}
+
+type reviewCommentNode struct {
+	ID     githubv4.ID
+	Body   githubv4.String
+	Path   githubv4.String
+	Line   *githubv4.Int
+	Author struct {
+		Login githubv4.String
+	}
+	CreatedAt githubv4.DateTime
+	UpdatedAt githubv4.DateTime
+	URL       githubv4.URI
+}
+
+type pageInfoFragment struct {
+	HasNextPage     githubv4.Boolean
+	HasPreviousPage githubv4.Boolean
+	StartCursor     githubv4.String
+	EndCursor       githubv4.String
+}
+
+func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	// Convert pagination parameters to GraphQL format
+	gqlParams, err := pagination.ToGraphQLParams()
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("invalid pagination parameters: %v", err)), nil
 	}
 
-	comments, resp, err := client.PullRequests.ListComments(ctx, owner, repo, pullNumber, opts)
-	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx,
-			"failed to get pull request review comments",
-			resp,
+	// Default to 100 threads if not specified, max is 100 for GraphQL
+	perPage := int32(100)
+	if gqlParams.First != nil && *gqlParams.First > 0 {
+		perPage = *gqlParams.First
+	}
+
+	// Build variables for GraphQL query
+	vars := map[string]interface{}{
+		"owner":             githubv4.String(owner),
+		"repo":              githubv4.String(repo),
+		"prNum":             githubv4.Int(pullNumber),
+		"first":             githubv4.Int(perPage),
+		"commentsPerThread": githubv4.Int(50), // Max 50 comments per thread
+	}
+
+	// Add cursor if provided
+	if gqlParams.After != nil && *gqlParams.After != "" {
+		vars["after"] = githubv4.String(*gqlParams.After)
+	}
+	// Note: when after is nil, we still need to include it in the vars map
+	// for GraphQL query construction, even though it's nullable
+	if _, exists := vars["after"]; !exists {
+		vars["after"] = (*githubv4.String)(nil)
+	}
+
+	// Execute GraphQL query
+	var query reviewThreadsQuery
+	if err := gqlClient.Query(ctx, &query, vars); err != nil {
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+			"failed to get pull request review threads",
 			err,
 		), nil
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
-		}
-		return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request review comments: %s", string(body))), nil
+	// Build response with review threads and pagination info
+	response := map[string]interface{}{
+		"reviewThreads": query.Repository.PullRequest.ReviewThreads.Nodes,
+		"pageInfo": map[string]interface{}{
+			"hasNextPage":     query.Repository.PullRequest.ReviewThreads.PageInfo.HasNextPage,
+			"hasPreviousPage": query.Repository.PullRequest.ReviewThreads.PageInfo.HasPreviousPage,
+			"startCursor":     string(query.Repository.PullRequest.ReviewThreads.PageInfo.StartCursor),
+			"endCursor":       string(query.Repository.PullRequest.ReviewThreads.PageInfo.EndCursor),
+		},
+		"totalCount": int(query.Repository.PullRequest.ReviewThreads.TotalCount),
 	}
 
-	r, err := json.Marshal(comments)
+	r, err := json.Marshal(response)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
