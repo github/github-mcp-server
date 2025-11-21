@@ -26,8 +26,8 @@ func PullRequestRead(getClient GetClientFn, t translations.TranslationHelperFunc
 		Properties: map[string]*jsonschema.Schema{
 			"method": {
 				Type: "string",
-				Description: `Action to specify what pull request data needs to be retrieved from GitHub.
-Possible options:
+				Description: `Action to specify what pull request data needs to be retrieved from GitHub. 
+Possible options: 
  1. get - Get details of a specific pull request.
  2. get_diff - Get the diff of a pull request.
  3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
