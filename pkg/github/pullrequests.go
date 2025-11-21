@@ -14,12 +14,13 @@ import (
 	"github.com/shurcooL/githubv4"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/translations"
 )
 
 // GetPullRequest creates a tool to get details of a specific pull request.
-func PullRequestRead(getClient GetClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, server.ToolHandlerFunc) {
+func PullRequestRead(getClient GetClientFn, cache *lockdown.RepoAccessCache, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("pull_request_read",
 			mcp.WithDescription(t("TOOL_PULL_REQUEST_READ_DESCRIPTION", "Get information on a specific pull request in GitHub repository.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -86,7 +87,7 @@ Possible options:
 			switch method {
 
 			case "get":
-				return GetPullRequest(ctx, client, owner, repo, pullNumber)
+				return GetPullRequest(ctx, client, cache, owner, repo, pullNumber, flags)
 			case "get_diff":
 				return GetPullRequestDiff(ctx, client, owner, repo, pullNumber)
 			case "get_status":
@@ -94,18 +95,18 @@ Possible options:
 			case "get_files":
 				return GetPullRequestFiles(ctx, client, owner, repo, pullNumber, pagination)
 			case "get_review_comments":
-				return GetPullRequestReviewComments(ctx, client, owner, repo, pullNumber, pagination)
+				return GetPullRequestReviewComments(ctx, client, cache, owner, repo, pullNumber, pagination, flags)
 			case "get_reviews":
-				return GetPullRequestReviews(ctx, client, owner, repo, pullNumber)
+				return GetPullRequestReviews(ctx, client, cache, owner, repo, pullNumber, flags)
 			case "get_comments":
-				return GetIssueComments(ctx, client, owner, repo, pullNumber, pagination, flags)
+				return GetIssueComments(ctx, client, cache, owner, repo, pullNumber, pagination, flags)
 			default:
 				return nil, fmt.Errorf("unknown method: %s", method)
 			}
 		}
 }
 
-func GetPullRequest(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
+func GetPullRequest(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner, repo string, pullNumber int, ff FeatureFlags) (*mcp.CallToolResult, error) {
 	pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -131,6 +132,23 @@ func GetPullRequest(ctx context.Context, client *github.Client, owner, repo stri
 		}
 		if pr.Body != nil {
 			pr.Body = github.Ptr(sanitize.Sanitize(*pr.Body))
+		}
+	}
+
+	if ff.LockdownMode {
+		if cache == nil {
+			return nil, fmt.Errorf("lockdown cache is not configured")
+		}
+		login := pr.GetUser().GetLogin()
+		if login != "" {
+			isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
+			if err != nil {
+				return nil, fmt.Errorf("failed to check content removal: %w", err)
+			}
+
+			if !isSafeContent {
+				return mcp.NewToolResultError("access to pull request is restricted by lockdown mode"), nil
+			}
 		}
 	}
 
@@ -249,7 +267,7 @@ func GetPullRequestFiles(ctx context.Context, client *github.Client, owner, repo
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-func GetPullRequestReviewComments(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+func GetPullRequestReviewComments(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner, repo string, pullNumber int, pagination PaginationParams, ff FeatureFlags) (*mcp.CallToolResult, error) {
 	opts := &github.PullRequestListCommentsOptions{
 		ListOptions: github.ListOptions{
 			PerPage: pagination.PerPage,
@@ -275,6 +293,27 @@ func GetPullRequestReviewComments(ctx context.Context, client *github.Client, ow
 		return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request review comments: %s", string(body))), nil
 	}
 
+	if ff.LockdownMode {
+		if cache == nil {
+			return nil, fmt.Errorf("lockdown cache is not configured")
+		}
+		filteredComments := make([]*github.PullRequestComment, 0, len(comments))
+		for _, comment := range comments {
+			user := comment.GetUser()
+			if user == nil {
+				continue
+			}
+			isSafeContent, err := cache.IsSafeContent(ctx, user.GetLogin(), owner, repo)
+			if err != nil {
+				return mcp.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
+			}
+			if isSafeContent {
+				filteredComments = append(filteredComments, comment)
+			}
+		}
+		comments = filteredComments
+	}
+
 	r, err := json.Marshal(comments)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -283,7 +322,7 @@ func GetPullRequestReviewComments(ctx context.Context, client *github.Client, ow
 	return mcp.NewToolResultText(string(r)), nil
 }
 
-func GetPullRequestReviews(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
+func GetPullRequestReviews(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner, repo string, pullNumber int, ff FeatureFlags) (*mcp.CallToolResult, error) {
 	reviews, resp, err := client.PullRequests.ListReviews(ctx, owner, repo, pullNumber, nil)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -300,6 +339,26 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, owner, re
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return mcp.NewToolResultError(fmt.Sprintf("failed to get pull request reviews: %s", string(body))), nil
+	}
+
+	if ff.LockdownMode {
+		if cache == nil {
+			return nil, fmt.Errorf("lockdown cache is not configured")
+		}
+		filteredReviews := make([]*github.PullRequestReview, 0, len(reviews))
+		for _, review := range reviews {
+			login := review.GetUser().GetLogin()
+			if login != "" {
+				isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
+				if err != nil {
+					return nil, fmt.Errorf("failed to check lockdown mode: %w", err)
+				}
+				if isSafeContent {
+					filteredReviews = append(filteredReviews, review)
+				}
+				reviews = filteredReviews
+			}
+		}
 	}
 
 	r, err := json.Marshal(reviews)

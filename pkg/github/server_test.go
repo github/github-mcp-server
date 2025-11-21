@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
+	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/google/go-github/v79/github"
 	"github.com/shurcooL/githubv4"
@@ -36,6 +38,11 @@ func stubGetGQLClientFn(client *githubv4.Client) GetGQLClientFn {
 	return func(_ context.Context) (*githubv4.Client, error) {
 		return client, nil
 	}
+}
+
+func stubRepoAccessCache(client *githubv4.Client, ttl time.Duration) *lockdown.RepoAccessCache {
+	cacheName := fmt.Sprintf("repo-access-cache-test-%d", time.Now().UnixNano())
+	return lockdown.GetInstance(client, lockdown.WithTTL(ttl), lockdown.WithCacheName(cacheName))
 }
 
 func stubFeatureFlags(enabledFlags map[string]bool) FeatureFlags {
