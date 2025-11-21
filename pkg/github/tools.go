@@ -524,3 +524,24 @@ func ContainsToolset(tools []string, toCheck string) bool {
 	}
 	return false
 }
+
+// CleanTools cleans tool names by removing duplicates and trimming whitespace.
+// Validation of tool existence is done during registration.
+func CleanTools(toolNames []string) []string {
+	seen := make(map[string]bool)
+	result := make([]string, 0, len(toolNames))
+
+	// Remove duplicates and trim whitespace
+	for _, tool := range toolNames {
+		trimmed := strings.TrimSpace(tool)
+		if trimmed == "" {
+			continue
+		}
+		if !seen[trimmed] {
+			seen[trimmed] = true
+			result = append(result, trimmed)
+		}
+	}
+
+	return result
+}
