@@ -37,7 +37,7 @@ return mcp.NewTool(
 		mcp.WithDescription(t("TOOL_LIST_DEPENDABOT_ALERTS_DESCRIPTION", "List dependabot alerts in a GitHub repository.")),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			Title:        t("TOOL_LIST_DEPENDABOT_ALERTS_USER_TITLE", "List dependabot alerts"),
-			ReadOnlyHint: ToBoolPtr(true),
+			ReadOnlyHint: jsonschema.Ptr(true),
 		}),
 		mcp.WithString("owner",
 			mcp.Required(),

@@ -1203,7 +1203,7 @@ func DeleteWorkflowRunLogs(getClient GetClientFn, t translations.TranslationHelp
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_DELETE_WORKFLOW_RUN_LOGS_USER_TITLE", "Delete workflow logs"),
 				ReadOnlyHint:    false,
-				DestructiveHint: ToBoolPtr(true),
+				DestructiveHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",

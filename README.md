@@ -1,3 +1,5 @@
+[![Go Report Card](https://goreportcard.com/badge/github.com/github/github-mcp-server)](https://goreportcard.com/report/github.com/github/github-mcp-server)
+
 # GitHub MCP Server
 
 The GitHub MCP Server connects AI tools directly to GitHub's platform. This gives AI agents, assistants, and chatbots the ability to read repositories and code files, manage issues and PRs, analyze code, and automate workflows. All through natural language interactions.
@@ -1264,7 +1266,7 @@ docker run -i --rm \
 
 ## Lockdown Mode
 
-Lockdown mode limits the content that the server will surface from public repositories. When enabled, requests that fetch issue details will return an error if the issue was created by someone who does not have push access to the repository. Private repositories are unaffected, and collaborators can still access their own issues.
+Lockdown mode limits the content that the server will surface from public repositories. When enabled, the server checks whether the author of each item has push access to the repository. Private repositories are unaffected, and collaborators keep full access to their own content.
 
 ```bash
 ./github-mcp-server --lockdown-mode
@@ -1279,7 +1281,20 @@ docker run -i --rm \
   ghcr.io/github/github-mcp-server
 ```
 
-At the moment lockdown mode applies to the issue read toolset, but it is designed to extend to additional data surfaces over time.
+The behavior of lockdown mode depends on the tool invoked.
+
+Following tools will return an error when the author lacks the push access:
+
+- `issue_read:get`
+- `pull_request_read:get`
+
+Following tools will filter out content from users lacking the push access:
+
+- `issue_read:get_comments`
+- `issue_read:get_sub_issues`
+- `pull_request_read:get_comments`
+- `pull_request_read:get_review_comments`
+- `pull_request_read:get_reviews`
 
 ## i18n / Overriding Descriptions
 

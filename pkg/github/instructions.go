@@ -22,7 +22,7 @@ func GenerateInstructions(enabledToolsets []string) string {
 
 	// Individual toolset instructions
 	for _, toolset := range enabledToolsets {
-		if inst := getToolsetInstructions(toolset); inst != "" {
+		if inst := getToolsetInstructions(toolset, enabledToolsets); inst != "" {
 			instructions = append(instructions, inst)
 		}
 	}
@@ -48,12 +48,18 @@ Tool usage guidance:
 }
 
 // getToolsetInstructions returns specific instructions for individual toolsets
-func getToolsetInstructions(toolset string) string {
+func getToolsetInstructions(toolset string, enabledToolsets []string) string {
 	switch toolset {
 	case "pull_requests":
-		return `## Pull Requests
+		pullRequestInstructions := `## Pull Requests
 
 PR review workflow: Always use 'pull_request_review_write' with method 'create' to create a pending review, then 'add_comment_to_pending_review' to add comments, and finally 'pull_request_review_write' with method 'submit_pending' to submit the review for complex reviews with line-specific comments.`
+		if slices.Contains(enabledToolsets, "repos") {
+			pullRequestInstructions += `
+
+Before creating a pull request, search for pull request templates in the repository. Template files are called pull_request_template.md or they're located in '.github/PULL_REQUEST_TEMPLATE' directory. Use the template content to structure the PR description and then call create_pull_request tool.`
+		}
+		return pullRequestInstructions
 	case "issues":
 		return `## Issues
 
