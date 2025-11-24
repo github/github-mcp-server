@@ -165,28 +165,28 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 
 	// Define all available features with their default state (disabled)
 	// Create toolsets
-	// repos := toolsets.NewToolset(ToolsetMetadataRepos.ID, ToolsetMetadataRepos.Description).
-	// 	AddReadTools(
-	// 		toolsets.NewServerTool(SearchRepositories(getClient, t)),
-	// 		toolsets.NewServerTool(GetFileContents(getClient, getRawClient, t)),
-	// 		toolsets.NewServerTool(ListCommits(getClient, t)),
-	// 		toolsets.NewServerTool(SearchCode(getClient, t)),
-	// 		toolsets.NewServerTool(GetCommit(getClient, t)),
-	// 		toolsets.NewServerTool(ListBranches(getClient, t)),
-	// 		toolsets.NewServerTool(ListTags(getClient, t)),
-	// 		toolsets.NewServerTool(GetTag(getClient, t)),
-	// 		toolsets.NewServerTool(ListReleases(getClient, t)),
-	// 		toolsets.NewServerTool(GetLatestRelease(getClient, t)),
-	// 		toolsets.NewServerTool(GetReleaseByTag(getClient, t)),
-	// 	).
-	// 	AddWriteTools(
-	// 		toolsets.NewServerTool(CreateOrUpdateFile(getClient, t)),
-	// 		toolsets.NewServerTool(CreateRepository(getClient, t)),
-	// 		toolsets.NewServerTool(ForkRepository(getClient, t)),
-	// 		toolsets.NewServerTool(CreateBranch(getClient, t)),
-	// 		toolsets.NewServerTool(PushFiles(getClient, t)),
-	// 		toolsets.NewServerTool(DeleteFile(getClient, t)),
-	// 	).
+	repos := toolsets.NewToolset(ToolsetMetadataRepos.ID, ToolsetMetadataRepos.Description).
+		AddReadTools(
+			// toolsets.NewServerTool(SearchRepositories(getClient, t)),
+			toolsets.NewServerTool(GetFileContents(getClient, getRawClient, t)),
+			toolsets.NewServerTool(ListCommits(getClient, t)),
+			// toolsets.NewServerTool(SearchCode(getClient, t)),
+			toolsets.NewServerTool(GetCommit(getClient, t)),
+			toolsets.NewServerTool(ListBranches(getClient, t)),
+			toolsets.NewServerTool(ListTags(getClient, t)),
+			toolsets.NewServerTool(GetTag(getClient, t)),
+			toolsets.NewServerTool(ListReleases(getClient, t)),
+			toolsets.NewServerTool(GetLatestRelease(getClient, t)),
+			toolsets.NewServerTool(GetReleaseByTag(getClient, t)),
+		).
+		AddWriteTools(
+			toolsets.NewServerTool(CreateOrUpdateFile(getClient, t)),
+			toolsets.NewServerTool(CreateRepository(getClient, t)),
+			toolsets.NewServerTool(ForkRepository(getClient, t)),
+			toolsets.NewServerTool(CreateBranch(getClient, t)),
+			toolsets.NewServerTool(PushFiles(getClient, t)),
+			toolsets.NewServerTool(DeleteFile(getClient, t)),
+		)
 	// 	AddResourceTemplates(
 	// 		toolsets.NewServerResourceTemplate(GetRepositoryResourceContent(getClient, getRawClient, t)),
 	// 		toolsets.NewServerResourceTemplate(GetRepositoryResourceBranchContent(getClient, getRawClient, t)),
@@ -338,14 +338,14 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	// 		toolsets.NewServerTool(DeleteProjectItem(getClient, t)),
 	// 		toolsets.NewServerTool(UpdateProjectItem(getClient, t)),
 	// 	)
-	// stargazers := toolsets.NewToolset(ToolsetMetadataStargazers.ID, ToolsetMetadataStargazers.Description).
-	// 	AddReadTools(
-	// 		toolsets.NewServerTool(ListStarredRepositories(getClient, t)),
-	// 	).
-	// 	AddWriteTools(
-	// 		toolsets.NewServerTool(StarRepository(getClient, t)),
-	// 		toolsets.NewServerTool(UnstarRepository(getClient, t)),
-	// 	)
+	stargazers := toolsets.NewToolset(ToolsetMetadataStargazers.ID, ToolsetMetadataStargazers.Description).
+		AddReadTools(
+			toolsets.NewServerTool(ListStarredRepositories(getClient, t)),
+		).
+		AddWriteTools(
+			toolsets.NewServerTool(StarRepository(getClient, t)),
+			toolsets.NewServerTool(UnstarRepository(getClient, t)),
+		)
 	labels := toolsets.NewToolset(ToolsetLabels.ID, ToolsetLabels.Description).
 		AddReadTools(
 			// get
@@ -360,7 +360,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 
 	// Add toolsets to the group
 	tsg.AddToolset(contextTools)
-	// tsg.AddToolset(repos)
+	tsg.AddToolset(repos)
 	tsg.AddToolset(git)
 	// tsg.AddToolset(issues)
 	// tsg.AddToolset(orgs)
@@ -376,7 +376,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(gists)
 	tsg.AddToolset(securityAdvisories)
 	// tsg.AddToolset(projects)
-	// tsg.AddToolset(stargazers)
+	tsg.AddToolset(stargazers)
 	tsg.AddToolset(labels)
 
 	return tsg
