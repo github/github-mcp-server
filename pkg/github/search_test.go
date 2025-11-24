@@ -207,15 +207,14 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 	client := github.NewClient(mockedClient)
 	_, handlerTest := SearchRepositories(stubGetClientFn(client), translations.NullTranslationHelper)
 
-	request := createMCPRequest(map[string]interface{}{
+	args := map[string]interface{}{
 		"query":          "golang test",
 		"minimal_output": false,
-	})
+	}
 
-	result, _, err := handlerTest(context.Background(), &request, map[string]interface{}{
-		"query":          "golang test",
-		"minimal_output": false,
-	})
+	request := createMCPRequest(args)
+
+	result, _, err := handlerTest(context.Background(), &request, args)
 
 	require.NoError(t, err)
 	require.False(t, result.IsError)
