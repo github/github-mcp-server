@@ -1,8 +1,9 @@
 {
   "annotations": {
-    "title": "Star repository"
+    "readOnlyHint": true,
+    "title": "Get latest release"
   },
-  "description": "Star a GitHub repository",
+  "description": "Get the latest release in a GitHub repository",
   "inputSchema": {
     "type": "object",
     "required": [
@@ -20,5 +21,5 @@
       }
     }
   },
-  "name": "star_repository"
+  "name": "get_latest_release"
 }

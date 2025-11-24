@@ -147,33 +147,8 @@ func getErrorResult(t *testing.T, result *mcp.CallToolResult) *mcp.TextContent {
 }
 
 // getTextResourceResult is a helper function that returns a text result from a tool call.
-func getTextResourceResult(t *testing.T, result *mcp.CallToolResult) *mcp.ResourceContents {
-	t.Helper()
-	assert.NotNil(t, result)
-	require.Len(t, result.Content, 2)
-	content := result.Content[1]
-	require.IsType(t, mcp.EmbeddedResource{}, content)
-	resource, ok := content.(*mcp.EmbeddedResource)
-	require.True(t, ok, "expected content to be of type EmbeddedResource")
-
-	require.IsType(t, mcp.ResourceContents{}, resource.Resource)
-	require.NotEmpty(t, resource.Resource.Text)
-	return resource.Resource
-}
 
 // getBlobResourceResult is a helper function that returns a blob result from a tool call.
-func getBlobResourceResult(t *testing.T, result *mcp.CallToolResult) *mcp.ResourceContents {
-	t.Helper()
-	assert.NotNil(t, result)
-	require.Len(t, result.Content, 2)
-	content := result.Content[1]
-	require.IsType(t, mcp.EmbeddedResource{}, content)
-
-	resource := content.(*mcp.EmbeddedResource)
-	require.IsType(t, mcp.ResourceContents{}, resource.Resource)
-	require.NotEmpty(t, resource.Resource.Blob)
-	return resource.Resource
-}
 
 func TestOptionalParamOK(t *testing.T) {
 	tests := []struct {
@@ -283,4 +258,17 @@ func TestOptionalParamOK(t *testing.T) {
 			}
 		})
 	}
+}
+
+func getResourceResult(t *testing.T, result *mcp.CallToolResult) *mcp.ResourceContents {
+	t.Helper()
+	assert.NotNil(t, result)
+	require.Len(t, result.Content, 2)
+	content := result.Content[1]
+	require.IsType(t, &mcp.EmbeddedResource{}, content)
+	resource, ok := content.(*mcp.EmbeddedResource)
+	require.True(t, ok, "expected content to be of type EmbeddedResource")
+
+	require.IsType(t, &mcp.ResourceContents{}, resource.Resource)
+	return resource.Resource
 }

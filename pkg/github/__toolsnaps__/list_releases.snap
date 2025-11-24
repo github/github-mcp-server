@@ -1,9 +1,9 @@
 {
   "annotations": {
     "readOnlyHint": true,
-    "title": "List tags"
+    "title": "List releases"
   },
-  "description": "List git tags in a GitHub repository",
+  "description": "List releases in a GitHub repository",
   "inputSchema": {
     "type": "object",
     "required": [
@@ -32,5 +32,5 @@
       }
     }
   },
-  "name": "list_tags"
+  "name": "list_releases"
 }
