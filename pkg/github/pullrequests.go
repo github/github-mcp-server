@@ -14,13 +14,14 @@ import (
 	"github.com/shurcooL/githubv4"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 )
 
 // PullRequestRead creates a tool to get details of a specific pull request.
-func PullRequestRead(getClient GetClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+func PullRequestRead(getClient GetClientFn, cache *lockdown.RepoAccessCache, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -94,7 +95,7 @@ Possible options:
 
 			switch method {
 			case "get":
-				result, err := GetPullRequest(ctx, client, owner, repo, pullNumber)
+				result, err := GetPullRequest(ctx, client, cache, owner, repo, pullNumber, flags)
 				return result, nil, err
 			case "get_diff":
 				result, err := GetPullRequestDiff(ctx, client, owner, repo, pullNumber)
@@ -106,13 +107,13 @@ Possible options:
 				result, err := GetPullRequestFiles(ctx, client, owner, repo, pullNumber, pagination)
 				return result, nil, err
 			case "get_review_comments":
-				result, err := GetPullRequestReviewComments(ctx, client, owner, repo, pullNumber, pagination)
+				result, err := GetPullRequestReviewComments(ctx, client, cache, owner, repo, pullNumber, pagination, flags)
 				return result, nil, err
 			case "get_reviews":
-				result, err := GetPullRequestReviews(ctx, client, owner, repo, pullNumber)
+				result, err := GetPullRequestReviews(ctx, client, cache, owner, repo, pullNumber, flags)
 				return result, nil, err
 			case "get_comments":
-				result, err := GetIssueComments(ctx, client, owner, repo, pullNumber, pagination, flags)
+				result, err := GetIssueComments(ctx, client, cache, owner, repo, pullNumber, pagination, flags)
 				return result, nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
@@ -120,7 +121,7 @@ Possible options:
 		}
 }
 
-func GetPullRequest(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
+func GetPullRequest(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner, repo string, pullNumber int, ff FeatureFlags) (*mcp.CallToolResult, error) {
 	pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -146,6 +147,23 @@ func GetPullRequest(ctx context.Context, client *github.Client, owner, repo stri
 		}
 		if pr.Body != nil {
 			pr.Body = github.Ptr(sanitize.Sanitize(*pr.Body))
+		}
+	}
+
+	if ff.LockdownMode {
+		if cache == nil {
+			return nil, fmt.Errorf("lockdown cache is not configured")
+		}
+		login := pr.GetUser().GetLogin()
+		if login != "" {
+			isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
+			if err != nil {
+				return nil, fmt.Errorf("failed to check content removal: %w", err)
+			}
+
+			if !isSafeContent {
+				return utils.NewToolResultError("access to pull request is restricted by lockdown mode"), nil
+			}
 		}
 	}
 
@@ -264,7 +282,7 @@ func GetPullRequestFiles(ctx context.Context, client *github.Client, owner, repo
 	return utils.NewToolResultText(string(r)), nil
 }
 
-func GetPullRequestReviewComments(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+func GetPullRequestReviewComments(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner, repo string, pullNumber int, pagination PaginationParams, ff FeatureFlags) (*mcp.CallToolResult, error) {
 	opts := &github.PullRequestListCommentsOptions{
 		ListOptions: github.ListOptions{
 			PerPage: pagination.PerPage,
@@ -290,6 +308,27 @@ func GetPullRequestReviewComments(ctx context.Context, client *github.Client, ow
 		return utils.NewToolResultError(fmt.Sprintf("failed to get pull request review comments: %s", string(body))), nil
 	}
 
+	if ff.LockdownMode {
+		if cache == nil {
+			return nil, fmt.Errorf("lockdown cache is not configured")
+		}
+		filteredComments := make([]*github.PullRequestComment, 0, len(comments))
+		for _, comment := range comments {
+			user := comment.GetUser()
+			if user == nil {
+				continue
+			}
+			isSafeContent, err := cache.IsSafeContent(ctx, user.GetLogin(), owner, repo)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
+			}
+			if isSafeContent {
+				filteredComments = append(filteredComments, comment)
+			}
+		}
+		comments = filteredComments
+	}
+
 	r, err := json.Marshal(comments)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -298,7 +337,7 @@ func GetPullRequestReviewComments(ctx context.Context, client *github.Client, ow
 	return utils.NewToolResultText(string(r)), nil
 }
 
-func GetPullRequestReviews(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
+func GetPullRequestReviews(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner, repo string, pullNumber int, ff FeatureFlags) (*mcp.CallToolResult, error) {
 	reviews, resp, err := client.PullRequests.ListReviews(ctx, owner, repo, pullNumber, nil)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -315,6 +354,26 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, owner, re
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return utils.NewToolResultError(fmt.Sprintf("failed to get pull request reviews: %s", string(body))), nil
+	}
+
+	if ff.LockdownMode {
+		if cache == nil {
+			return nil, fmt.Errorf("lockdown cache is not configured")
+		}
+		filteredReviews := make([]*github.PullRequestReview, 0, len(reviews))
+		for _, review := range reviews {
+			login := review.GetUser().GetLogin()
+			if login != "" {
+				isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
+				if err != nil {
+					return nil, fmt.Errorf("failed to check lockdown mode: %w", err)
+				}
+				if isSafeContent {
+					filteredReviews = append(filteredReviews, review)
+				}
+				reviews = filteredReviews
+			}
+		}
 	}
 
 	r, err := json.Marshal(reviews)
@@ -1636,6 +1695,14 @@ func AddCommentToPendingReview(getGQLClient GetGQLClientFn, t translations.Trans
 				nil,
 			); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			if addPullRequestReviewThreadMutation.AddPullRequestReviewThread.Thread.ID == nil {
+				return utils.NewToolResultError(`Failed to add comment to pending review. Possible reasons:
+	- The line number doesn't exist in the pull request diff
+	- The file path is incorrect
+	- The side (LEFT/RIGHT) is invalid for the specified line
+`), nil, nil
 			}
 
 			// Return nothing interesting, just indicate success for the time being.

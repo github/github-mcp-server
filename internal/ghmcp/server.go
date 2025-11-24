@@ -15,6 +15,7 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/lockdown"
 	mcplog "github.com/github/github-mcp-server/pkg/log"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -55,6 +56,8 @@ type MCPServerConfig struct {
 
 	// Logger is used for logging within the server
 	Logger *slog.Logger
+	// RepoAccessTTL overrides the default TTL for repository access cache entries.
+	RepoAccessTTL *time.Duration
 }
 
 func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
@@ -79,6 +82,14 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		},
 	} // We're going to wrap the Transport later in beforeInit
 	gqlClient := githubv4.NewEnterpriseClient(apiHost.graphqlURL.String(), gqlHTTPClient)
+	repoAccessOpts := []lockdown.RepoAccessOption{}
+	if cfg.RepoAccessTTL != nil {
+		repoAccessOpts = append(repoAccessOpts, lockdown.WithTTL(*cfg.RepoAccessTTL))
+	}
+	var repoAccessCache *lockdown.RepoAccessCache
+	if cfg.LockdownMode {
+		repoAccessCache = lockdown.GetInstance(gqlClient, repoAccessOpts...)
+	}
 
 	enabledToolsets := cfg.EnabledToolsets
 
@@ -140,6 +151,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		cfg.Translator,
 		cfg.ContentWindowSize,
 		github.FeatureFlags{LockdownMode: cfg.LockdownMode},
+		repoAccessCache,
 	)
 	err = tsg.EnableToolsets(enabledToolsets, nil)
 
@@ -194,6 +206,9 @@ type StdioServerConfig struct {
 
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
+
+	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
+	RepoAccessCacheTTL *time.Duration
 }
 
 // RunStdioServer is not concurrent safe.
@@ -231,6 +246,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		ContentWindowSize: cfg.ContentWindowSize,
 		LockdownMode:      cfg.LockdownMode,
 		Logger:            logger,
+		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)
