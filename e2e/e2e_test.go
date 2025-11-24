@@ -745,6 +745,12 @@ func TestDirectoryDeletion(t *testing.T) {
 
 	// Find the deletion commit (list_commits returns in reverse chronological order,
 	// but timing can sometimes cause unexpected ordering)
+	// TODO: The delete_file tool only deletes individual files, not directories.
+	// This test creates a file in test-dir/ and deletes it, but doesn't actually
+	// test recursive directory deletion. We should either:
+	// 1. Rename TestDirectoryDeletion to TestFileDeletionInSubdirectory
+	// 2. Implement actual directory deletion in the MCP server (delete all files in dir)
+	// 3. Create multiple files and verify all are deleted
 	var deletionCommit *struct {
 		SHA    string `json:"sha"`
 		Commit struct {
@@ -1340,6 +1346,13 @@ func TestPullRequestReviewCommentSubmit(t *testing.T) {
 	require.Equal(t, "pending pull request created", textContent.Text)
 
 	// Add a file review comment
+	// TODO: FILE-level comments are silently dropped by GitHub API when:
+	// - The comment targets the wrong side of a diff
+	// - The comment targets a deleted part of a diff
+	// - The comment targets a line outside the actual diff range
+	// This test currently doesn't verify FILE-level comments are created because
+	// ListReviewComments API doesn't return them. We should investigate proper
+	// FILE-level comment parameters or use a different API to verify.
 
 	t.Logf("Adding file review comment to pull request in %s/%s...", currentOwner, repoName)
 	resp, err = mcpClient.CallTool(ctx, &mcp.CallToolParams{
