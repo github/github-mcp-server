@@ -324,20 +324,20 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(UpdateGist(getClient, t)),
 		)
 
-	// projects := toolsets.NewToolset(ToolsetMetadataProjects.ID, ToolsetMetadataProjects.Description).
-	// 	AddReadTools(
-	// 		toolsets.NewServerTool(ListProjects(getClient, t)),
-	// 		toolsets.NewServerTool(GetProject(getClient, t)),
-	// 		toolsets.NewServerTool(ListProjectFields(getClient, t)),
-	// 		toolsets.NewServerTool(GetProjectField(getClient, t)),
-	// 		toolsets.NewServerTool(ListProjectItems(getClient, t)),
-	// 		toolsets.NewServerTool(GetProjectItem(getClient, t)),
-	// 	).
-	// 	AddWriteTools(
-	// 		toolsets.NewServerTool(AddProjectItem(getClient, t)),
-	// 		toolsets.NewServerTool(DeleteProjectItem(getClient, t)),
-	// 		toolsets.NewServerTool(UpdateProjectItem(getClient, t)),
-	// 	)
+	projects := toolsets.NewToolset(ToolsetMetadataProjects.ID, ToolsetMetadataProjects.Description).
+		AddReadTools(
+			toolsets.NewServerTool(ListProjects(getClient, t)),
+			toolsets.NewServerTool(GetProject(getClient, t)),
+			toolsets.NewServerTool(ListProjectFields(getClient, t)),
+			toolsets.NewServerTool(GetProjectField(getClient, t)),
+			toolsets.NewServerTool(ListProjectItems(getClient, t)),
+			toolsets.NewServerTool(GetProjectItem(getClient, t)),
+		).
+		AddWriteTools(
+			toolsets.NewServerTool(AddProjectItem(getClient, t)),
+			toolsets.NewServerTool(DeleteProjectItem(getClient, t)),
+			toolsets.NewServerTool(UpdateProjectItem(getClient, t)),
+		)
 	// stargazers := toolsets.NewToolset(ToolsetMetadataStargazers.ID, ToolsetMetadataStargazers.Description).
 	// 	AddReadTools(
 	// 		toolsets.NewServerTool(ListStarredRepositories(getClient, t)),
@@ -378,6 +378,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	// tsg.AddToolset(projects)
 	// tsg.AddToolset(stargazers)
 	tsg.AddToolset(labels)
+	tsg.AddToolset(projects)
 
 	return tsg
 }
