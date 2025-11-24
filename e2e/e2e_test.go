@@ -1351,6 +1351,7 @@ func TestPullRequestReviewCommentSubmit(t *testing.T) {
 			"path":        "test-file.txt",
 			"subjectType": "FILE",
 			"body":        "File review comment",
+			"side":        "RIGHT",
 		},
 	})
 	require.NoError(t, err, "expected to call 'add_comment_to_pending_review' tool successfully")
