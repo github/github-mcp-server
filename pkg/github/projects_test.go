@@ -1,5 +1,3 @@
-//go:build ignore
-
 package github
 
 import (
@@ -12,6 +10,7 @@ import (
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gh "github.com/google/go-github/v79/github"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,11 +23,13 @@ func Test_ListProjects(t *testing.T) {
 
 	assert.Equal(t, "list_projects", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
-	assert.Contains(t, tool.InputSchema.Properties, "query")
-	assert.Contains(t, tool.InputSchema.Properties, "per_page")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "owner_type"})
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be a *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "owner_type")
+	assert.Contains(t, schema.Properties, "query")
+	assert.Contains(t, schema.Properties, "per_page")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "owner_type"})
 
 	// API returns full ProjectV2 objects; we only need minimal fields for decoding.
 	orgProjects := []map[string]any{{"id": 1, "node_id": "NODE1", "title": "Org Project"}}
@@ -142,7 +143,7 @@ func Test_ListProjects(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
 			_, handler := ListProjects(stubGetClientFn(client), translations.NullTranslationHelper)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -182,10 +183,12 @@ func Test_GetProject(t *testing.T) {
 
 	assert.Equal(t, "get_project", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "project_number")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"project_number", "owner", "owner_type"})
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be a *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "project_number")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "owner_type")
+	assert.ElementsMatch(t, schema.Required, []string{"project_number", "owner", "owner_type"})
 
 	project := map[string]any{"id": 123, "title": "Project Title"}
 
@@ -276,7 +279,7 @@ func Test_GetProject(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
 			_, handler := GetProject(stubGetClientFn(client), translations.NullTranslationHelper)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -313,11 +316,13 @@ func Test_ListProjectFields(t *testing.T) {
 
 	assert.Equal(t, "list_project_fields", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "project_number")
-	assert.Contains(t, tool.InputSchema.Properties, "per_page")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number"})
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be a *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner_type")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "project_number")
+	assert.Contains(t, schema.Properties, "per_page")
+	assert.ElementsMatch(t, schema.Required, []string{"owner_type", "owner", "project_number"})
 
 	orgFields := []map[string]any{{"id": 101, "name": "Status", "data_type": "single_select"}}
 	userFields := []map[string]any{{"id": 201, "name": "Priority", "data_type": "single_select"}}
@@ -423,7 +428,7 @@ func Test_ListProjectFields(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
 			_, handler := ListProjectFields(stubGetClientFn(client), translations.NullTranslationHelper)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -465,11 +470,13 @@ func Test_GetProjectField(t *testing.T) {
 
 	assert.Equal(t, "get_project_field", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "project_number")
-	assert.Contains(t, tool.InputSchema.Properties, "field_id")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number", "field_id"})
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be a *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner_type")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "project_number")
+	assert.Contains(t, schema.Properties, "field_id")
+	assert.ElementsMatch(t, schema.Required, []string{"owner_type", "owner", "project_number", "field_id"})
 
 	orgField := map[string]any{"id": 101, "name": "Status", "dataType": "single_select"}
 	userField := map[string]any{"id": 202, "name": "Priority", "dataType": "single_select"}
@@ -578,7 +585,7 @@ func Test_GetProjectField(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
 			_, handler := GetProjectField(stubGetClientFn(client), translations.NullTranslationHelper)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -621,13 +628,15 @@ func Test_ListProjectItems(t *testing.T) {
 
 	assert.Equal(t, "list_project_items", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "project_number")
-	assert.Contains(t, tool.InputSchema.Properties, "query")
-	assert.Contains(t, tool.InputSchema.Properties, "per_page")
-	assert.Contains(t, tool.InputSchema.Properties, "fields")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number"})
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be a *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner_type")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "project_number")
+	assert.Contains(t, schema.Properties, "query")
+	assert.Contains(t, schema.Properties, "per_page")
+	assert.Contains(t, schema.Properties, "fields")
+	assert.ElementsMatch(t, schema.Required, []string{"owner_type", "owner", "project_number"})
 
 	orgItems := []map[string]any{
 		{"id": 301, "content_type": "Issue", "project_node_id": "PR_1", "fields": []map[string]any{
@@ -779,7 +788,7 @@ func Test_ListProjectItems(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
 			_, handler := ListProjectItems(stubGetClientFn(client), translations.NullTranslationHelper)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -821,12 +830,14 @@ func Test_GetProjectItem(t *testing.T) {
 
 	assert.Equal(t, "get_project_item", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "project_number")
-	assert.Contains(t, tool.InputSchema.Properties, "item_id")
-	assert.Contains(t, tool.InputSchema.Properties, "fields")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number", "item_id"})
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be a *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner_type")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "project_number")
+	assert.Contains(t, schema.Properties, "item_id")
+	assert.Contains(t, schema.Properties, "fields")
+	assert.ElementsMatch(t, schema.Required, []string{"owner_type", "owner", "project_number", "item_id"})
 
 	orgItem := map[string]any{
 		"id":              301,
@@ -971,7 +982,7 @@ func Test_GetProjectItem(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
 			_, handler := GetProjectItem(stubGetClientFn(client), translations.NullTranslationHelper)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -1014,12 +1025,14 @@ func Test_AddProjectItem(t *testing.T) {
 
 	assert.Equal(t, "add_project_item", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "project_number")
-	assert.Contains(t, tool.InputSchema.Properties, "item_type")
-	assert.Contains(t, tool.InputSchema.Properties, "item_id")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number", "item_type", "item_id"})
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be a *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner_type")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "project_number")
+	assert.Contains(t, schema.Properties, "item_type")
+	assert.Contains(t, schema.Properties, "item_id")
+	assert.ElementsMatch(t, schema.Required, []string{"owner_type", "owner", "project_number", "item_type", "item_id"})
 
 	orgItem := map[string]any{
 		"id":           601,
@@ -1196,7 +1209,7 @@ func Test_AddProjectItem(t *testing.T) {
 			_, handler := AddProjectItem(stubGetClientFn(client), translations.NullTranslationHelper)
 			request := createMCPRequest(tc.requestArgs)
 
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 			require.NoError(t, err)
 
 			if tc.expectError {
@@ -1248,12 +1261,14 @@ func Test_UpdateProjectItem(t *testing.T) {
 
 	assert.Equal(t, "update_project_item", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "project_number")
-	assert.Contains(t, tool.InputSchema.Properties, "item_id")
-	assert.Contains(t, tool.InputSchema.Properties, "updated_field")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number", "item_id", "updated_field"})
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be a *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner_type")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "project_number")
+	assert.Contains(t, schema.Properties, "item_id")
+	assert.Contains(t, schema.Properties, "updated_field")
+	assert.ElementsMatch(t, schema.Required, []string{"owner_type", "owner", "project_number", "item_id", "updated_field"})
 
 	orgUpdatedItem := map[string]any{
 		"id":           801,
@@ -1475,7 +1490,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
 			_, handler := UpdateProjectItem(stubGetClientFn(client), translations.NullTranslationHelper)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -1523,11 +1538,13 @@ func Test_DeleteProjectItem(t *testing.T) {
 
 	assert.Equal(t, "delete_project_item", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "project_number")
-	assert.Contains(t, tool.InputSchema.Properties, "item_id")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number", "item_id"})
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be a *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner_type")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "project_number")
+	assert.Contains(t, schema.Properties, "item_id")
+	assert.ElementsMatch(t, schema.Required, []string{"owner_type", "owner", "project_number", "item_id"})
 
 	tests := []struct {
 		name           string
@@ -1637,7 +1654,7 @@ func Test_DeleteProjectItem(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
 			_, handler := DeleteProjectItem(stubGetClientFn(client), translations.NullTranslationHelper)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			require.NoError(t, err)
 			if tc.expectError {
