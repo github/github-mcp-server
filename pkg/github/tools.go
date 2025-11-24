@@ -204,7 +204,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(SearchIssues(getClient, t)),
 			toolsets.NewServerTool(ListIssues(getGQLClient, t)),
 			toolsets.NewServerTool(ListIssueTypes(getClient, t)),
-			// toolsets.NewServerTool(GetLabel(getGQLClient, t)),
+			toolsets.NewServerTool(GetLabel(getGQLClient, t)),
 		).
 		AddWriteTools(
 			toolsets.NewServerTool(IssueWrite(getClient, getGQLClient, t)),

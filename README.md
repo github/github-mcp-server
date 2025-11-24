@@ -657,6 +657,11 @@ The following sets of tools are available:
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
+- **get_label** - Get a specific label from a repository.
+  - `name`: Label name. (string, required)
+  - `owner`: Repository owner (username or organization name) (string, required)
+  - `repo`: Repository name (string, required)
+
 - **issue_read** - Get issue details
   - `issue_number`: The number of the issue (number, required)
   - `method`: The read operation to perform on a single issue.
