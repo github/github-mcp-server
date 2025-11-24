@@ -119,7 +119,7 @@ func (c *RepoAccessCache) IsSafeContent(ctx context.Context, username, owner, re
 		return false, err
 	}
 
-	c.logInfo(ctx, fmt.Sprintf("evaluated repo access fur user %s to %s/%s for content filtering, result: hasPushAccess=%t, isPrivate=%t",
+	c.logDebug(ctx, fmt.Sprintf("evaluated repo access fur user %s to %s/%s for content filtering, result: hasPushAccess=%t, isPrivate=%t",
 		username, owner, repo, repoInfo.HasPushAccess, repoInfo.IsPrivate))
 
 	if c.isTrustedBot(username) || repoInfo.IsPrivate || repoInfo.ViewerLogin == strings.ToLower(username) {
@@ -253,10 +253,6 @@ func (c *RepoAccessCache) log(ctx context.Context, level slog.Level, msg string,
 
 func (c *RepoAccessCache) logDebug(ctx context.Context, msg string, attrs ...slog.Attr) {
 	c.log(ctx, slog.LevelDebug, msg, attrs...)
-}
-
-func (c *RepoAccessCache) logInfo(ctx context.Context, msg string, attrs ...slog.Attr) {
-	c.log(ctx, slog.LevelInfo, msg, attrs...)
 }
 
 func (c *RepoAccessCache) isTrustedBot(username string) bool {
