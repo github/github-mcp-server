@@ -113,13 +113,19 @@ type CacheStats struct {
 	Evictions int64
 }
 
+// IsSafeContent determines if the specified user can safely access the requested repository content.
+// Safe access applies when any of the following is true:
+// - the content was created by a trusted bot;
+// - the author currently has push access to the repository;
+// - the repository is private;
+// - the content was created by the viewer.
 func (c *RepoAccessCache) IsSafeContent(ctx context.Context, username, owner, repo string) (bool, error) {
 	repoInfo, err := c.getRepoAccessInfo(ctx, username, owner, repo)
 	if err != nil {
 		return false, err
 	}
 
-	c.logDebug(ctx, fmt.Sprintf("evaluated repo access fur user %s to %s/%s for content filtering, result: hasPushAccess=%t, isPrivate=%t",
+	c.logDebug(ctx, fmt.Sprintf("evaluated repo access for user %s to %s/%s for content filtering, result: hasPushAccess=%t, isPrivate=%t",
 		username, owner, repo, repoInfo.HasPushAccess, repoInfo.IsPrivate))
 
 	if c.isTrustedBot(username) || repoInfo.IsPrivate || repoInfo.ViewerLogin == strings.ToLower(username) {
@@ -143,7 +149,7 @@ func (c *RepoAccessCache) getRepoAccessInfo(ctx context.Context, username, owner
 	if err == nil {
 		entry := cacheItem.Data().(*repoAccessCacheEntry)
 		if cachedHasPush, known := entry.knownUsers[userKey]; known {
-			c.logDebug(ctx, "repo access cache hit")
+			c.logDebug(ctx, fmt.Sprintf("repo access cache hit for user %s to %s/%s", username, owner, repo))
 			return RepoAccessInfo{
 				IsPrivate:     entry.isPrivate,
 				HasPushAccess: cachedHasPush,
@@ -151,7 +157,7 @@ func (c *RepoAccessCache) getRepoAccessInfo(ctx context.Context, username, owner
 			}, nil
 		}
 
-		c.logDebug(ctx, "known users cache miss")
+		c.logDebug(ctx, "known users cache miss, fetching from graphql API")
 
 		info, queryErr := c.queryRepoAccessInfo(ctx, username, owner, repo)
 		if queryErr != nil {
@@ -170,7 +176,7 @@ func (c *RepoAccessCache) getRepoAccessInfo(ctx context.Context, username, owner
 		}, nil
 	}
 
-	c.logDebug(ctx, "repo access cache miss")
+	c.logDebug(ctx, fmt.Sprintf("repo access cache miss for user %s to %s/%s", username, owner, repo))
 
 	info, queryErr := c.queryRepoAccessInfo(ctx, username, owner, repo)
 	if queryErr != nil {
@@ -233,6 +239,9 @@ func (c *RepoAccessCache) queryRepoAccessInfo(ctx context.Context, username, own
 			break
 		}
 	}
+
+	c.logDebug(ctx, fmt.Sprintf("queried repo access info for user %s to %s/%s: isPrivate=%t, hasPushAccess=%t, viewerLogin=%s",
+		username, owner, repo, bool(query.Repository.IsPrivate), hasPush, query.Viewer.Login))
 
 	return RepoAccessInfo{
 		IsPrivate:     bool(query.Repository.IsPrivate),
