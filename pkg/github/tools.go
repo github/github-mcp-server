@@ -304,7 +304,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		)
 
 	// // Keep experiments alive so the system doesn't error out when it's always enabled
-	// experiments := toolsets.NewToolset(ToolsetMetadataExperiments.ID, ToolsetMetadataExperiments.Description)
+	experiments := toolsets.NewToolset(ToolsetMetadataExperiments.ID, ToolsetMetadataExperiments.Description)
 
 	contextTools := toolsets.NewToolset(ToolsetMetadataContext.ID, ToolsetMetadataContext.Description).
 		AddReadTools(
@@ -370,7 +370,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(dependabot)
 	tsg.AddToolset(secretProtection)
 	tsg.AddToolset(notifications)
-	// tsg.AddToolset(experiments)
+	tsg.AddToolset(experiments)
 	tsg.AddToolset(discussions)
 	tsg.AddToolset(gists)
 	tsg.AddToolset(securityAdvisories)
