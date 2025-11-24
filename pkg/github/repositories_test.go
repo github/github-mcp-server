@@ -2269,6 +2269,7 @@ func Test_GetTag(t *testing.T) {
 func Test_ListReleases(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := ListReleases(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
@@ -2363,6 +2364,7 @@ func Test_ListReleases(t *testing.T) {
 func Test_GetLatestRelease(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := GetLatestRelease(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
