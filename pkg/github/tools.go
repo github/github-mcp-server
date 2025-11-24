@@ -375,10 +375,9 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(discussions)
 	tsg.AddToolset(gists)
 	tsg.AddToolset(securityAdvisories)
-	// tsg.AddToolset(projects)
+	tsg.AddToolset(projects)
 	// tsg.AddToolset(stargazers)
 	tsg.AddToolset(labels)
-	tsg.AddToolset(projects)
 
 	return tsg
 }
