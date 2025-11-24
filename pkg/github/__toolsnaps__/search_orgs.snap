@@ -1,9 +1,9 @@
 {
   "annotations": {
     "readOnlyHint": true,
-    "title": "Search users"
+    "title": "Search organizations"
   },
-  "description": "Find GitHub users by username, real name, or other profile information. Useful for locating developers, contributors, or team members.",
+  "description": "Find GitHub organizations by name, location, or other organization metadata. Ideal for discovering companies, open source foundations, or teams.",
   "inputSchema": {
     "type": "object",
     "required": [
@@ -31,11 +31,11 @@
       },
       "query": {
         "type": "string",
-        "description": "User search query. Examples: 'john smith', 'location:seattle', 'followers:\u003e100'. Search is automatically scoped to type:user."
+        "description": "Organization search query. Examples: 'microsoft', 'location:california', 'created:\u003e=2025-01-01'. Search is automatically scoped to type:org."
       },
       "sort": {
         "type": "string",
-        "description": "Sort users by number of followers or repositories, or when the person joined GitHub.",
+        "description": "Sort field by category",
         "enum": [
           "followers",
           "repositories",
@@ -44,5 +44,5 @@
       }
     }
   },
-  "name": "search_users"
+  "name": "search_orgs"
 }
