@@ -268,13 +268,13 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	// 		toolsets.NewServerTool(ManageRepositoryNotificationSubscription(getClient, t)),
 	// 	)
 
-	// discussions := toolsets.NewToolset(ToolsetMetadataDiscussions.ID, ToolsetMetadataDiscussions.Description).
-	// 	AddReadTools(
-	// 		toolsets.NewServerTool(ListDiscussions(getGQLClient, t)),
-	// 		toolsets.NewServerTool(GetDiscussion(getGQLClient, t)),
-	// 		toolsets.NewServerTool(GetDiscussionComments(getGQLClient, t)),
-	// 		toolsets.NewServerTool(ListDiscussionCategories(getGQLClient, t)),
-	// 	)
+	discussions := toolsets.NewToolset(ToolsetMetadataDiscussions.ID, ToolsetMetadataDiscussions.Description).
+		AddReadTools(
+			toolsets.NewServerTool(ListDiscussions(getGQLClient, t)),
+			toolsets.NewServerTool(GetDiscussion(getGQLClient, t)),
+			toolsets.NewServerTool(GetDiscussionComments(getGQLClient, t)),
+			toolsets.NewServerTool(ListDiscussionCategories(getGQLClient, t)),
+		)
 
 	// actions := toolsets.NewToolset(ToolsetMetadataActions.ID, ToolsetMetadataActions.Description).
 	// 	AddReadTools(
@@ -372,7 +372,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(secretProtection)
 	// tsg.AddToolset(notifications)
 	// tsg.AddToolset(experiments)
-	// tsg.AddToolset(discussions)
+	tsg.AddToolset(discussions)
 	tsg.AddToolset(gists)
 	tsg.AddToolset(securityAdvisories)
 	// tsg.AddToolset(projects)
