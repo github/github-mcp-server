@@ -1,4 +1,4 @@
-package utils
+package utils //nolint:revive //TODO: figure out a better name for this package
 
 import "github.com/modelcontextprotocol/go-sdk/mcp"
 

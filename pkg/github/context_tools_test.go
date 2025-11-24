@@ -111,7 +111,7 @@ func Test_GetMe(t *testing.T) {
 			_, handler := GetMe(tc.stubbedGetClientFn, translations.NullTranslationHelper)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, _, _ := handler(context.Background(), &request, tc.requestArgs)
 			textContent := getTextResult(t, result)
 
 			if tc.expectToolError {
@@ -122,7 +122,7 @@ func Test_GetMe(t *testing.T) {
 
 			// Unmarshal and verify the result
 			var returnedUser MinimalUser
-			err = json.Unmarshal([]byte(textContent.Text), &returnedUser)
+			err := json.Unmarshal([]byte(textContent.Text), &returnedUser)
 			require.NoError(t, err)
 
 			// Verify minimal user details
