@@ -256,17 +256,17 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(ListDependabotAlerts(getClient, t)),
 		)
 
-	// notifications := toolsets.NewToolset(ToolsetMetadataNotifications.ID, ToolsetMetadataNotifications.Description).
-	// 	AddReadTools(
-	// 		toolsets.NewServerTool(ListNotifications(getClient, t)),
-	// 		toolsets.NewServerTool(GetNotificationDetails(getClient, t)),
-	// 	).
-	// 	AddWriteTools(
-	// 		toolsets.NewServerTool(DismissNotification(getClient, t)),
-	// 		toolsets.NewServerTool(MarkAllNotificationsRead(getClient, t)),
-	// 		toolsets.NewServerTool(ManageNotificationSubscription(getClient, t)),
-	// 		toolsets.NewServerTool(ManageRepositoryNotificationSubscription(getClient, t)),
-	// 	)
+	notifications := toolsets.NewToolset(ToolsetMetadataNotifications.ID, ToolsetMetadataNotifications.Description).
+		AddReadTools(
+			toolsets.NewServerTool(ListNotifications(getClient, t)),
+			toolsets.NewServerTool(GetNotificationDetails(getClient, t)),
+		).
+		AddWriteTools(
+			toolsets.NewServerTool(DismissNotification(getClient, t)),
+			toolsets.NewServerTool(MarkAllNotificationsRead(getClient, t)),
+			toolsets.NewServerTool(ManageNotificationSubscription(getClient, t)),
+			toolsets.NewServerTool(ManageRepositoryNotificationSubscription(getClient, t)),
+		)
 
 	discussions := toolsets.NewToolset(ToolsetMetadataDiscussions.ID, ToolsetMetadataDiscussions.Description).
 		AddReadTools(
@@ -370,7 +370,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(codeSecurity)
 	tsg.AddToolset(dependabot)
 	tsg.AddToolset(secretProtection)
-	// tsg.AddToolset(notifications)
+	tsg.AddToolset(notifications)
 	// tsg.AddToolset(experiments)
 	tsg.AddToolset(discussions)
 	tsg.AddToolset(gists)
