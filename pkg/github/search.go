@@ -2,7 +2,6 @@ package github
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 
@@ -14,7 +13,7 @@ import (
 )
 
 // SearchRepositories creates a tool to search for GitHub repositories.
-func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("search_repositories",
 			mcp.WithDescription(t("TOOL_SEARCH_REPOSITORIES_DESCRIPTION", "Find GitHub repositories by name, description, readme, topics, or other metadata. Perfect for discovering projects, finding examples, or locating specific repositories across GitHub.")),
 
@@ -93,7 +92,6 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 			}
 
 			// Return either minimal or full response based on parameter
-			var r []byte
 			if minimalOutput {
 				minimalRepos := make([]MinimalRepository, 0, len(result.Repositories))
 				for _, repo := range result.Repositories {
@@ -132,23 +130,15 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 					Items:             minimalRepos,
 				}
 
-				r, err = json.Marshal(minimalResult)
-				if err != nil {
-					return nil, fmt.Errorf("failed to marshal minimal response: %w", err)
-				}
-			} else {
-				r, err = json.Marshal(result)
-				if err != nil {
-					return nil, fmt.Errorf("failed to marshal full response: %w", err)
-				}
+				return FormatResponse(minimalResult, flags)
 			}
 
-			return mcp.NewToolResultText(string(r)), nil
+			return FormatResponse(result, flags)
 		}
 }
 
 // SearchCode creates a tool to search for code across GitHub repositories.
-func SearchCode(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func SearchCode(getClient GetClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("search_code",
 			mcp.WithDescription(t("TOOL_SEARCH_CODE_DESCRIPTION", "Fast and precise code search across ALL GitHub repositories using GitHub's native search engine. Best for finding exact symbols, functions, classes, or specific code patterns.")),
 			mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -218,16 +208,11 @@ func SearchCode(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 				return mcp.NewToolResultError(fmt.Sprintf("failed to search code: %s", string(body))), nil
 			}
 
-			r, err := json.Marshal(result)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
-
-			return mcp.NewToolResultText(string(r)), nil
+			return FormatResponse(result, flags)
 		}
 }
 
-func userOrOrgHandler(accountType string, getClient GetClientFn) server.ToolHandlerFunc {
+func userOrOrgHandler(accountType string, getClient GetClientFn, flags FeatureFlags) server.ToolHandlerFunc {
 	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		query, err := RequiredParam[string](request, "query")
 		if err != nil {
@@ -307,16 +292,12 @@ func userOrOrgHandler(accountType string, getClient GetClientFn) server.ToolHand
 			minimalResp.IncompleteResults = *result.IncompleteResults
 		}
 
-		r, err := json.Marshal(minimalResp)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal response: %w", err)
-		}
-		return mcp.NewToolResultText(string(r)), nil
+		return FormatResponse(minimalResp, flags)
 	}
 }
 
 // SearchUsers creates a tool to search for GitHub users.
-func SearchUsers(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func SearchUsers(getClient GetClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("search_users",
 		mcp.WithDescription(t("TOOL_SEARCH_USERS_DESCRIPTION", "Find GitHub users by username, real name, or other profile information. Useful for locating developers, contributors, or team members.")),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
@@ -336,11 +317,11 @@ func SearchUsers(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 			mcp.Enum("asc", "desc"),
 		),
 		WithPagination(),
-	), userOrOrgHandler("user", getClient)
+	), userOrOrgHandler("user", getClient, flags)
 }
 
 // SearchOrgs creates a tool to search for GitHub organizations.
-func SearchOrgs(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
+func SearchOrgs(getClient GetClientFn, t translations.TranslationHelperFunc, flags FeatureFlags) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("search_orgs",
 		mcp.WithDescription(t("TOOL_SEARCH_ORGS_DESCRIPTION", "Find GitHub organizations by name, location, or other organization metadata. Ideal for discovering companies, open source foundations, or teams.")),
 
@@ -361,5 +342,5 @@ func SearchOrgs(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 			mcp.Enum("asc", "desc"),
 		),
 		WithPagination(),
-	), userOrOrgHandler("org", getClient)
+	), userOrOrgHandler("org", getClient, flags)
 }

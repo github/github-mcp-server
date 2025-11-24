@@ -166,10 +166,10 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	// Create toolsets
 	repos := toolsets.NewToolset(ToolsetMetadataRepos.ID, ToolsetMetadataRepos.Description).
 		AddReadTools(
-			toolsets.NewServerTool(SearchRepositories(getClient, t)),
+			toolsets.NewServerTool(SearchRepositories(getClient, t, flags)),
 			toolsets.NewServerTool(GetFileContents(getClient, getRawClient, t)),
 			toolsets.NewServerTool(ListCommits(getClient, t, flags)),
-			toolsets.NewServerTool(SearchCode(getClient, t)),
+			toolsets.NewServerTool(SearchCode(getClient, t, flags)),
 			toolsets.NewServerTool(GetCommit(getClient, t, flags)),
 			toolsets.NewServerTool(ListBranches(getClient, t, flags)),
 			toolsets.NewServerTool(ListTags(getClient, t, flags)),
@@ -216,11 +216,11 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	)
 	users := toolsets.NewToolset(ToolsetMetadataUsers.ID, ToolsetMetadataUsers.Description).
 		AddReadTools(
-			toolsets.NewServerTool(SearchUsers(getClient, t)),
+			toolsets.NewServerTool(SearchUsers(getClient, t, flags)),
 		)
 	orgs := toolsets.NewToolset(ToolsetMetadataOrgs.ID, ToolsetMetadataOrgs.Description).
 		AddReadTools(
-			toolsets.NewServerTool(SearchOrgs(getClient, t)),
+			toolsets.NewServerTool(SearchOrgs(getClient, t, flags)),
 		)
 	pullRequests := toolsets.NewToolset(ToolsetMetadataPullRequests.ID, ToolsetMetadataPullRequests.Description).
 		AddReadTools(

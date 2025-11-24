@@ -17,7 +17,7 @@ import (
 func Test_SearchRepositories(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := SearchRepositories(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := SearchRepositories(stubGetClientFn(mockClient), translations.NullTranslationHelper, stubFeatureFlags(nil))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "search_repositories", tool.Name)
@@ -130,7 +130,7 @@ func Test_SearchRepositories(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := SearchRepositories(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := SearchRepositories(stubGetClientFn(client), translations.NullTranslationHelper, stubFeatureFlags(nil))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -201,7 +201,7 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 	)
 
 	client := github.NewClient(mockedClient)
-	_, handlerTest := SearchRepositories(stubGetClientFn(client), translations.NullTranslationHelper)
+	_, handlerTest := SearchRepositories(stubGetClientFn(client), translations.NullTranslationHelper, stubFeatureFlags(nil))
 
 	request := createMCPRequest(map[string]interface{}{
 		"query":          "golang test",
@@ -231,7 +231,7 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 func Test_SearchCode(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := SearchCode(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := SearchCode(stubGetClientFn(mockClient), translations.NullTranslationHelper, stubFeatureFlags(nil))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "search_code", tool.Name)
@@ -342,7 +342,7 @@ func Test_SearchCode(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := SearchCode(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := SearchCode(stubGetClientFn(client), translations.NullTranslationHelper, stubFeatureFlags(nil))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -386,7 +386,7 @@ func Test_SearchCode(t *testing.T) {
 func Test_SearchUsers(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := SearchUsers(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := SearchUsers(stubGetClientFn(mockClient), translations.NullTranslationHelper, stubFeatureFlags(nil))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "search_users", tool.Name)
@@ -536,7 +536,7 @@ func Test_SearchUsers(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := SearchUsers(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := SearchUsers(stubGetClientFn(client), translations.NullTranslationHelper, stubFeatureFlags(nil))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -581,7 +581,7 @@ func Test_SearchUsers(t *testing.T) {
 func Test_SearchOrgs(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := SearchOrgs(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := SearchOrgs(stubGetClientFn(mockClient), translations.NullTranslationHelper, stubFeatureFlags(nil))
 
 	assert.Equal(t, "search_orgs", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -703,7 +703,7 @@ func Test_SearchOrgs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := SearchOrgs(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := SearchOrgs(stubGetClientFn(client), translations.NullTranslationHelper, stubFeatureFlags(nil))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
