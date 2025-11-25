@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/github/github-mcp-server/internal/ghmcp"
 	"github.com/github/github-mcp-server/pkg/github"
@@ -50,6 +51,7 @@ var (
 				enabledToolsets = []string{github.ToolsetMetadataDefault.ID}
 			}
 
+			ttl := viper.GetDuration("repo-access-cache-ttl")
 			stdioServerConfig := ghmcp.StdioServerConfig{
 				Version:              version,
 				Host:                 viper.GetString("host"),
@@ -62,6 +64,7 @@ var (
 				LogFilePath:          viper.GetString("log-file"),
 				ContentWindowSize:    viper.GetInt("content-window-size"),
 				LockdownMode:         viper.GetBool("lockdown-mode"),
+				RepoAccessCacheTTL:   &ttl,
 			}
 			return ghmcp.RunStdioServer(stdioServerConfig)
 		},
@@ -84,6 +87,7 @@ func init() {
 	rootCmd.PersistentFlags().String("gh-host", "", "Specify the GitHub hostname (for GitHub Enterprise etc.)")
 	rootCmd.PersistentFlags().Int("content-window-size", 5000, "Specify the content window size")
 	rootCmd.PersistentFlags().Bool("lockdown-mode", false, "Enable lockdown mode")
+	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "Override the repo access cache TTL (e.g. 1m, 0s to disable)")
 
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
@@ -95,6 +99,7 @@ func init() {
 	_ = viper.BindPFlag("host", rootCmd.PersistentFlags().Lookup("gh-host"))
 	_ = viper.BindPFlag("content-window-size", rootCmd.PersistentFlags().Lookup("content-window-size"))
 	_ = viper.BindPFlag("lockdown-mode", rootCmd.PersistentFlags().Lookup("lockdown-mode"))
+	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
 
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)
