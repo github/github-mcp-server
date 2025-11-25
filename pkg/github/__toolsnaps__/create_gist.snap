@@ -1,4 +1,9 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "gist"
+    ]
+  },
   "annotations": {
     "title": "Create Gist"
   },

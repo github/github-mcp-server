@@ -1,4 +1,9 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "repo"
+    ]
+  },
   "annotations": {
     "title": "Write operations on repository labels."
   },

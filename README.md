@@ -431,22 +431,22 @@ The following sets of tools are available:
 
 <summary>Actions</summary>
 
-- **cancel_workflow_run** - Cancel workflow run
+- **cancel_workflow_run** - Cancel workflow run (scopes: `repo`)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)
 
-- **delete_workflow_run_logs** - Delete workflow logs
+- **delete_workflow_run_logs** - Delete workflow logs (scopes: `repo`)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)
 
-- **download_workflow_run_artifact** - Download workflow artifact
+- **download_workflow_run_artifact** - Download workflow artifact (scopes: `repo`)
   - `artifact_id`: The unique identifier of the artifact (number, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
-- **get_job_logs** - Get job logs
+- **get_job_logs** - Get job logs (scopes: `repo`)
   - `failed_only`: When true, gets logs for all failed jobs in run_id (boolean, optional)
   - `job_id`: The unique identifier of the workflow job (required for single job logs) (number, optional)
   - `owner`: Repository owner (string, required)
@@ -455,22 +455,22 @@ The following sets of tools are available:
   - `run_id`: Workflow run ID (required when using failed_only) (number, optional)
   - `tail_lines`: Number of lines to return from the end of the log (number, optional)
 
-- **get_workflow_run** - Get workflow run
+- **get_workflow_run** - Get workflow run (scopes: `repo`)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)
 
-- **get_workflow_run_logs** - Get workflow run logs
+- **get_workflow_run_logs** - Get workflow run logs (scopes: `repo`)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)
 
-- **get_workflow_run_usage** - Get workflow usage
+- **get_workflow_run_usage** - Get workflow usage (scopes: `repo`)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)
 
-- **list_workflow_jobs** - List workflow jobs
+- **list_workflow_jobs** - List workflow jobs (scopes: `repo`)
   - `filter`: Filters jobs by their completed_at timestamp (string, optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -478,14 +478,14 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)
 
-- **list_workflow_run_artifacts** - List workflow artifacts
+- **list_workflow_run_artifacts** - List workflow artifacts (scopes: `repo`)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)
 
-- **list_workflow_runs** - List workflow runs
+- **list_workflow_runs** - List workflow runs (scopes: `repo`)
   - `actor`: Returns someone's workflow runs. Use the login for the user who created the workflow run. (string, optional)
   - `branch`: Returns workflow runs associated with a branch. Use the name of the branch. (string, optional)
   - `event`: Returns workflow runs for a specific event type (string, optional)
@@ -496,23 +496,23 @@ The following sets of tools are available:
   - `status`: Returns workflow runs with the check run status (string, optional)
   - `workflow_id`: The workflow ID or workflow file name (string, required)
 
-- **list_workflows** - List workflows
+- **list_workflows** - List workflows (scopes: `repo`)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
-- **rerun_failed_jobs** - Rerun failed jobs
+- **rerun_failed_jobs** - Rerun failed jobs (scopes: `repo`)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)
 
-- **rerun_workflow_run** - Rerun workflow run
+- **rerun_workflow_run** - Rerun workflow run (scopes: `repo`)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)
 
-- **run_workflow** - Run workflow
+- **run_workflow** - Run workflow (scopes: `repo`)
   - `inputs`: Inputs the workflow accepts (object, optional)
   - `owner`: Repository owner (string, required)
   - `ref`: The git reference for the workflow. The reference can be a branch or tag name. (string, required)
@@ -525,12 +525,12 @@ The following sets of tools are available:
 
 <summary>Code Security</summary>
 
-- **get_code_scanning_alert** - Get code scanning alert
+- **get_code_scanning_alert** - Get code scanning alert (scopes: `security_events`)
   - `alertNumber`: The number of the alert. (number, required)
   - `owner`: The owner of the repository. (string, required)
   - `repo`: The name of the repository. (string, required)
 
-- **list_code_scanning_alerts** - List code scanning alerts
+- **list_code_scanning_alerts** - List code scanning alerts (scopes: `security_events`)
   - `owner`: The owner of the repository. (string, required)
   - `ref`: The Git reference for the results you want to list. (string, optional)
   - `repo`: The name of the repository. (string, required)
@@ -544,14 +544,14 @@ The following sets of tools are available:
 
 <summary>Context</summary>
 
-- **get_me** - Get my user profile
+- **get_me** - Get my user profile (scopes: ``)
   - No parameters required
 
-- **get_team_members** - Get team members
+- **get_team_members** - Get team members (scopes: `read:org`)
   - `org`: Organization login (owner) that contains the team. (string, required)
   - `team_slug`: Team slug (string, required)
 
-- **get_teams** - Get teams
+- **get_teams** - Get teams (scopes: `read:org`)
   - `user`: Username to get teams for. If not provided, uses the authenticated user. (string, optional)
 
 </details>
@@ -560,12 +560,12 @@ The following sets of tools are available:
 
 <summary>Dependabot</summary>
 
-- **get_dependabot_alert** - Get dependabot alert
+- **get_dependabot_alert** - Get dependabot alert (scopes: `security_events`)
   - `alertNumber`: The number of the alert. (number, required)
   - `owner`: The owner of the repository. (string, required)
   - `repo`: The name of the repository. (string, required)
 
-- **list_dependabot_alerts** - List dependabot alerts
+- **list_dependabot_alerts** - List dependabot alerts (scopes: `security_events`)
   - `owner`: The owner of the repository. (string, required)
   - `repo`: The name of the repository. (string, required)
   - `severity`: Filter dependabot alerts by severity (string, optional)
@@ -577,23 +577,23 @@ The following sets of tools are available:
 
 <summary>Discussions</summary>
 
-- **get_discussion** - Get discussion
+- **get_discussion** - Get discussion (scopes: `repo`)
   - `discussionNumber`: Discussion Number (number, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
-- **get_discussion_comments** - Get discussion comments
+- **get_discussion_comments** - Get discussion comments (scopes: `repo`)
   - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
   - `discussionNumber`: Discussion Number (number, required)
   - `owner`: Repository owner (string, required)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
-- **list_discussion_categories** - List discussion categories
+- **list_discussion_categories** - List discussion categories (scopes: `repo`)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name. If not provided, discussion categories will be queried at the organisation level. (string, optional)
 
-- **list_discussions** - List discussions
+- **list_discussions** - List discussions (scopes: `repo`)
   - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
   - `category`: Optional filter by discussion category ID. If provided, only discussions with this category are listed. (string, optional)
   - `direction`: Order direction. (string, optional)
@@ -608,22 +608,22 @@ The following sets of tools are available:
 
 <summary>Gists</summary>
 
-- **create_gist** - Create Gist
+- **create_gist** - Create Gist (scopes: `gist`)
   - `content`: Content for simple single-file gist creation (string, required)
   - `description`: Description of the gist (string, optional)
   - `filename`: Filename for simple single-file gist creation (string, required)
   - `public`: Whether the gist is public (boolean, optional)
 
-- **get_gist** - Get Gist Content
+- **get_gist** - Get Gist Content (scopes: ``)
   - `gist_id`: The ID of the gist (string, required)
 
-- **list_gists** - List Gists
+- **list_gists** - List Gists (scopes: ``)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `since`: Only gists updated after this time (ISO 8601 timestamp) (string, optional)
   - `username`: GitHub username (omit for authenticated user's gists) (string, optional)
 
-- **update_gist** - Update Gist
+- **update_gist** - Update Gist (scopes: `gist`)
   - `content`: Content for the file (string, required)
   - `description`: Updated description of the gist (string, optional)
   - `filename`: Filename to update or create (string, required)
@@ -635,7 +635,7 @@ The following sets of tools are available:
 
 <summary>Git</summary>
 
-- **get_repository_tree** - Get repository tree
+- **get_repository_tree** - Get repository tree (scopes: `repo`)
   - `owner`: Repository owner (username or organization) (string, required)
   - `path_filter`: Optional path prefix to filter the tree results (e.g., 'src/' to only show files in the src directory) (string, optional)
   - `recursive`: Setting this parameter to true returns the objects or subtrees referenced by the tree. Default is false (boolean, optional)
@@ -648,23 +648,23 @@ The following sets of tools are available:
 
 <summary>Issues</summary>
 
-- **add_issue_comment** - Add comment to issue
+- **add_issue_comment** - Add comment to issue (scopes: `repo`)
   - `body`: Comment content (string, required)
   - `issue_number`: Issue number to comment on (number, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
-- **assign_copilot_to_issue** - Assign Copilot to issue
+- **assign_copilot_to_issue** - Assign Copilot to issue (scopes: `repo`)
   - `issueNumber`: Issue number (number, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
-- **get_label** - Get a specific label from a repository.
+- **get_label** - Get a specific label from a repository. (scopes: `repo`)
   - `name`: Label name. (string, required)
   - `owner`: Repository owner (username or organization name) (string, required)
   - `repo`: Repository name (string, required)
 
-- **issue_read** - Get issue details
+- **issue_read** - Get issue details (scopes: `repo`)
   - `issue_number`: The number of the issue (number, required)
   - `method`: The read operation to perform on a single issue.
 Options are:
@@ -678,7 +678,7 @@ Options are:
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: The name of the repository (string, required)
 
-- **issue_write** - Create or update issue.
+- **issue_write** - Create or update issue. (scopes: `repo`)
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
   - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
@@ -697,10 +697,10 @@ Options are:
   - `title`: Issue title (string, optional)
   - `type`: Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
 
-- **list_issue_types** - List available issue types
+- **list_issue_types** - List available issue types (scopes: `read:org`)
   - `owner`: The organization owner of the repository (string, required)
 
-- **list_issues** - List issues
+- **list_issues** - List issues (scopes: `repo`)
   - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
   - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
   - `labels`: Filter by labels (string[], optional)
@@ -711,7 +711,7 @@ Options are:
   - `since`: Filter by date (ISO 8601 timestamp) (string, optional)
   - `state`: Filter by state, by default both open and closed issues are returned when not provided (string, optional)
 
-- **search_issues** - Search issues
+- **search_issues** - Search issues (scopes: `repo`)
   - `order`: Sort order (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only issues for this repository are listed. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -720,7 +720,7 @@ Options are:
   - `repo`: Optional repository name. If provided with owner, only issues for this repository are listed. (string, optional)
   - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
 
-- **sub_issue_write** - Change sub-issue
+- **sub_issue_write** - Change sub-issue (scopes: `repo`)
   - `after_id`: The ID of the sub-issue to be prioritized after (either after_id OR before_id should be specified) (number, optional)
   - `before_id`: The ID of the sub-issue to be prioritized before (either after_id OR before_id should be specified) (number, optional)
   - `issue_number`: The number of the parent issue (number, required)
@@ -741,12 +741,12 @@ Options are:
 
 <summary>Labels</summary>
 
-- **get_label** - Get a specific label from a repository.
+- **get_label** - Get a specific label from a repository. (scopes: `repo`)
   - `name`: Label name. (string, required)
   - `owner`: Repository owner (username or organization name) (string, required)
   - `repo`: Repository name (string, required)
 
-- **label_write** - Write operations on repository labels.
+- **label_write** - Write operations on repository labels. (scopes: `repo`)
   - `color`: Label color as 6-character hex code without '#' prefix (e.g., 'f29513'). Required for 'create', optional for 'update'. (string, optional)
   - `description`: Label description text. Optional for 'create' and 'update'. (string, optional)
   - `method`: Operation to perform: 'create', 'update', or 'delete' (string, required)
@@ -755,7 +755,7 @@ Options are:
   - `owner`: Repository owner (username or organization name) (string, required)
   - `repo`: Repository name (string, required)
 
-- **list_label** - List labels from a repository
+- **list_label** - List labels from a repository (scopes: `repo`)
   - `owner`: Repository owner (username or organization name) - required for all operations (string, required)
   - `repo`: Repository name - required for all operations (string, required)
 
@@ -765,14 +765,14 @@ Options are:
 
 <summary>Notifications</summary>
 
-- **dismiss_notification** - Dismiss notification
+- **dismiss_notification** - Dismiss notification (scopes: `notifications`)
   - `state`: The new state of the notification (read/done) (string, required)
   - `threadID`: The ID of the notification thread (string, required)
 
-- **get_notification_details** - Get notification details
+- **get_notification_details** - Get notification details (scopes: `notifications`)
   - `notificationID`: The ID of the notification (string, required)
 
-- **list_notifications** - List notifications
+- **list_notifications** - List notifications (scopes: `notifications`)
   - `before`: Only show notifications updated before the given time (ISO 8601 format) (string, optional)
   - `filter`: Filter notifications to, use default unless specified. Read notifications are ones that have already been acknowledged by the user. Participating notifications are those that the user is directly involved in, such as issues or pull requests they have commented on or created. (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only notifications for this repository are listed. (string, optional)
@@ -781,16 +781,16 @@ Options are:
   - `repo`: Optional repository name. If provided with owner, only notifications for this repository are listed. (string, optional)
   - `since`: Only show notifications updated after the given time (ISO 8601 format) (string, optional)
 
-- **manage_notification_subscription** - Manage notification subscription
+- **manage_notification_subscription** - Manage notification subscription (scopes: `notifications`)
   - `action`: Action to perform: ignore, watch, or delete the notification subscription. (string, required)
   - `notificationID`: The ID of the notification thread. (string, required)
 
-- **manage_repository_notification_subscription** - Manage repository notification subscription
+- **manage_repository_notification_subscription** - Manage repository notification subscription (scopes: `notifications`)
   - `action`: Action to perform: ignore, watch, or delete the repository notification subscription. (string, required)
   - `owner`: The account owner of the repository. (string, required)
   - `repo`: The name of the repository. (string, required)
 
-- **mark_all_notifications_read** - Mark all notifications as read
+- **mark_all_notifications_read** - Mark all notifications as read (scopes: `notifications`)
   - `lastReadAt`: Describes the last point that notifications were checked (optional). Default: Now (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only notifications for this repository are marked as read. (string, optional)
   - `repo`: Optional repository name. If provided with owner, only notifications for this repository are marked as read. (string, optional)
@@ -801,7 +801,7 @@ Options are:
 
 <summary>Organizations</summary>
 
-- **search_orgs** - Search organizations
+- **search_orgs** - Search organizations (scopes: `repo`)
   - `order`: Sort order (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -814,38 +814,38 @@ Options are:
 
 <summary>Projects</summary>
 
-- **add_project_item** - Add project item
+- **add_project_item** - Add project item (scopes: `project`)
   - `item_id`: The numeric ID of the issue or pull request to add to the project. (number, required)
   - `item_type`: The item's type, either issue or pull_request. (string, required)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
   - `project_number`: The project's number. (number, required)
 
-- **delete_project_item** - Delete project item
+- **delete_project_item** - Delete project item (scopes: `project`)
   - `item_id`: The internal project item ID to delete from the project (not the issue or pull request ID). (number, required)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
   - `project_number`: The project's number. (number, required)
 
-- **get_project** - Get project
+- **get_project** - Get project (scopes: `read:project`)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
   - `project_number`: The project's number (number, required)
 
-- **get_project_field** - Get project field
+- **get_project_field** - Get project field (scopes: `read:project`)
   - `field_id`: The field's id. (number, required)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
   - `project_number`: The project's number. (number, required)
 
-- **get_project_item** - Get project item
+- **get_project_item** - Get project item (scopes: `read:project`)
   - `fields`: Specific list of field IDs to include in the response (e.g. ["102589", "985201", "169875"]). If not provided, only the title field is included. (string[], optional)
   - `item_id`: The item's ID. (number, required)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
   - `project_number`: The project's number. (number, required)
 
-- **list_project_fields** - List project fields
+- **list_project_fields** - List project fields (scopes: `read:project`)
   - `after`: Forward pagination cursor from previous pageInfo.nextCursor. (string, optional)
   - `before`: Backward pagination cursor from previous pageInfo.prevCursor (rare). (string, optional)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
@@ -853,7 +853,7 @@ Options are:
   - `per_page`: Results per page (max 50) (number, optional)
   - `project_number`: The project's number. (number, required)
 
-- **list_project_items** - List project items
+- **list_project_items** - List project items (scopes: `read:project`)
   - `after`: Forward pagination cursor from previous pageInfo.nextCursor. (string, optional)
   - `before`: Backward pagination cursor from previous pageInfo.prevCursor (rare). (string, optional)
   - `fields`: Field IDs to include (e.g. ["102589", "985201"]). CRITICAL: Always provide to get field values. Without this, only titles returned. (string[], optional)
@@ -863,7 +863,7 @@ Options are:
   - `project_number`: The project's number. (number, required)
   - `query`: Query string for advanced filtering of project items using GitHub's project filtering syntax. (string, optional)
 
-- **list_projects** - List projects
+- **list_projects** - List projects (scopes: `read:project`)
   - `after`: Forward pagination cursor from previous pageInfo.nextCursor. (string, optional)
   - `before`: Backward pagination cursor from previous pageInfo.prevCursor (rare). (string, optional)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
@@ -871,7 +871,7 @@ Options are:
   - `per_page`: Results per page (max 50) (number, optional)
   - `query`: Filter projects by title text and open/closed state; permitted qualifiers: is:open, is:closed; examples: "roadmap is:open", "is:open feature planning". (string, optional)
 
-- **update_project_item** - Update project item
+- **update_project_item** - Update project item (scopes: `project`)
   - `item_id`: The unique identifier of the project item. This is not the issue or pull request ID. (number, required)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
@@ -884,7 +884,7 @@ Options are:
 
 <summary>Pull Requests</summary>
 
-- **add_comment_to_pending_review** - Add review comment to the requester's latest pending pull request review
+- **add_comment_to_pending_review** - Add review comment to the requester's latest pending pull request review (scopes: `repo`)
   - `body`: The text of the review comment (string, required)
   - `line`: The line of the blob in the pull request diff that the comment applies to. For multi-line comments, the last line of the range (number, optional)
   - `owner`: Repository owner (string, required)
@@ -896,7 +896,7 @@ Options are:
   - `startSide`: For multi-line comments, the starting side of the diff that the comment applies to. LEFT indicates the previous state, RIGHT indicates the new state (string, optional)
   - `subjectType`: The level at which the comment is targeted (string, required)
 
-- **create_pull_request** - Open new pull request
+- **create_pull_request** - Open new pull request (scopes: `repo`)
   - `base`: Branch to merge into (string, required)
   - `body`: PR description (string, optional)
   - `draft`: Create as draft PR (boolean, optional)
@@ -906,7 +906,7 @@ Options are:
   - `repo`: Repository name (string, required)
   - `title`: PR title (string, required)
 
-- **list_pull_requests** - List pull requests
+- **list_pull_requests** - List pull requests (scopes: `repo`)
   - `base`: Filter by base branch (string, optional)
   - `direction`: Sort direction (string, optional)
   - `head`: Filter by head user/org and branch (string, optional)
@@ -917,7 +917,7 @@ Options are:
   - `sort`: Sort by (string, optional)
   - `state`: Filter by state (string, optional)
 
-- **merge_pull_request** - Merge pull request
+- **merge_pull_request** - Merge pull request (scopes: `repo`)
   - `commit_message`: Extra detail for merge commit (string, optional)
   - `commit_title`: Title for merge commit (string, optional)
   - `merge_method`: Merge method (string, optional)
@@ -925,7 +925,7 @@ Options are:
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
-- **pull_request_read** - Get details for a single pull request
+- **pull_request_read** - Get details for a single pull request (scopes: `repo`)
   - `method`: Action to specify what pull request data needs to be retrieved from GitHub. 
 Possible options: 
  1. get - Get details of a specific pull request.
@@ -942,7 +942,7 @@ Possible options:
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
-- **pull_request_review_write** - Write operations (create, submit, delete) on pull request reviews.
+- **pull_request_review_write** - Write operations (create, submit, delete) on pull request reviews. (scopes: `repo`)
   - `body`: Review comment text (string, optional)
   - `commitID`: SHA of commit to review (string, optional)
   - `event`: Review action to perform. (string, optional)
@@ -951,12 +951,12 @@ Possible options:
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
-- **request_copilot_review** - Request Copilot review
+- **request_copilot_review** - Request Copilot review (scopes: `repo`)
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
-- **search_pull_requests** - Search pull requests
+- **search_pull_requests** - Search pull requests (scopes: `repo`)
   - `order`: Sort order (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only pull requests for this repository are listed. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -965,7 +965,7 @@ Possible options:
   - `repo`: Optional repository name. If provided with owner, only pull requests for this repository are listed. (string, optional)
   - `sort`: Sort field by number of matches of categories, defaults to best match (string, optional)
 
-- **update_pull_request** - Edit pull request
+- **update_pull_request** - Edit pull request (scopes: `repo`)
   - `base`: New base branch name (string, optional)
   - `body`: New description (string, optional)
   - `draft`: Mark pull request as draft (true) or ready for review (false) (boolean, optional)
@@ -977,7 +977,7 @@ Possible options:
   - `state`: New state (string, optional)
   - `title`: New title (string, optional)
 
-- **update_pull_request_branch** - Update pull request branch
+- **update_pull_request_branch** - Update pull request branch (scopes: `repo`)
   - `expectedHeadSha`: The expected SHA of the pull request's HEAD ref (string, optional)
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
@@ -989,13 +989,13 @@ Possible options:
 
 <summary>Repositories</summary>
 
-- **create_branch** - Create branch
+- **create_branch** - Create branch (scopes: `repo`)
   - `branch`: Name for new branch (string, required)
   - `from_branch`: Source branch (defaults to repo default) (string, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
-- **create_or_update_file** - Create or update file
+- **create_or_update_file** - Create or update file (scopes: `repo`)
   - `branch`: Branch to create/update the file in (string, required)
   - `content`: Content of the file (string, required)
   - `message`: Commit message (string, required)
@@ -1004,26 +1004,26 @@ Possible options:
   - `repo`: Repository name (string, required)
   - `sha`: Required if updating an existing file. The blob SHA of the file being replaced. (string, optional)
 
-- **create_repository** - Create repository
+- **create_repository** - Create repository (scopes: `repo`)
   - `autoInit`: Initialize with README (boolean, optional)
   - `description`: Repository description (string, optional)
   - `name`: Repository name (string, required)
   - `organization`: Organization to create the repository in (omit to create in your personal account) (string, optional)
   - `private`: Whether repo should be private (boolean, optional)
 
-- **delete_file** - Delete file
+- **delete_file** - Delete file (scopes: `repo`)
   - `branch`: Branch to delete the file from (string, required)
   - `message`: Commit message (string, required)
   - `owner`: Repository owner (username or organization) (string, required)
   - `path`: Path to the file to delete (string, required)
   - `repo`: Repository name (string, required)
 
-- **fork_repository** - Fork repository
+- **fork_repository** - Fork repository (scopes: `repo`)
   - `organization`: Organization to fork to (string, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
-- **get_commit** - Get commit details
+- **get_commit** - Get commit details (scopes: `repo`)
   - `include_diff`: Whether to include file diffs and stats in the response. Default is true. (boolean, optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -1031,34 +1031,34 @@ Possible options:
   - `repo`: Repository name (string, required)
   - `sha`: Commit SHA, branch name, or tag name (string, required)
 
-- **get_file_contents** - Get file or directory contents
+- **get_file_contents** - Get file or directory contents (scopes: `repo`)
   - `owner`: Repository owner (username or organization) (string, required)
   - `path`: Path to file/directory (directories must end with a slash '/') (string, optional)
   - `ref`: Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head` (string, optional)
   - `repo`: Repository name (string, required)
   - `sha`: Accepts optional commit SHA. If specified, it will be used instead of ref (string, optional)
 
-- **get_latest_release** - Get latest release
+- **get_latest_release** - Get latest release (scopes: `repo`)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
-- **get_release_by_tag** - Get a release by tag name
+- **get_release_by_tag** - Get a release by tag name (scopes: `repo`)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `tag`: Tag name (e.g., 'v1.0.0') (string, required)
 
-- **get_tag** - Get tag details
+- **get_tag** - Get tag details (scopes: `repo`)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `tag`: Tag name (string, required)
 
-- **list_branches** - List branches
+- **list_branches** - List branches (scopes: `repo`)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
-- **list_commits** - List commits
+- **list_commits** - List commits (scopes: `repo`)
   - `author`: Author username or email address to filter commits by (string, optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -1066,33 +1066,33 @@ Possible options:
   - `repo`: Repository name (string, required)
   - `sha`: Commit SHA, branch or tag name to list commits of. If not provided, uses the default branch of the repository. If a commit SHA is provided, will list commits up to that SHA. (string, optional)
 
-- **list_releases** - List releases
+- **list_releases** - List releases (scopes: `repo`)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
-- **list_tags** - List tags
+- **list_tags** - List tags (scopes: `repo`)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
 
-- **push_files** - Push files to repository
+- **push_files** - Push files to repository (scopes: `repo`)
   - `branch`: Branch to push to (string, required)
   - `files`: Array of file objects to push, each object with path (string) and content (string) (object[], required)
   - `message`: Commit message (string, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
-- **search_code** - Search code
+- **search_code** - Search code (scopes: `repo`)
   - `order`: Sort order for results (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Search query using GitHub's powerful code search syntax. Examples: 'content:Skill language:Java org:github', 'NOT is:archived language:Python OR language:go', 'repo:github/github-mcp-server'. Supports exact matching, language filters, path filters, and more. (string, required)
   - `sort`: Sort field ('indexed' only) (string, optional)
 
-- **search_repositories** - Search repositories
+- **search_repositories** - Search repositories (scopes: `repo`)
   - `minimal_output`: Return minimal repository information (default: true). When false, returns full GitHub API repository objects. (boolean, optional)
   - `order`: Sort order (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -1106,12 +1106,12 @@ Possible options:
 
 <summary>Secret Protection</summary>
 
-- **get_secret_scanning_alert** - Get secret scanning alert
+- **get_secret_scanning_alert** - Get secret scanning alert (scopes: `security_events`)
   - `alertNumber`: The number of the alert. (number, required)
   - `owner`: The owner of the repository. (string, required)
   - `repo`: The name of the repository. (string, required)
 
-- **list_secret_scanning_alerts** - List secret scanning alerts
+- **list_secret_scanning_alerts** - List secret scanning alerts (scopes: `security_events`)
   - `owner`: The owner of the repository. (string, required)
   - `repo`: The name of the repository. (string, required)
   - `resolution`: Filter by resolution (string, optional)
@@ -1124,10 +1124,10 @@ Possible options:
 
 <summary>Security Advisories</summary>
 
-- **get_global_security_advisory** - Get a global security advisory
+- **get_global_security_advisory** - Get a global security advisory (scopes: `security_events`)
   - `ghsaId`: GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx). (string, required)
 
-- **list_global_security_advisories** - List global security advisories
+- **list_global_security_advisories** - List global security advisories (scopes: `security_events`)
   - `affects`: Filter advisories by affected package or version (e.g. "package1,package2@1.0.0"). (string, optional)
   - `cveId`: Filter by CVE ID. (string, optional)
   - `cwes`: Filter by Common Weakness Enumeration IDs (e.g. ["79", "284", "22"]). (string[], optional)
@@ -1140,13 +1140,13 @@ Possible options:
   - `type`: Advisory type. (string, optional)
   - `updated`: Filter by update date or date range (ISO 8601 date or range). (string, optional)
 
-- **list_org_repository_security_advisories** - List org repository security advisories
+- **list_org_repository_security_advisories** - List org repository security advisories (scopes: `security_events`)
   - `direction`: Sort direction. (string, optional)
   - `org`: The organization login. (string, required)
   - `sort`: Sort field. (string, optional)
   - `state`: Filter by advisory state. (string, optional)
 
-- **list_repository_security_advisories** - List repository security advisories
+- **list_repository_security_advisories** - List repository security advisories (scopes: `security_events`)
   - `direction`: Sort direction. (string, optional)
   - `owner`: The owner of the repository. (string, required)
   - `repo`: The name of the repository. (string, required)
@@ -1166,11 +1166,11 @@ Possible options:
   - `sort`: How to sort the results. Can be either 'created' (when the repository was starred) or 'updated' (when the repository was last pushed to). (string, optional)
   - `username`: Username to list starred repositories for. Defaults to the authenticated user. (string, optional)
 
-- **star_repository** - Star repository
+- **star_repository** - Star repository (scopes: `public_repo`)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
-- **unstar_repository** - Unstar repository
+- **unstar_repository** - Unstar repository (scopes: `public_repo`)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
@@ -1180,7 +1180,7 @@ Possible options:
 
 <summary>Users</summary>
 
-- **search_users** - Search users
+- **search_users** - Search users (scopes: `repo`)
   - `order`: Sort order (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)

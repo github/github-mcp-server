@@ -1,4 +1,9 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      ""
+    ]
+  },
   "annotations": {
     "readOnlyHint": true,
     "title": "List Gists"

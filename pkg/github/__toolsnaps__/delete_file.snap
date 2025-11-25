@@ -1,4 +1,9 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "repo"
+    ]
+  },
   "annotations": {
     "destructiveHint": true,
     "title": "Delete file"

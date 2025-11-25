@@ -1,4 +1,9 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "public_repo"
+    ]
+  },
   "annotations": {
     "title": "Star repository"
   },

@@ -1,4 +1,9 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "repo"
+    ]
+  },
   "annotations": {
     "readOnlyHint": true,
     "title": "Search repositories"
