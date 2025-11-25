@@ -1,10 +1,104 @@
 // Package scopes provides OAuth scope definitions and utilities for the GitHub MCP Server.
 // These scopes correspond to GitHub OAuth app scopes as documented at:
 // https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps
+//
+// Fine-grained permissions for personal access tokens are documented at:
+// https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens
 package scopes
 
 // Scope represents a GitHub OAuth scope.
 type Scope string
+
+// PermissionLevel represents the access level for a fine-grained permission.
+type PermissionLevel string
+
+const (
+	// PermissionRead grants read-only access.
+	PermissionRead PermissionLevel = "read"
+	// PermissionWrite grants read and write access.
+	PermissionWrite PermissionLevel = "write"
+	// PermissionAdmin grants full administrative access.
+	PermissionAdmin PermissionLevel = "admin"
+)
+
+// Permission represents a fine-grained permission for a personal access token.
+// These map to the permissions shown in the GitHub REST API documentation.
+type Permission string
+
+// Repository permissions for fine-grained PATs
+const (
+	// PermActions grants access to GitHub Actions workflows and artifacts.
+	PermActions Permission = "actions"
+	// PermAdministration grants access to repository administration.
+	PermAdministration Permission = "administration"
+	// PermCodeScanningAlerts grants access to code scanning alerts.
+	PermCodeScanningAlerts Permission = "code_scanning_alerts"
+	// PermContents grants access to repository contents, commits, branches, etc.
+	PermContents Permission = "contents"
+	// PermDependabotAlerts grants access to Dependabot alerts.
+	PermDependabotAlerts Permission = "dependabot_alerts"
+	// PermDeployments grants access to deployments.
+	PermDeployments Permission = "deployments"
+	// PermDiscussions grants access to repository discussions.
+	PermDiscussions Permission = "discussions"
+	// PermEnvironments grants access to environments.
+	PermEnvironments Permission = "environments"
+	// PermIssues grants access to issues.
+	PermIssues Permission = "issues"
+	// PermMetadata grants access to repository metadata (read-only by default for all PATs).
+	PermMetadata Permission = "metadata"
+	// PermPages grants access to GitHub Pages.
+	PermPages Permission = "pages"
+	// PermPullRequests grants access to pull requests.
+	PermPullRequests Permission = "pull_requests"
+	// PermRepositorySecurityAdvisories grants access to repository security advisories.
+	PermRepositorySecurityAdvisories Permission = "repository_security_advisories"
+	// PermSecretScanningAlerts grants access to secret scanning alerts.
+	PermSecretScanningAlerts Permission = "secret_scanning_alerts"
+	// PermSecrets grants access to repository secrets.
+	PermSecrets Permission = "secrets"
+	// PermVariables grants access to repository variables.
+	PermVariables Permission = "variables"
+	// PermWebhooks grants access to repository webhooks.
+	PermWebhooks Permission = "webhooks"
+	// PermWorkflows grants access to workflow files.
+	PermWorkflows Permission = "workflows"
+	// PermCommitStatuses grants access to commit statuses.
+	PermCommitStatuses Permission = "commit_statuses"
+)
+
+// Organization permissions for fine-grained PATs
+const (
+	// PermOrgAdministration grants access to organization administration.
+	PermOrgAdministration Permission = "organization_administration"
+	// PermOrgMembers grants access to organization members.
+	PermOrgMembers Permission = "members"
+	// PermOrgProjects grants access to organization projects.
+	PermOrgProjects Permission = "organization_projects"
+)
+
+// User permissions for fine-grained PATs
+const (
+	// PermGists grants access to gists.
+	PermGists Permission = "gists"
+	// PermNotifications grants access to notifications.
+	PermNotifications Permission = "notifications"
+	// PermStarring grants access to starring repositories.
+	PermStarring Permission = "starring"
+	// PermWatching grants access to watching repositories.
+	PermWatching Permission = "watching"
+)
+
+// FineGrainedPermission represents a permission with its required level.
+type FineGrainedPermission struct {
+	Permission Permission      `json:"permission"`
+	Level      PermissionLevel `json:"level"`
+}
+
+// String returns a human-readable string for the permission.
+func (p FineGrainedPermission) String() string {
+	return string(p.Permission) + ":" + string(p.Level)
+}
 
 // OAuth scope constants based on GitHub's OAuth app scopes.
 // See: https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps
@@ -235,6 +329,9 @@ func ParseScopes(strs []string) []Scope {
 // MetaKey is the key used to store OAuth scopes in the mcp.Tool.Meta field.
 const MetaKey = "requiredOAuthScopes"
 
+// MetaKeyPermissions is the key used to store fine-grained permissions in the mcp.Tool.Meta field.
+const MetaKeyPermissions = "requiredFineGrainedPermissions"
+
 // WithScopes returns a Meta map containing the required OAuth scopes.
 // This is used when defining an mcp.Tool to specify the required scopes.
 //
@@ -253,6 +350,47 @@ func WithScopes(requiredScopes ...Scope) map[string]any {
 	return map[string]any{
 		MetaKey: scopeStrings,
 	}
+}
+
+// WithScopesAndPermissions returns a Meta map containing both OAuth scopes and fine-grained permissions.
+// This is used when defining an mcp.Tool to specify both types of authentication requirements.
+//
+// Example usage:
+//
+//	tool := mcp.Tool{
+//	    Name: "get_issue",
+//	    Meta: scopes.WithScopesAndPermissions(
+//	        []scopes.Scope{scopes.Repo},
+//	        []scopes.FineGrainedPermission{{scopes.PermIssues, scopes.PermissionRead}},
+//	    ),
+//	    ...
+//	}
+func WithScopesAndPermissions(requiredScopes []Scope, permissions []FineGrainedPermission) map[string]any {
+	meta := WithScopes(requiredScopes...)
+	if len(permissions) > 0 {
+		permStrings := make([]string, len(permissions))
+		for i, p := range permissions {
+			permStrings[i] = p.String()
+		}
+		meta[MetaKeyPermissions] = permStrings
+	}
+	return meta
+}
+
+// AddPermissions adds fine-grained permissions to an existing Meta map.
+// This can be used to add permissions after calling WithScopes.
+func AddPermissions(meta map[string]any, permissions ...FineGrainedPermission) map[string]any {
+	if meta == nil {
+		meta = make(map[string]any)
+	}
+	if len(permissions) > 0 {
+		permStrings := make([]string, len(permissions))
+		for i, p := range permissions {
+			permStrings[i] = p.String()
+		}
+		meta[MetaKeyPermissions] = permStrings
+	}
+	return meta
 }
 
 // GetScopesFromMeta extracts the required OAuth scopes from an mcp.Tool.Meta field.
@@ -282,4 +420,53 @@ func GetScopesFromMeta(meta map[string]any) []Scope {
 	default:
 		return nil
 	}
+}
+
+// GetPermissionsFromMeta extracts the fine-grained permissions from an mcp.Tool.Meta field.
+// Returns nil if no permissions are defined.
+func GetPermissionsFromMeta(meta map[string]any) []string {
+	if meta == nil {
+		return nil
+	}
+
+	permsVal, ok := meta[MetaKeyPermissions]
+	if !ok {
+		return nil
+	}
+
+	// Handle both []string and []any (from JSON unmarshaling)
+	switch v := permsVal.(type) {
+	case []string:
+		return v
+	case []any:
+		strs := make([]string, 0, len(v))
+		for _, s := range v {
+			if str, ok := s.(string); ok {
+				strs = append(strs, str)
+			}
+		}
+		return strs
+	default:
+		return nil
+	}
+}
+
+// Perm is a convenience function to create a FineGrainedPermission.
+func Perm(p Permission, level PermissionLevel) FineGrainedPermission {
+	return FineGrainedPermission{Permission: p, Level: level}
+}
+
+// ReadPerm creates a read-level permission.
+func ReadPerm(p Permission) FineGrainedPermission {
+	return FineGrainedPermission{Permission: p, Level: PermissionRead}
+}
+
+// WritePerm creates a write-level permission.
+func WritePerm(p Permission) FineGrainedPermission {
+	return FineGrainedPermission{Permission: p, Level: PermissionWrite}
+}
+
+// AdminPerm creates an admin-level permission.
+func AdminPerm(p Permission) FineGrainedPermission {
+	return FineGrainedPermission{Permission: p, Level: PermissionAdmin}
 }

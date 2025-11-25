@@ -238,3 +238,137 @@ func TestScopeStringsAndParseScopes(t *testing.T) {
 	parsed := ParseScopes(strings)
 	assert.Equal(t, original, parsed)
 }
+
+// Tests for fine-grained permissions
+
+func TestFineGrainedPermissionString(t *testing.T) {
+	tests := []struct {
+		perm     FineGrainedPermission
+		expected string
+	}{
+		{ReadPerm(PermIssues), "issues:read"},
+		{WritePerm(PermPullRequests), "pull_requests:write"},
+		{AdminPerm(PermAdministration), "administration:admin"},
+		{Perm(PermContents, PermissionRead), "contents:read"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expected, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.perm.String())
+		})
+	}
+}
+
+func TestWithScopesAndPermissions(t *testing.T) {
+	meta := WithScopesAndPermissions(
+		[]Scope{Repo},
+		[]FineGrainedPermission{
+			ReadPerm(PermIssues),
+			WritePerm(PermPullRequests),
+		},
+	)
+
+	require.NotNil(t, meta)
+
+	// Check scopes
+	scopeVal, ok := meta[MetaKey]
+	require.True(t, ok)
+	scopeStrings, ok := scopeVal.([]string)
+	require.True(t, ok)
+	assert.Equal(t, []string{"repo"}, scopeStrings)
+
+	// Check permissions
+	permsVal, ok := meta[MetaKeyPermissions]
+	require.True(t, ok)
+	permStrings, ok := permsVal.([]string)
+	require.True(t, ok)
+	assert.Equal(t, []string{"issues:read", "pull_requests:write"}, permStrings)
+}
+
+func TestAddPermissions(t *testing.T) {
+	// Start with scopes only
+	meta := WithScopes(Repo)
+	require.NotNil(t, meta)
+
+	// Add permissions
+	meta = AddPermissions(meta, ReadPerm(PermContents))
+
+	// Check that scopes are still there
+	scopeVal, ok := meta[MetaKey]
+	require.True(t, ok)
+	scopeStrings, ok := scopeVal.([]string)
+	require.True(t, ok)
+	assert.Equal(t, []string{"repo"}, scopeStrings)
+
+	// Check permissions were added
+	permsVal, ok := meta[MetaKeyPermissions]
+	require.True(t, ok)
+	permStrings, ok := permsVal.([]string)
+	require.True(t, ok)
+	assert.Equal(t, []string{"contents:read"}, permStrings)
+}
+
+func TestAddPermissionsToNilMeta(t *testing.T) {
+	meta := AddPermissions(nil, WritePerm(PermActions))
+	require.NotNil(t, meta)
+
+	permsVal, ok := meta[MetaKeyPermissions]
+	require.True(t, ok)
+	permStrings, ok := permsVal.([]string)
+	require.True(t, ok)
+	assert.Equal(t, []string{"actions:write"}, permStrings)
+}
+
+func TestGetPermissionsFromMeta(t *testing.T) {
+	tests := []struct {
+		name     string
+		meta     map[string]any
+		expected []string
+	}{
+		{
+			name:     "nil meta",
+			meta:     nil,
+			expected: nil,
+		},
+		{
+			name:     "empty meta",
+			meta:     map[string]any{},
+			expected: nil,
+		},
+		{
+			name: "string slice",
+			meta: map[string]any{
+				MetaKeyPermissions: []string{"issues:read", "contents:write"},
+			},
+			expected: []string{"issues:read", "contents:write"},
+		},
+		{
+			name: "any slice (from JSON)",
+			meta: map[string]any{
+				MetaKeyPermissions: []any{"pull_requests:read", "actions:write"},
+			},
+			expected: []string{"pull_requests:read", "actions:write"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := GetPermissionsFromMeta(tt.meta)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestPermHelperFunctions(t *testing.T) {
+	readPerm := ReadPerm(PermIssues)
+	assert.Equal(t, PermIssues, readPerm.Permission)
+	assert.Equal(t, PermissionRead, readPerm.Level)
+
+	writePerm := WritePerm(PermPullRequests)
+	assert.Equal(t, PermPullRequests, writePerm.Permission)
+	assert.Equal(t, PermissionWrite, writePerm.Level)
+
+	adminPerm := AdminPerm(PermAdministration)
+	assert.Equal(t, PermAdministration, adminPerm.Permission)
+	assert.Equal(t, PermissionAdmin, adminPerm.Level)
+}
