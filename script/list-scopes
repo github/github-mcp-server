@@ -1,0 +1,24 @@
+#!/bin/bash
+#
+# List required OAuth scopes for enabled tools.
+#
+# Usage:
+#   script/list-scopes [--toolsets=...] [--output=text|json|summary]
+#
+# Examples:
+#   script/list-scopes
+#   script/list-scopes --toolsets=all --output=json
+#   script/list-scopes --toolsets=repos,issues --output=summary
+#
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+# Build the server if it doesn't exist or is outdated
+if [ ! -f github-mcp-server ] || [ cmd/github-mcp-server/list_scopes.go -nt github-mcp-server ]; then
+    echo "Building github-mcp-server..." >&2
+    go build -o github-mcp-server ./cmd/github-mcp-server
+fi
+
+exec ./github-mcp-server list-scopes "$@"
