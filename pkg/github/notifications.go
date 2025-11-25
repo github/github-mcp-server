@@ -10,6 +10,7 @@ import (
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -28,6 +29,7 @@ func ListNotifications(getClient GetClientFn, t translations.TranslationHelperFu
 	return mcp.Tool{
 			Name:        "list_notifications",
 			Description: t("TOOL_LIST_NOTIFICATIONS_DESCRIPTION", "Lists all GitHub notifications for the authenticated user, including unread notifications, mentions, review requests, assignments, and updates on issues or pull requests. Use this tool whenever the user asks what to work on next, requests a summary of their GitHub activity, wants to see pending reviews, or needs to check for new updates or tasks. This tool is the primary way to discover actionable items, reminders, and outstanding work on GitHub. Always call this tool when asked what to work on next, what is pending, or what needs attention in GitHub."),
+			Meta:        NewToolMeta(ToolsetMetadataNotifications.ID, scopes.Notifications),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_NOTIFICATIONS_USER_TITLE", "List notifications"),
 				ReadOnlyHint: true,
@@ -161,6 +163,7 @@ func DismissNotification(getclient GetClientFn, t translations.TranslationHelper
 	return mcp.Tool{
 			Name:        "dismiss_notification",
 			Description: t("TOOL_DISMISS_NOTIFICATION_DESCRIPTION", "Dismiss a notification by marking it as read or done"),
+			Meta:        NewToolMeta(ToolsetMetadataNotifications.ID, scopes.Notifications),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_DISMISS_NOTIFICATION_USER_TITLE", "Dismiss notification"),
 				ReadOnlyHint: false,
@@ -239,6 +242,7 @@ func MarkAllNotificationsRead(getClient GetClientFn, t translations.TranslationH
 	return mcp.Tool{
 			Name:        "mark_all_notifications_read",
 			Description: t("TOOL_MARK_ALL_NOTIFICATIONS_READ_DESCRIPTION", "Mark all notifications as read"),
+			Meta:        NewToolMeta(ToolsetMetadataNotifications.ID, scopes.Notifications),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_MARK_ALL_NOTIFICATIONS_READ_USER_TITLE", "Mark all notifications as read"),
 				ReadOnlyHint: false,
@@ -327,6 +331,7 @@ func GetNotificationDetails(getClient GetClientFn, t translations.TranslationHel
 	return mcp.Tool{
 			Name:        "get_notification_details",
 			Description: t("TOOL_GET_NOTIFICATION_DETAILS_DESCRIPTION", "Get detailed information for a specific GitHub notification, always call this tool when the user asks for details about a specific notification, if you don't know the ID list notifications first."),
+			Meta:        NewToolMeta(ToolsetMetadataNotifications.ID, scopes.Notifications),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_NOTIFICATION_DETAILS_USER_TITLE", "Get notification details"),
 				ReadOnlyHint: true,
@@ -392,6 +397,7 @@ func ManageNotificationSubscription(getClient GetClientFn, t translations.Transl
 	return mcp.Tool{
 			Name:        "manage_notification_subscription",
 			Description: t("TOOL_MANAGE_NOTIFICATION_SUBSCRIPTION_DESCRIPTION", "Manage a notification subscription: ignore, watch, or delete a notification thread subscription."),
+			Meta:        NewToolMeta(ToolsetMetadataNotifications.ID, scopes.Notifications),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_MANAGE_NOTIFICATION_SUBSCRIPTION_USER_TITLE", "Manage notification subscription"),
 				ReadOnlyHint: false,
@@ -484,6 +490,7 @@ func ManageRepositoryNotificationSubscription(getClient GetClientFn, t translati
 	return mcp.Tool{
 			Name:        "manage_repository_notification_subscription",
 			Description: t("TOOL_MANAGE_REPOSITORY_NOTIFICATION_SUBSCRIPTION_DESCRIPTION", "Manage a repository notification subscription: ignore, watch, or delete repository notifications subscription for the provided repository."),
+			Meta:        NewToolMeta(ToolsetMetadataNotifications.ID, scopes.Notifications),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_MANAGE_REPOSITORY_NOTIFICATION_SUBSCRIPTION_USER_TITLE", "Manage repository notification subscription"),
 				ReadOnlyHint: false,

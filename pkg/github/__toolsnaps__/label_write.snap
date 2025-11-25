@@ -1,4 +1,10 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "repo"
+    ],
+    "toolset": "labels"
+  },
   "annotations": {
     "title": "Write operations on repository labels."
   },

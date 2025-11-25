@@ -1,4 +1,10 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "repo"
+    ],
+    "toolset": "discussions"
+  },
   "annotations": {
     "readOnlyHint": true,
     "title": "Get discussion comments"

@@ -1,4 +1,7 @@
 {
+  "_meta": {
+    "toolset": "gists"
+  },
   "annotations": {
     "readOnlyHint": true,
     "title": "Get Gist Content"

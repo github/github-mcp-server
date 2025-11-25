@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -18,6 +19,7 @@ func ListGlobalSecurityAdvisories(getClient GetClientFn, t translations.Translat
 	tool := mcp.Tool{
 		Name:        "list_global_security_advisories",
 		Description: t("TOOL_LIST_GLOBAL_SECURITY_ADVISORIES_DESCRIPTION", "List global security advisories from GitHub."),
+		Meta:        NewToolMeta(ToolsetMetadataSecurityAdvisories.ID, scopes.SecurityEvents),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_LIST_GLOBAL_SECURITY_ADVISORIES_USER_TITLE", "List global security advisories"),
 			ReadOnlyHint: true,
@@ -208,6 +210,7 @@ func ListRepositorySecurityAdvisories(getClient GetClientFn, t translations.Tran
 	tool := mcp.Tool{
 		Name:        "list_repository_security_advisories",
 		Description: t("TOOL_LIST_REPOSITORY_SECURITY_ADVISORIES_DESCRIPTION", "List repository security advisories for a GitHub repository."),
+		Meta:        NewToolMeta(ToolsetMetadataSecurityAdvisories.ID, scopes.SecurityEvents),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_LIST_REPOSITORY_SECURITY_ADVISORIES_USER_TITLE", "List repository security advisories"),
 			ReadOnlyHint: true,
@@ -311,6 +314,7 @@ func GetGlobalSecurityAdvisory(getClient GetClientFn, t translations.Translation
 	tool := mcp.Tool{
 		Name:        "get_global_security_advisory",
 		Description: t("TOOL_GET_GLOBAL_SECURITY_ADVISORY_DESCRIPTION", "Get a global security advisory"),
+		Meta:        NewToolMeta(ToolsetMetadataSecurityAdvisories.ID, scopes.SecurityEvents),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_GET_GLOBAL_SECURITY_ADVISORY_USER_TITLE", "Get a global security advisory"),
 			ReadOnlyHint: true,
@@ -367,6 +371,7 @@ func ListOrgRepositorySecurityAdvisories(getClient GetClientFn, t translations.T
 	tool := mcp.Tool{
 		Name:        "list_org_repository_security_advisories",
 		Description: t("TOOL_LIST_ORG_REPOSITORY_SECURITY_ADVISORIES_DESCRIPTION", "List repository security advisories for a GitHub organization."),
+		Meta:        NewToolMeta(ToolsetMetadataSecurityAdvisories.ID, scopes.SecurityEvents),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_LIST_ORG_REPOSITORY_SECURITY_ADVISORIES_USER_TITLE", "List org repository security advisories"),
 			ReadOnlyHint: true,

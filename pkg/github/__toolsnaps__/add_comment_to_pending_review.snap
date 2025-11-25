@@ -1,4 +1,10 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "repo"
+    ],
+    "toolset": "pull_requests"
+  },
   "annotations": {
     "title": "Add review comment to the requester's latest pending pull request review"
   },

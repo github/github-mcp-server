@@ -1,4 +1,10 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "repo"
+    ],
+    "toolset": "issues"
+  },
   "annotations": {
     "readOnlyHint": true,
     "title": "List issues"

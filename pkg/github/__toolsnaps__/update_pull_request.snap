@@ -1,4 +1,10 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "repo"
+    ],
+    "toolset": "pull_requests"
+  },
   "annotations": {
     "title": "Edit pull request"
   },

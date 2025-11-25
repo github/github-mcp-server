@@ -1,4 +1,10 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "security_events"
+    ],
+    "toolset": "code_security"
+  },
   "annotations": {
     "readOnlyHint": true,
     "title": "List code scanning alerts"

@@ -7,6 +7,7 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/raw"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/toolsets"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
@@ -16,6 +17,28 @@ import (
 
 type GetClientFn func(context.Context) (*github.Client, error)
 type GetGQLClientFn func(context.Context) (*githubv4.Client, error)
+
+// NewToolMeta creates tool metadata with the given toolset (required) and scopes.
+// Returns mcp.Meta (map[string]any) for direct use in mcp.Tool.Meta.
+func NewToolMeta(toolset string, requiredScopes ...scopes.Scope) mcp.Meta {
+	if toolset == "" {
+		panic("toolset is required for ToolMeta")
+	}
+	meta := mcp.Meta{"toolset": toolset}
+
+	// Filter out NoScope and collect required scope strings
+	var scopeStrs []string
+	for _, s := range requiredScopes {
+		if s != scopes.NoScope {
+			scopeStrs = append(scopeStrs, s.String())
+		}
+	}
+	if len(scopeStrs) > 0 {
+		meta[scopes.MetaKey] = scopeStrs
+	}
+
+	return meta
+}
 
 // ToolsetMetadata holds metadata for a toolset including its ID and description
 type ToolsetMetadata struct {

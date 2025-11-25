@@ -1,4 +1,10 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "read:org"
+    ],
+    "toolset": "context"
+  },
   "annotations": {
     "readOnlyHint": true,
     "title": "Get team members"

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -19,6 +20,7 @@ func GetLabel(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc)
 	tool := mcp.Tool{
 		Name:        "get_label",
 		Description: t("TOOL_GET_LABEL_DESCRIPTION", "Get a specific label from a repository."),
+		Meta:        NewToolMeta(ToolsetLabels.ID, scopes.Repo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_GET_LABEL_TITLE", "Get a specific label from a repository."),
 			ReadOnlyHint: true,
@@ -112,6 +114,7 @@ func ListLabels(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 	tool := mcp.Tool{
 		Name:        "list_label",
 		Description: t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository"),
+		Meta:        NewToolMeta(ToolsetLabels.ID, scopes.Repo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository."),
 			ReadOnlyHint: true,
@@ -202,6 +205,7 @@ func LabelWrite(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 	tool := mcp.Tool{
 		Name:        "label_write",
 		Description: t("TOOL_LABEL_WRITE_DESCRIPTION", "Perform write operations on repository labels. To set labels on issues, use the 'update_issue' tool."),
+		Meta:        NewToolMeta(ToolsetLabels.ID, scopes.Repo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_LABEL_WRITE_TITLE", "Write operations on repository labels."),
 			ReadOnlyHint: false,

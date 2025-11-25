@@ -1,4 +1,10 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "public_repo"
+    ],
+    "toolset": "stargazers"
+  },
   "annotations": {
     "title": "Unstar repository"
   },

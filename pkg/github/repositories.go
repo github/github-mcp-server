@@ -11,6 +11,7 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/raw"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -22,6 +23,7 @@ func GetCommit(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp
 	tool := mcp.Tool{
 		Name:        "get_commit",
 		Description: t("TOOL_GET_COMMITS_DESCRIPTION", "Get details for a commit from a GitHub repository"),
+		Meta:        NewToolMeta(ToolsetMetadataRepos.ID, scopes.Repo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_GET_COMMITS_USER_TITLE", "Get commit details"),
 			ReadOnlyHint: true,
@@ -119,6 +121,7 @@ func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc) (m
 	tool := mcp.Tool{
 		Name:        "list_commits",
 		Description: t("TOOL_LIST_COMMITS_DESCRIPTION", "Get list of commits of a branch in a GitHub repository. Returns at least 30 results per page by default, but can return more if specified using the perPage parameter (up to 100)."),
+		Meta:        NewToolMeta(ToolsetMetadataRepos.ID, scopes.Repo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_LIST_COMMITS_USER_TITLE", "List commits"),
 			ReadOnlyHint: true,
@@ -226,6 +229,7 @@ func ListBranches(getClient GetClientFn, t translations.TranslationHelperFunc) (
 	tool := mcp.Tool{
 		Name:        "list_branches",
 		Description: t("TOOL_LIST_BRANCHES_DESCRIPTION", "List branches in a GitHub repository"),
+		Meta:        NewToolMeta(ToolsetMetadataRepos.ID, scopes.Repo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_LIST_BRANCHES_USER_TITLE", "List branches"),
 			ReadOnlyHint: true,
@@ -312,6 +316,7 @@ func CreateOrUpdateFile(getClient GetClientFn, t translations.TranslationHelperF
 	tool := mcp.Tool{
 		Name:        "create_or_update_file",
 		Description: t("TOOL_CREATE_OR_UPDATE_FILE_DESCRIPTION", "Create or update a single file in a GitHub repository. If updating, you must provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations."),
+		Meta:        NewToolMeta(ToolsetMetadataRepos.ID, scopes.Repo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_CREATE_OR_UPDATE_FILE_USER_TITLE", "Create or update file"),
 			ReadOnlyHint: false,
@@ -438,6 +443,7 @@ func CreateRepository(getClient GetClientFn, t translations.TranslationHelperFun
 	tool := mcp.Tool{
 		Name:        "create_repository",
 		Description: t("TOOL_CREATE_REPOSITORY_DESCRIPTION", "Create a new GitHub repository in your account or specified organization"),
+		Meta:        NewToolMeta(ToolsetMetadataRepos.ID, scopes.Repo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_CREATE_REPOSITORY_USER_TITLE", "Create repository"),
 			ReadOnlyHint: false,
@@ -543,6 +549,7 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 	tool := mcp.Tool{
 		Name:        "get_file_contents",
 		Description: t("TOOL_GET_FILE_CONTENTS_DESCRIPTION", "Get the contents of a file or directory from a GitHub repository"),
+		Meta:        NewToolMeta(ToolsetMetadataRepos.ID, scopes.Repo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_GET_FILE_CONTENTS_USER_TITLE", "Get file or directory contents"),
 			ReadOnlyHint: true,
@@ -761,6 +768,7 @@ func ForkRepository(getClient GetClientFn, t translations.TranslationHelperFunc)
 	tool := mcp.Tool{
 		Name:        "fork_repository",
 		Description: t("TOOL_FORK_REPOSITORY_DESCRIPTION", "Fork a GitHub repository to your account or specified organization"),
+		Meta:        NewToolMeta(ToolsetMetadataRepos.ID, scopes.Repo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_FORK_REPOSITORY_USER_TITLE", "Fork repository"),
 			ReadOnlyHint: false,
@@ -858,6 +866,7 @@ func DeleteFile(getClient GetClientFn, t translations.TranslationHelperFunc) (mc
 	tool := mcp.Tool{
 		Name:        "delete_file",
 		Description: t("TOOL_DELETE_FILE_DESCRIPTION", "Delete a file from a GitHub repository"),
+		Meta:        NewToolMeta(ToolsetMetadataRepos.ID, scopes.Repo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:           t("TOOL_DELETE_FILE_USER_TITLE", "Delete file"),
 			ReadOnlyHint:    false,
@@ -1042,6 +1051,7 @@ func CreateBranch(getClient GetClientFn, t translations.TranslationHelperFunc) (
 	tool := mcp.Tool{
 		Name:        "create_branch",
 		Description: t("TOOL_CREATE_BRANCH_DESCRIPTION", "Create a new branch in a GitHub repository"),
+		Meta:        NewToolMeta(ToolsetMetadataRepos.ID, scopes.Repo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_CREATE_BRANCH_USER_TITLE", "Create branch"),
 			ReadOnlyHint: false,
@@ -1154,6 +1164,7 @@ func PushFiles(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp
 	tool := mcp.Tool{
 		Name:        "push_files",
 		Description: t("TOOL_PUSH_FILES_DESCRIPTION", "Push multiple files to a GitHub repository in a single commit"),
+		Meta:        NewToolMeta(ToolsetMetadataRepos.ID, scopes.Repo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_PUSH_FILES_USER_TITLE", "Push files to repository"),
 			ReadOnlyHint: false,
@@ -1337,6 +1348,7 @@ func ListTags(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.
 	tool := mcp.Tool{
 		Name:        "list_tags",
 		Description: t("TOOL_LIST_TAGS_DESCRIPTION", "List git tags in a GitHub repository"),
+		Meta:        NewToolMeta(ToolsetMetadataRepos.ID, scopes.Repo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_LIST_TAGS_USER_TITLE", "List tags"),
 			ReadOnlyHint: true,
@@ -1415,6 +1427,7 @@ func GetTag(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.To
 	tool := mcp.Tool{
 		Name:        "get_tag",
 		Description: t("TOOL_GET_TAG_DESCRIPTION", "Get details about a specific git tag in a GitHub repository"),
+		Meta:        NewToolMeta(ToolsetMetadataRepos.ID, scopes.Repo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_GET_TAG_USER_TITLE", "Get tag details"),
 			ReadOnlyHint: true,
@@ -1512,6 +1525,7 @@ func ListReleases(getClient GetClientFn, t translations.TranslationHelperFunc) (
 	tool := mcp.Tool{
 		Name:        "list_releases",
 		Description: t("TOOL_LIST_RELEASES_DESCRIPTION", "List releases in a GitHub repository"),
+		Meta:        NewToolMeta(ToolsetMetadataRepos.ID, scopes.Repo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_LIST_RELEASES_USER_TITLE", "List releases"),
 			ReadOnlyHint: true,
@@ -1586,6 +1600,7 @@ func GetLatestRelease(getClient GetClientFn, t translations.TranslationHelperFun
 	tool := mcp.Tool{
 		Name:        "get_latest_release",
 		Description: t("TOOL_GET_LATEST_RELEASE_DESCRIPTION", "Get the latest release in a GitHub repository"),
+		Meta:        NewToolMeta(ToolsetMetadataRepos.ID, scopes.Repo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_GET_LATEST_RELEASE_USER_TITLE", "Get latest release"),
 			ReadOnlyHint: true,
@@ -1650,6 +1665,7 @@ func GetReleaseByTag(getClient GetClientFn, t translations.TranslationHelperFunc
 	tool := mcp.Tool{
 		Name:        "get_release_by_tag",
 		Description: t("TOOL_GET_RELEASE_BY_TAG_DESCRIPTION", "Get a specific release by its tag name in a GitHub repository"),
+		Meta:        NewToolMeta(ToolsetMetadataRepos.ID, scopes.Repo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_GET_RELEASE_BY_TAG_USER_TITLE", "Get a release by tag name"),
 			ReadOnlyHint: true,
@@ -1993,6 +2009,7 @@ func StarRepository(getClient GetClientFn, t translations.TranslationHelperFunc)
 	tool := mcp.Tool{
 		Name:        "star_repository",
 		Description: t("TOOL_STAR_REPOSITORY_DESCRIPTION", "Star a GitHub repository"),
+		Meta:        NewToolMeta(ToolsetMetadataStargazers.ID, scopes.PublicRepo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_STAR_REPOSITORY_USER_TITLE", "Star repository"),
 			ReadOnlyHint: false,
@@ -2057,6 +2074,7 @@ func UnstarRepository(getClient GetClientFn, t translations.TranslationHelperFun
 	tool := mcp.Tool{
 		Name:        "unstar_repository",
 		Description: t("TOOL_UNSTAR_REPOSITORY_DESCRIPTION", "Unstar a GitHub repository"),
+		Meta:        NewToolMeta(ToolsetMetadataStargazers.ID, scopes.PublicRepo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_UNSTAR_REPOSITORY_USER_TITLE", "Unstar repository"),
 			ReadOnlyHint: false,

@@ -1,4 +1,10 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "repo"
+    ],
+    "toolset": "actions"
+  },
   "annotations": {
     "readOnlyHint": true,
     "title": "Get workflow usage"

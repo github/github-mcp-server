@@ -16,6 +16,7 @@ import (
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/sanitize"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 )
@@ -59,6 +60,7 @@ Possible options:
 	return mcp.Tool{
 			Name:        "pull_request_read",
 			Description: t("TOOL_PULL_REQUEST_READ_DESCRIPTION", "Get information on a specific pull request in GitHub repository."),
+			Meta:        NewToolMeta(ToolsetMetadataPullRequests.ID, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_PULL_REQUEST_USER_TITLE", "Get details for a single pull request"),
 				ReadOnlyHint: true,
@@ -428,6 +430,7 @@ func CreatePullRequest(getClient GetClientFn, t translations.TranslationHelperFu
 	return mcp.Tool{
 			Name:        "create_pull_request",
 			Description: t("TOOL_CREATE_PULL_REQUEST_DESCRIPTION", "Create a new pull request in a GitHub repository."),
+			Meta:        NewToolMeta(ToolsetMetadataPullRequests.ID, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_CREATE_PULL_REQUEST_USER_TITLE", "Open new pull request"),
 				ReadOnlyHint: false,
@@ -577,6 +580,7 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 	return mcp.Tool{
 			Name:        "update_pull_request",
 			Description: t("TOOL_UPDATE_PULL_REQUEST_DESCRIPTION", "Update an existing pull request in a GitHub repository."),
+			Meta:        NewToolMeta(ToolsetMetadataPullRequests.ID, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_UPDATE_PULL_REQUEST_USER_TITLE", "Edit pull request"),
 				ReadOnlyHint: false,
@@ -856,6 +860,7 @@ func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFun
 	return mcp.Tool{
 			Name:        "list_pull_requests",
 			Description: t("TOOL_LIST_PULL_REQUESTS_DESCRIPTION", "List pull requests in a GitHub repository. If the user specifies an author, then DO NOT use this tool and use the search_pull_requests tool instead."),
+			Meta:        NewToolMeta(ToolsetMetadataPullRequests.ID, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_PULL_REQUESTS_USER_TITLE", "List pull requests"),
 				ReadOnlyHint: true,
@@ -989,6 +994,7 @@ func MergePullRequest(getClient GetClientFn, t translations.TranslationHelperFun
 	return mcp.Tool{
 			Name:        "merge_pull_request",
 			Description: t("TOOL_MERGE_PULL_REQUEST_DESCRIPTION", "Merge a pull request in a GitHub repository."),
+			Meta:        NewToolMeta(ToolsetMetadataPullRequests.ID, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_MERGE_PULL_REQUEST_USER_TITLE", "Merge pull request"),
 				ReadOnlyHint: false,
@@ -1104,6 +1110,7 @@ func SearchPullRequests(getClient GetClientFn, t translations.TranslationHelperF
 	return mcp.Tool{
 			Name:        "search_pull_requests",
 			Description: t("TOOL_SEARCH_PULL_REQUESTS_DESCRIPTION", "Search for pull requests in GitHub repositories using issues search syntax already scoped to is:pr"),
+			Meta:        NewToolMeta(ToolsetMetadataPullRequests.ID, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_SEARCH_PULL_REQUESTS_USER_TITLE", "Search pull requests"),
 				ReadOnlyHint: true,
@@ -1144,6 +1151,7 @@ func UpdatePullRequestBranch(getClient GetClientFn, t translations.TranslationHe
 	return mcp.Tool{
 			Name:        "update_pull_request_branch",
 			Description: t("TOOL_UPDATE_PULL_REQUEST_BRANCH_DESCRIPTION", "Update the branch of a pull request with the latest changes from the base branch."),
+			Meta:        NewToolMeta(ToolsetMetadataPullRequests.ID, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_UPDATE_PULL_REQUEST_BRANCH_USER_TITLE", "Update pull request branch"),
 				ReadOnlyHint: false,
@@ -1268,6 +1276,7 @@ Available methods:
 - submit_pending: Submit an existing pending review of a pull request. This requires that a pending review exists for the current user on the specified pull request. The "body" and "event" parameters are used when submitting the review.
 - delete_pending: Delete an existing pending review of a pull request. This requires that a pending review exists for the current user on the specified pull request.
 `),
+			Meta: NewToolMeta(ToolsetMetadataPullRequests.ID, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_PULL_REQUEST_REVIEW_WRITE_USER_TITLE", "Write operations (create, submit, delete) on pull request reviews."),
 				ReadOnlyHint: false,
@@ -1589,6 +1598,7 @@ func AddCommentToPendingReview(getGQLClient GetGQLClientFn, t translations.Trans
 	return mcp.Tool{
 			Name:        "add_comment_to_pending_review",
 			Description: t("TOOL_ADD_COMMENT_TO_PENDING_REVIEW_DESCRIPTION", "Add review comment to the requester's latest pending pull request review. A pending review needs to already exist to call this (check with the user if not sure)."),
+			Meta:        NewToolMeta(ToolsetMetadataPullRequests.ID, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_ADD_COMMENT_TO_PENDING_REVIEW_USER_TITLE", "Add review comment to the requester's latest pending pull request review"),
 				ReadOnlyHint: false,
@@ -1738,6 +1748,7 @@ func RequestCopilotReview(getClient GetClientFn, t translations.TranslationHelpe
 	return mcp.Tool{
 			Name:        "request_copilot_review",
 			Description: t("TOOL_REQUEST_COPILOT_REVIEW_DESCRIPTION", "Request a GitHub Copilot code review for a pull request. Use this for automated feedback on pull requests, usually before requesting a human reviewer."),
+			Meta:        NewToolMeta(ToolsetMetadataPullRequests.ID, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_REQUEST_COPILOT_REVIEW_USER_TITLE", "Request Copilot review"),
 				ReadOnlyHint: false,

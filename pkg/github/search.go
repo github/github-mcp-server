@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -47,6 +48,7 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 	return mcp.Tool{
 			Name:        "search_repositories",
 			Description: t("TOOL_SEARCH_REPOSITORIES_DESCRIPTION", "Find GitHub repositories by name, description, readme, topics, or other metadata. Perfect for discovering projects, finding examples, or locating specific repositories across GitHub."),
+			Meta:        NewToolMeta(ToolsetMetadataRepos.ID, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_SEARCH_REPOSITORIES_USER_TITLE", "Search repositories"),
 				ReadOnlyHint: true,
@@ -186,6 +188,7 @@ func SearchCode(getClient GetClientFn, t translations.TranslationHelperFunc) (mc
 	return mcp.Tool{
 			Name:        "search_code",
 			Description: t("TOOL_SEARCH_CODE_DESCRIPTION", "Fast and precise code search across ALL GitHub repositories using GitHub's native search engine. Best for finding exact symbols, functions, classes, or specific code patterns."),
+			Meta:        NewToolMeta(ToolsetMetadataRepos.ID, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_SEARCH_CODE_USER_TITLE", "Search code"),
 				ReadOnlyHint: true,
@@ -366,6 +369,7 @@ func SearchUsers(getClient GetClientFn, t translations.TranslationHelperFunc) (m
 	return mcp.Tool{
 		Name:        "search_users",
 		Description: t("TOOL_SEARCH_USERS_DESCRIPTION", "Find GitHub users by username, real name, or other profile information. Useful for locating developers, contributors, or team members."),
+		Meta:        NewToolMeta(ToolsetMetadataUsers.ID, scopes.Repo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_SEARCH_USERS_USER_TITLE", "Search users"),
 			ReadOnlyHint: true,
@@ -401,6 +405,7 @@ func SearchOrgs(getClient GetClientFn, t translations.TranslationHelperFunc) (mc
 	return mcp.Tool{
 		Name:        "search_orgs",
 		Description: t("TOOL_SEARCH_ORGS_DESCRIPTION", "Find GitHub organizations by name, location, or other organization metadata. Ideal for discovering companies, open source foundations, or teams."),
+		Meta:        NewToolMeta(ToolsetMetadataOrgs.ID, scopes.Repo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_SEARCH_ORGS_USER_TITLE", "Search organizations"),
 			ReadOnlyHint: true,

@@ -1,4 +1,10 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "project"
+    ],
+    "toolset": "projects"
+  },
   "annotations": {
     "title": "Delete project item"
   },

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -41,6 +42,7 @@ func GetRepositoryTree(getClient GetClientFn, t translations.TranslationHelperFu
 	tool := mcp.Tool{
 		Name:        "get_repository_tree",
 		Description: t("TOOL_GET_REPOSITORY_TREE_DESCRIPTION", "Get the tree structure (files and directories) of a GitHub repository at a specific ref or SHA"),
+		Meta:        NewToolMeta(ToolsetMetadataGit.ID, scopes.Repo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_GET_REPOSITORY_TREE_USER_TITLE", "Get repository tree"),
 			ReadOnlyHint: true,

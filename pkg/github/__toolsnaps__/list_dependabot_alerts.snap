@@ -1,4 +1,10 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "security_events"
+    ],
+    "toolset": "dependabot"
+  },
   "annotations": {
     "readOnlyHint": true,
     "title": "List dependabot alerts"

@@ -1,4 +1,10 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "repo"
+    ],
+    "toolset": "repos"
+  },
   "annotations": {
     "readOnlyHint": true,
     "title": "Get tag details"

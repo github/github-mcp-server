@@ -1,4 +1,10 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "repo"
+    ],
+    "toolset": "issues"
+  },
   "annotations": {
     "title": "Add comment to issue"
   },
