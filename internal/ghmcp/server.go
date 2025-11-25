@@ -119,6 +119,9 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 
 	ghServer := github.NewServer(cfg.Version, &mcp.ServerOptions{
 		Instructions: instructions,
+		HasTools:     true,
+		HasResources: true,
+		HasPrompts:   true,
 		Logger:       cfg.Logger,
 	})
 
