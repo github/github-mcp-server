@@ -27,8 +27,6 @@ var RepositoryResourceArgumentResolvers = map[string]CompleteHandler{
 // RepositoryResourceCompletionHandler returns a CompletionHandlerFunc for repository resource completions.
 func RepositoryResourceCompletionHandler(getClient GetClientFn) func(ctx context.Context, req *mcp.CompleteRequest) (*mcp.CompleteResult, error) {
 	return func(ctx context.Context, req *mcp.CompleteRequest) (*mcp.CompleteResult, error) {
-		fmt.Println("Handling repository resource completion for", req.Params.Argument.Name)
-
 		if req.Params.Ref.Type != "ref/resource" {
 			return nil, nil // Not a resource completion
 		}
@@ -76,10 +74,8 @@ func RepositoryResourceCompletionHandler(getClient GetClientFn) func(ctx context
 func completeOwner(ctx context.Context, client *github.Client, resolved map[string]string, argValue string) ([]string, error) {
 	var values []string
 	user, _, err := client.Users.Get(ctx, "")
-	fmt.Printf("Found user: %v\n", err)
 	if err == nil && user.GetLogin() != "" {
 		values = append(values, user.GetLogin())
-		fmt.Println("Fetching organizations for user " + user.GetLogin())
 	}
 
 	orgs, _, err := client.Organizations.List(ctx, "", &github.ListOptions{PerPage: 100})
@@ -87,7 +83,6 @@ func completeOwner(ctx context.Context, client *github.Client, resolved map[stri
 		return nil, err
 	}
 	for _, org := range orgs {
-		fmt.Println("Found organization: " + org.GetLogin())
 		values = append(values, org.GetLogin())
 	}
 
