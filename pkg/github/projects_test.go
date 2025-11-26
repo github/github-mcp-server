@@ -320,6 +320,29 @@ func Test_ListProjectFields(t *testing.T) {
 	orgFields := []map[string]any{{"id": 101, "name": "Status", "data_type": "single_select"}}
 	userFields := []map[string]any{{"id": 201, "name": "Priority", "data_type": "single_select"}}
 
+	// Test data with single_select options using string names (as GitHub API returns)
+	fieldsWithStringOptions := []map[string]any{{
+		"id":        102,
+		"name":      "Status",
+		"data_type": "single_select",
+		"options": []map[string]any{
+			{"id": "aeba538c", "name": "Backlog", "color": "GREEN"},
+			{"id": "f75ad846", "name": "Ready", "color": "YELLOW"},
+			{"id": "47fc9ee4", "name": "In Progress", "color": "ORANGE"},
+		},
+	}}
+
+	// Test data with single_select options using object names (alternative format)
+	fieldsWithObjectOptions := []map[string]any{{
+		"id":        103,
+		"name":      "Priority",
+		"data_type": "single_select",
+		"options": []map[string]any{
+			{"id": "opt1", "name": map[string]string{"raw": "High", "html": "High"}, "color": "RED"},
+			{"id": "opt2", "name": map[string]string{"raw": "Low", "html": "Low"}, "color": "GREEN"},
+		},
+	}}
+
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
@@ -343,6 +366,42 @@ func Test_ListProjectFields(t *testing.T) {
 				"owner":          "octo-org",
 				"owner_type":     "org",
 				"project_number": float64(123),
+			},
+			expectedLength: 1,
+		},
+		{
+			name: "success with single_select options using string names",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/fields", Method: http.MethodGet},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write(mock.MustMarshal(fieldsWithStringOptions))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(124),
+			},
+			expectedLength: 1,
+		},
+		{
+			name: "success with single_select options using object names",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/fields", Method: http.MethodGet},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write(mock.MustMarshal(fieldsWithObjectOptions))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":          "octo-org",
+				"owner_type":     "org",
+				"project_number": float64(125),
 			},
 			expectedLength: 1,
 		},
