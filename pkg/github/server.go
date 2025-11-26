@@ -1,10 +1,12 @@
 package github
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -15,15 +17,6 @@ import (
 // NewServer creates a new GitHub MCP server with the specified GH client and logger.
 
 func NewServer(version string, opts *mcp.ServerOptions) *mcp.Server {
-	if opts == nil {
-		// Add default options
-		opts = &mcp.ServerOptions{
-			HasTools:     true,
-			HasResources: true,
-			HasPrompts:   true,
-		}
-	}
-
 	// Create a new MCP server
 	s := mcp.NewServer(&mcp.Implementation{
 		Name:    "github-mcp-server",
@@ -32,6 +25,23 @@ func NewServer(version string, opts *mcp.ServerOptions) *mcp.Server {
 	}, opts)
 
 	return s
+}
+
+func GitHubCompletionsHandler(getClient GetClientFn) func(ctx context.Context, req *mcp.CompleteRequest) (*mcp.CompleteResult, error) {
+	return func(ctx context.Context, req *mcp.CompleteRequest) (*mcp.CompleteResult, error) {
+		switch req.Params.Ref.Type {
+		case "ref/resource":
+			if strings.HasPrefix(req.Params.Ref.URI, "repo://") {
+				return RepositoryResourceCompletionHandler(getClient)(ctx, req)
+			} else {
+				return nil, fmt.Errorf("unsupported resource URI: %s", req.Params.Ref.URI)
+			}
+		case "ref/prompt":
+			return nil, nil
+		default:
+			return nil, fmt.Errorf("unsupported ref type: %s", req.Params.Ref.Type)
+		}
+	}
 }
 
 // OptionalParamOK is a helper function that can be used to fetch a requested parameter from the request.
