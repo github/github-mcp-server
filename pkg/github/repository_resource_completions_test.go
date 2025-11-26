@@ -50,6 +50,7 @@ func TestRepositoryResourceCompletionHandler(t *testing.T) {
 					Ref: &mcp.CompleteReference{
 						Type: "ref/resource",
 					},
+					Context: &mcp.CompleteContext{},
 					Argument: mcp.CompleteParamsArgument{
 						Name:  "unknown_arg",
 						Value: "test",
@@ -90,6 +91,11 @@ func TestRepositoryResourceCompletionHandler_GetClientError(t *testing.T) {
 		Params: &mcp.CompleteParams{
 			Ref: &mcp.CompleteReference{
 				Type: "ref/resource",
+			},
+			Context: &mcp.CompleteContext{
+				Arguments: map[string]string{
+					"owner": "test",
+				},
 			},
 			Argument: mcp.CompleteParamsArgument{
 				Name:  "owner",
@@ -262,6 +268,11 @@ func TestRepositoryResourceCompletionHandler_MaxResults(t *testing.T) {
 			Ref: &mcp.CompleteReference{
 				Type: "ref/resource",
 			},
+			Context: &mcp.CompleteContext{
+				Arguments: map[string]string{
+					"owner": "test",
+				},
+			},
 			Argument: mcp.CompleteParamsArgument{
 				Name:  "owner",
 				Value: "test",
@@ -346,6 +357,9 @@ func TestRepositoryResourceCompletionHandler_NilContext(t *testing.T) {
 				Value: "test",
 			},
 			// Context is not set, so it should default to empty map
+			Context: &mcp.CompleteContext{
+				Arguments: map[string]string{},
+			},
 		},
 	}
 
