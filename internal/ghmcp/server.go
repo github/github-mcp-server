@@ -117,18 +117,6 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	// Generate instructions based on enabled toolsets
 	instructions := github.GenerateInstructions(enabledToolsets)
 
-	ghServer := github.NewServer(cfg.Version, &mcp.ServerOptions{
-		Instructions: instructions,
-		HasTools:     true,
-		HasResources: true,
-		HasPrompts:   true,
-		Logger:       cfg.Logger,
-	})
-
-	// Add middlewares
-	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
-	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, restClient, gqlHTTPClient))
-
 	getClient := func(_ context.Context) (*gogithub.Client, error) {
 		return restClient, nil // closing over client
 	}
@@ -144,6 +132,16 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		}
 		return raw.NewClient(client, apiHost.rawURL), nil // closing over client
 	}
+
+	ghServer := github.NewServer(cfg.Version, &mcp.ServerOptions{
+		Instructions:      instructions,
+		Logger:            cfg.Logger,
+		CompletionHandler: github.GitHubCompletionsHandler(getClient),
+	})
+
+	// Add middlewares
+	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
+	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, restClient, gqlHTTPClient))
 
 	// Create default toolsets
 	tsg := github.DefaultToolsetGroup(
