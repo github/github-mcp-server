@@ -66,7 +66,7 @@ type MCPServerConfig struct {
 
 const stdioServerLogPrefix = "stdioserver"
 
-func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
+func NewMCPServer(cfg MCPServerConfig, logger *slog.Logger) (*server.MCPServer, error) {
 	apiHost, err := parseAPIHost(cfg.Host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
@@ -92,6 +92,9 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 	if cfg.RepoAccessTTL != nil {
 		repoAccessOpts = append(repoAccessOpts, lockdown.WithTTL(*cfg.RepoAccessTTL))
 	}
+
+	repoAccessLogger := logger.With("component", "lockdown")
+	repoAccessOpts = append(repoAccessOpts, lockdown.WithLogger(repoAccessLogger))
 	var repoAccessCache *lockdown.RepoAccessCache
 	if cfg.LockdownMode {
 		repoAccessCache = lockdown.GetInstance(gqlClient, repoAccessOpts...)
@@ -299,7 +302,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		ContentWindowSize: cfg.ContentWindowSize,
 		LockdownMode:      cfg.LockdownMode,
 		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
-	})
+	}, logger)
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)
 	}
