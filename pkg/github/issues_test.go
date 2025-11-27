@@ -1,9 +1,11 @@
 package github
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -11,26 +13,126 @@ import (
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v74/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+var defaultGQLClient *githubv4.Client = githubv4.NewClient(newRepoAccessHTTPClient())
+var repoAccessCache *lockdown.RepoAccessCache = stubRepoAccessCache(defaultGQLClient, 15*time.Minute)
+
+type repoAccessKey struct {
+	owner    string
+	repo     string
+	username string
+}
+
+type repoAccessValue struct {
+	isPrivate  bool
+	permission string
+}
+
+type repoAccessMockTransport struct {
+	responses map[repoAccessKey]repoAccessValue
+}
+
+func newRepoAccessHTTPClient() *http.Client {
+	responses := map[repoAccessKey]repoAccessValue{
+		{owner: "owner2", repo: "repo2", username: "testuser2"}: {isPrivate: true},
+		{owner: "owner", repo: "repo", username: "testuser"}:    {isPrivate: false, permission: "READ"},
+	}
+
+	return &http.Client{Transport: &repoAccessMockTransport{responses: responses}}
+}
+
+func (rt *repoAccessMockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Body == nil {
+		return nil, fmt.Errorf("missing request body")
+	}
+
+	var payload struct {
+		Query     string         `json:"query"`
+		Variables map[string]any `json:"variables"`
+	}
+
+	if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+	_ = req.Body.Close()
+
+	owner := toString(payload.Variables["owner"])
+	repo := toString(payload.Variables["name"])
+	username := toString(payload.Variables["username"])
+
+	value, ok := rt.responses[repoAccessKey{owner: owner, repo: repo, username: username}]
+	if !ok {
+		value = repoAccessValue{isPrivate: false, permission: "WRITE"}
+	}
+
+	edges := []any{}
+	if value.permission != "" {
+		edges = append(edges, map[string]any{
+			"permission": value.permission,
+			"node": map[string]any{
+				"login": username,
+			},
+		})
+	}
+
+	responseBody, err := json.Marshal(map[string]any{
+		"data": map[string]any{
+			"repository": map[string]any{
+				"isPrivate": value.isPrivate,
+				"collaborators": map[string]any{
+					"edges": edges,
+				},
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(bytes.NewReader(responseBody)),
+	}
+	resp.Header.Set("Content-Type", "application/json")
+	return resp, nil
+}
+
+func toString(v any) string {
+	switch value := v.(type) {
+	case string:
+		return value
+	case fmt.Stringer:
+		return value.String()
+	case nil:
+		return ""
+	default:
+		return fmt.Sprintf("%v", value)
+	}
+}
+
 func Test_GetIssue(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := GetIssue(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	defaultGQLClient := githubv4.NewClient(nil)
+	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(defaultGQLClient), repoAccessCache, translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "get_issue", tool.Name)
+	assert.Equal(t, "issue_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "method")
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "issue_number"})
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number"})
 
 	// Setup mock issue for success case
 	mockIssue := &github.Issue{
@@ -42,15 +144,40 @@ func Test_GetIssue(t *testing.T) {
 		User: &github.User{
 			Login: github.Ptr("testuser"),
 		},
+		Repository: &github.Repository{
+			Name: github.Ptr("repo"),
+			Owner: &github.User{
+				Login: github.Ptr("owner"),
+			},
+		},
+	}
+	mockIssue2 := &github.Issue{
+		Number:  github.Ptr(422),
+		Title:   github.Ptr("Test Issue 2"),
+		Body:    github.Ptr("This is a test issue 2"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
+		User: &github.User{
+			Login: github.Ptr("testuser2"),
+		},
+		Repository: &github.Repository{
+			Name: github.Ptr("repo2"),
+			Owner: &github.User{
+				Login: github.Ptr("owner2"),
+			},
+		},
 	}
 
 	tests := []struct {
-		name           string
-		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
-		expectError    bool
-		expectedIssue  *github.Issue
-		expectedErrMsg string
+		name               string
+		mockedClient       *http.Client
+		gqlHTTPClient      *http.Client
+		requestArgs        map[string]interface{}
+		expectHandlerError bool
+		expectResultError  bool
+		expectedIssue      *github.Issue
+		expectedErrMsg     string
+		lockdownEnabled    bool
 	}{
 		{
 			name: "successful issue retrieval",
@@ -61,11 +188,11 @@ func Test_GetIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
-				"owner":        "owner",
-				"repo":         "repo",
+				"method":       "get",
+				"owner":        "owner2",
+				"repo":         "repo2",
 				"issue_number": float64(42),
 			},
-			expectError:   false,
 			expectedIssue: mockIssue,
 		},
 		{
@@ -77,38 +204,154 @@ func Test_GetIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "get",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(999),
 			},
-			expectError:    true,
-			expectedErrMsg: "failed to get issue",
+			expectHandlerError: true,
+			expectedErrMsg:     "failed to get issue",
+		},
+		{
+			name: "lockdown enabled - private repository",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
+					mockIssue2,
+				),
+			),
+			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							IsPrivate     githubv4.Boolean
+							Collaborators struct {
+								Edges []struct {
+									Permission githubv4.String
+									Node       struct {
+										Login githubv4.String
+									}
+								}
+							} `graphql:"collaborators(query: $username, first: 1)"`
+						} `graphql:"repository(owner: $owner, name: $name)"`
+					}{},
+					map[string]any{
+						"owner":    githubv4.String("owner2"),
+						"name":     githubv4.String("repo2"),
+						"username": githubv4.String("testuser2"),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"isPrivate": true,
+							"collaborators": map[string]any{
+								"edges": []any{},
+							},
+						},
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"method":       "get",
+				"owner":        "owner2",
+				"repo":         "repo2",
+				"issue_number": float64(422),
+			},
+			expectedIssue:   mockIssue2,
+			lockdownEnabled: true,
+		},
+		{
+			name: "lockdown enabled - user lacks push access",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
+					mockIssue,
+				),
+			),
+			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							IsPrivate     githubv4.Boolean
+							Collaborators struct {
+								Edges []struct {
+									Permission githubv4.String
+									Node       struct {
+										Login githubv4.String
+									}
+								}
+							} `graphql:"collaborators(query: $username, first: 1)"`
+						} `graphql:"repository(owner: $owner, name: $name)"`
+					}{},
+					map[string]any{
+						"owner":    githubv4.String("owner"),
+						"name":     githubv4.String("repo"),
+						"username": githubv4.String("testuser"),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"isPrivate": false,
+							"collaborators": map[string]any{
+								"edges": []any{
+									map[string]any{
+										"permission": "READ",
+										"node": map[string]any{
+											"login": "testuser",
+										},
+									},
+								},
+							},
+						},
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"method":       "get",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectResultError: true,
+			expectedErrMsg:    "access to issue details is restricted by lockdown mode",
+			lockdownEnabled:   true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetIssue(stubGetClientFn(client), translations.NullTranslationHelper)
 
-			// Create call request
+			var gqlClient *githubv4.Client
+			cache := repoAccessCache
+			if tc.gqlHTTPClient != nil {
+				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
+				cache = stubRepoAccessCache(gqlClient, 15*time.Minute)
+			} else {
+				gqlClient = defaultGQLClient
+			}
+
+			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
+			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), cache, translations.NullTranslationHelper, flags)
+
 			request := createMCPRequest(tc.requestArgs)
-
-			// Call handler
 			result, err := handler(context.Background(), request)
 
-			// Verify results
-			if tc.expectError {
+			if tc.expectHandlerError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedErrMsg)
 				return
 			}
 
 			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			if tc.expectResultError {
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
 			var returnedIssue github.Issue
 			err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 			require.NoError(t, err)
@@ -130,6 +373,7 @@ func Test_AddIssueComment(t *testing.T) {
 
 	assert.Equal(t, "add_issue_comment", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
@@ -569,11 +813,13 @@ func Test_SearchIssues(t *testing.T) {
 func Test_CreateIssue(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := CreateIssue(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	mockGQLClient := githubv4.NewClient(nil)
+	tool, _ := IssueWrite(stubGetClientFn(mockClient), stubGetGQLClientFn(mockGQLClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "create_issue", tool.Name)
+	assert.Equal(t, "issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "method")
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "title")
@@ -582,7 +828,7 @@ func Test_CreateIssue(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.Properties, "labels")
 	assert.Contains(t, tool.InputSchema.Properties, "milestone")
 	assert.Contains(t, tool.InputSchema.Properties, "type")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "title"})
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo"})
 
 	// Setup mock issue for success case
 	mockIssue := &github.Issue{
@@ -623,6 +869,7 @@ func Test_CreateIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":    "create",
 				"owner":     "owner",
 				"repo":      "repo",
 				"title":     "Test Issue",
@@ -649,6 +896,7 @@ func Test_CreateIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":    "create",
 				"owner":     "owner",
 				"repo":      "repo",
 				"title":     "Minimal Issue",
@@ -674,9 +922,10 @@ func Test_CreateIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
-				"owner": "owner",
-				"repo":  "repo",
-				"title": "",
+				"method": "create",
+				"owner":  "owner",
+				"repo":   "repo",
+				"title":  "",
 			},
 			expectError:    false,
 			expectedErrMsg: "missing required parameter: title",
@@ -687,7 +936,8 @@ func Test_CreateIssue(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := CreateIssue(stubGetClientFn(client), translations.NullTranslationHelper)
+			gqlClient := githubv4.NewClient(nil)
+			_, handler := IssueWrite(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1033,29 +1283,33 @@ func Test_ListIssues(t *testing.T) {
 func Test_UpdateIssue(t *testing.T) {
 	// Verify tool definition
 	mockClient := github.NewClient(nil)
-	tool, _ := UpdateIssue(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	mockGQLClient := githubv4.NewClient(nil)
+	tool, _ := IssueWrite(stubGetClientFn(mockClient), stubGetGQLClientFn(mockGQLClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "update_issue", tool.Name)
+	assert.Equal(t, "issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "method")
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
 	assert.Contains(t, tool.InputSchema.Properties, "title")
 	assert.Contains(t, tool.InputSchema.Properties, "body")
-	assert.Contains(t, tool.InputSchema.Properties, "state")
 	assert.Contains(t, tool.InputSchema.Properties, "labels")
 	assert.Contains(t, tool.InputSchema.Properties, "assignees")
 	assert.Contains(t, tool.InputSchema.Properties, "milestone")
 	assert.Contains(t, tool.InputSchema.Properties, "type")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "issue_number"})
+	assert.Contains(t, tool.InputSchema.Properties, "state")
+	assert.Contains(t, tool.InputSchema.Properties, "state_reason")
+	assert.Contains(t, tool.InputSchema.Properties, "duplicate_of")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo"})
 
-	// Setup mock issue for success case
-	mockIssue := &github.Issue{
+	// Mock issues for reuse across test cases
+	mockBaseIssue := &github.Issue{
 		Number:    github.Ptr(123),
-		Title:     github.Ptr("Updated Issue Title"),
-		Body:      github.Ptr("Updated issue description"),
-		State:     github.Ptr("closed"),
+		Title:     github.Ptr("Title"),
+		Body:      github.Ptr("Description"),
+		State:     github.Ptr("open"),
 		HTMLURL:   github.Ptr("https://github.com/owner/repo/issues/123"),
 		Assignees: []*github.User{{Login: github.Ptr("assignee1")}, {Login: github.Ptr("assignee2")}},
 		Labels:    []*github.Label{{Name: github.Ptr("bug")}, {Name: github.Ptr("priority")}},
@@ -1063,124 +1317,425 @@ func Test_UpdateIssue(t *testing.T) {
 		Type:      &github.IssueType{Name: github.Ptr("Bug")},
 	}
 
+	mockUpdatedIssue := &github.Issue{
+		Number:      github.Ptr(123),
+		Title:       github.Ptr("Updated Title"),
+		Body:        github.Ptr("Updated Description"),
+		State:       github.Ptr("closed"),
+		StateReason: github.Ptr("duplicate"),
+		HTMLURL:     github.Ptr("https://github.com/owner/repo/issues/123"),
+		Assignees:   []*github.User{{Login: github.Ptr("assignee1")}, {Login: github.Ptr("assignee2")}},
+		Labels:      []*github.Label{{Name: github.Ptr("bug")}, {Name: github.Ptr("priority")}},
+		Milestone:   &github.Milestone{Number: github.Ptr(5)},
+		Type:        &github.IssueType{Name: github.Ptr("Bug")},
+	}
+
+	mockReopenedIssue := &github.Issue{
+		Number:      github.Ptr(123),
+		Title:       github.Ptr("Title"),
+		State:       github.Ptr("open"),
+		StateReason: github.Ptr("reopened"),
+		HTMLURL:     github.Ptr("https://github.com/owner/repo/issues/123"),
+	}
+
+	// Mock GraphQL responses for reuse across test cases
+	issueIDQueryResponse := githubv4mock.DataResponse(map[string]any{
+		"repository": map[string]any{
+			"issue": map[string]any{
+				"id": "I_kwDOA0xdyM50BPaO",
+			},
+		},
+	})
+
+	duplicateIssueIDQueryResponse := githubv4mock.DataResponse(map[string]any{
+		"repository": map[string]any{
+			"issue": map[string]any{
+				"id": "I_kwDOA0xdyM50BPaO",
+			},
+			"duplicateIssue": map[string]any{
+				"id": "I_kwDOA0xdyM50BPbP",
+			},
+		},
+	})
+
+	closeSuccessResponse := githubv4mock.DataResponse(map[string]any{
+		"closeIssue": map[string]any{
+			"issue": map[string]any{
+				"id":     "I_kwDOA0xdyM50BPaO",
+				"number": 123,
+				"url":    "https://github.com/owner/repo/issues/123",
+				"state":  "CLOSED",
+			},
+		},
+	})
+
+	reopenSuccessResponse := githubv4mock.DataResponse(map[string]any{
+		"reopenIssue": map[string]any{
+			"issue": map[string]any{
+				"id":     "I_kwDOA0xdyM50BPaO",
+				"number": 123,
+				"url":    "https://github.com/owner/repo/issues/123",
+				"state":  "OPEN",
+			},
+		},
+	})
+
+	duplicateStateReason := IssueClosedStateReasonDuplicate
+
 	tests := []struct {
-		name           string
-		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
-		expectError    bool
-		expectedIssue  *github.Issue
-		expectedErrMsg string
+		name             string
+		mockedRESTClient *http.Client
+		mockedGQLClient  *http.Client
+		requestArgs      map[string]interface{}
+		expectError      bool
+		expectedIssue    *github.Issue
+		expectedErrMsg   string
 	}{
 		{
-			name: "update issue with all fields",
-			mockedClient: mock.NewMockedHTTPClient(
+			name: "partial update of non-state fields only",
+			mockedRESTClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
 					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
-					expectRequestBody(t, map[string]any{
-						"title":     "Updated Issue Title",
-						"body":      "Updated issue description",
-						"state":     "closed",
+					expectRequestBody(t, map[string]interface{}{
+						"title": "Updated Title",
+						"body":  "Updated Description",
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockUpdatedIssue),
+					),
+				),
+			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(),
+			requestArgs: map[string]interface{}{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				"title":        "Updated Title",
+				"body":         "Updated Description",
+			},
+			expectError:   false,
+			expectedIssue: mockUpdatedIssue,
+		},
+		{
+			name: "issue not found when updating non-state fields only",
+			mockedRESTClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(),
+			requestArgs: map[string]interface{}{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(999),
+				"title":        "Updated Title",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to update issue",
+		},
+		{
+			name: "close issue as duplicate",
+			mockedRESTClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
+					mockBaseIssue,
+				),
+			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							Issue struct {
+								ID githubv4.ID
+							} `graphql:"issue(number: $issueNumber)"`
+							DuplicateIssue struct {
+								ID githubv4.ID
+							} `graphql:"duplicateIssue: issue(number: $duplicateOf)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner":       githubv4.String("owner"),
+						"repo":        githubv4.String("repo"),
+						"issueNumber": githubv4.Int(123),
+						"duplicateOf": githubv4.Int(456),
+					},
+					duplicateIssueIDQueryResponse,
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						CloseIssue struct {
+							Issue struct {
+								ID     githubv4.ID
+								Number githubv4.Int
+								URL    githubv4.String
+								State  githubv4.String
+							}
+						} `graphql:"closeIssue(input: $input)"`
+					}{},
+					CloseIssueInput{
+						IssueID:          "I_kwDOA0xdyM50BPaO",
+						StateReason:      &duplicateStateReason,
+						DuplicateIssueID: githubv4.NewID("I_kwDOA0xdyM50BPbP"),
+					},
+					nil,
+					closeSuccessResponse,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				"state":        "closed",
+				"state_reason": "duplicate",
+				"duplicate_of": float64(456),
+			},
+			expectError:   false,
+			expectedIssue: mockUpdatedIssue,
+		},
+		{
+			name: "reopen issue",
+			mockedRESTClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
+					mockBaseIssue,
+				),
+			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							Issue struct {
+								ID githubv4.ID
+							} `graphql:"issue(number: $issueNumber)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner":       githubv4.String("owner"),
+						"repo":        githubv4.String("repo"),
+						"issueNumber": githubv4.Int(123),
+					},
+					issueIDQueryResponse,
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						ReopenIssue struct {
+							Issue struct {
+								ID     githubv4.ID
+								Number githubv4.Int
+								URL    githubv4.String
+								State  githubv4.String
+							}
+						} `graphql:"reopenIssue(input: $input)"`
+					}{},
+					githubv4.ReopenIssueInput{
+						IssueID: "I_kwDOA0xdyM50BPaO",
+					},
+					nil,
+					reopenSuccessResponse,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				"state":        "open",
+			},
+			expectError:   false,
+			expectedIssue: mockReopenedIssue,
+		},
+		{
+			name: "main issue not found when trying to close it",
+			mockedRESTClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
+					mockBaseIssue,
+				),
+			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							Issue struct {
+								ID githubv4.ID
+							} `graphql:"issue(number: $issueNumber)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner":       githubv4.String("owner"),
+						"repo":        githubv4.String("repo"),
+						"issueNumber": githubv4.Int(999),
+					},
+					githubv4mock.ErrorResponse("Could not resolve to an Issue with the number of 999."),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(999),
+				"state":        "closed",
+				"state_reason": "not_planned",
+			},
+			expectError:    true,
+			expectedErrMsg: "Failed to find issues",
+		},
+		{
+			name: "duplicate issue not found when closing as duplicate",
+			mockedRESTClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
+					mockBaseIssue,
+				),
+			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							Issue struct {
+								ID githubv4.ID
+							} `graphql:"issue(number: $issueNumber)"`
+							DuplicateIssue struct {
+								ID githubv4.ID
+							} `graphql:"duplicateIssue: issue(number: $duplicateOf)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner":       githubv4.String("owner"),
+						"repo":        githubv4.String("repo"),
+						"issueNumber": githubv4.Int(123),
+						"duplicateOf": githubv4.Int(999),
+					},
+					githubv4mock.ErrorResponse("Could not resolve to an Issue with the number of 999."),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"method":       "update",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				"state":        "closed",
+				"state_reason": "duplicate",
+				"duplicate_of": float64(999),
+			},
+			expectError:    true,
+			expectedErrMsg: "Failed to find issues",
+		},
+		{
+			name: "close as duplicate with combined non-state updates",
+			mockedRESTClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
+					expectRequestBody(t, map[string]interface{}{
+						"title":     "Updated Title",
+						"body":      "Updated Description",
 						"labels":    []any{"bug", "priority"},
 						"assignees": []any{"assignee1", "assignee2"},
 						"milestone": float64(5),
 						"type":      "Bug",
 					}).andThen(
-						mockResponse(t, http.StatusOK, mockIssue),
+						mockResponse(t, http.StatusOK, &github.Issue{
+							Number:    github.Ptr(123),
+							Title:     github.Ptr("Updated Title"),
+							Body:      github.Ptr("Updated Description"),
+							Labels:    []*github.Label{{Name: github.Ptr("bug")}, {Name: github.Ptr("priority")}},
+							Assignees: []*github.User{{Login: github.Ptr("assignee1")}, {Login: github.Ptr("assignee2")}},
+							Milestone: &github.Milestone{Number: github.Ptr(5)},
+							Type:      &github.IssueType{Name: github.Ptr("Bug")},
+							State:     github.Ptr("open"), // Still open after REST update
+							HTMLURL:   github.Ptr("https://github.com/owner/repo/issues/123"),
+						}),
 					),
 				),
 			),
+			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							Issue struct {
+								ID githubv4.ID
+							} `graphql:"issue(number: $issueNumber)"`
+							DuplicateIssue struct {
+								ID githubv4.ID
+							} `graphql:"duplicateIssue: issue(number: $duplicateOf)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner":       githubv4.String("owner"),
+						"repo":        githubv4.String("repo"),
+						"issueNumber": githubv4.Int(123),
+						"duplicateOf": githubv4.Int(456),
+					},
+					duplicateIssueIDQueryResponse,
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						CloseIssue struct {
+							Issue struct {
+								ID     githubv4.ID
+								Number githubv4.Int
+								URL    githubv4.String
+								State  githubv4.String
+							}
+						} `graphql:"closeIssue(input: $input)"`
+					}{},
+					CloseIssueInput{
+						IssueID:          "I_kwDOA0xdyM50BPaO",
+						StateReason:      &duplicateStateReason,
+						DuplicateIssueID: githubv4.NewID("I_kwDOA0xdyM50BPbP"),
+					},
+					nil,
+					closeSuccessResponse,
+				),
+			),
 			requestArgs: map[string]interface{}{
+				"method":       "update",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(123),
-				"title":        "Updated Issue Title",
-				"body":         "Updated issue description",
-				"state":        "closed",
+				"title":        "Updated Title",
+				"body":         "Updated Description",
 				"labels":       []any{"bug", "priority"},
 				"assignees":    []any{"assignee1", "assignee2"},
 				"milestone":    float64(5),
 				"type":         "Bug",
+				"state":        "closed",
+				"state_reason": "duplicate",
+				"duplicate_of": float64(456),
 			},
 			expectError:   false,
-			expectedIssue: mockIssue,
+			expectedIssue: mockUpdatedIssue,
 		},
 		{
-			name: "update issue with minimal fields",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusOK, &github.Issue{
-						Number:  github.Ptr(123),
-						Title:   github.Ptr("Updated Issue Title"),
-						HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
-						State:   github.Ptr("open"),
-						Type:    &github.IssueType{Name: github.Ptr("Feature")},
-					}),
-				),
-			),
+			name:             "duplicate_of without duplicate state_reason should fail",
+			mockedRESTClient: mock.NewMockedHTTPClient(),
+			mockedGQLClient:  githubv4mock.NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
+				"method":       "update",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(123),
-				"title":        "Updated Issue Title",
-				"type":         "Feature",
-			},
-			expectError: false,
-			expectedIssue: &github.Issue{
-				Number:  github.Ptr(123),
-				Title:   github.Ptr("Updated Issue Title"),
-				HTMLURL: github.Ptr("https://github.com/owner/repo/issues/123"),
-				State:   github.Ptr("open"),
-				Type:    &github.IssueType{Name: github.Ptr("Feature")},
-			},
-		},
-		{
-			name: "update issue fails with not found",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Issue not found"}`))
-					}),
-				),
-			),
-			requestArgs: map[string]interface{}{
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(999),
-				"title":        "This issue doesn't exist",
+				"state":        "closed",
+				"state_reason": "completed",
+				"duplicate_of": float64(456),
 			},
 			expectError:    true,
-			expectedErrMsg: "failed to update issue",
-		},
-		{
-			name: "update issue fails with validation error",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusUnprocessableEntity)
-						_, _ = w.Write([]byte(`{"message": "Invalid state value"}`))
-					}),
-				),
-			),
-			requestArgs: map[string]interface{}{
-				"owner":        "owner",
-				"repo":         "repo",
-				"issue_number": float64(123),
-				"state":        "invalid_state",
-			},
-			expectError:    true,
-			expectedErrMsg: "failed to update issue",
+			expectedErrMsg: "duplicate_of can only be used when state_reason is 'duplicate'",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
-			_, handler := UpdateIssue(stubGetClientFn(client), translations.NullTranslationHelper)
+			// Setup clients with mocks
+			restClient := github.NewClient(tc.mockedRESTClient)
+			gqlClient := githubv4.NewClient(tc.mockedGQLClient)
+			_, handler := IssueWrite(stubGetClientFn(restClient), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1189,21 +1744,24 @@ func Test_UpdateIssue(t *testing.T) {
 			result, err := handler(context.Background(), request)
 
 			// Verify results
-			if tc.expectError {
-				if err != nil {
-					assert.Contains(t, err.Error(), tc.expectedErrMsg)
-				} else {
-					// For errors returned as part of the result, not as an error
-					require.NotNil(t, result)
-					textContent := getTextResult(t, result)
-					assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+			if tc.expectError || tc.expectedErrMsg != "" {
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				if tc.expectedErrMsg != "" {
+					assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
 				}
 				return
 			}
 
 			require.NoError(t, err)
+			if result.IsError {
+				t.Fatalf("Unexpected error result: %s", getErrorResult(t, result).Text)
+			}
 
-			// Parse the result and get the text content if no error
+			require.False(t, result.IsError)
+
+			// Parse the result and get the text content
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the minimal result
@@ -1269,17 +1827,19 @@ func Test_ParseISOTimestamp(t *testing.T) {
 func Test_GetIssueComments(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := GetIssueComments(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	gqlClient := githubv4.NewClient(nil)
+	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "get_issue_comments", tool.Name)
+	assert.Equal(t, "issue_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "method")
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
 	assert.Contains(t, tool.InputSchema.Properties, "page")
 	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "issue_number"})
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number"})
 
 	// Setup mock comments for success case
 	mockComments := []*github.IssueComment{
@@ -1304,10 +1864,12 @@ func Test_GetIssueComments(t *testing.T) {
 	tests := []struct {
 		name             string
 		mockedClient     *http.Client
+		gqlHTTPClient    *http.Client
 		requestArgs      map[string]interface{}
 		expectError      bool
 		expectedComments []*github.IssueComment
 		expectedErrMsg   string
+		lockdownEnabled  bool
 	}{
 		{
 			name: "successful comments retrieval",
@@ -1318,6 +1880,7 @@ func Test_GetIssueComments(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "get_comments",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -1339,6 +1902,7 @@ func Test_GetIssueComments(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "get_comments",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -1357,6 +1921,7 @@ func Test_GetIssueComments(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "get_comments",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(999),
@@ -1364,13 +1929,57 @@ func Test_GetIssueComments(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to get issue comments",
 		},
+		{
+			name: "lockdown enabled filters comments without push access",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposIssuesCommentsByOwnerByRepoByIssueNumber,
+					[]*github.IssueComment{
+						{
+							ID:   github.Ptr(int64(789)),
+							Body: github.Ptr("Maintainer comment"),
+							User: &github.User{Login: github.Ptr("maintainer")},
+						},
+						{
+							ID:   github.Ptr(int64(790)),
+							Body: github.Ptr("External user comment"),
+							User: &github.User{Login: github.Ptr("testuser")},
+						},
+					},
+				),
+			),
+			gqlHTTPClient: newRepoAccessHTTPClient(),
+			requestArgs: map[string]interface{}{
+				"method":       "get_comments",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectError: false,
+			expectedComments: []*github.IssueComment{
+				{
+					ID:   github.Ptr(int64(789)),
+					Body: github.Ptr("Maintainer comment"),
+					User: &github.User{Login: github.Ptr("maintainer")},
+				},
+			},
+			lockdownEnabled: true,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetIssueComments(stubGetClientFn(client), translations.NullTranslationHelper)
+			var gqlClient *githubv4.Client
+			if tc.gqlHTTPClient != nil {
+				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
+			} else {
+				gqlClient = githubv4.NewClient(nil)
+			}
+			cache := stubRepoAccessCache(gqlClient, 15*time.Minute)
+			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
+			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), cache, translations.NullTranslationHelper, flags)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1393,9 +2002,114 @@ func Test_GetIssueComments(t *testing.T) {
 			err = json.Unmarshal([]byte(textContent.Text), &returnedComments)
 			require.NoError(t, err)
 			assert.Equal(t, len(tc.expectedComments), len(returnedComments))
-			if len(returnedComments) > 0 {
-				assert.Equal(t, *tc.expectedComments[0].Body, *returnedComments[0].Body)
-				assert.Equal(t, *tc.expectedComments[0].User.Login, *returnedComments[0].User.Login)
+			for i := range tc.expectedComments {
+				require.NotNil(t, tc.expectedComments[i].User)
+				require.NotNil(t, returnedComments[i].User)
+				assert.Equal(t, tc.expectedComments[i].GetID(), returnedComments[i].GetID())
+				assert.Equal(t, tc.expectedComments[i].GetBody(), returnedComments[i].GetBody())
+				assert.Equal(t, tc.expectedComments[i].GetUser().GetLogin(), returnedComments[i].GetUser().GetLogin())
+			}
+		})
+	}
+}
+
+func Test_GetIssueLabels(t *testing.T) {
+	t.Parallel()
+
+	// Verify tool definition
+	mockGQClient := githubv4.NewClient(nil)
+	mockClient := github.NewClient(nil)
+	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(mockGQClient), stubRepoAccessCache(mockGQClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "issue_read", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "method")
+	assert.Contains(t, tool.InputSchema.Properties, "owner")
+	assert.Contains(t, tool.InputSchema.Properties, "repo")
+	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number"})
+
+	tests := []struct {
+		name               string
+		requestArgs        map[string]any
+		mockedClient       *http.Client
+		expectToolError    bool
+		expectedToolErrMsg string
+	}{
+		{
+			name: "successful issue labels listing",
+			requestArgs: map[string]any{
+				"method":       "get_labels",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							Issue struct {
+								Labels struct {
+									Nodes []struct {
+										ID          githubv4.ID
+										Name        githubv4.String
+										Color       githubv4.String
+										Description githubv4.String
+									}
+									TotalCount githubv4.Int
+								} `graphql:"labels(first: 100)"`
+							} `graphql:"issue(number: $issueNumber)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner":       githubv4.String("owner"),
+						"repo":        githubv4.String("repo"),
+						"issueNumber": githubv4.Int(123),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"issue": map[string]any{
+								"labels": map[string]any{
+									"nodes": []any{
+										map[string]any{
+											"id":          githubv4.ID("label-1"),
+											"name":        githubv4.String("bug"),
+											"color":       githubv4.String("d73a4a"),
+											"description": githubv4.String("Something isn't working"),
+										},
+									},
+									"totalCount": githubv4.Int(1),
+								},
+							},
+						},
+					}),
+				),
+			),
+			expectToolError: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gqlClient := githubv4.NewClient(tc.mockedClient)
+			client := github.NewClient(nil)
+			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(context.Background(), request)
+
+			require.NoError(t, err)
+			assert.NotNil(t, result)
+
+			if tc.expectToolError {
+				assert.True(t, result.IsError)
+				if tc.expectedToolErrMsg != "" {
+					textContent := getErrorResult(t, result)
+					assert.Contains(t, textContent.Text, tc.expectedToolErrMsg)
+				}
+			} else {
+				assert.False(t, result.IsError)
 			}
 		})
 	}
@@ -1824,17 +2538,18 @@ func TestAssignCopilotToIssue(t *testing.T) {
 func Test_AddSubIssue(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := AddSubIssue(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := SubIssueWrite(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "add_sub_issue", tool.Name)
+	assert.Equal(t, "sub_issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "method")
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
 	assert.Contains(t, tool.InputSchema.Properties, "sub_issue_id")
 	assert.Contains(t, tool.InputSchema.Properties, "replace_parent")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "issue_number", "sub_issue_id"})
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number", "sub_issue_id"})
 
 	// Setup mock issue for success case (matches GitHub API response format)
 	mockIssue := &github.Issue{
@@ -1872,6 +2587,7 @@ func Test_AddSubIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":         "add",
 				"owner":          "owner",
 				"repo":           "repo",
 				"issue_number":   float64(42),
@@ -1890,6 +2606,7 @@ func Test_AddSubIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "add",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -1907,6 +2624,7 @@ func Test_AddSubIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":         "add",
 				"owner":          "owner",
 				"repo":           "repo",
 				"issue_number":   float64(42),
@@ -1925,6 +2643,7 @@ func Test_AddSubIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "add",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(999),
@@ -1942,6 +2661,7 @@ func Test_AddSubIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "add",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -1959,6 +2679,7 @@ func Test_AddSubIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "add",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -1976,6 +2697,7 @@ func Test_AddSubIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "add",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -1990,6 +2712,7 @@ func Test_AddSubIssue(t *testing.T) {
 			// No mocked requests needed since validation fails before HTTP call
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "add",
 				"repo":         "repo",
 				"issue_number": float64(42),
 				"sub_issue_id": float64(123),
@@ -2003,6 +2726,7 @@ func Test_AddSubIssue(t *testing.T) {
 			// No mocked requests needed since validation fails before HTTP call
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "add",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -2016,7 +2740,7 @@ func Test_AddSubIssue(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := AddSubIssue(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := SubIssueWrite(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -2057,20 +2781,22 @@ func Test_AddSubIssue(t *testing.T) {
 	}
 }
 
-func Test_ListSubIssues(t *testing.T) {
+func Test_GetSubIssues(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := ListSubIssues(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	gqlClient := githubv4.NewClient(nil)
+	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "list_sub_issues", tool.Name)
+	assert.Equal(t, "issue_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "method")
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
 	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.Contains(t, tool.InputSchema.Properties, "per_page")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "issue_number"})
+	assert.Contains(t, tool.InputSchema.Properties, "perPage")
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number"})
 
 	// Setup mock sub-issues for success case
 	mockSubIssues := []*github.Issue{
@@ -2123,6 +2849,7 @@ func Test_ListSubIssues(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "get_sub_issues",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -2144,11 +2871,12 @@ func Test_ListSubIssues(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "get_sub_issues",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
 				"page":         float64(2),
-				"per_page":     float64(10),
+				"perPage":      float64(10),
 			},
 			expectError:       false,
 			expectedSubIssues: mockSubIssues,
@@ -2162,6 +2890,7 @@ func Test_ListSubIssues(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "get_sub_issues",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -2178,6 +2907,7 @@ func Test_ListSubIssues(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "get_sub_issues",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(999),
@@ -2194,6 +2924,7 @@ func Test_ListSubIssues(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "get_sub_issues",
 				"owner":        "nonexistent",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -2210,6 +2941,7 @@ func Test_ListSubIssues(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "get_sub_issues",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -2223,6 +2955,7 @@ func Test_ListSubIssues(t *testing.T) {
 			// No mocked requests needed since validation fails before HTTP call
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "get_sub_issues",
 				"repo":         "repo",
 				"issue_number": float64(42),
 			},
@@ -2235,8 +2968,9 @@ func Test_ListSubIssues(t *testing.T) {
 			// No mocked requests needed since validation fails before HTTP call
 			),
 			requestArgs: map[string]interface{}{
-				"owner": "owner",
-				"repo":  "repo",
+				"method": "get_sub_issues",
+				"owner":  "owner",
+				"repo":   "repo",
 			},
 			expectError:    false,
 			expectedErrMsg: "missing required parameter: issue_number",
@@ -2247,7 +2981,8 @@ func Test_ListSubIssues(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListSubIssues(stubGetClientFn(client), translations.NullTranslationHelper)
+			gqlClient := githubv4.NewClient(nil)
+			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -2300,16 +3035,17 @@ func Test_ListSubIssues(t *testing.T) {
 func Test_RemoveSubIssue(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := RemoveSubIssue(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := SubIssueWrite(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "remove_sub_issue", tool.Name)
+	assert.Equal(t, "sub_issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "method")
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
 	assert.Contains(t, tool.InputSchema.Properties, "sub_issue_id")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "issue_number", "sub_issue_id"})
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number", "sub_issue_id"})
 
 	// Setup mock issue for success case (matches GitHub API response format - the updated parent issue)
 	mockIssue := &github.Issue{
@@ -2347,6 +3083,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "remove",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -2364,6 +3101,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "remove",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(999),
@@ -2381,6 +3119,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "remove",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -2398,6 +3137,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "remove",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -2415,6 +3155,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "remove",
 				"owner":        "nonexistent",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -2432,6 +3173,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "remove",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -2446,6 +3188,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 			// No mocked requests needed since validation fails before HTTP call
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "remove",
 				"repo":         "repo",
 				"issue_number": float64(42),
 				"sub_issue_id": float64(123),
@@ -2459,6 +3202,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 			// No mocked requests needed since validation fails before HTTP call
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "remove",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -2472,7 +3216,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := RemoveSubIssue(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := SubIssueWrite(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -2516,18 +3260,19 @@ func Test_RemoveSubIssue(t *testing.T) {
 func Test_ReprioritizeSubIssue(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := ReprioritizeSubIssue(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	tool, _ := SubIssueWrite(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "reprioritize_sub_issue", tool.Name)
+	assert.Equal(t, "sub_issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.Properties, "method")
 	assert.Contains(t, tool.InputSchema.Properties, "owner")
 	assert.Contains(t, tool.InputSchema.Properties, "repo")
 	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
 	assert.Contains(t, tool.InputSchema.Properties, "sub_issue_id")
 	assert.Contains(t, tool.InputSchema.Properties, "after_id")
 	assert.Contains(t, tool.InputSchema.Properties, "before_id")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "issue_number", "sub_issue_id"})
+	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number", "sub_issue_id"})
 
 	// Setup mock issue for success case (matches GitHub API response format - the updated parent issue)
 	mockIssue := &github.Issue{
@@ -2565,6 +3310,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "reprioritize",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -2583,6 +3329,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "reprioritize",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -2598,6 +3345,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 			// No mocked requests needed since validation fails before HTTP call
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "reprioritize",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -2612,6 +3360,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 			// No mocked requests needed since validation fails before HTTP call
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "reprioritize",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -2631,6 +3380,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "reprioritize",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(999),
@@ -2649,6 +3399,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "reprioritize",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -2667,6 +3418,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "reprioritize",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -2685,6 +3437,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "reprioritize",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -2703,6 +3456,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "reprioritize",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -2718,6 +3472,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 			// No mocked requests needed since validation fails before HTTP call
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "reprioritize",
 				"repo":         "repo",
 				"issue_number": float64(42),
 				"sub_issue_id": float64(123),
@@ -2732,6 +3487,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 			// No mocked requests needed since validation fails before HTTP call
 			),
 			requestArgs: map[string]interface{}{
+				"method":       "reprioritize",
 				"owner":        "owner",
 				"repo":         "repo",
 				"issue_number": float64(42),
@@ -2746,7 +3502,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ReprioritizeSubIssue(stubGetClientFn(client), translations.NullTranslationHelper)
+			_, handler := SubIssueWrite(stubGetClientFn(client), translations.NullTranslationHelper)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)

@@ -2,6 +2,8 @@ package toolsets
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -203,7 +205,17 @@ func (tg *ToolsetGroup) IsEnabled(name string) bool {
 	return feature.Enabled
 }
 
-func (tg *ToolsetGroup) EnableToolsets(names []string) error {
+type EnableToolsetsOptions struct {
+	ErrorOnUnknown bool
+}
+
+func (tg *ToolsetGroup) EnableToolsets(names []string, options *EnableToolsetsOptions) error {
+	if options == nil {
+		options = &EnableToolsetsOptions{
+			ErrorOnUnknown: false,
+		}
+	}
+
 	// Special case for "all"
 	for _, name := range names {
 		if name == "all" {
@@ -211,7 +223,7 @@ func (tg *ToolsetGroup) EnableToolsets(names []string) error {
 			break
 		}
 		err := tg.EnableToolset(name)
-		if err != nil {
+		if err != nil && options.ErrorOnUnknown {
 			return err
 		}
 	}
@@ -219,7 +231,7 @@ func (tg *ToolsetGroup) EnableToolsets(names []string) error {
 	if tg.everythingOn {
 		for name := range tg.Toolsets {
 			err := tg.EnableToolset(name)
-			if err != nil {
+			if err != nil && options.ErrorOnUnknown {
 				return err
 			}
 		}
@@ -252,4 +264,69 @@ func (tg *ToolsetGroup) GetToolset(name string) (*Toolset, error) {
 		return nil, NewToolsetDoesNotExistError(name)
 	}
 	return toolset, nil
+}
+
+type ToolDoesNotExistError struct {
+	Name string
+}
+
+func (e *ToolDoesNotExistError) Error() string {
+	return fmt.Sprintf("tool %s does not exist", e.Name)
+}
+
+func NewToolDoesNotExistError(name string) *ToolDoesNotExistError {
+	return &ToolDoesNotExistError{Name: name}
+}
+
+// FindToolByName searches all toolsets (enabled or disabled) for a tool by name.
+// Returns the tool, its parent toolset name, and an error if not found.
+func (tg *ToolsetGroup) FindToolByName(toolName string) (*server.ServerTool, string, error) {
+	for toolsetName, toolset := range tg.Toolsets {
+		// Check read tools
+		for _, tool := range toolset.readTools {
+			if tool.Tool.Name == toolName {
+				return &tool, toolsetName, nil
+			}
+		}
+		// Check write tools
+		for _, tool := range toolset.writeTools {
+			if tool.Tool.Name == toolName {
+				return &tool, toolsetName, nil
+			}
+		}
+	}
+	return nil, "", NewToolDoesNotExistError(toolName)
+}
+
+// RegisterSpecificTools registers only the specified tools.
+// Respects read-only mode (skips write tools if readOnly=true).
+// Returns error if any tool is not found.
+func (tg *ToolsetGroup) RegisterSpecificTools(s *server.MCPServer, toolNames []string, readOnly bool) error {
+	var skippedTools []string
+	for _, toolName := range toolNames {
+		tool, _, err := tg.FindToolByName(toolName)
+		if err != nil {
+			return fmt.Errorf("tool %s not found: %w", toolName, err)
+		}
+
+		// Check if it's a write tool and we're in read-only mode
+		if tool.Tool.Annotations.ReadOnlyHint != nil {
+			isWriteTool := !*tool.Tool.Annotations.ReadOnlyHint
+			if isWriteTool && readOnly {
+				// Skip write tools in read-only mode
+				skippedTools = append(skippedTools, toolName)
+				continue
+			}
+		}
+
+		// Register the tool
+		s.AddTool(tool.Tool, tool.Handler)
+	}
+
+	// Log skipped write tools if any
+	if len(skippedTools) > 0 {
+		fmt.Fprintf(os.Stderr, "Write tools skipped due to read-only mode: %s\n", strings.Join(skippedTools, ", "))
+	}
+
+	return nil
 }

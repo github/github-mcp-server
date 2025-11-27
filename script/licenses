@@ -14,8 +14,8 @@ for goos in linux darwin windows ; do
     #
     #       Normally these warnings are packages containing non go code, which may or may not require explicit attribution,
     #       depending on the license.
-    GOOS="${goos}" go-licenses save ./... --save_path="${TEMPDIR}/${goos}" --force || echo "Ignore warnings"
-    GOOS="${goos}" go-licenses report ./... --template .github/licenses.tmpl > third-party-licenses.${goos}.md || echo "Ignore warnings"
+    GOOS="${goos}" GOFLAGS=-mod=mod go-licenses save ./... --save_path="${TEMPDIR}/${goos}" --force || echo "Ignore warnings"
+    GOOS="${goos}" GOFLAGS=-mod=mod go-licenses report ./... --template .github/licenses.tmpl > third-party-licenses.${goos}.md || echo "Ignore warnings"
     cp -fR "${TEMPDIR}/${goos}"/* third-party/
 done
 
