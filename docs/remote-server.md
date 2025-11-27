@@ -53,7 +53,7 @@ These toolsets are only available in the remote GitHub MCP Server and are not in
 
 ### Optional Headers
 
-The Remote GitHub MCP server has optional headers equivalent to the Local server env vars:
+The Remote GitHub MCP server has optional headers equivalent to the Local server env vars or flags:
 
 - `X-MCP-Toolsets`: Comma-separated list of toolsets to enable. E.g. "repos,issues".
     - Equivalent to `GITHUB_TOOLSETS` env var or `--toolsets` flag for Local server.
