@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/toolsets"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -159,7 +160,7 @@ func GetDefaultToolsetIDs() []string {
 	}
 }
 
-func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetGQLClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc, contentWindowSize int, flags FeatureFlags) *toolsets.ToolsetGroup {
+func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetGQLClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc, contentWindowSize int, flags FeatureFlags, cache *lockdown.RepoAccessCache) *toolsets.ToolsetGroup {
 	tsg := toolsets.NewToolsetGroup(readOnly)
 
 	// Define all available features with their default state (disabled)
@@ -199,7 +200,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		)
 	issues := toolsets.NewToolset(ToolsetMetadataIssues.ID, ToolsetMetadataIssues.Description).
 		AddReadTools(
-			toolsets.NewServerTool(IssueRead(getClient, getGQLClient, t, flags)),
+			toolsets.NewServerTool(IssueRead(getClient, getGQLClient, cache, t, flags)),
 			toolsets.NewServerTool(SearchIssues(getClient, t)),
 			toolsets.NewServerTool(ListIssues(getGQLClient, t)),
 			toolsets.NewServerTool(ListIssueTypes(getClient, t)),
@@ -224,7 +225,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		)
 	pullRequests := toolsets.NewToolset(ToolsetMetadataPullRequests.ID, ToolsetMetadataPullRequests.Description).
 		AddReadTools(
-			toolsets.NewServerTool(PullRequestRead(getClient, t, flags)),
+			toolsets.NewServerTool(PullRequestRead(getClient, cache, t, flags)),
 			toolsets.NewServerTool(ListPullRequests(getClient, t)),
 			toolsets.NewServerTool(SearchPullRequests(getClient, t)),
 		).
@@ -522,4 +523,25 @@ func ContainsToolset(tools []string, toCheck string) bool {
 		}
 	}
 	return false
+}
+
+// CleanTools cleans tool names by removing duplicates and trimming whitespace.
+// Validation of tool existence is done during registration.
+func CleanTools(toolNames []string) []string {
+	seen := make(map[string]bool)
+	result := make([]string, 0, len(toolNames))
+
+	// Remove duplicates and trim whitespace
+	for _, tool := range toolNames {
+		trimmed := strings.TrimSpace(tool)
+		if trimmed == "" {
+			continue
+		}
+		if !seen[trimmed] {
+			seen[trimmed] = true
+			result = append(result, trimmed)
+		}
+	}
+
+	return result
 }

@@ -1,3 +1,5 @@
+[![Go Report Card](https://goreportcard.com/badge/github.com/github/github-mcp-server)](https://goreportcard.com/report/github.com/github/github-mcp-server)
+
 # GitHub MCP Server
 
 The GitHub MCP Server connects AI tools directly to GitHub's platform. This gives AI agents, assistants, and chatbots the ability to read repositories and code files, manage issues and PRs, analyze code, and automate workflows. All through natural language interactions.
@@ -343,6 +345,38 @@ To specify toolsets you want available to the LLM, you can pass an allow-list in
 
 The environment variable `GITHUB_TOOLSETS` takes precedence over the command line argument if both are provided.
 
+#### Specifying Individual Tools
+
+You can also configure specific tools using the `--tools` flag. Tools can be used independently or combined with toolsets and dynamic toolsets discovery for fine-grained control.
+
+1. **Using Command Line Argument**:
+
+   ```bash
+   github-mcp-server --tools get_file_contents,issue_read,create_pull_request
+   ```
+
+2. **Using Environment Variable**:
+   ```bash
+   GITHUB_TOOLS="get_file_contents,issue_read,create_pull_request" ./github-mcp-server
+   ```
+
+3. **Combining with Toolsets** (additive):
+   ```bash
+   github-mcp-server --toolsets repos,issues --tools get_gist
+   ```
+   This registers all tools from `repos` and `issues` toolsets, plus `get_gist`.
+
+4. **Combining with Dynamic Toolsets** (additive):
+   ```bash
+   github-mcp-server --tools get_file_contents --dynamic-toolsets
+   ```
+   This registers `get_file_contents` plus the dynamic toolset tools (`enable_toolset`, `list_available_toolsets`, `get_toolset_tools`).
+
+**Important Notes:**
+- Tools, toolsets, and dynamic toolsets can all be used together
+- Read-only mode takes priority: write tools are skipped if `--read-only` is set, even if explicitly requested via `--tools`
+- Tool names must match exactly (e.g., `get_file_contents`, not `getFileContents`). Invalid tool names will cause the server to fail at startup with an error message
+
 ### Using Toolsets With Docker
 
 When using Docker, you can pass the toolsets as environment variables:
@@ -351,6 +385,25 @@ When using Docker, you can pass the toolsets as environment variables:
 docker run -i --rm \
   -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
   -e GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security,experiments" \
+  ghcr.io/github/github-mcp-server
+```
+
+### Using Tools With Docker
+
+When using Docker, you can pass specific tools as environment variables. You can also combine tools with toolsets:
+
+```bash
+# Tools only
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_TOOLS="get_file_contents,issue_read,create_pull_request" \
+  ghcr.io/github/github-mcp-server
+
+# Tools combined with toolsets (additive)
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_TOOLSETS="repos,issues" \
+  -e GITHUB_TOOLS="get_gist" \
   ghcr.io/github/github-mcp-server
 ```
 
@@ -1264,7 +1317,7 @@ docker run -i --rm \
 
 ## Lockdown Mode
 
-Lockdown mode limits the content that the server will surface from public repositories. When enabled, requests that fetch issue details will return an error if the issue was created by someone who does not have push access to the repository. Private repositories are unaffected, and collaborators can still access their own issues.
+Lockdown mode limits the content that the server will surface from public repositories. When enabled, the server checks whether the author of each item has push access to the repository. Private repositories are unaffected, and collaborators keep full access to their own content.
 
 ```bash
 ./github-mcp-server --lockdown-mode
@@ -1279,7 +1332,20 @@ docker run -i --rm \
   ghcr.io/github/github-mcp-server
 ```
 
-At the moment lockdown mode applies to the issue read toolset, but it is designed to extend to additional data surfaces over time.
+The behavior of lockdown mode depends on the tool invoked.
+
+Following tools will return an error when the author lacks the push access:
+
+- `issue_read:get`
+- `pull_request_read:get`
+
+Following tools will filter out content from users lacking the push access:
+
+- `issue_read:get_comments`
+- `issue_read:get_sub_issues`
+- `pull_request_read:get_comments`
+- `pull_request_read:get_review_comments`
+- `pull_request_read:get_reviews`
 
 ## i18n / Overriding Descriptions
 
