@@ -82,7 +82,7 @@ func TestRepositoryResourceCompletionHandler(t *testing.T) {
 }
 
 func TestRepositoryResourceCompletionHandler_GetClientError(t *testing.T) {
-	getClient := func(ctx context.Context) (*github.Client, error) {
+	getClient := func(_ context.Context) (*github.Client, error) {
 		return nil, errors.New("client error")
 	}
 
@@ -246,7 +246,7 @@ func TestRepositoryResourceArgumentResolvers_Existence(t *testing.T) {
 
 func TestRepositoryResourceCompletionHandler_MaxResults(t *testing.T) {
 	// Test that results are limited to 100 items
-	getClient := func(ctx context.Context) (*github.Client, error) {
+	getClient := func(_ context.Context) (*github.Client, error) {
 		return &github.Client{}, nil
 	}
 

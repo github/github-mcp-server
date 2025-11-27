@@ -143,7 +143,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	ghServer := github.NewServer(cfg.Version, &mcp.ServerOptions{
 		Instructions:      instructions,
 		Logger:            cfg.Logger,
-		CompletionHandler: github.GitHubCompletionsHandler(getClient),
+		CompletionHandler: github.CompletionsHandler(getClient),
 	})
 
 	// Add middlewares
