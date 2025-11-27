@@ -1027,7 +1027,7 @@ func SearchPullRequests(getClient GetClientFn, t translations.TranslationHelperF
 				mcp.Description("Sort order"),
 				mcp.Enum("asc", "desc"),
 			),
-			WithPagination(),
+			WithFixedCursorPagination(),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			return searchHandler(ctx, getClient, request, "pr", "failed to search pull requests")
