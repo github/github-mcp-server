@@ -171,7 +171,7 @@ Enable entire toolsets, then add individual tools from toolsets you don't want f
 
 ### Read-Only Mode
 
-**Best for:** Security conscious users that want to ensure the server won't allow operations that modify issues, pull requests, repositories etc.
+**Best for:** Security conscious users who want to ensure the server won't allow operations that modify issues, pull requests, repositories etc.
 
 When active, this mode will disable all tools that are not read-only even if they were requested.
 
