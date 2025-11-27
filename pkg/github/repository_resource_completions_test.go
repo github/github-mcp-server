@@ -64,7 +64,7 @@ func TestRepositoryResourceCompletionHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			getClient := func(ctx context.Context) (*github.Client, error) {
+			getClient := func(_ context.Context) (*github.Client, error) {
 				return &github.Client{}, nil
 			}
 
@@ -254,7 +254,7 @@ func TestRepositoryResourceCompletionHandler_MaxResults(t *testing.T) {
 
 	// Mock a resolver that returns more than 100 results
 	originalResolver := RepositoryResourceArgumentResolvers["owner"]
-	RepositoryResourceArgumentResolvers["owner"] = func(ctx context.Context, client *github.Client, resolved map[string]string, argValue string) ([]string, error) {
+	RepositoryResourceArgumentResolvers["owner"] = func(_ context.Context, _ *github.Client, _ map[string]string, _ string) ([]string, error) {
 		// Return 150 results
 		results := make([]string, 150)
 		for i := 0; i < 150; i++ {
@@ -291,7 +291,7 @@ func TestRepositoryResourceCompletionHandler_MaxResults(t *testing.T) {
 
 func TestRepositoryResourceCompletionHandler_WithContext(t *testing.T) {
 	// Test that the handler properly passes resolved context arguments
-	getClient := func(ctx context.Context) (*github.Client, error) {
+	getClient := func(_ context.Context) (*github.Client, error) {
 		return &github.Client{}, nil
 	}
 
@@ -299,7 +299,7 @@ func TestRepositoryResourceCompletionHandler_WithContext(t *testing.T) {
 
 	// Mock a resolver that just returns the resolved arguments for testing
 	originalResolver := RepositoryResourceArgumentResolvers["repo"]
-	RepositoryResourceArgumentResolvers["repo"] = func(ctx context.Context, client *github.Client, resolved map[string]string, argValue string) ([]string, error) {
+	RepositoryResourceArgumentResolvers["repo"] = func(_ context.Context, _ *github.Client, resolved map[string]string, _ string) ([]string, error) {
 		if owner, exists := resolved["owner"]; exists {
 			return []string{fmt.Sprintf("repo-for-%s", owner)}, nil
 		}
@@ -334,7 +334,7 @@ func TestRepositoryResourceCompletionHandler_WithContext(t *testing.T) {
 
 func TestRepositoryResourceCompletionHandler_NilContext(t *testing.T) {
 	// Test that the handler handles nil context gracefully
-	getClient := func(ctx context.Context) (*github.Client, error) {
+	getClient := func(_ context.Context) (*github.Client, error) {
 		return &github.Client{}, nil
 	}
 
@@ -342,7 +342,7 @@ func TestRepositoryResourceCompletionHandler_NilContext(t *testing.T) {
 
 	// Mock a resolver that checks for empty resolved map
 	originalResolver := RepositoryResourceArgumentResolvers["repo"]
-	RepositoryResourceArgumentResolvers["repo"] = func(ctx context.Context, client *github.Client, resolved map[string]string, argValue string) ([]string, error) {
+	RepositoryResourceArgumentResolvers["repo"] = func(_ context.Context, _ *github.Client, resolved map[string]string, _ string) ([]string, error) {
 		assert.NotNil(t, resolved, "Resolved map should never be nil")
 		return []string{"test-repo"}, nil
 	}

@@ -71,7 +71,7 @@ func RepositoryResourceCompletionHandler(getClient GetClientFn) func(ctx context
 
 // --- Per-argument resolver functions ---
 
-func completeOwner(ctx context.Context, client *github.Client, resolved map[string]string, argValue string) ([]string, error) {
+func completeOwner(ctx context.Context, client *github.Client, _ map[string]string, argValue string) ([]string, error) {
 	var values []string
 	user, _, err := client.Users.Get(ctx, "")
 	if err == nil && user.GetLogin() != "" {
