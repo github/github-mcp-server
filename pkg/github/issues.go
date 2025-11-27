@@ -12,6 +12,7 @@ import (
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/sanitize"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-viper/mapstructure/v2"
@@ -264,6 +265,7 @@ Options are:
 	return mcp.Tool{
 			Name:        "issue_read",
 			Description: t("TOOL_ISSUE_READ_DESCRIPTION", "Get information about a specific issue in a GitHub repository."),
+			Meta:        scopes.WithScopes(scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_ISSUE_READ_USER_TITLE", "Get issue details"),
 				ReadOnlyHint: true,
@@ -544,6 +546,7 @@ func ListIssueTypes(getClient GetClientFn, t translations.TranslationHelperFunc)
 	return mcp.Tool{
 			Name:        "list_issue_types",
 			Description: t("TOOL_LIST_ISSUE_TYPES_FOR_ORG", "List supported issue types for repository owner (organization)."),
+			Meta:        scopes.WithScopes(scopes.ReadOrg),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_ISSUE_TYPES_USER_TITLE", "List available issue types"),
 				ReadOnlyHint: true,
@@ -597,6 +600,7 @@ func AddIssueComment(getClient GetClientFn, t translations.TranslationHelperFunc
 	return mcp.Tool{
 			Name:        "add_issue_comment",
 			Description: t("TOOL_ADD_ISSUE_COMMENT_DESCRIPTION", "Add a comment to a specific issue in a GitHub repository. Use this tool to add comments to pull requests as well (in this case pass pull request number as issue_number), but only if user is not asking specifically to add review comments."),
+			Meta:        scopes.WithScopes(scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_ADD_ISSUE_COMMENT_USER_TITLE", "Add comment to issue"),
 				ReadOnlyHint: false,
@@ -678,6 +682,7 @@ func SubIssueWrite(getClient GetClientFn, t translations.TranslationHelperFunc) 
 	return mcp.Tool{
 			Name:        "sub_issue_write",
 			Description: t("TOOL_SUB_ISSUE_WRITE_DESCRIPTION", "Add a sub-issue to a parent issue in a GitHub repository."),
+			Meta:        scopes.WithScopes(scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_SUB_ISSUE_WRITE_USER_TITLE", "Change sub-issue"),
 				ReadOnlyHint: false,
@@ -945,6 +950,7 @@ func SearchIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (
 	return mcp.Tool{
 			Name:        "search_issues",
 			Description: t("TOOL_SEARCH_ISSUES_DESCRIPTION", "Search for issues in GitHub repositories using issues search syntax already scoped to is:issue"),
+			Meta:        scopes.WithScopes(scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_SEARCH_ISSUES_USER_TITLE", "Search issues"),
 				ReadOnlyHint: true,
@@ -962,6 +968,7 @@ func IssueWrite(getClient GetClientFn, getGQLClient GetGQLClientFn, t translatio
 	return mcp.Tool{
 			Name:        "issue_write",
 			Description: t("TOOL_ISSUE_WRITE_DESCRIPTION", "Create a new or update an existing issue in a GitHub repository."),
+			Meta:        scopes.WithScopes(scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_ISSUE_WRITE_USER_TITLE", "Create or update issue."),
 				ReadOnlyHint: false,
@@ -1359,6 +1366,7 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 	return mcp.Tool{
 			Name:        "list_issues",
 			Description: t("TOOL_LIST_ISSUES_DESCRIPTION", "List issues in a GitHub repository. For pagination, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter."),
+			Meta:        scopes.WithScopes(scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_ISSUES_USER_TITLE", "List issues"),
 				ReadOnlyHint: true,
@@ -1580,6 +1588,7 @@ func AssignCopilotToIssue(getGQLClient GetGQLClientFn, t translations.Translatio
 	return mcp.Tool{
 			Name:        "assign_copilot_to_issue",
 			Description: t("TOOL_ASSIGN_COPILOT_TO_ISSUE_DESCRIPTION", description.String()),
+			Meta:        scopes.WithScopes(scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:          t("TOOL_ASSIGN_COPILOT_TO_ISSUE_USER_TITLE", "Assign Copilot to issue"),
 				ReadOnlyHint:   false,

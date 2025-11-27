@@ -1,4 +1,9 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "read:org"
+    ]
+  },
   "annotations": {
     "readOnlyHint": true,
     "title": "Get teams"

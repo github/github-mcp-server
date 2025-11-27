@@ -1,4 +1,9 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "read:project"
+    ]
+  },
   "annotations": {
     "readOnlyHint": true,
     "title": "List project fields"

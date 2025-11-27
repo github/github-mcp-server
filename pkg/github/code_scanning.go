@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -19,6 +20,7 @@ func GetCodeScanningAlert(getClient GetClientFn, t translations.TranslationHelpe
 	return mcp.Tool{
 			Name:        "get_code_scanning_alert",
 			Description: t("TOOL_GET_CODE_SCANNING_ALERT_DESCRIPTION", "Get details of a specific code scanning alert in a GitHub repository."),
+			Meta:        scopes.WithScopes(scopes.SecurityEvents),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_CODE_SCANNING_ALERT_USER_TITLE", "Get code scanning alert"),
 				ReadOnlyHint: true,
@@ -92,6 +94,7 @@ func ListCodeScanningAlerts(getClient GetClientFn, t translations.TranslationHel
 	return mcp.Tool{
 			Name:        "list_code_scanning_alerts",
 			Description: t("TOOL_LIST_CODE_SCANNING_ALERTS_DESCRIPTION", "List code scanning alerts in a GitHub repository."),
+			Meta:        scopes.WithScopes(scopes.SecurityEvents),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_CODE_SCANNING_ALERTS_USER_TITLE", "List code scanning alerts"),
 				ReadOnlyHint: true,

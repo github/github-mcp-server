@@ -1,4 +1,9 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "security_events"
+    ]
+  },
   "annotations": {
     "readOnlyHint": true,
     "title": "List org repository security advisories"

@@ -1,4 +1,9 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "project"
+    ]
+  },
   "annotations": {
     "title": "Add project item"
   },
