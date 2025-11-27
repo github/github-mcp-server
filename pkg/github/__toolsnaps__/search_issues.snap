@@ -1,7 +1,8 @@
 {
   "annotations": {
     "title": "Search issues",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "openWorldHint": true
   },
   "description": "Search for issues in GitHub repositories using issues search syntax already scoped to is:issue",
   "inputSchema": {
