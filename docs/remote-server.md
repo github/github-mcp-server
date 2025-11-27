@@ -68,6 +68,8 @@ The Remote GitHub MCP server has optional headers equivalent to the Local server
     - Equivalent to `GITHUB_LOCKDOWN_MODE` env var for Local server.
     - If this header is empty, "false", "f", "no", "n", "0", or "off" (ignoring whitespace and case), it will be interpreted as false. All other values are interpreted as true.
 
+> **Looking for examples?** See the [Server Configuration Guide](https://github.com/github/github-mcp-server/tree/main/docs/server-configuration.md) for common recipes like minimal setups, read-only mode, and combining tools with toolsets.
+
 Example:
 
 ```json
