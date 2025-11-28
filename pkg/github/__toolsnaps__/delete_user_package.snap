@@ -1,0 +1,33 @@
+{
+  "annotations": {
+    "title": "Delete user package",
+    "readOnlyHint": false
+  },
+  "description": "Delete an entire package from the authenticated user's account. This will delete all versions of the package. Requires delete:packages scope.",
+  "inputSchema": {
+    "properties": {
+      "package_name": {
+        "description": "Package name",
+        "type": "string"
+      },
+      "package_type": {
+        "description": "Package type",
+        "enum": [
+          "npm",
+          "maven",
+          "rubygems",
+          "docker",
+          "nuget",
+          "container"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "package_type",
+      "package_name"
+    ],
+    "type": "object"
+  },
+  "name": "delete_user_package"
+}
