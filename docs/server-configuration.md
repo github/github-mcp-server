@@ -346,5 +346,5 @@ Lockdown mode ensures the server only surfaces content in public repositories fr
 - [README: Tool Configuration](https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration) — Full reference for toolsets, tools, and flags
 - [README: Available Toolsets](https://github.com/github/github-mcp-server?tab=readme-ov-file#available-toolsets) — Complete list of toolsets
 - [README: Tools](https://github.com/github/github-mcp-server?tab=readme-ov-file#tools) — Complete list of individual tools
-- [Remote Server Documentation](https://github.com/github/github-mcp-server/blob/main/docs/remote-server.md) — Remote-specific options and headers
+- [Remote Server Documentation](./remote-server.md) — Remote-specific options and headers
 - [Installation Guides](https://github.com/github/github-mcp-server/tree/main/docs/installation-guides) — Host-specific setup instructions
