@@ -21,7 +21,7 @@ We currently support the following ways in which the GitHub MCP Server can be co
 
 All configuration options are **composable**: you can combine toolsets, individual tools, dynamic discovery, read-only mode and lockdown mode in any way that suits your workflow.
 
-Note: **read-only** mode acts as a strict security filter that takes precedence over any other configuration, by disabling write tools are excluded even when explicitly requested. 
+Note: **read-only** mode acts as a strict security filter that takes precedence over any other configuration, by disabling write tools even when explicitly requested.
 
 ---
 
