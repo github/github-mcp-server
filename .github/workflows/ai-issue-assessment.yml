@@ -26,4 +26,4 @@ jobs:
           issue_number: ${{ github.event.issue.number }}
           issue_body: ${{ github.event.issue.body }}
           prompts_directory: '.github/prompts'
-          labels_to_prompts_mapping: 'bug,bug-report-review.prompt.yml'
+          labels_to_prompts_mapping: 'bug,bug-report-review.prompt.yml|default,default-issue-review.prompt.yml'
