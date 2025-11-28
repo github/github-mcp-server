@@ -27,7 +27,7 @@ Note: **read-only** mode acts as a strict security filter that takes precedence 
 
 ## Configuration Examples
 
-The examples below use VS Code configuration format to illustrate the concepts. If you're using a different MCP host (Cursor, Claude Desktop, JetBrains, etc.), your configuration might need to look slightly different. See [installation guides](https://github.com/github/github-mcp-server/tree/main/docs/installation-guides) for host-specific setup.
+The examples below use VS Code configuration format to illustrate the concepts. If you're using a different MCP host (Cursor, Claude Desktop, JetBrains, etc.), your configuration might need to look slightly different. See [installation guides](./installation-guides) for host-specific setup.
 
 ### Enabling Specific Tools
 
@@ -334,7 +334,7 @@ Lockdown mode ensures the server only surfaces content in public repositories fr
 
 | Problem | Cause | Solution |
 |---------|-------|----------|
-| Server fails to start | Invalid tool name in `--tools` or `X-MCP-Tools` | Check tool name spelling; use exact names from [Tools list](https://github.com/github/github-mcp-server?tab=readme-ov-file#tools) |
+| Server fails to start | Invalid tool name in `--tools` or `X-MCP-Tools` | Check tool name spelling; use exact names from [Tools list](../README.md#tools) |
 | Write tools not working | Read-only mode enabled | Remove `--read-only` flag or `X-MCP-Readonly` header |
 | Tools missing | Toolset not enabled | Add the required toolset or specific tool |
 | Dynamic tools not available | Using remote server | Dynamic mode is available in the local MCP server only |
@@ -344,7 +344,7 @@ Lockdown mode ensures the server only surfaces content in public repositories fr
 ## Useful links
 
 - [README: Tool Configuration](../README.md#tool-configuration)
-- [README: Available Toolsets](https://github.com/github/github-mcp-server?tab=readme-ov-file#available-toolsets) — Complete list of toolsets
-- [README: Tools](https://github.com/github/github-mcp-server?tab=readme-ov-file#tools) — Complete list of individual tools
+- [README: Available Toolsets](../README.md#available-toolsets) — Complete list of toolsets
+- [README: Tools](../README.md#tools) — Complete list of individual tools
 - [Remote Server Documentation](./remote-server.md) — Remote-specific options and headers
 - [Installation Guides](./installation-guides) — Host-specific setup instructions
