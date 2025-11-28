@@ -328,7 +328,7 @@ _Toolsets are not limited to Tools. Relevant MCP Resources and Prompts are also 
 
 When no toolsets are specified, [default toolsets](#default-toolset) are used.
 
-> **Looking for examples?** See the [Server Configuration Guide](https://github.com/github/github-mcp-server/tree/main/docs/server-configuration.md) for common recipes like minimal setups, read-only mode, and combining tools with toolsets.
+> **Looking for examples?** See the [Server Configuration Guide](./docs/server-configuration.md) for common recipes like minimal setups, read-only mode, and combining tools with toolsets.
 
 #### Specifying Toolsets
 
