@@ -278,6 +278,40 @@ func TestGitHubErrorContext(t *testing.T) {
 		assert.NoError(t, err, "NewGitHubAPIErrorToCtx should handle nil context gracefully")
 		assert.Nil(t, updatedCtx, "Context should remain nil when passed as nil")
 	})
+
+	t.Run("ContextWithGitHubErrors handles nil context", func(t *testing.T) {
+		// Given a nil context
+		var ctx context.Context
+
+		// When we initialize error tracking with a nil context
+		resultCtx := ContextWithGitHubErrors(ctx)
+
+		// Then it should create a valid context with error tracking
+		require.NotNil(t, resultCtx, "Should create a valid context from nil")
+
+		// And we should be able to add and retrieve errors
+		resp := &github.Response{Response: &http.Response{StatusCode: 500}}
+		resultCtx, err := NewGitHubAPIErrorToCtx(resultCtx, "test error", resp, fmt.Errorf("error"))
+		require.NoError(t, err)
+
+		apiErrors, err := GetGitHubAPIErrors(resultCtx)
+		require.NoError(t, err)
+		assert.Len(t, apiErrors, 1)
+	})
+
+	t.Run("addGitHubGraphQLErrorToContext with uninitialized context returns error", func(t *testing.T) {
+		// Given a regular context without GitHub error tracking
+		ctx := context.Background()
+
+		// When we try to add a GraphQL error to an uninitialized context
+		graphQLErr := newGitHubGraphQLError("test error", fmt.Errorf("query failed"))
+		resultCtx, err := addGitHubGraphQLErrorToContext(ctx, graphQLErr)
+
+		// Then it should return an error
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "context does not contain GitHubCtxErrors")
+		assert.Nil(t, resultCtx, "Should return nil context on error")
+	})
 }
 
 func TestGitHubErrorTypes(t *testing.T) {

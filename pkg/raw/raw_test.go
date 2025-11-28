@@ -148,3 +148,35 @@ func TestUrlFromOpts(t *testing.T) {
 		})
 	}
 }
+
+func TestNewRequestError(t *testing.T) {
+	// Test error path when NewRequest fails due to invalid URL
+	base, _ := url.Parse("https://raw.example.com/")
+	ghClient := github.NewClient(nil)
+	client := NewClient(ghClient, base)
+
+	// Call newRequest with a URL string containing control characters that will fail to parse
+	// The newline character in the URL will cause url.Parse to fail
+	req, err := client.newRequest(context.Background(), "GET", "http://example.com/path\nwith\nnewlines", nil)
+
+	require.Error(t, err)
+	require.Nil(t, req)
+}
+
+func TestGetRawContentError(t *testing.T) {
+	// Test error path when GetRawContent fails due to newRequest error
+	// We'll use a base URL that causes issues when joined with paths
+	base, _ := url.Parse("http://")
+	ghClient := github.NewClient(nil)
+
+	// Set a malformed BaseURL that will cause NewRequest to fail
+	ghClient.BaseURL = &url.URL{Scheme: "http", Host: "example.com", Path: "/%"}
+
+	client := &Client{client: ghClient, url: base}
+
+	// Call GetRawContent which will fail when calling newRequest
+	resp, err := client.GetRawContent(context.Background(), "owner", "repo", "path", nil)
+
+	require.Error(t, err)
+	require.Nil(t, resp)
+}
