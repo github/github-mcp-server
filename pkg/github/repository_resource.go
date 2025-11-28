@@ -138,13 +138,14 @@ func RepositoryResourceContentsHandler(getClient GetClientFn, getRawClient raw.G
 		}
 
 		resp, err := rawClient.GetRawContent(ctx, owner, repo, path, rawOpts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get raw content: %w", err)
+		}
 		defer func() {
 			_ = resp.Body.Close()
 		}()
 		// If the raw content is not found, we will fall back to the GitHub API (in case it is a directory)
 		switch {
-		case err != nil:
-			return nil, fmt.Errorf("failed to get raw content: %w", err)
 		case resp.StatusCode == http.StatusOK:
 			ext := filepath.Ext(path)
 			mimeType := resp.Header.Get("Content-Type")

@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"testing"
@@ -13,6 +14,15 @@ import (
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/require"
 )
+
+// errorTransport is a http.RoundTripper that always returns an error.
+type errorTransport struct {
+	err error
+}
+
+func (t *errorTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, t.err
+}
 
 func Test_repositoryResourceContentsHandler(t *testing.T) {
 	base, _ := url.Parse("https://raw.example.com/")
@@ -254,6 +264,37 @@ func Test_repositoryResourceContentsHandler(t *testing.T) {
 			require.ElementsMatch(t, resp, tc.expectedResult)
 		})
 	}
+}
+
+// Test_repositoryResourceContentsHandler_NetworkError tests that a network error
+// during raw content fetch does not cause a panic (nil response body dereference).
+func Test_repositoryResourceContentsHandler_NetworkError(t *testing.T) {
+	base, _ := url.Parse("https://raw.example.com/")
+	networkErr := errors.New("network error: connection refused")
+
+	httpClient := &http.Client{Transport: &errorTransport{err: networkErr}}
+	client := github.NewClient(httpClient)
+	mockRawClient := raw.NewClient(client, base)
+	handler := RepositoryResourceContentsHandler(stubGetClientFn(client), stubGetRawClientFn(mockRawClient))
+
+	request := mcp.ReadResourceRequest{
+		Params: struct {
+			URI       string         `json:"uri"`
+			Arguments map[string]any `json:"arguments,omitempty"`
+		}{
+			Arguments: map[string]any{
+				"owner": []string{"owner"},
+				"repo":  []string{"repo"},
+				"path":  []string{"README.md"},
+			},
+		},
+	}
+
+	// This should not panic, even though the HTTP client returns an error
+	resp, err := handler(context.TODO(), request)
+	require.Error(t, err)
+	require.Nil(t, resp)
+	require.ErrorContains(t, err, "failed to get raw content")
 }
 
 func Test_GetRepositoryResourceContent(t *testing.T) {
