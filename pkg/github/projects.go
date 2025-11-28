@@ -23,6 +23,73 @@ const (
 	MaxProjectsPerPage       = 50
 )
 
+// FlexibleString handles JSON unmarshaling of fields that can be either
+// a plain string or an object with "raw" and "html" fields.
+// This is needed because the GitHub API returns option names as strings,
+// while go-github v79 expects them to be ProjectV2TextContent objects.
+type FlexibleString struct {
+	Raw  string `json:"raw,omitempty"`
+	HTML string `json:"html,omitempty"`
+}
+
+// UnmarshalJSON implements custom unmarshaling for FlexibleString
+func (f *FlexibleString) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as a plain string first
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		f.Raw = s
+		f.HTML = s
+		return nil
+	}
+
+	// If that fails, try to unmarshal as an object
+	type flexibleStringAlias FlexibleString
+	var obj flexibleStringAlias
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return err
+	}
+	*f = FlexibleString(obj)
+	return nil
+}
+
+// ProjectFieldOption represents an option for single_select or iteration fields.
+// This is a custom type that handles the flexible name format from the GitHub API.
+type ProjectFieldOption struct {
+	ID          string          `json:"id,omitempty"`
+	Name        *FlexibleString `json:"name,omitempty"`
+	Color       string          `json:"color,omitempty"`
+	Description *FlexibleString `json:"description,omitempty"`
+}
+
+// ProjectFieldIteration represents an iteration within a project field.
+type ProjectFieldIteration struct {
+	ID        string          `json:"id,omitempty"`
+	Title     *FlexibleString `json:"title,omitempty"`
+	StartDate string          `json:"start_date,omitempty"`
+	Duration  int             `json:"duration,omitempty"`
+}
+
+// ProjectFieldConfiguration represents the configuration for iteration fields.
+type ProjectFieldConfiguration struct {
+	Duration   int                      `json:"duration,omitempty"`
+	StartDay   int                      `json:"start_day,omitempty"`
+	Iterations []*ProjectFieldIteration `json:"iterations,omitempty"`
+}
+
+// ProjectField represents a field in a GitHub Project V2.
+// This is a custom type that properly handles the options array format from the GitHub API.
+type ProjectField struct {
+	ID            int64                      `json:"id,omitempty"`
+	NodeID        string                     `json:"node_id,omitempty"`
+	Name          string                     `json:"name,omitempty"`
+	DataType      string                     `json:"data_type,omitempty"`
+	ProjectURL    string                     `json:"project_url,omitempty"`
+	Options       []*ProjectFieldOption      `json:"options,omitempty"`
+	Configuration *ProjectFieldConfiguration `json:"configuration,omitempty"`
+	CreatedAt     string                     `json:"created_at,omitempty"`
+	UpdatedAt     string                     `json:"updated_at,omitempty"`
+}
+
 func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("list_projects",
 			mcp.WithDescription(t("TOOL_LIST_PROJECTS_DESCRIPTION", `List Projects for a user or organization`)),
@@ -253,19 +320,22 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			var resp *github.Response
-			var projectFields []*github.ProjectV2Field
+			// Build the URL for the API request
+			var urlPath string
+			if ownerType == "org" {
+				urlPath = fmt.Sprintf("orgs/%s/projectsV2/%d/fields", owner, projectNumber)
+			} else {
+				urlPath = fmt.Sprintf("users/%s/projectsV2/%d/fields", owner, projectNumber)
+			}
 
+			// Create options for the request
 			opts := &github.ListProjectsOptions{
 				ListProjectsPaginationOptions: pagination,
 			}
 
-			if ownerType == "org" {
-				projectFields, resp, err = client.Projects.ListOrganizationProjectFields(ctx, owner, projectNumber, opts)
-			} else {
-				projectFields, resp, err = client.Projects.ListUserProjectFields(ctx, owner, projectNumber, opts)
-			}
-
+			// Make the raw API request using go-github's client
+			// We use our custom ProjectField type which handles flexible name format
+			projectFields, resp, err := listProjectFieldsRaw(ctx, client, urlPath, opts)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to list project fields",
@@ -287,6 +357,70 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 
 			return mcp.NewToolResultText(string(r)), nil
 		}
+}
+
+// listProjectFieldsRaw makes a raw API request to list project fields and parses
+// the response using our custom ProjectField type that handles flexible name formats.
+func listProjectFieldsRaw(ctx context.Context, client *github.Client, urlPath string, opts *github.ListProjectsOptions) ([]*ProjectField, *github.Response, error) {
+	u, err := addProjectOptions(urlPath, opts)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	req, err := client.NewRequest("GET", u, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var fields []*ProjectField
+	resp, err := client.Do(ctx, req, &fields)
+	if err != nil {
+		return nil, resp, err
+	}
+	return fields, resp, nil
+}
+
+// addProjectOptions adds query parameters to a URL for project API requests.
+func addProjectOptions(s string, opts *github.ListProjectsOptions) (string, error) {
+	if opts == nil {
+		return s, nil
+	}
+
+	// Build query parameters manually
+	params := make([]string, 0)
+	if opts.PerPage != nil && *opts.PerPage > 0 {
+		params = append(params, fmt.Sprintf("per_page=%d", *opts.PerPage))
+	}
+	if opts.After != nil && *opts.After != "" {
+		params = append(params, fmt.Sprintf("after=%s", *opts.After))
+	}
+	if opts.Before != nil && *opts.Before != "" {
+		params = append(params, fmt.Sprintf("before=%s", *opts.Before))
+	}
+	if opts.Query != nil && *opts.Query != "" {
+		params = append(params, fmt.Sprintf("q=%s", *opts.Query))
+	}
+
+	if len(params) > 0 {
+		s = s + "?" + strings.Join(params, "&")
+	}
+	return s, nil
+}
+
+// getProjectFieldRaw makes a raw API request to get a single project field and parses
+// the response using our custom ProjectField type that handles flexible name formats.
+func getProjectFieldRaw(ctx context.Context, client *github.Client, urlPath string) (*ProjectField, *github.Response, error) {
+	req, err := client.NewRequest("GET", urlPath, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var field ProjectField
+	resp, err := client.Do(ctx, req, &field)
+	if err != nil {
+		return nil, resp, err
+	}
+	return &field, resp, nil
 }
 
 func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
@@ -332,15 +466,17 @@ func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			var resp *github.Response
-			var projectField *github.ProjectV2Field
-
+			// Build the URL for the API request
+			var urlPath string
 			if ownerType == "org" {
-				projectField, resp, err = client.Projects.GetOrganizationProjectField(ctx, owner, projectNumber, fieldID)
+				urlPath = fmt.Sprintf("orgs/%s/projectsV2/%d/fields/%d", owner, projectNumber, fieldID)
 			} else {
-				projectField, resp, err = client.Projects.GetUserProjectField(ctx, owner, projectNumber, fieldID)
+				urlPath = fmt.Sprintf("users/%s/projectsV2/%d/fields/%d", owner, projectNumber, fieldID)
 			}
 
+			// Make the raw API request using go-github's client
+			// We use our custom ProjectField type which handles flexible name format
+			projectField, resp, err := getProjectFieldRaw(ctx, client, urlPath)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to get project field",
