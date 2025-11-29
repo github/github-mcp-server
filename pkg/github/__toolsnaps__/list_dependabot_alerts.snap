@@ -1,46 +1,46 @@
 {
   "annotations": {
-    "title": "List dependabot alerts",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "List dependabot alerts"
   },
   "description": "List dependabot alerts in a GitHub repository.",
   "inputSchema": {
+    "type": "object",
+    "required": [
+      "owner",
+      "repo"
+    ],
     "properties": {
       "owner": {
-        "description": "The owner of the repository.",
-        "type": "string"
+        "type": "string",
+        "description": "The owner of the repository."
       },
       "repo": {
-        "description": "The name of the repository.",
-        "type": "string"
+        "type": "string",
+        "description": "The name of the repository."
       },
       "severity": {
+        "type": "string",
         "description": "Filter dependabot alerts by severity",
         "enum": [
           "low",
           "medium",
           "high",
           "critical"
-        ],
-        "type": "string"
+        ]
       },
       "state": {
-        "default": "open",
+        "type": "string",
         "description": "Filter dependabot alerts by state. Defaults to open",
+        "default": "open",
         "enum": [
           "open",
           "fixed",
           "dismissed",
           "auto_dismissed"
-        ],
-        "type": "string"
+        ]
       }
-    },
-    "required": [
-      "owner",
-      "repo"
-    ],
-    "type": "object"
+    }
   },
   "name": "list_dependabot_alerts"
 }

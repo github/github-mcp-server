@@ -1,34 +1,34 @@
 {
   "annotations": {
-    "title": "Get project",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "Get project"
   },
   "description": "Get Project for a user or org",
   "inputSchema": {
-    "properties": {
-      "owner": {
-        "description": "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.",
-        "type": "string"
-      },
-      "owner_type": {
-        "description": "Owner type",
-        "enum": [
-          "user",
-          "org"
-        ],
-        "type": "string"
-      },
-      "project_number": {
-        "description": "The project's number",
-        "type": "number"
-      }
-    },
+    "type": "object",
     "required": [
       "project_number",
       "owner_type",
       "owner"
     ],
-    "type": "object"
+    "properties": {
+      "owner": {
+        "type": "string",
+        "description": "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive."
+      },
+      "owner_type": {
+        "type": "string",
+        "description": "Owner type",
+        "enum": [
+          "user",
+          "org"
+        ]
+      },
+      "project_number": {
+        "type": "number",
+        "description": "The project's number"
+      }
+    }
   },
   "name": "get_project"
 }

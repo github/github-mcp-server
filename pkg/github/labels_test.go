@@ -23,10 +23,7 @@ func TestGetLabel(t *testing.T) {
 
 	assert.Equal(t, "get_label", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "name")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "name"})
+	assert.True(t, tool.Annotations.ReadOnlyHint, "get_label tool should be read-only")
 
 	tests := []struct {
 		name               string
@@ -120,7 +117,7 @@ func TestGetLabel(t *testing.T) {
 			_, handler := GetLabel(stubGetGQLClientFn(client), translations.NullTranslationHelper)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			require.NoError(t, err)
 			assert.NotNil(t, result)
@@ -148,9 +145,7 @@ func TestListLabels(t *testing.T) {
 
 	assert.Equal(t, "list_label", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
+	assert.True(t, tool.Annotations.ReadOnlyHint, "list_label tool should be read-only")
 
 	tests := []struct {
 		name               string
@@ -217,7 +212,7 @@ func TestListLabels(t *testing.T) {
 			_, handler := ListLabels(stubGetGQLClientFn(client), translations.NullTranslationHelper)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			require.NoError(t, err)
 			assert.NotNil(t, result)
@@ -245,14 +240,7 @@ func TestWriteLabel(t *testing.T) {
 
 	assert.Equal(t, "label_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "method")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "name")
-	assert.Contains(t, tool.InputSchema.Properties, "new_name")
-	assert.Contains(t, tool.InputSchema.Properties, "color")
-	assert.Contains(t, tool.InputSchema.Properties, "description")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "name"})
+	assert.False(t, tool.Annotations.ReadOnlyHint, "label_write tool should not be read-only")
 
 	tests := []struct {
 		name               string
@@ -472,7 +460,7 @@ func TestWriteLabel(t *testing.T) {
 			_, handler := LabelWrite(stubGetGQLClientFn(client), translations.NullTranslationHelper)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			require.NoError(t, err)
 			assert.NotNil(t, result)

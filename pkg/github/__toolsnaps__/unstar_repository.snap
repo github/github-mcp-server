@@ -1,25 +1,24 @@
 {
   "annotations": {
-    "title": "Unstar repository",
-    "readOnlyHint": false
+    "title": "Unstar repository"
   },
   "description": "Unstar a GitHub repository",
   "inputSchema": {
-    "properties": {
-      "owner": {
-        "description": "Repository owner",
-        "type": "string"
-      },
-      "repo": {
-        "description": "Repository name",
-        "type": "string"
-      }
-    },
+    "type": "object",
     "required": [
       "owner",
       "repo"
     ],
-    "type": "object"
+    "properties": {
+      "owner": {
+        "type": "string",
+        "description": "Repository owner"
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      }
+    }
   },
   "name": "unstar_repository"
 }

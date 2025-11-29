@@ -1,0 +1,40 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get discussion comments"
+  },
+  "description": "Get comments from a discussion",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "owner",
+      "repo",
+      "discussionNumber"
+    ],
+    "properties": {
+      "after": {
+        "type": "string",
+        "description": "Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs."
+      },
+      "discussionNumber": {
+        "type": "number",
+        "description": "Discussion Number"
+      },
+      "owner": {
+        "type": "string",
+        "description": "Repository owner"
+      },
+      "perPage": {
+        "type": "number",
+        "description": "Results per page for pagination (min 1, max 100)",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      }
+    }
+  },
+  "name": "get_discussion_comments"
+}

@@ -6,10 +6,11 @@ import (
 	"fmt"
 
 	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/google/go-github/v79/github"
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
+	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -120,41 +121,51 @@ func getQueryType(useOrdering bool, categoryID *githubv4.ID) any {
 	return &BasicNoOrder{}
 }
 
-func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("list_discussions",
-			mcp.WithDescription(t("TOOL_LIST_DISCUSSIONS_DESCRIPTION", "List discussions for a repository or organisation.")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	return mcp.Tool{
+			Name:        "list_discussions",
+			Description: t("TOOL_LIST_DISCUSSIONS_DESCRIPTION", "List discussions for a repository or organisation."),
+			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_DISCUSSIONS_USER_TITLE", "List discussions"),
-				ReadOnlyHint: ToBoolPtr(true),
+				ReadOnlyHint: true,
+			},
+			InputSchema: WithCursorPagination(&jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name. If not provided, discussions will be queried at the organisation level.",
+					},
+					"category": {
+						Type:        "string",
+						Description: "Optional filter by discussion category ID. If provided, only discussions with this category are listed.",
+					},
+					"orderBy": {
+						Type:        "string",
+						Description: "Order discussions by field. If provided, the 'direction' also needs to be provided.",
+						Enum:        []any{"CREATED_AT", "UPDATED_AT"},
+					},
+					"direction": {
+						Type:        "string",
+						Description: "Order direction.",
+						Enum:        []any{"ASC", "DESC"},
+					},
+				},
+				Required: []string{"owner"},
 			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Description("Repository name. If not provided, discussions will be queried at the organisation level."),
-			),
-			mcp.WithString("category",
-				mcp.Description("Optional filter by discussion category ID. If provided, only discussions with this category are listed."),
-			),
-			mcp.WithString("orderBy",
-				mcp.Description("Order discussions by field. If provided, the 'direction' also needs to be provided."),
-				mcp.Enum("CREATED_AT", "UPDATED_AT"),
-			),
-			mcp.WithString("direction",
-				mcp.Description("Order direction."),
-				mcp.Enum("ASC", "DESC"),
-			),
-			WithCursorPagination(),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := RequiredParam[string](request, "owner")
+		},
+		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			repo, err := OptionalParam[string](request, "repo")
+			repo, err := OptionalParam[string](args, "repo")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			// when not provided, default to the .github repository
 			// this will query discussions at the organisation level
@@ -162,34 +173,34 @@ func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelp
 				repo = ".github"
 			}
 
-			category, err := OptionalParam[string](request, "category")
+			category, err := OptionalParam[string](args, "category")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			orderBy, err := OptionalParam[string](request, "orderBy")
+			orderBy, err := OptionalParam[string](args, "orderBy")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			direction, err := OptionalParam[string](request, "direction")
+			direction, err := OptionalParam[string](args, "direction")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			// Get pagination parameters and convert to GraphQL format
-			pagination, err := OptionalCursorPaginationParams(request)
+			pagination, err := OptionalCursorPaginationParams(args)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			paginationParams, err := pagination.ToGraphQLParams()
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 
 			client, err := getGQLClient(ctx)
 			if err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil
+				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
 
 			var categoryID *githubv4.ID
@@ -223,7 +234,7 @@ func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelp
 
 			discussionQuery := getQueryType(useOrdering, categoryID)
 			if err := client.Query(ctx, discussionQuery, vars); err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			// Extract and convert all discussion nodes using the common interface
@@ -253,45 +264,52 @@ func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelp
 
 			out, err := json.Marshal(response)
 			if err != nil {
-				return nil, fmt.Errorf("failed to marshal discussions: %w", err)
+				return nil, nil, fmt.Errorf("failed to marshal discussions: %w", err)
 			}
-			return mcp.NewToolResultText(string(out)), nil
+			return utils.NewToolResultText(string(out)), nil, nil
 		}
 }
 
-func GetDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("get_discussion",
-			mcp.WithDescription(t("TOOL_GET_DISCUSSION_DESCRIPTION", "Get a specific discussion by ID")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+func GetDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	return mcp.Tool{
+			Name:        "get_discussion",
+			Description: t("TOOL_GET_DISCUSSION_DESCRIPTION", "Get a specific discussion by ID"),
+			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_DISCUSSION_USER_TITLE", "Get discussion"),
-				ReadOnlyHint: ToBoolPtr(true),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Required(),
-				mcp.Description("Repository name"),
-			),
-			mcp.WithNumber("discussionNumber",
-				mcp.Required(),
-				mcp.Description("Discussion Number"),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				ReadOnlyHint: true,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"discussionNumber": {
+						Type:        "number",
+						Description: "Discussion Number",
+					},
+				},
+				Required: []string{"owner", "repo", "discussionNumber"},
+			},
+		},
+		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			// Decode params
 			var params struct {
 				Owner            string
 				Repo             string
 				DiscussionNumber int32
 			}
-			if err := mapstructure.Decode(request.Params.Arguments, &params); err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+			if err := mapstructure.Decode(args, &params); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			client, err := getGQLClient(ctx)
 			if err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil
+				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
 
 			var q struct {
@@ -317,7 +335,7 @@ func GetDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelper
 				"discussionNumber": githubv4.Int(params.DiscussionNumber),
 			}
 			if err := client.Query(ctx, &q, vars); err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			d := q.Repository.Discussion
 
@@ -345,49 +363,64 @@ func GetDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelper
 
 			out, err := json.Marshal(response)
 			if err != nil {
-				return nil, fmt.Errorf("failed to marshal discussion: %w", err)
+				return nil, nil, fmt.Errorf("failed to marshal discussion: %w", err)
 			}
 
-			return mcp.NewToolResultText(string(out)), nil
+			return utils.NewToolResultText(string(out)), nil, nil
 		}
 }
 
-func GetDiscussionComments(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("get_discussion_comments",
-			mcp.WithDescription(t("TOOL_GET_DISCUSSION_COMMENTS_DESCRIPTION", "Get comments from a discussion")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+func GetDiscussionComments(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	return mcp.Tool{
+			Name:        "get_discussion_comments",
+			Description: t("TOOL_GET_DISCUSSION_COMMENTS_DESCRIPTION", "Get comments from a discussion"),
+			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_DISCUSSION_COMMENTS_USER_TITLE", "Get discussion comments"),
-				ReadOnlyHint: ToBoolPtr(true),
+				ReadOnlyHint: true,
+			},
+			InputSchema: WithCursorPagination(&jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"discussionNumber": {
+						Type:        "number",
+						Description: "Discussion Number",
+					},
+				},
+				Required: []string{"owner", "repo", "discussionNumber"},
 			}),
-			mcp.WithString("owner", mcp.Required(), mcp.Description("Repository owner")),
-			mcp.WithString("repo", mcp.Required(), mcp.Description("Repository name")),
-			mcp.WithNumber("discussionNumber", mcp.Required(), mcp.Description("Discussion Number")),
-			WithCursorPagination(),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		},
+		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			// Decode params
 			var params struct {
 				Owner            string
 				Repo             string
 				DiscussionNumber int32
 			}
-			if err := mapstructure.Decode(request.Params.Arguments, &params); err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+			if err := mapstructure.Decode(args, &params); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			// Get pagination parameters and convert to GraphQL format
-			pagination, err := OptionalCursorPaginationParams(request)
+			pagination, err := OptionalCursorPaginationParams(args)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 
 			// Check if pagination parameters were explicitly provided
-			_, perPageProvided := request.GetArguments()["perPage"]
+			_, perPageProvided := args["perPage"]
 			paginationExplicit := perPageProvided
 
 			paginationParams, err := pagination.ToGraphQLParams()
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 
 			// Use default of 30 if pagination was not explicitly provided
@@ -398,7 +431,7 @@ func GetDiscussionComments(getGQLClient GetGQLClientFn, t translations.Translati
 
 			client, err := getGQLClient(ctx)
 			if err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil
+				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
 
 			var q struct {
@@ -431,7 +464,7 @@ func GetDiscussionComments(getGQLClient GetGQLClientFn, t translations.Translati
 				vars["after"] = (*githubv4.String)(nil)
 			}
 			if err := client.Query(ctx, &q, vars); err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			var comments []*github.IssueComment
@@ -453,36 +486,44 @@ func GetDiscussionComments(getGQLClient GetGQLClientFn, t translations.Translati
 
 			out, err := json.Marshal(response)
 			if err != nil {
-				return nil, fmt.Errorf("failed to marshal comments: %w", err)
+				return nil, nil, fmt.Errorf("failed to marshal comments: %w", err)
 			}
 
-			return mcp.NewToolResultText(string(out)), nil
+			return utils.NewToolResultText(string(out)), nil, nil
 		}
 }
 
-func ListDiscussionCategories(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
-	return mcp.NewTool("list_discussion_categories",
-			mcp.WithDescription(t("TOOL_LIST_DISCUSSION_CATEGORIES_DESCRIPTION", "List discussion categories with their id and name, for a repository or organisation.")),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+func ListDiscussionCategories(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	return mcp.Tool{
+			Name:        "list_discussion_categories",
+			Description: t("TOOL_LIST_DISCUSSION_CATEGORIES_DESCRIPTION", "List discussion categories with their id and name, for a repository or organisation."),
+			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_DISCUSSION_CATEGORIES_USER_TITLE", "List discussion categories"),
-				ReadOnlyHint: ToBoolPtr(true),
-			}),
-			mcp.WithString("owner",
-				mcp.Required(),
-				mcp.Description("Repository owner"),
-			),
-			mcp.WithString("repo",
-				mcp.Description("Repository name. If not provided, discussion categories will be queried at the organisation level."),
-			),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			owner, err := RequiredParam[string](request, "owner")
+				ReadOnlyHint: true,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name. If not provided, discussion categories will be queried at the organisation level.",
+					},
+				},
+				Required: []string{"owner"},
+			},
+		},
+		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			repo, err := OptionalParam[string](request, "repo")
+			repo, err := OptionalParam[string](args, "repo")
 			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			// when not provided, default to the .github repository
 			// this will query discussion categories at the organisation level
@@ -492,7 +533,7 @@ func ListDiscussionCategories(getGQLClient GetGQLClientFn, t translations.Transl
 
 			client, err := getGQLClient(ctx)
 			if err != nil {
-				return mcp.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil
+				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
 
 			var q struct {
@@ -518,7 +559,7 @@ func ListDiscussionCategories(getGQLClient GetGQLClientFn, t translations.Transl
 				"first": githubv4.Int(25),
 			}
 			if err := client.Query(ctx, &q, vars); err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			var categories []map[string]string
@@ -543,8 +584,8 @@ func ListDiscussionCategories(getGQLClient GetGQLClientFn, t translations.Transl
 
 			out, err := json.Marshal(response)
 			if err != nil {
-				return nil, fmt.Errorf("failed to marshal discussion categories: %w", err)
+				return nil, nil, fmt.Errorf("failed to marshal discussion categories: %w", err)
 			}
-			return mcp.NewToolResultText(string(out)), nil
+			return utils.NewToolResultText(string(out)), nil, nil
 		}
 }

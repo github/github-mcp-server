@@ -1,30 +1,30 @@
 {
   "annotations": {
-    "title": "Get a specific label from a repository.",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "Get a specific label from a repository."
   },
   "description": "Get a specific label from a repository.",
   "inputSchema": {
-    "properties": {
-      "name": {
-        "description": "Label name.",
-        "type": "string"
-      },
-      "owner": {
-        "description": "Repository owner (username or organization name)",
-        "type": "string"
-      },
-      "repo": {
-        "description": "Repository name",
-        "type": "string"
-      }
-    },
+    "type": "object",
     "required": [
       "owner",
       "repo",
       "name"
     ],
-    "type": "object"
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "Label name."
+      },
+      "owner": {
+        "type": "string",
+        "description": "Repository owner (username or organization name)"
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      }
+    }
   },
   "name": "get_label"
 }
