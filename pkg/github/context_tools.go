@@ -2,10 +2,14 @@ package github
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/go-viper/mapstructure/v2"
+	"github.com/google/go-github/v79/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/shurcooL/githubv4"
@@ -244,6 +248,102 @@ func GetTeamMembers(getGQLClient GetGQLClientFn, t translations.TranslationHelpe
 			var members []string
 			for _, member := range q.Organization.Team.Members.Nodes {
 				members = append(members, string(member.Login))
+			}
+
+			return MarshalledTextResult(members), nil
+		}
+}
+
+func getOrgMembers(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+	return mcp.NewTool("get_org_members",
+			mcp.WithDescription(t("TOOL_GET_ORG_MEMBERS_DESCRIPTION", "Get member users of a specific organization. Returns a list of user objects with fields: login, id, avatar_url, type. Limited to organizations accessible with current credentials")),
+			mcp.WithString("org",
+				mcp.Description(t("TOOL_GET_ORG_MEMBERS_ORG_DESCRIPTION", "Organization login (owner) to get members for.")),
+				mcp.Required(),
+			),
+			mcp.WithString("role",
+				mcp.Description("Filter by role: all, admin, member"),
+			),
+			mcp.WithNumber("per_page",
+				mcp.Description("Results per page (max 100)"),
+			),
+			mcp.WithNumber("page",
+				mcp.Description("Page number for pagination"),
+			),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_GET_ORG_MEMBERS_TITLE", "Get organization members"),
+				ReadOnlyHint: ToBoolPtr(true),
+			}),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			// Decode params into struct to support optional numbers
+			var params struct {
+				Org     string `mapstructure:"org"`
+				Role    string `mapstructure:"role"`
+				PerPage int32  `mapstructure:"per_page"`
+				Page    int32  `mapstructure:"page"`
+			}
+			if err := mapstructure.Decode(request.Params.Arguments, &params); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			org := params.Org
+			role := params.Role
+			perPage := params.PerPage
+			page := params.Page
+			if org == "" {
+				return mcp.NewToolResultError("org is required"), nil
+			}
+
+			// Defaults
+			if perPage <= 0 {
+				perPage = 30
+			}
+			if perPage > 100 {
+				perPage = 100
+			}
+			if page <= 0 {
+				page = 1
+			}
+			client, err := getClient(ctx)
+			if err != nil {
+				return mcp.NewToolResultErrorFromErr("failed to get GitHub client", err), nil
+			}
+
+			// Map role string to REST role filter expected by GitHub API ("all","admin","member").
+			roleFilter := ""
+			if role != "" && strings.ToLower(role) != "all" {
+				roleFilter = strings.ToLower(role)
+			}
+
+			// Use Organizations.ListMembers with pagination (page/per_page)
+			opts := &github.ListMembersOptions{
+				Role: roleFilter,
+				ListOptions: github.ListOptions{
+					PerPage: int(perPage),
+					Page:    int(page),
+				},
+			}
+
+			users, resp, err := client.Organizations.ListMembers(ctx, org, opts)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "Failed to get organization members", resp, err), nil
+			}
+
+			type outUser struct {
+				Login     string `json:"login"`
+				ID        string `json:"id"`
+				AvatarURL string `json:"avatar_url"`
+				Type      string `json:"type"`
+			}
+
+			var members []outUser
+			for _, u := range users {
+				members = append(members, outUser{
+					Login:     u.GetLogin(),
+					ID:        fmt.Sprintf("%v", u.GetID()),
+					AvatarURL: u.GetAvatarURL(),
+					Type:      u.GetType(),
+				})
 			}
 
 			return MarshalledTextResult(members), nil
