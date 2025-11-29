@@ -334,6 +334,7 @@ func getOrgMembers(getClient GetClientFn, t translations.TranslationHelperFunc) 
 				ID        string `json:"id"`
 				AvatarURL string `json:"avatar_url"`
 				Type      string `json:"type"`
+				SiteAdmin bool   `json:"site_admin"`
 			}
 
 			var members []outUser
@@ -343,9 +344,97 @@ func getOrgMembers(getClient GetClientFn, t translations.TranslationHelperFunc) 
 					ID:        fmt.Sprintf("%v", u.GetID()),
 					AvatarURL: u.GetAvatarURL(),
 					Type:      u.GetType(),
+					SiteAdmin: u.GetSiteAdmin(),
 				})
 			}
 
 			return MarshalledTextResult(members), nil
+		}
+}
+
+func listOutsideCollaborators(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+	return mcp.NewTool("list_outside_collaborators",
+			mcp.WithDescription(t("TOOL_LIST_OUTSIDE_COLLABORATORS_DESCRIPTION", "List all outside collaborators of an organization (users with access to organization repositories but not members).")),
+			mcp.WithString("org",
+				mcp.Description(t("TOOL_LIST_OUTSIDE_COLLABORATORS_ORG_DESCRIPTION", "The organization name")),
+				mcp.Required(),
+			),
+			mcp.WithNumber("per_page",
+				mcp.Description("Results per page (max 100)"),
+			),
+			mcp.WithNumber("page",
+				mcp.Description("Page number for pagination"),
+			),
+			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+				Title:        t("TOOL_LIST_OUTSIDE_COLLABORATORS_TITLE", "List outside collaborators"),
+				ReadOnlyHint: ToBoolPtr(true),
+			}),
+		),
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			// Decode params into struct to support optional numbers
+			var params struct {
+				Org     string `mapstructure:"org"`
+				PerPage int32  `mapstructure:"per_page"`
+				Page    int32  `mapstructure:"page"`
+			}
+			if err := mapstructure.Decode(request.Params.Arguments, &params); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			org := params.Org
+			perPage := params.PerPage
+			page := params.Page
+			if org == "" {
+				return mcp.NewToolResultError("org is required"), nil
+			}
+
+			// Defaults
+			if perPage <= 0 {
+				perPage = 30
+			}
+			if perPage > 100 {
+				perPage = 100
+			}
+			if page <= 0 {
+				page = 1
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return mcp.NewToolResultErrorFromErr("failed to get GitHub client", err), nil
+			}
+
+			// Use Organizations.ListOutsideCollaborators with pagination
+			opts := &github.ListOutsideCollaboratorsOptions{
+				ListOptions: github.ListOptions{
+					PerPage: int(perPage),
+					Page:    int(page),
+				},
+			}
+
+			users, resp, err := client.Organizations.ListOutsideCollaborators(ctx, org, opts)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "Failed to list outside collaborators", resp, err), nil
+			}
+
+			type outUser struct {
+				Login     string `json:"login"`
+				ID        string `json:"id"`
+				AvatarURL string `json:"avatar_url"`
+				Type      string `json:"type"`
+				SiteAdmin bool   `json:"site_admin"`
+			}
+
+			var collaborators []outUser
+			for _, u := range users {
+				collaborators = append(collaborators, outUser{
+					Login:     u.GetLogin(),
+					ID:        fmt.Sprintf("%v", u.GetID()),
+					AvatarURL: u.GetAvatarURL(),
+					Type:      u.GetType(),
+					SiteAdmin: u.GetSiteAdmin(),
+				})
+			}
+
+			return MarshalledTextResult(collaborators), nil
 		}
 }

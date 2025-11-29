@@ -547,12 +547,23 @@ The following sets of tools are available:
 - **get_me** - Get my user profile
   - No parameters required
 
+- **get_org_members** - Get organization members
+  - `org`: Organization login (owner) to get members for. (string, required)
+  - `page`: Page number for pagination (number, optional)
+  - `per_page`: Results per page (max 100) (number, optional)
+  - `role`: Filter by role: all, admin, member (string, optional)
+
 - **get_team_members** - Get team members
   - `org`: Organization login (owner) that contains the team. (string, required)
   - `team_slug`: Team slug (string, required)
 
 - **get_teams** - Get teams
   - `user`: Username to get teams for. If not provided, uses the authenticated user. (string, optional)
+
+- **list_outside_collaborators** - List outside collaborators
+  - `org`: The organization name (string, required)
+  - `page`: Page number for pagination (number, optional)
+  - `per_page`: Results per page (max 100) (number, optional)
 
 </details>
 

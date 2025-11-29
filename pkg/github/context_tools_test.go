@@ -510,22 +510,21 @@ func Test_GetOrgMembers(t *testing.T) {
 
 	// Mocked REST users as returned by GitHub REST API
 	mockUsers := []map[string]any{
-		{"login": "user1", "id": 11, "avatar_url": "https://example.com/avatars/1", "type": "User"},
-		{"login": "user2", "id": 22, "avatar_url": "https://example.com/avatars/2", "type": "User"},
+		{"login": "user1", "id": 11, "avatar_url": "https://example.com/avatars/1", "type": "User", "site_admin": false},
+		{"login": "user2", "id": 22, "avatar_url": "https://example.com/avatars/2", "type": "User", "site_admin": false},
 	}
 
 	tests := []struct {
-		name          string
-		mockedClient  *http.Client
-		stubGetClient GetClientFn
-		requestArgs   map[string]any
-		expectToolErr bool
-		expectErrMsg  string
-		expectCount   int
+		name               string
+		stubbedGetClientFn GetClientFn
+		requestArgs        map[string]any
+		expectToolErr      bool
+		expectErrMsg       string
+		expectCount        int
 	}{
 		{
 			name: "successful get org members",
-			mockedClient: mock.NewMockedHTTPClient(
+			stubbedGetClientFn: stubGetClientFromHTTPFn(mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
 					mock.EndpointPattern{Pattern: "/orgs/{org}/members", Method: http.MethodGet},
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -533,13 +532,13 @@ func Test_GetOrgMembers(t *testing.T) {
 						_, _ = w.Write(mock.MustMarshal(mockUsers))
 					}),
 				),
-			),
+			)),
 			requestArgs: map[string]any{"org": "testorg", "role": "all", "per_page": 30, "page": 1},
 			expectCount: 2,
 		},
 		{
 			name: "org with no members",
-			mockedClient: mock.NewMockedHTTPClient(
+			stubbedGetClientFn: stubGetClientFromHTTPFn(mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
 					mock.EndpointPattern{Pattern: "/orgs/{org}/members", Method: http.MethodGet},
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -547,24 +546,25 @@ func Test_GetOrgMembers(t *testing.T) {
 						_, _ = w.Write(mock.MustMarshal([]map[string]any{}))
 					}),
 				),
-			),
+			)),
 			requestArgs: map[string]any{"org": "testorg", "role": "all", "per_page": 30, "page": 1},
 			expectCount: 0,
 		},
 		{
-			name:          "getting client fails",
-			mockedClient:  nil,
-			stubGetClient: stubGetClientFnErr("expected test error"),
-			requestArgs:   map[string]any{"org": "testorg"},
-			expectToolErr: true,
-			expectErrMsg:  "failed to get GitHub client: expected test error",
+			name:               "getting client fails",
+			stubbedGetClientFn: stubGetClientFnErr("expected test error"),
+			requestArgs:        map[string]any{"org": "testorg"},
+			expectToolErr:      true,
+			expectErrMsg:       "failed to get GitHub client: expected test error",
 		},
 		{
 			name: "api error",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/members", Method: http.MethodGet},
-					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
+			stubbedGetClientFn: stubGetClientFromHTTPFn(
+				mock.NewMockedHTTPClient(
+					mock.WithRequestMatchHandler(
+						mock.EndpointPattern{Pattern: "/orgs/{org}/members", Method: http.MethodGet},
+						mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
+					),
 				),
 			),
 			requestArgs:   map[string]any{"org": "testorg"},
@@ -575,14 +575,7 @@ func Test_GetOrgMembers(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var stubFn GetClientFn
-			if tc.stubGetClient != nil {
-				stubFn = tc.stubGetClient
-			} else if tc.mockedClient != nil {
-				stubFn = stubGetClientFromHTTPFn(tc.mockedClient)
-			} else {
-				stubFn = nil
-			}
+			stubFn := tc.stubbedGetClientFn
 
 			_, handler := getOrgMembers(stubFn, translations.NullTranslationHelper)
 
@@ -602,11 +595,117 @@ func Test_GetOrgMembers(t *testing.T) {
 				ID        string `json:"id"`
 				AvatarURL string `json:"avatar_url"`
 				Type      string `json:"type"`
+				SiteAdmin bool   `json:"site_admin"`
 			}
 			err = json.Unmarshal([]byte(textContent.Text), &members)
 			require.NoError(t, err)
 
 			assert.Len(t, members, tc.expectCount)
+		})
+	}
+}
+
+func Test_ListOutsideCollaborators(t *testing.T) {
+	t.Parallel()
+
+	tool, _ := listOutsideCollaborators(nil, translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "list_outside_collaborators", tool.Name)
+	assert.True(t, *tool.Annotations.ReadOnlyHint, "list_outside_collaborators tool should be read-only")
+
+	mockUsers := []map[string]any{
+		{"login": "ext1", "id": 101, "avatar_url": "https://example.com/a/1", "type": "User", "site_admin": false},
+		{"login": "ext2", "id": 202, "avatar_url": "https://example.com/a/2", "type": "User", "site_admin": true},
+	}
+
+	tests := []struct {
+		name               string
+		stubbedGetClientFn GetClientFn
+		requestArgs        map[string]any
+		expectToolErr      bool
+		expectErrMsg       string
+		expectCount        int
+	}{
+		{
+			name: "successful list outside collaborators",
+			stubbedGetClientFn: stubGetClientFromHTTPFn(mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/orgs/{org}/outside_collaborators", Method: http.MethodGet},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write(mock.MustMarshal(mockUsers))
+					}),
+				),
+			)),
+			requestArgs: map[string]any{"org": "testorg", "per_page": 30, "page": 1},
+			expectCount: 2,
+		},
+		{
+			name: "no collaborators",
+			stubbedGetClientFn: stubGetClientFromHTTPFn(mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/orgs/{org}/outside_collaborators", Method: http.MethodGet},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write(mock.MustMarshal([]map[string]any{}))
+					}),
+				),
+			)),
+			requestArgs: map[string]any{"org": "testorg", "per_page": 30, "page": 1},
+			expectCount: 0,
+		},
+		{
+			name:               "getting client fails",
+			stubbedGetClientFn: stubGetClientFnErr("expected test error"),
+			requestArgs:        map[string]any{"org": "testorg"},
+			expectToolErr:      true,
+			expectErrMsg:       "failed to get GitHub client: expected test error",
+		},
+		{
+			name: "api error",
+			stubbedGetClientFn: stubGetClientFromHTTPFn(
+				mock.NewMockedHTTPClient(
+					mock.WithRequestMatchHandler(
+						mock.EndpointPattern{Pattern: "/orgs/{org}/outside_collaborators", Method: http.MethodGet},
+						mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
+					),
+				),
+			),
+			requestArgs:   map[string]any{"org": "testorg"},
+			expectToolErr: true,
+			expectErrMsg:  "Failed to list outside collaborators",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			stubFn := tc.stubbedGetClientFn
+
+			_, handler := listOutsideCollaborators(stubFn, translations.NullTranslationHelper)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(context.Background(), request)
+			require.NoError(t, err)
+			textContent := getTextResult(t, result)
+
+			if tc.expectToolErr {
+				assert.True(t, result.IsError)
+				assert.Contains(t, textContent.Text, tc.expectErrMsg)
+				return
+			}
+
+			var collabs []struct {
+				Login     string `json:"login"`
+				ID        string `json:"id"`
+				AvatarURL string `json:"avatar_url"`
+				Type      string `json:"type"`
+				SiteAdmin bool   `json:"site_admin"`
+			}
+			err = json.Unmarshal([]byte(textContent.Text), &collabs)
+			require.NoError(t, err)
+
+			assert.Len(t, collabs, tc.expectCount)
 		})
 	}
 }
