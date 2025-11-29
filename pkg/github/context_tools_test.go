@@ -502,7 +502,7 @@ func Test_GetTeamMembers(t *testing.T) {
 func Test_GetOrgMembers(t *testing.T) {
 	t.Parallel()
 
-	tool, _ := getOrgMembers(nil, translations.NullTranslationHelper)
+	tool, _ := GetOrgMembers(nil, translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "get_org_members", tool.Name)
@@ -577,7 +577,7 @@ func Test_GetOrgMembers(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			stubFn := tc.stubbedGetClientFn
 
-			_, handler := getOrgMembers(stubFn, translations.NullTranslationHelper)
+			_, handler := GetOrgMembers(stubFn, translations.NullTranslationHelper)
 
 			request := createMCPRequest(tc.requestArgs)
 			result, err := handler(context.Background(), request)
@@ -608,7 +608,7 @@ func Test_GetOrgMembers(t *testing.T) {
 func Test_ListOutsideCollaborators(t *testing.T) {
 	t.Parallel()
 
-	tool, _ := listOutsideCollaborators(nil, translations.NullTranslationHelper)
+	tool, _ := ListOutsideCollaborators(nil, translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_outside_collaborators", tool.Name)
@@ -682,7 +682,7 @@ func Test_ListOutsideCollaborators(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			stubFn := tc.stubbedGetClientFn
 
-			_, handler := listOutsideCollaborators(stubFn, translations.NullTranslationHelper)
+			_, handler := ListOutsideCollaborators(stubFn, translations.NullTranslationHelper)
 
 			request := createMCPRequest(tc.requestArgs)
 			result, err := handler(context.Background(), request)

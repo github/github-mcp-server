@@ -107,6 +107,14 @@ type OrganizationTeams struct {
 	Teams []TeamInfo `json:"teams"`
 }
 
+type OutUser struct {
+	Login     string `json:"login"`
+	ID        string `json:"id"`
+	AvatarURL string `json:"avatar_url"`
+	Type      string `json:"type"`
+	SiteAdmin bool   `json:"site_admin"`
+}
+
 func GetTeams(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("get_teams",
 			mcp.WithDescription(t("TOOL_GET_TEAMS_DESCRIPTION", "Get details of the teams the user is a member of. Limited to organizations accessible with current credentials")),
@@ -254,7 +262,7 @@ func GetTeamMembers(getGQLClient GetGQLClientFn, t translations.TranslationHelpe
 		}
 }
 
-func getOrgMembers(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+func GetOrgMembers(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("get_org_members",
 			mcp.WithDescription(t("TOOL_GET_ORG_MEMBERS_DESCRIPTION", "Get member users of a specific organization. Returns a list of user objects with fields: login, id, avatar_url, type. Limited to organizations accessible with current credentials")),
 			mcp.WithString("org",
@@ -329,17 +337,9 @@ func getOrgMembers(getClient GetClientFn, t translations.TranslationHelperFunc) 
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "Failed to get organization members", resp, err), nil
 			}
 
-			type outUser struct {
-				Login     string `json:"login"`
-				ID        string `json:"id"`
-				AvatarURL string `json:"avatar_url"`
-				Type      string `json:"type"`
-				SiteAdmin bool   `json:"site_admin"`
-			}
-
-			var members []outUser
+			var members []OutUser
 			for _, u := range users {
-				members = append(members, outUser{
+				members = append(members, OutUser{
 					Login:     u.GetLogin(),
 					ID:        fmt.Sprintf("%v", u.GetID()),
 					AvatarURL: u.GetAvatarURL(),
@@ -352,7 +352,7 @@ func getOrgMembers(getClient GetClientFn, t translations.TranslationHelperFunc) 
 		}
 }
 
-func listOutsideCollaborators(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
+func ListOutsideCollaborators(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
 	return mcp.NewTool("list_outside_collaborators",
 			mcp.WithDescription(t("TOOL_LIST_OUTSIDE_COLLABORATORS_DESCRIPTION", "List all outside collaborators of an organization (users with access to organization repositories but not members).")),
 			mcp.WithString("org",
@@ -416,17 +416,9 @@ func listOutsideCollaborators(getClient GetClientFn, t translations.TranslationH
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "Failed to list outside collaborators", resp, err), nil
 			}
 
-			type outUser struct {
-				Login     string `json:"login"`
-				ID        string `json:"id"`
-				AvatarURL string `json:"avatar_url"`
-				Type      string `json:"type"`
-				SiteAdmin bool   `json:"site_admin"`
-			}
-
-			var collaborators []outUser
+			var collaborators []OutUser
 			for _, u := range users {
-				collaborators = append(collaborators, outUser{
+				collaborators = append(collaborators, OutUser{
 					Login:     u.GetLogin(),
 					ID:        fmt.Sprintf("%v", u.GetID()),
 					AvatarURL: u.GetAvatarURL(),
