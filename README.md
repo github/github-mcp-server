@@ -328,6 +328,8 @@ _Toolsets are not limited to Tools. Relevant MCP Resources and Prompts are also 
 
 When no toolsets are specified, [default toolsets](#default-toolset) are used.
 
+> **Looking for examples?** See the [Server Configuration Guide](./docs/server-configuration.md) for common recipes like minimal setups, read-only mode, and combining tools with toolsets.
+
 #### Specifying Toolsets
 
 To specify toolsets you want available to the LLM, you can pass an allow-list in two ways:
@@ -345,6 +347,38 @@ To specify toolsets you want available to the LLM, you can pass an allow-list in
 
 The environment variable `GITHUB_TOOLSETS` takes precedence over the command line argument if both are provided.
 
+#### Specifying Individual Tools
+
+You can also configure specific tools using the `--tools` flag. Tools can be used independently or combined with toolsets and dynamic toolsets discovery for fine-grained control.
+
+1. **Using Command Line Argument**:
+
+   ```bash
+   github-mcp-server --tools get_file_contents,issue_read,create_pull_request
+   ```
+
+2. **Using Environment Variable**:
+   ```bash
+   GITHUB_TOOLS="get_file_contents,issue_read,create_pull_request" ./github-mcp-server
+   ```
+
+3. **Combining with Toolsets** (additive):
+   ```bash
+   github-mcp-server --toolsets repos,issues --tools get_gist
+   ```
+   This registers all tools from `repos` and `issues` toolsets, plus `get_gist`.
+
+4. **Combining with Dynamic Toolsets** (additive):
+   ```bash
+   github-mcp-server --tools get_file_contents --dynamic-toolsets
+   ```
+   This registers `get_file_contents` plus the dynamic toolset tools (`enable_toolset`, `list_available_toolsets`, `get_toolset_tools`).
+
+**Important Notes:**
+- Tools, toolsets, and dynamic toolsets can all be used together
+- Read-only mode takes priority: write tools are skipped if `--read-only` is set, even if explicitly requested via `--tools`
+- Tool names must match exactly (e.g., `get_file_contents`, not `getFileContents`). Invalid tool names will cause the server to fail at startup with an error message
+
 ### Using Toolsets With Docker
 
 When using Docker, you can pass the toolsets as environment variables:
@@ -353,6 +387,25 @@ When using Docker, you can pass the toolsets as environment variables:
 docker run -i --rm \
   -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
   -e GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security,experiments" \
+  ghcr.io/github/github-mcp-server
+```
+
+### Using Tools With Docker
+
+When using Docker, you can pass specific tools as environment variables. You can also combine tools with toolsets:
+
+```bash
+# Tools only
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_TOOLS="get_file_contents,issue_read,create_pull_request" \
+  ghcr.io/github/github-mcp-server
+
+# Tools combined with toolsets (additive)
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_TOOLSETS="repos,issues" \
+  -e GITHUB_TOOLS="get_gist" \
   ghcr.io/github/github-mcp-server
 ```
 
