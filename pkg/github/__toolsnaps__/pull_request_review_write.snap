@@ -1,4 +1,9 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "repo"
+    ]
+  },
   "annotations": {
     "title": "Write operations (create, submit, delete) on pull request reviews."
   },

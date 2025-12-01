@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -28,6 +29,7 @@ func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (
 	return mcp.Tool{
 			Name:        "list_projects",
 			Description: t("TOOL_LIST_PROJECTS_DESCRIPTION", `List Projects for a user or organization`),
+			Meta:        scopes.WithScopes(scopes.ReadProject),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_PROJECTS_USER_TITLE", "List projects"),
 				ReadOnlyHint: true,
@@ -140,6 +142,7 @@ func GetProject(getClient GetClientFn, t translations.TranslationHelperFunc) (mc
 	return mcp.Tool{
 			Name:        "get_project",
 			Description: t("TOOL_GET_PROJECT_DESCRIPTION", "Get Project for a user or org"),
+			Meta:        scopes.WithScopes(scopes.ReadProject),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_PROJECT_USER_TITLE", "Get project"),
 				ReadOnlyHint: true,
@@ -224,6 +227,7 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 	return mcp.Tool{
 			Name:        "list_project_fields",
 			Description: t("TOOL_LIST_PROJECT_FIELDS_DESCRIPTION", "List Project fields for a user or org"),
+			Meta:        scopes.WithScopes(scopes.ReadProject),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_PROJECT_FIELDS_USER_TITLE", "List project fields"),
 				ReadOnlyHint: true,
@@ -325,6 +329,7 @@ func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc
 	return mcp.Tool{
 			Name:        "get_project_field",
 			Description: t("TOOL_GET_PROJECT_FIELD_DESCRIPTION", "Get Project field for a user or org"),
+			Meta:        scopes.WithScopes(scopes.ReadProject),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_PROJECT_FIELD_USER_TITLE", "Get project field"),
 				ReadOnlyHint: true,
@@ -412,6 +417,7 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 	return mcp.Tool{
 			Name:        "list_project_items",
 			Description: t("TOOL_LIST_PROJECT_ITEMS_DESCRIPTION", `Search project items with advanced filtering`),
+			Meta:        scopes.WithScopes(scopes.ReadProject),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_PROJECT_ITEMS_USER_TITLE", "List project items"),
 				ReadOnlyHint: true,
@@ -543,6 +549,7 @@ func GetProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 	return mcp.Tool{
 			Name:        "get_project_item",
 			Description: t("TOOL_GET_PROJECT_ITEM_DESCRIPTION", "Get a specific Project item for a user or org"),
+			Meta:        scopes.WithScopes(scopes.ReadProject),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_PROJECT_ITEM_USER_TITLE", "Get project item"),
 				ReadOnlyHint: true,
@@ -644,6 +651,7 @@ func AddProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 	return mcp.Tool{
 			Name:        "add_project_item",
 			Description: t("TOOL_ADD_PROJECT_ITEM_DESCRIPTION", "Add a specific Project item for a user or org"),
+			Meta:        scopes.WithScopes(scopes.Project),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_ADD_PROJECT_ITEM_USER_TITLE", "Add project item"),
 				ReadOnlyHint: false,
@@ -750,6 +758,7 @@ func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 	return mcp.Tool{
 			Name:        "update_project_item",
 			Description: t("TOOL_UPDATE_PROJECT_ITEM_DESCRIPTION", "Update a specific Project item for a user or org"),
+			Meta:        scopes.WithScopes(scopes.Project),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_UPDATE_PROJECT_ITEM_USER_TITLE", "Update project item"),
 				ReadOnlyHint: false,
@@ -857,6 +866,7 @@ func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 	return mcp.Tool{
 			Name:        "delete_project_item",
 			Description: t("TOOL_DELETE_PROJECT_ITEM_DESCRIPTION", "Delete a specific Project item for a user or org"),
+			Meta:        scopes.WithScopes(scopes.Project),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_DELETE_PROJECT_ITEM_USER_TITLE", "Delete project item"),
 				ReadOnlyHint: false,

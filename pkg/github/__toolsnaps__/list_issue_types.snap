@@ -1,4 +1,9 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "read:org"
+    ]
+  },
   "annotations": {
     "readOnlyHint": true,
     "title": "List available issue types"
