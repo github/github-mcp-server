@@ -1,13 +1,13 @@
 module github.com/github/github-mcp-server
 
-go 1.24.0
+go 1.24.4
 
 require (
 	github.com/google/go-github/v79 v79.0.0
 	github.com/google/jsonschema-go v0.3.0
 	github.com/josephburnett/jd v1.9.2
 	github.com/microcosm-cc/bluemonday v1.0.27
-	github.com/migueleliasweb/go-github-mock v1.3.0
+	github.com/migueleliasweb/go-github-mock v1.5.0
 	github.com/muesli/cache2go v0.0.0-20221011235721-518229cd8021
 	github.com/spf13/cobra v1.10.1
 	github.com/spf13/viper v1.21.0
@@ -18,9 +18,9 @@ require (
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/swag v0.21.1 // indirect
-	github.com/google/go-github/v71 v71.0.0 // indirect
+	github.com/google/go-github/v73 v73.0.0 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
-	github.com/gorilla/mux v1.8.0 // indirect
+	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/yudai/golcs v0.0.0-20170316035057-ecda9a501e82 // indirect
@@ -52,7 +52,7 @@ require (
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
-	golang.org/x/time v0.5.0 // indirect
+	golang.org/x/time v0.11.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
