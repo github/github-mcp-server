@@ -325,7 +325,7 @@ func (tg *ToolsetGroup) RegisterSpecificTools(s *mcp.Server, toolNames []string,
 			return fmt.Errorf("tool %s not found: %w", toolName, err)
 		}
 
-		if tool.Tool.Annotations.ReadOnlyHint && readOnly {
+		if !tool.Tool.Annotations.ReadOnlyHint && readOnly {
 			// Skip write tools in read-only mode
 			skippedTools = append(skippedTools, toolName)
 			continue
