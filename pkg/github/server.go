@@ -17,6 +17,15 @@ import (
 // NewServer creates a new GitHub MCP server with the specified GH client and logger.
 
 func NewServer(version string, opts *mcp.ServerOptions) *mcp.Server {
+	if opts == nil {
+		// Add default options
+		opts = &mcp.ServerOptions{
+			HasTools:     true,
+			HasResources: true,
+			HasPrompts:   true,
+		}
+	}
+
 	// Create a new MCP server
 	s := mcp.NewServer(&mcp.Implementation{
 		Name:    "github-mcp-server",
