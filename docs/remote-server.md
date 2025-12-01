@@ -53,17 +53,22 @@ These toolsets are only available in the remote GitHub MCP Server and are not in
 
 ### Optional Headers
 
-The Remote GitHub MCP server has optional headers equivalent to the Local server env vars:
+The Remote GitHub MCP server has optional headers equivalent to the Local server env vars or flags:
 
 - `X-MCP-Toolsets`: Comma-separated list of toolsets to enable. E.g. "repos,issues".
-    - Equivalent to `GITHUB_TOOLSETS` env var for Local server.
+    - Equivalent to `GITHUB_TOOLSETS` env var or `--toolsets` flag for Local server.
     - If the list is empty, default toolsets will be used. Invalid or unknown toolsets are silently ignored without error and will not prevent the server from starting. Whitespace is ignored.
+- `X-MCP-Tools`: Comma-separated list of tools to enable. E.g. "get_file_contents,issue_read,pull_request_read".
+    - Equivalent to `GITHUB_TOOLS` env var or `--tools` flag for Local server.
+    - Invalid tools will throw an error and prevent the server from starting. Whitespace is ignored.
 - `X-MCP-Readonly`: Enables only "read" tools.
     - Equivalent to `GITHUB_READ_ONLY` env var for Local server.
     - If this header is empty, "false", "f", "no", "n", "0", or "off" (ignoring whitespace and case), it will be interpreted as false. All other values are interpreted as true.
 - `X-MCP-Lockdown`: Enables lockdown mode, hiding public issue details created by users without push access.
     - Equivalent to `GITHUB_LOCKDOWN_MODE` env var for Local server.
     - If this header is empty, "false", "f", "no", "n", "0", or "off" (ignoring whitespace and case), it will be interpreted as false. All other values are interpreted as true.
+
+> **Looking for examples?** See the [Server Configuration Guide](./server-configuration.md) for common recipes like minimal setups, read-only mode, and combining tools with toolsets.
 
 Example:
 
