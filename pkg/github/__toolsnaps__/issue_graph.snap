@@ -1,0 +1,30 @@
+{
+  "annotations": {
+    "title": "Get issue relationship graph",
+    "readOnlyHint": true
+  },
+  "description": "Get a graph representation of an issue or pull request and its related issues/PRs.\n\nThis tool helps understand the relationships between issues and PRs in a repository, especially useful for:\n- Understanding the scope of work for an issue or PR\n- Planning implementation for a task that's part of a larger epic\n- Identifying blockers or dependencies\n- Finding related work that might conflict or overlap\n- Understanding why a piece of work exists (tracing to parent epic)\n\nThe graph shows:\n- Node types: epic (large initiatives), batch (parent issues), task (regular issues), pr (pull requests)\n- Parent/child relationships from sub-issues and \"closes/fixes\" references\n- Related issues mentioned in bodies\n\nCall this tool early when working on an issue to gather appropriate context about the work hierarchy.",
+  "inputSchema": {
+    "properties": {
+      "issue_number": {
+        "description": "Issue or pull request number to build the graph from",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "issue_number"
+    ],
+    "type": "object"
+  },
+  "name": "issue_graph"
+}

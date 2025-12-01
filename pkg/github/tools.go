@@ -205,6 +205,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(ListIssues(getGQLClient, t)),
 			toolsets.NewServerTool(ListIssueTypes(getClient, t)),
 			toolsets.NewServerTool(GetLabel(getGQLClient, t)),
+			toolsets.NewServerTool(GetIssueGraph(getClient, cache, t, flags)),
 		).
 		AddWriteTools(
 			toolsets.NewServerTool(IssueWrite(getClient, getGQLClient, t)),
@@ -214,6 +215,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		).AddPrompts(
 		toolsets.NewServerPrompt(AssignCodingAgentPrompt(t)),
 		toolsets.NewServerPrompt(IssueToFixWorkflowPrompt(t)),
+		toolsets.NewServerPrompt(ConnectIssueGraphPrompt(t)),
 	)
 	users := toolsets.NewToolset(ToolsetMetadataUsers.ID, ToolsetMetadataUsers.Description).
 		AddReadTools(

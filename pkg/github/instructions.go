@@ -63,7 +63,9 @@ Before creating a pull request, search for pull request templates in the reposit
 	case "issues":
 		return `## Issues
 
-Check 'list_issue_types' first for organizations to use proper issue types. Use 'search_issues' before creating new issues to avoid duplicates. Always set 'state_reason' when closing issues.`
+Check 'list_issue_types' first for organizations to use proper issue types. Use 'search_issues' before creating new issues to avoid duplicates. Always set 'state_reason' when closing issues.
+
+Use 'issue_graph' early when working on an issue to understand its context, hierarchy (epic → batch → task → PR), and related work. After identifying important issues in the graph, use 'issue_read' to get full details of specific issues.`
 	case "discussions":
 		return `## Discussions
 		
