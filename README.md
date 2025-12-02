@@ -4,7 +4,6 @@
 
 The GitHub MCP Server connects AI tools directly to GitHub's platform. This gives AI agents, assistants, and chatbots the ability to read repositories and code files, manage issues and PRs, analyze code, and automate workflows. All through natural language interactions.
 
----
 
 > [!TIP]
 > ### 🚀 Quick Start with the Configurator
