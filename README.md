@@ -630,6 +630,13 @@ The following sets of tools are available:
 
 <summary>Discussions</summary>
 
+- **create_discussion** - Create discussion
+  - `body`: Discussion body text in markdown format (string, required)
+  - `categoryId`: Category ID where the discussion should be created (obtainable via list_discussion_categories) (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name. If not provided, the discussion will be created at the organisation level. (string, optional)
+  - `title`: Discussion title (string, required)
+
 - **get_discussion** - Get discussion
   - `discussionNumber`: Discussion Number (number, required)
   - `owner`: Repository owner (string, required)

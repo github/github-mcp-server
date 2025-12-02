@@ -273,6 +273,9 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(GetDiscussion(getGQLClient, t)),
 			toolsets.NewServerTool(GetDiscussionComments(getGQLClient, t)),
 			toolsets.NewServerTool(ListDiscussionCategories(getGQLClient, t)),
+		).
+		AddWriteTools(
+			toolsets.NewServerTool(CreateDiscussion(getGQLClient, t)),
 		)
 
 	actions := toolsets.NewToolset(ToolsetMetadataActions.ID, ToolsetMetadataActions.Description).
