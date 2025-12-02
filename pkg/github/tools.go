@@ -10,7 +10,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/toolsets"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
-	"github.com/mark3labs/mcp-go/server"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -235,7 +235,6 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(CreatePullRequest(getClient, t)),
 			toolsets.NewServerTool(UpdatePullRequest(getClient, getGQLClient, t)),
 			toolsets.NewServerTool(RequestCopilotReview(getClient, t)),
-
 			// Reviews
 			toolsets.NewServerTool(PullRequestReviewWrite(getGQLClient, t)),
 			toolsets.NewServerTool(AddCommentToPendingReview(getGQLClient, t)),
@@ -305,7 +304,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(ListOrgRepositorySecurityAdvisories(getClient, t)),
 		)
 
-	// Keep experiments alive so the system doesn't error out when it's always enabled
+	// // Keep experiments alive so the system doesn't error out when it's always enabled
 	experiments := toolsets.NewToolset(ToolsetMetadataExperiments.ID, ToolsetMetadataExperiments.Description)
 
 	contextTools := toolsets.NewToolset(ToolsetMetadataContext.ID, ToolsetMetadataContext.Description).
@@ -358,6 +357,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			// create or update
 			toolsets.NewServerTool(LabelWrite(getGQLClient, t)),
 		)
+
 	// Add toolsets to the group
 	tsg.AddToolset(contextTools)
 	tsg.AddToolset(repos)
@@ -368,8 +368,8 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(pullRequests)
 	tsg.AddToolset(actions)
 	tsg.AddToolset(codeSecurity)
-	tsg.AddToolset(secretProtection)
 	tsg.AddToolset(dependabot)
+	tsg.AddToolset(secretProtection)
 	tsg.AddToolset(notifications)
 	tsg.AddToolset(experiments)
 	tsg.AddToolset(discussions)
@@ -383,7 +383,9 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 }
 
 // InitDynamicToolset creates a dynamic toolset that can be used to enable other toolsets, and so requires the server and toolset group as arguments
-func InitDynamicToolset(s *server.MCPServer, tsg *toolsets.ToolsetGroup, t translations.TranslationHelperFunc) *toolsets.Toolset {
+//
+//nolint:unused
+func InitDynamicToolset(s *mcp.Server, tsg *toolsets.ToolsetGroup, t translations.TranslationHelperFunc) *toolsets.Toolset {
 	// Create a new dynamic toolset
 	// Need to add the dynamic toolset last so it can be used to enable other toolsets
 	dynamicToolSelection := toolsets.NewToolset(ToolsetMetadataDynamic.ID, ToolsetMetadataDynamic.Description).

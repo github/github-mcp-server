@@ -328,6 +328,8 @@ _Toolsets are not limited to Tools. Relevant MCP Resources and Prompts are also 
 
 When no toolsets are specified, [default toolsets](#default-toolset) are used.
 
+> **Looking for examples?** See the [Server Configuration Guide](./docs/server-configuration.md) for common recipes like minimal setups, read-only mode, and combining tools with toolsets.
+
 #### Specifying Toolsets
 
 To specify toolsets you want available to the LLM, you can pass an allow-list in two ways:
@@ -717,8 +719,8 @@ The following sets of tools are available:
 
 - **issue_read** - Get issue details
   - `issue_number`: The number of the issue (number, required)
-  - `method`: The read operation to perform on a single issue. 
-Options are: 
+  - `method`: The read operation to perform on a single issue.
+Options are:
 1. get - Get details of a specific issue.
 2. get_comments - Get issue comments.
 3. get_sub_issues - Get sub-issues of the issue.
@@ -736,8 +738,8 @@ Options are:
   - `issue_number`: Issue number to update (number, optional)
   - `labels`: Labels to apply to this issue (string[], optional)
   - `method`: Write operation to perform on a single issue.
-Options are: 
-- 'create' - creates a new issue. 
+Options are:
+- 'create' - creates a new issue.
 - 'update' - updates an existing issue.
  (string, required)
   - `milestone`: Milestone number (number, optional)
@@ -817,7 +819,7 @@ Options are:
 <summary>Notifications</summary>
 
 - **dismiss_notification** - Dismiss notification
-  - `state`: The new state of the notification (read/done) (string, optional)
+  - `state`: The new state of the notification (read/done) (string, required)
   - `threadID`: The ID of the notification thread (string, required)
 
 - **get_notification_details** - Get notification details

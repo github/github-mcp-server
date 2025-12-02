@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -21,8 +20,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v79/github"
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -60,13 +58,13 @@ type MCPServerConfig struct {
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
 
+	// Logger is used for logging within the server
+	Logger *slog.Logger
 	// RepoAccessTTL overrides the default TTL for repository access cache entries.
 	RepoAccessTTL *time.Duration
 }
 
-const stdioServerLogPrefix = "stdioserver"
-
-func NewMCPServer(cfg MCPServerConfig, logger *slog.Logger) (*server.MCPServer, error) {
+func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	apiHost, err := parseAPIHost(cfg.Host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
@@ -93,39 +91,11 @@ func NewMCPServer(cfg MCPServerConfig, logger *slog.Logger) (*server.MCPServer, 
 		repoAccessOpts = append(repoAccessOpts, lockdown.WithTTL(*cfg.RepoAccessTTL))
 	}
 
-	repoAccessLogger := logger.With("component", "lockdown")
+	repoAccessLogger := cfg.Logger.With("component", "lockdown")
 	repoAccessOpts = append(repoAccessOpts, lockdown.WithLogger(repoAccessLogger))
 	var repoAccessCache *lockdown.RepoAccessCache
 	if cfg.LockdownMode {
 		repoAccessCache = lockdown.GetInstance(gqlClient, repoAccessOpts...)
-	}
-
-	// When a client send an initialize request, update the user agent to include the client info.
-	beforeInit := func(_ context.Context, _ any, message *mcp.InitializeRequest) {
-		userAgent := fmt.Sprintf(
-			"github-mcp-server/%s (%s/%s)",
-			cfg.Version,
-			message.Params.ClientInfo.Name,
-			message.Params.ClientInfo.Version,
-		)
-
-		restClient.UserAgent = userAgent
-
-		gqlHTTPClient.Transport = &userAgentTransport{
-			transport: gqlHTTPClient.Transport,
-			agent:     userAgent,
-		}
-	}
-
-	hooks := &server.Hooks{
-		OnBeforeInitialize: []server.OnBeforeInitializeFunc{beforeInit},
-		OnBeforeAny: []server.BeforeAnyHookFunc{
-			func(ctx context.Context, _ any, _ mcp.MCPMethod, _ any) {
-				// Ensure the context is cleared of any previous errors
-				// as context isn't propagated through middleware
-				errors.ContextWithGitHubErrors(ctx)
-			},
-		},
 	}
 
 	enabledToolsets := cfg.EnabledToolsets
@@ -154,11 +124,6 @@ func NewMCPServer(cfg MCPServerConfig, logger *slog.Logger) (*server.MCPServer, 
 	// Generate instructions based on enabled toolsets
 	instructions := github.GenerateInstructions(enabledToolsets)
 
-	ghServer := github.NewServer(cfg.Version,
-		server.WithInstructions(instructions),
-		server.WithHooks(hooks),
-	)
-
 	getClient := func(_ context.Context) (*gogithub.Client, error) {
 		return restClient, nil // closing over client
 	}
@@ -174,6 +139,16 @@ func NewMCPServer(cfg MCPServerConfig, logger *slog.Logger) (*server.MCPServer, 
 		}
 		return raw.NewClient(client, apiHost.rawURL), nil // closing over client
 	}
+
+	ghServer := github.NewServer(cfg.Version, &mcp.ServerOptions{
+		Instructions:      instructions,
+		Logger:            cfg.Logger,
+		CompletionHandler: github.CompletionsHandler(getClient),
+	})
+
+	// Add middlewares
+	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
+	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, restClient, gqlHTTPClient))
 
 	// Create default toolsets
 	tsg := github.DefaultToolsetGroup(
@@ -288,7 +263,6 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	}
 	logger := slog.New(slogHandler)
 	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "dynamicToolsets", cfg.DynamicToolsets, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode)
-	stdLogger := log.New(logOutput, stdioServerLogPrefix, 0)
 
 	ghServer, err := NewMCPServer(MCPServerConfig{
 		Version:           cfg.Version,
@@ -301,14 +275,12 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		Translator:        t,
 		ContentWindowSize: cfg.ContentWindowSize,
 		LockdownMode:      cfg.LockdownMode,
+		Logger:            logger,
 		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
-	}, logger)
+	})
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)
 	}
-
-	stdioServer := server.NewStdioServer(ghServer)
-	stdioServer.SetErrorLogger(stdLogger)
 
 	if cfg.ExportTranslations {
 		// Once server is initialized, all translations are loaded
@@ -318,15 +290,20 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	// Start listening for messages
 	errC := make(chan error, 1)
 	go func() {
-		in, out := io.Reader(os.Stdin), io.Writer(os.Stdout)
+		var in io.ReadCloser
+		var out io.WriteCloser
+
+		in = os.Stdin
+		out = os.Stdout
 
 		if cfg.EnableCommandLogging {
 			loggedIO := mcplog.NewIOLogger(in, out, logger)
 			in, out = loggedIO, loggedIO
 		}
+
 		// enable GitHub errors in the context
 		ctx := errors.ContextWithGitHubErrors(ctx)
-		errC <- stdioServer.Listen(ctx, in, out)
+		errC <- ghServer.Run(ctx, &mcp.IOTransport{Reader: in, Writer: out})
 	}()
 
 	// Output github-mcp-server string
@@ -542,4 +519,45 @@ func (t *bearerAuthTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	req = req.Clone(req.Context())
 	req.Header.Set("Authorization", "Bearer "+t.token)
 	return t.transport.RoundTrip(req)
+}
+
+func addGitHubAPIErrorToContext(next mcp.MethodHandler) mcp.MethodHandler {
+	return func(ctx context.Context, method string, req mcp.Request) (result mcp.Result, err error) {
+		// Ensure the context is cleared of any previous errors
+		// as context isn't propagated through middleware
+		ctx = errors.ContextWithGitHubErrors(ctx)
+		return next(ctx, method, req)
+	}
+}
+
+func addUserAgentsMiddleware(cfg MCPServerConfig, restClient *gogithub.Client, gqlHTTPClient *http.Client) func(next mcp.MethodHandler) mcp.MethodHandler {
+	return func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, request mcp.Request) (result mcp.Result, err error) {
+			if method != "initialize" {
+				return next(ctx, method, request)
+			}
+
+			initializeRequest, ok := request.(*mcp.InitializeRequest)
+			if !ok {
+				return next(ctx, method, request)
+			}
+
+			message := initializeRequest
+			userAgent := fmt.Sprintf(
+				"github-mcp-server/%s (%s/%s)",
+				cfg.Version,
+				message.Params.ClientInfo.Name,
+				message.Params.ClientInfo.Version,
+			)
+
+			restClient.UserAgent = userAgent
+
+			gqlHTTPClient.Transport = &userAgentTransport{
+				transport: gqlHTTPClient.Transport,
+				agent:     userAgent,
+			}
+
+			return next(ctx, method, request)
+		}
+	}
 }
