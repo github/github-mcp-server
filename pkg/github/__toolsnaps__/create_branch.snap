@@ -1,34 +1,33 @@
 {
   "annotations": {
-    "title": "Create branch",
-    "readOnlyHint": false
+    "title": "Create branch"
   },
   "description": "Create a new branch in a GitHub repository",
   "inputSchema": {
-    "properties": {
-      "branch": {
-        "description": "Name for new branch",
-        "type": "string"
-      },
-      "from_branch": {
-        "description": "Source branch (defaults to repo default)",
-        "type": "string"
-      },
-      "owner": {
-        "description": "Repository owner",
-        "type": "string"
-      },
-      "repo": {
-        "description": "Repository name",
-        "type": "string"
-      }
-    },
+    "type": "object",
     "required": [
       "owner",
       "repo",
       "branch"
     ],
-    "type": "object"
+    "properties": {
+      "branch": {
+        "type": "string",
+        "description": "Name for new branch"
+      },
+      "from_branch": {
+        "type": "string",
+        "description": "Source branch (defaults to repo default)"
+      },
+      "owner": {
+        "type": "string",
+        "description": "Repository owner"
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      }
+    }
   },
   "name": "create_branch"
 }
