@@ -4,6 +4,14 @@
 
 The GitHub MCP Server connects AI tools directly to GitHub's platform. This gives AI agents, assistants, and chatbots the ability to read repositories and code files, manage issues and PRs, analyze code, and automate workflows. All through natural language interactions.
 
+---
+
+> [!TIP]
+> ### 🚀 Quick Start with the Configurator
+> Want to get up and running quickly? Use our **<a href="https://main.github-mcp-server-configurator-web.pages.dev/" target="_blank">GitHub MCP Server Configurator</a>** to generate a ready-to-use configuration for needs. Just select your options (IDE, Security settings, Enterprise settings, etc.) and get set up in no time!
+
+---
+
 ### Use Cases
 
 - Repository Management: Browse and query code, search files, analyze commits, and understand project structure across any repository you have access to.
@@ -14,11 +22,6 @@ The GitHub MCP Server connects AI tools directly to GitHub's platform. This give
 
 Built for developers who want to connect their AI tools to GitHub context and capabilities, from simple natural language queries to complex multi-step agent workflows.
 
----
-
-> [!TIP]
-> ### 🚀 Quick Start with the Configurator
-> Want to get up and running quickly? Use our **<a href="https://main.github-mcp-server-configurator-web.pages.dev/" target="_blank">GitHub MCP Server Configurator</a>** to generate a ready-to-use configuration for needs. Just select your options (IDE, Security settings, Enterprise settings, etc.) and get set up in no time!
 
 ---
 
