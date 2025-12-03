@@ -514,6 +514,13 @@ The following sets of tools are available:
   - `run_id`: Workflow run ID (required when using failed_only) (number, optional)
   - `tail_lines`: Number of lines to return from the end of the log (number, optional)
 
+- **get_pull_request_ci_failures** - Get PR CI failures
+  - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+  - `return_content`: Returns actual log content instead of URLs (default: true) (boolean, optional)
+  - `tail_lines`: Number of lines to return from the end of each log (default: 500) (number, optional)
+
 - **get_workflow_run** - Get workflow run
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
@@ -964,6 +971,13 @@ The following sets of tools are available:
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `title`: PR title (string, required)
+
+- **get_pull_request_ci_failures** - Get PR CI failures
+  - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+  - `return_content`: Returns actual log content instead of URLs (default: true) (boolean, optional)
+  - `tail_lines`: Number of lines to return from the end of each log (default: 500) (number, optional)
 
 - **list_pull_requests** - List pull requests
   - `base`: Filter by base branch (string, optional)

@@ -1440,3 +1440,427 @@ func Test_RerunFailedJobs(t *testing.T) {
 	assert.Contains(t, inputSchema.Properties, "run_id")
 	assert.ElementsMatch(t, inputSchema.Required, []string{"owner", "repo", "run_id"})
 }
+
+func Test_GetPullRequestCIFailures(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := GetPullRequestCIFailures(stubGetClientFn(mockClient), translations.NullTranslationHelper, 5000)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "get_pull_request_ci_failures", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	inputSchema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, inputSchema.Properties, "owner")
+	assert.Contains(t, inputSchema.Properties, "repo")
+	assert.Contains(t, inputSchema.Properties, "pullNumber")
+	assert.Contains(t, inputSchema.Properties, "return_content")
+	assert.Contains(t, inputSchema.Properties, "tail_lines")
+	assert.ElementsMatch(t, inputSchema.Required, []string{"owner", "repo", "pullNumber"})
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]any
+		expectError    bool
+		expectedErrMsg string
+		checkResponse  func(t *testing.T, response map[string]any)
+	}{
+		{
+			name: "successful CI failure retrieval with failed jobs",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposPullsByOwnerByRepoByPullNumber,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						pr := &github.PullRequest{
+							Number: github.Ptr(123),
+							Head: &github.PullRequestBranch{
+								SHA: github.Ptr("abc123sha"),
+								Ref: github.Ptr("feature-branch"),
+							},
+						}
+						w.WriteHeader(http.StatusOK)
+						_ = json.NewEncoder(w).Encode(pr)
+					}),
+				),
+				mock.WithRequestMatchHandler(
+					mock.GetReposActionsRunsByOwnerByRepo,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						runs := &github.WorkflowRuns{
+							TotalCount: github.Ptr(2),
+							WorkflowRuns: []*github.WorkflowRun{
+								{
+									ID:         github.Ptr(int64(1001)),
+									Name:       github.Ptr("CI"),
+									WorkflowID: github.Ptr(int64(100)),
+									Status:     github.Ptr("completed"),
+									Conclusion: github.Ptr("failure"),
+									HTMLURL:    github.Ptr("https://github.com/owner/repo/actions/runs/1001"),
+								},
+								{
+									ID:         github.Ptr(int64(1002)),
+									Name:       github.Ptr("Deploy"),
+									WorkflowID: github.Ptr(int64(101)),
+									Status:     github.Ptr("completed"),
+									Conclusion: github.Ptr("success"),
+									HTMLURL:    github.Ptr("https://github.com/owner/repo/actions/runs/1002"),
+								},
+							},
+						}
+						w.WriteHeader(http.StatusOK)
+						_ = json.NewEncoder(w).Encode(runs)
+					}),
+				),
+				mock.WithRequestMatchHandler(
+					mock.GetReposActionsRunsJobsByOwnerByRepoByRunId,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						jobs := &github.Jobs{
+							TotalCount: github.Ptr(2),
+							Jobs: []*github.WorkflowJob{
+								{
+									ID:         github.Ptr(int64(2001)),
+									Name:       github.Ptr("test-job"),
+									Status:     github.Ptr("completed"),
+									Conclusion: github.Ptr("failure"),
+									Steps: []*github.TaskStep{
+										{
+											Name:       github.Ptr("Run tests"),
+											Number:     github.Ptr(int64(3)),
+											Status:     github.Ptr("completed"),
+											Conclusion: github.Ptr("failure"),
+										},
+									},
+								},
+								{
+									ID:         github.Ptr(int64(2002)),
+									Name:       github.Ptr("build-job"),
+									Status:     github.Ptr("completed"),
+									Conclusion: github.Ptr("success"),
+								},
+							},
+						}
+						w.WriteHeader(http.StatusOK)
+						_ = json.NewEncoder(w).Encode(jobs)
+					}),
+				),
+				mock.WithRequestMatchHandler(
+					mock.GetReposActionsJobsLogsByOwnerByRepoByJobId,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.Header().Set("Location", "https://github.com/logs/job/2001")
+						w.WriteHeader(http.StatusFound)
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(123),
+			},
+			expectError: false,
+			checkResponse: func(t *testing.T, response map[string]any) {
+				assert.Contains(t, response["message"], "Found 1 failed workflow run")
+				assert.Equal(t, float64(123), response["pull_number"])
+				assert.Equal(t, "abc123sha", response["head_sha"])
+				assert.Equal(t, "feature-branch", response["head_branch"])
+				assert.Equal(t, float64(2), response["total_runs"])
+				assert.Equal(t, float64(1), response["failed_runs"])
+				assert.Contains(t, response, "workflow_runs")
+			},
+		},
+		{
+			name: "no failed workflow runs",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposPullsByOwnerByRepoByPullNumber,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						pr := &github.PullRequest{
+							Number: github.Ptr(456),
+							Head: &github.PullRequestBranch{
+								SHA: github.Ptr("def456sha"),
+								Ref: github.Ptr("main"),
+							},
+						}
+						w.WriteHeader(http.StatusOK)
+						_ = json.NewEncoder(w).Encode(pr)
+					}),
+				),
+				mock.WithRequestMatchHandler(
+					mock.GetReposActionsRunsByOwnerByRepo,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						runs := &github.WorkflowRuns{
+							TotalCount: github.Ptr(1),
+							WorkflowRuns: []*github.WorkflowRun{
+								{
+									ID:         github.Ptr(int64(1001)),
+									Name:       github.Ptr("CI"),
+									Status:     github.Ptr("completed"),
+									Conclusion: github.Ptr("success"),
+								},
+							},
+						}
+						w.WriteHeader(http.StatusOK)
+						_ = json.NewEncoder(w).Encode(runs)
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(456),
+			},
+			expectError: false,
+			checkResponse: func(t *testing.T, response map[string]any) {
+				assert.Equal(t, "No failed workflow runs found for this pull request", response["message"])
+				assert.Equal(t, float64(456), response["pull_number"])
+			},
+		},
+		{
+			name: "no workflow runs found",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposPullsByOwnerByRepoByPullNumber,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						pr := &github.PullRequest{
+							Number: github.Ptr(789),
+							Head: &github.PullRequestBranch{
+								SHA: github.Ptr("ghi789sha"),
+								Ref: github.Ptr("test-branch"),
+							},
+						}
+						w.WriteHeader(http.StatusOK)
+						_ = json.NewEncoder(w).Encode(pr)
+					}),
+				),
+				mock.WithRequestMatchHandler(
+					mock.GetReposActionsRunsByOwnerByRepo,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						runs := &github.WorkflowRuns{
+							TotalCount:   github.Ptr(0),
+							WorkflowRuns: []*github.WorkflowRun{},
+						}
+						w.WriteHeader(http.StatusOK)
+						_ = json.NewEncoder(w).Encode(runs)
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(789),
+			},
+			expectError: false,
+			checkResponse: func(t *testing.T, response map[string]any) {
+				assert.Equal(t, "No workflow runs found for this pull request", response["message"])
+				assert.Equal(t, float64(789), response["pull_number"])
+			},
+		},
+		{
+			name:         "missing required parameter owner",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"repo":       "repo",
+				"pullNumber": float64(123),
+			},
+			expectError:    true,
+			expectedErrMsg: "missing required parameter: owner",
+		},
+		{
+			name:         "missing required parameter repo",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"pullNumber": float64(123),
+			},
+			expectError:    true,
+			expectedErrMsg: "missing required parameter: repo",
+		},
+		{
+			name:         "missing required parameter pullNumber",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			expectError:    true,
+			expectedErrMsg: "missing required parameter: pullNumber",
+		},
+		{
+			name: "PR not found",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposPullsByOwnerByRepoByPullNumber,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_ = json.NewEncoder(w).Encode(map[string]string{
+							"message": "Not Found",
+						})
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(999),
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			_, handler := GetPullRequestCIFailures(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+
+			require.NoError(t, err)
+			require.Equal(t, tc.expectError, result.IsError)
+
+			// Parse the result and get the text content
+			textContent := getTextResult(t, result)
+
+			if tc.expectedErrMsg != "" {
+				assert.Equal(t, tc.expectedErrMsg, textContent.Text)
+				return
+			}
+
+			if tc.expectError {
+				// For API errors, just verify we got an error
+				assert.True(t, result.IsError)
+				return
+			}
+
+			// Unmarshal and verify the result
+			var response map[string]any
+			err = json.Unmarshal([]byte(textContent.Text), &response)
+			require.NoError(t, err)
+
+			if tc.checkResponse != nil {
+				tc.checkResponse(t, response)
+			}
+		})
+	}
+}
+
+func Test_GetPullRequestCIFailures_WithContentReturn(t *testing.T) {
+	logContent := "2023-01-01T10:00:00.000Z Error: test failed\n2023-01-01T10:00:01.000Z  at TestClass.test(Test.java:42)"
+
+	// Create a test server to serve log content
+	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(logContent))
+	}))
+	defer testServer.Close()
+
+	mockedClient := mock.NewMockedHTTPClient(
+		mock.WithRequestMatchHandler(
+			mock.GetReposPullsByOwnerByRepoByPullNumber,
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				pr := &github.PullRequest{
+					Number: github.Ptr(123),
+					Head: &github.PullRequestBranch{
+						SHA: github.Ptr("abc123sha"),
+						Ref: github.Ptr("feature-branch"),
+					},
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(pr)
+			}),
+		),
+		mock.WithRequestMatchHandler(
+			mock.GetReposActionsRunsByOwnerByRepo,
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				runs := &github.WorkflowRuns{
+					TotalCount: github.Ptr(1),
+					WorkflowRuns: []*github.WorkflowRun{
+						{
+							ID:         github.Ptr(int64(1001)),
+							Name:       github.Ptr("CI"),
+							WorkflowID: github.Ptr(int64(100)),
+							Status:     github.Ptr("completed"),
+							Conclusion: github.Ptr("failure"),
+							HTMLURL:    github.Ptr("https://github.com/owner/repo/actions/runs/1001"),
+						},
+					},
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(runs)
+			}),
+		),
+		mock.WithRequestMatchHandler(
+			mock.GetReposActionsRunsJobsByOwnerByRepoByRunId,
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				jobs := &github.Jobs{
+					TotalCount: github.Ptr(1),
+					Jobs: []*github.WorkflowJob{
+						{
+							ID:         github.Ptr(int64(2001)),
+							Name:       github.Ptr("test-job"),
+							Status:     github.Ptr("completed"),
+							Conclusion: github.Ptr("failure"),
+						},
+					},
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(jobs)
+			}),
+		),
+		mock.WithRequestMatchHandler(
+			mock.GetReposActionsJobsLogsByOwnerByRepoByJobId,
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Location", testServer.URL)
+				w.WriteHeader(http.StatusFound)
+			}),
+		),
+	)
+
+	client := github.NewClient(mockedClient)
+	_, handler := GetPullRequestCIFailures(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
+
+	request := createMCPRequest(map[string]any{
+		"owner":          "owner",
+		"repo":           "repo",
+		"pullNumber":     float64(123),
+		"return_content": true,
+	})
+	args := map[string]any{
+		"owner":          "owner",
+		"repo":           "repo",
+		"pullNumber":     float64(123),
+		"return_content": true,
+	}
+
+	result, _, err := handler(context.Background(), &request, args)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+	var response map[string]any
+	err = json.Unmarshal([]byte(textContent.Text), &response)
+	require.NoError(t, err)
+
+	assert.Contains(t, response["message"], "Found 1 failed workflow run")
+	assert.Equal(t, float64(123), response["pull_number"])
+
+	// Verify that workflow runs are included
+	workflowRuns, ok := response["workflow_runs"].([]any)
+	assert.True(t, ok)
+	assert.Len(t, workflowRuns, 1)
+
+	// Verify the first workflow run has jobs with log content
+	firstRun, ok := workflowRuns[0].(map[string]any)
+	assert.True(t, ok)
+	jobs, ok := firstRun["jobs"].([]any)
+	assert.True(t, ok)
+	assert.Len(t, jobs, 1)
+
+	// Verify log content is present
+	firstJob, ok := jobs[0].(map[string]any)
+	assert.True(t, ok)
+	assert.Contains(t, firstJob, "logs_content")
+	assert.Contains(t, firstJob["logs_content"], "Error: test failed")
+}

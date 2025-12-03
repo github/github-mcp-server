@@ -1,0 +1,40 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get PR CI failures"
+  },
+  "description": "Get failed CI workflow job logs for a pull request. This tool finds workflow runs triggered by a PR, identifies failed jobs, and retrieves their logs for debugging CI failures.",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "owner",
+      "repo",
+      "pullNumber"
+    ],
+    "properties": {
+      "owner": {
+        "type": "string",
+        "description": "Repository owner"
+      },
+      "pullNumber": {
+        "type": "number",
+        "description": "Pull request number"
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      },
+      "return_content": {
+        "type": "boolean",
+        "description": "Returns actual log content instead of URLs (default: true)",
+        "default": true
+      },
+      "tail_lines": {
+        "type": "number",
+        "description": "Number of lines to return from the end of each log (default: 500)",
+        "default": 500
+      }
+    }
+  },
+  "name": "get_pull_request_ci_failures"
+}
