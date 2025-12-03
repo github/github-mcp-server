@@ -1454,7 +1454,10 @@ func GetPullRequestCIFailures(getClient GetClientFn, t translations.TranslationH
 						"workflow": run.GetWorkflowID(),
 						"error":    err.Error(),
 					}
-					_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get job logs", resp, err)
+					ctx, err2 := ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get job logs", resp, err)
+					if err2 != nil {
+						fmt.Printf("failed to record GitHub API error in context: %v\n", err2)
+					}
 				}
 
 				if failedJobCount, ok := runResult["failed_jobs"].(int); ok {
