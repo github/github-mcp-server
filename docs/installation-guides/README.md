@@ -7,6 +7,7 @@ This directory contains detailed installation instructions for the GitHub MCP Se
 - **[Claude Applications](install-claude.md)** - Installation guide for Claude Web, Claude Desktop and Claude Code CLI
 - **[Cursor](install-cursor.md)** - Installation guide for Cursor IDE
 - **[Google Gemini CLI](install-gemini-cli.md)** - Installation guide for Google Gemini CLI
+- **[OpenAI Codex](install-codex.md)** - Installation guide for OpenAI Codex
 - **[Windsurf](install-windsurf.md)** - Installation guide for Windsurf IDE
 
 ## Support by Host Application
@@ -94,4 +95,5 @@ After installation, you may want to explore:
 - **Toolsets**: Enable/disable specific GitHub API capabilities
 - **Read-Only Mode**: Restrict to read-only operations
 - **Dynamic Tool Discovery**: Enable tools on-demand
+- **Lockdown Mode**: Hide public issue details created by users without push access
 
