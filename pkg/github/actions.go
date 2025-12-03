@@ -1328,3 +1328,241 @@ func GetWorkflowRunUsage(getClient GetClientFn, t translations.TranslationHelper
 			return utils.NewToolResultText(string(r)), nil, nil
 		}
 }
+
+// GetPullRequestCIFailures creates a tool to get failed CI job logs for a pull request
+func GetPullRequestCIFailures(getClient GetClientFn, t translations.TranslationHelperFunc, contentWindowSize int) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	return mcp.Tool{
+			Name:        "get_pull_request_ci_failures",
+			Description: t("TOOL_GET_PR_CI_FAILURES_DESCRIPTION", "Get failed CI workflow job logs for a pull request. This tool finds workflow runs triggered by a PR, identifies failed jobs, and retrieves their logs for debugging CI failures."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_GET_PR_CI_FAILURES_USER_TITLE", "Get PR CI failures"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: DescriptionRepositoryOwner,
+					},
+					"repo": {
+						Type:        "string",
+						Description: DescriptionRepositoryName,
+					},
+					"pullNumber": {
+						Type:        "number",
+						Description: "Pull request number",
+					},
+					"return_content": {
+						Type:        "boolean",
+						Description: "Returns actual log content instead of URLs (default: true)",
+						Default:     json.RawMessage(`true`),
+					},
+					"tail_lines": {
+						Type:        "number",
+						Description: "Number of lines to return from the end of each log (default: 500)",
+						Default:     json.RawMessage(`500`),
+					},
+				},
+				Required: []string{"owner", "repo", "pullNumber"},
+			},
+		},
+		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			pullNumber, err := RequiredInt(args, "pullNumber")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// Get optional parameters with defaults
+			returnContent, err := OptionalBoolParamWithDefault(args, "return_content", true)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			tailLines, err := OptionalIntParamWithDefault(args, "tail_lines", 500)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			// Step 1: Get the PR to find the head SHA
+			pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get pull request", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			headSHA := pr.GetHead().GetSHA()
+			headBranch := pr.GetHead().GetRef()
+
+			if headSHA == "" {
+				return utils.NewToolResultError("Pull request has no head SHA"), nil, nil
+			}
+
+			// Step 2: List workflow runs for this SHA
+			workflowRuns, resp, err := client.Actions.ListRepositoryWorkflowRuns(ctx, owner, repo, &github.ListWorkflowRunsOptions{
+				HeadSHA: headSHA,
+				ListOptions: github.ListOptions{
+					PerPage: 100, // Get a good number of runs
+				},
+			})
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list workflow runs", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if workflowRuns.GetTotalCount() == 0 {
+				result := map[string]any{
+					"message":     "No workflow runs found for this pull request",
+					"pull_number": pullNumber,
+					"head_sha":    headSHA,
+					"head_branch": headBranch,
+				}
+				r, _ := json.Marshal(result)
+				return utils.NewToolResultText(string(r)), nil, nil
+			}
+
+			// Step 3: Find failed workflow runs and collect their failed job logs
+			var failedRunResults []map[string]any
+			totalFailedJobs := 0
+
+			for _, run := range workflowRuns.WorkflowRuns {
+				// Only process failed or completed runs with failures
+				conclusion := run.GetConclusion()
+				if conclusion != "failure" && conclusion != "timed_out" && conclusion != "cancelled" {
+					continue
+				}
+
+				// Get failed job logs for this run
+				runResult, resp, err := getFailedJobsForRun(ctx, client, owner, repo, run, returnContent, tailLines, contentWindowSize)
+				if err != nil {
+					// Log error but continue with other runs
+					runResult = map[string]any{
+						"run_id":   run.GetID(),
+						"run_name": run.GetName(),
+						"workflow": run.GetWorkflowID(),
+						"error":    err.Error(),
+					}
+					_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get job logs", resp, err)
+				}
+
+				if failedJobCount, ok := runResult["failed_jobs"].(int); ok {
+					totalFailedJobs += failedJobCount
+				}
+
+				failedRunResults = append(failedRunResults, runResult)
+			}
+
+			if len(failedRunResults) == 0 {
+				result := map[string]any{
+					"message":     "No failed workflow runs found for this pull request",
+					"pull_number": pullNumber,
+					"head_sha":    headSHA,
+					"head_branch": headBranch,
+					"total_runs":  workflowRuns.GetTotalCount(),
+				}
+				r, _ := json.Marshal(result)
+				return utils.NewToolResultText(string(r)), nil, nil
+			}
+
+			result := map[string]any{
+				"message":           fmt.Sprintf("Found %d failed workflow run(s) with %d failed job(s)", len(failedRunResults), totalFailedJobs),
+				"pull_number":       pullNumber,
+				"head_sha":          headSHA,
+				"head_branch":       headBranch,
+				"total_runs":        workflowRuns.GetTotalCount(),
+				"failed_runs":       len(failedRunResults),
+				"total_failed_jobs": totalFailedJobs,
+				"workflow_runs":     failedRunResults,
+				"return_format":     map[string]bool{"content": returnContent, "urls": !returnContent},
+			}
+
+			r, err := json.Marshal(result)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
+		}
+}
+
+// getFailedJobsForRun gets the failed jobs and their logs for a specific workflow run
+func getFailedJobsForRun(ctx context.Context, client *github.Client, owner, repo string, run *github.WorkflowRun, returnContent bool, tailLines int, contentWindowSize int) (map[string]any, *github.Response, error) {
+	runID := run.GetID()
+
+	// Get all jobs for this run
+	jobs, resp, err := client.Actions.ListWorkflowJobs(ctx, owner, repo, runID, &github.ListWorkflowJobsOptions{
+		Filter: "latest",
+	})
+	if err != nil {
+		return nil, resp, fmt.Errorf("failed to list workflow jobs for run %d: %w", runID, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	// Filter for failed jobs
+	var failedJobs []*github.WorkflowJob
+	for _, job := range jobs.Jobs {
+		jobConclusion := job.GetConclusion()
+		if jobConclusion == "failure" || jobConclusion == "timed_out" || jobConclusion == "cancelled" {
+			failedJobs = append(failedJobs, job)
+		}
+	}
+
+	// Collect logs for failed jobs
+	var jobLogs []map[string]any
+	for _, job := range failedJobs {
+		jobResult, _, err := getJobLogData(ctx, client, owner, repo, job.GetID(), job.GetName(), returnContent, tailLines, contentWindowSize)
+		if err != nil {
+			// Include error info but continue
+			jobResult = map[string]any{
+				"job_id":     job.GetID(),
+				"job_name":   job.GetName(),
+				"conclusion": job.GetConclusion(),
+				"error":      err.Error(),
+			}
+		} else {
+			// Add conclusion to result
+			jobResult["conclusion"] = job.GetConclusion()
+			// Add failed step information if available
+			var failedSteps []map[string]any
+			for _, step := range job.Steps {
+				if step.GetConclusion() == "failure" {
+					failedSteps = append(failedSteps, map[string]any{
+						"name":       step.GetName(),
+						"number":     step.GetNumber(),
+						"conclusion": step.GetConclusion(),
+					})
+				}
+			}
+			if len(failedSteps) > 0 {
+				jobResult["failed_steps"] = failedSteps
+			}
+		}
+		jobLogs = append(jobLogs, jobResult)
+	}
+
+	result := map[string]any{
+		"run_id":      runID,
+		"run_name":    run.GetName(),
+		"workflow_id": run.GetWorkflowID(),
+		"html_url":    run.GetHTMLURL(),
+		"conclusion":  run.GetConclusion(),
+		"status":      run.GetStatus(),
+		"total_jobs":  len(jobs.Jobs),
+		"failed_jobs": len(failedJobs),
+		"jobs":        jobLogs,
+	}
+
+	return result, resp, nil
+}
