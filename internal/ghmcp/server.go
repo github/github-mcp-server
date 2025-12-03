@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -12,15 +11,16 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/lockdown"
 	mcplog "github.com/github/github-mcp-server/pkg/log"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
-	gogithub "github.com/google/go-github/v74/github"
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
+	gogithub "github.com/google/go-github/v79/github"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -38,6 +38,10 @@ type MCPServerConfig struct {
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration
 	EnabledToolsets []string
 
+	// EnabledTools is a list of specific tools to enable (additive to toolsets)
+	// When specified, these tools are registered in addition to any specified toolset tools
+	EnabledTools []string
+
 	// Whether to enable dynamic toolsets
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#dynamic-tool-discovery
 	DynamicToolsets bool
@@ -50,11 +54,17 @@ type MCPServerConfig struct {
 
 	// Content window size
 	ContentWindowSize int
+
+	// LockdownMode indicates if we should enable lockdown mode
+	LockdownMode bool
+
+	// Logger is used for logging within the server
+	Logger *slog.Logger
+	// RepoAccessTTL overrides the default TTL for repository access cache entries.
+	RepoAccessTTL *time.Duration
 }
 
-const stdioServerLogPrefix = "stdioserver"
-
-func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
+func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	apiHost, err := parseAPIHost(cfg.Host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
@@ -76,53 +86,43 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 		},
 	} // We're going to wrap the Transport later in beforeInit
 	gqlClient := githubv4.NewEnterpriseClient(apiHost.graphqlURL.String(), gqlHTTPClient)
-
-	// When a client send an initialize request, update the user agent to include the client info.
-	beforeInit := func(_ context.Context, _ any, message *mcp.InitializeRequest) {
-		userAgent := fmt.Sprintf(
-			"github-mcp-server/%s (%s/%s)",
-			cfg.Version,
-			message.Params.ClientInfo.Name,
-			message.Params.ClientInfo.Version,
-		)
-
-		restClient.UserAgent = userAgent
-
-		gqlHTTPClient.Transport = &userAgentTransport{
-			transport: gqlHTTPClient.Transport,
-			agent:     userAgent,
-		}
+	repoAccessOpts := []lockdown.RepoAccessOption{}
+	if cfg.RepoAccessTTL != nil {
+		repoAccessOpts = append(repoAccessOpts, lockdown.WithTTL(*cfg.RepoAccessTTL))
 	}
 
-	hooks := &server.Hooks{
-		OnBeforeInitialize: []server.OnBeforeInitializeFunc{beforeInit},
-		OnBeforeAny: []server.BeforeAnyHookFunc{
-			func(ctx context.Context, _ any, _ mcp.MCPMethod, _ any) {
-				// Ensure the context is cleared of any previous errors
-				// as context isn't propagated through middleware
-				errors.ContextWithGitHubErrors(ctx)
-			},
-		},
+	repoAccessLogger := cfg.Logger.With("component", "lockdown")
+	repoAccessOpts = append(repoAccessOpts, lockdown.WithLogger(repoAccessLogger))
+	var repoAccessCache *lockdown.RepoAccessCache
+	if cfg.LockdownMode {
+		repoAccessCache = lockdown.GetInstance(gqlClient, repoAccessOpts...)
 	}
 
 	enabledToolsets := cfg.EnabledToolsets
+
+	// If dynamic toolsets are enabled, remove "all" from the enabled toolsets
 	if cfg.DynamicToolsets {
-		// filter "all" from the enabled toolsets
-		enabledToolsets = make([]string, 0, len(cfg.EnabledToolsets))
-		for _, toolset := range cfg.EnabledToolsets {
-			if toolset != "all" {
-				enabledToolsets = append(enabledToolsets, toolset)
-			}
-		}
+		enabledToolsets = github.RemoveToolset(enabledToolsets, github.ToolsetMetadataAll.ID)
+	}
+
+	// Clean up the passed toolsets
+	enabledToolsets, invalidToolsets := github.CleanToolsets(enabledToolsets)
+
+	// If "all" is present, override all other toolsets
+	if github.ContainsToolset(enabledToolsets, github.ToolsetMetadataAll.ID) {
+		enabledToolsets = []string{github.ToolsetMetadataAll.ID}
+	}
+	// If "default" is present, expand to real toolset IDs
+	if github.ContainsToolset(enabledToolsets, github.ToolsetMetadataDefault.ID) {
+		enabledToolsets = github.AddDefaultToolset(enabledToolsets)
+	}
+
+	if len(invalidToolsets) > 0 {
+		fmt.Fprintf(os.Stderr, "Invalid toolsets ignored: %s\n", strings.Join(invalidToolsets, ", "))
 	}
 
 	// Generate instructions based on enabled toolsets
 	instructions := github.GenerateInstructions(enabledToolsets)
-
-	ghServer := github.NewServer(cfg.Version,
-		server.WithInstructions(instructions),
-		server.WithHooks(hooks),
-	)
 
 	getClient := func(_ context.Context) (*gogithub.Client, error) {
 		return restClient, nil // closing over client
@@ -140,17 +140,53 @@ func NewMCPServer(cfg MCPServerConfig) (*server.MCPServer, error) {
 		return raw.NewClient(client, apiHost.rawURL), nil // closing over client
 	}
 
-	// Create default toolsets
-	tsg := github.DefaultToolsetGroup(cfg.ReadOnly, getClient, getGQLClient, getRawClient, cfg.Translator, cfg.ContentWindowSize)
-	err = tsg.EnableToolsets(enabledToolsets, nil)
+	ghServer := github.NewServer(cfg.Version, &mcp.ServerOptions{
+		Instructions:      instructions,
+		Logger:            cfg.Logger,
+		CompletionHandler: github.CompletionsHandler(getClient),
+	})
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to enable toolsets: %w", err)
+	// Add middlewares
+	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
+	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, restClient, gqlHTTPClient))
+
+	// Create default toolsets
+	tsg := github.DefaultToolsetGroup(
+		cfg.ReadOnly,
+		getClient,
+		getGQLClient,
+		getRawClient,
+		cfg.Translator,
+		cfg.ContentWindowSize,
+		github.FeatureFlags{LockdownMode: cfg.LockdownMode},
+		repoAccessCache,
+	)
+
+	// Enable and register toolsets if configured
+	// This always happens if toolsets are specified, regardless of whether tools are also specified
+	if len(enabledToolsets) > 0 {
+		err = tsg.EnableToolsets(enabledToolsets, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to enable toolsets: %w", err)
+		}
+
+		// Register all mcp functionality with the server
+		tsg.RegisterAll(ghServer)
 	}
 
-	// Register all mcp functionality with the server
-	tsg.RegisterAll(ghServer)
+	// Register specific tools if configured
+	if len(cfg.EnabledTools) > 0 {
+		// Clean and validate tool names
+		enabledTools := github.CleanTools(cfg.EnabledTools)
 
+		// Register the specified tools (additive to any toolsets already enabled)
+		err = tsg.RegisterSpecificTools(ghServer, enabledTools, cfg.ReadOnly)
+		if err != nil {
+			return nil, fmt.Errorf("failed to register tools: %w", err)
+		}
+	}
+
+	// Register dynamic toolsets if configured (additive to toolsets and tools)
 	if cfg.DynamicToolsets {
 		dynamic := github.InitDynamicToolset(ghServer, tsg, cfg.Translator)
 		dynamic.RegisterTools(ghServer)
@@ -173,6 +209,10 @@ type StdioServerConfig struct {
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration
 	EnabledToolsets []string
 
+	// EnabledTools is a list of specific tools to enable (additive to toolsets)
+	// When specified, these tools are registered in addition to any specified toolset tools
+	EnabledTools []string
+
 	// Whether to enable dynamic toolsets
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#dynamic-tool-discovery
 	DynamicToolsets bool
@@ -192,6 +232,12 @@ type StdioServerConfig struct {
 
 	// Content window size
 	ContentWindowSize int
+
+	// LockdownMode indicates if we should enable lockdown mode
+	LockdownMode bool
+
+	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
+	RepoAccessCacheTTL *time.Duration
 }
 
 // RunStdioServer is not concurrent safe.
@@ -201,22 +247,6 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	defer stop()
 
 	t, dumpTranslations := translations.TranslationHelper()
-
-	ghServer, err := NewMCPServer(MCPServerConfig{
-		Version:           cfg.Version,
-		Host:              cfg.Host,
-		Token:             cfg.Token,
-		EnabledToolsets:   cfg.EnabledToolsets,
-		DynamicToolsets:   cfg.DynamicToolsets,
-		ReadOnly:          cfg.ReadOnly,
-		Translator:        t,
-		ContentWindowSize: cfg.ContentWindowSize,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create MCP server: %w", err)
-	}
-
-	stdioServer := server.NewStdioServer(ghServer)
 
 	var slogHandler slog.Handler
 	var logOutput io.Writer
@@ -232,9 +262,25 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelInfo})
 	}
 	logger := slog.New(slogHandler)
-	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "dynamicToolsets", cfg.DynamicToolsets, "readOnly", cfg.ReadOnly)
-	stdLogger := log.New(logOutput, stdioServerLogPrefix, 0)
-	stdioServer.SetErrorLogger(stdLogger)
+	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "dynamicToolsets", cfg.DynamicToolsets, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode)
+
+	ghServer, err := NewMCPServer(MCPServerConfig{
+		Version:           cfg.Version,
+		Host:              cfg.Host,
+		Token:             cfg.Token,
+		EnabledToolsets:   cfg.EnabledToolsets,
+		EnabledTools:      cfg.EnabledTools,
+		DynamicToolsets:   cfg.DynamicToolsets,
+		ReadOnly:          cfg.ReadOnly,
+		Translator:        t,
+		ContentWindowSize: cfg.ContentWindowSize,
+		LockdownMode:      cfg.LockdownMode,
+		Logger:            logger,
+		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create MCP server: %w", err)
+	}
 
 	if cfg.ExportTranslations {
 		// Once server is initialized, all translations are loaded
@@ -244,15 +290,20 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	// Start listening for messages
 	errC := make(chan error, 1)
 	go func() {
-		in, out := io.Reader(os.Stdin), io.Writer(os.Stdout)
+		var in io.ReadCloser
+		var out io.WriteCloser
+
+		in = os.Stdin
+		out = os.Stdout
 
 		if cfg.EnableCommandLogging {
 			loggedIO := mcplog.NewIOLogger(in, out, logger)
 			in, out = loggedIO, loggedIO
 		}
+
 		// enable GitHub errors in the context
 		ctx := errors.ContextWithGitHubErrors(ctx)
-		errC <- stdioServer.Listen(ctx, in, out)
+		errC <- ghServer.Run(ctx, &mcp.IOTransport{Reader: in, Writer: out})
 	}()
 
 	// Output github-mcp-server string
@@ -363,11 +414,30 @@ func newGHESHost(hostname string) (apiHost, error) {
 		return apiHost{}, fmt.Errorf("failed to parse GHES GraphQL URL: %w", err)
 	}
 
-	uploadURL, err := url.Parse(fmt.Sprintf("%s://%s/api/uploads/", u.Scheme, u.Hostname()))
+	// Check if subdomain isolation is enabled
+	// See https://docs.github.com/en/enterprise-server@3.17/admin/configuring-settings/hardening-security-for-your-enterprise/enabling-subdomain-isolation#about-subdomain-isolation
+	hasSubdomainIsolation := checkSubdomainIsolation(u.Scheme, u.Hostname())
+
+	var uploadURL *url.URL
+	if hasSubdomainIsolation {
+		// With subdomain isolation: https://uploads.hostname/
+		uploadURL, err = url.Parse(fmt.Sprintf("%s://uploads.%s/", u.Scheme, u.Hostname()))
+	} else {
+		// Without subdomain isolation: https://hostname/api/uploads/
+		uploadURL, err = url.Parse(fmt.Sprintf("%s://%s/api/uploads/", u.Scheme, u.Hostname()))
+	}
 	if err != nil {
 		return apiHost{}, fmt.Errorf("failed to parse GHES Upload URL: %w", err)
 	}
-	rawURL, err := url.Parse(fmt.Sprintf("%s://%s/raw/", u.Scheme, u.Hostname()))
+
+	var rawURL *url.URL
+	if hasSubdomainIsolation {
+		// With subdomain isolation: https://raw.hostname/
+		rawURL, err = url.Parse(fmt.Sprintf("%s://raw.%s/", u.Scheme, u.Hostname()))
+	} else {
+		// Without subdomain isolation: https://hostname/raw/
+		rawURL, err = url.Parse(fmt.Sprintf("%s://%s/raw/", u.Scheme, u.Hostname()))
+	}
 	if err != nil {
 		return apiHost{}, fmt.Errorf("failed to parse GHES Raw URL: %w", err)
 	}
@@ -378,6 +448,29 @@ func newGHESHost(hostname string) (apiHost, error) {
 		uploadURL:   uploadURL,
 		rawURL:      rawURL,
 	}, nil
+}
+
+// checkSubdomainIsolation detects if GitHub Enterprise Server has subdomain isolation enabled
+// by attempting to ping the raw.<host>/_ping endpoint on the subdomain. The raw subdomain must always exist for subdomain isolation.
+func checkSubdomainIsolation(scheme, hostname string) bool {
+	subdomainURL := fmt.Sprintf("%s://raw.%s/_ping", scheme, hostname)
+
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+		// Don't follow redirects - we just want to check if the endpoint exists
+		//nolint:revive // parameters are required by http.Client.CheckRedirect signature
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	resp, err := client.Get(subdomainURL)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	return resp.StatusCode == http.StatusOK
 }
 
 // Note that this does not handle ports yet, so development environments are out.
@@ -426,4 +519,45 @@ func (t *bearerAuthTransport) RoundTrip(req *http.Request) (*http.Response, erro
 	req = req.Clone(req.Context())
 	req.Header.Set("Authorization", "Bearer "+t.token)
 	return t.transport.RoundTrip(req)
+}
+
+func addGitHubAPIErrorToContext(next mcp.MethodHandler) mcp.MethodHandler {
+	return func(ctx context.Context, method string, req mcp.Request) (result mcp.Result, err error) {
+		// Ensure the context is cleared of any previous errors
+		// as context isn't propagated through middleware
+		ctx = errors.ContextWithGitHubErrors(ctx)
+		return next(ctx, method, req)
+	}
+}
+
+func addUserAgentsMiddleware(cfg MCPServerConfig, restClient *gogithub.Client, gqlHTTPClient *http.Client) func(next mcp.MethodHandler) mcp.MethodHandler {
+	return func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, request mcp.Request) (result mcp.Result, err error) {
+			if method != "initialize" {
+				return next(ctx, method, request)
+			}
+
+			initializeRequest, ok := request.(*mcp.InitializeRequest)
+			if !ok {
+				return next(ctx, method, request)
+			}
+
+			message := initializeRequest
+			userAgent := fmt.Sprintf(
+				"github-mcp-server/%s (%s/%s)",
+				cfg.Version,
+				message.Params.ClientInfo.Name,
+				message.Params.ClientInfo.Version,
+			)
+
+			restClient.UserAgent = userAgent
+
+			gqlHTTPClient.Transport = &userAgentTransport{
+				transport: gqlHTTPClient.Transport,
+				agent:     userAgent,
+			}
+
+			return next(ctx, method, request)
+		}
+	}
 }

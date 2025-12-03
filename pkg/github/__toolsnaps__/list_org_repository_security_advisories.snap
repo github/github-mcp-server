@@ -1,0 +1,47 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "List org repository security advisories"
+  },
+  "description": "List repository security advisories for a GitHub organization.",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "org"
+    ],
+    "properties": {
+      "direction": {
+        "type": "string",
+        "description": "Sort direction.",
+        "enum": [
+          "asc",
+          "desc"
+        ]
+      },
+      "org": {
+        "type": "string",
+        "description": "The organization login."
+      },
+      "sort": {
+        "type": "string",
+        "description": "Sort field.",
+        "enum": [
+          "created",
+          "updated",
+          "published"
+        ]
+      },
+      "state": {
+        "type": "string",
+        "description": "Filter by advisory state.",
+        "enum": [
+          "triage",
+          "draft",
+          "published",
+          "closed"
+        ]
+      }
+    }
+  },
+  "name": "list_org_repository_security_advisories"
+}

@@ -2,6 +2,7 @@ package github
 
 import (
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -128,12 +129,23 @@ func TestGenerateInstructionsWithDisableFlag(t *testing.T) {
 
 func TestGetToolsetInstructions(t *testing.T) {
 	tests := []struct {
-		toolset       string
-		expectedEmpty bool
+		toolset              string
+		expectedEmpty        bool
+		enabledToolsets      []string
+		expectedToContain    string
+		notExpectedToContain string
 	}{
 		{
-			toolset:       "pull_requests",
-			expectedEmpty: false,
+			toolset:           "pull_requests",
+			expectedEmpty:     false,
+			enabledToolsets:   []string{"pull_requests", "repos"},
+			expectedToContain: "pull_request_template.md",
+		},
+		{
+			toolset:              "pull_requests",
+			expectedEmpty:        false,
+			enabledToolsets:      []string{"pull_requests"},
+			notExpectedToContain: "pull_request_template.md",
 		},
 		{
 			toolset:       "issues",
@@ -151,7 +163,7 @@ func TestGetToolsetInstructions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.toolset, func(t *testing.T) {
-			result := getToolsetInstructions(tt.toolset)
+			result := getToolsetInstructions(tt.toolset, tt.enabledToolsets)
 			if tt.expectedEmpty {
 				if result != "" {
 					t.Errorf("Expected empty result for toolset '%s', but got: %s", tt.toolset, result)
@@ -160,6 +172,14 @@ func TestGetToolsetInstructions(t *testing.T) {
 				if result == "" {
 					t.Errorf("Expected non-empty result for toolset '%s', but got empty", tt.toolset)
 				}
+			}
+
+			if tt.expectedToContain != "" && !strings.Contains(result, tt.expectedToContain) {
+				t.Errorf("Expected result to contain '%s' for toolset '%s', but it did not. Result: %s", tt.expectedToContain, tt.toolset, result)
+			}
+
+			if tt.notExpectedToContain != "" && strings.Contains(result, tt.notExpectedToContain) {
+				t.Errorf("Did not expect result to contain '%s' for toolset '%s', but it did. Result: %s", tt.notExpectedToContain, tt.toolset, result)
 			}
 		})
 	}

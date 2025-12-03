@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/toolsets"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v74/github"
-	"github.com/mark3labs/mcp-go/server"
+	"github.com/google/go-github/v79/github"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -23,6 +24,14 @@ type ToolsetMetadata struct {
 }
 
 var (
+	ToolsetMetadataAll = ToolsetMetadata{
+		ID:          "all",
+		Description: "Special toolset that enables all available toolsets",
+	}
+	ToolsetMetadataDefault = ToolsetMetadata{
+		ID:          "default",
+		Description: "Special toolset that enables the default toolset configuration. When no toolsets are specified, this is the set that is enabled",
+	}
 	ToolsetMetadataContext = ToolsetMetadata{
 		ID:          "context",
 		Description: "Tools that provide context about the current user and GitHub context you are operating in",
@@ -30,6 +39,10 @@ var (
 	ToolsetMetadataRepos = ToolsetMetadata{
 		ID:          "repos",
 		Description: "GitHub Repository related tools",
+	}
+	ToolsetMetadataGit = ToolsetMetadata{
+		ID:          "git",
+		Description: "GitHub Git API related tools for low-level Git operations",
 	}
 	ToolsetMetadataIssues = ToolsetMetadata{
 		ID:          "issues",
@@ -125,6 +138,18 @@ func AvailableTools() []ToolsetMetadata {
 	}
 }
 
+// GetValidToolsetIDs returns a map of all valid toolset IDs for quick lookup
+func GetValidToolsetIDs() map[string]bool {
+	validIDs := make(map[string]bool)
+	for _, tool := range AvailableTools() {
+		validIDs[tool.ID] = true
+	}
+	// Add special keywords
+	validIDs[ToolsetMetadataAll.ID] = true
+	validIDs[ToolsetMetadataDefault.ID] = true
+	return validIDs
+}
+
 func GetDefaultToolsetIDs() []string {
 	return []string{
 		ToolsetMetadataContext.ID,
@@ -135,7 +160,7 @@ func GetDefaultToolsetIDs() []string {
 	}
 }
 
-func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetGQLClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc, contentWindowSize int) *toolsets.ToolsetGroup {
+func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetGQLClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc, contentWindowSize int, flags FeatureFlags, cache *lockdown.RepoAccessCache) *toolsets.ToolsetGroup {
 	tsg := toolsets.NewToolsetGroup(readOnly)
 
 	// Define all available features with their default state (disabled)
@@ -169,25 +194,23 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerResourceTemplate(GetRepositoryResourceTagContent(getClient, getRawClient, t)),
 			toolsets.NewServerResourceTemplate(GetRepositoryResourcePrContent(getClient, getRawClient, t)),
 		)
+	git := toolsets.NewToolset(ToolsetMetadataGit.ID, ToolsetMetadataGit.Description).
+		AddReadTools(
+			toolsets.NewServerTool(GetRepositoryTree(getClient, t)),
+		)
 	issues := toolsets.NewToolset(ToolsetMetadataIssues.ID, ToolsetMetadataIssues.Description).
 		AddReadTools(
-			toolsets.NewServerTool(GetIssue(getClient, t)),
+			toolsets.NewServerTool(IssueRead(getClient, getGQLClient, cache, t, flags)),
 			toolsets.NewServerTool(SearchIssues(getClient, t)),
 			toolsets.NewServerTool(ListIssues(getGQLClient, t)),
-			toolsets.NewServerTool(GetIssueComments(getClient, t)),
 			toolsets.NewServerTool(ListIssueTypes(getClient, t)),
-			toolsets.NewServerTool(ListSubIssues(getClient, t)),
 			toolsets.NewServerTool(GetLabel(getGQLClient, t)),
-			toolsets.NewServerTool(ListLabels(getGQLClient, t)),
 		).
 		AddWriteTools(
-			toolsets.NewServerTool(CreateIssue(getClient, t)),
+			toolsets.NewServerTool(IssueWrite(getClient, getGQLClient, t)),
 			toolsets.NewServerTool(AddIssueComment(getClient, t)),
-			toolsets.NewServerTool(UpdateIssue(getClient, getGQLClient, t)),
 			toolsets.NewServerTool(AssignCopilotToIssue(getGQLClient, t)),
-			toolsets.NewServerTool(AddSubIssue(getClient, t)),
-			toolsets.NewServerTool(RemoveSubIssue(getClient, t)),
-			toolsets.NewServerTool(ReprioritizeSubIssue(getClient, t)),
+			toolsets.NewServerTool(SubIssueWrite(getClient, t)),
 		).AddPrompts(
 		toolsets.NewServerPrompt(AssignCodingAgentPrompt(t)),
 		toolsets.NewServerPrompt(IssueToFixWorkflowPrompt(t)),
@@ -202,7 +225,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		)
 	pullRequests := toolsets.NewToolset(ToolsetMetadataPullRequests.ID, ToolsetMetadataPullRequests.Description).
 		AddReadTools(
-			toolsets.NewServerTool(PullRequestRead(getClient, t)),
+			toolsets.NewServerTool(PullRequestRead(getClient, cache, t, flags)),
 			toolsets.NewServerTool(ListPullRequests(getClient, t)),
 			toolsets.NewServerTool(SearchPullRequests(getClient, t)),
 		).
@@ -212,7 +235,6 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(CreatePullRequest(getClient, t)),
 			toolsets.NewServerTool(UpdatePullRequest(getClient, getGQLClient, t)),
 			toolsets.NewServerTool(RequestCopilotReview(getClient, t)),
-
 			// Reviews
 			toolsets.NewServerTool(PullRequestReviewWrite(getGQLClient, t)),
 			toolsets.NewServerTool(AddCommentToPendingReview(getGQLClient, t)),
@@ -281,7 +303,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(ListOrgRepositorySecurityAdvisories(getClient, t)),
 		)
 
-	// Keep experiments alive so the system doesn't error out when it's always enabled
+	// // Keep experiments alive so the system doesn't error out when it's always enabled
 	experiments := toolsets.NewToolset(ToolsetMetadataExperiments.ID, ToolsetMetadataExperiments.Description)
 
 	contextTools := toolsets.NewToolset(ToolsetMetadataContext.ID, ToolsetMetadataContext.Description).
@@ -294,6 +316,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	gists := toolsets.NewToolset(ToolsetMetadataGists.ID, ToolsetMetadataGists.Description).
 		AddReadTools(
 			toolsets.NewServerTool(ListGists(getClient, t)),
+			toolsets.NewServerTool(GetGist(getClient, t)),
 		).
 		AddWriteTools(
 			toolsets.NewServerTool(CreateGist(getClient, t)),
@@ -333,17 +356,19 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			// create or update
 			toolsets.NewServerTool(LabelWrite(getGQLClient, t)),
 		)
+
 	// Add toolsets to the group
 	tsg.AddToolset(contextTools)
 	tsg.AddToolset(repos)
+	tsg.AddToolset(git)
 	tsg.AddToolset(issues)
 	tsg.AddToolset(orgs)
 	tsg.AddToolset(users)
 	tsg.AddToolset(pullRequests)
 	tsg.AddToolset(actions)
 	tsg.AddToolset(codeSecurity)
-	tsg.AddToolset(secretProtection)
 	tsg.AddToolset(dependabot)
+	tsg.AddToolset(secretProtection)
 	tsg.AddToolset(notifications)
 	tsg.AddToolset(experiments)
 	tsg.AddToolset(discussions)
@@ -357,7 +382,9 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 }
 
 // InitDynamicToolset creates a dynamic toolset that can be used to enable other toolsets, and so requires the server and toolset group as arguments
-func InitDynamicToolset(s *server.MCPServer, tsg *toolsets.ToolsetGroup, t translations.TranslationHelperFunc) *toolsets.Toolset {
+//
+//nolint:unused
+func InitDynamicToolset(s *mcp.Server, tsg *toolsets.ToolsetGroup, t translations.TranslationHelperFunc) *toolsets.Toolset {
 	// Create a new dynamic toolset
 	// Need to add the dynamic toolset last so it can be used to enable other toolsets
 	dynamicToolSelection := toolsets.NewToolset(ToolsetMetadataDynamic.ID, ToolsetMetadataDynamic.Description).
@@ -414,8 +441,109 @@ func GenerateToolsetsHelp() string {
 	availableTools := strings.Join(availableToolsLines, ",\n\t     ")
 
 	toolsetsHelp := fmt.Sprintf("Comma-separated list of tool groups to enable (no spaces).\n"+
-		"Default: %s\n"+
-		"Available: %s\n", defaultTools, availableTools) +
-		"To enable all tools, use \"all\"."
+		"Available: %s\n", availableTools) +
+		"Special toolset keywords:\n" +
+		"  - all: Enables all available toolsets\n" +
+		fmt.Sprintf("  - default: Enables the default toolset configuration of:\n\t     %s\n", defaultTools) +
+		"Examples:\n" +
+		"  - --toolsets=actions,gists,notifications\n" +
+		"  - Default + additional: --toolsets=default,actions,gists\n" +
+		"  - All tools: --toolsets=all"
+
 	return toolsetsHelp
+}
+
+// AddDefaultToolset removes the default toolset and expands it to the actual default toolset IDs
+func AddDefaultToolset(result []string) []string {
+	hasDefault := false
+	seen := make(map[string]bool)
+	for _, toolset := range result {
+		seen[toolset] = true
+		if toolset == ToolsetMetadataDefault.ID {
+			hasDefault = true
+		}
+	}
+
+	// Only expand if "default" keyword was found
+	if !hasDefault {
+		return result
+	}
+
+	result = RemoveToolset(result, ToolsetMetadataDefault.ID)
+
+	for _, defaultToolset := range GetDefaultToolsetIDs() {
+		if !seen[defaultToolset] {
+			result = append(result, defaultToolset)
+		}
+	}
+	return result
+}
+
+// cleanToolsets cleans and handles special toolset keywords:
+// - Duplicates are removed from the result
+// - Removes whitespaces
+// - Validates toolset names and returns invalid ones separately - for warning reporting
+// Returns: (toolsets, invalidToolsets)
+func CleanToolsets(enabledToolsets []string) ([]string, []string) {
+	seen := make(map[string]bool)
+	result := make([]string, 0, len(enabledToolsets))
+	invalid := make([]string, 0)
+	validIDs := GetValidToolsetIDs()
+
+	// Add non-default toolsets, removing duplicates and trimming whitespace
+	for _, toolset := range enabledToolsets {
+		trimmed := strings.TrimSpace(toolset)
+		if trimmed == "" {
+			continue
+		}
+		if !seen[trimmed] {
+			seen[trimmed] = true
+			result = append(result, trimmed)
+			if !validIDs[trimmed] {
+				invalid = append(invalid, trimmed)
+			}
+		}
+	}
+
+	return result, invalid
+}
+
+func RemoveToolset(tools []string, toRemove string) []string {
+	result := make([]string, 0, len(tools))
+	for _, tool := range tools {
+		if tool != toRemove {
+			result = append(result, tool)
+		}
+	}
+	return result
+}
+
+func ContainsToolset(tools []string, toCheck string) bool {
+	for _, tool := range tools {
+		if tool == toCheck {
+			return true
+		}
+	}
+	return false
+}
+
+// CleanTools cleans tool names by removing duplicates and trimming whitespace.
+// Validation of tool existence is done during registration.
+func CleanTools(toolNames []string) []string {
+	seen := make(map[string]bool)
+	result := make([]string, 0, len(toolNames))
+
+	// Remove duplicates and trim whitespace
+	for _, tool := range toolNames {
+		trimmed := strings.TrimSpace(tool)
+		if trimmed == "" {
+			continue
+		}
+		if !seen[trimmed] {
+			seen[trimmed] = true
+			result = append(result, trimmed)
+		}
+	}
+
+	return result
 }
