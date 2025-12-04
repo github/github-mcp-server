@@ -18,7 +18,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func GetCommit(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+func GetCommit(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[GetCommitInput, any]) {
 	tool := mcp.Tool{
 		Name:        "get_commit",
 		Description: t("TOOL_GET_COMMITS_DESCRIPTION", "Get details for a commit from a GitHub repository"),
@@ -26,66 +26,39 @@ func GetCommit(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp
 			Title:        t("TOOL_GET_COMMITS_USER_TITLE", "Get commit details"),
 			ReadOnlyHint: true,
 		},
-		InputSchema: WithPagination(&jsonschema.Schema{
-			Type: "object",
-			Properties: map[string]*jsonschema.Schema{
-				"owner": {
-					Type:        "string",
-					Description: "Repository owner",
-				},
-				"repo": {
-					Type:        "string",
-					Description: "Repository name",
-				},
-				"sha": {
-					Type:        "string",
-					Description: "Commit SHA, branch name, or tag name",
-				},
-				"include_diff": {
-					Type:        "boolean",
-					Description: "Whether to include file diffs and stats in the response. Default is true.",
-					Default:     json.RawMessage(`true`),
-				},
-			},
-			Required: []string{"owner", "repo", "sha"},
-		}),
+		InputSchema: GetCommitInput{}.MCPSchema(),
 	}
 
-	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-		owner, err := RequiredParam[string](args, "owner")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
+	handler := mcp.ToolHandlerFor[GetCommitInput, any](func(ctx context.Context, _ *mcp.CallToolRequest, input GetCommitInput) (*mcp.CallToolResult, any, error) {
+		// Set pagination defaults
+		page := input.Page
+		if page == 0 {
+			page = 1
 		}
-		repo, err := RequiredParam[string](args, "repo")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
+		perPage := input.PerPage
+		if perPage == 0 {
+			perPage = 30
 		}
-		sha, err := RequiredParam[string](args, "sha")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-		includeDiff, err := OptionalBoolParamWithDefault(args, "include_diff", true)
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-		pagination, err := OptionalPaginationParams(args)
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
+
+		// Get includeDiff with default value of true
+		includeDiff := true
+		if input.IncludeDiff != nil {
+			includeDiff = *input.IncludeDiff
 		}
 
 		opts := &github.ListOptions{
-			Page:    pagination.Page,
-			PerPage: pagination.PerPage,
+			Page:    page,
+			PerPage: perPage,
 		}
 
 		client, err := getClient(ctx)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 		}
-		commit, resp, err := client.Repositories.GetCommit(ctx, owner, repo, sha, opts)
+		commit, resp, err := client.Repositories.GetCommit(ctx, input.Owner, input.Repo, input.SHA, opts)
 		if err != nil {
 			return ghErrors.NewGitHubAPIErrorResponse(ctx,
-				fmt.Sprintf("failed to get commit: %s", sha),
+				fmt.Sprintf("failed to get commit: %s", input.SHA),
 				resp,
 				err,
 			), nil, nil
@@ -115,7 +88,7 @@ func GetCommit(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp
 }
 
 // ListCommits creates a tool to get commits of a branch in a repository.
-func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[ListCommitsInput, any]) {
 	tool := mcp.Tool{
 		Name:        "list_commits",
 		Description: t("TOOL_LIST_COMMITS_DESCRIPTION", "Get list of commits of a branch in a GitHub repository. Returns at least 30 results per page by default, but can return more if specified using the perPage parameter (up to 100)."),
@@ -123,61 +96,25 @@ func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc) (m
 			Title:        t("TOOL_LIST_COMMITS_USER_TITLE", "List commits"),
 			ReadOnlyHint: true,
 		},
-		InputSchema: WithPagination(&jsonschema.Schema{
-			Type: "object",
-			Properties: map[string]*jsonschema.Schema{
-				"owner": {
-					Type:        "string",
-					Description: "Repository owner",
-				},
-				"repo": {
-					Type:        "string",
-					Description: "Repository name",
-				},
-				"sha": {
-					Type:        "string",
-					Description: "Commit SHA, branch or tag name to list commits of. If not provided, uses the default branch of the repository. If a commit SHA is provided, will list commits up to that SHA.",
-				},
-				"author": {
-					Type:        "string",
-					Description: "Author username or email address to filter commits by",
-				},
-			},
-			Required: []string{"owner", "repo"},
-		}),
+		InputSchema: ListCommitsInput{}.MCPSchema(),
 	}
 
-	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-		owner, err := RequiredParam[string](args, "owner")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-		repo, err := RequiredParam[string](args, "repo")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-		sha, err := OptionalParam[string](args, "sha")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-		author, err := OptionalParam[string](args, "author")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-		pagination, err := OptionalPaginationParams(args)
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
+	handler := mcp.ToolHandlerFor[ListCommitsInput, any](func(ctx context.Context, _ *mcp.CallToolRequest, input ListCommitsInput) (*mcp.CallToolResult, any, error) {
+		// Set pagination defaults
+		page := input.Page
+		if page == 0 {
+			page = 1
 		}
 		// Set default perPage to 30 if not provided
-		perPage := pagination.PerPage
+		perPage := input.PerPage
 		if perPage == 0 {
 			perPage = 30
 		}
 		opts := &github.CommitsListOptions{
-			SHA:    sha,
-			Author: author,
+			SHA:    input.SHA,
+			Author: input.Author,
 			ListOptions: github.ListOptions{
-				Page:    pagination.Page,
+				Page:    page,
 				PerPage: perPage,
 			},
 		}
@@ -186,10 +123,10 @@ func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc) (m
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 		}
-		commits, resp, err := client.Repositories.ListCommits(ctx, owner, repo, opts)
+		commits, resp, err := client.Repositories.ListCommits(ctx, input.Owner, input.Repo, opts)
 		if err != nil {
 			return ghErrors.NewGitHubAPIErrorResponse(ctx,
-				fmt.Sprintf("failed to list commits: %s", sha),
+				fmt.Sprintf("failed to list commits: %s", input.SHA),
 				resp,
 				err,
 			), nil, nil
@@ -537,7 +474,7 @@ func CreateRepository(getClient GetClientFn, t translations.TranslationHelperFun
 }
 
 // GetFileContents creates a tool to get the contents of a file or directory from a GitHub repository.
-func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[GetFileContentsInput, any]) {
 	tool := mcp.Tool{
 		Name:        "get_file_contents",
 		Description: t("TOOL_GET_FILE_CONTENTS_DESCRIPTION", "Get the contents of a file or directory from a GitHub repository"),
@@ -545,55 +482,19 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 			Title:        t("TOOL_GET_FILE_CONTENTS_USER_TITLE", "Get file or directory contents"),
 			ReadOnlyHint: true,
 		},
-		InputSchema: &jsonschema.Schema{
-			Type: "object",
-			Properties: map[string]*jsonschema.Schema{
-				"owner": {
-					Type:        "string",
-					Description: "Repository owner (username or organization)",
-				},
-				"repo": {
-					Type:        "string",
-					Description: "Repository name",
-				},
-				"path": {
-					Type:        "string",
-					Description: "Path to file/directory (directories must end with a slash '/')",
-					Default:     json.RawMessage(`"/"`),
-				},
-				"ref": {
-					Type:        "string",
-					Description: "Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head`",
-				},
-				"sha": {
-					Type:        "string",
-					Description: "Accepts optional commit SHA. If specified, it will be used instead of ref",
-				},
-			},
-			Required: []string{"owner", "repo"},
-		},
+		InputSchema: GetFileContentsInput{}.MCPSchema(),
 	}
 
-	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-		owner, err := RequiredParam[string](args, "owner")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-		repo, err := RequiredParam[string](args, "repo")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-		path, err := RequiredParam[string](args, "path")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-		ref, err := OptionalParam[string](args, "ref")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-		sha, err := OptionalParam[string](args, "sha")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
+	handler := mcp.ToolHandlerFor[GetFileContentsInput, any](func(ctx context.Context, _ *mcp.CallToolRequest, input GetFileContentsInput) (*mcp.CallToolResult, any, error) {
+		owner := input.Owner
+		repo := input.Repo
+		path := input.Path
+		ref := input.Ref
+		sha := input.SHA
+
+		// Apply default for path if empty
+		if path == "" {
+			path = "/"
 		}
 
 		client, err := getClient(ctx)

@@ -10,6 +10,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// mapToTypedInput converts a map[string]interface{} to a typed struct using JSON marshaling.
+// This is useful for tests that need to pass typed input to handlers.
+func mapToTypedInput[T any](t *testing.T, m map[string]interface{}) T {
+	t.Helper()
+	var result T
+	jsonBytes, err := json.Marshal(m)
+	require.NoError(t, err, "failed to marshal map to JSON")
+	err = json.Unmarshal(jsonBytes, &result)
+	require.NoError(t, err, "failed to unmarshal JSON to typed input")
+	return result
+}
+
 type expectations struct {
 	path        string
 	queryParams map[string]string
