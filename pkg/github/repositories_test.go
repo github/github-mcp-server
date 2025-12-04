@@ -2247,8 +2247,9 @@ func Test_ListReleases(t *testing.T) {
 	tool, _ := ListReleases(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	// Get schema from the input type's MCPSchema() method
+	schema := ListReleasesInput{}.MCPSchema()
+	require.NotNil(t, schema, "MCPSchema should return a schema")
 
 	assert.Equal(t, "list_releases", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -2272,7 +2273,7 @@ func Test_ListReleases(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		input          ListReleasesInput
 		expectError    bool
 		expectedResult []*github.RepositoryRelease
 		expectedErrMsg string
@@ -2285,9 +2286,9 @@ func Test_ListReleases(t *testing.T) {
 					mockReleases,
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"owner": "owner",
-				"repo":  "repo",
+			input: ListReleasesInput{
+				Owner: "owner",
+				Repo:  "repo",
 			},
 			expectError:    false,
 			expectedResult: mockReleases,
@@ -2303,9 +2304,9 @@ func Test_ListReleases(t *testing.T) {
 					}),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"owner": "owner",
-				"repo":  "repo",
+			input: ListReleasesInput{
+				Owner: "owner",
+				Repo:  "repo",
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to list releases",
@@ -2316,8 +2317,7 @@ func Test_ListReleases(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 			_, handler := ListReleases(stubGetClientFn(client), translations.NullTranslationHelper)
-			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, _, err := handler(context.Background(), nil, tc.input)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -2342,8 +2342,9 @@ func Test_GetLatestRelease(t *testing.T) {
 	tool, _ := GetLatestRelease(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	// Get schema from the input type's MCPSchema() method
+	schema := GetLatestReleaseInput{}.MCPSchema()
+	require.NotNil(t, schema, "MCPSchema should return a schema")
 
 	assert.Equal(t, "get_latest_release", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -2360,7 +2361,7 @@ func Test_GetLatestRelease(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		input          GetLatestReleaseInput
 		expectError    bool
 		expectedResult *github.RepositoryRelease
 		expectedErrMsg string
@@ -2373,9 +2374,9 @@ func Test_GetLatestRelease(t *testing.T) {
 					mockRelease,
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"owner": "owner",
-				"repo":  "repo",
+			input: GetLatestReleaseInput{
+				Owner: "owner",
+				Repo:  "repo",
 			},
 			expectError:    false,
 			expectedResult: mockRelease,
@@ -2391,9 +2392,9 @@ func Test_GetLatestRelease(t *testing.T) {
 					}),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"owner": "owner",
-				"repo":  "repo",
+			input: GetLatestReleaseInput{
+				Owner: "owner",
+				Repo:  "repo",
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to get latest release",
@@ -2404,8 +2405,7 @@ func Test_GetLatestRelease(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 			_, handler := GetLatestRelease(stubGetClientFn(client), translations.NullTranslationHelper)
-			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, _, err := handler(context.Background(), nil, tc.input)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -2428,8 +2428,9 @@ func Test_GetReleaseByTag(t *testing.T) {
 	tool, _ := GetReleaseByTag(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	// Get schema from the input type's MCPSchema() method
+	schema := GetReleaseByTagInput{}.MCPSchema()
+	require.NotNil(t, schema, "MCPSchema should return a schema")
 
 	assert.Equal(t, "get_release_by_tag", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -2454,7 +2455,7 @@ func Test_GetReleaseByTag(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		input          GetReleaseByTagInput
 		expectError    bool
 		expectedResult *github.RepositoryRelease
 		expectedErrMsg string
@@ -2467,43 +2468,13 @@ func Test_GetReleaseByTag(t *testing.T) {
 					mockRelease,
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"owner": "owner",
-				"repo":  "repo",
-				"tag":   "v1.0.0",
+			input: GetReleaseByTagInput{
+				Owner: "owner",
+				Repo:  "repo",
+				Tag:   "v1.0.0",
 			},
 			expectError:    false,
 			expectedResult: mockRelease,
-		},
-		{
-			name:         "missing owner parameter",
-			mockedClient: mock.NewMockedHTTPClient(),
-			requestArgs: map[string]interface{}{
-				"repo": "repo",
-				"tag":  "v1.0.0",
-			},
-			expectError:    false, // Returns tool error, not Go error
-			expectedErrMsg: "missing required parameter: owner",
-		},
-		{
-			name:         "missing repo parameter",
-			mockedClient: mock.NewMockedHTTPClient(),
-			requestArgs: map[string]interface{}{
-				"owner": "owner",
-				"tag":   "v1.0.0",
-			},
-			expectError:    false, // Returns tool error, not Go error
-			expectedErrMsg: "missing required parameter: repo",
-		},
-		{
-			name:         "missing tag parameter",
-			mockedClient: mock.NewMockedHTTPClient(),
-			requestArgs: map[string]interface{}{
-				"owner": "owner",
-				"repo":  "repo",
-			},
-			expectError:    false, // Returns tool error, not Go error
-			expectedErrMsg: "missing required parameter: tag",
 		},
 		{
 			name: "release by tag not found",
@@ -2516,10 +2487,10 @@ func Test_GetReleaseByTag(t *testing.T) {
 					}),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"owner": "owner",
-				"repo":  "repo",
-				"tag":   "v999.0.0",
+			input: GetReleaseByTagInput{
+				Owner: "owner",
+				Repo:  "repo",
+				Tag:   "v999.0.0",
 			},
 			expectError:    false, // API errors return tool errors, not Go errors
 			expectedErrMsg: "failed to get release by tag: v999.0.0",
@@ -2535,10 +2506,10 @@ func Test_GetReleaseByTag(t *testing.T) {
 					}),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"owner": "owner",
-				"repo":  "repo",
-				"tag":   "v1.0.0",
+			input: GetReleaseByTagInput{
+				Owner: "owner",
+				Repo:  "repo",
+				Tag:   "v1.0.0",
 			},
 			expectError:    false, // API errors return tool errors, not Go errors
 			expectedErrMsg: "failed to get release by tag: v1.0.0",
@@ -2550,9 +2521,7 @@ func Test_GetReleaseByTag(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 			_, handler := GetReleaseByTag(stubGetClientFn(client), translations.NullTranslationHelper)
 
-			request := createMCPRequest(tc.requestArgs)
-
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, _, err := handler(context.Background(), nil, tc.input)
 
 			if tc.expectError {
 				require.Error(t, err)

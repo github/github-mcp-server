@@ -16,21 +16,19 @@
         "description": "Repository owner"
       },
       "page": {
-        "type": "number",
-        "description": "Page number for pagination (min 1)",
-        "minimum": 1
+        "type": "integer",
+        "description": "Page number for pagination (min 1)"
       },
       "perPage": {
-        "type": "number",
-        "description": "Results per page for pagination (min 1, max 100)",
-        "minimum": 1,
-        "maximum": 100
+        "type": "integer",
+        "description": "Results per page for pagination (min 1 and max 100)"
       },
       "repo": {
         "type": "string",
         "description": "Repository name"
       }
-    }
+    },
+    "additionalProperties": false
   },
   "name": "list_releases"
 }

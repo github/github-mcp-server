@@ -1415,218 +1415,131 @@ func GetTag(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.To
 }
 
 // ListReleases creates a tool to list releases in a GitHub repository.
-func ListReleases(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	tool := mcp.Tool{
-		Name:        "list_releases",
-		Description: t("TOOL_LIST_RELEASES_DESCRIPTION", "List releases in a GitHub repository"),
-		Annotations: &mcp.ToolAnnotations{
-			Title:        t("TOOL_LIST_RELEASES_USER_TITLE", "List releases"),
-			ReadOnlyHint: true,
-		},
-		InputSchema: WithPagination(&jsonschema.Schema{
-			Type: "object",
-			Properties: map[string]*jsonschema.Schema{
-				"owner": {
-					Type:        "string",
-					Description: "Repository owner",
-				},
-				"repo": {
-					Type:        "string",
-					Description: "Repository name",
-				},
+func ListReleases(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[ListReleasesInput, any]) {
+	return mcp.Tool{
+			Name:        "list_releases",
+			Description: t("TOOL_LIST_RELEASES_DESCRIPTION", "List releases in a GitHub repository"),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_LIST_RELEASES_USER_TITLE", "List releases"),
+				ReadOnlyHint: true,
 			},
-			Required: []string{"owner", "repo"},
-		}),
-	}
-
-	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-		owner, err := RequiredParam[string](args, "owner")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-		repo, err := RequiredParam[string](args, "repo")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-		pagination, err := OptionalPaginationParams(args)
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-
-		opts := &github.ListOptions{
-			Page:    pagination.Page,
-			PerPage: pagination.PerPage,
-		}
-
-		client, err := getClient(ctx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
-		}
-
-		releases, resp, err := client.Repositories.ListReleases(ctx, owner, repo, opts)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to list releases: %w", err)
-		}
-		defer func() { _ = resp.Body.Close() }()
-
-		if resp.StatusCode != http.StatusOK {
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			InputSchema: ListReleasesInput{}.MCPSchema(),
+		},
+		func(ctx context.Context, _ *mcp.CallToolRequest, input ListReleasesInput) (*mcp.CallToolResult, any, error) {
+			opts := &github.ListOptions{
+				Page:    input.Page,
+				PerPage: input.PerPage,
 			}
-			return utils.NewToolResultError(fmt.Sprintf("failed to list releases: %s", string(body))), nil, nil
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			releases, resp, err := client.Repositories.ListReleases(ctx, input.Owner, input.Repo, opts)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to list releases: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return utils.NewToolResultError(fmt.Sprintf("failed to list releases: %s", string(body))), nil, nil
+			}
+
+			r, err := json.Marshal(releases)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
 		}
-
-		r, err := json.Marshal(releases)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-		}
-
-		return utils.NewToolResultText(string(r)), nil, nil
-	})
-
-	return tool, handler
 }
 
 // GetLatestRelease creates a tool to get the latest release in a GitHub repository.
-func GetLatestRelease(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	tool := mcp.Tool{
-		Name:        "get_latest_release",
-		Description: t("TOOL_GET_LATEST_RELEASE_DESCRIPTION", "Get the latest release in a GitHub repository"),
-		Annotations: &mcp.ToolAnnotations{
-			Title:        t("TOOL_GET_LATEST_RELEASE_USER_TITLE", "Get latest release"),
-			ReadOnlyHint: true,
-		},
-		InputSchema: &jsonschema.Schema{
-			Type: "object",
-			Properties: map[string]*jsonschema.Schema{
-				"owner": {
-					Type:        "string",
-					Description: "Repository owner",
-				},
-				"repo": {
-					Type:        "string",
-					Description: "Repository name",
-				},
+func GetLatestRelease(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[GetLatestReleaseInput, any]) {
+	return mcp.Tool{
+			Name:        "get_latest_release",
+			Description: t("TOOL_GET_LATEST_RELEASE_DESCRIPTION", "Get the latest release in a GitHub repository"),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_GET_LATEST_RELEASE_USER_TITLE", "Get latest release"),
+				ReadOnlyHint: true,
 			},
-			Required: []string{"owner", "repo"},
+			InputSchema: GetLatestReleaseInput{}.MCPSchema(),
 		},
-	}
-
-	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-		owner, err := RequiredParam[string](args, "owner")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-		repo, err := RequiredParam[string](args, "repo")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-
-		client, err := getClient(ctx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
-		}
-
-		release, resp, err := client.Repositories.GetLatestRelease(ctx, owner, repo)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get latest release: %w", err)
-		}
-		defer func() { _ = resp.Body.Close() }()
-
-		if resp.StatusCode != http.StatusOK {
-			body, err := io.ReadAll(resp.Body)
+		func(ctx context.Context, _ *mcp.CallToolRequest, input GetLatestReleaseInput) (*mcp.CallToolResult, any, error) {
+			client, err := getClient(ctx)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			return utils.NewToolResultError(fmt.Sprintf("failed to get latest release: %s", string(body))), nil, nil
+
+			release, resp, err := client.Repositories.GetLatestRelease(ctx, input.Owner, input.Repo)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get latest release: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return utils.NewToolResultError(fmt.Sprintf("failed to get latest release: %s", string(body))), nil, nil
+			}
+
+			r, err := json.Marshal(release)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
 		}
-
-		r, err := json.Marshal(release)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-		}
-
-		return utils.NewToolResultText(string(r)), nil, nil
-	})
-
-	return tool, handler
 }
 
-func GetReleaseByTag(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	tool := mcp.Tool{
-		Name:        "get_release_by_tag",
-		Description: t("TOOL_GET_RELEASE_BY_TAG_DESCRIPTION", "Get a specific release by its tag name in a GitHub repository"),
-		Annotations: &mcp.ToolAnnotations{
-			Title:        t("TOOL_GET_RELEASE_BY_TAG_USER_TITLE", "Get a release by tag name"),
-			ReadOnlyHint: true,
-		},
-		InputSchema: &jsonschema.Schema{
-			Type: "object",
-			Properties: map[string]*jsonschema.Schema{
-				"owner": {
-					Type:        "string",
-					Description: "Repository owner",
-				},
-				"repo": {
-					Type:        "string",
-					Description: "Repository name",
-				},
-				"tag": {
-					Type:        "string",
-					Description: "Tag name (e.g., 'v1.0.0')",
-				},
+func GetReleaseByTag(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[GetReleaseByTagInput, any]) {
+	return mcp.Tool{
+			Name:        "get_release_by_tag",
+			Description: t("TOOL_GET_RELEASE_BY_TAG_DESCRIPTION", "Get a specific release by its tag name in a GitHub repository"),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_GET_RELEASE_BY_TAG_USER_TITLE", "Get a release by tag name"),
+				ReadOnlyHint: true,
 			},
-			Required: []string{"owner", "repo", "tag"},
+			InputSchema: GetReleaseByTagInput{}.MCPSchema(),
 		},
-	}
-
-	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-		owner, err := RequiredParam[string](args, "owner")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-		repo, err := RequiredParam[string](args, "repo")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-		tag, err := RequiredParam[string](args, "tag")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-
-		client, err := getClient(ctx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
-		}
-
-		release, resp, err := client.Repositories.GetReleaseByTag(ctx, owner, repo, tag)
-		if err != nil {
-			return ghErrors.NewGitHubAPIErrorResponse(ctx,
-				fmt.Sprintf("failed to get release by tag: %s", tag),
-				resp,
-				err,
-			), nil, nil
-		}
-		defer func() { _ = resp.Body.Close() }()
-
-		if resp.StatusCode != http.StatusOK {
-			body, err := io.ReadAll(resp.Body)
+		func(ctx context.Context, _ *mcp.CallToolRequest, input GetReleaseByTagInput) (*mcp.CallToolResult, any, error) {
+			client, err := getClient(ctx)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			return utils.NewToolResultError(fmt.Sprintf("failed to get release by tag: %s", string(body))), nil, nil
+
+			release, resp, err := client.Repositories.GetReleaseByTag(ctx, input.Owner, input.Repo, input.Tag)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					fmt.Sprintf("failed to get release by tag: %s", input.Tag),
+					resp,
+					err,
+				), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return utils.NewToolResultError(fmt.Sprintf("failed to get release by tag: %s", string(body))), nil, nil
+			}
+
+			r, err := json.Marshal(release)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
 		}
-
-		r, err := json.Marshal(release)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-		}
-
-		return utils.NewToolResultText(string(r)), nil, nil
-	})
-
-	return tool, handler
 }
 
 // filterPaths filters the entries in a GitHub tree to find paths that

@@ -22,9 +22,10 @@
       },
       "tag": {
         "type": "string",
-        "description": "Tag name (e.g., 'v1.0.0')"
+        "description": "Tag name (e.g. 'v1.0.0')"
       }
-    }
+    },
+    "additionalProperties": false
   },
   "name": "get_release_by_tag"
 }

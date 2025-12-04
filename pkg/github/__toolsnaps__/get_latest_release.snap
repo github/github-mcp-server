@@ -19,7 +19,8 @@
         "type": "string",
         "description": "Repository name"
       }
-    }
+    },
+    "additionalProperties": false
   },
   "name": "get_latest_release"
 }
