@@ -12,32 +12,30 @@
     "properties": {
       "order": {
         "type": "string",
-        "description": "Sort order for results",
+        "description": "Sort order for results (asc/desc)",
         "enum": [
           "asc",
           "desc"
         ]
       },
       "page": {
-        "type": "number",
-        "description": "Page number for pagination (min 1)",
-        "minimum": 1
+        "type": "integer",
+        "description": "Page number for pagination (min 1)"
       },
       "perPage": {
-        "type": "number",
-        "description": "Results per page for pagination (min 1, max 100)",
-        "minimum": 1,
-        "maximum": 100
+        "type": "integer",
+        "description": "Results per page for pagination (min 1 and max 100)"
       },
       "query": {
         "type": "string",
-        "description": "Search query using GitHub's powerful code search syntax. Examples: 'content:Skill language:Java org:github', 'NOT is:archived language:Python OR language:go', 'repo:github/github-mcp-server'. Supports exact matching, language filters, path filters, and more."
+        "description": "Search query using GitHub code search syntax"
       },
       "sort": {
         "type": "string",
-        "description": "Sort field ('indexed' only)"
+        "description": "Sort field (indexed only)"
       }
-    }
+    },
+    "additionalProperties": false
   },
   "name": "search_code"
 }

@@ -19,30 +19,28 @@
         ]
       },
       "page": {
-        "type": "number",
-        "description": "Page number for pagination (min 1)",
-        "minimum": 1
+        "type": "integer",
+        "description": "Page number for pagination (min 1)"
       },
       "perPage": {
-        "type": "number",
-        "description": "Results per page for pagination (min 1, max 100)",
-        "minimum": 1,
-        "maximum": 100
+        "type": "integer",
+        "description": "Results per page for pagination (min 1 and max 100)"
       },
       "query": {
         "type": "string",
-        "description": "Organization search query. Examples: 'microsoft', 'location:california', 'created:\u003e=2025-01-01'. Search is automatically scoped to type:org."
+        "description": "Organization search query using GitHub search syntax"
       },
       "sort": {
         "type": "string",
-        "description": "Sort field by category",
+        "description": "Sort field",
         "enum": [
           "followers",
           "repositories",
           "joined"
         ]
       }
-    }
+    },
+    "additionalProperties": false
   },
   "name": "search_orgs"
 }
