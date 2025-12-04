@@ -1,0 +1,40 @@
+{
+  "annotations": {
+    "title": "Reply to a review comment",
+    "readOnlyHint": false
+  },
+  "description": "Reply to a review comment on a pull request. Use this to respond directly within pull request review comment threads, maintaining conversation context at specific code locations.",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "Reply text supporting GitHub-flavored Markdown",
+        "type": "string"
+      },
+      "comment_id": {
+        "description": "Review comment ID from pull_request_read",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "pull_number": {
+        "description": "Pull request number",
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "pull_number",
+      "comment_id",
+      "body"
+    ],
+    "type": "object"
+  },
+  "name": "reply_to_review_comment"
+}
