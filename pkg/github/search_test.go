@@ -9,7 +9,6 @@ import (
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
-	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,8 +23,9 @@ func Test_SearchRepositories(t *testing.T) {
 	assert.Equal(t, "search_repositories", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	// Get schema from the input type's MCPSchema() method
+	schema := SearchRepositoriesInput{}.MCPSchema()
+	require.NotNil(t, schema, "MCPSchema should return a schema")
 	assert.Contains(t, schema.Properties, "query")
 	assert.Contains(t, schema.Properties, "sort")
 	assert.Contains(t, schema.Properties, "order")
@@ -60,7 +60,7 @@ func Test_SearchRepositories(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		input          SearchRepositoriesInput
 		expectError    bool
 		expectedResult *github.RepositoriesSearchResult
 		expectedErrMsg string
@@ -81,12 +81,12 @@ func Test_SearchRepositories(t *testing.T) {
 					),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"query":   "golang test",
-				"sort":    "stars",
-				"order":   "desc",
-				"page":    float64(2),
-				"perPage": float64(10),
+			input: SearchRepositoriesInput{
+				Query:   "golang test",
+				Sort:    "stars",
+				Order:   "desc",
+				Page:    2,
+				PerPage: 10,
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
@@ -97,16 +97,14 @@ func Test_SearchRepositories(t *testing.T) {
 				mock.WithRequestMatchHandler(
 					mock.GetSearchRepositories,
 					expectQueryParams(t, map[string]string{
-						"q":        "golang test",
-						"page":     "1",
-						"per_page": "30",
+						"q": "golang test",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"query": "golang test",
+			input: SearchRepositoriesInput{
+				Query: "golang test",
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
@@ -122,8 +120,8 @@ func Test_SearchRepositories(t *testing.T) {
 					}),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"query": "invalid:query",
+			input: SearchRepositoriesInput{
+				Query: "invalid:query",
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to search repositories",
@@ -136,11 +134,8 @@ func Test_SearchRepositories(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 			_, handler := SearchRepositories(stubGetClientFn(client), translations.NullTranslationHelper)
 
-			// Create call request
-			request := createMCPRequest(tc.requestArgs)
-
-			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			// Call handler with typed input
+			result, _, err := handler(context.Background(), nil, tc.input)
 
 			// Verify results
 			if tc.expectError {
@@ -195,9 +190,7 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 		mock.WithRequestMatchHandler(
 			mock.GetSearchRepositories,
 			expectQueryParams(t, map[string]string{
-				"q":        "golang test",
-				"page":     "1",
-				"per_page": "30",
+				"q": "golang test",
 			}).andThen(
 				mockResponse(t, http.StatusOK, mockSearchResult),
 			),
@@ -207,14 +200,12 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 	client := github.NewClient(mockedClient)
 	_, handlerTest := SearchRepositories(stubGetClientFn(client), translations.NullTranslationHelper)
 
-	args := map[string]interface{}{
-		"query":          "golang test",
-		"minimal_output": false,
+	input := SearchRepositoriesInput{
+		Query:         "golang test",
+		MinimalOutput: false,
 	}
 
-	request := createMCPRequest(args)
-
-	result, _, err := handlerTest(context.Background(), &request, args)
+	result, _, err := handlerTest(context.Background(), nil, input)
 
 	require.NoError(t, err)
 	require.False(t, result.IsError)
@@ -243,8 +234,9 @@ func Test_SearchCode(t *testing.T) {
 	assert.Equal(t, "search_code", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	// Get schema from the input type's MCPSchema() method
+	schema := SearchCodeInput{}.MCPSchema()
+	require.NotNil(t, schema, "MCPSchema should return a schema")
 	assert.Contains(t, schema.Properties, "query")
 	assert.Contains(t, schema.Properties, "sort")
 	assert.Contains(t, schema.Properties, "order")
@@ -277,7 +269,7 @@ func Test_SearchCode(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		input          SearchCodeInput
 		expectError    bool
 		expectedResult *github.CodeSearchResult
 		expectedErrMsg string
@@ -298,12 +290,12 @@ func Test_SearchCode(t *testing.T) {
 					),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"query":   "fmt.Println language:go",
-				"sort":    "indexed",
-				"order":   "desc",
-				"page":    float64(1),
-				"perPage": float64(30),
+			input: SearchCodeInput{
+				Query:   "fmt.Println language:go",
+				Sort:    "indexed",
+				Order:   "desc",
+				Page:    1,
+				PerPage: 30,
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
@@ -314,16 +306,14 @@ func Test_SearchCode(t *testing.T) {
 				mock.WithRequestMatchHandler(
 					mock.GetSearchCode,
 					expectQueryParams(t, map[string]string{
-						"q":        "fmt.Println language:go",
-						"page":     "1",
-						"per_page": "30",
+						"q": "fmt.Println language:go",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"query": "fmt.Println language:go",
+			input: SearchCodeInput{
+				Query: "fmt.Println language:go",
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
@@ -339,8 +329,8 @@ func Test_SearchCode(t *testing.T) {
 					}),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"query": "invalid:query",
+			input: SearchCodeInput{
+				Query: "invalid:query",
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to search code",
@@ -353,11 +343,8 @@ func Test_SearchCode(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 			_, handler := SearchCode(stubGetClientFn(client), translations.NullTranslationHelper)
 
-			// Create call request
-			request := createMCPRequest(tc.requestArgs)
-
-			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			// Call handler with typed input
+			result, _, err := handler(context.Background(), nil, tc.input)
 
 			// Verify results
 			if tc.expectError {
@@ -401,8 +388,9 @@ func Test_SearchUsers(t *testing.T) {
 	assert.Equal(t, "search_users", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	// Get schema from the input type's MCPSchema() method
+	schema := SearchUsersInput{}.MCPSchema()
+	require.NotNil(t, schema, "MCPSchema should return a schema")
 	assert.Contains(t, schema.Properties, "query")
 	assert.Contains(t, schema.Properties, "sort")
 	assert.Contains(t, schema.Properties, "order")
@@ -434,7 +422,7 @@ func Test_SearchUsers(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		input          SearchUsersInput
 		expectError    bool
 		expectedResult *github.UsersSearchResult
 		expectedErrMsg string
@@ -455,12 +443,12 @@ func Test_SearchUsers(t *testing.T) {
 					),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"query":   "location:finland language:go",
-				"sort":    "followers",
-				"order":   "desc",
-				"page":    float64(1),
-				"perPage": float64(30),
+			input: SearchUsersInput{
+				Query:   "location:finland language:go",
+				Sort:    "followers",
+				Order:   "desc",
+				Page:    1,
+				PerPage: 30,
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
@@ -471,16 +459,14 @@ func Test_SearchUsers(t *testing.T) {
 				mock.WithRequestMatchHandler(
 					mock.GetSearchUsers,
 					expectQueryParams(t, map[string]string{
-						"q":        "type:user location:finland language:go",
-						"page":     "1",
-						"per_page": "30",
+						"q": "type:user location:finland language:go",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"query": "location:finland language:go",
+			input: SearchUsersInput{
+				Query: "location:finland language:go",
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
@@ -491,16 +477,14 @@ func Test_SearchUsers(t *testing.T) {
 				mock.WithRequestMatchHandler(
 					mock.GetSearchUsers,
 					expectQueryParams(t, map[string]string{
-						"q":        "type:user location:seattle followers:>100",
-						"page":     "1",
-						"per_page": "30",
+						"q": "type:user location:seattle followers:>100",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"query": "type:user location:seattle followers:>100",
+			input: SearchUsersInput{
+				Query: "type:user location:seattle followers:>100",
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
@@ -511,16 +495,14 @@ func Test_SearchUsers(t *testing.T) {
 				mock.WithRequestMatchHandler(
 					mock.GetSearchUsers,
 					expectQueryParams(t, map[string]string{
-						"q":        "type:user (location:seattle OR location:california) followers:>50",
-						"page":     "1",
-						"per_page": "30",
+						"q": "type:user (location:seattle OR location:california) followers:>50",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"query": "type:user (location:seattle OR location:california) followers:>50",
+			input: SearchUsersInput{
+				Query: "type:user (location:seattle OR location:california) followers:>50",
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
@@ -536,8 +518,8 @@ func Test_SearchUsers(t *testing.T) {
 					}),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"query": "invalid:query",
+			input: SearchUsersInput{
+				Query: "invalid:query",
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to search users",
@@ -550,11 +532,8 @@ func Test_SearchUsers(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 			_, handler := SearchUsers(stubGetClientFn(client), translations.NullTranslationHelper)
 
-			// Create call request
-			request := createMCPRequest(tc.requestArgs)
-
-			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			// Call handler with typed input
+			result, _, err := handler(context.Background(), nil, tc.input)
 
 			// Verify results
 			if tc.expectError {
@@ -600,8 +579,9 @@ func Test_SearchOrgs(t *testing.T) {
 	assert.Equal(t, "search_orgs", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	// Get schema from the input type's MCPSchema() method
+	schema := SearchOrgsInput{}.MCPSchema()
+	require.NotNil(t, schema, "MCPSchema should return a schema")
 	assert.Contains(t, schema.Properties, "query")
 	assert.Contains(t, schema.Properties, "sort")
 	assert.Contains(t, schema.Properties, "order")
@@ -632,7 +612,7 @@ func Test_SearchOrgs(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		input          SearchOrgsInput
 		expectError    bool
 		expectedResult *github.UsersSearchResult
 		expectedErrMsg string
@@ -643,16 +623,14 @@ func Test_SearchOrgs(t *testing.T) {
 				mock.WithRequestMatchHandler(
 					mock.GetSearchUsers,
 					expectQueryParams(t, map[string]string{
-						"q":        "type:org github",
-						"page":     "1",
-						"per_page": "30",
+						"q": "type:org github",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"query": "github",
+			input: SearchOrgsInput{
+				Query: "github",
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
@@ -663,16 +641,14 @@ func Test_SearchOrgs(t *testing.T) {
 				mock.WithRequestMatchHandler(
 					mock.GetSearchUsers,
 					expectQueryParams(t, map[string]string{
-						"q":        "type:org location:california followers:>1000",
-						"page":     "1",
-						"per_page": "30",
+						"q": "type:org location:california followers:>1000",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"query": "type:org location:california followers:>1000",
+			input: SearchOrgsInput{
+				Query: "type:org location:california followers:>1000",
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
@@ -683,16 +659,14 @@ func Test_SearchOrgs(t *testing.T) {
 				mock.WithRequestMatchHandler(
 					mock.GetSearchUsers,
 					expectQueryParams(t, map[string]string{
-						"q":        "type:org (location:seattle OR location:california OR location:newyork) repos:>10",
-						"page":     "1",
-						"per_page": "30",
+						"q": "type:org (location:seattle OR location:california OR location:newyork) repos:>10",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"query": "type:org (location:seattle OR location:california OR location:newyork) repos:>10",
+			input: SearchOrgsInput{
+				Query: "type:org (location:seattle OR location:california OR location:newyork) repos:>10",
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
@@ -708,8 +682,8 @@ func Test_SearchOrgs(t *testing.T) {
 					}),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"query": "invalid:query",
+			input: SearchOrgsInput{
+				Query: "invalid:query",
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to search orgs",
@@ -722,11 +696,8 @@ func Test_SearchOrgs(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 			_, handler := SearchOrgs(stubGetClientFn(client), translations.NullTranslationHelper)
 
-			// Create call request
-			request := createMCPRequest(tc.requestArgs)
-
-			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			// Call handler with typed input
+			result, _, err := handler(context.Background(), nil, tc.input)
 
 			// Verify results
 			if tc.expectError {
