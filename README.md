@@ -95,7 +95,7 @@ See [Remote Server Documentation](docs/remote-server.md) for full details on rem
 
 When no toolsets are specified, [default toolsets](#default-toolset) are used.
 
-#### GitHub Enterprise 
+#### GitHub Enterprise
 
 ##### GitHub Enterprise Cloud with data residency (ghe.com)
 
