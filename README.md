@@ -101,7 +101,7 @@ When no toolsets are specified, [default toolsets](#default-toolset) are used.
 
 GitHub Enterprise Cloud can also make use of the remote server.
 
-Example for `https://octocorp.ghe.com`:
+Example for `https://octocorp.ghe.com` with GitHub PAT token:
 ```
 {
     ...
@@ -115,6 +115,14 @@ Example for `https://octocorp.ghe.com`:
     ...
 }
 ```
+
+> **Note:** When using OAuth with GitHub Enterprise with VS Code and GitHub Copilot, you also need to configure your VS Code settings to point to your GitHub Enterprise instance. Add the following to your [VS Code User settings](https://code.visualstudio.com/docs/configure/settings#_user-settings):
+>
+> ```json
+> {
+>   "github-enterprise.uri": "https://copilot-api.octocorp.ghe.com/mcp"
+> }
+> ```
 
 ##### GitHub Enterprise Server
 
@@ -208,14 +216,6 @@ the hostname for GitHub Enterprise Server or GitHub Enterprise Cloud with data r
     }
 }
 ```
-
-> **Note:** When using OAuth with GitHub Enterprise with VS Code and GitHub Copilot, you may also need to configure your VS Code settings to point to your GitHub Enterprise instance. Add the following to your [VS Code User settings](https://code.visualstudio.com/docs/configure/settings#_user-settings):
->
-> ```json
-> {
->   "github-enterprise.uri": "https://<your GHES or ghe.com domain name>"
-> }
-> ```
 
 ## Installation
 
