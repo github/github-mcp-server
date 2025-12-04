@@ -40,7 +40,7 @@ type ServerTool struct {
 func NewServerTool[In, Out any](tool mcp.Tool, handler mcp.ToolHandlerFor[In, Out]) ServerTool {
 	return ServerTool{Tool: tool, RegisterFunc: func(s *mcp.Server, schemaCache *schema.Cache) {
 		inputSchema, ok := tool.InputSchema.(*jsonschema.Schema)
-		if ok && inputSchema == nil {
+		if ok && inputSchema != nil {
 			resolvedSchema, err := schemaCache.GetCachedOrResolveSchema(tool.Name, inputSchema)
 
 			if err == nil && resolvedSchema != nil {
