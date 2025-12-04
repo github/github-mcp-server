@@ -8,7 +8,7 @@ package github
 // To regenerate after modifying input types, run:
 //   go generate ./pkg/github/...
 
-//go:generate mcpgen -type=SearchRepositoriesInput,SearchCodeInput,SearchUsersInput,SearchIssuesInput,SearchPullRequestsInput,GetFileContentsInput,CreateIssueInput,CreatePullRequestInput,ListCommitsInput,GetCommitInput,ListBranchesInput,ListTagsInput,ListReleasesInput,GetReleaseByTagInput,ListWorkflowsInput,ListWorkflowRunsInput,GetWorkflowRunInput,ListNotificationsInput,GetRepositoryTreeInput,CreateBranchInput,CreateOrUpdateFileInput,PushFilesInput,ForkRepositoryInput,CreateRepositoryInput,GetMeInput,ListGistsInput,GetGistInput,CreateGistInput,UpdateGistInput,ListLabelsInput,GetLabelInput,ListDiscussionsInput,GetDiscussionInput,GetDiscussionCommentsInput,ListDiscussionCategoriesInput,ListProjectsInput,GetProjectInput,ListProjectItemsInput,GetProjectItemInput,AddProjectItemInput,UpdateProjectItemInput,DeleteProjectItemInput,ListPullRequestsInput,PullRequestReadInput,UpdatePullRequestInput,MergePullRequestInput,UpdatePullRequestBranchInput,RequestCopilotReviewInput,IssueReadInput,IssueWriteInput,ListIssuesInput,ListIssueTypesInput,AddIssueCommentInput,StarRepositoryInput,UnstarRepositoryInput,ListStarredRepositoriesInput,ListCodeScanningAlertsInput,GetCodeScanningAlertInput,ListSecretScanningAlertsInput,GetSecretScanningAlertInput,ListDependabotAlertsInput,GetDependabotAlertInput,GetLatestReleaseInput,GetTagInput,ListWorkflowJobsInput,GetJobLogsInput,GetWorkflowRunLogsInput,GetWorkflowRunUsageInput,ListWorkflowRunArtifactsInput,DownloadWorkflowRunArtifactInput,CancelWorkflowRunInput,RerunWorkflowRunInput,RerunFailedJobsInput,DeleteWorkflowRunLogsInput,RunWorkflowInput,GetNotificationDetailsInput,ManageNotificationSubscriptionInput,ManageRepositoryNotificationSubscriptionInput,MarkAllNotificationsReadInput,DismissNotificationInput,GetTeamsInput,GetTeamMembersInput,DeleteFileInput
+//go:generate mcpgen -type=SearchRepositoriesInput,SearchCodeInput,SearchUsersInput,SearchIssuesInput,SearchPullRequestsInput,GetFileContentsInput,CreateIssueInput,CreatePullRequestInput,ListCommitsInput,GetCommitInput,ListBranchesInput,ListTagsInput,ListReleasesInput,GetReleaseByTagInput,ListWorkflowsInput,ListWorkflowRunsInput,GetWorkflowRunInput,ListNotificationsInput,GetRepositoryTreeInput,CreateBranchInput,CreateOrUpdateFileInput,PushFilesInput,ForkRepositoryInput,CreateRepositoryInput,GetMeInput,ListGistsInput,GetGistInput,CreateGistInput,UpdateGistInput,ListLabelsInput,GetLabelInput,ListDiscussionsInput,GetDiscussionInput,GetDiscussionCommentsInput,ListDiscussionCategoriesInput,ListProjectsInput,GetProjectInput,ListProjectItemsInput,GetProjectItemInput,AddProjectItemInput,UpdateProjectItemInput,DeleteProjectItemInput,ListPullRequestsInput,PullRequestReadInput,UpdatePullRequestInput,MergePullRequestInput,UpdatePullRequestBranchInput,RequestCopilotReviewInput,IssueReadInput,IssueWriteInput,ListIssuesInput,ListIssueTypesInput,AddIssueCommentInput,StarRepositoryInput,UnstarRepositoryInput,ListStarredRepositoriesInput,ListCodeScanningAlertsInput,GetCodeScanningAlertInput,ListSecretScanningAlertsInput,GetSecretScanningAlertInput,ListDependabotAlertsInput,GetDependabotAlertInput,GetLatestReleaseInput,GetTagInput,ListWorkflowJobsInput,GetJobLogsInput,GetWorkflowRunLogsInput,GetWorkflowRunUsageInput,ListWorkflowRunArtifactsInput,DownloadWorkflowRunArtifactInput,CancelWorkflowRunInput,RerunWorkflowRunInput,RerunFailedJobsInput,DeleteWorkflowRunLogsInput,RunWorkflowInput,GetNotificationDetailsInput,ManageNotificationSubscriptionInput,ManageRepositoryNotificationSubscriptionInput,MarkAllNotificationsReadInput,DismissNotificationInput,GetTeamsInput,GetTeamMembersInput,DeleteFileInput,SearchOrgsInput,SubIssueWriteInput,LabelWriteInput,PullRequestReviewWriteInput,AddCommentToPendingReviewInput,AssignCopilotToIssueInput,ListProjectFieldsInput,GetProjectFieldInput,ListGlobalSecurityAdvisoriesInput,GetGlobalSecurityAdvisoryInput,ListOrgRepositorySecurityAdvisoriesInput,ListRepositorySecurityAdvisoriesInput
 
 // SearchRepositoriesInput defines input parameters for the search_repositories tool.
 type SearchRepositoriesInput struct {
@@ -714,4 +714,125 @@ type DeleteFileInput struct {
 	Message string `json:"message" jsonschema:"required,description=Commit message"`
 	Branch  string `json:"branch" jsonschema:"required,description=Branch containing the file"`
 	SHA     string `json:"sha" jsonschema:"required,description=SHA of the file being deleted"`
+}
+
+// SearchOrgsInput defines input parameters for the search_orgs tool.
+type SearchOrgsInput struct {
+	Query   string `json:"query" jsonschema:"required,description=Organization search query using GitHub search syntax"`
+	Sort    string `json:"sort" jsonschema:"description=Sort field,enum=followers|repositories|joined"`
+	Order   string `json:"order" jsonschema:"description=Sort order,enum=asc|desc"`
+	Page    int    `json:"page" jsonschema:"description=Page number for pagination (min 1)"`
+	PerPage int    `json:"perPage" jsonschema:"description=Results per page for pagination (min 1 and max 100)"`
+}
+
+// SubIssueWriteInput defines input parameters for the sub_issue_write tool.
+type SubIssueWriteInput struct {
+	Method        string `json:"method" jsonschema:"required,description=Action to perform (add/remove/reprioritize)"`
+	Owner         string `json:"owner" jsonschema:"required,description=Repository owner"`
+	Repo          string `json:"repo" jsonschema:"required,description=Repository name"`
+	IssueNumber   int    `json:"issue_number" jsonschema:"required,description=The number of the parent issue"`
+	SubIssueID    int    `json:"sub_issue_id" jsonschema:"required,description=The ID of the sub-issue (not the issue number)"`
+	ReplaceParent bool   `json:"replace_parent" jsonschema:"description=Replace the sub-issue's current parent (add method only)"`
+	AfterID       int    `json:"after_id" jsonschema:"description=Sub-issue ID to prioritize after"`
+	BeforeID      int    `json:"before_id" jsonschema:"description=Sub-issue ID to prioritize before"`
+}
+
+// LabelWriteInput defines input parameters for the label_write tool.
+type LabelWriteInput struct {
+	Method      string `json:"method" jsonschema:"required,description=Operation to perform,enum=create|update|delete"`
+	Owner       string `json:"owner" jsonschema:"required,description=Repository owner"`
+	Repo        string `json:"repo" jsonschema:"required,description=Repository name"`
+	Name        string `json:"name" jsonschema:"required,description=Label name"`
+	NewName     string `json:"new_name" jsonschema:"description=New name for the label (update only)"`
+	Color       string `json:"color" jsonschema:"description=Label color as 6-character hex code without # prefix"`
+	Description string `json:"description" jsonschema:"description=Label description"`
+}
+
+// PullRequestReviewWriteInput defines input parameters for the pull_request_review_write tool.
+type PullRequestReviewWriteInput struct {
+	Method     string `json:"method" jsonschema:"required,description=Write operation to perform,enum=create|submit_pending|delete_pending"`
+	Owner      string `json:"owner" jsonschema:"required,description=Repository owner"`
+	Repo       string `json:"repo" jsonschema:"required,description=Repository name"`
+	PullNumber int    `json:"pullNumber" jsonschema:"required,description=Pull request number"`
+	Body       string `json:"body" jsonschema:"description=Review comment text"`
+	Event      string `json:"event" jsonschema:"description=Review action to perform,enum=APPROVE|REQUEST_CHANGES|COMMENT"`
+	CommitID   string `json:"commitID" jsonschema:"description=SHA of commit to review"`
+}
+
+// AddCommentToPendingReviewInput defines input parameters for the add_comment_to_pending_review tool.
+type AddCommentToPendingReviewInput struct {
+	Owner       string `json:"owner" jsonschema:"required,description=Repository owner"`
+	Repo        string `json:"repo" jsonschema:"required,description=Repository name"`
+	PullNumber  int    `json:"pullNumber" jsonschema:"required,description=Pull request number"`
+	Path        string `json:"path" jsonschema:"required,description=Relative path to the file that necessitates a comment"`
+	Body        string `json:"body" jsonschema:"required,description=The text of the review comment"`
+	SubjectType string `json:"subjectType" jsonschema:"required,description=The level at which the comment is targeted,enum=FILE|LINE"`
+	Line        int    `json:"line" jsonschema:"description=Line of the blob in the PR diff (for multi-line - last line of range)"`
+	Side        string `json:"side" jsonschema:"description=Side of the diff to comment on,enum=LEFT|RIGHT"`
+	StartLine   int    `json:"startLine" jsonschema:"description=For multi-line comments - first line of range"`
+	StartSide   string `json:"startSide" jsonschema:"description=For multi-line comments - starting side,enum=LEFT|RIGHT"`
+}
+
+// AssignCopilotToIssueInput defines input parameters for the assign_copilot_to_issue tool.
+type AssignCopilotToIssueInput struct {
+	Owner       string `json:"owner" jsonschema:"required,description=Repository owner"`
+	Repo        string `json:"repo" jsonschema:"required,description=Repository name"`
+	IssueNumber int    `json:"issueNumber" jsonschema:"required,description=Issue number"`
+}
+
+// ListProjectFieldsInput defines input parameters for the list_project_fields tool.
+type ListProjectFieldsInput struct {
+	OwnerType     string `json:"owner_type" jsonschema:"required,description=Owner type,enum=user|org"`
+	Owner         string `json:"owner" jsonschema:"required,description=Owner name"`
+	ProjectNumber int    `json:"project_number" jsonschema:"required,description=Project number"`
+	PerPage       int    `json:"per_page" jsonschema:"description=Results per page"`
+	After         string `json:"after" jsonschema:"description=Forward pagination cursor"`
+	Before        string `json:"before" jsonschema:"description=Backward pagination cursor"`
+}
+
+// GetProjectFieldInput defines input parameters for the get_project_field tool.
+type GetProjectFieldInput struct {
+	OwnerType     string `json:"owner_type" jsonschema:"required,description=Owner type,enum=user|org"`
+	Owner         string `json:"owner" jsonschema:"required,description=Owner name"`
+	ProjectNumber int    `json:"project_number" jsonschema:"required,description=Project number"`
+	FieldID       int    `json:"field_id" jsonschema:"required,description=Field ID"`
+}
+
+// ListGlobalSecurityAdvisoriesInput defines input parameters for the list_global_security_advisories tool.
+type ListGlobalSecurityAdvisoriesInput struct {
+	GhsaID      string   `json:"ghsaId" jsonschema:"description=Filter by GitHub Security Advisory ID"`
+	Type        string   `json:"type" jsonschema:"description=Advisory type,enum=reviewed|malware|unreviewed"`
+	CveID       string   `json:"cveId" jsonschema:"description=Filter by CVE ID"`
+	Ecosystem   string   `json:"ecosystem" jsonschema:"description=Filter by package ecosystem,enum=actions|composer|erlang|go|maven|npm|nuget|other|pip|pub|rubygems|rust"`
+	Severity    string   `json:"severity" jsonschema:"description=Filter by severity,enum=unknown|low|medium|high|critical"`
+	Cwes        []string `json:"cwes" jsonschema:"description=Filter by Common Weakness Enumeration IDs"`
+	IsWithdrawn bool     `json:"isWithdrawn" jsonschema:"description=Whether to only return withdrawn advisories"`
+	Affects     string   `json:"affects" jsonschema:"description=Filter by affected package or version"`
+	Published   string   `json:"published" jsonschema:"description=Filter by publish date (ISO 8601)"`
+	Updated     string   `json:"updated" jsonschema:"description=Filter by update date (ISO 8601)"`
+	Modified    string   `json:"modified" jsonschema:"description=Filter by publish or update date (ISO 8601)"`
+	Page        int      `json:"page" jsonschema:"description=Page number for pagination"`
+	PerPage     int      `json:"perPage" jsonschema:"description=Results per page"`
+}
+
+// GetGlobalSecurityAdvisoryInput defines input parameters for the get_global_security_advisory tool.
+type GetGlobalSecurityAdvisoryInput struct {
+	GhsaID string `json:"ghsaId" jsonschema:"required,description=GitHub Security Advisory ID (GHSA-xxxx-xxxx-xxxx)"`
+}
+
+// ListOrgRepositorySecurityAdvisoriesInput defines input parameters for the list_org_repository_security_advisories tool.
+type ListOrgRepositorySecurityAdvisoriesInput struct {
+	Org       string `json:"org" jsonschema:"required,description=Organization name"`
+	Direction string `json:"direction" jsonschema:"description=Sort direction,enum=asc|desc"`
+	Sort      string `json:"sort" jsonschema:"description=Sort field,enum=created|updated|published"`
+	State     string `json:"state" jsonschema:"description=Filter by advisory state,enum=triage|draft|published|closed"`
+}
+
+// ListRepositorySecurityAdvisoriesInput defines input parameters for the list_repository_security_advisories tool.
+type ListRepositorySecurityAdvisoriesInput struct {
+	Owner     string `json:"owner" jsonschema:"required,description=Repository owner"`
+	Repo      string `json:"repo" jsonschema:"required,description=Repository name"`
+	Direction string `json:"direction" jsonschema:"description=Sort direction,enum=asc|desc"`
+	Sort      string `json:"sort" jsonschema:"description=Sort field,enum=created|updated|published"`
+	State     string `json:"state" jsonschema:"description=Filter by advisory state,enum=triage|draft|published|closed"`
 }
