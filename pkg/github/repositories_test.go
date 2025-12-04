@@ -335,8 +335,9 @@ func Test_ForkRepository(t *testing.T) {
 	tool, _ := ForkRepository(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	// Get schema from the input type's MCPSchema() method
+	schema := ForkRepositoryInput{}.MCPSchema()
+	require.NotNil(t, schema, "MCPSchema should return a schema")
 
 	assert.Equal(t, "fork_repository", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -362,7 +363,7 @@ func Test_ForkRepository(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		input          ForkRepositoryInput
 		expectError    bool
 		expectedRepo   *github.Repository
 		expectedErrMsg string
@@ -375,9 +376,9 @@ func Test_ForkRepository(t *testing.T) {
 					mockResponse(t, http.StatusAccepted, mockForkedRepo),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"owner": "owner",
-				"repo":  "repo",
+			input: ForkRepositoryInput{
+				Owner: "owner",
+				Repo:  "repo",
 			},
 			expectError:  false,
 			expectedRepo: mockForkedRepo,
@@ -393,9 +394,9 @@ func Test_ForkRepository(t *testing.T) {
 					}),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"owner": "owner",
-				"repo":  "repo",
+			input: ForkRepositoryInput{
+				Owner: "owner",
+				Repo:  "repo",
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to fork repository",
@@ -408,11 +409,8 @@ func Test_ForkRepository(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 			_, handler := ForkRepository(stubGetClientFn(client), translations.NullTranslationHelper)
 
-			// Create call request
-			request := createMCPRequest(tc.requestArgs)
-
-			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			// Call handler with typed input
+			result, _, err := handler(context.Background(), nil, tc.input)
 
 			// Verify results
 			if tc.expectError {

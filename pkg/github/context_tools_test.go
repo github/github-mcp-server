@@ -48,7 +48,6 @@ func Test_GetMe(t *testing.T) {
 	tests := []struct {
 		name               string
 		stubbedGetClientFn GetClientFn
-		requestArgs        map[string]any
 		expectToolError    bool
 		expectedUser       *github.User
 		expectedToolErrMsg string
@@ -63,7 +62,6 @@ func Test_GetMe(t *testing.T) {
 					),
 				),
 			),
-			requestArgs:     map[string]any{},
 			expectToolError: false,
 			expectedUser:    mockUser,
 		},
@@ -77,16 +75,12 @@ func Test_GetMe(t *testing.T) {
 					),
 				),
 			),
-			requestArgs: map[string]any{
-				"reason": "Testing API",
-			},
 			expectToolError: false,
 			expectedUser:    mockUser,
 		},
 		{
 			name:               "getting client fails",
 			stubbedGetClientFn: stubGetClientFnErr("expected test error"),
-			requestArgs:        map[string]any{},
 			expectToolError:    true,
 			expectedToolErrMsg: "failed to get GitHub client: expected test error",
 		},
@@ -100,7 +94,6 @@ func Test_GetMe(t *testing.T) {
 					),
 				),
 			),
-			requestArgs:        map[string]any{},
 			expectToolError:    true,
 			expectedToolErrMsg: "expected test failure",
 		},
@@ -110,8 +103,8 @@ func Test_GetMe(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			_, handler := GetMe(tc.stubbedGetClientFn, translations.NullTranslationHelper)
 
-			request := createMCPRequest(tc.requestArgs)
-			result, _, _ := handler(context.Background(), &request, tc.requestArgs)
+			// Call handler with empty typed input
+			result, _, _ := handler(context.Background(), nil, GetMeInput{})
 			textContent := getTextResult(t, result)
 
 			if tc.expectToolError {

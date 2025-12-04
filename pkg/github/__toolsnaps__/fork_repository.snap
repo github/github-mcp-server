@@ -12,7 +12,7 @@
     "properties": {
       "organization": {
         "type": "string",
-        "description": "Organization to fork to"
+        "description": "Organization to fork to (defaults to authenticated user)"
       },
       "owner": {
         "type": "string",
@@ -22,7 +22,8 @@
         "type": "string",
         "description": "Repository name"
       }
-    }
+    },
+    "additionalProperties": false
   },
   "name": "fork_repository"
 }

@@ -755,95 +755,62 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 }
 
 // ForkRepository creates a tool to fork a repository.
-func ForkRepository(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	tool := mcp.Tool{
-		Name:        "fork_repository",
-		Description: t("TOOL_FORK_REPOSITORY_DESCRIPTION", "Fork a GitHub repository to your account or specified organization"),
-		Annotations: &mcp.ToolAnnotations{
-			Title:        t("TOOL_FORK_REPOSITORY_USER_TITLE", "Fork repository"),
-			ReadOnlyHint: false,
-		},
-		InputSchema: &jsonschema.Schema{
-			Type: "object",
-			Properties: map[string]*jsonschema.Schema{
-				"owner": {
-					Type:        "string",
-					Description: "Repository owner",
-				},
-				"repo": {
-					Type:        "string",
-					Description: "Repository name",
-				},
-				"organization": {
-					Type:        "string",
-					Description: "Organization to fork to",
-				},
+func ForkRepository(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[ForkRepositoryInput, any]) {
+	return mcp.Tool{
+			Name:        "fork_repository",
+			Description: t("TOOL_FORK_REPOSITORY_DESCRIPTION", "Fork a GitHub repository to your account or specified organization"),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_FORK_REPOSITORY_USER_TITLE", "Fork repository"),
+				ReadOnlyHint: false,
 			},
-			Required: []string{"owner", "repo"},
+			InputSchema: ForkRepositoryInput{}.MCPSchema(),
 		},
-	}
-
-	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-		owner, err := RequiredParam[string](args, "owner")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-		repo, err := RequiredParam[string](args, "repo")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-		org, err := OptionalParam[string](args, "organization")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-
-		opts := &github.RepositoryCreateForkOptions{}
-		if org != "" {
-			opts.Organization = org
-		}
-
-		client, err := getClient(ctx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
-		}
-		forkedRepo, resp, err := client.Repositories.CreateFork(ctx, owner, repo, opts)
-		if err != nil {
-			// Check if it's an acceptedError. An acceptedError indicates that the update is in progress,
-			// and it's not a real error.
-			if resp != nil && resp.StatusCode == http.StatusAccepted && isAcceptedError(err) {
-				return utils.NewToolResultText("Fork is in progress"), nil, nil
+		func(ctx context.Context, _ *mcp.CallToolRequest, input ForkRepositoryInput) (*mcp.CallToolResult, any, error) {
+			opts := &github.RepositoryCreateForkOptions{}
+			if input.Organization != "" {
+				opts.Organization = input.Organization
 			}
-			return ghErrors.NewGitHubAPIErrorResponse(ctx,
-				"failed to fork repository",
-				resp,
-				err,
-			), nil, nil
-		}
-		defer func() { _ = resp.Body.Close() }()
 
-		if resp.StatusCode != http.StatusAccepted {
-			body, err := io.ReadAll(resp.Body)
+			client, err := getClient(ctx)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			return utils.NewToolResultError(fmt.Sprintf("failed to fork repository: %s", string(body))), nil, nil
+			forkedRepo, resp, err := client.Repositories.CreateFork(ctx, input.Owner, input.Repo, opts)
+			if err != nil {
+				// Check if it's an acceptedError. An acceptedError indicates that the update is in progress,
+				// and it's not a real error.
+				if resp != nil && resp.StatusCode == http.StatusAccepted && isAcceptedError(err) {
+					return utils.NewToolResultText("Fork is in progress"), nil, nil
+				}
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to fork repository",
+					resp,
+					err,
+				), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusAccepted {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return utils.NewToolResultError(fmt.Sprintf("failed to fork repository: %s", string(body))), nil, nil
+			}
+
+			// Return minimal response with just essential information
+			minimalResponse := MinimalResponse{
+				ID:  fmt.Sprintf("%d", forkedRepo.GetID()),
+				URL: forkedRepo.GetHTMLURL(),
+			}
+
+			r, err := json.Marshal(minimalResponse)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
 		}
-
-		// Return minimal response with just essential information
-		minimalResponse := MinimalResponse{
-			ID:  fmt.Sprintf("%d", forkedRepo.GetID()),
-			URL: forkedRepo.GetHTMLURL(),
-		}
-
-		r, err := json.Marshal(minimalResponse)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-		}
-
-		return utils.NewToolResultText(string(r)), nil, nil
-	})
-
-	return tool, handler
 }
 
 // DeleteFile creates a tool to delete a file in a GitHub repository.

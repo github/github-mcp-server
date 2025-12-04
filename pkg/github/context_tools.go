@@ -35,7 +35,7 @@ type UserDetails struct {
 }
 
 // GetMe creates a tool to get details of the authenticated user.
-func GetMe(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+func GetMe(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[GetMeInput, any]) {
 	return mcp.Tool{
 			Name:        "get_me",
 			Description: t("TOOL_GET_ME_DESCRIPTION", "Get details of the authenticated GitHub user. Use this when a request is about the user's own profile for GitHub. Or when information is missing to build other tool calls."),
@@ -43,8 +43,9 @@ func GetMe(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Too
 				Title:        t("TOOL_GET_ME_USER_TITLE", "Get my user profile"),
 				ReadOnlyHint: true,
 			},
+			InputSchema: GetMeInput{}.MCPSchema(),
 		},
-		mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
+		mcp.ToolHandlerFor[GetMeInput, any](func(ctx context.Context, _ *mcp.CallToolRequest, _ GetMeInput) (*mcp.CallToolResult, any, error) {
 			client, err := getClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
