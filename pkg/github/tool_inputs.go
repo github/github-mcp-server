@@ -13,9 +13,9 @@ package github
 // SearchRepositoriesInput defines input parameters for the search_repositories tool.
 type SearchRepositoriesInput struct {
 	Query         string `json:"query" jsonschema:"required,description=Repository search query using GitHub search syntax"`
-	Sort          string `json:"sort" jsonschema:"description=Sort repositories by field (stars/forks/help-wanted-issues/updated),enum=stars|forks|help-wanted-issues|updated"`
+	Sort          string `json:"sort" jsonschema:"description=Sort repositories by field - defaults to best match,enum=stars|forks|help-wanted-issues|updated"`
 	Order         string `json:"order" jsonschema:"description=Sort order (asc/desc),enum=asc|desc"`
-	MinimalOutput bool   `json:"minimal_output" jsonschema:"description=Return minimal repository information (true by default)"`
+	MinimalOutput bool   `json:"minimal_output" jsonschema:"description=Return minimal repository information - when false returns full GitHub API objects"`
 	Page          int    `json:"page" jsonschema:"description=Page number for pagination (min 1)"`
 	PerPage       int    `json:"perPage" jsonschema:"description=Results per page for pagination (min 1 and max 100)"`
 }

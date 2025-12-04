@@ -17,7 +17,7 @@ var (
 			},
 			"sort": {
 				Type:        "string",
-				Description: "Sort repositories by field (stars/forks/help-wanted-issues/updated)",
+				Description: "Sort repositories by field - defaults to best match",
 				Enum:        []any{"stars", "forks", "help-wanted-issues", "updated"},
 			},
 			"order": {
@@ -27,7 +27,7 @@ var (
 			},
 			"minimal_output": {
 				Type:        "boolean",
-				Description: "Return minimal repository information (true by default)",
+				Description: "Return minimal repository information - when false returns full GitHub API objects",
 			},
 			"page": {
 				Type:        "integer",
