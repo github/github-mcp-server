@@ -1,6 +1,8 @@
 package toolsets
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -35,9 +37,23 @@ type ServerTool struct {
 	RegisterFunc func(s *mcp.Server)
 }
 
-func NewServerTool[In, Out any](tool mcp.Tool, handler mcp.ToolHandlerFor[In, Out]) ServerTool {
+func NewServerTool[In any, Out any](tool mcp.Tool, handler mcp.ToolHandlerFor[In, Out]) ServerTool {
 	return ServerTool{Tool: tool, RegisterFunc: func(s *mcp.Server) {
-		mcp.AddTool(s, &tool, handler)
+		th := func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			var arguments In
+			if err := json.Unmarshal(req.Params.Arguments, &arguments); err != nil {
+				return nil, err
+			}
+
+			resp, _, err := handler(ctx, req, arguments)
+			if err != nil {
+				return nil, err
+			}
+
+			return resp, err
+		}
+
+		s.AddTool(&tool, th)
 	}}
 }
 
