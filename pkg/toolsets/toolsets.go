@@ -46,9 +46,6 @@ func NewServerTool[In any, Out any](tool mcp.Tool, handler mcp.ToolHandlerFor[In
 			}
 
 			resp, _, err := handler(ctx, req, arguments)
-			if err != nil {
-				return nil, err
-			}
 
 			return resp, err
 		}
