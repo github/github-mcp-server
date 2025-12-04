@@ -222,89 +222,60 @@ func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc) (m
 }
 
 // ListBranches creates a tool to list branches in a GitHub repository.
-func ListBranches(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	tool := mcp.Tool{
-		Name:        "list_branches",
-		Description: t("TOOL_LIST_BRANCHES_DESCRIPTION", "List branches in a GitHub repository"),
-		Annotations: &mcp.ToolAnnotations{
-			Title:        t("TOOL_LIST_BRANCHES_USER_TITLE", "List branches"),
-			ReadOnlyHint: true,
+func ListBranches(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[ListBranchesInput, any]) {
+	return mcp.Tool{
+			Name:        "list_branches",
+			Description: t("TOOL_LIST_BRANCHES_DESCRIPTION", "List branches in a GitHub repository"),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_LIST_BRANCHES_USER_TITLE", "List branches"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: ListBranchesInput{}.MCPSchema(),
 		},
-		InputSchema: WithPagination(&jsonschema.Schema{
-			Type: "object",
-			Properties: map[string]*jsonschema.Schema{
-				"owner": {
-					Type:        "string",
-					Description: "Repository owner",
+		func(ctx context.Context, _ *mcp.CallToolRequest, input ListBranchesInput) (*mcp.CallToolResult, any, error) {
+			opts := &github.BranchListOptions{
+				ListOptions: github.ListOptions{
+					Page:    input.Page,
+					PerPage: input.PerPage,
 				},
-				"repo": {
-					Type:        "string",
-					Description: "Repository name",
-				},
-			},
-			Required: []string{"owner", "repo"},
-		}),
-	}
-
-	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-		owner, err := RequiredParam[string](args, "owner")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-		repo, err := RequiredParam[string](args, "repo")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-		pagination, err := OptionalPaginationParams(args)
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-
-		opts := &github.BranchListOptions{
-			ListOptions: github.ListOptions{
-				Page:    pagination.Page,
-				PerPage: pagination.PerPage,
-			},
-		}
-
-		client, err := getClient(ctx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
-		}
-
-		branches, resp, err := client.Repositories.ListBranches(ctx, owner, repo, opts)
-		if err != nil {
-			return ghErrors.NewGitHubAPIErrorResponse(ctx,
-				"failed to list branches",
-				resp,
-				err,
-			), nil, nil
-		}
-		defer func() { _ = resp.Body.Close() }()
-
-		if resp.StatusCode != http.StatusOK {
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 			}
-			return utils.NewToolResultError(fmt.Sprintf("failed to list branches: %s", string(body))), nil, nil
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			branches, resp, err := client.Repositories.ListBranches(ctx, input.Owner, input.Repo, opts)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to list branches",
+					resp,
+					err,
+				), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return utils.NewToolResultError(fmt.Sprintf("failed to list branches: %s", string(body))), nil, nil
+			}
+
+			// Convert to minimal branches
+			minimalBranches := make([]MinimalBranch, 0, len(branches))
+			for _, branch := range branches {
+				minimalBranches = append(minimalBranches, convertToMinimalBranch(branch))
+			}
+
+			r, err := json.Marshal(minimalBranches)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
 		}
-
-		// Convert to minimal branches
-		minimalBranches := make([]MinimalBranch, 0, len(branches))
-		for _, branch := range branches {
-			minimalBranches = append(minimalBranches, convertToMinimalBranch(branch))
-		}
-
-		r, err := json.Marshal(minimalBranches)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-		}
-
-		return utils.NewToolResultText(string(r)), nil, nil
-	})
-
-	return tool, handler
 }
 
 // CreateOrUpdateFile creates a tool to create or update a file in a GitHub repository.
@@ -1298,81 +1269,52 @@ func PushFiles(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp
 }
 
 // ListTags creates a tool to list tags in a GitHub repository.
-func ListTags(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	tool := mcp.Tool{
-		Name:        "list_tags",
-		Description: t("TOOL_LIST_TAGS_DESCRIPTION", "List git tags in a GitHub repository"),
-		Annotations: &mcp.ToolAnnotations{
-			Title:        t("TOOL_LIST_TAGS_USER_TITLE", "List tags"),
-			ReadOnlyHint: true,
-		},
-		InputSchema: WithPagination(&jsonschema.Schema{
-			Type: "object",
-			Properties: map[string]*jsonschema.Schema{
-				"owner": {
-					Type:        "string",
-					Description: "Repository owner",
-				},
-				"repo": {
-					Type:        "string",
-					Description: "Repository name",
-				},
+func ListTags(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[ListTagsInput, any]) {
+	return mcp.Tool{
+			Name:        "list_tags",
+			Description: t("TOOL_LIST_TAGS_DESCRIPTION", "List git tags in a GitHub repository"),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_LIST_TAGS_USER_TITLE", "List tags"),
+				ReadOnlyHint: true,
 			},
-			Required: []string{"owner", "repo"},
-		}),
-	}
-
-	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-		owner, err := RequiredParam[string](args, "owner")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-		repo, err := RequiredParam[string](args, "repo")
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-		pagination, err := OptionalPaginationParams(args)
-		if err != nil {
-			return utils.NewToolResultError(err.Error()), nil, nil
-		}
-
-		opts := &github.ListOptions{
-			Page:    pagination.Page,
-			PerPage: pagination.PerPage,
-		}
-
-		client, err := getClient(ctx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
-		}
-
-		tags, resp, err := client.Repositories.ListTags(ctx, owner, repo, opts)
-		if err != nil {
-			return ghErrors.NewGitHubAPIErrorResponse(ctx,
-				"failed to list tags",
-				resp,
-				err,
-			), nil, nil
-		}
-		defer func() { _ = resp.Body.Close() }()
-
-		if resp.StatusCode != http.StatusOK {
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			InputSchema: ListTagsInput{}.MCPSchema(),
+		},
+		func(ctx context.Context, _ *mcp.CallToolRequest, input ListTagsInput) (*mcp.CallToolResult, any, error) {
+			opts := &github.ListOptions{
+				Page:    input.Page,
+				PerPage: input.PerPage,
 			}
-			return utils.NewToolResultError(fmt.Sprintf("failed to list tags: %s", string(body))), nil, nil
+
+			client, err := getClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			tags, resp, err := client.Repositories.ListTags(ctx, input.Owner, input.Repo, opts)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to list tags",
+					resp,
+					err,
+				), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return utils.NewToolResultError(fmt.Sprintf("failed to list tags: %s", string(body))), nil, nil
+			}
+
+			r, err := json.Marshal(tags)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
 		}
-
-		r, err := json.Marshal(tags)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-		}
-
-		return utils.NewToolResultText(string(r)), nil, nil
-	})
-
-	return tool, handler
 }
 
 // GetTag creates a tool to get details about a specific tag in a GitHub repository.

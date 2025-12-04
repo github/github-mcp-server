@@ -1692,8 +1692,9 @@ func Test_ListBranches(t *testing.T) {
 	tool, _ := ListBranches(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	// Get schema from the input type's MCPSchema() method
+	schema := ListBranchesInput{}.MCPSchema()
+	require.NotNil(t, schema, "MCPSchema should return a schema")
 
 	assert.Equal(t, "list_branches", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -1718,17 +1719,17 @@ func Test_ListBranches(t *testing.T) {
 	// Test cases
 	tests := []struct {
 		name          string
-		args          map[string]interface{}
+		input         ListBranchesInput
 		mockResponses []mock.MockBackendOption
 		wantErr       bool
 		errContains   string
 	}{
 		{
 			name: "success",
-			args: map[string]interface{}{
-				"owner": "owner",
-				"repo":  "repo",
-				"page":  float64(2),
+			input: ListBranchesInput{
+				Owner: "owner",
+				Repo:  "repo",
+				Page:  2,
 			},
 			mockResponses: []mock.MockBackendOption{
 				mock.WithRequestMatch(
@@ -1738,24 +1739,6 @@ func Test_ListBranches(t *testing.T) {
 			},
 			wantErr: false,
 		},
-		{
-			name: "missing owner",
-			args: map[string]interface{}{
-				"repo": "repo",
-			},
-			mockResponses: []mock.MockBackendOption{},
-			wantErr:       false,
-			errContains:   "missing required parameter: owner",
-		},
-		{
-			name: "missing repo",
-			args: map[string]interface{}{
-				"owner": "owner",
-			},
-			mockResponses: []mock.MockBackendOption{},
-			wantErr:       false,
-			errContains:   "missing required parameter: repo",
-		},
 	}
 
 	for _, tt := range tests {
@@ -1764,11 +1747,8 @@ func Test_ListBranches(t *testing.T) {
 			mockClient := github.NewClient(mock.NewMockedHTTPClient(tt.mockResponses...))
 			_, handler := ListBranches(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 
-			// Create request
-			request := createMCPRequest(tt.args)
-
-			// Call handler
-			result, _, err := handler(context.Background(), &request, tt.args)
+			// Call handler with typed input
+			result, _, err := handler(context.Background(), nil, tt.input)
 			if tt.wantErr {
 				require.Error(t, err)
 				if tt.errContains != "" {
@@ -1789,13 +1769,13 @@ func Test_ListBranches(t *testing.T) {
 			textContent := getTextResult(t, result)
 			require.NotEmpty(t, textContent.Text)
 
-			// Verify response
-			var branches []*github.Branch
+			// Verify response - note: we now return MinimalBranch, not full Branch
+			var branches []MinimalBranch
 			err = json.Unmarshal([]byte(textContent.Text), &branches)
 			require.NoError(t, err)
 			assert.Len(t, branches, 2)
-			assert.Equal(t, "main", *branches[0].Name)
-			assert.Equal(t, "develop", *branches[1].Name)
+			assert.Equal(t, "main", branches[0].Name)
+			assert.Equal(t, "develop", branches[1].Name)
 		})
 	}
 }
@@ -1987,8 +1967,9 @@ func Test_ListTags(t *testing.T) {
 	tool, _ := ListTags(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	// Get schema from the input type's MCPSchema() method
+	schema := ListTagsInput{}.MCPSchema()
+	require.NotNil(t, schema, "MCPSchema should return a schema")
 
 	assert.Equal(t, "list_tags", tool.Name)
 	assert.NotEmpty(t, tool.Description)
@@ -2021,7 +2002,7 @@ func Test_ListTags(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		input          ListTagsInput
 		expectError    bool
 		expectedTags   []*github.RepositoryTag
 		expectedErrMsg string
@@ -2039,9 +2020,9 @@ func Test_ListTags(t *testing.T) {
 					),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"owner": "owner",
-				"repo":  "repo",
+			input: ListTagsInput{
+				Owner: "owner",
+				Repo:  "repo",
 			},
 			expectError:  false,
 			expectedTags: mockTags,
@@ -2057,9 +2038,9 @@ func Test_ListTags(t *testing.T) {
 					}),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"owner": "owner",
-				"repo":  "repo",
+			input: ListTagsInput{
+				Owner: "owner",
+				Repo:  "repo",
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to list tags",
@@ -2072,11 +2053,8 @@ func Test_ListTags(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 			_, handler := ListTags(stubGetClientFn(client), translations.NullTranslationHelper)
 
-			// Create call request
-			request := createMCPRequest(tc.requestArgs)
-
-			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			// Call handler with typed input
+			result, _, err := handler(context.Background(), nil, tc.input)
 
 			// Verify results
 			if tc.expectError {
