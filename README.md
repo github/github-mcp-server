@@ -116,13 +116,7 @@ Example for `https://octocorp.ghe.com` with GitHub PAT token:
 }
 ```
 
-> **Note:** When using OAuth with GitHub Enterprise with VS Code and GitHub Copilot, you also need to configure your VS Code settings to point to your GitHub Enterprise instance. Add the following to your [VS Code User settings](https://code.visualstudio.com/docs/configure/settings#_user-settings):
->
-> ```json
-> {
->   "github-enterprise.uri": "https://copilot-api.octocorp.ghe.com/mcp"
-> }
-> ```
+> **Note:** When using OAuth with GitHub Enterprise with VS Code and GitHub Copilot, you also need to configure your VS Code settings to point to your GitHub Enterprise instance - see [Authenticate from VS Code](https://docs.github.com/en/enterprise-cloud@latest/copilot/how-tos/configure-personal-settings/authenticate-to-ghecom)
 
 ##### GitHub Enterprise Server
 
