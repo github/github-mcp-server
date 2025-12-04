@@ -363,17 +363,10 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		)
 	packages := toolsets.NewToolset(ToolsetMetadataPackages.ID, ToolsetMetadataPackages.Description).
 		AddReadTools(
-			toolsets.NewServerTool(ListOrgPackages(getClient, t)),
-			toolsets.NewServerTool(GetOrgPackage(getClient, t)),
-			toolsets.NewServerTool(ListPackageVersions(getClient, t)),
-			toolsets.NewServerTool(GetPackageVersion(getClient, t)),
-			toolsets.NewServerTool(ListUserPackages(getClient, t)),
+			toolsets.NewServerTool(PackagesRead(getClient, t)),
 		).
 		AddWriteTools(
-			toolsets.NewServerTool(DeleteOrgPackage(getClient, t)),
-			toolsets.NewServerTool(DeleteOrgPackageVersion(getClient, t)),
-			toolsets.NewServerTool(DeleteUserPackage(getClient, t)),
-			toolsets.NewServerTool(DeleteUserPackageVersion(getClient, t)),
+			toolsets.NewServerTool(PackagesWrite(getClient, t)),
 		)
 	// Add toolsets to the group
 	tsg.AddToolset(contextTools)

@@ -868,58 +868,40 @@ Options are:
 
 <summary>Packages</summary>
 
-- **delete_org_package** - Delete organization package
-  - `org`: Organization name (string, required)
-  - `package_name`: Package name (string, required)
-  - `package_type`: Package type (string, required)
+- **packages_read** - Read package information
+  - `method`: Action to specify what package data needs to be retrieved from GitHub.
+Possible options:
+ 1. list_org_packages - List packages for a GitHub organization. Requires 'org' parameter. Supports optional 'package_type' and 'visibility' filters.
+ 2. get_org_package - Get details of a specific package for an organization. Requires 'org', 'package_type', and 'package_name' parameters.
+ 3. list_package_versions - List versions of a package for an organization. Requires 'org', 'package_type', and 'package_name' parameters. Supports optional 'state' filter.
+ 4. get_package_version - Get details of a specific package version. Requires 'org', 'package_type', 'package_name', and 'package_version_id' parameters.
+ 5. list_user_packages - List packages for a GitHub user. Requires 'username' parameter. Supports optional 'package_type' and 'visibility' filters.
 
-- **delete_org_package_version** - Delete organization package version
-  - `org`: Organization name (string, required)
-  - `package_name`: Package name (string, required)
-  - `package_type`: Package type (string, required)
-  - `package_version_id`: Package version ID (number, required)
-
-- **delete_user_package** - Delete user package
-  - `package_name`: Package name (string, required)
-  - `package_type`: Package type (string, required)
-
-- **delete_user_package_version** - Delete user package version
-  - `package_name`: Package name (string, required)
-  - `package_type`: Package type (string, required)
-  - `package_version_id`: Package version ID (number, required)
-
-- **get_org_package** - Get organization package details
-  - `org`: Organization name (string, required)
-  - `package_name`: Package name (string, required)
-  - `package_type`: Package type (string, required)
-
-- **get_package_version** - Get package version details
-  - `org`: Organization name (string, required)
-  - `package_name`: Package name (string, required)
-  - `package_type`: Package type (string, required)
-  - `package_version_id`: Package version ID (number, required)
-
-- **list_org_packages** - List organization packages
-  - `org`: Organization name (string, required)
-  - `package_type`: Filter by package type (string, optional)
+Note: Download statistics are not available via the GitHub REST API. (string, required)
+  - `org`: Organization name (required for org-related methods) (string, optional)
+  - `package_name`: Package name (required for get_org_package, list_package_versions, and get_package_version methods) (string, optional)
+  - `package_type`: Package type (string, optional)
+  - `package_version_id`: Package version ID (required for get_package_version method) (number, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `visibility`: Filter by package visibility (string, optional)
+  - `state`: Filter by version state (optional for list_package_versions method) (string, optional)
+  - `username`: GitHub username (required for list_user_packages method) (string, optional)
+  - `visibility`: Filter by package visibility (optional for list methods) (string, optional)
 
-- **list_package_versions** - List package versions
-  - `org`: Organization name (string, required)
-  - `package_name`: Package name (string, required)
-  - `package_type`: Package type (string, required)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `state`: Filter by version state (string, optional)
+- **packages_write** - Delete operations on packages
+  - `method`: The write operation to perform on packages.
 
-- **list_user_packages** - List user packages
-  - `package_type`: Filter by package type (string, optional)
-  - `page`: Page number for pagination (min 1) (number, optional)
-  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
-  - `username`: GitHub username (string, required)
-  - `visibility`: Filter by package visibility (string, optional)
+Available methods:
+ 1. delete_org_package - Delete an entire package from an organization. This will delete all versions of the package. Requires 'org', 'package_type', and 'package_name' parameters.
+ 2. delete_org_package_version - Delete a specific version of a package from an organization. Requires 'org', 'package_type', 'package_name', and 'package_version_id' parameters.
+ 3. delete_user_package - Delete an entire package from the authenticated user's account. This will delete all versions of the package. Requires 'package_type' and 'package_name' parameters.
+ 4. delete_user_package_version - Delete a specific version of a package from the authenticated user's account. Requires 'package_type', 'package_name', and 'package_version_id' parameters.
+
+All operations require delete:packages scope. (string, required)
+  - `org`: Organization name (required for delete_org_package and delete_org_package_version methods) (string, optional)
+  - `package_name`: Package name (required for all methods) (string, required)
+  - `package_type`: Package type (required for all methods) (string, required)
+  - `package_version_id`: Package version ID (required for delete_org_package_version and delete_user_package_version methods) (number, optional)
 
 </details>
 
