@@ -24,8 +24,9 @@ func Test_SearchRepositories(t *testing.T) {
 	assert.Equal(t, "search_repositories", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	// Get schema from the input type's MCPSchema() method
+	schema := SearchRepositoriesInput{}.MCPSchema()
+	require.NotNil(t, schema, "MCPSchema should return a schema")
 	assert.Contains(t, schema.Properties, "query")
 	assert.Contains(t, schema.Properties, "sort")
 	assert.Contains(t, schema.Properties, "order")
@@ -60,7 +61,7 @@ func Test_SearchRepositories(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		input          SearchRepositoriesInput
 		expectError    bool
 		expectedResult *github.RepositoriesSearchResult
 		expectedErrMsg string
@@ -81,12 +82,12 @@ func Test_SearchRepositories(t *testing.T) {
 					),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"query":   "golang test",
-				"sort":    "stars",
-				"order":   "desc",
-				"page":    float64(2),
-				"perPage": float64(10),
+			input: SearchRepositoriesInput{
+				Query:   "golang test",
+				Sort:    "stars",
+				Order:   "desc",
+				Page:    2,
+				PerPage: 10,
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
@@ -97,16 +98,14 @@ func Test_SearchRepositories(t *testing.T) {
 				mock.WithRequestMatchHandler(
 					mock.GetSearchRepositories,
 					expectQueryParams(t, map[string]string{
-						"q":        "golang test",
-						"page":     "1",
-						"per_page": "30",
+						"q": "golang test",
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockSearchResult),
 					),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"query": "golang test",
+			input: SearchRepositoriesInput{
+				Query: "golang test",
 			},
 			expectError:    false,
 			expectedResult: mockSearchResult,
@@ -122,8 +121,8 @@ func Test_SearchRepositories(t *testing.T) {
 					}),
 				),
 			),
-			requestArgs: map[string]interface{}{
-				"query": "invalid:query",
+			input: SearchRepositoriesInput{
+				Query: "invalid:query",
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to search repositories",
@@ -136,11 +135,8 @@ func Test_SearchRepositories(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 			_, handler := SearchRepositories(stubGetClientFn(client), translations.NullTranslationHelper)
 
-			// Create call request
-			request := createMCPRequest(tc.requestArgs)
-
-			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			// Call handler with typed input
+			result, _, err := handler(context.Background(), nil, tc.input)
 
 			// Verify results
 			if tc.expectError {
@@ -195,9 +191,7 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 		mock.WithRequestMatchHandler(
 			mock.GetSearchRepositories,
 			expectQueryParams(t, map[string]string{
-				"q":        "golang test",
-				"page":     "1",
-				"per_page": "30",
+				"q": "golang test",
 			}).andThen(
 				mockResponse(t, http.StatusOK, mockSearchResult),
 			),
@@ -207,14 +201,12 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 	client := github.NewClient(mockedClient)
 	_, handlerTest := SearchRepositories(stubGetClientFn(client), translations.NullTranslationHelper)
 
-	args := map[string]interface{}{
-		"query":          "golang test",
-		"minimal_output": false,
+	input := SearchRepositoriesInput{
+		Query:         "golang test",
+		MinimalOutput: false,
 	}
 
-	request := createMCPRequest(args)
-
-	result, _, err := handlerTest(context.Background(), &request, args)
+	result, _, err := handlerTest(context.Background(), nil, input)
 
 	require.NoError(t, err)
 	require.False(t, result.IsError)

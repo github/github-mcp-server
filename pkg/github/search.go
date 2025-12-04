@@ -16,34 +16,7 @@ import (
 )
 
 // SearchRepositories creates a tool to search for GitHub repositories.
-func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	schema := &jsonschema.Schema{
-		Type: "object",
-		Properties: map[string]*jsonschema.Schema{
-			"query": {
-				Type:        "string",
-				Description: "Repository search query. Examples: 'machine learning in:name stars:>1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering.",
-			},
-			"sort": {
-				Type:        "string",
-				Description: "Sort repositories by field, defaults to best match",
-				Enum:        []any{"stars", "forks", "help-wanted-issues", "updated"},
-			},
-			"order": {
-				Type:        "string",
-				Description: "Sort order",
-				Enum:        []any{"asc", "desc"},
-			},
-			"minimal_output": {
-				Type:        "boolean",
-				Description: "Return minimal repository information (default: true). When false, returns full GitHub API repository objects.",
-				Default:     json.RawMessage(`true`),
-			},
-		},
-		Required: []string{"query"},
-	}
-	WithPagination(schema)
-
+func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[SearchRepositoriesInput, any]) {
 	return mcp.Tool{
 			Name:        "search_repositories",
 			Description: t("TOOL_SEARCH_REPOSITORIES_DESCRIPTION", "Find GitHub repositories by name, description, readme, topics, or other metadata. Perfect for discovering projects, finding examples, or locating specific repositories across GitHub."),
@@ -51,35 +24,15 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 				Title:        t("TOOL_SEARCH_REPOSITORIES_USER_TITLE", "Search repositories"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: schema,
+			InputSchema: SearchRepositoriesInput{}.MCPSchema(),
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			query, err := RequiredParam[string](args, "query")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			sort, err := OptionalParam[string](args, "sort")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			order, err := OptionalParam[string](args, "order")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			pagination, err := OptionalPaginationParams(args)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			minimalOutput, err := OptionalBoolParamWithDefault(args, "minimal_output", true)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
+		func(ctx context.Context, _ *mcp.CallToolRequest, input SearchRepositoriesInput) (*mcp.CallToolResult, any, error) {
 			opts := &github.SearchOptions{
-				Sort:  sort,
-				Order: order,
+				Sort:  input.Sort,
+				Order: input.Order,
 				ListOptions: github.ListOptions{
-					Page:    pagination.Page,
-					PerPage: pagination.PerPage,
+					Page:    input.Page,
+					PerPage: input.PerPage,
 				},
 			}
 
@@ -87,10 +40,10 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
-			result, resp, err := client.Search.Repositories(ctx, query, opts)
+			result, resp, err := client.Search.Repositories(ctx, input.Query, opts)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					fmt.Sprintf("failed to search repositories with query '%s'", query),
+					fmt.Sprintf("failed to search repositories with query '%s'", input.Query),
 					resp,
 					err,
 				), nil, nil
@@ -107,7 +60,7 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 
 			// Return either minimal or full response based on parameter
 			var r []byte
-			if minimalOutput {
+			if input.MinimalOutput {
 				minimalRepos := make([]MinimalRepository, 0, len(result.Repositories))
 				for _, repo := range result.Repositories {
 					minimalRepo := MinimalRepository{

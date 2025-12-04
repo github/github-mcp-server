@@ -12,35 +12,31 @@
     "properties": {
       "minimal_output": {
         "type": "boolean",
-        "description": "Return minimal repository information (default: true). When false, returns full GitHub API repository objects.",
-        "default": true
+        "description": "Return minimal repository information - when false returns full GitHub API objects"
       },
       "order": {
         "type": "string",
-        "description": "Sort order",
+        "description": "Sort order (asc/desc)",
         "enum": [
           "asc",
           "desc"
         ]
       },
       "page": {
-        "type": "number",
-        "description": "Page number for pagination (min 1)",
-        "minimum": 1
+        "type": "integer",
+        "description": "Page number for pagination (min 1)"
       },
       "perPage": {
-        "type": "number",
-        "description": "Results per page for pagination (min 1, max 100)",
-        "minimum": 1,
-        "maximum": 100
+        "type": "integer",
+        "description": "Results per page for pagination (min 1 and max 100)"
       },
       "query": {
         "type": "string",
-        "description": "Repository search query. Examples: 'machine learning in:name stars:\u003e1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering."
+        "description": "Repository search query using GitHub search syntax"
       },
       "sort": {
         "type": "string",
-        "description": "Sort repositories by field, defaults to best match",
+        "description": "Sort repositories by field - defaults to best match",
         "enum": [
           "stars",
           "forks",
@@ -48,7 +44,8 @@
           "updated"
         ]
       }
-    }
+    },
+    "additionalProperties": false
   },
   "name": "search_repositories"
 }
