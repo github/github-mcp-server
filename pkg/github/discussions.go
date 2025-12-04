@@ -493,6 +493,119 @@ func GetDiscussionComments(getGQLClient GetGQLClientFn, t translations.Translati
 		}
 }
 
+func CreateDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	return mcp.Tool{
+			Name:        "create_discussion",
+			Description: t("TOOL_CREATE_DISCUSSION_DESCRIPTION", "Create a new discussion in a repository or organisation."),
+			Annotations: &mcp.ToolAnnotations{
+				Title: t("TOOL_CREATE_DISCUSSION_USER_TITLE", "Create discussion"),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name. If not provided, the discussion will be created at the organisation level.",
+					},
+					"categoryId": {
+						Type:        "string",
+						Description: "Category ID where the discussion should be created (obtainable via list_discussion_categories)",
+					},
+					"title": {
+						Type:        "string",
+						Description: "Discussion title",
+					},
+					"body": {
+						Type:        "string",
+						Description: "Discussion body text in markdown format",
+					},
+				},
+				Required: []string{"owner", "categoryId", "title", "body"},
+			},
+		},
+		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := OptionalParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			// when not provided, default to the .github repository
+			// this will create the discussion at the organisation level
+			if repo == "" {
+				repo = ".github"
+			}
+
+			categoryID, err := RequiredParam[string](args, "categoryId")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			title, err := RequiredParam[string](args, "title")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			body, err := RequiredParam[string](args, "body")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := getGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
+			}
+
+			// Get repository ID first
+			repoID, err := getRepositoryID(ctx, client, owner, repo)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to get repository ID: %v", err)), nil, nil
+			}
+
+			// Define the mutation
+			var mutation struct {
+				CreateDiscussion struct {
+					Discussion struct {
+						ID     githubv4.ID
+						Number githubv4.Int
+						URL    githubv4.String
+					}
+				} `graphql:"createDiscussion(input: $input)"`
+			}
+
+			input := githubv4.CreateDiscussionInput{
+				RepositoryID: repoID,
+				CategoryID:   githubv4.ID(categoryID),
+				Title:        githubv4.String(title),
+				Body:         githubv4.String(body),
+			}
+
+			if err := client.Mutate(ctx, &mutation, input, nil); err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to create discussion: %v", err)), nil, nil
+			}
+
+			// Build response
+			response := map[string]interface{}{
+				"id":     fmt.Sprint(mutation.CreateDiscussion.Discussion.ID),
+				"number": int(mutation.CreateDiscussion.Discussion.Number),
+				"url":    string(mutation.CreateDiscussion.Discussion.URL),
+			}
+
+			out, err := json.Marshal(response)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal discussion: %w", err)
+			}
+
+			return utils.NewToolResultText(string(out)), nil, nil
+		}
+}
+
 func ListDiscussionCategories(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 	return mcp.Tool{
 			Name:        "list_discussion_categories",
