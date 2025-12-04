@@ -1090,6 +1090,12 @@ Possible options:
   - `repo`: Repository name (string, required)
   - `sha`: Commit SHA, branch name, or tag name (string, required)
 
+- **get_file_blame** - Get file blame information
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `path`: Path to the file in the repository (string, required)
+  - `ref`: Git reference (branch, tag, or commit SHA). Defaults to the repository's default branch (string, optional)
+  - `repo`: Repository name (string, required)
+
 - **get_file_contents** - Get file or directory contents
   - `owner`: Repository owner (username or organization) (string, required)
   - `path`: Path to file/directory (directories must end with a slash '/') (string, optional)

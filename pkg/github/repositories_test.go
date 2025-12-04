@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -17,6 +18,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -3465,6 +3467,341 @@ func Test_RepositoriesGetRepositoryTree(t *testing.T) {
 						assert.True(t, strings.HasPrefix(path, pathFilter.(string)),
 							"Path %s should start with filter %s", path, pathFilter)
 					}
+				}
+			}
+		})
+	}
+}
+
+func Test_GetFileBlame(t *testing.T) {
+	// Verify tool definition once
+	mockClient := githubv4.NewClient(nil)
+	tool, _ := GetFileBlame(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+
+	assert.Equal(t, "get_file_blame", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "path")
+	assert.Contains(t, schema.Properties, "ref")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "path"})
+
+	tests := []struct {
+		name             string
+		mockedClient     *http.Client
+		requestArgs      map[string]interface{}
+		expectError      bool
+		expectedErrMsg   string
+		validateResponse func(t *testing.T, result string)
+	}{
+		{
+			name: "successful blame with default branch",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				// First query: get default branch
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							DefaultBranchRef struct {
+								Name githubv4.String
+							}
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]interface{}{
+						"owner": githubv4.String("testowner"),
+						"repo":  githubv4.String("testrepo"),
+					},
+					githubv4mock.DataResponse(map[string]interface{}{
+						"repository": map[string]interface{}{
+							"defaultBranchRef": map[string]interface{}{
+								"name": "main",
+							},
+						},
+					}),
+				),
+				// Second query: get blame information
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							Object struct {
+								Commit struct {
+									Blame struct {
+										Ranges []struct {
+											StartingLine githubv4.Int
+											EndingLine   githubv4.Int
+											Age          githubv4.Int
+											Commit       struct {
+												OID           githubv4.String
+												Message       githubv4.String
+												CommittedDate githubv4.DateTime
+												Author        struct {
+													Name  githubv4.String
+													Email githubv4.String
+													User  *struct {
+														Login githubv4.String
+														URL   githubv4.String
+													}
+												}
+											}
+										}
+									} `graphql:"blame(path: $path)"`
+								} `graphql:"... on Commit"`
+							} `graphql:"object(expression: $ref)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]interface{}{
+						"owner": githubv4.String("testowner"),
+						"repo":  githubv4.String("testrepo"),
+						"ref":   githubv4.String("main"),
+						"path":  githubv4.String("README.md"),
+					},
+					githubv4mock.DataResponse(map[string]interface{}{
+						"repository": map[string]interface{}{
+							"object": map[string]interface{}{
+								"blame": map[string]interface{}{
+									"ranges": []map[string]interface{}{
+										{
+											"startingLine": 1,
+											"endingLine":   5,
+											"age":          2,
+											"commit": map[string]interface{}{
+												"oid":           "abc123def456",
+												"message":       "Initial commit",
+												"committedDate": "2024-01-01T12:00:00Z",
+												"author": map[string]interface{}{
+													"name":  "John Doe",
+													"email": "john@example.com",
+													"user": map[string]interface{}{
+														"login": "johndoe",
+														"url":   "https://github.com/johndoe",
+													},
+												},
+											},
+										},
+										{
+											"startingLine": 6,
+											"endingLine":   10,
+											"age":          1,
+											"commit": map[string]interface{}{
+												"oid":           "def456ghi789",
+												"message":       "Update README",
+												"committedDate": "2024-01-02T15:30:00Z",
+												"author": map[string]interface{}{
+													"name":  "Jane Smith",
+													"email": "jane@example.com",
+													"user": map[string]interface{}{
+														"login": "janesmith",
+														"url":   "https://github.com/janesmith",
+													},
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "testowner",
+				"repo":  "testrepo",
+				"path":  "README.md",
+			},
+			expectError: false,
+			validateResponse: func(t *testing.T, result string) {
+				assert.Contains(t, result, "testowner/testrepo")
+				assert.Contains(t, result, "README.md")
+				assert.Contains(t, result, "John Doe")
+				assert.Contains(t, result, "Jane Smith")
+				assert.Contains(t, result, "abc123def456")
+				assert.Contains(t, result, "def456ghi789")
+				assert.Contains(t, result, "johndoe")
+				assert.Contains(t, result, "janesmith")
+			},
+		},
+		{
+			name: "successful blame with specific ref",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							Object struct {
+								Commit struct {
+									Blame struct {
+										Ranges []struct {
+											StartingLine githubv4.Int
+											EndingLine   githubv4.Int
+											Age          githubv4.Int
+											Commit       struct {
+												OID           githubv4.String
+												Message       githubv4.String
+												CommittedDate githubv4.DateTime
+												Author        struct {
+													Name  githubv4.String
+													Email githubv4.String
+													User  *struct {
+														Login githubv4.String
+														URL   githubv4.String
+													}
+												}
+											}
+										}
+									} `graphql:"blame(path: $path)"`
+								} `graphql:"... on Commit"`
+							} `graphql:"object(expression: $ref)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]interface{}{
+						"owner": githubv4.String("testowner"),
+						"repo":  githubv4.String("testrepo"),
+						"ref":   githubv4.String("feature-branch"),
+						"path":  githubv4.String("src/main.go"),
+					},
+					githubv4mock.DataResponse(map[string]interface{}{
+						"repository": map[string]interface{}{
+							"object": map[string]interface{}{
+								"blame": map[string]interface{}{
+									"ranges": []map[string]interface{}{
+										{
+											"startingLine": 1,
+											"endingLine":   3,
+											"age":          1,
+											"commit": map[string]interface{}{
+												"oid":           "xyz789abc123",
+												"message":       "Add main function",
+												"committedDate": "2024-01-03T10:00:00Z",
+												"author": map[string]interface{}{
+													"name":  "Bob Developer",
+													"email": "bob@example.com",
+													"user":  nil,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "testowner",
+				"repo":  "testrepo",
+				"path":  "src/main.go",
+				"ref":   "feature-branch",
+			},
+			expectError: false,
+			validateResponse: func(t *testing.T, result string) {
+				assert.Contains(t, result, "testowner/testrepo")
+				assert.Contains(t, result, "src/main.go")
+				assert.Contains(t, result, "feature-branch")
+				assert.Contains(t, result, "Bob Developer")
+				assert.Contains(t, result, "xyz789abc123")
+			},
+		},
+		{
+			name: "error fetching default branch",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							DefaultBranchRef struct {
+								Name githubv4.String
+							}
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]interface{}{
+						"owner": githubv4.String("testowner"),
+						"repo":  githubv4.String("testrepo"),
+					},
+					githubv4mock.ErrorResponse("repository not found"),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "testowner",
+				"repo":  "testrepo",
+				"path":  "README.md",
+			},
+			expectError:    true,
+			expectedErrMsg: "repository not found",
+		},
+		{
+			name: "error fetching blame",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							Object struct {
+								Commit struct {
+									Blame struct {
+										Ranges []struct {
+											StartingLine githubv4.Int
+											EndingLine   githubv4.Int
+											Age          githubv4.Int
+											Commit       struct {
+												OID           githubv4.String
+												Message       githubv4.String
+												CommittedDate githubv4.DateTime
+												Author        struct {
+													Name  githubv4.String
+													Email githubv4.String
+													User  *struct {
+														Login githubv4.String
+														URL   githubv4.String
+													}
+												}
+											}
+										}
+									} `graphql:"blame(path: $path)"`
+								} `graphql:"... on Commit"`
+							} `graphql:"object(expression: $ref)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]interface{}{
+						"owner": githubv4.String("testowner"),
+						"repo":  githubv4.String("testrepo"),
+						"ref":   githubv4.String("main"),
+						"path":  githubv4.String("nonexistent.txt"),
+					},
+					githubv4mock.ErrorResponse("file not found"),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "testowner",
+				"repo":  "testrepo",
+				"path":  "nonexistent.txt",
+				"ref":   "main",
+			},
+			expectError:    true,
+			expectedErrMsg: "file not found",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := githubv4.NewClient(tc.mockedClient)
+			_, handler := GetFileBlame(stubGetGQLClientFn(client), translations.NullTranslationHelper)
+
+			request := createMCPRequest(tc.requestArgs)
+
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+
+			if tc.expectError {
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+			} else {
+				require.NoError(t, err)
+				require.False(t, result.IsError)
+
+				textContent := getTextResult(t, result)
+				if tc.validateResponse != nil {
+					tc.validateResponse(t, textContent.Text)
 				}
 			}
 		})
