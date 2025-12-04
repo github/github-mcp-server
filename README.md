@@ -95,11 +95,13 @@ See [Remote Server Documentation](docs/remote-server.md) for full details on rem
 
 When no toolsets are specified, [default toolsets](#default-toolset) are used.
 
-#### Enterprise Cloud with data residency (ghe.com)
+#### GitHub Enterprise
+
+##### GitHub Enterprise Cloud with data residency (ghe.com)
 
 GitHub Enterprise Cloud can also make use of the remote server.
 
-Example for `https://octocorp.ghe.com`:
+Example for `https://octocorp.ghe.com` with GitHub PAT token:
 ```
 {
     ...
@@ -113,6 +115,10 @@ Example for `https://octocorp.ghe.com`:
     ...
 }
 ```
+
+> **Note:** When using OAuth with GitHub Enterprise with VS Code and GitHub Copilot, you also need to configure your VS Code settings to point to your GitHub Enterprise instance - see [Authenticate from VS Code](https://docs.github.com/en/enterprise-cloud@latest/copilot/how-tos/configure-personal-settings/authenticate-to-ghecom)
+
+##### GitHub Enterprise Server
 
 GitHub Enterprise Server does not support remote server hosting. Please refer to [GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)](#github-enterprise-server-and-enterprise-cloud-with-data-residency-ghecom) from the local server configuration.
 
