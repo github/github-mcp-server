@@ -1,9 +1,11 @@
 package github
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -11,28 +13,127 @@ import (
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v74/github"
+	"github.com/google/go-github/v79/github"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+var defaultGQLClient *githubv4.Client = githubv4.NewClient(newRepoAccessHTTPClient())
+var repoAccessCache *lockdown.RepoAccessCache = stubRepoAccessCache(defaultGQLClient, 15*time.Minute)
+
+type repoAccessKey struct {
+	owner    string
+	repo     string
+	username string
+}
+
+type repoAccessValue struct {
+	isPrivate  bool
+	permission string
+}
+
+type repoAccessMockTransport struct {
+	responses map[repoAccessKey]repoAccessValue
+}
+
+func newRepoAccessHTTPClient() *http.Client {
+	responses := map[repoAccessKey]repoAccessValue{
+		{owner: "owner2", repo: "repo2", username: "testuser2"}: {isPrivate: true},
+		{owner: "owner", repo: "repo", username: "testuser"}:    {isPrivate: false, permission: "READ"},
+	}
+
+	return &http.Client{Transport: &repoAccessMockTransport{responses: responses}}
+}
+
+func (rt *repoAccessMockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Body == nil {
+		return nil, fmt.Errorf("missing request body")
+	}
+
+	var payload struct {
+		Query     string         `json:"query"`
+		Variables map[string]any `json:"variables"`
+	}
+
+	if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+	_ = req.Body.Close()
+
+	owner := toString(payload.Variables["owner"])
+	repo := toString(payload.Variables["name"])
+	username := toString(payload.Variables["username"])
+
+	value, ok := rt.responses[repoAccessKey{owner: owner, repo: repo, username: username}]
+	if !ok {
+		value = repoAccessValue{isPrivate: false, permission: "WRITE"}
+	}
+
+	edges := []any{}
+	if value.permission != "" {
+		edges = append(edges, map[string]any{
+			"permission": value.permission,
+			"node": map[string]any{
+				"login": username,
+			},
+		})
+	}
+
+	responseBody, err := json.Marshal(map[string]any{
+		"data": map[string]any{
+			"repository": map[string]any{
+				"isPrivate": value.isPrivate,
+				"collaborators": map[string]any{
+					"edges": edges,
+				},
+			},
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(bytes.NewReader(responseBody)),
+	}
+	resp.Header.Set("Content-Type", "application/json")
+	return resp, nil
+}
+
+func toString(v any) string {
+	switch value := v.(type) {
+	case string:
+		return value
+	case fmt.Stringer:
+		return value.String()
+	case nil:
+		return ""
+	default:
+		return fmt.Sprintf("%v", value)
+	}
+}
+
 func Test_GetIssue(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	mockGQLClient := githubv4.NewClient(nil)
-	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(mockGQLClient), translations.NullTranslationHelper)
+	defaultGQLClient := githubv4.NewClient(nil)
+	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(defaultGQLClient), repoAccessCache, translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "issue_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "method")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number"})
 
 	// Setup mock issue for success case
 	mockIssue := &github.Issue{
@@ -44,15 +145,40 @@ func Test_GetIssue(t *testing.T) {
 		User: &github.User{
 			Login: github.Ptr("testuser"),
 		},
+		Repository: &github.Repository{
+			Name: github.Ptr("repo"),
+			Owner: &github.User{
+				Login: github.Ptr("owner"),
+			},
+		},
+	}
+	mockIssue2 := &github.Issue{
+		Number:  github.Ptr(422),
+		Title:   github.Ptr("Test Issue 2"),
+		Body:    github.Ptr("This is a test issue 2"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
+		User: &github.User{
+			Login: github.Ptr("testuser2"),
+		},
+		Repository: &github.Repository{
+			Name: github.Ptr("repo2"),
+			Owner: &github.User{
+				Login: github.Ptr("owner2"),
+			},
+		},
 	}
 
 	tests := []struct {
-		name           string
-		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
-		expectError    bool
-		expectedIssue  *github.Issue
-		expectedErrMsg string
+		name               string
+		mockedClient       *http.Client
+		gqlHTTPClient      *http.Client
+		requestArgs        map[string]interface{}
+		expectHandlerError bool
+		expectResultError  bool
+		expectedIssue      *github.Issue
+		expectedErrMsg     string
+		lockdownEnabled    bool
 	}{
 		{
 			name: "successful issue retrieval",
@@ -64,11 +190,10 @@ func Test_GetIssue(t *testing.T) {
 			),
 			requestArgs: map[string]interface{}{
 				"method":       "get",
-				"owner":        "owner",
-				"repo":         "repo",
+				"owner":        "owner2",
+				"repo":         "repo2",
 				"issue_number": float64(42),
 			},
-			expectError:   false,
 			expectedIssue: mockIssue,
 		},
 		{
@@ -85,34 +210,149 @@ func Test_GetIssue(t *testing.T) {
 				"repo":         "repo",
 				"issue_number": float64(999),
 			},
-			expectError:    true,
-			expectedErrMsg: "failed to get issue",
+			expectHandlerError: true,
+			expectedErrMsg:     "failed to get issue",
+		},
+		{
+			name: "lockdown enabled - private repository",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
+					mockIssue2,
+				),
+			),
+			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							IsPrivate     githubv4.Boolean
+							Collaborators struct {
+								Edges []struct {
+									Permission githubv4.String
+									Node       struct {
+										Login githubv4.String
+									}
+								}
+							} `graphql:"collaborators(query: $username, first: 1)"`
+						} `graphql:"repository(owner: $owner, name: $name)"`
+					}{},
+					map[string]any{
+						"owner":    githubv4.String("owner2"),
+						"name":     githubv4.String("repo2"),
+						"username": githubv4.String("testuser2"),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"isPrivate": true,
+							"collaborators": map[string]any{
+								"edges": []any{},
+							},
+						},
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"method":       "get",
+				"owner":        "owner2",
+				"repo":         "repo2",
+				"issue_number": float64(422),
+			},
+			expectedIssue:   mockIssue2,
+			lockdownEnabled: true,
+		},
+		{
+			name: "lockdown enabled - user lacks push access",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
+					mockIssue,
+				),
+			),
+			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							IsPrivate     githubv4.Boolean
+							Collaborators struct {
+								Edges []struct {
+									Permission githubv4.String
+									Node       struct {
+										Login githubv4.String
+									}
+								}
+							} `graphql:"collaborators(query: $username, first: 1)"`
+						} `graphql:"repository(owner: $owner, name: $name)"`
+					}{},
+					map[string]any{
+						"owner":    githubv4.String("owner"),
+						"name":     githubv4.String("repo"),
+						"username": githubv4.String("testuser"),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"isPrivate": false,
+							"collaborators": map[string]any{
+								"edges": []any{
+									map[string]any{
+										"permission": "READ",
+										"node": map[string]any{
+											"login": "testuser",
+										},
+									},
+								},
+							},
+						},
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"method":       "get",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectResultError: true,
+			expectedErrMsg:    "access to issue details is restricted by lockdown mode",
+			lockdownEnabled:   true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(mockGQLClient), translations.NullTranslationHelper)
 
-			// Create call request
+			var gqlClient *githubv4.Client
+			cache := repoAccessCache
+			if tc.gqlHTTPClient != nil {
+				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
+				cache = stubRepoAccessCache(gqlClient, 15*time.Minute)
+			} else {
+				gqlClient = defaultGQLClient
+			}
+
+			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
+			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), cache, translations.NullTranslationHelper, flags)
+
 			request := createMCPRequest(tc.requestArgs)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
-			// Call handler
-			result, err := handler(context.Background(), request)
-
-			// Verify results
-			if tc.expectError {
+			if tc.expectHandlerError {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedErrMsg)
 				return
 			}
 
 			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			if tc.expectResultError {
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
 			var returnedIssue github.Issue
 			err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 			require.NoError(t, err)
@@ -135,11 +375,11 @@ func Test_AddIssueComment(t *testing.T) {
 	assert.Equal(t, "add_issue_comment", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
-	assert.Contains(t, tool.InputSchema.Properties, "body")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "issue_number", "body"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "body")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo", "issue_number", "body"})
 
 	// Setup mock comment for success case
 	mockComment := &github.IssueComment{
@@ -208,7 +448,7 @@ func Test_AddIssueComment(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -249,14 +489,14 @@ func Test_SearchIssues(t *testing.T) {
 
 	assert.Equal(t, "search_issues", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "query")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "sort")
-	assert.Contains(t, tool.InputSchema.Properties, "order")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"query"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "query")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "sort")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "order")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "perPage")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "page")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"query"})
 
 	// Setup mock search results
 	mockSearchResult := &github.IssuesSearchResult{
@@ -539,16 +779,20 @@ func Test_SearchIssues(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				require.NoError(t, err) // No Go error, but result should be an error
+				require.NotNil(t, result)
+				require.True(t, result.IsError, "expected result to be an error")
+				textContent := getErrorResult(t, result)
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
 				return
 			}
 
 			require.NoError(t, err)
+			require.False(t, result.IsError, "expected result to not be an error")
 
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
@@ -580,16 +824,16 @@ func Test_CreateIssue(t *testing.T) {
 
 	assert.Equal(t, "issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "method")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "title")
-	assert.Contains(t, tool.InputSchema.Properties, "body")
-	assert.Contains(t, tool.InputSchema.Properties, "assignees")
-	assert.Contains(t, tool.InputSchema.Properties, "labels")
-	assert.Contains(t, tool.InputSchema.Properties, "milestone")
-	assert.Contains(t, tool.InputSchema.Properties, "type")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "title")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "body")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "assignees")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "labels")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "milestone")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "type")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo"})
 
 	// Setup mock issue for success case
 	mockIssue := &github.Issue{
@@ -704,7 +948,7 @@ func Test_CreateIssue(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -741,16 +985,16 @@ func Test_ListIssues(t *testing.T) {
 
 	assert.Equal(t, "list_issues", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "state")
-	assert.Contains(t, tool.InputSchema.Properties, "labels")
-	assert.Contains(t, tool.InputSchema.Properties, "orderBy")
-	assert.Contains(t, tool.InputSchema.Properties, "direction")
-	assert.Contains(t, tool.InputSchema.Properties, "since")
-	assert.Contains(t, tool.InputSchema.Properties, "after")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "state")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "labels")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "orderBy")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "direction")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "since")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "after")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "perPage")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo"})
 
 	// Mock issues data
 	mockIssuesAll := []map[string]any{
@@ -1000,7 +1244,7 @@ func Test_ListIssues(t *testing.T) {
 			_, handler := ListIssues(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
 
 			req := createMCPRequest(tc.reqParams)
-			res, err := handler(context.Background(), req)
+			res, _, err := handler(context.Background(), &req, tc.reqParams)
 			text := getTextResult(t, res).Text
 
 			if tc.expectError {
@@ -1050,20 +1294,20 @@ func Test_UpdateIssue(t *testing.T) {
 
 	assert.Equal(t, "issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "method")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
-	assert.Contains(t, tool.InputSchema.Properties, "title")
-	assert.Contains(t, tool.InputSchema.Properties, "body")
-	assert.Contains(t, tool.InputSchema.Properties, "labels")
-	assert.Contains(t, tool.InputSchema.Properties, "assignees")
-	assert.Contains(t, tool.InputSchema.Properties, "milestone")
-	assert.Contains(t, tool.InputSchema.Properties, "type")
-	assert.Contains(t, tool.InputSchema.Properties, "state")
-	assert.Contains(t, tool.InputSchema.Properties, "state_reason")
-	assert.Contains(t, tool.InputSchema.Properties, "duplicate_of")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "title")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "body")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "labels")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "assignees")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "milestone")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "type")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "state")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "state_reason")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "duplicate_of")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo"})
 
 	// Mock issues for reuse across test cases
 	mockBaseIssue := &github.Issue{
@@ -1502,7 +1746,7 @@ func Test_UpdateIssue(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError || tc.expectedErrMsg != "" {
@@ -1589,18 +1833,18 @@ func Test_GetIssueComments(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
 	gqlClient := githubv4.NewClient(nil)
-	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "issue_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "method")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "page")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "perPage")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number"})
 
 	// Setup mock comments for success case
 	mockComments := []*github.IssueComment{
@@ -1625,10 +1869,12 @@ func Test_GetIssueComments(t *testing.T) {
 	tests := []struct {
 		name             string
 		mockedClient     *http.Client
+		gqlHTTPClient    *http.Client
 		requestArgs      map[string]interface{}
 		expectError      bool
 		expectedComments []*github.IssueComment
 		expectedErrMsg   string
+		lockdownEnabled  bool
 	}{
 		{
 			name: "successful comments retrieval",
@@ -1688,20 +1934,63 @@ func Test_GetIssueComments(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to get issue comments",
 		},
+		{
+			name: "lockdown enabled filters comments without push access",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposIssuesCommentsByOwnerByRepoByIssueNumber,
+					[]*github.IssueComment{
+						{
+							ID:   github.Ptr(int64(789)),
+							Body: github.Ptr("Maintainer comment"),
+							User: &github.User{Login: github.Ptr("maintainer")},
+						},
+						{
+							ID:   github.Ptr(int64(790)),
+							Body: github.Ptr("External user comment"),
+							User: &github.User{Login: github.Ptr("testuser")},
+						},
+					},
+				),
+			),
+			gqlHTTPClient: newRepoAccessHTTPClient(),
+			requestArgs: map[string]interface{}{
+				"method":       "get_comments",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectError: false,
+			expectedComments: []*github.IssueComment{
+				{
+					ID:   github.Ptr(int64(789)),
+					Body: github.Ptr("Maintainer comment"),
+					User: &github.User{Login: github.Ptr("maintainer")},
+				},
+			},
+			lockdownEnabled: true,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			gqlClient := githubv4.NewClient(nil)
-			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+			var gqlClient *githubv4.Client
+			if tc.gqlHTTPClient != nil {
+				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
+			} else {
+				gqlClient = githubv4.NewClient(nil)
+			}
+			cache := stubRepoAccessCache(gqlClient, 15*time.Minute)
+			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
+			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), cache, translations.NullTranslationHelper, flags)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -1718,9 +2007,12 @@ func Test_GetIssueComments(t *testing.T) {
 			err = json.Unmarshal([]byte(textContent.Text), &returnedComments)
 			require.NoError(t, err)
 			assert.Equal(t, len(tc.expectedComments), len(returnedComments))
-			if len(returnedComments) > 0 {
-				assert.Equal(t, *tc.expectedComments[0].Body, *returnedComments[0].Body)
-				assert.Equal(t, *tc.expectedComments[0].User.Login, *returnedComments[0].User.Login)
+			for i := range tc.expectedComments {
+				require.NotNil(t, tc.expectedComments[i].User)
+				require.NotNil(t, returnedComments[i].User)
+				assert.Equal(t, tc.expectedComments[i].GetID(), returnedComments[i].GetID())
+				assert.Equal(t, tc.expectedComments[i].GetBody(), returnedComments[i].GetBody())
+				assert.Equal(t, tc.expectedComments[i].GetUser().GetLogin(), returnedComments[i].GetUser().GetLogin())
 			}
 		})
 	}
@@ -1732,16 +2024,16 @@ func Test_GetIssueLabels(t *testing.T) {
 	// Verify tool definition
 	mockGQClient := githubv4.NewClient(nil)
 	mockClient := github.NewClient(nil)
-	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(mockGQClient), translations.NullTranslationHelper)
+	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(mockGQClient), stubRepoAccessCache(mockGQClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "issue_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "method")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number"})
 
 	tests := []struct {
 		name               string
@@ -1807,10 +2099,10 @@ func Test_GetIssueLabels(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			gqlClient := githubv4.NewClient(tc.mockedClient)
 			client := github.NewClient(nil)
-			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			require.NoError(t, err)
 			assert.NotNil(t, result)
@@ -1838,10 +2130,10 @@ func TestAssignCopilotToIssue(t *testing.T) {
 
 	assert.Equal(t, "assign_copilot_to_issue", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "issueNumber")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "issueNumber"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issueNumber")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo", "issueNumber"})
 
 	var pageOfFakeBots = func(n int) []struct{} {
 		// We don't _really_ need real bots here, just objects that count as entries for the page
@@ -2231,7 +2523,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 			require.NoError(t, err)
 
 			textContent := getTextResult(t, result)
@@ -2256,13 +2548,13 @@ func Test_AddSubIssue(t *testing.T) {
 
 	assert.Equal(t, "sub_issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "method")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
-	assert.Contains(t, tool.InputSchema.Properties, "sub_issue_id")
-	assert.Contains(t, tool.InputSchema.Properties, "replace_parent")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number", "sub_issue_id"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "sub_issue_id")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "replace_parent")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number", "sub_issue_id"})
 
 	// Setup mock issue for success case (matches GitHub API response format)
 	mockIssue := &github.Issue{
@@ -2459,7 +2751,7 @@ func Test_AddSubIssue(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -2498,18 +2790,18 @@ func Test_GetSubIssues(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
 	gqlClient := githubv4.NewClient(nil)
-	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "issue_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "method")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "page")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "perPage")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number"})
 
 	// Setup mock sub-issues for success case
 	mockSubIssues := []*github.Issue{
@@ -2695,13 +2987,13 @@ func Test_GetSubIssues(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
 			gqlClient := githubv4.NewClient(nil)
-			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -2753,12 +3045,12 @@ func Test_RemoveSubIssue(t *testing.T) {
 
 	assert.Equal(t, "sub_issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "method")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
-	assert.Contains(t, tool.InputSchema.Properties, "sub_issue_id")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number", "sub_issue_id"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "sub_issue_id")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number", "sub_issue_id"})
 
 	// Setup mock issue for success case (matches GitHub API response format - the updated parent issue)
 	mockIssue := &github.Issue{
@@ -2935,7 +3227,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -2978,14 +3270,14 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 
 	assert.Equal(t, "sub_issue_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "method")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "issue_number")
-	assert.Contains(t, tool.InputSchema.Properties, "sub_issue_id")
-	assert.Contains(t, tool.InputSchema.Properties, "after_id")
-	assert.Contains(t, tool.InputSchema.Properties, "before_id")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"method", "owner", "repo", "issue_number", "sub_issue_id"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "sub_issue_id")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "after_id")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "before_id")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number", "sub_issue_id"})
 
 	// Setup mock issue for success case (matches GitHub API response format - the updated parent issue)
 	mockIssue := &github.Issue{
@@ -3221,7 +3513,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -3264,8 +3556,8 @@ func Test_ListIssueTypes(t *testing.T) {
 
 	assert.Equal(t, "list_issue_types", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner"})
 
 	// Setup mock issue types for success case
 	mockIssueTypes := []*github.IssueType{
@@ -3352,7 +3644,7 @@ func Test_ListIssueTypes(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {

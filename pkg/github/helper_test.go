@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -110,57 +110,45 @@ func mockResponse(t *testing.T, code int, body interface{}) http.HandlerFunc {
 
 // createMCPRequest is a helper function to create a MCP request with the given arguments.
 func createMCPRequest(args any) mcp.CallToolRequest {
+	// convert args to map[string]interface{} and serialize to JSON
+	argsMap, ok := args.(map[string]interface{})
+	if !ok {
+		argsMap = make(map[string]interface{})
+	}
+
+	argsJSON, err := json.Marshal(argsMap)
+	if err != nil {
+		return mcp.CallToolRequest{}
+	}
+
+	jsonRawMessage := json.RawMessage(argsJSON)
+
 	return mcp.CallToolRequest{
-		Params: struct {
-			Name      string    `json:"name"`
-			Arguments any       `json:"arguments,omitempty"`
-			Meta      *mcp.Meta `json:"_meta,omitempty"`
-		}{
-			Arguments: args,
+		Params: &mcp.CallToolParamsRaw{
+			Arguments: jsonRawMessage,
 		},
 	}
 }
 
 // getTextResult is a helper function that returns a text result from a tool call.
-func getTextResult(t *testing.T, result *mcp.CallToolResult) mcp.TextContent {
+func getTextResult(t *testing.T, result *mcp.CallToolResult) *mcp.TextContent {
 	t.Helper()
 	assert.NotNil(t, result)
 	require.Len(t, result.Content, 1)
-	require.IsType(t, mcp.TextContent{}, result.Content[0])
-	textContent := result.Content[0].(mcp.TextContent)
-	assert.Equal(t, "text", textContent.Type)
+	textContent, ok := result.Content[0].(*mcp.TextContent)
+	require.True(t, ok, "expected content to be of type TextContent")
 	return textContent
 }
 
-func getErrorResult(t *testing.T, result *mcp.CallToolResult) mcp.TextContent {
+func getErrorResult(t *testing.T, result *mcp.CallToolResult) *mcp.TextContent {
 	res := getTextResult(t, result)
 	require.True(t, result.IsError, "expected tool call result to be an error")
 	return res
 }
 
 // getTextResourceResult is a helper function that returns a text result from a tool call.
-func getTextResourceResult(t *testing.T, result *mcp.CallToolResult) mcp.TextResourceContents {
-	t.Helper()
-	assert.NotNil(t, result)
-	require.Len(t, result.Content, 2)
-	content := result.Content[1]
-	require.IsType(t, mcp.EmbeddedResource{}, content)
-	resource := content.(mcp.EmbeddedResource)
-	require.IsType(t, mcp.TextResourceContents{}, resource.Resource)
-	return resource.Resource.(mcp.TextResourceContents)
-}
 
 // getBlobResourceResult is a helper function that returns a blob result from a tool call.
-func getBlobResourceResult(t *testing.T, result *mcp.CallToolResult) mcp.BlobResourceContents {
-	t.Helper()
-	assert.NotNil(t, result)
-	require.Len(t, result.Content, 2)
-	content := result.Content[1]
-	require.IsType(t, mcp.EmbeddedResource{}, content)
-	resource := content.(mcp.EmbeddedResource)
-	require.IsType(t, mcp.BlobResourceContents{}, resource.Resource)
-	return resource.Resource.(mcp.BlobResourceContents)
-}
 
 func TestOptionalParamOK(t *testing.T) {
 	tests := []struct {
@@ -226,11 +214,9 @@ func TestOptionalParamOK(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			request := createMCPRequest(tc.args)
-
 			// Test with string type assertion
 			if _, isString := tc.expectedVal.(string); isString || tc.errorMsg == "parameter myParam is not of type string, is bool" {
-				val, ok, err := OptionalParamOK[string](request, tc.paramName)
+				val, ok, err := OptionalParamOK[string, map[string]any](tc.args, tc.paramName)
 				if tc.expectError {
 					require.Error(t, err)
 					assert.Contains(t, err.Error(), tc.errorMsg)
@@ -245,7 +231,7 @@ func TestOptionalParamOK(t *testing.T) {
 
 			// Test with bool type assertion
 			if _, isBool := tc.expectedVal.(bool); isBool || tc.errorMsg == "parameter myParam is not of type bool, is string" {
-				val, ok, err := OptionalParamOK[bool](request, tc.paramName)
+				val, ok, err := OptionalParamOK[bool, map[string]any](tc.args, tc.paramName)
 				if tc.expectError {
 					require.Error(t, err)
 					assert.Contains(t, err.Error(), tc.errorMsg)
@@ -260,7 +246,7 @@ func TestOptionalParamOK(t *testing.T) {
 
 			// Test with float64 type assertion (for number case)
 			if _, isFloat := tc.expectedVal.(float64); isFloat {
-				val, ok, err := OptionalParamOK[float64](request, tc.paramName)
+				val, ok, err := OptionalParamOK[float64, map[string]any](tc.args, tc.paramName)
 				if tc.expectError {
 					// This case shouldn't happen for float64 in the defined tests
 					require.Fail(t, "Unexpected error case for float64")
@@ -272,4 +258,17 @@ func TestOptionalParamOK(t *testing.T) {
 			}
 		})
 	}
+}
+
+func getResourceResult(t *testing.T, result *mcp.CallToolResult) *mcp.ResourceContents {
+	t.Helper()
+	assert.NotNil(t, result)
+	require.Len(t, result.Content, 2)
+	content := result.Content[1]
+	require.IsType(t, &mcp.EmbeddedResource{}, content)
+	resource, ok := content.(*mcp.EmbeddedResource)
+	require.True(t, ok, "expected content to be of type EmbeddedResource")
+
+	require.IsType(t, &mcp.ResourceContents{}, resource.Resource)
+	return resource.Resource
 }

@@ -1,3 +1,5 @@
+[![Go Report Card](https://goreportcard.com/badge/github.com/github/github-mcp-server)](https://goreportcard.com/report/github.com/github/github-mcp-server)
+
 # GitHub MCP Server
 
 The GitHub MCP Server connects AI tools directly to GitHub's platform. This gives AI agents, assistants, and chatbots the ability to read repositories and code files, manage issues and PRs, analyze code, and automate workflows. All through natural language interactions.
@@ -326,6 +328,8 @@ _Toolsets are not limited to Tools. Relevant MCP Resources and Prompts are also 
 
 When no toolsets are specified, [default toolsets](#default-toolset) are used.
 
+> **Looking for examples?** See the [Server Configuration Guide](./docs/server-configuration.md) for common recipes like minimal setups, read-only mode, and combining tools with toolsets.
+
 #### Specifying Toolsets
 
 To specify toolsets you want available to the LLM, you can pass an allow-list in two ways:
@@ -343,6 +347,38 @@ To specify toolsets you want available to the LLM, you can pass an allow-list in
 
 The environment variable `GITHUB_TOOLSETS` takes precedence over the command line argument if both are provided.
 
+#### Specifying Individual Tools
+
+You can also configure specific tools using the `--tools` flag. Tools can be used independently or combined with toolsets and dynamic toolsets discovery for fine-grained control.
+
+1. **Using Command Line Argument**:
+
+   ```bash
+   github-mcp-server --tools get_file_contents,issue_read,create_pull_request
+   ```
+
+2. **Using Environment Variable**:
+   ```bash
+   GITHUB_TOOLS="get_file_contents,issue_read,create_pull_request" ./github-mcp-server
+   ```
+
+3. **Combining with Toolsets** (additive):
+   ```bash
+   github-mcp-server --toolsets repos,issues --tools get_gist
+   ```
+   This registers all tools from `repos` and `issues` toolsets, plus `get_gist`.
+
+4. **Combining with Dynamic Toolsets** (additive):
+   ```bash
+   github-mcp-server --tools get_file_contents --dynamic-toolsets
+   ```
+   This registers `get_file_contents` plus the dynamic toolset tools (`enable_toolset`, `list_available_toolsets`, `get_toolset_tools`).
+
+**Important Notes:**
+- Tools, toolsets, and dynamic toolsets can all be used together
+- Read-only mode takes priority: write tools are skipped if `--read-only` is set, even if explicitly requested via `--tools`
+- Tool names must match exactly (e.g., `get_file_contents`, not `getFileContents`). Invalid tool names will cause the server to fail at startup with an error message
+
 ### Using Toolsets With Docker
 
 When using Docker, you can pass the toolsets as environment variables:
@@ -351,6 +387,25 @@ When using Docker, you can pass the toolsets as environment variables:
 docker run -i --rm \
   -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
   -e GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security,experiments" \
+  ghcr.io/github/github-mcp-server
+```
+
+### Using Tools With Docker
+
+When using Docker, you can pass specific tools as environment variables. You can also combine tools with toolsets:
+
+```bash
+# Tools only
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_TOOLS="get_file_contents,issue_read,create_pull_request" \
+  ghcr.io/github/github-mcp-server
+
+# Tools combined with toolsets (additive)
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_TOOLSETS="repos,issues" \
+  -e GITHUB_TOOLS="get_gist" \
   ghcr.io/github/github-mcp-server
 ```
 
@@ -400,6 +455,7 @@ The following sets of tools are available:
 | `discussions` | GitHub Discussions related tools |
 | `experiments` | Experimental features that are not considered stable yet |
 | `gists` | GitHub Gist related tools |
+| `git` | GitHub Git API related tools for low-level Git operations |
 | `issues` | GitHub Issues related tools |
 | `labels` | GitHub Labels related tools |
 | `notifications` | GitHub Notifications related tools |
@@ -414,7 +470,7 @@ The following sets of tools are available:
 | `users` | GitHub User related tools |
 <!-- END AUTOMATED TOOLSETS -->
 
-### Additional Toolsets in Remote Github MCP Server
+### Additional Toolsets in Remote GitHub MCP Server
 
 | Toolset                 | Description                                                   |
 | ----------------------- | ------------------------------------------------------------- |
@@ -612,6 +668,9 @@ The following sets of tools are available:
   - `filename`: Filename for simple single-file gist creation (string, required)
   - `public`: Whether the gist is public (boolean, optional)
 
+- **get_gist** - Get Gist Content
+  - `gist_id`: The ID of the gist (string, required)
+
 - **list_gists** - List Gists
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -623,6 +682,19 @@ The following sets of tools are available:
   - `description`: Updated description of the gist (string, optional)
   - `filename`: Filename to update or create (string, required)
   - `gist_id`: ID of the gist to update (string, required)
+
+</details>
+
+<details>
+
+<summary>Git</summary>
+
+- **get_repository_tree** - Get repository tree
+  - `owner`: Repository owner (username or organization) (string, required)
+  - `path_filter`: Optional path prefix to filter the tree results (e.g., 'src/' to only show files in the src directory) (string, optional)
+  - `recursive`: Setting this parameter to true returns the objects or subtrees referenced by the tree. Default is false (boolean, optional)
+  - `repo`: Repository name (string, required)
+  - `tree_sha`: The SHA1 value or ref (branch or tag) name of the tree. Defaults to the repository's default branch (string, optional)
 
 </details>
 
@@ -648,8 +720,8 @@ The following sets of tools are available:
 
 - **issue_read** - Get issue details
   - `issue_number`: The number of the issue (number, required)
-  - `method`: The read operation to perform on a single issue. 
-Options are: 
+  - `method`: The read operation to perform on a single issue.
+Options are:
 1. get - Get details of a specific issue.
 2. get_comments - Get issue comments.
 3. get_sub_issues - Get sub-issues of the issue.
@@ -667,8 +739,8 @@ Options are:
   - `issue_number`: Issue number to update (number, optional)
   - `labels`: Labels to apply to this issue (string[], optional)
   - `method`: Write operation to perform on a single issue.
-Options are: 
-- 'create' - creates a new issue. 
+Options are:
+- 'create' - creates a new issue.
 - 'update' - updates an existing issue.
  (string, required)
   - `milestone`: Milestone number (number, optional)
@@ -677,7 +749,7 @@ Options are:
   - `state`: New state (string, optional)
   - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
   - `title`: Issue title (string, optional)
-  - `type`: Type of this issue (string, optional)
+  - `type`: Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
 
 - **list_issue_types** - List available issue types
   - `owner`: The organization owner of the repository (string, required)
@@ -748,7 +820,7 @@ Options are:
 <summary>Notifications</summary>
 
 - **dismiss_notification** - Dismiss notification
-  - `state`: The new state of the notification (read/done) (string, optional)
+  - `state`: The new state of the notification (read/done) (string, required)
   - `threadID`: The ID of the notification thread (string, required)
 
 - **get_notification_details** - Get notification details
@@ -887,24 +959,30 @@ Options are:
   - `project_number`: The project's number. (number, required)
 
 - **list_project_fields** - List project fields
+  - `after`: Forward pagination cursor from previous pageInfo.nextCursor. (string, optional)
+  - `before`: Backward pagination cursor from previous pageInfo.prevCursor (rare). (string, optional)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
-  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
+  - `per_page`: Results per page (max 50) (number, optional)
   - `project_number`: The project's number. (number, required)
 
 - **list_project_items** - List project items
-  - `fields`: Specific list of field IDs to include in the response (e.g. ["102589", "985201", "169875"]). If not provided, only the title field is included. (string[], optional)
+  - `after`: Forward pagination cursor from previous pageInfo.nextCursor. (string, optional)
+  - `before`: Backward pagination cursor from previous pageInfo.prevCursor (rare). (string, optional)
+  - `fields`: Field IDs to include (e.g. ["102589", "985201"]). CRITICAL: Always provide to get field values. Without this, only titles returned. (string[], optional)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
-  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
+  - `per_page`: Results per page (max 50) (number, optional)
   - `project_number`: The project's number. (number, required)
-  - `query`: Search query to filter items (string, optional)
+  - `query`: Query string for advanced filtering of project items using GitHub's project filtering syntax. (string, optional)
 
 - **list_projects** - List projects
+  - `after`: Forward pagination cursor from previous pageInfo.nextCursor. (string, optional)
+  - `before`: Backward pagination cursor from previous pageInfo.prevCursor (rare). (string, optional)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
-  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
-  - `query`: Filter projects by a search query (matches title and description) (string, optional)
+  - `per_page`: Results per page (max 50) (number, optional)
+  - `query`: Filter projects by title text and open/closed state; permitted qualifiers: is:open, is:closed; examples: "roadmap is:open", "is:open feature planning". (string, optional)
 
 - **update_project_item** - Update project item
   - `item_id`: The unique identifier of the project item. This is not the issue or pull request ID. (number, required)
@@ -1225,7 +1303,7 @@ Possible options:
 </details>
 <!-- END AUTOMATED TOOLS -->
 
-### Additional Tools in Remote Github MCP Server
+### Additional Tools in Remote GitHub MCP Server
 
 <details>
 
@@ -1261,7 +1339,7 @@ Possible options:
 
 ## Dynamic Tool Discovery
 
-**Note**: This feature is currently in beta and may not be available in all environments. Please test it out and let us know if you encounter any issues.
+**Note**: This feature is currently in beta and is not available in the Remote GitHub MCP Server. Please test it out and let us know if you encounter any issues.
 
 Instead of starting with all tools enabled, you can turn on dynamic toolset discovery. Dynamic toolsets allow the MCP host to list and enable toolsets in response to a user prompt. This should help to avoid situations where the model gets confused by the sheer number of tools available.
 
@@ -1298,6 +1376,38 @@ docker run -i --rm \
   -e GITHUB_READ_ONLY=1 \
   ghcr.io/github/github-mcp-server
 ```
+
+## Lockdown Mode
+
+Lockdown mode limits the content that the server will surface from public repositories. When enabled, the server checks whether the author of each item has push access to the repository. Private repositories are unaffected, and collaborators keep full access to their own content.
+
+```bash
+./github-mcp-server --lockdown-mode
+```
+
+When running with Docker, set the corresponding environment variable:
+
+```bash
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_LOCKDOWN_MODE=1 \
+  ghcr.io/github/github-mcp-server
+```
+
+The behavior of lockdown mode depends on the tool invoked.
+
+Following tools will return an error when the author lacks the push access:
+
+- `issue_read:get`
+- `pull_request_read:get`
+
+Following tools will filter out content from users lacking the push access:
+
+- `issue_read:get_comments`
+- `issue_read:get_sub_issues`
+- `pull_request_read:get_comments`
+- `pull_request_read:get_review_comments`
+- `pull_request_read:get_reviews`
 
 ## i18n / Overriding Descriptions
 
