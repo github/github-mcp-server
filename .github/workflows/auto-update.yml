@@ -37,7 +37,7 @@ jobs:
           curl -s "https://api.github.com/search/repositories?q=solana+security+best+practices&sort=stars" | jq -r '.items[0:3] | .[] | .html_url'
 
       - name: Create PR with Updates
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v7
         with:
           commit-message: "⬆️ Update dependencies and apply best practices"
           title: "Automated Dependency Updates"
