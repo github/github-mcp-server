@@ -21,41 +21,7 @@ import (
 )
 
 // PullRequestRead creates a tool to get details of a specific pull request.
-func PullRequestRead(getClient GetClientFn, cache *lockdown.RepoAccessCache, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	schema := &jsonschema.Schema{
-		Type: "object",
-		Properties: map[string]*jsonschema.Schema{
-			"method": {
-				Type: "string",
-				Description: `Action to specify what pull request data needs to be retrieved from GitHub. 
-Possible options: 
- 1. get - Get details of a specific pull request.
- 2. get_diff - Get the diff of a pull request.
- 3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
- 4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
- 5. get_review_comments - Get the review comments on a pull request. They are comments made on a portion of the unified diff during a pull request review. Use with pagination parameters to control the number of results returned.
- 6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
- 7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
-`,
-				Enum: []any{"get", "get_diff", "get_status", "get_files", "get_review_comments", "get_reviews", "get_comments"},
-			},
-			"owner": {
-				Type:        "string",
-				Description: "Repository owner",
-			},
-			"repo": {
-				Type:        "string",
-				Description: "Repository name",
-			},
-			"pullNumber": {
-				Type:        "number",
-				Description: "Pull request number",
-			},
-		},
-		Required: []string{"method", "owner", "repo", "pullNumber"},
-	}
-	WithPagination(schema)
-
+func PullRequestRead(getClient GetClientFn, cache *lockdown.RepoAccessCache, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, mcp.ToolHandlerFor[PullRequestReadInput, any]) {
 	return mcp.Tool{
 			Name:        "pull_request_read",
 			Description: t("TOOL_PULL_REQUEST_READ_DESCRIPTION", "Get information on a specific pull request in GitHub repository."),
@@ -63,29 +29,21 @@ Possible options:
 				Title:        t("TOOL_GET_PULL_REQUEST_USER_TITLE", "Get details for a single pull request"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: schema,
+			InputSchema: PullRequestReadInput{}.MCPSchema(),
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			method, err := RequiredParam[string](args, "method")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		func(ctx context.Context, _ *mcp.CallToolRequest, input PullRequestReadInput) (*mcp.CallToolResult, any, error) {
+			// Set pagination defaults
+			page := input.Page
+			if page == 0 {
+				page = 1
 			}
-
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			perPage := input.PerPage
+			if perPage == 0 {
+				perPage = 30
 			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			pullNumber, err := RequiredInt(args, "pullNumber")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			pagination, err := OptionalPaginationParams(args)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			pagination := PaginationParams{
+				Page:    page,
+				PerPage: perPage,
 			}
 
 			client, err := getClient(ctx)
@@ -93,30 +51,30 @@ Possible options:
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			switch method {
+			switch input.Method {
 			case "get":
-				result, err := GetPullRequest(ctx, client, cache, owner, repo, pullNumber, flags)
+				result, err := GetPullRequest(ctx, client, cache, input.Owner, input.Repo, input.PullNumber, flags)
 				return result, nil, err
 			case "get_diff":
-				result, err := GetPullRequestDiff(ctx, client, owner, repo, pullNumber)
+				result, err := GetPullRequestDiff(ctx, client, input.Owner, input.Repo, input.PullNumber)
 				return result, nil, err
 			case "get_status":
-				result, err := GetPullRequestStatus(ctx, client, owner, repo, pullNumber)
+				result, err := GetPullRequestStatus(ctx, client, input.Owner, input.Repo, input.PullNumber)
 				return result, nil, err
 			case "get_files":
-				result, err := GetPullRequestFiles(ctx, client, owner, repo, pullNumber, pagination)
+				result, err := GetPullRequestFiles(ctx, client, input.Owner, input.Repo, input.PullNumber, pagination)
 				return result, nil, err
 			case "get_review_comments":
-				result, err := GetPullRequestReviewComments(ctx, client, cache, owner, repo, pullNumber, pagination, flags)
+				result, err := GetPullRequestReviewComments(ctx, client, cache, input.Owner, input.Repo, input.PullNumber, pagination, flags)
 				return result, nil, err
 			case "get_reviews":
-				result, err := GetPullRequestReviews(ctx, client, cache, owner, repo, pullNumber, flags)
+				result, err := GetPullRequestReviews(ctx, client, cache, input.Owner, input.Repo, input.PullNumber, flags)
 				return result, nil, err
 			case "get_comments":
-				result, err := GetIssueComments(ctx, client, cache, owner, repo, pullNumber, pagination, flags)
+				result, err := GetIssueComments(ctx, client, cache, input.Owner, input.Repo, input.PullNumber, pagination, flags)
 				return result, nil, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", input.Method)), nil, nil
 			}
 		}
 }
@@ -813,46 +771,7 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 }
 
 // ListPullRequests creates a tool to list and filter repository pull requests.
-func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	schema := &jsonschema.Schema{
-		Type: "object",
-		Properties: map[string]*jsonschema.Schema{
-			"owner": {
-				Type:        "string",
-				Description: "Repository owner",
-			},
-			"repo": {
-				Type:        "string",
-				Description: "Repository name",
-			},
-			"state": {
-				Type:        "string",
-				Description: "Filter by state",
-				Enum:        []any{"open", "closed", "all"},
-			},
-			"head": {
-				Type:        "string",
-				Description: "Filter by head user/org and branch",
-			},
-			"base": {
-				Type:        "string",
-				Description: "Filter by base branch",
-			},
-			"sort": {
-				Type:        "string",
-				Description: "Sort by",
-				Enum:        []any{"created", "updated", "popularity", "long-running"},
-			},
-			"direction": {
-				Type:        "string",
-				Description: "Sort direction",
-				Enum:        []any{"asc", "desc"},
-			},
-		},
-		Required: []string{"owner", "repo"},
-	}
-	WithPagination(schema)
-
+func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[ListPullRequestsInput, any]) {
 	return mcp.Tool{
 			Name:        "list_pull_requests",
 			Description: t("TOOL_LIST_PULL_REQUESTS_DESCRIPTION", "List pull requests in a GitHub repository. If the user specifies an author, then DO NOT use this tool and use the search_pull_requests tool instead."),
@@ -860,51 +779,28 @@ func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFun
 				Title:        t("TOOL_LIST_PULL_REQUESTS_USER_TITLE", "List pull requests"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: schema,
+			InputSchema: ListPullRequestsInput{}.MCPSchema(),
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		func(ctx context.Context, _ *mcp.CallToolRequest, input ListPullRequestsInput) (*mcp.CallToolResult, any, error) {
+			// Set pagination defaults
+			page := input.Page
+			if page == 0 {
+				page = 1
 			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			state, err := OptionalParam[string](args, "state")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			head, err := OptionalParam[string](args, "head")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			base, err := OptionalParam[string](args, "base")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			sort, err := OptionalParam[string](args, "sort")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			direction, err := OptionalParam[string](args, "direction")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			pagination, err := OptionalPaginationParams(args)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			perPage := input.PerPage
+			if perPage == 0 {
+				perPage = 30
 			}
 
 			opts := &github.PullRequestListOptions{
-				State:     state,
-				Head:      head,
-				Base:      base,
-				Sort:      sort,
-				Direction: direction,
+				State:     input.State,
+				Head:      input.Head,
+				Base:      input.Base,
+				Sort:      input.Sort,
+				Direction: input.Direction,
 				ListOptions: github.ListOptions{
-					PerPage: pagination.PerPage,
-					Page:    pagination.Page,
+					PerPage: perPage,
+					Page:    page,
 				},
 			}
 
@@ -912,7 +808,7 @@ func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFun
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
-			prs, resp, err := client.PullRequests.List(ctx, owner, repo, opts)
+			prs, resp, err := client.PullRequests.List(ctx, input.Owner, input.Repo, opts)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to list pull requests",

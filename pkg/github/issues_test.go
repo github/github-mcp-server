@@ -334,7 +334,8 @@ func Test_GetIssue(t *testing.T) {
 			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), cache, translations.NullTranslationHelper, flags)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			typedInput := mapToTypedInput[IssueReadInput](t, tc.requestArgs)
+			result, _, err := handler(context.Background(), &request, typedInput)
 
 			if tc.expectHandlerError {
 				require.Error(t, err)
@@ -1244,7 +1245,8 @@ func Test_ListIssues(t *testing.T) {
 			_, handler := ListIssues(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
 
 			req := createMCPRequest(tc.reqParams)
-			res, _, err := handler(context.Background(), &req, tc.reqParams)
+			typedInput := mapToTypedInput[ListIssuesInput](t, tc.reqParams)
+			res, _, err := handler(context.Background(), &req, typedInput)
 			text := getTextResult(t, res).Text
 
 			if tc.expectError {
@@ -1988,9 +1990,10 @@ func Test_GetIssueComments(t *testing.T) {
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
+			typedInput := mapToTypedInput[IssueReadInput](t, tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, _, err := handler(context.Background(), &request, typedInput)
 
 			// Verify results
 			if tc.expectError {
@@ -2102,7 +2105,8 @@ func Test_GetIssueLabels(t *testing.T) {
 			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			typedInput := mapToTypedInput[IssueReadInput](t, tc.requestArgs)
+			result, _, err := handler(context.Background(), &request, typedInput)
 
 			require.NoError(t, err)
 			assert.NotNil(t, result)
@@ -2991,9 +2995,10 @@ func Test_GetSubIssues(t *testing.T) {
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
+			typedInput := mapToTypedInput[IssueReadInput](t, tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, _, err := handler(context.Background(), &request, typedInput)
 
 			// Verify results
 			if tc.expectError {

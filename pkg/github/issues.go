@@ -229,38 +229,7 @@ func fragmentToIssue(fragment IssueFragment) *github.Issue {
 }
 
 // IssueRead creates a tool to get details of a specific issue in a GitHub repository.
-func IssueRead(getClient GetClientFn, getGQLClient GetGQLClientFn, cache *lockdown.RepoAccessCache, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	schema := &jsonschema.Schema{
-		Type: "object",
-		Properties: map[string]*jsonschema.Schema{
-			"method": {
-				Type: "string",
-				Description: `The read operation to perform on a single issue.
-Options are:
-1. get - Get details of a specific issue.
-2. get_comments - Get issue comments.
-3. get_sub_issues - Get sub-issues of the issue.
-4. get_labels - Get labels assigned to the issue.
-`,
-				Enum: []any{"get", "get_comments", "get_sub_issues", "get_labels"},
-			},
-			"owner": {
-				Type:        "string",
-				Description: "The owner of the repository",
-			},
-			"repo": {
-				Type:        "string",
-				Description: "The name of the repository",
-			},
-			"issue_number": {
-				Type:        "number",
-				Description: "The number of the issue",
-			},
-		},
-		Required: []string{"method", "owner", "repo", "issue_number"},
-	}
-	WithPagination(schema)
-
+func IssueRead(getClient GetClientFn, getGQLClient GetGQLClientFn, cache *lockdown.RepoAccessCache, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, mcp.ToolHandlerFor[IssueReadInput, any]) {
 	return mcp.Tool{
 			Name:        "issue_read",
 			Description: t("TOOL_ISSUE_READ_DESCRIPTION", "Get information about a specific issue in a GitHub repository."),
@@ -268,30 +237,21 @@ Options are:
 				Title:        t("TOOL_ISSUE_READ_USER_TITLE", "Get issue details"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: schema,
+			InputSchema: IssueReadInput{}.MCPSchema(),
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			method, err := RequiredParam[string](args, "method")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+		func(ctx context.Context, _ *mcp.CallToolRequest, input IssueReadInput) (*mcp.CallToolResult, any, error) {
+			// Set pagination defaults
+			page := input.Page
+			if page == 0 {
+				page = 1
 			}
-
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			perPage := input.PerPage
+			if perPage == 0 {
+				perPage = 30
 			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			issueNumber, err := RequiredInt(args, "issue_number")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			pagination, err := OptionalPaginationParams(args)
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			pagination := PaginationParams{
+				Page:    page,
+				PerPage: perPage,
 			}
 
 			client, err := getClient(ctx)
@@ -304,21 +264,21 @@ Options are:
 				return utils.NewToolResultErrorFromErr("failed to get GitHub graphql client", err), nil, nil
 			}
 
-			switch method {
+			switch input.Method {
 			case "get":
-				result, err := GetIssue(ctx, client, cache, owner, repo, issueNumber, flags)
+				result, err := GetIssue(ctx, client, cache, input.Owner, input.Repo, input.IssueNumber, flags)
 				return result, nil, err
 			case "get_comments":
-				result, err := GetIssueComments(ctx, client, cache, owner, repo, issueNumber, pagination, flags)
+				result, err := GetIssueComments(ctx, client, cache, input.Owner, input.Repo, input.IssueNumber, pagination, flags)
 				return result, nil, err
 			case "get_sub_issues":
-				result, err := GetSubIssues(ctx, client, cache, owner, repo, issueNumber, pagination, flags)
+				result, err := GetSubIssues(ctx, client, cache, input.Owner, input.Repo, input.IssueNumber, pagination, flags)
 				return result, nil, err
 			case "get_labels":
-				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
+				result, err := GetIssueLabels(ctx, gqlClient, input.Owner, input.Repo, input.IssueNumber)
 				return result, nil, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", input.Method)), nil, nil
 			}
 		}
 }
@@ -1313,49 +1273,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 }
 
 // ListIssues creates a tool to list and filter repository issues
-func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	schema := &jsonschema.Schema{
-		Type: "object",
-		Properties: map[string]*jsonschema.Schema{
-			"owner": {
-				Type:        "string",
-				Description: "Repository owner",
-			},
-			"repo": {
-				Type:        "string",
-				Description: "Repository name",
-			},
-			"state": {
-				Type:        "string",
-				Description: "Filter by state, by default both open and closed issues are returned when not provided",
-				Enum:        []any{"OPEN", "CLOSED"},
-			},
-			"labels": {
-				Type:        "array",
-				Description: "Filter by labels",
-				Items: &jsonschema.Schema{
-					Type: "string",
-				},
-			},
-			"orderBy": {
-				Type:        "string",
-				Description: "Order issues by field. If provided, the 'direction' also needs to be provided.",
-				Enum:        []any{"CREATED_AT", "UPDATED_AT", "COMMENTS"},
-			},
-			"direction": {
-				Type:        "string",
-				Description: "Order direction. If provided, the 'orderBy' also needs to be provided.",
-				Enum:        []any{"ASC", "DESC"},
-			},
-			"since": {
-				Type:        "string",
-				Description: "Filter by date (ISO 8601 timestamp)",
-			},
-		},
-		Required: []string{"owner", "repo"},
-	}
-	WithCursorPagination(schema)
-
+func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[ListIssuesInput, any]) {
 	return mcp.Tool{
 			Name:        "list_issues",
 			Description: t("TOOL_LIST_ISSUES_DESCRIPTION", "List issues in a GitHub repository. For pagination, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter."),
@@ -1363,47 +1281,20 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 				Title:        t("TOOL_LIST_ISSUES_USER_TITLE", "List issues"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: schema,
+			InputSchema: ListIssuesInput{}.MCPSchema(),
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			// Set optional parameters if provided
-			state, err := OptionalParam[string](args, "state")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
+		func(ctx context.Context, _ *mcp.CallToolRequest, input ListIssuesInput) (*mcp.CallToolResult, any, error) {
 			// If the state has a value, cast into an array of strings
 			var states []githubv4.IssueState
-			if state != "" {
-				states = append(states, githubv4.IssueState(state))
+			if input.State != "" {
+				states = append(states, githubv4.IssueState(input.State))
 			} else {
 				states = []githubv4.IssueState{githubv4.IssueStateOpen, githubv4.IssueStateClosed}
 			}
 
-			// Get labels
-			labels, err := OptionalStringArrayParam(args, "labels")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			orderBy, err := OptionalParam[string](args, "orderBy")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			direction, err := OptionalParam[string](args, "direction")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
+			labels := input.Labels
+			orderBy := input.OrderBy
+			direction := input.Direction
 
 			// These variables are required for the GraphQL query to be set by default
 			// If orderBy is empty, default to CREATED_AT
@@ -1415,16 +1306,12 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 				direction = "DESC"
 			}
 
-			since, err := OptionalParam[string](args, "since")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
 			// There are two optional parameters: since and labels.
 			var sinceTime time.Time
 			var hasSince bool
-			if since != "" {
-				sinceTime, err = parseISOTimestamp(since)
+			if input.Since != "" {
+				var err error
+				sinceTime, err = parseISOTimestamp(input.Since)
 				if err != nil {
 					return utils.NewToolResultError(fmt.Sprintf("failed to list issues: %s", err.Error())), nil, nil
 				}
@@ -1433,29 +1320,18 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 			hasLabels := len(labels) > 0
 
 			// Get pagination parameters and convert to GraphQL format
-			pagination, err := OptionalCursorPaginationParams(args)
-			if err != nil {
-				return nil, nil, err
+			perPage := input.PerPage
+			if perPage == 0 {
+				perPage = 30
 			}
-
-			// Check if someone tried to use page-based pagination instead of cursor-based
-			if _, pageProvided := args["page"]; pageProvided {
-				return utils.NewToolResultError("This tool uses cursor-based pagination. Use the 'after' parameter with the 'endCursor' value from the previous response instead of 'page'."), nil, nil
+			pagination := CursorPaginationParams{
+				PerPage: perPage,
+				After:   input.After,
 			}
-
-			// Check if pagination parameters were explicitly provided
-			_, perPageProvided := args["perPage"]
-			paginationExplicit := perPageProvided
 
 			paginationParams, err := pagination.ToGraphQLParams()
 			if err != nil {
 				return nil, nil, err
-			}
-
-			// Use default of 30 if pagination was not explicitly provided
-			if !paginationExplicit {
-				defaultFirst := int32(DefaultGraphQLPageSize)
-				paginationParams.First = &defaultFirst
 			}
 
 			client, err := getGQLClient(ctx)
@@ -1464,8 +1340,8 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 			}
 
 			vars := map[string]interface{}{
-				"owner":     githubv4.String(owner),
-				"repo":      githubv4.String(repo),
+				"owner":     githubv4.String(input.Owner),
+				"repo":      githubv4.String(input.Repo),
 				"states":    states,
 				"orderBy":   githubv4.IssueOrderField(orderBy),
 				"direction": githubv4.OrderDirection(direction),

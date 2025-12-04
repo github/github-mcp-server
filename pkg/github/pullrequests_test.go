@@ -27,7 +27,7 @@ func Test_GetPullRequest(t *testing.T) {
 
 	assert.Equal(t, "pull_request_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	schema := tool.InputSchema.(*jsonschema.Schema)
+	schema := tool.InputSchema
 	assert.Contains(t, schema.Properties, "method")
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
@@ -109,6 +109,7 @@ func Test_GetPullRequest(t *testing.T) {
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
+			typedInput := mapToTypedInput[PullRequestReadInput](t, tc.requestArgs)
 			// Call handler
 			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
