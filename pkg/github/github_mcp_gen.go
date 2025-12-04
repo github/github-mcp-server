@@ -1184,3 +1184,2608 @@ func (CreateRepositoryInput) MCPSchema() *jsonschema.Schema {
 func (CreateRepositoryInput) MCPResolvedSchema() *jsonschema.Resolved {
 	return _createrepositoryinputResolved
 }
+
+// GetMeInput schema variables (generated)
+var (
+	_getmeinputSchema = &jsonschema.Schema{
+		Type:                 "object",
+		Properties:           map[string]*jsonschema.Schema{},
+		Required:             []string{},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_getmeinputResolved, _ = _getmeinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for GetMeInput.
+// This implements mcp.SchemaProvider.
+func (GetMeInput) MCPSchema() *jsonschema.Schema {
+	return _getmeinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for GetMeInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (GetMeInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _getmeinputResolved
+}
+
+// ListGistsInput schema variables (generated)
+var (
+	_listgistsinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"username": {
+				Type:        "string",
+				Description: "GitHub username (omit for authenticated user's gists)",
+			},
+			"since": {
+				Type:        "string",
+				Description: "Only gists updated after this time (ISO 8601 timestamp)",
+			},
+			"page": {
+				Type:        "integer",
+				Description: "Page number for pagination (min 1)",
+			},
+			"perPage": {
+				Type:        "integer",
+				Description: "Results per page for pagination (min 1 and max 100)",
+			},
+		},
+		Required:             []string{},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_listgistsinputResolved, _ = _listgistsinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for ListGistsInput.
+// This implements mcp.SchemaProvider.
+func (ListGistsInput) MCPSchema() *jsonschema.Schema {
+	return _listgistsinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for ListGistsInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (ListGistsInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _listgistsinputResolved
+}
+
+// GetGistInput schema variables (generated)
+var (
+	_getgistinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"gist_id": {
+				Type:        "string",
+				Description: "The ID of the gist to retrieve",
+			},
+		},
+		Required: []string{
+			"gist_id",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_getgistinputResolved, _ = _getgistinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for GetGistInput.
+// This implements mcp.SchemaProvider.
+func (GetGistInput) MCPSchema() *jsonschema.Schema {
+	return _getgistinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for GetGistInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (GetGistInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _getgistinputResolved
+}
+
+// CreateGistInput schema variables (generated)
+var (
+	_creategistinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"description": {
+				Type:        "string",
+				Description: "Description of the gist",
+			},
+			"public": {
+				Type:        "boolean",
+				Description: "Whether the gist is public",
+			},
+			"files": {
+				Type:        "object",
+				Description: "Map of filename to file content",
+			},
+		},
+		Required: []string{
+			"files",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_creategistinputResolved, _ = _creategistinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for CreateGistInput.
+// This implements mcp.SchemaProvider.
+func (CreateGistInput) MCPSchema() *jsonschema.Schema {
+	return _creategistinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for CreateGistInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (CreateGistInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _creategistinputResolved
+}
+
+// UpdateGistInput schema variables (generated)
+var (
+	_updategistinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"gist_id": {
+				Type:        "string",
+				Description: "The ID of the gist to update",
+			},
+			"description": {
+				Type:        "string",
+				Description: "New description for the gist",
+			},
+			"files": {
+				Type:        "object",
+				Description: "Map of filename to new file content",
+			},
+		},
+		Required: []string{
+			"gist_id",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_updategistinputResolved, _ = _updategistinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for UpdateGistInput.
+// This implements mcp.SchemaProvider.
+func (UpdateGistInput) MCPSchema() *jsonschema.Schema {
+	return _updategistinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for UpdateGistInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (UpdateGistInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _updategistinputResolved
+}
+
+// ListLabelsInput schema variables (generated)
+var (
+	_listlabelsinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"page": {
+				Type:        "integer",
+				Description: "Page number for pagination (min 1)",
+			},
+			"perPage": {
+				Type:        "integer",
+				Description: "Results per page for pagination (min 1 and max 100)",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_listlabelsinputResolved, _ = _listlabelsinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for ListLabelsInput.
+// This implements mcp.SchemaProvider.
+func (ListLabelsInput) MCPSchema() *jsonschema.Schema {
+	return _listlabelsinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for ListLabelsInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (ListLabelsInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _listlabelsinputResolved
+}
+
+// GetLabelInput schema variables (generated)
+var (
+	_getlabelinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"name": {
+				Type:        "string",
+				Description: "Label name",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"name",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_getlabelinputResolved, _ = _getlabelinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for GetLabelInput.
+// This implements mcp.SchemaProvider.
+func (GetLabelInput) MCPSchema() *jsonschema.Schema {
+	return _getlabelinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for GetLabelInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (GetLabelInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _getlabelinputResolved
+}
+
+// ListDiscussionsInput schema variables (generated)
+var (
+	_listdiscussionsinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"category_id": {
+				Type:        "string",
+				Description: "Filter by category ID",
+			},
+			"order_by": {
+				Type:        "string",
+				Description: "Field to order by",
+				Enum:        []any{"CREATED_AT", "UPDATED_AT"},
+			},
+			"direction": {
+				Type:        "string",
+				Description: "Order direction",
+				Enum:        []any{"ASC", "DESC"},
+			},
+			"first": {
+				Type:        "integer",
+				Description: "Number of discussions to return",
+			},
+			"after": {
+				Type:        "string",
+				Description: "Cursor for pagination",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_listdiscussionsinputResolved, _ = _listdiscussionsinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for ListDiscussionsInput.
+// This implements mcp.SchemaProvider.
+func (ListDiscussionsInput) MCPSchema() *jsonschema.Schema {
+	return _listdiscussionsinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for ListDiscussionsInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (ListDiscussionsInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _listdiscussionsinputResolved
+}
+
+// GetDiscussionInput schema variables (generated)
+var (
+	_getdiscussioninputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"discussion_number": {
+				Type:        "integer",
+				Description: "Discussion number",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"discussion_number",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_getdiscussioninputResolved, _ = _getdiscussioninputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for GetDiscussionInput.
+// This implements mcp.SchemaProvider.
+func (GetDiscussionInput) MCPSchema() *jsonschema.Schema {
+	return _getdiscussioninputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for GetDiscussionInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (GetDiscussionInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _getdiscussioninputResolved
+}
+
+// GetDiscussionCommentsInput schema variables (generated)
+var (
+	_getdiscussioncommentsinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"discussion_number": {
+				Type:        "integer",
+				Description: "Discussion number",
+			},
+			"first": {
+				Type:        "integer",
+				Description: "Number of comments to return",
+			},
+			"after": {
+				Type:        "string",
+				Description: "Cursor for pagination",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"discussion_number",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_getdiscussioncommentsinputResolved, _ = _getdiscussioncommentsinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for GetDiscussionCommentsInput.
+// This implements mcp.SchemaProvider.
+func (GetDiscussionCommentsInput) MCPSchema() *jsonschema.Schema {
+	return _getdiscussioncommentsinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for GetDiscussionCommentsInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (GetDiscussionCommentsInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _getdiscussioncommentsinputResolved
+}
+
+// ListDiscussionCategoriesInput schema variables (generated)
+var (
+	_listdiscussioncategoriesinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"first": {
+				Type:        "integer",
+				Description: "Number of categories to return",
+			},
+			"after": {
+				Type:        "string",
+				Description: "Cursor for pagination",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_listdiscussioncategoriesinputResolved, _ = _listdiscussioncategoriesinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for ListDiscussionCategoriesInput.
+// This implements mcp.SchemaProvider.
+func (ListDiscussionCategoriesInput) MCPSchema() *jsonschema.Schema {
+	return _listdiscussioncategoriesinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for ListDiscussionCategoriesInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (ListDiscussionCategoriesInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _listdiscussioncategoriesinputResolved
+}
+
+// ListProjectsInput schema variables (generated)
+var (
+	_listprojectsinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner_type": {
+				Type:        "string",
+				Description: "Owner type",
+				Enum:        []any{"user", "org"},
+			},
+			"owner": {
+				Type:        "string",
+				Description: "Owner name (user handle or org name)",
+			},
+			"query": {
+				Type:        "string",
+				Description: "Filter projects by title and state (e.g. 'roadmap is:open')",
+			},
+			"per_page": {
+				Type:        "integer",
+				Description: "Results per page",
+			},
+			"after": {
+				Type:        "string",
+				Description: "Forward pagination cursor",
+			},
+			"before": {
+				Type:        "string",
+				Description: "Backward pagination cursor",
+			},
+		},
+		Required: []string{
+			"owner_type",
+			"owner",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_listprojectsinputResolved, _ = _listprojectsinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for ListProjectsInput.
+// This implements mcp.SchemaProvider.
+func (ListProjectsInput) MCPSchema() *jsonschema.Schema {
+	return _listprojectsinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for ListProjectsInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (ListProjectsInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _listprojectsinputResolved
+}
+
+// GetProjectInput schema variables (generated)
+var (
+	_getprojectinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Owner of the project",
+			},
+			"project_id": {
+				Type:        "integer",
+				Description: "Project number",
+			},
+		},
+		Required: []string{
+			"owner",
+			"project_id",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_getprojectinputResolved, _ = _getprojectinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for GetProjectInput.
+// This implements mcp.SchemaProvider.
+func (GetProjectInput) MCPSchema() *jsonschema.Schema {
+	return _getprojectinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for GetProjectInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (GetProjectInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _getprojectinputResolved
+}
+
+// ListProjectItemsInput schema variables (generated)
+var (
+	_listprojectitemsinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Owner of the project",
+			},
+			"project_id": {
+				Type:        "integer",
+				Description: "Project number",
+			},
+			"first": {
+				Type:        "integer",
+				Description: "Number of items to return",
+			},
+			"after": {
+				Type:        "string",
+				Description: "Cursor for pagination",
+			},
+		},
+		Required: []string{
+			"owner",
+			"project_id",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_listprojectitemsinputResolved, _ = _listprojectitemsinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for ListProjectItemsInput.
+// This implements mcp.SchemaProvider.
+func (ListProjectItemsInput) MCPSchema() *jsonschema.Schema {
+	return _listprojectitemsinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for ListProjectItemsInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (ListProjectItemsInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _listprojectitemsinputResolved
+}
+
+// GetProjectItemInput schema variables (generated)
+var (
+	_getprojectiteminputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Owner of the project",
+			},
+			"project_id": {
+				Type:        "integer",
+				Description: "Project number",
+			},
+			"item_id": {
+				Type:        "string",
+				Description: "Item ID",
+			},
+		},
+		Required: []string{
+			"owner",
+			"project_id",
+			"item_id",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_getprojectiteminputResolved, _ = _getprojectiteminputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for GetProjectItemInput.
+// This implements mcp.SchemaProvider.
+func (GetProjectItemInput) MCPSchema() *jsonschema.Schema {
+	return _getprojectiteminputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for GetProjectItemInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (GetProjectItemInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _getprojectiteminputResolved
+}
+
+// AddProjectItemInput schema variables (generated)
+var (
+	_addprojectiteminputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Owner of the project",
+			},
+			"project_id": {
+				Type:        "integer",
+				Description: "Project number",
+			},
+			"content_id": {
+				Type:        "string",
+				Description: "ID of the issue or PR to add",
+			},
+		},
+		Required: []string{
+			"owner",
+			"project_id",
+			"content_id",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_addprojectiteminputResolved, _ = _addprojectiteminputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for AddProjectItemInput.
+// This implements mcp.SchemaProvider.
+func (AddProjectItemInput) MCPSchema() *jsonschema.Schema {
+	return _addprojectiteminputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for AddProjectItemInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (AddProjectItemInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _addprojectiteminputResolved
+}
+
+// UpdateProjectItemInput schema variables (generated)
+var (
+	_updateprojectiteminputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Owner of the project",
+			},
+			"project_id": {
+				Type:        "integer",
+				Description: "Project number",
+			},
+			"item_id": {
+				Type:        "string",
+				Description: "Item ID to update",
+			},
+			"field_id": {
+				Type:        "string",
+				Description: "Field ID to update",
+			},
+			"value": {
+				Type:        "object",
+				Description: "New value for the field",
+			},
+		},
+		Required: []string{
+			"owner",
+			"project_id",
+			"item_id",
+			"field_id",
+			"value",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_updateprojectiteminputResolved, _ = _updateprojectiteminputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for UpdateProjectItemInput.
+// This implements mcp.SchemaProvider.
+func (UpdateProjectItemInput) MCPSchema() *jsonschema.Schema {
+	return _updateprojectiteminputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for UpdateProjectItemInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (UpdateProjectItemInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _updateprojectiteminputResolved
+}
+
+// DeleteProjectItemInput schema variables (generated)
+var (
+	_deleteprojectiteminputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Owner of the project",
+			},
+			"project_id": {
+				Type:        "integer",
+				Description: "Project number",
+			},
+			"item_id": {
+				Type:        "string",
+				Description: "Item ID to delete",
+			},
+		},
+		Required: []string{
+			"owner",
+			"project_id",
+			"item_id",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_deleteprojectiteminputResolved, _ = _deleteprojectiteminputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for DeleteProjectItemInput.
+// This implements mcp.SchemaProvider.
+func (DeleteProjectItemInput) MCPSchema() *jsonschema.Schema {
+	return _deleteprojectiteminputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for DeleteProjectItemInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (DeleteProjectItemInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _deleteprojectiteminputResolved
+}
+
+// ListPullRequestsInput schema variables (generated)
+var (
+	_listpullrequestsinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"state": {
+				Type:        "string",
+				Description: "Filter by state",
+				Enum:        []any{"open", "closed", "all"},
+			},
+			"head": {
+				Type:        "string",
+				Description: "Filter by head user/org and branch",
+			},
+			"base": {
+				Type:        "string",
+				Description: "Filter by base branch",
+			},
+			"sort": {
+				Type:        "string",
+				Description: "Sort by",
+				Enum:        []any{"created", "updated", "popularity", "long-running"},
+			},
+			"direction": {
+				Type:        "string",
+				Description: "Sort direction",
+				Enum:        []any{"asc", "desc"},
+			},
+			"page": {
+				Type:        "integer",
+				Description: "Page number for pagination (min 1)",
+			},
+			"perPage": {
+				Type:        "integer",
+				Description: "Results per page for pagination (min 1 and max 100)",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_listpullrequestsinputResolved, _ = _listpullrequestsinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for ListPullRequestsInput.
+// This implements mcp.SchemaProvider.
+func (ListPullRequestsInput) MCPSchema() *jsonschema.Schema {
+	return _listpullrequestsinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for ListPullRequestsInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (ListPullRequestsInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _listpullrequestsinputResolved
+}
+
+// PullRequestReadInput schema variables (generated)
+var (
+	_pullrequestreadinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"method": {
+				Type:        "string",
+				Description: "Read operation to perform",
+				Enum:        []any{"get", "get_diff", "get_status", "get_files", "get_review_comments", "get_reviews", "get_comments"},
+			},
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"pullNumber": {
+				Type:        "integer",
+				Description: "Pull request number",
+			},
+			"page": {
+				Type:        "integer",
+				Description: "Page number for pagination (min 1)",
+			},
+			"perPage": {
+				Type:        "integer",
+				Description: "Results per page for pagination (min 1 and max 100)",
+			},
+		},
+		Required: []string{
+			"method",
+			"owner",
+			"repo",
+			"pullNumber",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_pullrequestreadinputResolved, _ = _pullrequestreadinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for PullRequestReadInput.
+// This implements mcp.SchemaProvider.
+func (PullRequestReadInput) MCPSchema() *jsonschema.Schema {
+	return _pullrequestreadinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for PullRequestReadInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (PullRequestReadInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _pullrequestreadinputResolved
+}
+
+// UpdatePullRequestInput schema variables (generated)
+var (
+	_updatepullrequestinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"pull_number": {
+				Type:        "integer",
+				Description: "Pull request number",
+			},
+			"title": {
+				Type:        "string",
+				Description: "New title",
+			},
+			"body": {
+				Type:        "string",
+				Description: "New body",
+			},
+			"state": {
+				Type:        "string",
+				Description: "New state",
+				Enum:        []any{"open", "closed"},
+			},
+			"base": {
+				Type:        "string",
+				Description: "New base branch",
+			},
+			"maintainer_can_modify": {
+				Type:        "boolean",
+				Description: "Allow maintainer modifications",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"pull_number",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_updatepullrequestinputResolved, _ = _updatepullrequestinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for UpdatePullRequestInput.
+// This implements mcp.SchemaProvider.
+func (UpdatePullRequestInput) MCPSchema() *jsonschema.Schema {
+	return _updatepullrequestinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for UpdatePullRequestInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (UpdatePullRequestInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _updatepullrequestinputResolved
+}
+
+// MergePullRequestInput schema variables (generated)
+var (
+	_mergepullrequestinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"pull_number": {
+				Type:        "integer",
+				Description: "Pull request number",
+			},
+			"commit_title": {
+				Type:        "string",
+				Description: "Title for the merge commit",
+			},
+			"commit_message": {
+				Type:        "string",
+				Description: "Message for the merge commit",
+			},
+			"merge_method": {
+				Type:        "string",
+				Description: "Merge method",
+				Enum:        []any{"merge", "squash", "rebase"},
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"pull_number",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_mergepullrequestinputResolved, _ = _mergepullrequestinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for MergePullRequestInput.
+// This implements mcp.SchemaProvider.
+func (MergePullRequestInput) MCPSchema() *jsonschema.Schema {
+	return _mergepullrequestinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for MergePullRequestInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (MergePullRequestInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _mergepullrequestinputResolved
+}
+
+// UpdatePullRequestBranchInput schema variables (generated)
+var (
+	_updatepullrequestbranchinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"pull_number": {
+				Type:        "integer",
+				Description: "Pull request number",
+			},
+			"expected_head_sha": {
+				Type:        "string",
+				Description: "Expected SHA of the head ref",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"pull_number",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_updatepullrequestbranchinputResolved, _ = _updatepullrequestbranchinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for UpdatePullRequestBranchInput.
+// This implements mcp.SchemaProvider.
+func (UpdatePullRequestBranchInput) MCPSchema() *jsonschema.Schema {
+	return _updatepullrequestbranchinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for UpdatePullRequestBranchInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (UpdatePullRequestBranchInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _updatepullrequestbranchinputResolved
+}
+
+// RequestCopilotReviewInput schema variables (generated)
+var (
+	_requestcopilotreviewinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"pull_number": {
+				Type:        "integer",
+				Description: "Pull request number",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"pull_number",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_requestcopilotreviewinputResolved, _ = _requestcopilotreviewinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for RequestCopilotReviewInput.
+// This implements mcp.SchemaProvider.
+func (RequestCopilotReviewInput) MCPSchema() *jsonschema.Schema {
+	return _requestcopilotreviewinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for RequestCopilotReviewInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (RequestCopilotReviewInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _requestcopilotreviewinputResolved
+}
+
+// IssueReadInput schema variables (generated)
+var (
+	_issuereadinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"method": {
+				Type:        "string",
+				Description: "Read operation to perform",
+				Enum:        []any{"get", "get_comments", "get_sub_issues", "get_labels"},
+			},
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"issue_number": {
+				Type:        "integer",
+				Description: "Issue number",
+			},
+			"page": {
+				Type:        "integer",
+				Description: "Page number for pagination (min 1)",
+			},
+			"perPage": {
+				Type:        "integer",
+				Description: "Results per page for pagination (min 1 and max 100)",
+			},
+		},
+		Required: []string{
+			"method",
+			"owner",
+			"repo",
+			"issue_number",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_issuereadinputResolved, _ = _issuereadinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for IssueReadInput.
+// This implements mcp.SchemaProvider.
+func (IssueReadInput) MCPSchema() *jsonschema.Schema {
+	return _issuereadinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for IssueReadInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (IssueReadInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _issuereadinputResolved
+}
+
+// IssueWriteInput schema variables (generated)
+var (
+	_issuewriteinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"method": {
+				Type:        "string",
+				Description: "Write operation to perform",
+				Enum:        []any{"create", "update"},
+			},
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"issue_number": {
+				Type:        "integer",
+				Description: "Issue number (for update)",
+			},
+			"title": {
+				Type:        "string",
+				Description: "Issue title",
+			},
+			"body": {
+				Type:        "string",
+				Description: "Issue body",
+			},
+			"assignees": {
+				Type:        "array",
+				Description: "Usernames to assign",
+			},
+			"labels": {
+				Type:        "array",
+				Description: "Labels to add",
+			},
+			"milestone": {
+				Type:        "integer",
+				Description: "Milestone number",
+			},
+			"state": {
+				Type:        "string",
+				Description: "Issue state",
+				Enum:        []any{"open", "closed"},
+			},
+			"state_reason": {
+				Type:        "string",
+				Description: "Reason for closing",
+				Enum:        []any{"completed", "not_planned", "duplicate"},
+			},
+		},
+		Required: []string{
+			"method",
+			"owner",
+			"repo",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_issuewriteinputResolved, _ = _issuewriteinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for IssueWriteInput.
+// This implements mcp.SchemaProvider.
+func (IssueWriteInput) MCPSchema() *jsonschema.Schema {
+	return _issuewriteinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for IssueWriteInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (IssueWriteInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _issuewriteinputResolved
+}
+
+// ListIssuesInput schema variables (generated)
+var (
+	_listissuesinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"state": {
+				Type:        "string",
+				Description: "Filter by state",
+				Enum:        []any{"OPEN", "CLOSED"},
+			},
+			"labels": {
+				Type:        "array",
+				Description: "Filter by labels",
+			},
+			"orderBy": {
+				Type:        "string",
+				Description: "Order by field",
+				Enum:        []any{"CREATED_AT", "UPDATED_AT", "COMMENTS"},
+			},
+			"direction": {
+				Type:        "string",
+				Description: "Order direction",
+				Enum:        []any{"ASC", "DESC"},
+			},
+			"since": {
+				Type:        "string",
+				Description: "Filter by date (ISO 8601 timestamp)",
+			},
+			"perPage": {
+				Type:        "integer",
+				Description: "Results per page for pagination (min 1 and max 100)",
+			},
+			"after": {
+				Type:        "string",
+				Description: "Cursor for pagination",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_listissuesinputResolved, _ = _listissuesinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for ListIssuesInput.
+// This implements mcp.SchemaProvider.
+func (ListIssuesInput) MCPSchema() *jsonschema.Schema {
+	return _listissuesinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for ListIssuesInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (ListIssuesInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _listissuesinputResolved
+}
+
+// ListIssueTypesInput schema variables (generated)
+var (
+	_listissuetypesinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Organization owner",
+			},
+		},
+		Required: []string{
+			"owner",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_listissuetypesinputResolved, _ = _listissuetypesinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for ListIssueTypesInput.
+// This implements mcp.SchemaProvider.
+func (ListIssueTypesInput) MCPSchema() *jsonschema.Schema {
+	return _listissuetypesinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for ListIssueTypesInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (ListIssueTypesInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _listissuetypesinputResolved
+}
+
+// AddIssueCommentInput schema variables (generated)
+var (
+	_addissuecommentinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"issue_number": {
+				Type:        "integer",
+				Description: "Issue number",
+			},
+			"body": {
+				Type:        "string",
+				Description: "Comment body",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"issue_number",
+			"body",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_addissuecommentinputResolved, _ = _addissuecommentinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for AddIssueCommentInput.
+// This implements mcp.SchemaProvider.
+func (AddIssueCommentInput) MCPSchema() *jsonschema.Schema {
+	return _addissuecommentinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for AddIssueCommentInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (AddIssueCommentInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _addissuecommentinputResolved
+}
+
+// StarRepositoryInput schema variables (generated)
+var (
+	_starrepositoryinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_starrepositoryinputResolved, _ = _starrepositoryinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for StarRepositoryInput.
+// This implements mcp.SchemaProvider.
+func (StarRepositoryInput) MCPSchema() *jsonschema.Schema {
+	return _starrepositoryinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for StarRepositoryInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (StarRepositoryInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _starrepositoryinputResolved
+}
+
+// UnstarRepositoryInput schema variables (generated)
+var (
+	_unstarrepositoryinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_unstarrepositoryinputResolved, _ = _unstarrepositoryinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for UnstarRepositoryInput.
+// This implements mcp.SchemaProvider.
+func (UnstarRepositoryInput) MCPSchema() *jsonschema.Schema {
+	return _unstarrepositoryinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for UnstarRepositoryInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (UnstarRepositoryInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _unstarrepositoryinputResolved
+}
+
+// ListStarredRepositoriesInput schema variables (generated)
+var (
+	_liststarredrepositoriesinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"username": {
+				Type:        "string",
+				Description: "GitHub username (defaults to authenticated user)",
+			},
+			"sort": {
+				Type:        "string",
+				Description: "Sort by",
+				Enum:        []any{"created", "updated"},
+			},
+			"order": {
+				Type:        "string",
+				Description: "Sort direction",
+				Enum:        []any{"asc", "desc"},
+			},
+			"page": {
+				Type:        "integer",
+				Description: "Page number for pagination (min 1)",
+			},
+			"perPage": {
+				Type:        "integer",
+				Description: "Results per page for pagination (min 1 and max 100)",
+			},
+		},
+		Required:             []string{},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_liststarredrepositoriesinputResolved, _ = _liststarredrepositoriesinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for ListStarredRepositoriesInput.
+// This implements mcp.SchemaProvider.
+func (ListStarredRepositoriesInput) MCPSchema() *jsonschema.Schema {
+	return _liststarredrepositoriesinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for ListStarredRepositoriesInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (ListStarredRepositoriesInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _liststarredrepositoriesinputResolved
+}
+
+// ListCodeScanningAlertsInput schema variables (generated)
+var (
+	_listcodescanningalertsinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"ref": {
+				Type:        "string",
+				Description: "Git ref to filter results",
+			},
+			"state": {
+				Type:        "string",
+				Description: "Filter by state",
+				Enum:        []any{"open", "closed", "dismissed", "fixed"},
+			},
+			"severity": {
+				Type:        "string",
+				Description: "Filter by severity",
+				Enum:        []any{"critical", "high", "medium", "low", "warning", "note", "error"},
+			},
+			"tool_name": {
+				Type:        "string",
+				Description: "Filter by tool name",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_listcodescanningalertsinputResolved, _ = _listcodescanningalertsinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for ListCodeScanningAlertsInput.
+// This implements mcp.SchemaProvider.
+func (ListCodeScanningAlertsInput) MCPSchema() *jsonschema.Schema {
+	return _listcodescanningalertsinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for ListCodeScanningAlertsInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (ListCodeScanningAlertsInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _listcodescanningalertsinputResolved
+}
+
+// GetCodeScanningAlertInput schema variables (generated)
+var (
+	_getcodescanningalertinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"alertNumber": {
+				Type:        "integer",
+				Description: "Alert number",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"alertNumber",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_getcodescanningalertinputResolved, _ = _getcodescanningalertinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for GetCodeScanningAlertInput.
+// This implements mcp.SchemaProvider.
+func (GetCodeScanningAlertInput) MCPSchema() *jsonschema.Schema {
+	return _getcodescanningalertinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for GetCodeScanningAlertInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (GetCodeScanningAlertInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _getcodescanningalertinputResolved
+}
+
+// ListSecretScanningAlertsInput schema variables (generated)
+var (
+	_listsecretscanningalertsinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"state": {
+				Type:        "string",
+				Description: "Filter by state",
+				Enum:        []any{"open", "resolved"},
+			},
+			"secret_type": {
+				Type:        "string",
+				Description: "Filter by secret type",
+			},
+			"resolution": {
+				Type:        "string",
+				Description: "Filter by resolution",
+				Enum:        []any{"false_positive", "wont_fix", "revoked", "pattern_edited", "pattern_deleted", "used_in_tests"},
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_listsecretscanningalertsinputResolved, _ = _listsecretscanningalertsinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for ListSecretScanningAlertsInput.
+// This implements mcp.SchemaProvider.
+func (ListSecretScanningAlertsInput) MCPSchema() *jsonschema.Schema {
+	return _listsecretscanningalertsinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for ListSecretScanningAlertsInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (ListSecretScanningAlertsInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _listsecretscanningalertsinputResolved
+}
+
+// GetSecretScanningAlertInput schema variables (generated)
+var (
+	_getsecretscanningalertinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"alertNumber": {
+				Type:        "integer",
+				Description: "Alert number",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"alertNumber",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_getsecretscanningalertinputResolved, _ = _getsecretscanningalertinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for GetSecretScanningAlertInput.
+// This implements mcp.SchemaProvider.
+func (GetSecretScanningAlertInput) MCPSchema() *jsonschema.Schema {
+	return _getsecretscanningalertinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for GetSecretScanningAlertInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (GetSecretScanningAlertInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _getsecretscanningalertinputResolved
+}
+
+// ListDependabotAlertsInput schema variables (generated)
+var (
+	_listdependabotalertsinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"state": {
+				Type:        "string",
+				Description: "Filter by state",
+				Enum:        []any{"auto_dismissed", "dismissed", "fixed", "open"},
+			},
+			"severity": {
+				Type:        "string",
+				Description: "Filter by severity",
+				Enum:        []any{"low", "medium", "high", "critical"},
+			},
+			"page": {
+				Type:        "integer",
+				Description: "Page number for pagination",
+			},
+			"perPage": {
+				Type:        "integer",
+				Description: "Results per page",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_listdependabotalertsinputResolved, _ = _listdependabotalertsinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for ListDependabotAlertsInput.
+// This implements mcp.SchemaProvider.
+func (ListDependabotAlertsInput) MCPSchema() *jsonschema.Schema {
+	return _listdependabotalertsinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for ListDependabotAlertsInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (ListDependabotAlertsInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _listdependabotalertsinputResolved
+}
+
+// GetDependabotAlertInput schema variables (generated)
+var (
+	_getdependabotalertinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"alert_number": {
+				Type:        "integer",
+				Description: "Alert number",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"alert_number",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_getdependabotalertinputResolved, _ = _getdependabotalertinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for GetDependabotAlertInput.
+// This implements mcp.SchemaProvider.
+func (GetDependabotAlertInput) MCPSchema() *jsonschema.Schema {
+	return _getdependabotalertinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for GetDependabotAlertInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (GetDependabotAlertInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _getdependabotalertinputResolved
+}
+
+// GetLatestReleaseInput schema variables (generated)
+var (
+	_getlatestreleaseinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_getlatestreleaseinputResolved, _ = _getlatestreleaseinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for GetLatestReleaseInput.
+// This implements mcp.SchemaProvider.
+func (GetLatestReleaseInput) MCPSchema() *jsonschema.Schema {
+	return _getlatestreleaseinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for GetLatestReleaseInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (GetLatestReleaseInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _getlatestreleaseinputResolved
+}
+
+// GetTagInput schema variables (generated)
+var (
+	_gettaginputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"tag": {
+				Type:        "string",
+				Description: "Tag name",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"tag",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_gettaginputResolved, _ = _gettaginputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for GetTagInput.
+// This implements mcp.SchemaProvider.
+func (GetTagInput) MCPSchema() *jsonschema.Schema {
+	return _gettaginputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for GetTagInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (GetTagInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _gettaginputResolved
+}
+
+// ListWorkflowJobsInput schema variables (generated)
+var (
+	_listworkflowjobsinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"run_id": {
+				Type:        "integer",
+				Description: "Workflow run ID",
+			},
+			"filter": {
+				Type:        "string",
+				Description: "Filter jobs",
+				Enum:        []any{"latest", "all"},
+			},
+			"page": {
+				Type:        "integer",
+				Description: "Page number for pagination (min 1)",
+			},
+			"perPage": {
+				Type:        "integer",
+				Description: "Results per page for pagination (min 1 and max 100)",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"run_id",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_listworkflowjobsinputResolved, _ = _listworkflowjobsinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for ListWorkflowJobsInput.
+// This implements mcp.SchemaProvider.
+func (ListWorkflowJobsInput) MCPSchema() *jsonschema.Schema {
+	return _listworkflowjobsinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for ListWorkflowJobsInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (ListWorkflowJobsInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _listworkflowjobsinputResolved
+}
+
+// GetJobLogsInput schema variables (generated)
+var (
+	_getjoblogsinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"job_id": {
+				Type:        "integer",
+				Description: "Job ID for single job logs",
+			},
+			"run_id": {
+				Type:        "integer",
+				Description: "Run ID for failed jobs logs",
+			},
+			"failed_only": {
+				Type:        "boolean",
+				Description: "Get logs for failed jobs only",
+			},
+			"return_content": {
+				Type:        "boolean",
+				Description: "Return actual log content instead of URLs",
+			},
+			"tail_lines": {
+				Type:        "integer",
+				Description: "Number of lines from end of log",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_getjoblogsinputResolved, _ = _getjoblogsinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for GetJobLogsInput.
+// This implements mcp.SchemaProvider.
+func (GetJobLogsInput) MCPSchema() *jsonschema.Schema {
+	return _getjoblogsinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for GetJobLogsInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (GetJobLogsInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _getjoblogsinputResolved
+}
+
+// GetWorkflowRunLogsInput schema variables (generated)
+var (
+	_getworkflowrunlogsinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"run_id": {
+				Type:        "integer",
+				Description: "Workflow run ID",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"run_id",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_getworkflowrunlogsinputResolved, _ = _getworkflowrunlogsinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for GetWorkflowRunLogsInput.
+// This implements mcp.SchemaProvider.
+func (GetWorkflowRunLogsInput) MCPSchema() *jsonschema.Schema {
+	return _getworkflowrunlogsinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for GetWorkflowRunLogsInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (GetWorkflowRunLogsInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _getworkflowrunlogsinputResolved
+}
+
+// GetWorkflowRunUsageInput schema variables (generated)
+var (
+	_getworkflowrunusageinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"run_id": {
+				Type:        "integer",
+				Description: "Workflow run ID",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"run_id",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_getworkflowrunusageinputResolved, _ = _getworkflowrunusageinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for GetWorkflowRunUsageInput.
+// This implements mcp.SchemaProvider.
+func (GetWorkflowRunUsageInput) MCPSchema() *jsonschema.Schema {
+	return _getworkflowrunusageinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for GetWorkflowRunUsageInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (GetWorkflowRunUsageInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _getworkflowrunusageinputResolved
+}
+
+// ListWorkflowRunArtifactsInput schema variables (generated)
+var (
+	_listworkflowrunartifactsinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"run_id": {
+				Type:        "integer",
+				Description: "Workflow run ID",
+			},
+			"page": {
+				Type:        "integer",
+				Description: "Page number for pagination (min 1)",
+			},
+			"perPage": {
+				Type:        "integer",
+				Description: "Results per page for pagination (min 1 and max 100)",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"run_id",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_listworkflowrunartifactsinputResolved, _ = _listworkflowrunartifactsinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for ListWorkflowRunArtifactsInput.
+// This implements mcp.SchemaProvider.
+func (ListWorkflowRunArtifactsInput) MCPSchema() *jsonschema.Schema {
+	return _listworkflowrunartifactsinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for ListWorkflowRunArtifactsInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (ListWorkflowRunArtifactsInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _listworkflowrunartifactsinputResolved
+}
+
+// DownloadWorkflowRunArtifactInput schema variables (generated)
+var (
+	_downloadworkflowrunartifactinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"artifact_id": {
+				Type:        "integer",
+				Description: "Artifact ID",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"artifact_id",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_downloadworkflowrunartifactinputResolved, _ = _downloadworkflowrunartifactinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for DownloadWorkflowRunArtifactInput.
+// This implements mcp.SchemaProvider.
+func (DownloadWorkflowRunArtifactInput) MCPSchema() *jsonschema.Schema {
+	return _downloadworkflowrunartifactinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for DownloadWorkflowRunArtifactInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (DownloadWorkflowRunArtifactInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _downloadworkflowrunartifactinputResolved
+}
+
+// CancelWorkflowRunInput schema variables (generated)
+var (
+	_cancelworkflowruninputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"run_id": {
+				Type:        "integer",
+				Description: "Workflow run ID",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"run_id",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_cancelworkflowruninputResolved, _ = _cancelworkflowruninputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for CancelWorkflowRunInput.
+// This implements mcp.SchemaProvider.
+func (CancelWorkflowRunInput) MCPSchema() *jsonschema.Schema {
+	return _cancelworkflowruninputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for CancelWorkflowRunInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (CancelWorkflowRunInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _cancelworkflowruninputResolved
+}
+
+// RerunWorkflowRunInput schema variables (generated)
+var (
+	_rerunworkflowruninputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"run_id": {
+				Type:        "integer",
+				Description: "Workflow run ID",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"run_id",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_rerunworkflowruninputResolved, _ = _rerunworkflowruninputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for RerunWorkflowRunInput.
+// This implements mcp.SchemaProvider.
+func (RerunWorkflowRunInput) MCPSchema() *jsonschema.Schema {
+	return _rerunworkflowruninputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for RerunWorkflowRunInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (RerunWorkflowRunInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _rerunworkflowruninputResolved
+}
+
+// RerunFailedJobsInput schema variables (generated)
+var (
+	_rerunfailedjobsinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"run_id": {
+				Type:        "integer",
+				Description: "Workflow run ID",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"run_id",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_rerunfailedjobsinputResolved, _ = _rerunfailedjobsinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for RerunFailedJobsInput.
+// This implements mcp.SchemaProvider.
+func (RerunFailedJobsInput) MCPSchema() *jsonschema.Schema {
+	return _rerunfailedjobsinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for RerunFailedJobsInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (RerunFailedJobsInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _rerunfailedjobsinputResolved
+}
+
+// DeleteWorkflowRunLogsInput schema variables (generated)
+var (
+	_deleteworkflowrunlogsinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"run_id": {
+				Type:        "integer",
+				Description: "Workflow run ID",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"run_id",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_deleteworkflowrunlogsinputResolved, _ = _deleteworkflowrunlogsinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for DeleteWorkflowRunLogsInput.
+// This implements mcp.SchemaProvider.
+func (DeleteWorkflowRunLogsInput) MCPSchema() *jsonschema.Schema {
+	return _deleteworkflowrunlogsinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for DeleteWorkflowRunLogsInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (DeleteWorkflowRunLogsInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _deleteworkflowrunlogsinputResolved
+}
+
+// RunWorkflowInput schema variables (generated)
+var (
+	_runworkflowinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"workflow_id": {
+				Type:        "string",
+				Description: "Workflow ID or filename",
+			},
+			"ref": {
+				Type:        "string",
+				Description: "Git ref to run workflow from",
+			},
+			"inputs": {
+				Type:        "object",
+				Description: "Workflow inputs",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"workflow_id",
+			"ref",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_runworkflowinputResolved, _ = _runworkflowinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for RunWorkflowInput.
+// This implements mcp.SchemaProvider.
+func (RunWorkflowInput) MCPSchema() *jsonschema.Schema {
+	return _runworkflowinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for RunWorkflowInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (RunWorkflowInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _runworkflowinputResolved
+}
+
+// GetNotificationDetailsInput schema variables (generated)
+var (
+	_getnotificationdetailsinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"notification_id": {
+				Type:        "string",
+				Description: "Notification thread ID",
+			},
+		},
+		Required: []string{
+			"notification_id",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_getnotificationdetailsinputResolved, _ = _getnotificationdetailsinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for GetNotificationDetailsInput.
+// This implements mcp.SchemaProvider.
+func (GetNotificationDetailsInput) MCPSchema() *jsonschema.Schema {
+	return _getnotificationdetailsinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for GetNotificationDetailsInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (GetNotificationDetailsInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _getnotificationdetailsinputResolved
+}
+
+// ManageNotificationSubscriptionInput schema variables (generated)
+var (
+	_managenotificationsubscriptioninputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"notification_id": {
+				Type:        "string",
+				Description: "Notification thread ID",
+			},
+			"action": {
+				Type:        "string",
+				Description: "Action to perform",
+				Enum:        []any{"get", "set", "delete"},
+			},
+			"ignored": {
+				Type:        "boolean",
+				Description: "Whether to ignore notifications",
+			},
+		},
+		Required: []string{
+			"notification_id",
+			"action",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_managenotificationsubscriptioninputResolved, _ = _managenotificationsubscriptioninputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for ManageNotificationSubscriptionInput.
+// This implements mcp.SchemaProvider.
+func (ManageNotificationSubscriptionInput) MCPSchema() *jsonschema.Schema {
+	return _managenotificationsubscriptioninputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for ManageNotificationSubscriptionInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (ManageNotificationSubscriptionInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _managenotificationsubscriptioninputResolved
+}
+
+// ManageRepositoryNotificationSubscriptionInput schema variables (generated)
+var (
+	_managerepositorynotificationsubscriptioninputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"action": {
+				Type:        "string",
+				Description: "Action to perform",
+				Enum:        []any{"get", "set", "delete"},
+			},
+			"ignored": {
+				Type:        "boolean",
+				Description: "Whether to ignore notifications",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"action",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_managerepositorynotificationsubscriptioninputResolved, _ = _managerepositorynotificationsubscriptioninputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for ManageRepositoryNotificationSubscriptionInput.
+// This implements mcp.SchemaProvider.
+func (ManageRepositoryNotificationSubscriptionInput) MCPSchema() *jsonschema.Schema {
+	return _managerepositorynotificationsubscriptioninputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for ManageRepositoryNotificationSubscriptionInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (ManageRepositoryNotificationSubscriptionInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _managerepositorynotificationsubscriptioninputResolved
+}
+
+// MarkAllNotificationsReadInput schema variables (generated)
+var (
+	_markallnotificationsreadinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"last_read_at": {
+				Type:        "string",
+				Description: "Timestamp of last read notification (ISO 8601)",
+			},
+			"read": {
+				Type:        "boolean",
+				Description: "Whether to mark as read",
+			},
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner (for repo-specific marking)",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name (for repo-specific marking)",
+			},
+		},
+		Required:             []string{},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_markallnotificationsreadinputResolved, _ = _markallnotificationsreadinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for MarkAllNotificationsReadInput.
+// This implements mcp.SchemaProvider.
+func (MarkAllNotificationsReadInput) MCPSchema() *jsonschema.Schema {
+	return _markallnotificationsreadinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for MarkAllNotificationsReadInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (MarkAllNotificationsReadInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _markallnotificationsreadinputResolved
+}
+
+// DismissNotificationInput schema variables (generated)
+var (
+	_dismissnotificationinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"thread_id": {
+				Type:        "string",
+				Description: "Notification thread ID",
+			},
+		},
+		Required: []string{
+			"thread_id",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_dismissnotificationinputResolved, _ = _dismissnotificationinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for DismissNotificationInput.
+// This implements mcp.SchemaProvider.
+func (DismissNotificationInput) MCPSchema() *jsonschema.Schema {
+	return _dismissnotificationinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for DismissNotificationInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (DismissNotificationInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _dismissnotificationinputResolved
+}
+
+// GetTeamsInput schema variables (generated)
+var (
+	_getteamsinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"org": {
+				Type:        "string",
+				Description: "Organization name",
+			},
+			"page": {
+				Type:        "integer",
+				Description: "Page number for pagination",
+			},
+			"perPage": {
+				Type:        "integer",
+				Description: "Results per page",
+			},
+		},
+		Required: []string{
+			"org",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_getteamsinputResolved, _ = _getteamsinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for GetTeamsInput.
+// This implements mcp.SchemaProvider.
+func (GetTeamsInput) MCPSchema() *jsonschema.Schema {
+	return _getteamsinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for GetTeamsInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (GetTeamsInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _getteamsinputResolved
+}
+
+// GetTeamMembersInput schema variables (generated)
+var (
+	_getteammembersinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"org": {
+				Type:        "string",
+				Description: "Organization name",
+			},
+			"team_slug": {
+				Type:        "string",
+				Description: "Team slug",
+			},
+			"role": {
+				Type:        "string",
+				Description: "Filter by role",
+				Enum:        []any{"member", "maintainer", "all"},
+			},
+			"page": {
+				Type:        "integer",
+				Description: "Page number for pagination",
+			},
+			"perPage": {
+				Type:        "integer",
+				Description: "Results per page",
+			},
+		},
+		Required: []string{
+			"org",
+			"team_slug",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_getteammembersinputResolved, _ = _getteammembersinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for GetTeamMembersInput.
+// This implements mcp.SchemaProvider.
+func (GetTeamMembersInput) MCPSchema() *jsonschema.Schema {
+	return _getteammembersinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for GetTeamMembersInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (GetTeamMembersInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _getteammembersinputResolved
+}
+
+// DeleteFileInput schema variables (generated)
+var (
+	_deletefileinputSchema = &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"path": {
+				Type:        "string",
+				Description: "Path to the file to delete",
+			},
+			"message": {
+				Type:        "string",
+				Description: "Commit message",
+			},
+			"branch": {
+				Type:        "string",
+				Description: "Branch containing the file",
+			},
+			"sha": {
+				Type:        "string",
+				Description: "SHA of the file being deleted",
+			},
+		},
+		Required: []string{
+			"owner",
+			"repo",
+			"path",
+			"message",
+			"branch",
+			"sha",
+		},
+		AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
+	}
+	_deletefileinputResolved, _ = _deletefileinputSchema.Resolve(nil)
+)
+
+// MCPSchema returns the pre-computed JSON schema for DeleteFileInput.
+// This implements mcp.SchemaProvider.
+func (DeleteFileInput) MCPSchema() *jsonschema.Schema {
+	return _deletefileinputSchema
+}
+
+// MCPResolvedSchema returns the pre-resolved JSON schema for DeleteFileInput.
+// This implements mcp.ResolvedSchemaProvider.
+func (DeleteFileInput) MCPResolvedSchema() *jsonschema.Resolved {
+	return _deletefileinputResolved
+}
