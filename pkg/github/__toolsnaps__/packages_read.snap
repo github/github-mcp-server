@@ -1,0 +1,83 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Read package information"
+  },
+  "description": "Get information about GitHub packages for organizations and users. Supports listing packages, getting package details, and inspecting package versions.",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "method"
+    ],
+    "properties": {
+      "method": {
+        "type": "string",
+        "description": "Action to specify what package data needs to be retrieved from GitHub.\nPossible options:\n 1. list_org_packages - List packages for a GitHub organization. Requires 'org' parameter. Supports optional 'package_type' and 'visibility' filters.\n 2. get_org_package - Get details of a specific package for an organization. Requires 'org', 'package_type', and 'package_name' parameters.\n 3. list_package_versions - List versions of a package for an organization. Requires 'org', 'package_type', and 'package_name' parameters. Supports optional 'state' filter.\n 4. get_package_version - Get details of a specific package version. Requires 'org', 'package_type', 'package_name', and 'package_version_id' parameters.\n 5. list_user_packages - List packages for a GitHub user. Requires 'username' parameter. Supports optional 'package_type' and 'visibility' filters.\n\nNote: Download statistics are not available via the GitHub REST API.",
+        "enum": [
+          "list_org_packages",
+          "get_org_package",
+          "list_package_versions",
+          "get_package_version",
+          "list_user_packages"
+        ]
+      },
+      "org": {
+        "type": "string",
+        "description": "Organization name (required for org-related methods)"
+      },
+      "package_name": {
+        "type": "string",
+        "description": "Package name (required for get_org_package, list_package_versions, and get_package_version methods)"
+      },
+      "package_type": {
+        "type": "string",
+        "description": "Package type",
+        "enum": [
+          "npm",
+          "maven",
+          "rubygems",
+          "docker",
+          "nuget",
+          "container"
+        ]
+      },
+      "package_version_id": {
+        "type": "number",
+        "description": "Package version ID (required for get_package_version method)"
+      },
+      "page": {
+        "type": "number",
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1
+      },
+      "perPage": {
+        "type": "number",
+        "description": "Results per page for pagination (min 1, max 100)",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "state": {
+        "type": "string",
+        "description": "Filter by version state (optional for list_package_versions method)",
+        "enum": [
+          "active",
+          "deleted"
+        ]
+      },
+      "username": {
+        "type": "string",
+        "description": "GitHub username (required for list_user_packages method)"
+      },
+      "visibility": {
+        "type": "string",
+        "description": "Filter by package visibility (optional for list methods)",
+        "enum": [
+          "public",
+          "private",
+          "internal"
+        ]
+      }
+    }
+  },
+  "name": "packages_read"
+}

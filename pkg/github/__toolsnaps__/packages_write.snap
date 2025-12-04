@@ -1,0 +1,51 @@
+{
+  "annotations": {
+    "title": "Delete operations on packages"
+  },
+  "description": "Delete packages and package versions for organizations and users. All operations require delete:packages scope.",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "method",
+      "package_type",
+      "package_name"
+    ],
+    "properties": {
+      "method": {
+        "type": "string",
+        "description": "The write operation to perform on packages.\n\nAvailable methods:\n 1. delete_org_package - Delete an entire package from an organization. This will delete all versions of the package. Requires 'org', 'package_type', and 'package_name' parameters.\n 2. delete_org_package_version - Delete a specific version of a package from an organization. Requires 'org', 'package_type', 'package_name', and 'package_version_id' parameters.\n 3. delete_user_package - Delete an entire package from the authenticated user's account. This will delete all versions of the package. Requires 'package_type' and 'package_name' parameters.\n 4. delete_user_package_version - Delete a specific version of a package from the authenticated user's account. Requires 'package_type', 'package_name', and 'package_version_id' parameters.\n\nAll operations require delete:packages scope.",
+        "enum": [
+          "delete_org_package",
+          "delete_org_package_version",
+          "delete_user_package",
+          "delete_user_package_version"
+        ]
+      },
+      "org": {
+        "type": "string",
+        "description": "Organization name (required for delete_org_package and delete_org_package_version methods)"
+      },
+      "package_name": {
+        "type": "string",
+        "description": "Package name (required for all methods)"
+      },
+      "package_type": {
+        "type": "string",
+        "description": "Package type (required for all methods)",
+        "enum": [
+          "npm",
+          "maven",
+          "rubygems",
+          "docker",
+          "nuget",
+          "container"
+        ]
+      },
+      "package_version_id": {
+        "type": "number",
+        "description": "Package version ID (required for delete_org_package_version and delete_user_package_version methods)"
+      }
+    }
+  },
+  "name": "packages_write"
+}
