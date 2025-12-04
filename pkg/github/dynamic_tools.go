@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/github/github-mcp-server/pkg/schema"
 	"github.com/github/github-mcp-server/pkg/toolsets"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -20,7 +21,7 @@ func ToolsetEnum(toolsetGroup *toolsets.ToolsetGroup) []any {
 	return toolsetNames
 }
 
-func EnableToolset(s *mcp.Server, toolsetGroup *toolsets.ToolsetGroup, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+func EnableToolset(s *mcp.Server, toolsetGroup *toolsets.ToolsetGroup, t translations.TranslationHelperFunc, schemaCache *schema.Cache) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 	return mcp.Tool{
 			Name:        "enable_toolset",
 			Description: t("TOOL_ENABLE_TOOLSET_DESCRIPTION", "Enable one of the sets of tools the GitHub MCP server provides, use get_toolset_tools and list_available_toolsets first to see what this will enable"),
@@ -62,7 +63,7 @@ func EnableToolset(s *mcp.Server, toolsetGroup *toolsets.ToolsetGroup, t transla
 			// Send notification to all initialized sessions
 			// s.sendNotificationToAllClients("notifications/tools/list_changed", nil)
 			for _, serverTool := range toolset.GetActiveTools() {
-				serverTool.RegisterFunc(s)
+				serverTool.RegisterFunc(s, schemaCache)
 			}
 
 			return utils.NewToolResultText(fmt.Sprintf("Toolset %s enabled", toolsetName)), nil, nil

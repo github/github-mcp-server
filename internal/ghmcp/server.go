@@ -18,6 +18,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	mcplog "github.com/github/github-mcp-server/pkg/log"
 	"github.com/github/github-mcp-server/pkg/raw"
+	"github.com/github/github-mcp-server/pkg/schema"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v79/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -150,6 +151,8 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
 	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, restClient, gqlHTTPClient))
 
+	schemaCache := schema.NewCache()
+
 	// Create default toolsets
 	tsg := github.DefaultToolsetGroup(
 		cfg.ReadOnly,
@@ -160,6 +163,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		cfg.ContentWindowSize,
 		github.FeatureFlags{LockdownMode: cfg.LockdownMode},
 		repoAccessCache,
+		schemaCache,
 	)
 
 	// Enable and register toolsets if configured
@@ -180,7 +184,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		enabledTools := github.CleanTools(cfg.EnabledTools)
 
 		// Register the specified tools (additive to any toolsets already enabled)
-		err = tsg.RegisterSpecificTools(ghServer, enabledTools, cfg.ReadOnly)
+		err = tsg.RegisterSpecificTools(ghServer, enabledTools, cfg.ReadOnly, schemaCache)
 		if err != nil {
 			return nil, fmt.Errorf("failed to register tools: %w", err)
 		}
@@ -188,7 +192,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 
 	// Register dynamic toolsets if configured (additive to toolsets and tools)
 	if cfg.DynamicToolsets {
-		dynamic := github.InitDynamicToolset(ghServer, tsg, cfg.Translator)
+		dynamic := github.InitDynamicToolset(ghServer, tsg, cfg.Translator, schemaCache)
 		dynamic.RegisterTools(ghServer)
 	}
 

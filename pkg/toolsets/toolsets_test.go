@@ -3,6 +3,8 @@ package toolsets
 import (
 	"errors"
 	"testing"
+
+	"github.com/github/github-mcp-server/pkg/schema"
 )
 
 func TestNewToolsetGroupIsEmptyWithoutEverythingOn(t *testing.T) {
@@ -18,8 +20,10 @@ func TestNewToolsetGroupIsEmptyWithoutEverythingOn(t *testing.T) {
 func TestAddToolset(t *testing.T) {
 	tsg := NewToolsetGroup(false)
 
+	schemaCache := schema.NewCache()
+
 	// Test adding a toolset
-	toolset := NewToolset("test-toolset", "A test toolset")
+	toolset := NewToolset("test-toolset", "A test toolset", schemaCache)
 	toolset.Enabled = true
 	tsg.AddToolset(toolset)
 
@@ -46,7 +50,7 @@ func TestAddToolset(t *testing.T) {
 	}
 
 	// Test adding another toolset
-	anotherToolset := NewToolset("another-toolset", "Another test toolset")
+	anotherToolset := NewToolset("another-toolset", "Another test toolset", schemaCache)
 	tsg.AddToolset(anotherToolset)
 
 	if len(tsg.Toolsets) != 2 {
@@ -54,7 +58,7 @@ func TestAddToolset(t *testing.T) {
 	}
 
 	// Test overriding existing toolset
-	updatedToolset := NewToolset("test-toolset", "Updated description")
+	updatedToolset := NewToolset("test-toolset", "Updated description", schemaCache)
 	tsg.AddToolset(updatedToolset)
 
 	toolset = tsg.Toolsets["test-toolset"]
@@ -70,20 +74,22 @@ func TestAddToolset(t *testing.T) {
 func TestIsEnabled(t *testing.T) {
 	tsg := NewToolsetGroup(false)
 
+	schemaCache := schema.NewCache()
+
 	// Test with non-existent toolset
 	if tsg.IsEnabled("non-existent") {
 		t.Error("Expected IsEnabled to return false for non-existent toolset")
 	}
 
 	// Test with disabled toolset
-	disabledToolset := NewToolset("disabled-toolset", "A disabled toolset")
+	disabledToolset := NewToolset("disabled-toolset", "A disabled toolset", schemaCache)
 	tsg.AddToolset(disabledToolset)
 	if tsg.IsEnabled("disabled-toolset") {
 		t.Error("Expected IsEnabled to return false for disabled toolset")
 	}
 
 	// Test with enabled toolset
-	enabledToolset := NewToolset("enabled-toolset", "An enabled toolset")
+	enabledToolset := NewToolset("enabled-toolset", "An enabled toolset", schemaCache)
 	enabledToolset.Enabled = true
 	tsg.AddToolset(enabledToolset)
 	if !tsg.IsEnabled("enabled-toolset") {
@@ -94,6 +100,8 @@ func TestIsEnabled(t *testing.T) {
 func TestEnableFeature(t *testing.T) {
 	tsg := NewToolsetGroup(false)
 
+	schemaCache := schema.NewCache()
+
 	// Test enabling non-existent toolset
 	err := tsg.EnableToolset("non-existent")
 	if err == nil {
@@ -101,7 +109,7 @@ func TestEnableFeature(t *testing.T) {
 	}
 
 	// Test enabling toolset
-	testToolset := NewToolset("test-toolset", "A test toolset")
+	testToolset := NewToolset("test-toolset", "A test toolset", schemaCache)
 	tsg.AddToolset(testToolset)
 
 	if tsg.IsEnabled("test-toolset") {
@@ -127,9 +135,11 @@ func TestEnableFeature(t *testing.T) {
 func TestEnableToolsets(t *testing.T) {
 	tsg := NewToolsetGroup(false)
 
+	schemaCache := schema.NewCache()
+
 	// Prepare toolsets
-	toolset1 := NewToolset("toolset1", "Feature 1")
-	toolset2 := NewToolset("toolset2", "Feature 2")
+	toolset1 := NewToolset("toolset1", "Feature 1", schemaCache)
+	toolset2 := NewToolset("toolset2", "Feature 2", schemaCache)
 	tsg.AddToolset(toolset1)
 	tsg.AddToolset(toolset2)
 
@@ -189,8 +199,10 @@ func TestEnableToolsets(t *testing.T) {
 func TestEnableEverything(t *testing.T) {
 	tsg := NewToolsetGroup(false)
 
+	schemaCache := schema.NewCache()
+
 	// Add a disabled toolset
-	testToolset := NewToolset("test-toolset", "A test toolset")
+	testToolset := NewToolset("test-toolset", "A test toolset", schemaCache)
 	tsg.AddToolset(testToolset)
 
 	// Verify it's disabled
@@ -241,7 +253,8 @@ func TestIsEnabledWithEverythingOn(t *testing.T) {
 
 func TestToolsetGroup_GetToolset(t *testing.T) {
 	tsg := NewToolsetGroup(false)
-	toolset := NewToolset("my-toolset", "desc")
+	schemaCache := schema.NewCache()
+	toolset := NewToolset("my-toolset", "desc", schemaCache)
 	tsg.AddToolset(toolset)
 
 	// Should find the toolset

@@ -12,6 +12,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/raw"
+	"github.com/github/github-mcp-server/pkg/schema"
 	"github.com/github/github-mcp-server/pkg/toolsets"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v79/github"
@@ -65,9 +66,12 @@ func generateReadmeDocs(readmePath string) error {
 	// Create translation helper
 	t, _ := translations.TranslationHelper()
 
+	// Create a schema cache
+	schemaCache := schema.NewCache()
+
 	// Create toolset group with mock clients
 	repoAccessCache := lockdown.GetInstance(nil)
-	tsg := github.DefaultToolsetGroup(false, mockGetClient, mockGetGQLClient, mockGetRawClient, t, 5000, github.FeatureFlags{}, repoAccessCache)
+	tsg := github.DefaultToolsetGroup(false, mockGetClient, mockGetGQLClient, mockGetRawClient, t, 5000, github.FeatureFlags{}, repoAccessCache, schemaCache)
 
 	// Generate toolsets documentation
 	toolsetsDoc := generateToolsetsDoc(tsg)
@@ -305,10 +309,12 @@ func generateRemoteToolsetsDoc() string {
 	// Create translation helper
 	t, _ := translations.TranslationHelper()
 
+	// Create a schema cache
+	schemaCache := schema.NewCache()
+
 	// Create toolset group with mock clients
 	repoAccessCache := lockdown.GetInstance(nil)
-	tsg := github.DefaultToolsetGroup(false, mockGetClient, mockGetGQLClient, mockGetRawClient, t, 5000, github.FeatureFlags{}, repoAccessCache)
-
+	tsg := github.DefaultToolsetGroup(false, mockGetClient, mockGetGQLClient, mockGetRawClient, t, 5000, github.FeatureFlags{}, repoAccessCache, schemaCache)
 	// Generate table header
 	buf.WriteString("| Name           | Description                                      | API URL                                               | 1-Click Install (VS Code)                                                                                                                                                                                                 | Read-only Link                                                                                                 | 1-Click Read-only Install (VS Code)                                                                                                                                                                                                 |\n")
 	buf.WriteString("|----------------|--------------------------------------------------|-------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|\n")

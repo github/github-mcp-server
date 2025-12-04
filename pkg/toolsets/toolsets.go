@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/github/github-mcp-server/pkg/schema"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -32,11 +34,20 @@ func NewToolsetDoesNotExistError(name string) *ToolsetDoesNotExistError {
 
 type ServerTool struct {
 	Tool         mcp.Tool
-	RegisterFunc func(s *mcp.Server)
+	RegisterFunc func(s *mcp.Server, schemaCache *schema.Cache)
 }
 
 func NewServerTool[In, Out any](tool mcp.Tool, handler mcp.ToolHandlerFor[In, Out]) ServerTool {
-	return ServerTool{Tool: tool, RegisterFunc: func(s *mcp.Server) {
+	return ServerTool{Tool: tool, RegisterFunc: func(s *mcp.Server, schemaCache *schema.Cache) {
+		inputSchema, ok := tool.InputSchema.(*jsonschema.Schema)
+		if ok && inputSchema == nil {
+			resolvedSchema, err := schemaCache.GetCachedOrResolveSchema(tool.Name, inputSchema)
+
+			if err == nil && resolvedSchema != nil {
+				tool.InputSchema = resolvedSchema
+			}
+		}
+
 		mcp.AddTool(s, &tool, handler)
 	}}
 }
@@ -77,7 +88,8 @@ type Toolset struct {
 	// and in order to have multiple servers running concurrently, we want to avoid overlapping resources too.
 	resourceTemplates []ServerResourceTemplate
 	// prompts are also not tools but are namespaced similarly
-	prompts []ServerPrompt
+	prompts     []ServerPrompt
+	schemaCache *schema.Cache
 }
 
 func (t *Toolset) GetActiveTools() []ServerTool {
@@ -102,11 +114,11 @@ func (t *Toolset) RegisterTools(s *mcp.Server) {
 		return
 	}
 	for _, tool := range t.readTools {
-		tool.RegisterFunc(s)
+		tool.RegisterFunc(s, t.schemaCache)
 	}
 	if !t.readOnly {
 		for _, tool := range t.writeTools {
-			tool.RegisterFunc(s)
+			tool.RegisterFunc(s, t.schemaCache)
 		}
 	}
 }
@@ -199,12 +211,13 @@ func (tg *ToolsetGroup) AddToolset(ts *Toolset) {
 	tg.Toolsets[ts.Name] = ts
 }
 
-func NewToolset(name string, description string) *Toolset {
+func NewToolset(name string, description string, schemaCache *schema.Cache) *Toolset {
 	return &Toolset{
 		Name:        name,
 		Description: description,
 		Enabled:     false,
 		readOnly:    false,
+		schemaCache: schemaCache,
 	}
 }
 
@@ -317,7 +330,7 @@ func (tg *ToolsetGroup) FindToolByName(toolName string) (*ServerTool, string, er
 // RegisterSpecificTools registers only the specified tools.
 // Respects read-only mode (skips write tools if readOnly=true).
 // Returns error if any tool is not found.
-func (tg *ToolsetGroup) RegisterSpecificTools(s *mcp.Server, toolNames []string, readOnly bool) error {
+func (tg *ToolsetGroup) RegisterSpecificTools(s *mcp.Server, toolNames []string, readOnly bool, schemaCache *schema.Cache) error {
 	var skippedTools []string
 	for _, toolName := range toolNames {
 		tool, _, err := tg.FindToolByName(toolName)
@@ -332,7 +345,7 @@ func (tg *ToolsetGroup) RegisterSpecificTools(s *mcp.Server, toolNames []string,
 		}
 
 		// Register the tool
-		tool.RegisterFunc(s)
+		tool.RegisterFunc(s, schemaCache)
 	}
 
 	// Log skipped write tools if any

@@ -7,6 +7,7 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/raw"
+	"github.com/github/github-mcp-server/pkg/schema"
 	"github.com/github/github-mcp-server/pkg/toolsets"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
@@ -160,12 +161,21 @@ func GetDefaultToolsetIDs() []string {
 	}
 }
 
-func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetGQLClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc, contentWindowSize int, flags FeatureFlags, cache *lockdown.RepoAccessCache) *toolsets.ToolsetGroup {
+func DefaultToolsetGroup(readOnly bool,
+	getClient GetClientFn,
+	getGQLClient GetGQLClientFn,
+	getRawClient raw.GetRawClientFn,
+	t translations.TranslationHelperFunc,
+	contentWindowSize int,
+	flags FeatureFlags,
+	cache *lockdown.RepoAccessCache,
+	schemaCache *schema.Cache,
+) *toolsets.ToolsetGroup {
 	tsg := toolsets.NewToolsetGroup(readOnly)
 
 	// Define all available features with their default state (disabled)
 	// Create toolsets
-	repos := toolsets.NewToolset(ToolsetMetadataRepos.ID, ToolsetMetadataRepos.Description).
+	repos := toolsets.NewToolset(ToolsetMetadataRepos.ID, ToolsetMetadataRepos.Description, schemaCache).
 		AddReadTools(
 			toolsets.NewServerTool(SearchRepositories(getClient, t)),
 			toolsets.NewServerTool(GetFileContents(getClient, getRawClient, t)),
@@ -194,11 +204,11 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerResourceTemplate(GetRepositoryResourceTagContent(getClient, getRawClient, t)),
 			toolsets.NewServerResourceTemplate(GetRepositoryResourcePrContent(getClient, getRawClient, t)),
 		)
-	git := toolsets.NewToolset(ToolsetMetadataGit.ID, ToolsetMetadataGit.Description).
+	git := toolsets.NewToolset(ToolsetMetadataGit.ID, ToolsetMetadataGit.Description, schemaCache).
 		AddReadTools(
 			toolsets.NewServerTool(GetRepositoryTree(getClient, t)),
 		)
-	issues := toolsets.NewToolset(ToolsetMetadataIssues.ID, ToolsetMetadataIssues.Description).
+	issues := toolsets.NewToolset(ToolsetMetadataIssues.ID, ToolsetMetadataIssues.Description, schemaCache).
 		AddReadTools(
 			toolsets.NewServerTool(IssueRead(getClient, getGQLClient, cache, t, flags)),
 			toolsets.NewServerTool(SearchIssues(getClient, t)),
@@ -215,15 +225,15 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		toolsets.NewServerPrompt(AssignCodingAgentPrompt(t)),
 		toolsets.NewServerPrompt(IssueToFixWorkflowPrompt(t)),
 	)
-	users := toolsets.NewToolset(ToolsetMetadataUsers.ID, ToolsetMetadataUsers.Description).
+	users := toolsets.NewToolset(ToolsetMetadataUsers.ID, ToolsetMetadataUsers.Description, schemaCache).
 		AddReadTools(
 			toolsets.NewServerTool(SearchUsers(getClient, t)),
 		)
-	orgs := toolsets.NewToolset(ToolsetMetadataOrgs.ID, ToolsetMetadataOrgs.Description).
+	orgs := toolsets.NewToolset(ToolsetMetadataOrgs.ID, ToolsetMetadataOrgs.Description, schemaCache).
 		AddReadTools(
 			toolsets.NewServerTool(SearchOrgs(getClient, t)),
 		)
-	pullRequests := toolsets.NewToolset(ToolsetMetadataPullRequests.ID, ToolsetMetadataPullRequests.Description).
+	pullRequests := toolsets.NewToolset(ToolsetMetadataPullRequests.ID, ToolsetMetadataPullRequests.Description, schemaCache).
 		AddReadTools(
 			toolsets.NewServerTool(PullRequestRead(getClient, cache, t, flags)),
 			toolsets.NewServerTool(ListPullRequests(getClient, t)),
@@ -239,23 +249,23 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(PullRequestReviewWrite(getGQLClient, t)),
 			toolsets.NewServerTool(AddCommentToPendingReview(getGQLClient, t)),
 		)
-	codeSecurity := toolsets.NewToolset(ToolsetMetadataCodeSecurity.ID, ToolsetMetadataCodeSecurity.Description).
+	codeSecurity := toolsets.NewToolset(ToolsetMetadataCodeSecurity.ID, ToolsetMetadataCodeSecurity.Description, schemaCache).
 		AddReadTools(
 			toolsets.NewServerTool(GetCodeScanningAlert(getClient, t)),
 			toolsets.NewServerTool(ListCodeScanningAlerts(getClient, t)),
 		)
-	secretProtection := toolsets.NewToolset(ToolsetMetadataSecretProtection.ID, ToolsetMetadataSecretProtection.Description).
+	secretProtection := toolsets.NewToolset(ToolsetMetadataSecretProtection.ID, ToolsetMetadataSecretProtection.Description, schemaCache).
 		AddReadTools(
 			toolsets.NewServerTool(GetSecretScanningAlert(getClient, t)),
 			toolsets.NewServerTool(ListSecretScanningAlerts(getClient, t)),
 		)
-	dependabot := toolsets.NewToolset(ToolsetMetadataDependabot.ID, ToolsetMetadataDependabot.Description).
+	dependabot := toolsets.NewToolset(ToolsetMetadataDependabot.ID, ToolsetMetadataDependabot.Description, schemaCache).
 		AddReadTools(
 			toolsets.NewServerTool(GetDependabotAlert(getClient, t)),
 			toolsets.NewServerTool(ListDependabotAlerts(getClient, t)),
 		)
 
-	notifications := toolsets.NewToolset(ToolsetMetadataNotifications.ID, ToolsetMetadataNotifications.Description).
+	notifications := toolsets.NewToolset(ToolsetMetadataNotifications.ID, ToolsetMetadataNotifications.Description, schemaCache).
 		AddReadTools(
 			toolsets.NewServerTool(ListNotifications(getClient, t)),
 			toolsets.NewServerTool(GetNotificationDetails(getClient, t)),
@@ -267,7 +277,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(ManageRepositoryNotificationSubscription(getClient, t)),
 		)
 
-	discussions := toolsets.NewToolset(ToolsetMetadataDiscussions.ID, ToolsetMetadataDiscussions.Description).
+	discussions := toolsets.NewToolset(ToolsetMetadataDiscussions.ID, ToolsetMetadataDiscussions.Description, schemaCache).
 		AddReadTools(
 			toolsets.NewServerTool(ListDiscussions(getGQLClient, t)),
 			toolsets.NewServerTool(GetDiscussion(getGQLClient, t)),
@@ -275,7 +285,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(ListDiscussionCategories(getGQLClient, t)),
 		)
 
-	actions := toolsets.NewToolset(ToolsetMetadataActions.ID, ToolsetMetadataActions.Description).
+	actions := toolsets.NewToolset(ToolsetMetadataActions.ID, ToolsetMetadataActions.Description, schemaCache).
 		AddReadTools(
 			toolsets.NewServerTool(ListWorkflows(getClient, t)),
 			toolsets.NewServerTool(ListWorkflowRuns(getClient, t)),
@@ -295,7 +305,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(DeleteWorkflowRunLogs(getClient, t)),
 		)
 
-	securityAdvisories := toolsets.NewToolset(ToolsetMetadataSecurityAdvisories.ID, ToolsetMetadataSecurityAdvisories.Description).
+	securityAdvisories := toolsets.NewToolset(ToolsetMetadataSecurityAdvisories.ID, ToolsetMetadataSecurityAdvisories.Description, schemaCache).
 		AddReadTools(
 			toolsets.NewServerTool(ListGlobalSecurityAdvisories(getClient, t)),
 			toolsets.NewServerTool(GetGlobalSecurityAdvisory(getClient, t)),
@@ -304,16 +314,16 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		)
 
 	// // Keep experiments alive so the system doesn't error out when it's always enabled
-	experiments := toolsets.NewToolset(ToolsetMetadataExperiments.ID, ToolsetMetadataExperiments.Description)
+	experiments := toolsets.NewToolset(ToolsetMetadataExperiments.ID, ToolsetMetadataExperiments.Description, schemaCache)
 
-	contextTools := toolsets.NewToolset(ToolsetMetadataContext.ID, ToolsetMetadataContext.Description).
+	contextTools := toolsets.NewToolset(ToolsetMetadataContext.ID, ToolsetMetadataContext.Description, schemaCache).
 		AddReadTools(
 			toolsets.NewServerTool(GetMe(getClient, t)),
 			toolsets.NewServerTool(GetTeams(getClient, getGQLClient, t)),
 			toolsets.NewServerTool(GetTeamMembers(getGQLClient, t)),
 		)
 
-	gists := toolsets.NewToolset(ToolsetMetadataGists.ID, ToolsetMetadataGists.Description).
+	gists := toolsets.NewToolset(ToolsetMetadataGists.ID, ToolsetMetadataGists.Description, schemaCache).
 		AddReadTools(
 			toolsets.NewServerTool(ListGists(getClient, t)),
 			toolsets.NewServerTool(GetGist(getClient, t)),
@@ -323,7 +333,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(UpdateGist(getClient, t)),
 		)
 
-	projects := toolsets.NewToolset(ToolsetMetadataProjects.ID, ToolsetMetadataProjects.Description).
+	projects := toolsets.NewToolset(ToolsetMetadataProjects.ID, ToolsetMetadataProjects.Description, schemaCache).
 		AddReadTools(
 			toolsets.NewServerTool(ListProjects(getClient, t)),
 			toolsets.NewServerTool(GetProject(getClient, t)),
@@ -337,7 +347,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(DeleteProjectItem(getClient, t)),
 			toolsets.NewServerTool(UpdateProjectItem(getClient, t)),
 		)
-	stargazers := toolsets.NewToolset(ToolsetMetadataStargazers.ID, ToolsetMetadataStargazers.Description).
+	stargazers := toolsets.NewToolset(ToolsetMetadataStargazers.ID, ToolsetMetadataStargazers.Description, schemaCache).
 		AddReadTools(
 			toolsets.NewServerTool(ListStarredRepositories(getClient, t)),
 		).
@@ -345,7 +355,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(StarRepository(getClient, t)),
 			toolsets.NewServerTool(UnstarRepository(getClient, t)),
 		)
-	labels := toolsets.NewToolset(ToolsetLabels.ID, ToolsetLabels.Description).
+	labels := toolsets.NewToolset(ToolsetLabels.ID, ToolsetLabels.Description, schemaCache).
 		AddReadTools(
 			// get
 			toolsets.NewServerTool(GetLabel(getGQLClient, t)),
@@ -384,14 +394,14 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 // InitDynamicToolset creates a dynamic toolset that can be used to enable other toolsets, and so requires the server and toolset group as arguments
 //
 //nolint:unused
-func InitDynamicToolset(s *mcp.Server, tsg *toolsets.ToolsetGroup, t translations.TranslationHelperFunc) *toolsets.Toolset {
+func InitDynamicToolset(s *mcp.Server, tsg *toolsets.ToolsetGroup, t translations.TranslationHelperFunc, schemaCache *schema.Cache) *toolsets.Toolset {
 	// Create a new dynamic toolset
 	// Need to add the dynamic toolset last so it can be used to enable other toolsets
-	dynamicToolSelection := toolsets.NewToolset(ToolsetMetadataDynamic.ID, ToolsetMetadataDynamic.Description).
+	dynamicToolSelection := toolsets.NewToolset(ToolsetMetadataDynamic.ID, ToolsetMetadataDynamic.Description, schemaCache).
 		AddReadTools(
 			toolsets.NewServerTool(ListAvailableToolsets(tsg, t)),
 			toolsets.NewServerTool(GetToolsetsTools(tsg, t)),
-			toolsets.NewServerTool(EnableToolset(s, tsg, t)),
+			toolsets.NewServerTool(EnableToolset(s, tsg, t, schemaCache)),
 		)
 
 	dynamicToolSelection.Enabled = true
