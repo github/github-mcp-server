@@ -2,6 +2,7 @@ package log
 
 import (
 	"bytes"
+	"io"
 	"strings"
 	"testing"
 
@@ -62,4 +63,46 @@ func removeTimeAttr(groups []string, a slog.Attr) slog.Attr {
 		return slog.Attr{}
 	}
 	return a
+}
+
+func TestLoggedReadWriter_NilReader(t *testing.T) {
+	var logBuffer bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuffer, &slog.HandlerOptions{ReplaceAttr: removeTimeAttr}))
+
+	lrw := NewIOLogger(nil, nil, logger)
+
+	buf := make([]byte, 100)
+	n, err := lrw.Read(buf)
+
+	assert.Equal(t, 0, n)
+	assert.ErrorIs(t, err, io.EOF)
+}
+
+func TestLoggedReadWriter_NilWriter(t *testing.T) {
+	var logBuffer bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuffer, &slog.HandlerOptions{ReplaceAttr: removeTimeAttr}))
+
+	lrw := NewIOLogger(nil, nil, logger)
+
+	n, err := lrw.Write([]byte("test data"))
+
+	assert.Equal(t, 0, n)
+	assert.ErrorIs(t, err, io.ErrClosedPipe)
+}
+
+func TestLoggedReadWriter_ReadZeroBytes(t *testing.T) {
+	reader := strings.NewReader("")
+
+	var logBuffer bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuffer, &slog.HandlerOptions{ReplaceAttr: removeTimeAttr}))
+
+	lrw := NewIOLogger(reader, nil, logger)
+
+	buf := make([]byte, 100)
+	n, err := lrw.Read(buf)
+
+	assert.Equal(t, 0, n)
+	assert.ErrorIs(t, err, io.EOF)
+	// Should not log when n = 0
+	assert.NotContains(t, logBuffer.String(), "[stdin]")
 }
