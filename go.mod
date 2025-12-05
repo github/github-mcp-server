@@ -2,7 +2,7 @@ module github.com/github/github-mcp-server
 
 go 1.24.0
 
-replace github.com/modelcontextprotocol/go-sdk => github.com/SamMorrowDrums/go-sdk v0.0.0-20251204132233-46310a70a79a
+replace github.com/modelcontextprotocol/go-sdk => github.com/SamMorrowDrums/go-sdk v0.0.0-20251205102140-988974db6bfb
 
 require (
 	github.com/google/go-github/v79 v79.0.0
