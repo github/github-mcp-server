@@ -722,6 +722,7 @@ The following sets of tools are available:
   - `issue_number`: Issue or pull request number to build the graph from (number, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
+  - `verbose`: Include crawl statistics showing how the graph was traversed (nodes fetched, depth reached, repos accessed, etc.) (boolean, optional)
 
 - **issue_read** - Get issue details
   - `issue_number`: The number of the issue (number, required)

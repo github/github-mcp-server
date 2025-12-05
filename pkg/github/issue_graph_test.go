@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -447,7 +448,7 @@ func TestIssueGraphWithSubIssues(t *testing.T) {
 		},
 	}
 
-	requestCount := 0
+	requestCount := int32(0)
 	mockedHTTPClient := mock.NewMockedHTTPClient(
 		mock.WithRequestMatchHandler(
 			mock.GetReposIssuesByOwnerByRepoByIssueNumber,
@@ -470,7 +471,7 @@ func TestIssueGraphWithSubIssues(t *testing.T) {
 		mock.WithRequestMatchHandler(
 			mock.GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber,
 			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				requestCount++
+				atomic.AddInt32(&requestCount, 1)
 				// Return sub-issues only for the parent issue
 				path := r.URL.Path
 				if strings.Contains(path, "/100/") {
@@ -643,4 +644,201 @@ func TestFindBestFocusCrossRepoAncestors(t *testing.T) {
 	assert.Equal(t, "copilot-agent-services", repo)
 	assert.Equal(t, 871, number)
 	assert.Equal(t, FocusSourceCrossRef, source)
+}
+
+func TestExtractTasklistItems(t *testing.T) {
+	tests := []struct {
+		name         string
+		body         string
+		defaultOwner string
+		defaultRepo  string
+		expected     []TasklistItem
+	}{
+		{
+			name: "basic unchecked items",
+			body: `- [ ] Task one
+- [ ] Task two
+- [ ] Task three`,
+			defaultOwner: "owner",
+			defaultRepo:  "repo",
+			expected: []TasklistItem{
+				{Text: "Task one", Completed: false},
+				{Text: "Task two", Completed: false},
+				{Text: "Task three", Completed: false},
+			},
+		},
+		{
+			name: "mixed checked and unchecked",
+			body: `- [x] Completed task
+- [ ] Pending task
+- [X] Another completed`,
+			defaultOwner: "owner",
+			defaultRepo:  "repo",
+			expected: []TasklistItem{
+				{Text: "Completed task", Completed: true},
+				{Text: "Pending task", Completed: false},
+				{Text: "Another completed", Completed: true},
+			},
+		},
+		{
+			name: "items with issue references",
+			body: `- [ ] Implement feature #123
+- [x] Fix bug in other/repo#456
+- [ ] Review https://github.com/owner/repo/pull/789`,
+			defaultOwner: "owner",
+			defaultRepo:  "repo",
+			expected: []TasklistItem{
+				{
+					Text:      "Implement feature #123",
+					Completed: false,
+					LinkedRef: &IssueReference{Owner: "owner", Repo: "repo", Number: 123},
+				},
+				{
+					Text:      "Fix bug in other/repo#456",
+					Completed: true,
+					LinkedRef: &IssueReference{Owner: "other", Repo: "repo", Number: 456},
+				},
+				{
+					Text:      "Review https://github.com/owner/repo/pull/789",
+					Completed: false,
+					LinkedRef: &IssueReference{Owner: "owner", Repo: "repo", Number: 789},
+				},
+			},
+		},
+		{
+			name: "asterisk syntax",
+			body: `* [ ] Task with asterisk
+* [x] Completed asterisk task`,
+			defaultOwner: "owner",
+			defaultRepo:  "repo",
+			expected: []TasklistItem{
+				{Text: "Task with asterisk", Completed: false},
+				{Text: "Completed asterisk task", Completed: true},
+			},
+		},
+		{
+			name: "indented items",
+			body: `  - [ ] Indented task
+    - [x] More indented task`,
+			defaultOwner: "owner",
+			defaultRepo:  "repo",
+			expected: []TasklistItem{
+				{Text: "Indented task", Completed: false},
+				{Text: "More indented task", Completed: true},
+			},
+		},
+		{
+			name:         "no tasklist items",
+			body:         "This is just a regular body without any tasklist items.",
+			defaultOwner: "owner",
+			defaultRepo:  "repo",
+			expected:     nil,
+		},
+		{
+			name:         "empty body",
+			body:         "",
+			defaultOwner: "owner",
+			defaultRepo:  "repo",
+			expected:     nil,
+		},
+		{
+			name: "mixed content with tasklist",
+			body: `## Tasks
+
+Some description here.
+
+- [ ] First task
+- [x] Second task
+
+More text after the list.`,
+			defaultOwner: "owner",
+			defaultRepo:  "repo",
+			expected: []TasklistItem{
+				{Text: "First task", Completed: false},
+				{Text: "Second task", Completed: true},
+			},
+		},
+		{
+			name: "real world example - scope challenge",
+			body: `## Tasks
+
+- [ ] Spike OAuth scope challenge escalation (in collaboration with Tyler for VS Code)
+- [ ] Reduce scopes initially requested to match VS Code's
+- [x] Build production ready scope challenge support in remote server
+- [ ] Release scope challenge
+- [ ] Work with VS Code team to establish if included by default has any other blockers`,
+			defaultOwner: "github",
+			defaultRepo:  "copilot-agent-services",
+			expected: []TasklistItem{
+				{Text: "Spike OAuth scope challenge escalation (in collaboration with Tyler for VS Code)", Completed: false},
+				{Text: "Reduce scopes initially requested to match VS Code's", Completed: false},
+				{Text: "Build production ready scope challenge support in remote server", Completed: true},
+				{Text: "Release scope challenge", Completed: false},
+				{Text: "Work with VS Code team to establish if included by default has any other blockers", Completed: false},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := extractTasklistItems(tc.body, tc.defaultOwner, tc.defaultRepo)
+
+			if tc.expected == nil {
+				assert.Nil(t, result)
+				return
+			}
+
+			require.Equal(t, len(tc.expected), len(result), "number of items should match")
+
+			for i, expected := range tc.expected {
+				assert.Equal(t, expected.Text, result[i].Text, "item %d text should match", i)
+				assert.Equal(t, expected.Completed, result[i].Completed, "item %d completed status should match", i)
+
+				if expected.LinkedRef != nil {
+					require.NotNil(t, result[i].LinkedRef, "item %d should have a linked reference", i)
+					assert.Equal(t, expected.LinkedRef.Owner, result[i].LinkedRef.Owner, "item %d linked owner should match", i)
+					assert.Equal(t, expected.LinkedRef.Repo, result[i].LinkedRef.Repo, "item %d linked repo should match", i)
+					assert.Equal(t, expected.LinkedRef.Number, result[i].LinkedRef.Number, "item %d linked number should match", i)
+				} else {
+					assert.Nil(t, result[i].LinkedRef, "item %d should not have a linked reference", i)
+				}
+			}
+		})
+	}
+}
+
+func TestFormatGraphOutputWithTasklist(t *testing.T) {
+	graph := &IssueGraph{
+		FocusOwner:  "owner",
+		FocusRepo:   "repo",
+		FocusNumber: 100,
+		Summary:     "Focus: #100 (batch) \"Batch with tasklist\"\nState: open\n",
+		Nodes: []GraphNode{
+			{
+				Owner:       "owner",
+				Repo:        "repo",
+				Number:      100,
+				NodeType:    NodeTypeBatch,
+				State:       "open",
+				Title:       "Batch with tasklist",
+				BodyPreview: "Tasks to complete",
+				Depth:       0,
+				IsFocus:     true,
+				TasklistItems: []TasklistItem{
+					{Text: "Task one", Completed: true},
+					{Text: "Task two", Completed: false},
+					{Text: "Task three with #123", Completed: false, LinkedRef: &IssueReference{Owner: "owner", Repo: "repo", Number: 123}},
+				},
+			},
+		},
+		Edges: []GraphEdge{},
+	}
+
+	result := formatGraphOutput(graph)
+
+	// Verify tasklist section is present
+	assert.Contains(t, result, "Tasklist (1/3 completed):")
+	assert.Contains(t, result, "[x] Task one")
+	assert.Contains(t, result, "[ ] Task two")
+	assert.Contains(t, result, "[ ] Task three with #123 → #123")
 }

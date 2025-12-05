@@ -26,6 +26,10 @@
       "repo": {
         "description": "Repository name",
         "type": "string"
+      },
+      "verbose": {
+        "description": "Include crawl statistics showing how the graph was traversed (nodes fetched, depth reached, repos accessed, etc.)",
+        "type": "boolean"
       }
     },
     "required": [

@@ -1,6 +1,7 @@
 package github
 
 import (
+	"container/heap"
 	"context"
 	"fmt"
 	"regexp"
@@ -19,10 +20,61 @@ import (
 
 const (
 	// MaxGraphDepth is the maximum depth to crawl for related issues
-	MaxGraphDepth = 3
+	MaxGraphDepth = 4
 	// MaxConcurrentFetches is the maximum number of concurrent API calls
 	MaxConcurrentFetches = 5
+	// RateLimitBackoff is the base backoff duration when rate limited
+	RateLimitBackoff = 100 * time.Millisecond
 )
+
+// Crawl priority levels (lower = higher priority)
+const (
+	PriorityParent   = 0 // Parents are highest priority (must traverse up for context)
+	PriorityChild    = 1 // Direct children are next (sub-issues, tasklist items)
+	PriorityCrossRef = 2 // Cross-references are lowest priority
+)
+
+// crawlItem represents an item to crawl with priority
+type crawlItem struct {
+	owner      string
+	repo       string
+	number     int
+	depth      int
+	priority   int  // Lower = higher priority
+	isAncestor bool // true if this is an ancestor of the focus
+	isCrossRef bool // true if reached via cross-reference (don't crawl further)
+}
+
+// crawlQueue implements heap.Interface for priority queue
+type crawlQueue []*crawlItem
+
+func (q crawlQueue) Len() int { return len(q) }
+
+func (q crawlQueue) Less(i, j int) bool {
+	// Lower priority number = higher priority
+	// If same priority, prefer lower depth (closer to focus)
+	if q[i].priority != q[j].priority {
+		return q[i].priority < q[j].priority
+	}
+	return q[i].depth < q[j].depth
+}
+
+func (q crawlQueue) Swap(i, j int) {
+	q[i], q[j] = q[j], q[i]
+}
+
+func (q *crawlQueue) Push(x any) {
+	*q = append(*q, x.(*crawlItem))
+}
+
+func (q *crawlQueue) Pop() any {
+	old := *q
+	n := len(old)
+	item := old[n-1]
+	old[n-1] = nil // avoid memory leak
+	*q = old[:n-1]
+	return item
+}
 
 // NodeType represents the type of a graph node
 type NodeType string
@@ -45,17 +97,18 @@ const (
 
 // GraphNode represents a node in the issue graph
 type GraphNode struct {
-	Owner        string   `json:"owner"`
-	Repo         string   `json:"repo"`
-	Number       int      `json:"number"`
-	NodeType     NodeType `json:"nodeType"`
-	State        string   `json:"state"`        // "open", "closed", or "merged" (for PRs)
-	StateReason  string   `json:"stateReason"`  // For issues: "completed", "not_planned", "duplicate", "reopened"; for PRs: empty or "merged"
-	StatusUpdate string   `json:"statusUpdate"` // For epics/batches: extracted status from body/comments (on-track, delayed, etc.)
-	Title        string   `json:"title"`
-	BodyPreview  string   `json:"bodyPreview"`
-	Depth        int      `json:"depth"`
-	IsFocus      bool     `json:"isFocus"`
+	Owner         string         `json:"owner"`
+	Repo          string         `json:"repo"`
+	Number        int            `json:"number"`
+	NodeType      NodeType       `json:"nodeType"`
+	State         string         `json:"state"`        // "open", "closed", or "merged" (for PRs)
+	StateReason   string         `json:"stateReason"`  // For issues: "completed", "not_planned", "duplicate", "reopened"; for PRs: empty or "merged"
+	StatusUpdate  string         `json:"statusUpdate"` // For epics/batches: extracted status from body/comments (on-track, delayed, etc.)
+	Title         string         `json:"title"`
+	BodyPreview   string         `json:"bodyPreview"`
+	TasklistItems []TasklistItem `json:"tasklistItems"` // Legacy tasklist items from issue body (for batches/epics)
+	Depth         int            `json:"depth"`
+	IsFocus       bool           `json:"isFocus"`
 }
 
 // GraphEdge represents an edge in the issue graph
@@ -78,6 +131,7 @@ type IssueGraph struct {
 	Edges        []GraphEdge   `json:"edges"`
 	Summary      string        `json:"summary"`
 	FocusProject []ProjectInfo `json:"focusProject,omitempty"` // Project info for the focus node
+	CrawlSummary string        `json:"crawlSummary,omitempty"` // Verbose crawl statistics (when verbose=true)
 }
 
 // ProjectInfo represents project name and status for an issue
@@ -104,6 +158,14 @@ type IssueReference struct {
 	IsParent bool // true if this appears to be a parent (e.g., "closes #X")
 }
 
+// TasklistItem represents a single item from a legacy markdown tasklist
+type TasklistItem struct {
+	Text       string          `json:"text"`       // The text content of the item (cleaned)
+	Completed  bool            `json:"completed"`  // Whether the checkbox is checked
+	LinkedRef  *IssueReference `json:"linkedRef"`  // Issue/PR reference if the item links to one
+	LinkedNode *GraphNode      `json:"linkedNode"` // Resolved node info if available (not serialized)
+}
+
 // Regular expressions for extracting issue references
 var (
 	// Matches #123 style references (same repo)
@@ -127,6 +189,9 @@ var (
 	inlineCodeRegex      = regexp.MustCompile("`[^`]+`")
 	// Status patterns for epic/batch tracking (case-insensitive)
 	statusPatterns = regexp.MustCompile(`(?i)(?:^|\W)(status|on[- ]?track|delayed|at[- ]?risk|blocked|behind|ahead|eta|target|due|deadline)[:\s]+([^\n]{3,80})`)
+	// Markdown tasklist checkbox pattern: - [ ] unchecked, - [x] or - [X] checked
+	// Also matches * [ ] and * [x] variants
+	tasklistCheckboxRegex = regexp.MustCompile(`(?m)^[\t ]*[-*][\t ]+\[([ xX])\][\t ]+(.+?)$`)
 )
 
 // stripCodeBlocks removes fenced code blocks and inline code from text
@@ -224,6 +289,52 @@ func extractIssueReferences(text, defaultOwner, defaultRepo string) []IssueRefer
 	}
 
 	return refs
+}
+
+// extractTasklistItems extracts markdown checkbox tasklist items from issue body text
+// This handles legacy tasklists (plain text checkboxes) that are not GitHub sub-issues
+func extractTasklistItems(body, defaultOwner, defaultRepo string) []TasklistItem {
+	if body == "" {
+		return nil
+	}
+
+	matches := tasklistCheckboxRegex.FindAllStringSubmatch(body, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+
+	items := make([]TasklistItem, 0, len(matches))
+	for _, match := range matches {
+		if len(match) < 3 {
+			continue
+		}
+
+		checkbox := match[1]
+		text := strings.TrimSpace(match[2])
+
+		// Skip empty items
+		if text == "" {
+			continue
+		}
+
+		completed := checkbox == "x" || checkbox == "X"
+
+		item := TasklistItem{
+			Text:      text,
+			Completed: completed,
+		}
+
+		// Check if this item references an issue/PR
+		refs := extractIssueReferences(text, defaultOwner, defaultRepo)
+		if len(refs) > 0 {
+			// Use the first reference found in the item
+			item.LinkedRef = &refs[0]
+		}
+
+		items = append(items, item)
+	}
+
+	return items
 }
 
 // sanitizeBodyForGraph sanitizes and truncates the body text for graph display
@@ -472,9 +583,26 @@ type graphCrawler struct {
 	inaccessibleRepo map[string]bool   // repos we don't have access to
 	mu               sync.RWMutex
 	sem              chan struct{} // semaphore for concurrency control
+	// Crawl statistics for verbose mode
+	verbose    bool
+	crawlStats crawlStatistics
 }
 
-func newGraphCrawler(client *github.Client, gqlClient *githubv4.Client, cache *lockdown.RepoAccessCache, flags FeatureFlags, owner, repo string, number int) *graphCrawler {
+// crawlStatistics tracks crawl metrics for verbose output
+type crawlStatistics struct {
+	nodesVisited        int
+	nodesFetched        int
+	subIssuesCrawled    int
+	tasklistRefsCrawled int
+	timelinesCrawled    int
+	crossRefsCrawled    int
+	depthReached        int
+	reposAccessed       map[string]bool
+	timedOut            bool
+	rateLimitHits       int
+}
+
+func newGraphCrawler(client *github.Client, gqlClient *githubv4.Client, cache *lockdown.RepoAccessCache, flags FeatureFlags, owner, repo string, number int, verbose bool) *graphCrawler {
 	return &graphCrawler{
 		client:           client,
 		gqlClient:        gqlClient,
@@ -492,6 +620,8 @@ func newGraphCrawler(client *github.Client, gqlClient *githubv4.Client, cache *l
 		parentMap:        make(map[string]string),
 		inaccessibleRepo: make(map[string]bool),
 		sem:              make(chan struct{}, MaxConcurrentFetches),
+		verbose:          verbose,
+		crawlStats:       crawlStatistics{reposAccessed: make(map[string]bool)},
 	}
 }
 
@@ -535,22 +665,43 @@ func (gc *graphCrawler) fetchNode(ctx context.Context, owner, repo string, numbe
 		return nil, nil, ctx.Err()
 	}
 
-	// Fetch issue/PR details
-	issue, resp, err := gc.client.Issues.Get(ctx, owner, repo, number)
-	if err != nil {
+	// Fetch issue/PR details with retry on rate limit
+	var issue *github.Issue
+	var resp *github.Response
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		issue, resp, err = gc.client.Issues.Get(ctx, owner, repo, number)
+		if err == nil {
+			break
+		}
 		if resp != nil {
 			_ = resp.Body.Close()
+			// Handle rate limiting with backoff
+			if resp.StatusCode == 429 || resp.StatusCode == 403 && resp.Rate.Remaining == 0 {
+				gc.crawlStats.rateLimitHits++
+				backoff := RateLimitBackoff * time.Duration(1<<attempt) // exponential backoff
+				select {
+				case <-time.After(backoff):
+					continue // retry
+				case <-ctx.Done():
+					return nil, nil, ctx.Err()
+				}
+			}
 			// Mark repo as inaccessible for 403 (forbidden) or 404 (not found for entire repo)
 			if resp.StatusCode == 403 || resp.StatusCode == 404 {
 				// Check if it's a repo-level 404 vs issue-level 404
 				// For simplicity, we'll just skip this node
-				if resp.StatusCode == 403 {
+				if resp.StatusCode == 403 && resp.Rate.Remaining > 0 {
 					gc.markRepoInaccessible(owner, repo)
 				}
 				return nil, nil, nil
 			}
 		}
-		return nil, nil, fmt.Errorf("failed to get issue %s: %w", key, err)
+		// For other errors, don't retry - just skip this node
+		return nil, nil, nil
+	}
+	if err != nil {
+		return nil, nil, nil // exhausted retries, skip node
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -623,23 +774,27 @@ func (gc *graphCrawler) fetchNode(ctx context.Context, owner, repo string, numbe
 
 	// Extract status update for epics and batches (lightweight check)
 	var statusUpdate string
+	var tasklistItems []TasklistItem
 	if nodeType == NodeTypeEpic || nodeType == NodeTypeBatch {
 		statusUpdate = gc.extractStatusFromComments(ctx, owner, repo, number, issue.GetBody(), issue.Milestone)
+		// Extract legacy tasklist items from issue body
+		tasklistItems = extractTasklistItems(issue.GetBody(), owner, repo)
 	}
 
 	// Create node
 	node := &GraphNode{
-		Owner:        owner,
-		Repo:         repo,
-		Number:       number,
-		NodeType:     nodeType,
-		State:        state,
-		StateReason:  stateReason,
-		StatusUpdate: statusUpdate,
-		Title:        issue.GetTitle(),
-		BodyPreview:  sanitizeBodyForGraph(issue.GetBody(), getBodyLinesForDepth(depth), getMaxLineLenForDepth(depth)),
-		Depth:        depth,
-		IsFocus:      strings.EqualFold(owner, gc.focusOwner) && strings.EqualFold(repo, gc.focusRepo) && number == gc.focusNumber,
+		Owner:         owner,
+		Repo:          repo,
+		Number:        number,
+		NodeType:      nodeType,
+		State:         state,
+		StateReason:   stateReason,
+		StatusUpdate:  statusUpdate,
+		Title:         issue.GetTitle(),
+		BodyPreview:   sanitizeBodyForGraph(issue.GetBody(), getBodyLinesForDepth(depth), getMaxLineLenForDepth(depth)),
+		TasklistItems: tasklistItems,
+		Depth:         depth,
+		IsFocus:       strings.EqualFold(owner, gc.focusOwner) && strings.EqualFold(repo, gc.focusRepo) && number == gc.focusNumber,
 	}
 
 	// Add to graph
@@ -650,69 +805,196 @@ func (gc *graphCrawler) fetchNode(ctx context.Context, owner, repo string, numbe
 	return node, issue, nil
 }
 
-// crawl performs a BFS crawl from the focus node
+// crawlResult represents the result of processing a single node
+type crawlResult struct {
+	key      string
+	node     *GraphNode
+	newItems []*crawlItem // New items discovered from this node
+	err      error
+}
+
+// crawl performs a concurrent BFS crawl from the focus node using a priority queue
 func (gc *graphCrawler) crawl(ctx context.Context) error {
-	type crawlItem struct {
-		owner  string
-		repo   string
-		number int
-		depth  int
+	// Initialize priority queue with focus node
+	queue := &crawlQueue{}
+	heap.Init(queue)
+	heap.Push(queue, &crawlItem{
+		owner:      gc.focusOwner,
+		repo:       gc.focusRepo,
+		number:     gc.focusNumber,
+		depth:      0,
+		priority:   PriorityChild,
+		isAncestor: false,
+	})
+
+	// Track what's been queued to avoid duplicates
+	queued := make(map[string]bool)
+	queued[nodeKey(gc.focusOwner, gc.focusRepo, gc.focusNumber)] = true
+
+	// Worker pool for concurrent fetching
+	const numWorkers = MaxConcurrentFetches
+	jobs := make(chan *crawlItem, numWorkers*2)
+	results := make(chan *crawlResult, numWorkers*2)
+
+	// Start workers
+	var wg sync.WaitGroup
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for item := range jobs {
+				result := gc.processNode(ctx, item)
+				select {
+				case results <- result:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
 	}
 
-	// Initialize with focus node
-	queue := []crawlItem{{gc.focusOwner, gc.focusRepo, gc.focusNumber, 0}}
+	// Close results channel when all workers are done
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
 
-	for len(queue) > 0 {
+	// Track in-flight jobs
+	inFlight := 0
+
+	// Main dispatch loop
+	for {
 		// Check context cancellation
 		select {
 		case <-ctx.Done():
+			gc.crawlStats.timedOut = true
+			close(jobs)
+			// Drain results to let workers exit
+			for range results { //nolint:revive // intentionally empty - draining channel
+			}
 			return ctx.Err()
 		default:
 		}
 
-		// Process current level
-		current := queue[0]
-		queue = queue[1:]
+		// If queue has items and we can dispatch more, do so
+		for queue.Len() > 0 && inFlight < numWorkers {
+			item := heap.Pop(queue).(*crawlItem)
+			key := nodeKey(item.owner, item.repo, item.number)
 
-		// Skip if beyond max depth (shouldn't happen, but defensive check)
-		if current.depth > MaxGraphDepth {
-			continue
+			// Skip if already visited
+			gc.mu.RLock()
+			_, visited := gc.nodes[key]
+			gc.mu.RUnlock()
+			if visited {
+				gc.crawlStats.nodesVisited++
+				continue
+			}
+
+			// Skip if repo is inaccessible
+			if gc.isRepoInaccessible(item.owner, item.repo) {
+				continue
+			}
+
+			// Skip if beyond max depth
+			if item.depth > MaxGraphDepth {
+				continue
+			}
+
+			// Track max depth reached
+			if item.depth > gc.crawlStats.depthReached {
+				gc.crawlStats.depthReached = item.depth
+			}
+
+			// Track repo access
+			gc.crawlStats.reposAccessed[repoKey(item.owner, item.repo)] = true
+
+			// Dispatch to worker
+			select {
+			case jobs <- item:
+				inFlight++
+			case <-ctx.Done():
+				gc.crawlStats.timedOut = true
+				close(jobs)
+				for range results { //nolint:revive // intentionally empty - draining channel
+				}
+				return ctx.Err()
+			}
 		}
 
-		// Check if repo is inaccessible
-		if gc.isRepoInaccessible(current.owner, current.repo) {
-			continue
+		// If nothing in queue and nothing in flight, we're done
+		if queue.Len() == 0 && inFlight == 0 {
+			close(jobs)
+			// Drain any remaining results
+			for range results { //nolint:revive // intentionally empty - draining channel
+			}
+			return nil
 		}
 
-		// Check if already visited
-		key := nodeKey(current.owner, current.repo, current.number)
-		gc.mu.RLock()
-		_, visited := gc.nodes[key]
-		gc.mu.RUnlock()
-		if visited {
-			continue
-		}
+		// Wait for a result
+		select {
+		case result, ok := <-results:
+			if !ok {
+				// Results channel closed, we're done
+				return nil
+			}
+			inFlight--
 
-		// Fetch the node and the raw issue data
-		node, issue, err := gc.fetchNode(ctx, current.owner, current.repo, current.number, current.depth)
-		if err != nil {
-			// Log error but continue crawling
-			continue
-		}
-		if node == nil {
-			continue
-		}
+			if result.err != nil || result.node == nil {
+				continue
+			}
+			gc.crawlStats.nodesFetched++
 
-		// Don't crawl further from nodes at max depth (they are leaf nodes for crawling)
-		// Also skip if we didn't get issue data (already visited node)
-		if current.depth == MaxGraphDepth || issue == nil {
-			continue
-		}
+			// Add discovered items to queue
+			for _, newItem := range result.newItems {
+				newKey := nodeKey(newItem.owner, newItem.repo, newItem.number)
+				if !queued[newKey] {
+					queued[newKey] = true
+					heap.Push(queue, newItem)
+				}
+			}
 
-		// For issues (not PRs), use GraphQL to fetch parent and sub-issues in one call
-		// This is more efficient than separate REST calls and handles cross-repo relationships
-		if !issue.IsPullRequest() && gc.gqlClient != nil {
-			if info := fetchIssueGraphQLInfo(ctx, gc.gqlClient, current.owner, current.repo, current.number); info != nil {
+		case <-ctx.Done():
+			gc.crawlStats.timedOut = true
+			close(jobs)
+			for range results { //nolint:revive // intentionally empty - draining channel
+			}
+			return ctx.Err()
+		}
+	}
+}
+
+// processNode fetches a single node and discovers related items to crawl
+func (gc *graphCrawler) processNode(ctx context.Context, item *crawlItem) *crawlResult {
+	result := &crawlResult{
+		key:      nodeKey(item.owner, item.repo, item.number),
+		newItems: []*crawlItem{},
+	}
+
+	// Fetch the node
+	node, issue, err := gc.fetchNode(ctx, item.owner, item.repo, item.number, item.depth)
+	if err != nil {
+		result.err = err
+		return result
+	}
+	result.node = node
+
+	if node == nil || issue == nil {
+		return result
+	}
+
+	// Don't discover more items from nodes at max depth
+	// Also stop crawling from cross-referenced nodes (one hop only)
+	if item.depth >= MaxGraphDepth || item.isCrossRef {
+		return result
+	}
+
+	key := result.key
+
+	// For issues (not PRs), fetch parent via GraphQL and sub-issues via REST
+	if !issue.IsPullRequest() {
+		// Fetch parent via GraphQL (lightweight query)
+		if gc.gqlClient != nil {
+			if info := fetchIssueGraphQLInfo(ctx, gc.gqlClient, item.owner, item.repo, item.number); info != nil {
 				// Process parent
 				if info.Parent != nil {
 					parentKey := nodeKey(info.Parent.Owner, info.Parent.Repo, info.Parent.Number)
@@ -720,9 +1002,9 @@ func (gc *graphCrawler) crawl(ctx context.Context) error {
 					gc.mu.Lock()
 					gc.parentMap[key] = parentKey
 					gc.edges = append(gc.edges, GraphEdge{
-						FromOwner:  current.owner,
-						FromRepo:   current.repo,
-						FromNumber: current.number,
+						FromOwner:  item.owner,
+						FromRepo:   item.repo,
+						FromNumber: item.number,
 						ToOwner:    info.Parent.Owner,
 						ToRepo:     info.Parent.Repo,
 						ToNumber:   info.Parent.Number,
@@ -730,85 +1012,175 @@ func (gc *graphCrawler) crawl(ctx context.Context) error {
 					})
 					gc.mu.Unlock()
 
-					// Add parent to queue for crawling
-					queue = append(queue, crawlItem{info.Parent.Owner, info.Parent.Repo, info.Parent.Number, current.depth})
+					// Parents get highest priority, same depth (they're at same level in hierarchy)
+					// Mark as ancestor so we don't crawl their other children
+					result.newItems = append(result.newItems, &crawlItem{
+						owner:      info.Parent.Owner,
+						repo:       info.Parent.Repo,
+						number:     info.Parent.Number,
+						depth:      item.depth, // Same depth - parents are at same level
+						priority:   PriorityParent,
+						isAncestor: true,
+					})
 				}
+			}
+		}
 
-				// Process sub-issues (can be cross-repo!)
-				for _, sub := range info.SubIssues {
-					subKey := nodeKey(sub.Owner, sub.Repo, sub.Number)
+		// Fetch sub-issues via REST API (handles cross-repo)
+		// Skip for ancestors - we don't want to crawl siblings of our path to focus
+		if !item.isAncestor {
+			subIssues, subResp, subErr := gc.client.SubIssue.ListByIssue(ctx, item.owner, item.repo, int64(item.number), &github.IssueListOptions{
+				ListOptions: github.ListOptions{PerPage: 50},
+			})
+			if subErr == nil {
+				for _, sub := range subIssues {
+					subOwner := item.owner
+					subRepo := item.repo
+					if sub.Repository != nil {
+						if sub.Repository.Owner != nil && sub.Repository.Owner.Login != nil {
+							subOwner = *sub.Repository.Owner.Login
+						}
+						if sub.Repository.Name != nil {
+							subRepo = *sub.Repository.Name
+						}
+					}
+					if sub.Number == nil {
+						continue
+					}
+					subNumber := *sub.Number
+					subKey := nodeKey(subOwner, subRepo, subNumber)
 
 					gc.mu.Lock()
 					gc.parentMap[subKey] = key
 					gc.edges = append(gc.edges, GraphEdge{
-						FromOwner:  current.owner,
-						FromRepo:   current.repo,
-						FromNumber: current.number,
-						ToOwner:    sub.Owner,
-						ToRepo:     sub.Repo,
-						ToNumber:   sub.Number,
+						FromOwner:  item.owner,
+						FromRepo:   item.repo,
+						FromNumber: item.number,
+						ToOwner:    subOwner,
+						ToRepo:     subRepo,
+						ToNumber:   subNumber,
 						Relation:   RelationTypeChild,
 					})
 					gc.mu.Unlock()
 
-					// Add to queue
-					queue = append(queue, crawlItem{sub.Owner, sub.Repo, sub.Number, current.depth + 1})
+					gc.crawlStats.subIssuesCrawled++
+					result.newItems = append(result.newItems, &crawlItem{
+						owner:      subOwner,
+						repo:       subRepo,
+						number:     subNumber,
+						depth:      item.depth + 1,
+						priority:   PriorityChild,
+						isAncestor: false,
+					})
 				}
 			}
+			if subResp != nil {
+				_ = subResp.Body.Close()
+			}
 		}
+	}
 
-		bodyRefs := extractIssueReferences(issue.GetBody(), current.owner, current.repo)
+	// Crawl legacy tasklist linked refs (markdown checkbox items that link to issues/PRs)
+	// Skip for ancestors - we don't want to crawl siblings of our path to focus
+	if !item.isAncestor && node.TasklistItems != nil {
+		for _, taskItem := range node.TasklistItems {
+			if taskItem.LinkedRef != nil {
+				ref := taskItem.LinkedRef
+				if gc.isRepoInaccessible(ref.Owner, ref.Repo) {
+					continue
+				}
 
-		// Process references and add edges
-		for _, ref := range bodyRefs {
-			// Skip if repo is known to be inaccessible
-			if gc.isRepoInaccessible(ref.Owner, ref.Repo) {
-				continue
-			}
+				refKey := nodeKey(ref.Owner, ref.Repo, ref.Number)
+				if refKey == key {
+					continue
+				}
 
-			refKey := nodeKey(ref.Owner, ref.Repo, ref.Number)
+				gc.mu.RLock()
+				_, alreadyVisited := gc.nodes[refKey]
+				gc.mu.RUnlock()
+				if alreadyVisited {
+					continue
+				}
 
-			// Skip self-references
-			if refKey == key {
-				continue
-			}
-
-			// Determine relationship
-			relType := RelationTypeRelated
-			if ref.IsParent {
-				// This node closes ref, so ref is the parent
-				relType = RelationTypeParent
 				gc.mu.Lock()
-				gc.parentMap[key] = refKey
+				gc.parentMap[refKey] = key
+				gc.edges = append(gc.edges, GraphEdge{
+					FromOwner:  item.owner,
+					FromRepo:   item.repo,
+					FromNumber: item.number,
+					ToOwner:    ref.Owner,
+					ToRepo:     ref.Repo,
+					ToNumber:   ref.Number,
+					Relation:   RelationTypeChild,
+				})
 				gc.mu.Unlock()
+
+				gc.crawlStats.tasklistRefsCrawled++
+				result.newItems = append(result.newItems, &crawlItem{
+					owner:      ref.Owner,
+					repo:       ref.Repo,
+					number:     ref.Number,
+					depth:      item.depth + 1,
+					priority:   PriorityChild,
+					isAncestor: false,
+				})
 			}
+		}
+	}
 
-			// Add edge
-			gc.mu.Lock()
-			gc.edges = append(gc.edges, GraphEdge{
-				FromOwner:  current.owner,
-				FromRepo:   current.repo,
-				FromNumber: current.number,
-				ToOwner:    ref.Owner,
-				ToRepo:     ref.Repo,
-				ToNumber:   ref.Number,
-				Relation:   relType,
-			})
-			gc.mu.Unlock()
-
-			// Add to queue for further crawling
-			queue = append(queue, crawlItem{ref.Owner, ref.Repo, ref.Number, current.depth + 1})
+	// Process body references
+	bodyRefs := extractIssueReferences(issue.GetBody(), item.owner, item.repo)
+	for _, ref := range bodyRefs {
+		if gc.isRepoInaccessible(ref.Owner, ref.Repo) {
+			continue
 		}
 
-		// Note: Sub-issues are now fetched via GraphQL above (more efficient, handles cross-repo)
+		refKey := nodeKey(ref.Owner, ref.Repo, ref.Number)
+		if refKey == key {
+			continue
+		}
 
-		// Get cross-referenced issues from timeline
-		timelineEvents, timelineResp, err := gc.client.Issues.ListIssueTimeline(ctx, current.owner, current.repo, current.number, &github.ListOptions{
+		relType := RelationTypeRelated
+		priority := PriorityCrossRef
+		if ref.IsParent {
+			relType = RelationTypeParent
+			priority = PriorityParent
+			gc.mu.Lock()
+			gc.parentMap[key] = refKey
+			gc.mu.Unlock()
+		}
+
+		gc.mu.Lock()
+		gc.edges = append(gc.edges, GraphEdge{
+			FromOwner:  item.owner,
+			FromRepo:   item.repo,
+			FromNumber: item.number,
+			ToOwner:    ref.Owner,
+			ToRepo:     ref.Repo,
+			ToNumber:   ref.Number,
+			Relation:   relType,
+		})
+		gc.mu.Unlock()
+
+		result.newItems = append(result.newItems, &crawlItem{
+			owner:      ref.Owner,
+			repo:       ref.Repo,
+			number:     ref.Number,
+			depth:      item.depth + 1,
+			priority:   priority,
+			isAncestor: false,
+			isCrossRef: !ref.IsParent, // Only parent refs (closes/fixes) continue crawling
+		})
+	}
+
+	// Get cross-referenced issues from timeline - only for focus node to avoid timeout
+	if node.IsFocus {
+		timelineEvents, timelineResp, err := gc.client.Issues.ListIssueTimeline(ctx, item.owner, item.repo, item.number, &github.ListOptions{
 			PerPage: 100,
 		})
 		if err == nil {
+			gc.crawlStats.timelinesCrawled++
 			for _, event := range timelineEvents {
-				// Only process cross-referenced events
 				if event.GetEvent() != "cross-referenced" {
 					continue
 				}
@@ -823,10 +1195,8 @@ func (gc *graphCrawler) crawl(ctx context.Context) error {
 					continue
 				}
 
-				// Parse repository info from the source issue URL
-				refOwner, refRepo := current.owner, current.repo
+				refOwner, refRepo := item.owner, item.repo
 				if sourceIssue.RepositoryURL != nil {
-					// URL format: https://api.github.com/repos/{owner}/{repo}
 					parts := strings.Split(*sourceIssue.RepositoryURL, "/")
 					if len(parts) >= 2 {
 						refOwner = parts[len(parts)-2]
@@ -834,34 +1204,38 @@ func (gc *graphCrawler) crawl(ctx context.Context) error {
 					}
 				}
 
-				// Skip if repo is known to be inaccessible
 				if gc.isRepoInaccessible(refOwner, refRepo) {
 					continue
 				}
 
 				refNumber := *sourceIssue.Number
 				refKey := nodeKey(refOwner, refRepo, refNumber)
-
-				// Skip self-references
 				if refKey == key {
 					continue
 				}
 
-				// Add edge (the source issue mentioned this issue)
 				gc.mu.Lock()
 				gc.edges = append(gc.edges, GraphEdge{
 					FromOwner:  refOwner,
 					FromRepo:   refRepo,
 					FromNumber: refNumber,
-					ToOwner:    current.owner,
-					ToRepo:     current.repo,
-					ToNumber:   current.number,
+					ToOwner:    item.owner,
+					ToRepo:     item.repo,
+					ToNumber:   item.number,
 					Relation:   RelationTypeRelated,
 				})
 				gc.mu.Unlock()
 
-				// Add to queue for further crawling
-				queue = append(queue, crawlItem{refOwner, refRepo, refNumber, current.depth + 1})
+				gc.crawlStats.crossRefsCrawled++
+				result.newItems = append(result.newItems, &crawlItem{
+					owner:      refOwner,
+					repo:       refRepo,
+					number:     refNumber,
+					depth:      item.depth + 1,
+					priority:   PriorityCrossRef,
+					isAncestor: false,
+					isCrossRef: true, // Cross-refs only get one hop
+				})
 			}
 		}
 		if timelineResp != nil {
@@ -869,7 +1243,7 @@ func (gc *graphCrawler) crawl(ctx context.Context) error {
 		}
 	}
 
-	return nil
+	return result
 }
 
 // edgeKey creates a unique key for an edge to enable deduplication
@@ -1073,7 +1447,7 @@ func (gc *graphCrawler) buildGraph() *IssueGraph {
 		}
 	}
 
-	return &IssueGraph{
+	graph := &IssueGraph{
 		FocusOwner:  gc.focusOwner,
 		FocusRepo:   gc.focusRepo,
 		FocusNumber: gc.focusNumber,
@@ -1081,6 +1455,38 @@ func (gc *graphCrawler) buildGraph() *IssueGraph {
 		Edges:       uniqueEdges,
 		Summary:     gc.generateSummary(),
 	}
+
+	// Add crawl summary if verbose mode
+	if gc.verbose {
+		graph.CrawlSummary = gc.formatCrawlStats()
+	}
+
+	return graph
+}
+
+// formatCrawlStats formats crawl statistics for verbose output
+func (gc *graphCrawler) formatCrawlStats() string {
+	var sb strings.Builder
+	sb.WriteString("CRAWL STATISTICS\n")
+	sb.WriteString("================\n")
+	fmt.Fprintf(&sb, "Nodes fetched: %d\n", gc.crawlStats.nodesFetched)
+	fmt.Fprintf(&sb, "Nodes skipped (already visited): %d\n", gc.crawlStats.nodesVisited)
+	fmt.Fprintf(&sb, "Max depth reached: %d (limit: %d)\n", gc.crawlStats.depthReached, MaxGraphDepth)
+	fmt.Fprintf(&sb, "Sub-issues crawled: %d\n", gc.crawlStats.subIssuesCrawled)
+	fmt.Fprintf(&sb, "Tasklist refs crawled: %d\n", gc.crawlStats.tasklistRefsCrawled)
+	fmt.Fprintf(&sb, "Timelines checked: %d\n", gc.crawlStats.timelinesCrawled)
+	fmt.Fprintf(&sb, "Cross-refs found: %d\n", gc.crawlStats.crossRefsCrawled)
+	fmt.Fprintf(&sb, "Repos accessed: %d\n", len(gc.crawlStats.reposAccessed))
+	for repo := range gc.crawlStats.reposAccessed {
+		fmt.Fprintf(&sb, "  - %s\n", repo)
+	}
+	if gc.crawlStats.rateLimitHits > 0 {
+		fmt.Fprintf(&sb, "⚠️  Rate limit backoffs: %d\n", gc.crawlStats.rateLimitHits)
+	}
+	if gc.crawlStats.timedOut {
+		sb.WriteString("⚠️  Crawl timed out - results may be incomplete\n")
+	}
+	return sb.String()
 }
 
 // writeFocusShiftInfo writes information about focus shifting to the summary
@@ -1291,6 +1697,34 @@ func formatGraphOutput(graph *IssueGraph) string {
 		if node.StatusUpdate != "" {
 			sb.WriteString(fmt.Sprintf("  Status: %s\n", node.StatusUpdate))
 		}
+		// Display tasklist items for batch/epic issues
+		if len(node.TasklistItems) > 0 {
+			completedCount := 0
+			for _, item := range node.TasklistItems {
+				if item.Completed {
+					completedCount++
+				}
+			}
+			sb.WriteString(fmt.Sprintf("  Tasklist (%d/%d completed):\n", completedCount, len(node.TasklistItems)))
+			for _, item := range node.TasklistItems {
+				checkbox := "[ ]"
+				if item.Completed {
+					checkbox = "[x]"
+				}
+				// Format linked reference if present
+				linkedInfo := ""
+				if item.LinkedRef != nil {
+					linkedRef := formatNodeRef(item.LinkedRef.Owner, item.LinkedRef.Repo, item.LinkedRef.Number, graph.FocusOwner, graph.FocusRepo)
+					linkedInfo = fmt.Sprintf(" → %s", linkedRef)
+				}
+				// Truncate long text
+				text := item.Text
+				if len(text) > 80 {
+					text = text[:77] + "..."
+				}
+				sb.WriteString(fmt.Sprintf("    %s %s%s\n", checkbox, text, linkedInfo))
+			}
+		}
 	}
 
 	// Edges section - parent/child relationships (sub-issues, closes/fixes)
@@ -1335,11 +1769,35 @@ func formatGraphOutput(graph *IssueGraph) string {
 	if len(relatedEdges) == 0 {
 		sb.WriteString("(none)\n")
 	} else {
+		// Build a lookup map for nodes
+		nodeMap := make(map[string]*GraphNode)
+		for i := range graph.Nodes {
+			key := nodeKey(graph.Nodes[i].Owner, graph.Nodes[i].Repo, graph.Nodes[i].Number)
+			nodeMap[key] = &graph.Nodes[i]
+		}
+
 		for _, edge := range relatedEdges {
 			fromRef := formatNodeRef(edge.FromOwner, edge.FromRepo, edge.FromNumber, graph.FocusOwner, graph.FocusRepo)
 			toRef := formatNodeRef(edge.ToOwner, edge.ToRepo, edge.ToNumber, graph.FocusOwner, graph.FocusRepo)
-			sb.WriteString(fmt.Sprintf("%s ↔ %s\n", fromRef, toRef))
+
+			// Check if from node is a PR and include its status
+			fromKey := nodeKey(edge.FromOwner, edge.FromRepo, edge.FromNumber)
+			if fromNode, ok := nodeMap[fromKey]; ok && fromNode.NodeType == NodeTypePR {
+				status := fromNode.State
+				if fromNode.StateReason != "" && fromNode.StateReason != fromNode.State {
+					status = fromNode.StateReason
+				}
+				sb.WriteString(fmt.Sprintf("%s (%s) ↔ %s\n", fromRef, strings.ToUpper(status), toRef))
+			} else {
+				sb.WriteString(fmt.Sprintf("%s ↔ %s\n", fromRef, toRef))
+			}
 		}
+	}
+
+	// Crawl summary (verbose mode only)
+	if graph.CrawlSummary != "" {
+		sb.WriteString("\n")
+		sb.WriteString(graph.CrawlSummary)
 	}
 
 	return sb.String()
@@ -1352,22 +1810,19 @@ type IssueRef struct {
 	Number int
 }
 
-// IssueGraphQLInfo contains parent, sub-issues, and project info fetched via GraphQL
-// This consolidates multiple API calls into a single efficient query
+// IssueGraphQLInfo contains parent issue info fetched via GraphQL
 type IssueGraphQLInfo struct {
-	Parent    *IssueRef     // Parent issue (if any)
-	SubIssues []IssueRef    // Sub-issues (can be cross-repo)
-	Projects  []ProjectInfo // Project items with status
+	Parent *IssueRef // Parent issue (if any)
 }
 
-// fetchIssueGraphQLInfo fetches parent, sub-issues, and project info in a single GraphQL query
-// This is more efficient than separate REST/GraphQL calls and handles cross-repo sub-issues
+// fetchIssueGraphQLInfo fetches parent issue info via GraphQL
+// This is lightweight - only fetches parent, not sub-issues or projects
 func fetchIssueGraphQLInfo(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, number int) *IssueGraphQLInfo {
 	if gqlClient == nil {
 		return nil
 	}
 
-	// Combined GraphQL query for parent, sub-issues, and projects
+	// Lightweight GraphQL query for parent only
 	var query struct {
 		Repository struct {
 			Issue struct {
@@ -1381,19 +1836,49 @@ func fetchIssueGraphQLInfo(ctx context.Context, gqlClient *githubv4.Client, owne
 						Name githubv4.String
 					}
 				}
-				// Sub-issues (can be cross-repo)
-				SubIssues struct {
-					Nodes []struct {
-						Number     githubv4.Int
-						Repository struct {
-							Owner struct {
-								Login githubv4.String
-							}
-							Name githubv4.String
-						}
-					}
-				} `graphql:"subIssues(first: 50)"`
-				// Project items with status
+			} `graphql:"issue(number: $number)"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
+
+	vars := map[string]interface{}{
+		"owner":  githubv4.String(owner),
+		"repo":   githubv4.String(repo),
+		"number": githubv4.Int(int32(number)), //nolint:gosec // issue numbers are always small positive integers
+	}
+
+	// Execute query with a short timeout
+	queryCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	if err := gqlClient.Query(queryCtx, &query, vars); err != nil {
+		// Silently ignore errors - this info is optional
+		return nil
+	}
+
+	result := &IssueGraphQLInfo{}
+
+	// Extract parent
+	if query.Repository.Issue.Parent != nil {
+		result.Parent = &IssueRef{
+			Owner:  string(query.Repository.Issue.Parent.Repository.Owner.Login),
+			Repo:   string(query.Repository.Issue.Parent.Repository.Name),
+			Number: int(query.Repository.Issue.Parent.Number),
+		}
+	}
+
+	return result
+}
+
+// fetchProjectInfo fetches project info for an issue via GraphQL
+// This is a separate, heavier query - only use for focus node
+func fetchProjectInfo(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, number int) []ProjectInfo {
+	if gqlClient == nil {
+		return nil
+	}
+
+	var query struct {
+		Repository struct {
+			Issue struct {
 				ProjectItems struct {
 					Nodes []struct {
 						Project struct {
@@ -1416,49 +1901,27 @@ func fetchIssueGraphQLInfo(ctx context.Context, gqlClient *githubv4.Client, owne
 		"number": githubv4.Int(int32(number)), //nolint:gosec // issue numbers are always small positive integers
 	}
 
-	// Execute query with a short timeout
 	queryCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	if err := gqlClient.Query(queryCtx, &query, vars); err != nil {
-		// Silently ignore errors - this info is optional
 		return nil
 	}
 
-	result := &IssueGraphQLInfo{}
-
-	// Extract parent
-	if query.Repository.Issue.Parent != nil {
-		result.Parent = &IssueRef{
-			Owner:  string(query.Repository.Issue.Parent.Repository.Owner.Login),
-			Repo:   string(query.Repository.Issue.Parent.Repository.Name),
-			Number: int(query.Repository.Issue.Parent.Number),
-		}
-	}
-
-	// Extract sub-issues (with their repos - can be cross-repo!)
-	for _, sub := range query.Repository.Issue.SubIssues.Nodes {
-		result.SubIssues = append(result.SubIssues, IssueRef{
-			Owner:  string(sub.Repository.Owner.Login),
-			Repo:   string(sub.Repository.Name),
-			Number: int(sub.Number),
-		})
-	}
-
-	// Extract projects
+	var projects []ProjectInfo
 	for _, node := range query.Repository.Issue.ProjectItems.Nodes {
 		title := string(node.Project.Title)
 		if title == "" {
 			continue
 		}
 		status := string(node.FieldValueByName.SingleSelectValue.Name)
-		result.Projects = append(result.Projects, ProjectInfo{
+		projects = append(projects, ProjectInfo{
 			ProjectTitle: title,
 			Status:       status,
 		})
 	}
 
-	return result
+	return projects
 }
 
 // fetchPRProjects fetches project info for a PR (PRs don't have parent/sub-issues)
@@ -1560,6 +2023,9 @@ Use focus="epic" to automatically find and focus on the parent epic of any issue
 				mcp.Description("Which node type to focus on: 'provided' (default) uses the specified issue/PR, 'epic' shifts focus to the nearest epic in the hierarchy, 'batch' shifts focus to the nearest batch/parent issue"),
 				mcp.Enum("provided", "epic", "batch"),
 			),
+			mcp.WithBoolean("verbose",
+				mcp.Description("Include crawl statistics showing how the graph was traversed (nodes fetched, depth reached, repos accessed, etc.)"),
+			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			owner, err := RequiredParam[string](request, "owner")
@@ -1581,6 +2047,10 @@ Use focus="epic" to automatically find and focus on the parent epic of any issue
 			if focusType == "" {
 				focusType = "provided"
 			}
+			verbose, err := OptionalParam[bool](request, "verbose")
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
 
 			client, err := getClient(ctx)
 			if err != nil {
@@ -1594,11 +2064,11 @@ Use focus="epic" to automatically find and focus on the parent epic of any issue
 			}
 
 			// Add timeout to prevent runaway crawling
-			crawlCtx, cancel := context.WithTimeout(ctx, 7*time.Second)
+			crawlCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			defer cancel()
 
 			// Create crawler and build graph
-			crawler := newGraphCrawler(client, gqlClient, cache, flags, owner, repo, issueNumber)
+			crawler := newGraphCrawler(client, gqlClient, cache, flags, owner, repo, issueNumber, verbose)
 			if err := crawler.crawl(crawlCtx); err != nil {
 				// If timeout, continue with partial results; otherwise fail
 				if crawlCtx.Err() != context.DeadlineExceeded {
@@ -1628,14 +2098,11 @@ Use focus="epic" to automatically find and focus on the parent epic of any issue
 				}
 				crawler.mu.RUnlock()
 
-				// Use appropriate fetch based on type
+				// Fetch project info for focus node (separate query, only for focus)
 				if isPR {
 					graph.FocusProject = fetchPRProjects(ctx, gqlClient, graph.FocusOwner, graph.FocusRepo, graph.FocusNumber)
 				} else {
-					// For issues, we already fetched this during crawl - get from combined query
-					if info := fetchIssueGraphQLInfo(ctx, gqlClient, graph.FocusOwner, graph.FocusRepo, graph.FocusNumber); info != nil {
-						graph.FocusProject = info.Projects
-					}
+					graph.FocusProject = fetchProjectInfo(ctx, gqlClient, graph.FocusOwner, graph.FocusRepo, graph.FocusNumber)
 				}
 			}
 
