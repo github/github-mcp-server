@@ -3293,6 +3293,118 @@ func Test_UnstarRepository(t *testing.T) {
 	}
 }
 
+func Test_AddRepositoryCollaborator(t *testing.T) {
+	// Verify tool definition once
+	mockClient := github.NewClient(nil)
+	tool, _ := AddRepositoryCollaborator(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+
+	assert.Equal(t, "add_repository_collaborator", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "username")
+	assert.Contains(t, schema.Properties, "permission")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "username"})
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedErrMsg string
+		expectedText   string
+	}{
+		{
+			name: "invitation created with permission",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PutReposCollaboratorsByOwnerByRepoByUsername,
+					expect(t, expectations{
+						path: "/repos/octo/test-repo/collaborators/new-user",
+						requestBody: map[string]any{
+							"permission": "maintain",
+						},
+					}).andThen(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusCreated)
+						_, _ = w.Write([]byte(`{"id": 42, "permissions": "maintain"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":      "octo",
+				"repo":       "test-repo",
+				"username":   "new-user",
+				"permission": "maintain",
+			},
+			expectedText: "Invitation sent to new-user",
+		},
+		{
+			name: "already collaborator",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PutReposCollaboratorsByOwnerByRepoByUsername,
+					expectPath(t, "/repos/octo/test-repo/collaborators/existing").andThen(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNoContent)
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":    "octo",
+				"repo":     "test-repo",
+				"username": "existing",
+			},
+			expectedText: "already has access",
+		},
+		{
+			name: "API error",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PutReposCollaboratorsByOwnerByRepoByUsername,
+					mockResponse(t, http.StatusForbidden, map[string]string{"message": "Forbidden"}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":      "octo",
+				"repo":       "test-repo",
+				"username":   "blocked-user",
+				"permission": "push",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to add collaborator",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := github.NewClient(tc.mockedClient)
+			_, handler := AddRepositoryCollaborator(stubGetClientFn(client), translations.NullTranslationHelper)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+
+			if tc.expectError {
+				require.NotNil(t, result)
+				textResult := getTextResult(t, result)
+				assert.Contains(t, textResult.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			textContent := getTextResult(t, result)
+			assert.Contains(t, textContent.Text, tc.expectedText)
+			if perm, ok := tc.requestArgs["permission"]; ok && perm != "" {
+				assert.Contains(t, textContent.Text, perm.(string))
+			}
+		})
+	}
+}
+
 func Test_RepositoriesGetRepositoryTree(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)

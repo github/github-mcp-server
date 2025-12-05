@@ -1,0 +1,40 @@
+{
+  "annotations": {
+    "title": "Add repository collaborator"
+  },
+  "description": "Add a collaborator to a GitHub repository and set their permission level",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "owner",
+      "repo",
+      "username"
+    ],
+    "properties": {
+      "owner": {
+        "type": "string",
+        "description": "Repository owner"
+      },
+      "permission": {
+        "type": "string",
+        "description": "Permission level to grant. Defaults to 'push' when not specified.",
+        "enum": [
+          "pull",
+          "triage",
+          "push",
+          "maintain",
+          "admin"
+        ]
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      },
+      "username": {
+        "type": "string",
+        "description": "Username of the collaborator to add"
+      }
+    }
+  },
+  "name": "add_repository_collaborator"
+}
