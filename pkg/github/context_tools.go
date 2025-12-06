@@ -43,6 +43,9 @@ func GetMe(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Too
 				Title:        t("TOOL_GET_ME_USER_TITLE", "Get my user profile"),
 				ReadOnlyHint: true,
 			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+			},
 		},
 		mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := getClient(ctx)
