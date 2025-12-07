@@ -63,7 +63,26 @@ Before creating a pull request, search for pull request templates in the reposit
 	case "issues":
 		return `## Issues
 
-Check 'list_issue_types' first for organizations to use proper issue types. Use 'search_issues' before creating new issues to avoid duplicates. Always set 'state_reason' when closing issues.`
+When users ask about issue/PR status, progress, or project updates, use 'issue_graph' first - it returns the full work hierarchy (epics, parent issues, tasks, PRs) in one call.
+
+'issue_graph' is ideal when users ask:
+- "update on..." / "status of..." / "progress on..."
+- "what's happening with..." / "how is... going"
+- "project status" / "overall progress"
+- Questions about epics, parent issues, sub-issues, or blocking relationships
+
+Example: "give me an update on issue #123" → Call issue_graph(owner, repo, 123) first to see the full context.
+
+Use focus="epic" to find and center on the parent epic of any issue.
+
+After understanding the hierarchy from 'issue_graph':
+- Use 'issue_read' for full details of a specific issue (body, comments, labels)
+- Use 'search_issues' to find related issues not captured in the graph
+
+For creating/modifying issues:
+- Check 'list_issue_types' first for organizations to use proper issue types
+- Use 'search_issues' before creating new issues to avoid duplicates
+- Always set 'state_reason' when closing issues`
 	case "discussions":
 		return `## Discussions
 		
