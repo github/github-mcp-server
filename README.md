@@ -95,11 +95,13 @@ See [Remote Server Documentation](docs/remote-server.md) for full details on rem
 
 When no toolsets are specified, [default toolsets](#default-toolset) are used.
 
-#### Enterprise Cloud with data residency (ghe.com)
+#### GitHub Enterprise
+
+##### GitHub Enterprise Cloud with data residency (ghe.com)
 
 GitHub Enterprise Cloud can also make use of the remote server.
 
-Example for `https://octocorp.ghe.com`:
+Example for `https://octocorp.ghe.com` with GitHub PAT token:
 ```
 {
     ...
@@ -113,6 +115,10 @@ Example for `https://octocorp.ghe.com`:
     ...
 }
 ```
+
+> **Note:** When using OAuth with GitHub Enterprise with VS Code and GitHub Copilot, you also need to configure your VS Code settings to point to your GitHub Enterprise instance - see [Authenticate from VS Code](https://docs.github.com/en/enterprise-cloud@latest/copilot/how-tos/configure-personal-settings/authenticate-to-ghecom)
+
+##### GitHub Enterprise Server
 
 GitHub Enterprise Server does not support remote server hosting. Please refer to [GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)](#github-enterprise-server-and-enterprise-cloud-with-data-residency-ghecom) from the local server configuration.
 
@@ -719,8 +725,8 @@ The following sets of tools are available:
 
 - **issue_read** - Get issue details
   - `issue_number`: The number of the issue (number, required)
-  - `method`: The read operation to perform on a single issue. 
-Options are: 
+  - `method`: The read operation to perform on a single issue.
+Options are:
 1. get - Get details of a specific issue.
 2. get_comments - Get issue comments.
 3. get_sub_issues - Get sub-issues of the issue.
@@ -738,8 +744,8 @@ Options are:
   - `issue_number`: Issue number to update (number, optional)
   - `labels`: Labels to apply to this issue (string[], optional)
   - `method`: Write operation to perform on a single issue.
-Options are: 
-- 'create' - creates a new issue. 
+Options are:
+- 'create' - creates a new issue.
 - 'update' - updates an existing issue.
  (string, required)
   - `milestone`: Milestone number (number, optional)
@@ -819,7 +825,7 @@ Options are:
 <summary>Notifications</summary>
 
 - **dismiss_notification** - Dismiss notification
-  - `state`: The new state of the notification (read/done) (string, optional)
+  - `state`: The new state of the notification (read/done) (string, required)
   - `threadID`: The ID of the notification thread (string, required)
 
 - **get_notification_details** - Get notification details
