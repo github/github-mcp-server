@@ -24,6 +24,162 @@ const (
 	milestoneStateClosed = "closed"
 )
 
+// SearchMilestones lists milestones and filters them by a text query across title and description.
+func SearchMilestones(getClient GetClientFn, cache *lockdown.RepoAccessCache, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	tool := mcp.Tool{
+		Name:        "search_milestones",
+		Description: t("TOOL_SEARCH_MILESTONES_DESCRIPTION", "Search milestones for a repository."),
+		Annotations: &mcp.ToolAnnotations{
+			Title:        t("TOOL_SEARCH_MILESTONES_TITLE", "Search repository milestones."),
+			ReadOnlyHint: true,
+		},
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"owner": {
+					Type:        "string",
+					Description: "Repository owner (username or organization name)",
+				},
+				"repo": {
+					Type:        "string",
+					Description: "Repository name",
+				},
+				"query": {
+					Type:        "string",
+					Description: "Text to search for in milestone title or description",
+				},
+				"state": {
+					Type:        "string",
+					Description: "Filter by state: open, closed, or all (default: open)",
+					Enum:        []any{milestoneStateOpen, milestoneStateClosed, "all"},
+				},
+				"per_page": {
+					Type:        "number",
+					Description: "Results per page (max 100)",
+				},
+				"page": {
+					Type:        "number",
+					Description: "Page number (1-indexed)",
+				},
+			},
+			Required: []string{"owner", "repo", "query"},
+		},
+	}
+
+	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		owner, err := RequiredParam[string](args, "owner")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		repo, err := RequiredParam[string](args, "repo")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		query, err := RequiredParam[string](args, "query")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+
+		state, err := OptionalParam[string](args, "state")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		if state == "" {
+			state = milestoneStateOpen
+		}
+		if state != milestoneStateOpen && state != milestoneStateClosed && state != "all" {
+			return utils.NewToolResultError("state must be 'open', 'closed', or 'all'"), nil, nil
+		}
+
+		perPage, err := OptionalIntParam(args, "per_page")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		page, err := OptionalIntParam(args, "page")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+
+		client, err := getClient(ctx)
+		if err != nil {
+			return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+		}
+
+		opts := &github.MilestoneListOptions{
+			State: state,
+		}
+		if perPage > 0 {
+			opts.ListOptions.PerPage = perPage
+		}
+		if page > 0 {
+			opts.ListOptions.Page = page
+		}
+
+		milestones, resp, err := client.Issues.ListMilestones(ctx, owner, repo, opts)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				"failed to search milestones",
+				resp,
+				err,
+			), nil, nil
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusOK {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			}
+			return utils.NewToolResultError(fmt.Sprintf("failed to search milestones: %s", string(body))), nil, nil
+		}
+
+		if flags.LockdownMode {
+			if cache == nil {
+				return nil, nil, fmt.Errorf("lockdown cache is not configured")
+			}
+			filtered := make([]*github.Milestone, 0, len(milestones))
+			for _, milestone := range milestones {
+				creator := milestone.Creator
+				if creator == nil || creator.GetLogin() == "" {
+					filtered = append(filtered, milestone)
+					continue
+				}
+				isSafeContent, err := cache.IsSafeContent(ctx, creator.GetLogin(), owner, repo)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil, nil
+				}
+				if isSafeContent {
+					filtered = append(filtered, milestone)
+				}
+			}
+			milestones = filtered
+		}
+
+		lowerQuery := strings.ToLower(query)
+		result := make([]map[string]any, 0, len(milestones))
+		for _, m := range milestones {
+			title := strings.ToLower(m.GetTitle())
+			description := strings.ToLower(m.GetDescription())
+			if strings.Contains(title, lowerQuery) || strings.Contains(description, lowerQuery) {
+				result = append(result, milestoneSummary(m))
+			}
+		}
+
+		payload := map[string]any{
+			"milestones": result,
+			"count":      len(result),
+		}
+		out, err := json.Marshal(payload)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to marshal milestones: %w", err)
+		}
+
+		return utils.NewToolResultText(string(out)), nil, nil
+	})
+
+	return tool, handler
+}
+
 // ListMilestones lists milestones for a repository.
 func ListMilestones(getClient GetClientFn, cache *lockdown.RepoAccessCache, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 	tool := mcp.Tool{

@@ -1175,6 +1175,14 @@ Possible options:
   - `query`: Search query using GitHub's powerful code search syntax. Examples: 'content:Skill language:Java org:github', 'NOT is:archived language:Python OR language:go', 'repo:github/github-mcp-server'. Supports exact matching, language filters, path filters, and more. (string, required)
   - `sort`: Sort field ('indexed' only) (string, optional)
 
+- **search_milestones** - Search repository milestones.
+  - `owner`: Repository owner (username or organization name) (string, required)
+  - `page`: Page number (1-indexed) (number, optional)
+  - `per_page`: Results per page (max 100) (number, optional)
+  - `query`: Text to search for in milestone title or description (string, required)
+  - `repo`: Repository name (string, required)
+  - `state`: Filter by state: open, closed, or all (default: open) (string, optional)
+
 - **search_repositories** - Search repositories
   - `minimal_output`: Return minimal repository information (default: true). When false, returns full GitHub API repository objects. (boolean, optional)
   - `order`: Sort order (string, optional)

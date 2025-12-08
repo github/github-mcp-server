@@ -178,6 +178,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(ListReleases(getClient, t)),
 			toolsets.NewServerTool(GetLatestRelease(getClient, t)),
 			toolsets.NewServerTool(GetReleaseByTag(getClient, t)),
+			toolsets.NewServerTool(SearchMilestones(getClient, cache, t, flags)),
 			toolsets.NewServerTool(ListMilestones(getClient, cache, t, flags)),
 			toolsets.NewServerTool(GetMilestone(getClient, cache, t, flags)),
 		).

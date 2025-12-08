@@ -254,6 +254,214 @@ func TestListMilestones_ValidationError(t *testing.T) {
 	assert.Contains(t, text.Text, "state must be")
 }
 
+func TestSearchMilestones_ToolDefinition(t *testing.T) {
+	t.Parallel()
+
+	mockClient := github.NewClient(nil)
+	cache := stubRepoAccessCache(githubv4.NewClient(nil), 15*time.Minute)
+	tool, _ := SearchMilestones(stubGetClientFn(mockClient), cache, translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "search_milestones", tool.Name)
+	assert.True(t, tool.Annotations.ReadOnlyHint)
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "query")
+	assert.Contains(t, schema.Properties, "state")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "query"})
+}
+
+func TestSearchMilestones_Success(t *testing.T) {
+	t.Parallel()
+
+	mockedClient := mock.NewMockedHTTPClient(
+		mock.WithRequestMatchHandler(
+			mock.EndpointPattern{Pattern: "/repos/{owner}/{repo}/milestones", Method: http.MethodGet},
+			expectQueryParams(t, map[string]string{
+				"state":    "open",
+				"page":     "1",
+				"per_page": "25",
+			}).andThen(
+				mockResponse(t, http.StatusOK, []map[string]any{
+					{
+						"id":            1,
+						"number":        10,
+						"title":         "Alpha release",
+						"state":         "open",
+						"description":   "first milestone",
+						"html_url":      "https://example.com/1",
+						"open_issues":   3,
+						"closed_issues": 1,
+					},
+					{
+						"id":            2,
+						"number":        11,
+						"title":         "Beta",
+						"state":         "open",
+						"description":   "stability work",
+						"html_url":      "https://example.com/2",
+						"open_issues":   0,
+						"closed_issues": 4,
+					},
+				}),
+			),
+		),
+	)
+
+	client := github.NewClient(mockedClient)
+	cache := stubRepoAccessCache(githubv4.NewClient(nil), 15*time.Minute)
+	flags := stubFeatureFlags(map[string]bool{"lockdown-mode": false})
+	_, handler := SearchMilestones(stubGetClientFn(client), cache, translations.NullTranslationHelper, flags)
+
+	args := map[string]any{
+		"owner":    "owner",
+		"repo":     "repo",
+		"query":    "alpha",
+		"per_page": float64(25),
+		"page":     float64(1),
+	}
+
+	request := createMCPRequest(args)
+	result, _, err := handler(context.Background(), &request, args)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.False(t, result.IsError)
+
+	text := getTextResult(t, result)
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal([]byte(text.Text), &resp))
+
+	assert.Equal(t, float64(1), resp["count"])
+	milestones, ok := resp["milestones"].([]any)
+	require.True(t, ok)
+	require.Len(t, milestones, 1)
+	first, ok := milestones[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "Alpha release", first["title"])
+}
+
+func TestSearchMilestones_Validation(t *testing.T) {
+	t.Parallel()
+
+	client := github.NewClient(nil)
+	cache := stubRepoAccessCache(githubv4.NewClient(nil), 15*time.Minute)
+	flags := stubFeatureFlags(map[string]bool{"lockdown-mode": false})
+	_, handler := SearchMilestones(stubGetClientFn(client), cache, translations.NullTranslationHelper, flags)
+
+	args := map[string]any{
+		"owner": "o",
+		"repo":  "r",
+		"query": "q",
+		"state": "invalid",
+	}
+
+	request := createMCPRequest(args)
+	result, _, err := handler(context.Background(), &request, args)
+
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	text := getErrorResult(t, result)
+	assert.Contains(t, text.Text, "state must be")
+}
+
+func TestSearchMilestones_Lockdown(t *testing.T) {
+	t.Parallel()
+
+	mockedClient := mock.NewMockedHTTPClient(
+		mock.WithRequestMatchHandler(
+			mock.EndpointPattern{Pattern: "/repos/{owner}/{repo}/milestones", Method: http.MethodGet},
+			mockResponse(t, http.StatusOK, []map[string]any{
+				{
+					"id":          1,
+					"number":      10,
+					"title":       "Unsafe alpha",
+					"description": "match me",
+					"creator": map[string]any{
+						"login": "testuser",
+					},
+					"html_url": "https://example.com/1",
+				},
+				{
+					"id":          2,
+					"number":      11,
+					"title":       "Safe alpha",
+					"description": "match me too",
+					"creator": map[string]any{
+						"login": "testuser2",
+					},
+					"html_url": "https://example.com/2",
+				},
+			}),
+		),
+	)
+
+	client := github.NewClient(mockedClient)
+	gqlClient := githubv4.NewClient(newRepoAccessHTTPClient())
+	cache := stubRepoAccessCache(gqlClient, 15*time.Minute)
+	flags := stubFeatureFlags(map[string]bool{"lockdown-mode": true})
+	_, handler := SearchMilestones(stubGetClientFn(client), cache, translations.NullTranslationHelper, flags)
+
+	args := map[string]any{
+		"owner": "owner",
+		"repo":  "repo",
+		"query": "alpha",
+	}
+
+	request := createMCPRequest(args)
+	result, _, err := handler(context.Background(), &request, args)
+
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	text := getTextResult(t, result)
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal([]byte(text.Text), &resp))
+
+	milestones, ok := resp["milestones"].([]any)
+	require.True(t, ok)
+	assert.Len(t, milestones, 1)
+
+	first, ok := milestones[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "Safe alpha", first["title"])
+}
+
+func TestSearchMilestones_ApiError(t *testing.T) {
+	t.Parallel()
+
+	mockedClient := mock.NewMockedHTTPClient(
+		mock.WithRequestMatchHandler(
+			mock.EndpointPattern{Pattern: "/repos/{owner}/{repo}/milestones", Method: http.MethodGet},
+			mockResponse(t, http.StatusInternalServerError, map[string]any{"message": "boom"}),
+		),
+	)
+
+	client := github.NewClient(mockedClient)
+	cache := stubRepoAccessCache(githubv4.NewClient(nil), 15*time.Minute)
+	flags := stubFeatureFlags(map[string]bool{"lockdown-mode": false})
+	_, handler := SearchMilestones(stubGetClientFn(client), cache, translations.NullTranslationHelper, flags)
+
+	args := map[string]any{
+		"owner": "owner",
+		"repo":  "repo",
+		"query": "alpha",
+	}
+
+	request := createMCPRequest(args)
+	result, _, err := handler(context.Background(), &request, args)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.True(t, result.IsError)
+
+	text := getErrorResult(t, result)
+	assert.Contains(t, text.Text, "failed to search milestones")
+}
+
 func TestGetMilestone_ToolDefinition(t *testing.T) {
 	t.Parallel()
 
