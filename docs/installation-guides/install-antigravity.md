@@ -13,6 +13,9 @@ This guide covers setting up the GitHub MCP Server in Google's Antigravity IDE.
 
 Uses GitHub's hosted server at `https://api.githubcopilot.com/mcp/`.
 
+> [!NOTE]
+> We recommend this manual configuration method because the "official" installation via the Antigravity MCP Store currently has known issues (often resulting in Docker errors). This direct remote connection is more reliable.
+
 #### Step 1: Access MCP Configuration
 
 1. Open Antigravity
@@ -64,6 +67,9 @@ Close and reopen Antigravity for the changes to take effect.
 1. Open the MCP Servers panel (... menu → MCP Servers)
 2. You should see "github" with a green status indicator
 3. You can now use GitHub tools in your conversations
+
+> [!NOTE]
+> The status indicator in the MCP Servers panel might not immediately turn green in some versions, but the tools will still function if configured correctly.
 
 ### Option 2: Local Docker Server
 
