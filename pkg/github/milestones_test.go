@@ -608,6 +608,38 @@ func TestMilestoneWrite_DeleteSuccess(t *testing.T) {
 	assert.Contains(t, text.Text, "milestone 3 deleted")
 }
 
+func TestMilestoneWrite_DeleteApiError(t *testing.T) {
+	t.Parallel()
+
+	client := newMilestoneTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodDelete, r.Method)
+		assert.Equal(t, "/repos/owner/repo/milestones/3", r.URL.Path)
+
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"message": "delete failed",
+		})
+	}))
+
+	_, handler := MilestoneWrite(stubGetClientFn(client), translations.NullTranslationHelper)
+
+	args := map[string]any{
+		"method":           "delete",
+		"owner":            "owner",
+		"repo":             "repo",
+		"milestone_number": float64(3),
+	}
+
+	request := createMCPRequest(args)
+	result, _, err := handler(context.Background(), &request, args)
+
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+
+	text := getErrorResult(t, result)
+	assert.Contains(t, text.Text, "failed to delete milestone")
+}
+
 func TestMilestoneWrite_ValidationErrors(t *testing.T) {
 	t.Parallel()
 
