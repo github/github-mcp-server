@@ -10,6 +10,7 @@ import (
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -23,7 +24,7 @@ const (
 )
 
 // ListMilestones lists milestones for a repository.
-func ListMilestones(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+func ListMilestones(getClient GetClientFn, cache *lockdown.RepoAccessCache, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 	tool := mcp.Tool{
 		Name:        "list_milestones",
 		Description: t("TOOL_LIST_MILESTONES_DESCRIPTION", "List milestones for a repository."),
@@ -148,6 +149,28 @@ func ListMilestones(getClient GetClientFn, t translations.TranslationHelperFunc)
 			return utils.NewToolResultError(fmt.Sprintf("failed to list milestones: %s", string(body))), nil, nil
 		}
 
+		if flags.LockdownMode {
+			if cache == nil {
+				return nil, nil, fmt.Errorf("lockdown cache is not configured")
+			}
+			filtered := make([]*github.Milestone, 0, len(milestones))
+			for _, milestone := range milestones {
+				creator := milestone.Creator
+				if creator == nil || creator.GetLogin() == "" {
+					filtered = append(filtered, milestone)
+					continue
+				}
+				isSafeContent, err := cache.IsSafeContent(ctx, creator.GetLogin(), owner, repo)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil, nil
+				}
+				if isSafeContent {
+					filtered = append(filtered, milestone)
+				}
+			}
+			milestones = filtered
+		}
+
 		result := make([]map[string]any, 0, len(milestones))
 		for _, m := range milestones {
 			result = append(result, milestoneSummary(m))
@@ -169,7 +192,7 @@ func ListMilestones(getClient GetClientFn, t translations.TranslationHelperFunc)
 }
 
 // GetMilestone fetches a single milestone by number.
-func GetMilestone(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+func GetMilestone(getClient GetClientFn, cache *lockdown.RepoAccessCache, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 	tool := mcp.Tool{
 		Name:        "get_milestone",
 		Description: t("TOOL_GET_MILESTONE_DESCRIPTION", "Get a milestone by number."),
@@ -232,6 +255,22 @@ func GetMilestone(getClient GetClientFn, t translations.TranslationHelperFunc) (
 				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 			}
 			return utils.NewToolResultError(fmt.Sprintf("failed to get milestone: %s", string(body))), nil, nil
+		}
+
+		if flags.LockdownMode {
+			if cache == nil {
+				return nil, nil, fmt.Errorf("lockdown cache is not configured")
+			}
+			creator := milestone.Creator
+			if creator != nil && creator.GetLogin() != "" {
+				isSafeContent, err := cache.IsSafeContent(ctx, creator.GetLogin(), owner, repo)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil, nil
+				}
+				if !isSafeContent {
+					return utils.NewToolResultError("access to milestone is restricted by lockdown mode"), nil, nil
+				}
+			}
 		}
 
 		out, err := json.Marshal(milestoneSummary(milestone))

@@ -15,6 +15,7 @@ import (
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
+	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +38,8 @@ func TestListMilestones_ToolDefinition(t *testing.T) {
 	t.Parallel()
 
 	mockClient := github.NewClient(nil)
-	tool, _ := ListMilestones(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	cache := stubRepoAccessCache(githubv4.NewClient(nil), 15*time.Minute)
+	tool, _ := ListMilestones(stubGetClientFn(mockClient), cache, translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_milestones", tool.Name)
@@ -142,7 +144,9 @@ func TestListMilestones_Success(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListMilestones(stubGetClientFn(client), translations.NullTranslationHelper)
+			cache := stubRepoAccessCache(githubv4.NewClient(nil), 15*time.Minute)
+			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": false})
+			_, handler := ListMilestones(stubGetClientFn(client), cache, translations.NullTranslationHelper, flags)
 
 			request := createMCPRequest(tc.args)
 			result, _, err := handler(context.Background(), &request, tc.args)
@@ -166,11 +170,74 @@ func TestListMilestones_Success(t *testing.T) {
 	}
 }
 
+func TestListMilestones_LockdownFiltersUnsafeCreators(t *testing.T) {
+	t.Parallel()
+
+	mockedClient := mock.NewMockedHTTPClient(
+		mock.WithRequestMatchHandler(
+			mock.EndpointPattern{Pattern: "/repos/{owner}/{repo}/milestones", Method: http.MethodGet},
+			mockResponse(t, http.StatusOK, []map[string]any{
+				{
+					"id":          1,
+					"number":      10,
+					"title":       "unsafe",
+					"description": "from reader",
+					"creator": map[string]any{
+						"login": "testuser",
+					},
+					"html_url": "https://example.com/1",
+				},
+				{
+					"id":          2,
+					"number":      11,
+					"title":       "safe",
+					"description": "from writer",
+					"creator": map[string]any{
+						"login": "testuser2",
+					},
+					"html_url": "https://example.com/2",
+				},
+			}),
+		),
+	)
+
+	client := github.NewClient(mockedClient)
+	gqlClient := githubv4.NewClient(newRepoAccessHTTPClient())
+	cache := stubRepoAccessCache(gqlClient, 15*time.Minute)
+	flags := stubFeatureFlags(map[string]bool{"lockdown-mode": true})
+	_, handler := ListMilestones(stubGetClientFn(client), cache, translations.NullTranslationHelper, flags)
+
+	args := map[string]any{
+		"owner": "owner",
+		"repo":  "repo",
+	}
+
+	request := createMCPRequest(args)
+	result, _, err := handler(context.Background(), &request, args)
+
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	text := getTextResult(t, result)
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal([]byte(text.Text), &resp))
+
+	milestones, ok := resp["milestones"].([]any)
+	require.True(t, ok)
+	assert.Len(t, milestones, 1)
+
+	first, ok := milestones[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "safe", first["title"])
+}
+
 func TestListMilestones_ValidationError(t *testing.T) {
 	t.Parallel()
 
 	client := github.NewClient(nil)
-	_, handler := ListMilestones(stubGetClientFn(client), translations.NullTranslationHelper)
+	cache := stubRepoAccessCache(githubv4.NewClient(nil), 15*time.Minute)
+	flags := stubFeatureFlags(map[string]bool{"lockdown-mode": false})
+	_, handler := ListMilestones(stubGetClientFn(client), cache, translations.NullTranslationHelper, flags)
 
 	args := map[string]any{
 		"owner": "o",
@@ -191,7 +258,8 @@ func TestGetMilestone_ToolDefinition(t *testing.T) {
 	t.Parallel()
 
 	mockClient := github.NewClient(nil)
-	tool, _ := GetMilestone(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	cache := stubRepoAccessCache(githubv4.NewClient(nil), 15*time.Minute)
+	tool, _ := GetMilestone(stubGetClientFn(mockClient), cache, translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "get_milestone", tool.Name)
@@ -259,7 +327,9 @@ func TestGetMilestone_Success(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetMilestone(stubGetClientFn(client), translations.NullTranslationHelper)
+			cache := stubRepoAccessCache(githubv4.NewClient(nil), 15*time.Minute)
+			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": false})
+			_, handler := GetMilestone(stubGetClientFn(client), cache, translations.NullTranslationHelper, flags)
 
 			request := createMCPRequest(tc.args)
 			result, _, err := handler(context.Background(), &request, tc.args)
@@ -284,6 +354,99 @@ func TestGetMilestone_Success(t *testing.T) {
 	}
 }
 
+func TestGetMilestone_LockdownEnforced(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		mockedClient *http.Client
+		args         map[string]any
+		expectError  bool
+		errContains  string
+	}{
+		{
+			name: "blocked when creator lacks push access",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/repos/{owner}/{repo}/milestones/{milestone_number}", Method: http.MethodGet},
+					mockResponse(t, http.StatusOK, map[string]any{
+						"id":          55,
+						"number":      5,
+						"title":       "v1",
+						"state":       "open",
+						"description": "first",
+						"html_url":    "https://example.com/1",
+						"creator": map[string]any{
+							"login": "testuser",
+						},
+					}),
+				),
+			),
+			args: map[string]any{
+				"owner":            "owner",
+				"repo":             "repo",
+				"milestone_number": float64(5),
+			},
+			expectError: true,
+			errContains: "access to milestone is restricted by lockdown mode",
+		},
+		{
+			name: "allowed for private repo creator",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/repos/{owner}/{repo}/milestones/{milestone_number}", Method: http.MethodGet},
+					mockResponse(t, http.StatusOK, map[string]any{
+						"id":          56,
+						"number":      6,
+						"title":       "v2",
+						"state":       "open",
+						"description": "second",
+						"html_url":    "https://example.com/2",
+						"creator": map[string]any{
+							"login": "testuser2",
+						},
+					}),
+				),
+			),
+			args: map[string]any{
+				"owner":            "owner2",
+				"repo":             "repo2",
+				"milestone_number": float64(6),
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			client := github.NewClient(tc.mockedClient)
+			gqlClient := githubv4.NewClient(newRepoAccessHTTPClient())
+			cache := stubRepoAccessCache(gqlClient, 15*time.Minute)
+			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": true})
+			_, handler := GetMilestone(stubGetClientFn(client), cache, translations.NullTranslationHelper, flags)
+
+			request := createMCPRequest(tc.args)
+			result, _, err := handler(context.Background(), &request, tc.args)
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+
+			if tc.expectError {
+				require.True(t, result.IsError)
+				errText := getErrorResult(t, result)
+				assert.Contains(t, errText.Text, tc.errContains)
+				return
+			}
+
+			require.False(t, result.IsError)
+			text := getTextResult(t, result)
+			var resp map[string]any
+			require.NoError(t, json.Unmarshal([]byte(text.Text), &resp))
+			assert.Equal(t, tc.args["milestone_number"], resp["number"])
+		})
+	}
+}
+
 func TestGetMilestone_NotFound(t *testing.T) {
 	t.Parallel()
 
@@ -294,7 +457,9 @@ func TestGetMilestone_NotFound(t *testing.T) {
 		})
 	}))
 
-	_, handler := GetMilestone(stubGetClientFn(client), translations.NullTranslationHelper)
+	cache := stubRepoAccessCache(githubv4.NewClient(nil), 15*time.Minute)
+	flags := stubFeatureFlags(map[string]bool{"lockdown-mode": false})
+	_, handler := GetMilestone(stubGetClientFn(client), cache, translations.NullTranslationHelper, flags)
 
 	args := map[string]any{
 		"owner":            "owner",
