@@ -155,12 +155,25 @@ func SearchMilestones(getClient GetClientFn, cache *lockdown.RepoAccessCache, t 
 			milestones = filtered
 		}
 
-		lowerQuery := strings.ToLower(query)
+		lowerQuery := strings.ToLower(strings.TrimSpace(query))
+		matchAll := lowerQuery == "" || lowerQuery == "*"
 		result := make([]map[string]any, 0, len(milestones))
 		for _, m := range milestones {
+			if matchAll {
+				result = append(result, milestoneSummary(m))
+				continue
+			}
+
 			title := strings.ToLower(m.GetTitle())
 			description := strings.ToLower(m.GetDescription())
-			if strings.Contains(title, lowerQuery) || strings.Contains(description, lowerQuery) {
+			creatorLogin := ""
+			if m.Creator != nil {
+				creatorLogin = strings.ToLower(m.Creator.GetLogin())
+			}
+
+			if strings.Contains(title, lowerQuery) ||
+				strings.Contains(description, lowerQuery) ||
+				(creatorLogin != "" && strings.Contains(creatorLogin, lowerQuery)) {
 				result = append(result, milestoneSummary(m))
 			}
 		}
