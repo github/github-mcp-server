@@ -323,6 +323,152 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	return nil
 }
 
+// SSEServerConfig holds configuration for the SSE server mode.
+type SSEServerConfig struct {
+	// Version of the server
+	Version string
+
+	// GitHub Host to target for API requests (e.g. github.com or github.enterprise.com)
+	Host string
+
+	// GitHub Token to authenticate with the GitHub API
+	Token string
+
+	// EnabledToolsets is a list of toolsets to enable
+	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration
+	EnabledToolsets []string
+
+	// EnabledTools is a list of specific tools to enable (additive to toolsets)
+	// When specified, these tools are registered in addition to any specified toolset tools
+	EnabledTools []string
+
+	// Whether to enable dynamic toolsets
+	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#dynamic-tool-discovery
+	DynamicToolsets bool
+
+	// ReadOnly indicates if we should only register read-only tools
+	ReadOnly bool
+
+	// ExportTranslations indicates if we should export translations
+	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#i18n--overriding-descriptions
+	ExportTranslations bool
+
+	// Path to the log file if not stderr
+	LogFilePath string
+
+	// Content window size
+	ContentWindowSize int
+
+	// LockdownMode indicates if we should enable lockdown mode
+	LockdownMode bool
+
+	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
+	RepoAccessCacheTTL *time.Duration
+
+	// SSEAddr is the address to listen on for SSE connections (e.g., ":8080" or "localhost:8080")
+	SSEAddr string
+}
+
+// RunSSEServer starts an HTTP server with SSE transport for the MCP server.
+func RunSSEServer(cfg SSEServerConfig) error {
+	// Create app context
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	t, dumpTranslations := translations.TranslationHelper()
+
+	var slogHandler slog.Handler
+	var logOutput io.Writer
+	if cfg.LogFilePath != "" {
+		file, err := os.OpenFile(cfg.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+		if err != nil {
+			return fmt.Errorf("failed to open log file: %w", err)
+		}
+		logOutput = file
+		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelDebug})
+	} else {
+		logOutput = os.Stderr
+		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelInfo})
+	}
+	logger := slog.New(slogHandler)
+	logger.Info("starting SSE server", "version", cfg.Version, "host", cfg.Host, "addr", cfg.SSEAddr, "dynamicToolsets", cfg.DynamicToolsets, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode)
+
+	ghServer, err := NewMCPServer(MCPServerConfig{
+		Version:           cfg.Version,
+		Host:              cfg.Host,
+		Token:             cfg.Token,
+		EnabledToolsets:   cfg.EnabledToolsets,
+		EnabledTools:      cfg.EnabledTools,
+		DynamicToolsets:   cfg.DynamicToolsets,
+		ReadOnly:          cfg.ReadOnly,
+		Translator:        t,
+		ContentWindowSize: cfg.ContentWindowSize,
+		LockdownMode:      cfg.LockdownMode,
+		Logger:            logger,
+		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create MCP server: %w", err)
+	}
+
+	if cfg.ExportTranslations {
+		// Once server is initialized, all translations are loaded
+		dumpTranslations()
+	}
+
+	// Create SSE handler using the MCP SDK's SSEHandler
+	sseHandler := mcp.NewSSEHandler(func(_ *http.Request) *mcp.Server {
+		return ghServer
+	}, nil)
+
+	// Create HTTP mux with health endpoint and SSE handler
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	})
+	mux.Handle("/", sseHandler)
+
+	// Create HTTP server
+	httpServer := &http.Server{
+		Addr:    cfg.SSEAddr,
+		Handler: mux,
+	}
+
+	// Start HTTP server in a goroutine
+	errC := make(chan error, 1)
+	go func() {
+		logger.Info("HTTP server listening", "addr", cfg.SSEAddr)
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			errC <- err
+		}
+	}()
+
+	// Output startup message
+	_, _ = fmt.Fprintf(os.Stderr, "GitHub MCP Server running on SSE at %s\n", cfg.SSEAddr)
+
+	// Wait for shutdown signal
+	select {
+	case <-ctx.Done():
+		logger.Info("shutting down SSE server", "signal", "context done")
+		// Gracefully shutdown the HTTP server
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			logger.Error("error shutting down HTTP server", "error", err)
+			return fmt.Errorf("error shutting down HTTP server: %w", err)
+		}
+	case err := <-errC:
+		if err != nil {
+			logger.Error("error running SSE server", "error", err)
+			return fmt.Errorf("error running SSE server: %w", err)
+		}
+	}
+
+	return nil
+}
+
 type apiHost struct {
 	baseRESTURL *url.URL
 	graphqlURL  *url.URL
