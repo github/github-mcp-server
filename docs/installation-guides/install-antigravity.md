@@ -139,5 +139,5 @@ For a complete list of available tools and features, see the [main README](../..
 ## Next Steps
 
 - Explore the [Server Configuration Guide](../server-configuration.md) for advanced options
-- Check out [toolsets documentation](../toolsets.md) to customize available tools
+- Check out [toolsets documentation](../../README.md#available-toolsets) to customize available tools
 - See the [Remote Server Documentation](../remote-server.md) for more details
