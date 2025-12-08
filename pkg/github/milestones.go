@@ -11,6 +11,7 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/lockdown"
+	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -508,12 +509,15 @@ func milestoneSummary(milestone *github.Milestone) map[string]any {
 		dueOn = milestone.DueOn.Time.Format(time.RFC3339)
 	}
 
+	title := sanitize.Sanitize(milestone.GetTitle())
+	description := sanitize.Sanitize(milestone.GetDescription())
+
 	return map[string]any{
 		"id":            fmt.Sprintf("%d", milestone.GetID()),
 		"number":        milestone.GetNumber(),
-		"title":         milestone.GetTitle(),
+		"title":         title,
 		"state":         milestone.GetState(),
-		"description":   milestone.GetDescription(),
+		"description":   description,
 		"due_on":        dueOn,
 		"open_issues":   milestone.GetOpenIssues(),
 		"closed_issues": milestone.GetClosedIssues(),

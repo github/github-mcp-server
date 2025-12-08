@@ -450,7 +450,7 @@ func TestGetMilestone_LockdownEnforced(t *testing.T) {
 func TestGetMilestone_NotFound(t *testing.T) {
 	t.Parallel()
 
-	client := newMilestoneTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	client := newMilestoneTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"message": "Not Found",
@@ -688,7 +688,7 @@ func TestMilestoneWrite_ValidationErrors(t *testing.T) {
 func TestMilestoneWrite_ApiError(t *testing.T) {
 	t.Parallel()
 
-	client := newMilestoneTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	client := newMilestoneTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(github.ErrorResponse{
 			Message: "bad request",
