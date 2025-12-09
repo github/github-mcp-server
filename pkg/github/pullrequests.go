@@ -1348,7 +1348,7 @@ func CreatePullRequestReview(ctx context.Context, client *githubv4.Client, param
 		addPullRequestReviewInput,
 		nil,
 	); err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to create pull request review", err), nil
 	}
 
 	// Return nothing interesting, just indicate success for the time being.
@@ -1516,7 +1516,10 @@ func DeletePendingPullRequestReview(ctx context.Context, client *githubv4.Client
 		},
 		nil,
 	); err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+			"failed to delete pull request review",
+			err,
+		), nil
 	}
 
 	// Return nothing interesting, just indicate success for the time being.
@@ -1694,7 +1697,10 @@ func AddCommentToPendingReview(getGQLClient GetGQLClientFn, t translations.Trans
 				},
 				nil,
 			); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+					"failed to add comment to pending review",
+					err,
+				), nil, nil
 			}
 
 			if addPullRequestReviewThreadMutation.AddPullRequestReviewThread.Thread.ID == nil {
