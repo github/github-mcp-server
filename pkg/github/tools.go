@@ -160,6 +160,14 @@ func GetDefaultToolsetIDs() []string {
 	}
 }
 
+// DeprecatedToolAliases maps old tool names to their new canonical names.
+// This allows tool renames without breaking existing user configurations.
+// When a user requests an old tool name, it will silently resolve to the new name.
+var DeprecatedToolAliases = map[string]string{
+	"test_1": "get_me",
+	"test_2": "get_me",
+}
+
 func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetGQLClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc, contentWindowSize int, flags FeatureFlags, cache *lockdown.RepoAccessCache) *toolsets.ToolsetGroup {
 	tsg := toolsets.NewToolsetGroup(readOnly)
 
@@ -377,6 +385,9 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(projects)
 	tsg.AddToolset(stargazers)
 	tsg.AddToolset(labels)
+
+	// Register deprecated tool aliases for backward compatibility
+	tsg.AddDeprecatedToolAliases(DeprecatedToolAliases)
 
 	return tsg
 }

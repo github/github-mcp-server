@@ -192,17 +192,40 @@ func (t *Toolset) AddReadTools(tools ...ServerTool) *Toolset {
 }
 
 type ToolsetGroup struct {
-	Toolsets     map[string]*Toolset
-	everythingOn bool
-	readOnly     bool
+	Toolsets            map[string]*Toolset
+	deprecatedAliases   map[string]string // oldName → newName for renamed tools
+	everythingOn        bool
+	readOnly            bool
 }
 
 func NewToolsetGroup(readOnly bool) *ToolsetGroup {
 	return &ToolsetGroup{
-		Toolsets:     make(map[string]*Toolset),
-		everythingOn: false,
-		readOnly:     readOnly,
+		Toolsets:          make(map[string]*Toolset),
+		deprecatedAliases: make(map[string]string),
+		everythingOn:      false,
+		readOnly:          readOnly,
 	}
+}
+
+// AddDeprecatedToolAlias registers an alias for a renamed tool.
+// When a user requests oldName, it will resolve to newName.
+// This allows tool renames without breaking existing user configurations.
+func (tg *ToolsetGroup) AddDeprecatedToolAlias(oldName, newName string) {
+	tg.deprecatedAliases[oldName] = newName
+}
+
+// AddDeprecatedToolAliases registers multiple aliases for renamed tools.
+func (tg *ToolsetGroup) AddDeprecatedToolAliases(aliases map[string]string) {
+	for oldName, newName := range aliases {
+		tg.deprecatedAliases[oldName] = newName
+	}
+}
+
+// IsDeprecatedToolAlias checks if a tool name is a deprecated alias.
+// Returns the canonical name and true if it's an alias, or empty string and false otherwise.
+func (tg *ToolsetGroup) IsDeprecatedToolAlias(toolName string) (canonicalName string, isAlias bool) {
+	canonicalName, isAlias = tg.deprecatedAliases[toolName]
+	return canonicalName, isAlias
 }
 
 func (tg *ToolsetGroup) AddToolset(ts *Toolset) {
@@ -307,9 +330,23 @@ func NewToolDoesNotExistError(name string) *ToolDoesNotExistError {
 	return &ToolDoesNotExistError{Name: name}
 }
 
+// ToolLookupResult contains the result of a tool lookup operation.
+type ToolLookupResult struct {
+	Tool          *ServerTool
+	ToolsetName   string
+	RequestedName string // The name that was requested (may differ from Tool.Name if alias was used)
+	AliasUsed     bool   // True if the requested name was a deprecated alias
+}
+
 // FindToolByName searches all toolsets (enabled or disabled) for a tool by name.
+// It resolves deprecated aliases automatically.
 // Returns the tool, its parent toolset name, and an error if not found.
 func (tg *ToolsetGroup) FindToolByName(toolName string) (*ServerTool, string, error) {
+	// Resolve deprecated alias if applicable
+	if canonicalName, isAlias := tg.deprecatedAliases[toolName]; isAlias {
+		toolName = canonicalName
+	}
+
 	for toolsetName, toolset := range tg.Toolsets {
 		// Check read tools
 		for _, tool := range toolset.readTools {
@@ -327,9 +364,36 @@ func (tg *ToolsetGroup) FindToolByName(toolName string) (*ServerTool, string, er
 	return nil, "", NewToolDoesNotExistError(toolName)
 }
 
+// FindToolWithAliasInfo searches all toolsets for a tool by name and returns
+// additional metadata about whether a deprecated alias was used.
+// Use this when you need to track/log deprecated alias usage (e.g., for telemetry).
+func (tg *ToolsetGroup) FindToolWithAliasInfo(toolName string) (*ToolLookupResult, error) {
+	requestedName := toolName
+	aliasUsed := false
+
+	// Check if this is a deprecated alias and resolve to canonical name
+	if canonicalName, isAlias := tg.deprecatedAliases[toolName]; isAlias {
+		toolName = canonicalName
+		aliasUsed = true
+	}
+
+	tool, toolsetName, err := tg.FindToolByName(toolName)
+	if err != nil {
+		return nil, NewToolDoesNotExistError(requestedName)
+	}
+
+	return &ToolLookupResult{
+		Tool:          tool,
+		ToolsetName:   toolsetName,
+		RequestedName: requestedName,
+		AliasUsed:     aliasUsed,
+	}, nil
+}
+
 // RegisterSpecificTools registers only the specified tools.
 // Respects read-only mode (skips write tools if readOnly=true).
 // Returns error if any tool is not found.
+// Deprecated tool aliases are resolved automatically.
 func (tg *ToolsetGroup) RegisterSpecificTools(s *mcp.Server, toolNames []string, readOnly bool) error {
 	var skippedTools []string
 	for _, toolName := range toolNames {
