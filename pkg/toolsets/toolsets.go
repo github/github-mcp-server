@@ -192,10 +192,10 @@ func (t *Toolset) AddReadTools(tools ...ServerTool) *Toolset {
 }
 
 type ToolsetGroup struct {
-	Toolsets            map[string]*Toolset
-	deprecatedAliases   map[string]string // oldName → newName for renamed tools
-	everythingOn        bool
-	readOnly            bool
+	Toolsets          map[string]*Toolset
+	deprecatedAliases map[string]string // oldName → newName for renamed tools
+	everythingOn      bool
+	readOnly          bool
 }
 
 func NewToolsetGroup(readOnly bool) *ToolsetGroup {
