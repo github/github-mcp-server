@@ -819,7 +819,8 @@ func Test_CreateIssue(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
 	mockGQLClient := githubv4.NewClient(nil)
-	tool, _ := IssueWrite(stubGetClientFn(mockClient), stubGetGQLClientFn(mockGQLClient), translations.NullTranslationHelper)
+	cache := stubRepoAccessCache(mockGQLClient, 15*time.Minute)
+	tool, _ := IssueWrite(stubGetClientFn(mockClient), stubGetGQLClientFn(mockGQLClient), cache, translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "issue_write", tool.Name)
@@ -942,7 +943,8 @@ func Test_CreateIssue(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
 			gqlClient := githubv4.NewClient(nil)
-			_, handler := IssueWrite(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+			cache := stubRepoAccessCache(gqlClient, 15*time.Minute)
+			_, handler := IssueWrite(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), cache, translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1289,7 +1291,8 @@ func Test_UpdateIssue(t *testing.T) {
 	// Verify tool definition
 	mockClient := github.NewClient(nil)
 	mockGQLClient := githubv4.NewClient(nil)
-	tool, _ := IssueWrite(stubGetClientFn(mockClient), stubGetGQLClientFn(mockGQLClient), translations.NullTranslationHelper)
+	cache := stubRepoAccessCache(mockGQLClient, 15*time.Minute)
+	tool, _ := IssueWrite(stubGetClientFn(mockClient), stubGetGQLClientFn(mockGQLClient), cache, translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "issue_write", tool.Name)
@@ -1740,7 +1743,8 @@ func Test_UpdateIssue(t *testing.T) {
 			// Setup clients with mocks
 			restClient := github.NewClient(tc.mockedRESTClient)
 			gqlClient := githubv4.NewClient(tc.mockedGQLClient)
-			_, handler := IssueWrite(stubGetClientFn(restClient), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+			cache := stubRepoAccessCache(gqlClient, 15*time.Minute)
+			_, handler := IssueWrite(stubGetClientFn(restClient), stubGetGQLClientFn(gqlClient), cache, translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -2014,6 +2018,179 @@ func Test_GetIssueComments(t *testing.T) {
 				assert.Equal(t, tc.expectedComments[i].GetBody(), returnedComments[i].GetBody())
 				assert.Equal(t, tc.expectedComments[i].GetUser().GetLogin(), returnedComments[i].GetUser().GetLogin())
 			}
+		})
+	}
+}
+
+func Test_GetIssueRelationships(t *testing.T) {
+	blockedBy := []*github.Issue{
+		{
+			ID:      github.Ptr[int64](2002),
+			Number:  github.Ptr(2),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/issues/2"),
+			User:    &github.User{Login: github.Ptr("safeuser")},
+		},
+	}
+	blocking := []*github.Issue{
+		{
+			ID:      github.Ptr[int64](2003),
+			Number:  github.Ptr(3),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/issues/3"),
+			User:    &github.User{Login: github.Ptr("safeuser")},
+		},
+	}
+
+	tests := []struct {
+		name            string
+		mockedClient    *http.Client
+		requestArgs     map[string]interface{}
+		expectedEntries []IssueRelationshipEntry
+		lockdownEnabled bool
+		expectToolError bool
+		expectedErrMsg  string
+	}{
+		{
+			name: "successful relationships retrieval with parent and blocks mapping",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/issues/1/dependencies/blocked_by",
+						Method:  "GET",
+					},
+					expectQueryParams(t, map[string]string{
+						"page":     "2",
+						"per_page": "5",
+					}).andThen(
+						mockResponse(t, http.StatusOK, blockedBy),
+					),
+				),
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/issues/1/dependencies/blocking",
+						Method:  "GET",
+					},
+					expectQueryParams(t, map[string]string{
+						"page":     "2",
+						"per_page": "5",
+					}).andThen(
+						mockResponse(t, http.StatusOK, blocking),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"method":       "get_relationships",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"page":         float64(2),
+				"perPage":      float64(5),
+			},
+			expectedEntries: []IssueRelationshipEntry{
+				{
+					IssueNumber:  2,
+					Relationship: "parent",
+					Direction:    "incoming",
+					URL:          "https://github.com/owner/repo/issues/2",
+				},
+				{
+					IssueNumber:  3,
+					Relationship: "blocks",
+					Direction:    "outgoing",
+					URL:          "https://github.com/owner/repo/issues/3",
+				},
+			},
+		},
+		{
+			name: "lockdown filters unsafe relationships",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/issues/1/dependencies/blocked_by",
+						Method:  "GET",
+					},
+					mockResponse(t, http.StatusOK, []*github.Issue{
+						{
+							ID:     github.Ptr[int64](2222),
+							Number: github.Ptr(2),
+							User:   &github.User{Login: github.Ptr("testuser")},
+						},
+					}),
+				),
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/issues/1/dependencies/blocking",
+						Method:  "GET",
+					},
+					mockResponse(t, http.StatusOK, []*github.Issue{}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"method":       "get_relationships",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+			},
+			lockdownEnabled: true,
+			expectedEntries: []IssueRelationshipEntry{},
+		},
+		{
+			name: "api failure surfaces error",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/issues/1/dependencies/blocked_by",
+						Method:  "GET",
+					},
+					mockResponse(t, http.StatusNotFound, `{"message":"Not Found"}`),
+				),
+				mock.WithRequestMatch(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/issues/1/dependencies/blocking",
+						Method:  "GET",
+					},
+					[]*github.Issue{},
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"method":       "get_relationships",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+			},
+			expectToolError: true,
+			expectedErrMsg:  "issue dependencies",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := github.NewClient(tc.mockedClient)
+			var gqlClient *githubv4.Client
+			if tc.lockdownEnabled {
+				gqlClient = githubv4.NewClient(newRepoAccessHTTPClient())
+			} else {
+				gqlClient = githubv4.NewClient(nil)
+			}
+			cache := stubRepoAccessCache(gqlClient, 15*time.Minute)
+			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
+			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), cache, translations.NullTranslationHelper, flags)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+
+			if tc.expectToolError {
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			textContent := getTextResult(t, result)
+			var entries []IssueRelationshipEntry
+			require.NoError(t, json.Unmarshal([]byte(textContent.Text), &entries))
+			assert.Equal(t, tc.expectedEntries, entries)
 		})
 	}
 }
@@ -3544,6 +3721,183 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 			assert.Equal(t, *tc.expectedIssue.State, *returnedIssue.State)
 			assert.Equal(t, *tc.expectedIssue.HTMLURL, *returnedIssue.HTMLURL)
 			assert.Equal(t, *tc.expectedIssue.User.Login, *returnedIssue.User.Login)
+		})
+	}
+}
+
+func Test_IssueRelationships_Write(t *testing.T) {
+	targetIssue := &github.Issue{
+		ID:      github.Ptr[int64](2002),
+		Number:  github.Ptr(2),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/2"),
+		User:    &github.User{Login: github.Ptr("safeuser")},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedErrMsg string
+		expectedResult IssueRelationshipEntry
+		flags          FeatureFlags
+	}{
+		{
+			name: "add parent relationship maps to blocked_by",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/issues/2",
+						Method:  "GET",
+					},
+					mockResponse(t, http.StatusOK, targetIssue),
+				),
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/issues/1/dependencies/blocked_by",
+						Method:  "POST",
+					},
+					expectRequestBody(t, map[string]any{
+						"issue_id": float64(2002),
+					}).andThen(
+						mockResponse(t, http.StatusCreated, targetIssue),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"method":              "add_relationship",
+				"owner":               "owner",
+				"repo":                "repo",
+				"issue_number":        float64(1),
+				"target_issue_number": float64(2),
+				"relationship":        "parent",
+			},
+			expectedResult: IssueRelationshipEntry{
+				IssueNumber:  2,
+				Relationship: "parent",
+				Direction:    "incoming",
+				URL:          "https://github.com/owner/repo/issues/2",
+			},
+		},
+		{
+			name: "remove parent relationship succeeds",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/issues/2",
+						Method:  "GET",
+					},
+					mockResponse(t, http.StatusOK, targetIssue),
+				),
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/issues/1/dependencies/blocked_by/2002",
+						Method:  "DELETE",
+					},
+					mockResponse(t, http.StatusNoContent, ""),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"method":              "remove_relationship",
+				"owner":               "owner",
+				"repo":                "repo",
+				"issue_number":        float64(1),
+				"target_issue_number": float64(2),
+				"relationship":        "parent",
+			},
+			expectedResult: IssueRelationshipEntry{
+				IssueNumber:  2,
+				Relationship: "parent",
+				Direction:    "incoming",
+				URL:          "https://github.com/owner/repo/issues/2",
+			},
+		},
+		{
+			name:         "validation missing target issue",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]interface{}{
+				"method":       "add_relationship",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"relationship": "blocks",
+			},
+			expectError:    true,
+			expectedErrMsg: "missing required parameter: target_issue_number",
+		},
+		{
+			name:         "invalid relationship",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]interface{}{
+				"method":              "add_relationship",
+				"owner":               "owner",
+				"repo":                "repo",
+				"issue_number":        float64(1),
+				"target_issue_number": float64(2),
+				"relationship":        "depends",
+			},
+			expectError:    true,
+			expectedErrMsg: "relationship must be one of",
+		},
+		{
+			name: "lockdown blocks unsafe target issue",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
+					&github.Issue{
+						Number: github.Ptr(2),
+						User: &github.User{
+							Login: github.Ptr("testuser"),
+						},
+					},
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"method":              "add_relationship",
+				"owner":               "owner",
+				"repo":                "repo",
+				"issue_number":        float64(1),
+				"target_issue_number": float64(2),
+				"relationship":        "blocks",
+			},
+			expectError:    true,
+			expectedErrMsg: "access to issue is restricted by lockdown mode",
+			flags:          stubFeatureFlags(map[string]bool{"lockdown-mode": true}),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := github.NewClient(tc.mockedClient)
+			var gqlClient *githubv4.Client
+			if tc.flags.LockdownMode {
+				gqlClient = githubv4.NewClient(newRepoAccessHTTPClient())
+			} else {
+				gqlClient = githubv4.NewClient(nil)
+			}
+			cache := stubRepoAccessCache(gqlClient, 15*time.Minute)
+			flags := tc.flags
+			if flags == (FeatureFlags{}) {
+				flags = stubFeatureFlags(map[string]bool{"lockdown-mode": false})
+			}
+			_, handler := IssueWrite(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), cache, translations.NullTranslationHelper, flags)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+
+			if tc.expectError {
+				require.NotNil(t, result)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			textContent := getTextResult(t, result)
+			var entry IssueRelationshipEntry
+			require.NoError(t, json.Unmarshal([]byte(textContent.Text), &entry))
+			assert.Equal(t, tc.expectedResult, entry)
 		})
 	}
 }

@@ -2,7 +2,7 @@
   "annotations": {
     "title": "Create or update issue."
   },
-  "description": "Create a new or update an existing issue in a GitHub repository.",
+  "description": "Create, update, or manage relationships for issues in a GitHub repository.",
   "inputSchema": {
     "type": "object",
     "required": [
@@ -39,10 +39,12 @@
       },
       "method": {
         "type": "string",
-        "description": "Write operation to perform on a single issue.\nOptions are:\n- 'create' - creates a new issue.\n- 'update' - updates an existing issue.\n",
+        "description": "Write operation to perform on a single issue.\nOptions are:\n- 'create' - creates a new issue.\n- 'update' - updates an existing issue.\n- 'add_relationship' - add a relationship between two issues.\n- 'remove_relationship' - remove a relationship between two issues.\n",
         "enum": [
           "create",
-          "update"
+          "update",
+          "add_relationship",
+          "remove_relationship"
         ]
       },
       "milestone": {
@@ -52,6 +54,15 @@
       "owner": {
         "type": "string",
         "description": "Repository owner"
+      },
+      "relationship": {
+        "type": "string",
+        "description": "Relationship between source and target issues",
+        "enum": [
+          "blocks",
+          "blocked_by",
+          "parent"
+        ]
       },
       "repo": {
         "type": "string",
@@ -73,6 +84,10 @@
           "not_planned",
           "duplicate"
         ]
+      },
+      "target_issue_number": {
+        "type": "number",
+        "description": "Target issue number for relationship operations"
       },
       "title": {
         "type": "string",

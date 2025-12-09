@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,6 +22,13 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 )
+
+type IssueRelationshipEntry struct {
+	IssueNumber  int    `json:"issue_number"`
+	Relationship string `json:"relationship"`
+	Direction    string `json:"direction"`
+	URL          string `json:"url,omitempty"`
+}
 
 // CloseIssueInput represents the input for closing an issue via the GraphQL API.
 // Used to extend the functionality of the githubv4 library to support closing issues as duplicates.
@@ -241,8 +250,9 @@ Options are:
 2. get_comments - Get issue comments.
 3. get_sub_issues - Get sub-issues of the issue.
 4. get_labels - Get labels assigned to the issue.
+5. get_relationships - Get relationships (blocks/blocked_by) for the issue.
 `,
-				Enum: []any{"get", "get_comments", "get_sub_issues", "get_labels"},
+				Enum: []any{"get", "get_comments", "get_sub_issues", "get_labels", "get_relationships"},
 			},
 			"owner": {
 				Type:        "string",
@@ -316,6 +326,9 @@ Options are:
 				return result, nil, err
 			case "get_labels":
 				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
+				return result, nil, err
+			case "get_relationships":
+				result, err := GetIssueRelationships(ctx, client, cache, owner, repo, issueNumber, pagination, flags)
 				return result, nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
@@ -424,6 +437,130 @@ func GetIssueComments(ctx context.Context, client *github.Client, cache *lockdow
 	}
 
 	return utils.NewToolResultText(string(r)), nil
+}
+
+func GetIssueRelationships(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner string, repo string, issueNumber int, pagination PaginationParams, flags FeatureFlags) (*mcp.CallToolResult, error) {
+	blockedBy, toolErr, err := listIssueDependencies(ctx, client, owner, repo, issueNumber, "blocked_by", pagination)
+	if toolErr != nil || err != nil {
+		return toolErr, err
+	}
+	blocking, toolErr, err := listIssueDependencies(ctx, client, owner, repo, issueNumber, "blocking", pagination)
+	if toolErr != nil || err != nil {
+		return toolErr, err
+	}
+
+	normalized := make([]IssueRelationshipEntry, 0, len(blockedBy)+len(blocking))
+
+	appendEntry := func(issue *github.Issue, relationship string, direction string) error {
+		if issue == nil {
+			return nil
+		}
+		entry := IssueRelationshipEntry{
+			IssueNumber:  issue.GetNumber(),
+			Relationship: relationship,
+			Direction:    direction,
+			URL:          issue.GetHTMLURL(),
+		}
+
+		if flags.LockdownMode {
+			if cache == nil {
+				return fmt.Errorf("lockdown cache is not configured")
+			}
+			login := ""
+			if issue.User != nil {
+				login = issue.User.GetLogin()
+			}
+			if login != "" {
+				isSafeContent, checkErr := cache.IsSafeContent(ctx, login, owner, repo)
+				if checkErr != nil {
+					return checkErr
+				}
+				if !isSafeContent {
+					return nil
+				}
+			}
+		}
+
+		normalized = append(normalized, entry)
+		return nil
+	}
+
+	for _, issue := range blockedBy {
+		if err := appendEntry(issue, "parent", "incoming"); err != nil {
+			return utils.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
+		}
+	}
+	for _, issue := range blocking {
+		if err := appendEntry(issue, "blocks", "outgoing"); err != nil {
+			return utils.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
+		}
+	}
+
+	r, err := json.Marshal(normalized)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return utils.NewToolResultText(string(r)), nil
+}
+
+func relationshipDirection(relationship string) string {
+	switch relationship {
+	case "blocks":
+		return "outgoing"
+	case "blocked_by":
+		return "incoming"
+	case "parent":
+		return "incoming"
+	default:
+		return "unknown"
+	}
+}
+
+func listIssueDependencies(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, dependencyType string, pagination PaginationParams) ([]*github.Issue, *mcp.CallToolResult, error) {
+	path := fmt.Sprintf("repos/%s/%s/issues/%d/dependencies/%s", owner, repo, issueNumber, dependencyType)
+
+	query := url.Values{}
+	if pagination.Page != 0 {
+		query.Set("page", strconv.Itoa(pagination.Page))
+	}
+	if pagination.PerPage != 0 {
+		query.Set("per_page", strconv.Itoa(pagination.PerPage))
+	}
+	if encoded := query.Encode(); encoded != "" {
+		path = fmt.Sprintf("%s?%s", path, encoded)
+	}
+
+	req, err := client.NewRequest("GET", path, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create request to list issue dependencies: %w", err)
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	var issues []*github.Issue
+	resp, err := client.Do(ctx, req, &issues)
+	if err != nil {
+		return nil, ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to list issue dependencies",
+			resp,
+			err,
+		), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusForbidden {
+		return nil, utils.NewToolResultError("issue dependencies API is not available for this repository or account"), nil
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, nil, fmt.Errorf("failed to read response body: %w", readErr)
+		}
+		return nil, utils.NewToolResultError(fmt.Sprintf("failed to list issue dependencies: %s", string(body))), nil
+	}
+
+	return issues, nil, nil
 }
 
 func GetSubIssues(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner string, repo string, issueNumber int, pagination PaginationParams, featureFlags FeatureFlags) (*mcp.CallToolResult, error) {
@@ -957,11 +1094,11 @@ func SearchIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (
 		}
 }
 
-// IssueWrite creates a tool to create a new or update an existing issue in a GitHub repository.
-func IssueWrite(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+// IssueWrite creates a tool to create, update, or manage relationships for an issue in a GitHub repository.
+func IssueWrite(getClient GetClientFn, getGQLClient GetGQLClientFn, cache *lockdown.RepoAccessCache, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 	return mcp.Tool{
 			Name:        "issue_write",
-			Description: t("TOOL_ISSUE_WRITE_DESCRIPTION", "Create a new or update an existing issue in a GitHub repository."),
+			Description: t("TOOL_ISSUE_WRITE_DESCRIPTION", "Create, update, or manage relationships for issues in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_ISSUE_WRITE_USER_TITLE", "Create or update issue."),
 				ReadOnlyHint: false,
@@ -975,8 +1112,10 @@ func IssueWrite(getClient GetClientFn, getGQLClient GetGQLClientFn, t translatio
 Options are:
 - 'create' - creates a new issue.
 - 'update' - updates an existing issue.
+- 'add_relationship' - add a relationship between two issues.
+- 'remove_relationship' - remove a relationship between two issues.
 `,
-						Enum: []any{"create", "update"},
+						Enum: []any{"create", "update", "add_relationship", "remove_relationship"},
 					},
 					"owner": {
 						Type:        "string",
@@ -989,6 +1128,10 @@ Options are:
 					"issue_number": {
 						Type:        "number",
 						Description: "Issue number to update",
+					},
+					"target_issue_number": {
+						Type:        "number",
+						Description: "Target issue number for relationship operations",
 					},
 					"title": {
 						Type:        "string",
@@ -1033,6 +1176,11 @@ Options are:
 					"duplicate_of": {
 						Type:        "number",
 						Description: "Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'.",
+					},
+					"relationship": {
+						Type:        "string",
+						Description: "Relationship between source and target issues",
+						Enum:        []any{"blocks", "blocked_by", "parent"},
 					},
 				},
 				Required: []string{"method", "owner", "repo"},
@@ -1132,8 +1280,38 @@ Options are:
 				}
 				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, state, stateReason, duplicateOf)
 				return result, nil, err
+			case "add_relationship":
+				issueNumber, err := RequiredInt(args, "issue_number")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				targetIssueNumber, err := RequiredInt(args, "target_issue_number")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				relationship, err := RequiredParam[string](args, "relationship")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				result, err := AddIssueRelationship(ctx, client, cache, owner, repo, issueNumber, targetIssueNumber, relationship, flags)
+				return result, nil, err
+			case "remove_relationship":
+				issueNumber, err := RequiredInt(args, "issue_number")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				targetIssueNumber, err := RequiredInt(args, "target_issue_number")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				relationship, err := RequiredParam[string](args, "relationship")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				result, err := RemoveIssueRelationship(ctx, client, cache, owner, repo, issueNumber, targetIssueNumber, relationship, flags)
+				return result, nil, err
 			default:
-				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
+				return utils.NewToolResultError("invalid method, must be one of 'create', 'update', 'add_relationship', or 'remove_relationship'"), nil, nil
 			}
 		}
 }
@@ -1310,6 +1488,189 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	}
 
 	return utils.NewToolResultText(string(r)), nil
+}
+
+func normalizeRelationshipInput(relationship string) (string, string, error) {
+	switch strings.ToLower(relationship) {
+	case "blocks":
+		return "blocking", "blocks", nil
+	case "blocked_by":
+		return "blocked_by", "blocked_by", nil
+	case "parent":
+		return "blocked_by", "parent", nil
+	default:
+		return "", "", fmt.Errorf("relationship must be one of blocks, blocked_by, parent")
+	}
+}
+
+func ensureIssueAccessibleForRelationship(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner string, repo string, issueNumber int, flags FeatureFlags) (*github.Issue, *mcp.CallToolResult, error) {
+	issue, resp, err := client.Issues.Get(ctx, owner, repo, issueNumber)
+	if err != nil {
+		return nil, ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to get issue for lockdown check",
+			resp,
+			err,
+		), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, nil, fmt.Errorf("failed to read response body: %w", readErr)
+		}
+		return nil, utils.NewToolResultError(fmt.Sprintf("failed to get issue for lockdown check: %s", string(body))), nil
+	}
+
+	if !flags.LockdownMode {
+		return issue, nil, nil
+	}
+
+	if cache == nil {
+		return nil, utils.NewToolResultError("lockdown cache is not configured"), nil
+	}
+
+	login := issue.GetUser().GetLogin()
+	if login == "" {
+		return issue, nil, nil
+	}
+
+	isSafeContent, checkErr := cache.IsSafeContent(ctx, login, owner, repo)
+	if checkErr != nil {
+		return nil, utils.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", checkErr)), nil
+	}
+	if !isSafeContent {
+		return nil, utils.NewToolResultError("access to issue is restricted by lockdown mode"), nil
+	}
+
+	return issue, nil, nil
+}
+
+func AddIssueRelationship(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner string, repo string, issueNumber int, targetIssueNumber int, relationship string, flags FeatureFlags) (*mcp.CallToolResult, error) {
+	apiRelationship, outputRelationship, err := normalizeRelationshipInput(relationship)
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil
+	}
+
+	targetIssue, toolResult, err := ensureIssueAccessibleForRelationship(ctx, client, cache, owner, repo, targetIssueNumber, flags)
+	if toolResult != nil || err != nil {
+		return toolResult, err
+	}
+
+	issueID := targetIssue.GetID()
+	if issueID == 0 {
+		return utils.NewToolResultError("target issue id is missing"), nil
+	}
+
+	requestBody := map[string]any{
+		"issue_id": issueID,
+	}
+
+	path := fmt.Sprintf("repos/%s/%s/issues/%d/dependencies/%s", owner, repo, issueNumber, apiRelationship)
+	req, err := client.NewRequest("POST", path, requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request to add relationship: %w", err)
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	var createdIssue github.Issue
+	resp, err := client.Do(ctx, req, &createdIssue)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to add issue relationship",
+			resp,
+			err,
+		), nil
+	}
+	if resp != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+
+	if resp != nil && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", readErr)
+		}
+		return utils.NewToolResultError(fmt.Sprintf("failed to add issue relationship: %s", string(body))), nil
+	}
+
+	entry := IssueRelationshipEntry{
+		IssueNumber:  targetIssue.GetNumber(),
+		Relationship: outputRelationship,
+		Direction:    relationshipDirection(outputRelationship),
+		URL:          targetIssue.GetHTMLURL(),
+	}
+	if createdIssue.HTMLURL != nil && createdIssue.GetHTMLURL() != "" {
+		entry.URL = createdIssue.GetHTMLURL()
+	}
+
+	response, err := json.Marshal(entry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return utils.NewToolResultText(string(response)), nil
+}
+
+func RemoveIssueRelationship(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner string, repo string, issueNumber int, targetIssueNumber int, relationship string, flags FeatureFlags) (*mcp.CallToolResult, error) {
+	apiRelationship, outputRelationship, err := normalizeRelationshipInput(relationship)
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil
+	}
+
+	targetIssue, toolResult, err := ensureIssueAccessibleForRelationship(ctx, client, cache, owner, repo, targetIssueNumber, flags)
+	if toolResult != nil || err != nil {
+		return toolResult, err
+	}
+
+	issueID := targetIssue.GetID()
+	if issueID == 0 {
+		return utils.NewToolResultError("target issue id is missing"), nil
+	}
+
+	path := fmt.Sprintf("repos/%s/%s/issues/%d/dependencies/%s/%d", owner, repo, issueNumber, apiRelationship, issueID)
+
+	req, err := client.NewRequest("DELETE", path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request to remove relationship: %w", err)
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := client.Do(ctx, req, nil)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to remove issue relationship",
+			resp,
+			err,
+		), nil
+	}
+	if resp != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+
+	if resp != nil && resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", readErr)
+		}
+		return utils.NewToolResultError(fmt.Sprintf("failed to remove issue relationship: %s", string(body))), nil
+	}
+
+	entry := IssueRelationshipEntry{
+		IssueNumber:  targetIssue.GetNumber(),
+		Relationship: outputRelationship,
+		Direction:    relationshipDirection(outputRelationship),
+	}
+	if targetIssue != nil {
+		entry.URL = targetIssue.GetHTMLURL()
+	}
+
+	response, err := json.Marshal(entry)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return utils.NewToolResultText(string(response)), nil
 }
 
 // ListIssues creates a tool to list and filter repository issues
