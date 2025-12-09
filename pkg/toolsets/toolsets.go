@@ -339,11 +339,12 @@ type ToolLookupResult struct {
 }
 
 // FindToolByName searches all toolsets (enabled or disabled) for a tool by name.
-// It resolves deprecated aliases automatically.
+// It resolves deprecated aliases automatically and logs a warning when an alias is used.
 // Returns the tool, its parent toolset name, and an error if not found.
 func (tg *ToolsetGroup) FindToolByName(toolName string) (*ServerTool, string, error) {
 	// Resolve deprecated alias if applicable
 	if canonicalName, isAlias := tg.deprecatedAliases[toolName]; isAlias {
+		fmt.Fprintf(os.Stderr, "Warning: tool %q is deprecated, use %q instead\n", toolName, canonicalName)
 		toolName = canonicalName
 	}
 
