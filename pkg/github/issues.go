@@ -1384,7 +1384,7 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 			// If the state has a value, cast into an array of strings
 			var states []githubv4.IssueState
 			if state != "" {
-				states = append(states, githubv4.IssueState(state))
+				states = append(states, githubv4.IssueState(strings.ToUpper(state)))
 			} else {
 				states = []githubv4.IssueState{githubv4.IssueStateOpen, githubv4.IssueStateClosed}
 			}
