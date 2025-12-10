@@ -91,6 +91,14 @@ func NewGitHubAPIErrorToCtx(ctx context.Context, message string, resp *github.Re
 	return ctx, nil
 }
 
+func NewGitHubGraphQLErrorToCtx(ctx context.Context, message string, err error) (context.Context, error) {
+	graphQLErr := newGitHubGraphQLError(message, err)
+	if ctx != nil {
+		_, _ = addGitHubGraphQLErrorToContext(ctx, graphQLErr) // Explicitly ignore error for graceful handling
+	}
+	return ctx, nil
+}
+
 func addGitHubAPIErrorToContext(ctx context.Context, err *GitHubAPIError) (context.Context, error) {
 	if val, ok := ctx.Value(GitHubErrorKey{}).(*GitHubCtxErrors); ok {
 		val.api = append(val.api, err) // append the error to the existing slice in the context

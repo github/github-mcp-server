@@ -1161,7 +1161,11 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 
 	issue, resp, err := client.Issues.Create(ctx, owner, repo, issueRequest)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr("failed to create issue", err), nil
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to create issue",
+			resp,
+			err,
+		), nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -1495,7 +1499,11 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 
 			issueQuery := getIssueQueryType(hasLabels, hasSince)
 			if err := client.Query(ctx, issueQuery, vars); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return ghErrors.NewGitHubGraphQLErrorResponse(
+					ctx,
+					"failed to list issues",
+					err,
+				), nil, nil
 			}
 
 			// Extract and convert all issue nodes using the common interface
@@ -1653,6 +1661,7 @@ func AssignCopilotToIssue(getGQLClient GetGQLClientFn, t translations.Translatio
 				var query suggestedActorsQuery
 				err := client.Query(ctx, &query, variables)
 				if err != nil {
+					_, _ = ghErrors.NewGitHubGraphQLErrorToCtx(ctx, "failed to get suggested actors", err)
 					return nil, nil, err
 				}
 
@@ -1699,7 +1708,7 @@ func AssignCopilotToIssue(getGQLClient GetGQLClientFn, t translations.Translatio
 			}
 
 			if err := client.Query(ctx, &getIssueQuery, variables); err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to get issue ID: %v", err)), nil, nil
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get issue ID", err), nil, nil
 			}
 
 			// Finally, do the assignment. Just for reference, assigning copilot to an issue that it is already
