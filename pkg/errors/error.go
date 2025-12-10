@@ -46,14 +46,16 @@ func (e *GitHubGraphQLError) Error() string {
 }
 
 type GitHubRawAPIError struct {
-	Message string `json:"message"`
-	Err     error  `json:"-"`
+	Message  string         `json:"message"`
+	Response *http.Response `json:"-"`
+	Err      error          `json:"-"`
 }
 
-func newGitHubRawAPIError(message string, err error) *GitHubRawAPIError {
+func newGitHubRawAPIError(message string, resp *http.Response, err error) *GitHubRawAPIError {
 	return &GitHubRawAPIError{
-		Message: message,
-		Err:     err,
+		Message:  message,
+		Response: resp,
+		Err:      err,
 	}
 }
 
@@ -149,7 +151,7 @@ func NewGitHubGraphQLErrorResponse(ctx context.Context, message string, err erro
 }
 
 func NewGitHubRawAPIErrorResponse(ctx context.Context, message string, resp *http.Response, err error) *mcp.CallToolResult {
-	rawAPIErr := newGitHubRawAPIError(message, err)
+	rawAPIErr := newGitHubRawAPIError(message, resp, err)
 	if ctx != nil {
 		_, _ = addRawAPIErrorToContext(ctx, rawAPIErr) // Explicitly ignore error for graceful handling
 	}
