@@ -636,7 +636,7 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 			}
 			resp, err := rawClient.GetRawContent(ctx, owner, repo, path, rawOpts)
 			if err != nil {
-				return utils.NewToolResultError("failed to get raw repository content"), nil, nil
+				return ghErrors.NewGitHubRawAPIErrorResponse(ctx, "failed to get raw repository content", resp, err), nil, nil
 			}
 			defer func() {
 				_ = resp.Body.Close()

@@ -3,6 +3,7 @@ package errors
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -44,10 +45,23 @@ func (e *GitHubGraphQLError) Error() string {
 	return fmt.Errorf("%s: %w", e.Message, e.Err).Error()
 }
 
+type GitHubRawAPIError struct {
+	Message string `json:"message"`
+	Err     error  `json:"-"`
+}
+
+func newGitHubRawAPIError(message string, err error) *GitHubRawAPIError {
+	return &GitHubRawAPIError{
+		Message: message,
+		Err:     err,
+	}
+}
+
 type GitHubErrorKey struct{}
 type GitHubCtxErrors struct {
 	api     []*GitHubAPIError
 	graphQL []*GitHubGraphQLError
+	raw     []*GitHubRawAPIError
 }
 
 // ContextWithGitHubErrors updates or creates a context with a pointer to GitHub error information (to be used by middleware).
@@ -107,6 +121,15 @@ func addGitHubGraphQLErrorToContext(ctx context.Context, err *GitHubGraphQLError
 	return nil, fmt.Errorf("context does not contain GitHubCtxErrors")
 }
 
+func addRawAPIErrorToContext(ctx context.Context, err *GitHubRawAPIError) (context.Context, error) {
+	if val, ok := ctx.Value(GitHubErrorKey{}).(*GitHubCtxErrors); ok {
+		val.raw = append(val.raw, err)
+		return ctx, nil
+	}
+
+	return nil, fmt.Errorf("context does not contain GitHubCtxErrors")
+}
+
 // NewGitHubAPIErrorResponse returns an mcp.NewToolResultError and retains the error in the context for access via middleware
 func NewGitHubAPIErrorResponse(ctx context.Context, message string, resp *github.Response, err error) *mcp.CallToolResult {
 	apiErr := newGitHubAPIError(message, resp, err)
@@ -121,6 +144,14 @@ func NewGitHubGraphQLErrorResponse(ctx context.Context, message string, err erro
 	graphQLErr := newGitHubGraphQLError(message, err)
 	if ctx != nil {
 		_, _ = addGitHubGraphQLErrorToContext(ctx, graphQLErr) // Explicitly ignore error for graceful handling
+	}
+	return utils.NewToolResultErrorFromErr(message, err)
+}
+
+func NewGitHubRawAPIErrorResponse(ctx context.Context, message string, resp *http.Response, err error) *mcp.CallToolResult {
+	rawAPIErr := newGitHubRawAPIError(message, err)
+	if ctx != nil {
+		_, _ = addRawAPIErrorToContext(ctx, rawAPIErr) // Explicitly ignore error for graceful handling
 	}
 	return utils.NewToolResultErrorFromErr(message, err)
 }
