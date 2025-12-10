@@ -1661,8 +1661,7 @@ func AssignCopilotToIssue(getGQLClient GetGQLClientFn, t translations.Translatio
 				var query suggestedActorsQuery
 				err := client.Query(ctx, &query, variables)
 				if err != nil {
-					_, _ = ghErrors.NewGitHubGraphQLErrorToCtx(ctx, "failed to get suggested actors", err)
-					return nil, nil, err
+					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get suggested actors", err), nil, nil
 				}
 
 				// Iterate all the returned nodes looking for the copilot bot, which is supposed to have the
