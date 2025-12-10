@@ -1467,8 +1467,8 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 				"owner":     githubv4.String(owner),
 				"repo":      githubv4.String(repo),
 				"states":    states,
-				"orderBy":   githubv4.IssueOrderField(orderBy),
-				"direction": githubv4.OrderDirection(direction),
+				"orderBy":   githubv4.IssueOrderField(strings.ToUpper(orderBy)),
+				"direction": githubv4.OrderDirection(strings.ToUpper(direction)),
 				"first":     githubv4.Int(*paginationParams.First),
 			}
 
