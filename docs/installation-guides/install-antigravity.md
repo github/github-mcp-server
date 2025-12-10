@@ -65,7 +65,7 @@ Close and reopen Antigravity for the changes to take effect.
 #### Step 5: Verify Installation
 
 1. Open the MCP Servers panel (... menu → MCP Servers)
-2. You should see "github" with a green status indicator
+2. You should see "github" with a list of available tools
 3. You can now use GitHub tools in your conversations
 
 > [!NOTE]
