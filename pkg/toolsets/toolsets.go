@@ -207,14 +207,10 @@ func NewToolsetGroup(readOnly bool) *ToolsetGroup {
 	}
 }
 
-// AddDeprecatedToolAlias registers an alias for a renamed tool.
-// When a user requests oldName, it will resolve to newName.
-// This allows tool renames without breaking existing user configurations.
 func (tg *ToolsetGroup) AddDeprecatedToolAlias(oldName, newName string) {
 	tg.deprecatedAliases[oldName] = newName
 }
 
-// AddDeprecatedToolAliases registers multiple aliases for renamed tools.
 func (tg *ToolsetGroup) AddDeprecatedToolAliases(aliases map[string]string) {
 	for oldName, newName := range aliases {
 		tg.deprecatedAliases[oldName] = newName
