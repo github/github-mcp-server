@@ -1381,11 +1381,14 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// If the state has a value, cast into an array of strings
+			// Normalize and filter by state
+			state = strings.ToUpper(state)
 			var states []githubv4.IssueState
-			if state != "" {
-				states = append(states, githubv4.IssueState(strings.ToUpper(state)))
-			} else {
+
+			switch state {
+			case "OPEN", "CLOSED":
+				states = []githubv4.IssueState{githubv4.IssueState(state)}
+			default:
 				states = []githubv4.IssueState{githubv4.IssueStateOpen, githubv4.IssueStateClosed}
 			}
 
@@ -1405,13 +1408,21 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// These variables are required for the GraphQL query to be set by default
-			// If orderBy is empty, default to CREATED_AT
-			if orderBy == "" {
+			// Normalize and validate orderBy
+			orderBy = strings.ToUpper(orderBy)
+			switch orderBy {
+			case "CREATED_AT", "UPDATED_AT", "COMMENTS":
+				// Valid, keep as is
+			default:
 				orderBy = "CREATED_AT"
 			}
-			// If direction is empty, default to DESC
-			if direction == "" {
+
+			// Normalize and validate direction
+			direction = strings.ToUpper(direction)
+			switch direction {
+			case "ASC", "DESC":
+				// Valid, keep as is
+			default:
 				direction = "DESC"
 			}
 
@@ -1467,8 +1478,8 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 				"owner":     githubv4.String(owner),
 				"repo":      githubv4.String(repo),
 				"states":    states,
-				"orderBy":   githubv4.IssueOrderField(strings.ToUpper(orderBy)),
-				"direction": githubv4.OrderDirection(strings.ToUpper(direction)),
+				"orderBy":   githubv4.IssueOrderField(orderBy),
+				"direction": githubv4.OrderDirection(direction),
 				"first":     githubv4.Int(*paginationParams.First),
 			}
 
