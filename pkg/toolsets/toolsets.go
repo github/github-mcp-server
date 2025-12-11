@@ -357,7 +357,6 @@ func (tg *ToolsetGroup) FindToolByName(toolName string) (*ServerTool, string, er
 // RegisterSpecificTools registers only the specified tools.
 // Respects read-only mode (skips write tools if readOnly=true).
 // Returns error if any tool is not found.
-// Note: This function expects canonical tool names. Use ResolveToolAliases first if needed.
 func (tg *ToolsetGroup) RegisterSpecificTools(s *mcp.Server, toolNames []string, readOnly bool) error {
 	var skippedTools []string
 	for _, toolName := range toolNames {
