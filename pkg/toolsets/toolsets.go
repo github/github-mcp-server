@@ -335,9 +335,7 @@ func (tg *ToolsetGroup) ResolveToolAliases(toolNames []string) (resolved []strin
 	return resolved, aliasesUsed
 }
 
-// FindToolByName searches all toolsets (enabled or disabled) for a tool by its canonical name.
 // Returns the tool, its parent toolset name, and an error if not found.
-// Note: This function does NOT resolve deprecated aliases. Use ResolveToolAliases first if needed.
 func (tg *ToolsetGroup) FindToolByName(toolName string) (*ServerTool, string, error) {
 	for toolsetName, toolset := range tg.Toolsets {
 		// Check read tools
