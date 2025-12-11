@@ -269,6 +269,9 @@ func generateToolDoc(tool mcp.Tool) string {
 
 			description = prop.Description
 
+			// Indent any continuation lines in the description to maintain markdown formatting
+			description = indentMultilineDescription(description, "    ")
+
 			paramLine := fmt.Sprintf("  - `%s`: %s (%s, %s)", propName, description, typeStr, requiredStr)
 			lines = append(lines, paramLine)
 		}
@@ -286,6 +289,19 @@ func contains(slice []string, item string) bool {
 		}
 	}
 	return false
+}
+
+// indentMultilineDescription adds the specified indent to all lines after the first line.
+// This ensures that multi-line descriptions maintain proper markdown list formatting.
+func indentMultilineDescription(description, indent string) string {
+	lines := strings.Split(description, "\n")
+	if len(lines) <= 1 {
+		return description
+	}
+	for i := 1; i < len(lines); i++ {
+		lines[i] = indent + lines[i]
+	}
+	return strings.Join(lines, "\n")
 }
 
 func replaceSection(content, startMarker, endMarker, newContent string) string {
