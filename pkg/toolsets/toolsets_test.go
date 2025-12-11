@@ -302,29 +302,6 @@ func TestAddDeprecatedToolAliases(t *testing.T) {
 	}
 }
 
-func TestIsDeprecatedToolAlias(t *testing.T) {
-	tsg := NewToolsetGroup(false)
-	tsg.AddDeprecatedToolAliases(map[string]string{"old_tool": "new_tool"})
-
-	// Test with a deprecated alias
-	canonical, isAlias := tsg.IsDeprecatedToolAlias("old_tool")
-	if !isAlias {
-		t.Error("expected 'old_tool' to be recognized as an alias")
-	}
-	if canonical != "new_tool" {
-		t.Errorf("expected canonical name 'new_tool', got '%s'", canonical)
-	}
-
-	// Test with a non-alias
-	canonical, isAlias = tsg.IsDeprecatedToolAlias("some_other_tool")
-	if isAlias {
-		t.Error("expected 'some_other_tool' to not be an alias")
-	}
-	if canonical != "" {
-		t.Errorf("expected empty canonical name, got '%s'", canonical)
-	}
-}
-
 func TestResolveToolAliases(t *testing.T) {
 	tsg := NewToolsetGroup(false)
 	tsg.AddDeprecatedToolAliases(map[string]string{

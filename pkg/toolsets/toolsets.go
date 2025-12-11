@@ -193,7 +193,7 @@ func (t *Toolset) AddReadTools(tools ...ServerTool) *Toolset {
 
 type ToolsetGroup struct {
 	Toolsets          map[string]*Toolset
-	deprecatedAliases map[string]string // oldName → newName for renamed tools
+	deprecatedAliases map[string]string
 	everythingOn      bool
 	readOnly          bool
 }
@@ -211,13 +211,6 @@ func (tg *ToolsetGroup) AddDeprecatedToolAliases(aliases map[string]string) {
 	for oldName, newName := range aliases {
 		tg.deprecatedAliases[oldName] = newName
 	}
-}
-
-// IsDeprecatedToolAlias checks if a tool name is a deprecated alias.
-// Returns the canonical name and true if it's an alias, or empty string and false otherwise.
-func (tg *ToolsetGroup) IsDeprecatedToolAlias(toolName string) (canonicalName string, isAlias bool) {
-	canonicalName, isAlias = tg.deprecatedAliases[toolName]
-	return canonicalName, isAlias
 }
 
 func (tg *ToolsetGroup) AddToolset(ts *Toolset) {
