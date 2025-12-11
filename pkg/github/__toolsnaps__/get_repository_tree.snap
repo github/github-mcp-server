@@ -1,0 +1,38 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get repository tree"
+  },
+  "description": "Get the tree structure (files and directories) of a GitHub repository at a specific ref or SHA",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "properties": {
+      "owner": {
+        "type": "string",
+        "description": "Repository owner (username or organization)"
+      },
+      "path_filter": {
+        "type": "string",
+        "description": "Optional path prefix to filter the tree results (e.g., 'src/' to only show files in the src directory)"
+      },
+      "recursive": {
+        "type": "boolean",
+        "description": "Setting this parameter to true returns the objects or subtrees referenced by the tree. Default is false",
+        "default": false
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      },
+      "tree_sha": {
+        "type": "string",
+        "description": "The SHA1 value or ref (branch or tag) name of the tree. Defaults to the repository's default branch"
+      }
+    }
+  },
+  "name": "get_repository_tree"
+}

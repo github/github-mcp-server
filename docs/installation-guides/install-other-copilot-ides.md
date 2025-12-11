@@ -12,33 +12,34 @@ Quick setup guide for the GitHub MCP server in GitHub Copilot across different I
 
 ## Visual Studio
 
-Requires Visual Studio 2022 version 17.14 or later.
+Requires Visual Studio 2022 version 17.14.9 or later.
 
 ### Remote Server (Recommended)
 
 The remote GitHub MCP server is hosted by GitHub and provides automatic updates with no local setup required.
 
 #### Configuration
-1. Go to **Tools** → **Options** → **GitHub** → **Copilot** → **MCP Servers**
+1. Create an `.mcp.json` file in your solution or %USERPROFILE% directory.
 2. Add this configuration:
 ```json
 {
   "servers": {
     "github": {
-      "url": "https://api.githubcopilot.com/mcp/",
-      "authorization_token": "Bearer YOUR_GITHUB_PAT"
+      "url": "https://api.githubcopilot.com/mcp/"
     }
   }
 }
 ```
-3. Restart Visual Studio
+3. Save the file. Wait for CodeLens to update to offer a way to authenticate to the new server, activate that and pick the GitHub account to authenticate with.
+4. In the GitHub Copilot Chat window, switch to Agent mode.
+5. Activate the tool picker in the Chat window and enable one or more tools from the "github" MCP server.
 
 ### Local Server
 
 For users who prefer to run the GitHub MCP server locally. Requires Docker installed and running.
 
 #### Configuration
-1. Create an `.mcp.json` file in your solution directory
+1. Create an `.mcp.json` file in your solution or %USERPROFILE% directory.
 2. Add this configuration:
 ```json
 {
@@ -65,9 +66,11 @@ For users who prefer to run the GitHub MCP server locally. Requires Docker insta
   }
 }
 ```
-3. Save the file and restart Visual Studio
+3. Save the file. Wait for CodeLens to update to offer a way to provide user inputs, activate that and paste in a PAT you generate from https://github.com/settings/tokens.
+4. In the GitHub Copilot Chat window, switch to Agent mode.
+5. Activate the tool picker in the Chat window and enable one or more tools from the "github" MCP server.
 
-**Documentation:** [Visual Studio MCP Guide](https://learn.microsoft.com/en-us/visualstudio/ide/mcp-servers?view=vs-2022)
+**Documentation:** [Visual Studio MCP Guide](https://learn.microsoft.com/visualstudio/ide/mcp-servers)
 
 ---
 

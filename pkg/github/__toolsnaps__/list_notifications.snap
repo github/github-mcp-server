@@ -1,49 +1,49 @@
 {
   "annotations": {
-    "title": "List notifications",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "List notifications"
   },
   "description": "Lists all GitHub notifications for the authenticated user, including unread notifications, mentions, review requests, assignments, and updates on issues or pull requests. Use this tool whenever the user asks what to work on next, requests a summary of their GitHub activity, wants to see pending reviews, or needs to check for new updates or tasks. This tool is the primary way to discover actionable items, reminders, and outstanding work on GitHub. Always call this tool when asked what to work on next, what is pending, or what needs attention in GitHub.",
   "inputSchema": {
+    "type": "object",
     "properties": {
       "before": {
-        "description": "Only show notifications updated before the given time (ISO 8601 format)",
-        "type": "string"
+        "type": "string",
+        "description": "Only show notifications updated before the given time (ISO 8601 format)"
       },
       "filter": {
+        "type": "string",
         "description": "Filter notifications to, use default unless specified. Read notifications are ones that have already been acknowledged by the user. Participating notifications are those that the user is directly involved in, such as issues or pull requests they have commented on or created.",
         "enum": [
           "default",
           "include_read_notifications",
           "only_participating"
-        ],
-        "type": "string"
+        ]
       },
       "owner": {
-        "description": "Optional repository owner. If provided with repo, only notifications for this repository are listed.",
-        "type": "string"
+        "type": "string",
+        "description": "Optional repository owner. If provided with repo, only notifications for this repository are listed."
       },
       "page": {
+        "type": "number",
         "description": "Page number for pagination (min 1)",
-        "minimum": 1,
-        "type": "number"
+        "minimum": 1
       },
       "perPage": {
+        "type": "number",
         "description": "Results per page for pagination (min 1, max 100)",
-        "maximum": 100,
         "minimum": 1,
-        "type": "number"
+        "maximum": 100
       },
       "repo": {
-        "description": "Optional repository name. If provided with owner, only notifications for this repository are listed.",
-        "type": "string"
+        "type": "string",
+        "description": "Optional repository name. If provided with owner, only notifications for this repository are listed."
       },
       "since": {
-        "description": "Only show notifications updated after the given time (ISO 8601 format)",
-        "type": "string"
+        "type": "string",
+        "description": "Only show notifications updated after the given time (ISO 8601 format)"
       }
-    },
-    "type": "object"
+    }
   },
   "name": "list_notifications"
 }

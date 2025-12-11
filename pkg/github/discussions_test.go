@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
+	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v74/github"
+	"github.com/google/go-github/v79/github"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,75 +18,89 @@ import (
 
 var (
 	discussionsGeneral = []map[string]any{
-		{"number": 1, "title": "Discussion 1 title", "createdAt": "2023-01-01T00:00:00Z", "updatedAt": "2023-01-01T00:00:00Z", "author": map[string]any{"login": "user1"}, "url": "https://github.com/owner/repo/discussions/1", "category": map[string]any{"name": "General"}},
-		{"number": 3, "title": "Discussion 3 title", "createdAt": "2023-03-01T00:00:00Z", "updatedAt": "2023-02-01T00:00:00Z", "author": map[string]any{"login": "user1"}, "url": "https://github.com/owner/repo/discussions/3", "category": map[string]any{"name": "General"}},
+		{"number": 1, "title": "Discussion 1 title", "createdAt": "2023-01-01T00:00:00Z", "updatedAt": "2023-01-01T00:00:00Z", "closed": false, "isAnswered": false, "author": map[string]any{"login": "user1"}, "url": "https://github.com/owner/repo/discussions/1", "category": map[string]any{"name": "General"}},
+		{"number": 3, "title": "Discussion 3 title", "createdAt": "2023-03-01T00:00:00Z", "updatedAt": "2023-02-01T00:00:00Z", "closed": false, "isAnswered": false, "author": map[string]any{"login": "user1"}, "url": "https://github.com/owner/repo/discussions/3", "category": map[string]any{"name": "General"}},
 	}
 	discussionsAll = []map[string]any{
 		{
-			"number":    1,
-			"title":     "Discussion 1 title",
-			"createdAt": "2023-01-01T00:00:00Z",
-			"updatedAt": "2023-01-01T00:00:00Z",
-			"author":    map[string]any{"login": "user1"},
-			"url":       "https://github.com/owner/repo/discussions/1",
-			"category":  map[string]any{"name": "General"},
+			"number":     1,
+			"title":      "Discussion 1 title",
+			"createdAt":  "2023-01-01T00:00:00Z",
+			"updatedAt":  "2023-01-01T00:00:00Z",
+			"closed":     false,
+			"isAnswered": false,
+			"author":     map[string]any{"login": "user1"},
+			"url":        "https://github.com/owner/repo/discussions/1",
+			"category":   map[string]any{"name": "General"},
 		},
 		{
-			"number":    2,
-			"title":     "Discussion 2 title",
-			"createdAt": "2023-02-01T00:00:00Z",
-			"updatedAt": "2023-02-01T00:00:00Z",
-			"author":    map[string]any{"login": "user2"},
-			"url":       "https://github.com/owner/repo/discussions/2",
-			"category":  map[string]any{"name": "Questions"},
+			"number":     2,
+			"title":      "Discussion 2 title",
+			"createdAt":  "2023-02-01T00:00:00Z",
+			"updatedAt":  "2023-02-01T00:00:00Z",
+			"closed":     false,
+			"isAnswered": false,
+			"author":     map[string]any{"login": "user2"},
+			"url":        "https://github.com/owner/repo/discussions/2",
+			"category":   map[string]any{"name": "Questions"},
 		},
 		{
-			"number":    3,
-			"title":     "Discussion 3 title",
-			"createdAt": "2023-03-01T00:00:00Z",
-			"updatedAt": "2023-03-01T00:00:00Z",
-			"author":    map[string]any{"login": "user3"},
-			"url":       "https://github.com/owner/repo/discussions/3",
-			"category":  map[string]any{"name": "General"},
+			"number":     3,
+			"title":      "Discussion 3 title",
+			"createdAt":  "2023-03-01T00:00:00Z",
+			"updatedAt":  "2023-03-01T00:00:00Z",
+			"closed":     false,
+			"isAnswered": false,
+			"author":     map[string]any{"login": "user3"},
+			"url":        "https://github.com/owner/repo/discussions/3",
+			"category":   map[string]any{"name": "General"},
 		},
 	}
 
 	discussionsOrgLevel = []map[string]any{
 		{
-			"number":    1,
-			"title":     "Org Discussion 1 - Community Guidelines",
-			"createdAt": "2023-01-15T00:00:00Z",
-			"updatedAt": "2023-01-15T00:00:00Z",
-			"author":    map[string]any{"login": "org-admin"},
-			"url":       "https://github.com/owner/.github/discussions/1",
-			"category":  map[string]any{"name": "Announcements"},
+			"number":     1,
+			"title":      "Org Discussion 1 - Community Guidelines",
+			"createdAt":  "2023-01-15T00:00:00Z",
+			"updatedAt":  "2023-01-15T00:00:00Z",
+			"closed":     false,
+			"isAnswered": false,
+			"author":     map[string]any{"login": "org-admin"},
+			"url":        "https://github.com/owner/.github/discussions/1",
+			"category":   map[string]any{"name": "Announcements"},
 		},
 		{
-			"number":    2,
-			"title":     "Org Discussion 2 - Roadmap 2023",
-			"createdAt": "2023-02-20T00:00:00Z",
-			"updatedAt": "2023-02-20T00:00:00Z",
-			"author":    map[string]any{"login": "org-admin"},
-			"url":       "https://github.com/owner/.github/discussions/2",
-			"category":  map[string]any{"name": "General"},
+			"number":     2,
+			"title":      "Org Discussion 2 - Roadmap 2023",
+			"createdAt":  "2023-02-20T00:00:00Z",
+			"updatedAt":  "2023-02-20T00:00:00Z",
+			"closed":     false,
+			"isAnswered": false,
+			"author":     map[string]any{"login": "org-admin"},
+			"url":        "https://github.com/owner/.github/discussions/2",
+			"category":   map[string]any{"name": "General"},
 		},
 		{
-			"number":    3,
-			"title":     "Org Discussion 3 - Roadmap 2024",
-			"createdAt": "2023-02-20T00:00:00Z",
-			"updatedAt": "2023-02-20T00:00:00Z",
-			"author":    map[string]any{"login": "org-admin"},
-			"url":       "https://github.com/owner/.github/discussions/3",
-			"category":  map[string]any{"name": "General"},
+			"number":     3,
+			"title":      "Org Discussion 3 - Roadmap 2024",
+			"createdAt":  "2023-02-20T00:00:00Z",
+			"updatedAt":  "2023-02-20T00:00:00Z",
+			"closed":     false,
+			"isAnswered": false,
+			"author":     map[string]any{"login": "org-admin"},
+			"url":        "https://github.com/owner/.github/discussions/3",
+			"category":   map[string]any{"name": "General"},
 		},
 		{
-			"number":    4,
-			"title":     "Org Discussion 4 - Roadmap 2025",
-			"createdAt": "2023-02-20T00:00:00Z",
-			"updatedAt": "2023-02-20T00:00:00Z",
-			"author":    map[string]any{"login": "org-admin"},
-			"url":       "https://github.com/owner/.github/discussions/4",
-			"category":  map[string]any{"name": "General"},
+			"number":     4,
+			"title":      "Org Discussion 4 - Roadmap 2025",
+			"createdAt":  "2023-02-20T00:00:00Z",
+			"updatedAt":  "2023-02-20T00:00:00Z",
+			"closed":     false,
+			"isAnswered": false,
+			"author":     map[string]any{"login": "org-admin"},
+			"url":        "https://github.com/owner/.github/discussions/4",
+			"category":   map[string]any{"name": "General"},
 		},
 	}
 
@@ -200,13 +215,17 @@ var (
 func Test_ListDiscussions(t *testing.T) {
 	mockClient := githubv4.NewClient(nil)
 	toolDef, _ := ListDiscussions(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(toolDef.Name, toolDef))
+
 	assert.Equal(t, "list_discussions", toolDef.Name)
 	assert.NotEmpty(t, toolDef.Description)
-	assert.Contains(t, toolDef.InputSchema.Properties, "owner")
-	assert.Contains(t, toolDef.InputSchema.Properties, "repo")
-	assert.Contains(t, toolDef.InputSchema.Properties, "orderBy")
-	assert.Contains(t, toolDef.InputSchema.Properties, "direction")
-	assert.ElementsMatch(t, toolDef.InputSchema.Required, []string{"owner"})
+	schema, ok := toolDef.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "orderBy")
+	assert.Contains(t, schema.Properties, "direction")
+	assert.ElementsMatch(t, schema.Required, []string{"owner"})
 
 	// Variables matching what GraphQL receives after JSON marshaling/unmarshaling
 	varsListAll := map[string]interface{}{
@@ -388,10 +407,10 @@ func Test_ListDiscussions(t *testing.T) {
 	}
 
 	// Define the actual query strings that match the implementation
-	qBasicNoOrder := "query($after:String$first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after){nodes{number,title,createdAt,updatedAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
-	qWithCategoryNoOrder := "query($after:String$categoryId:ID!$first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after, categoryId: $categoryId){nodes{number,title,createdAt,updatedAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
-	qBasicWithOrder := "query($after:String$first:Int!$orderByDirection:OrderDirection!$orderByField:DiscussionOrderField!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after, orderBy: { field: $orderByField, direction: $orderByDirection }){nodes{number,title,createdAt,updatedAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
-	qWithCategoryAndOrder := "query($after:String$categoryId:ID!$first:Int!$orderByDirection:OrderDirection!$orderByField:DiscussionOrderField!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after, categoryId: $categoryId, orderBy: { field: $orderByField, direction: $orderByDirection }){nodes{number,title,createdAt,updatedAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
+	qBasicNoOrder := "query($after:String$first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after){nodes{number,title,createdAt,updatedAt,closed,isAnswered,answerChosenAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
+	qWithCategoryNoOrder := "query($after:String$categoryId:ID!$first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after, categoryId: $categoryId){nodes{number,title,createdAt,updatedAt,closed,isAnswered,answerChosenAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
+	qBasicWithOrder := "query($after:String$first:Int!$orderByDirection:OrderDirection!$orderByField:DiscussionOrderField!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after, orderBy: { field: $orderByField, direction: $orderByDirection }){nodes{number,title,createdAt,updatedAt,closed,isAnswered,answerChosenAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
+	qWithCategoryAndOrder := "query($after:String$categoryId:ID!$first:Int!$orderByDirection:OrderDirection!$orderByField:DiscussionOrderField!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussions(first: $first, after: $after, categoryId: $categoryId, orderBy: { field: $orderByField, direction: $orderByDirection }){nodes{number,title,createdAt,updatedAt,closed,isAnswered,answerChosenAt,author{login},category{name},url},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -431,7 +450,7 @@ func Test_ListDiscussions(t *testing.T) {
 			_, handler := ListDiscussions(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
 
 			req := createMCPRequest(tc.reqParams)
-			res, err := handler(context.Background(), req)
+			res, _, err := handler(context.Background(), &req, tc.reqParams)
 			text := getTextResult(t, res).Text
 
 			if tc.expectError {
@@ -476,15 +495,19 @@ func Test_ListDiscussions(t *testing.T) {
 func Test_GetDiscussion(t *testing.T) {
 	// Verify tool definition and schema
 	toolDef, _ := GetDiscussion(nil, translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(toolDef.Name, toolDef))
+
 	assert.Equal(t, "get_discussion", toolDef.Name)
 	assert.NotEmpty(t, toolDef.Description)
-	assert.Contains(t, toolDef.InputSchema.Properties, "owner")
-	assert.Contains(t, toolDef.InputSchema.Properties, "repo")
-	assert.Contains(t, toolDef.InputSchema.Properties, "discussionNumber")
-	assert.ElementsMatch(t, toolDef.InputSchema.Required, []string{"owner", "repo", "discussionNumber"})
+	schema, ok := toolDef.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "discussionNumber")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "discussionNumber"})
 
 	// Use exact string query that matches implementation output
-	qGetDiscussion := "query($discussionNumber:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){number,title,body,createdAt,url,category{name}}}}"
+	qGetDiscussion := "query($discussionNumber:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){number,title,body,createdAt,closed,isAnswered,answerChosenAt,url,category{name}}}}"
 
 	vars := map[string]interface{}{
 		"owner":            "owner",
@@ -495,31 +518,31 @@ func Test_GetDiscussion(t *testing.T) {
 		name        string
 		response    githubv4mock.GQLResponse
 		expectError bool
-		expected    *github.Discussion
+		expected    map[string]interface{}
 		errContains string
 	}{
 		{
 			name: "successful retrieval",
 			response: githubv4mock.DataResponse(map[string]any{
 				"repository": map[string]any{"discussion": map[string]any{
-					"number":    1,
-					"title":     "Test Discussion Title",
-					"body":      "This is a test discussion",
-					"url":       "https://github.com/owner/repo/discussions/1",
-					"createdAt": "2025-04-25T12:00:00Z",
-					"category":  map[string]any{"name": "General"},
+					"number":     1,
+					"title":      "Test Discussion Title",
+					"body":       "This is a test discussion",
+					"url":        "https://github.com/owner/repo/discussions/1",
+					"createdAt":  "2025-04-25T12:00:00Z",
+					"closed":     false,
+					"isAnswered": false,
+					"category":   map[string]any{"name": "General"},
 				}},
 			}),
 			expectError: false,
-			expected: &github.Discussion{
-				HTMLURL:   github.Ptr("https://github.com/owner/repo/discussions/1"),
-				Number:    github.Ptr(1),
-				Title:     github.Ptr("Test Discussion Title"),
-				Body:      github.Ptr("This is a test discussion"),
-				CreatedAt: &github.Timestamp{Time: time.Date(2025, 4, 25, 12, 0, 0, 0, time.UTC)},
-				DiscussionCategory: &github.DiscussionCategory{
-					Name: github.Ptr("General"),
-				},
+			expected: map[string]interface{}{
+				"number":     float64(1),
+				"title":      "Test Discussion Title",
+				"body":       "This is a test discussion",
+				"url":        "https://github.com/owner/repo/discussions/1",
+				"closed":     false,
+				"isAnswered": false,
 			},
 		},
 		{
@@ -536,8 +559,9 @@ func Test_GetDiscussion(t *testing.T) {
 			gqlClient := githubv4.NewClient(httpClient)
 			_, handler := GetDiscussion(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
 
-			req := createMCPRequest(map[string]interface{}{"owner": "owner", "repo": "repo", "discussionNumber": int32(1)})
-			res, err := handler(context.Background(), req)
+			reqParams := map[string]interface{}{"owner": "owner", "repo": "repo", "discussionNumber": int32(1)}
+			req := createMCPRequest(reqParams)
+			res, _, err := handler(context.Background(), &req, reqParams)
 			text := getTextResult(t, res).Text
 
 			if tc.expectError {
@@ -547,14 +571,18 @@ func Test_GetDiscussion(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			var out github.Discussion
+			var out map[string]interface{}
 			require.NoError(t, json.Unmarshal([]byte(text), &out))
-			assert.Equal(t, *tc.expected.HTMLURL, *out.HTMLURL)
-			assert.Equal(t, *tc.expected.Number, *out.Number)
-			assert.Equal(t, *tc.expected.Title, *out.Title)
-			assert.Equal(t, *tc.expected.Body, *out.Body)
-			// Check category label
-			assert.Equal(t, *tc.expected.DiscussionCategory.Name, *out.DiscussionCategory.Name)
+			assert.Equal(t, tc.expected["number"], out["number"])
+			assert.Equal(t, tc.expected["title"], out["title"])
+			assert.Equal(t, tc.expected["body"], out["body"])
+			assert.Equal(t, tc.expected["url"], out["url"])
+			assert.Equal(t, tc.expected["closed"], out["closed"])
+			assert.Equal(t, tc.expected["isAnswered"], out["isAnswered"])
+			// Check category is present
+			category, ok := out["category"].(map[string]interface{})
+			require.True(t, ok)
+			assert.Equal(t, "General", category["name"])
 		})
 	}
 }
@@ -562,12 +590,16 @@ func Test_GetDiscussion(t *testing.T) {
 func Test_GetDiscussionComments(t *testing.T) {
 	// Verify tool definition and schema
 	toolDef, _ := GetDiscussionComments(nil, translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(toolDef.Name, toolDef))
+
 	assert.Equal(t, "get_discussion_comments", toolDef.Name)
 	assert.NotEmpty(t, toolDef.Description)
-	assert.Contains(t, toolDef.InputSchema.Properties, "owner")
-	assert.Contains(t, toolDef.InputSchema.Properties, "repo")
-	assert.Contains(t, toolDef.InputSchema.Properties, "discussionNumber")
-	assert.ElementsMatch(t, toolDef.InputSchema.Required, []string{"owner", "repo", "discussionNumber"})
+	schema, ok := toolDef.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "discussionNumber")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "discussionNumber"})
 
 	// Use exact string query that matches implementation output
 	qGetComments := "query($after:String$discussionNumber:Int!$first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){comments(first: $first, after: $after){nodes{body},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}}"
@@ -605,13 +637,14 @@ func Test_GetDiscussionComments(t *testing.T) {
 	gqlClient := githubv4.NewClient(httpClient)
 	_, handler := GetDiscussionComments(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
 
-	request := createMCPRequest(map[string]interface{}{
+	reqParams := map[string]interface{}{
 		"owner":            "owner",
 		"repo":             "repo",
 		"discussionNumber": int32(1),
-	})
+	}
+	request := createMCPRequest(reqParams)
 
-	result, err := handler(context.Background(), request)
+	result, _, err := handler(context.Background(), &request, reqParams)
 	require.NoError(t, err)
 
 	textContent := getTextResult(t, result)
@@ -640,12 +673,16 @@ func Test_GetDiscussionComments(t *testing.T) {
 func Test_ListDiscussionCategories(t *testing.T) {
 	mockClient := githubv4.NewClient(nil)
 	toolDef, _ := ListDiscussionCategories(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(toolDef.Name, toolDef))
+
 	assert.Equal(t, "list_discussion_categories", toolDef.Name)
 	assert.NotEmpty(t, toolDef.Description)
 	assert.Contains(t, toolDef.Description, "or organisation")
-	assert.Contains(t, toolDef.InputSchema.Properties, "owner")
-	assert.Contains(t, toolDef.InputSchema.Properties, "repo")
-	assert.ElementsMatch(t, toolDef.InputSchema.Required, []string{"owner"})
+	schema, ok := toolDef.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.ElementsMatch(t, schema.Required, []string{"owner"})
 
 	// Use exact string query that matches implementation output
 	qListCategories := "query($first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussionCategories(first: $first){nodes{id,name},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
@@ -752,7 +789,7 @@ func Test_ListDiscussionCategories(t *testing.T) {
 			_, handler := ListDiscussionCategories(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
 
 			req := createMCPRequest(tc.reqParams)
-			res, err := handler(context.Background(), req)
+			res, _, err := handler(context.Background(), &req, tc.reqParams)
 			text := getTextResult(t, res).Text
 
 			if tc.expectError {

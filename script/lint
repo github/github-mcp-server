@@ -5,7 +5,7 @@ gofmt -s -w .
 
 BINDIR="$(git rev-parse --show-toplevel)"/bin
 BINARY=$BINDIR/golangci-lint
-GOLANGCI_LINT_VERSION=v2.2.1
+GOLANGCI_LINT_VERSION=v2.5.0
 
 if [ ! -f "$BINARY" ]; then
     curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s "$GOLANGCI_LINT_VERSION"

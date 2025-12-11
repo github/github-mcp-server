@@ -1,71 +1,71 @@
 {
   "annotations": {
-    "title": "List pull requests",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "List pull requests"
   },
   "description": "List pull requests in a GitHub repository. If the user specifies an author, then DO NOT use this tool and use the search_pull_requests tool instead.",
   "inputSchema": {
+    "type": "object",
+    "required": [
+      "owner",
+      "repo"
+    ],
     "properties": {
       "base": {
-        "description": "Filter by base branch",
-        "type": "string"
+        "type": "string",
+        "description": "Filter by base branch"
       },
       "direction": {
+        "type": "string",
         "description": "Sort direction",
         "enum": [
           "asc",
           "desc"
-        ],
-        "type": "string"
+        ]
       },
       "head": {
-        "description": "Filter by head user/org and branch",
-        "type": "string"
+        "type": "string",
+        "description": "Filter by head user/org and branch"
       },
       "owner": {
-        "description": "Repository owner",
-        "type": "string"
+        "type": "string",
+        "description": "Repository owner"
       },
       "page": {
+        "type": "number",
         "description": "Page number for pagination (min 1)",
-        "minimum": 1,
-        "type": "number"
+        "minimum": 1
       },
       "perPage": {
+        "type": "number",
         "description": "Results per page for pagination (min 1, max 100)",
-        "maximum": 100,
         "minimum": 1,
-        "type": "number"
+        "maximum": 100
       },
       "repo": {
-        "description": "Repository name",
-        "type": "string"
+        "type": "string",
+        "description": "Repository name"
       },
       "sort": {
+        "type": "string",
         "description": "Sort by",
         "enum": [
           "created",
           "updated",
           "popularity",
           "long-running"
-        ],
-        "type": "string"
+        ]
       },
       "state": {
+        "type": "string",
         "description": "Filter by state",
         "enum": [
           "open",
           "closed",
           "all"
-        ],
-        "type": "string"
+        ]
       }
-    },
-    "required": [
-      "owner",
-      "repo"
-    ],
-    "type": "object"
+    }
   },
   "name": "list_pull_requests"
 }

@@ -69,3 +69,10 @@ helius-key.txt
 quicknode-key.txt
 moralis-key.txt
 rpc-credentials.json
+# macOS
+.DS_Store
+
+# binary
+github-mcp-server
+
+.history
