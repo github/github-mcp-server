@@ -163,10 +163,8 @@ func GetDefaultToolsetIDs() []string {
 // DeprecatedToolAliases maps old tool names to their new canonical names.
 // This allows tool renames without breaking existing user configurations.
 // When a user requests an old tool name, it will silently resolve to the new name.
-var DeprecatedToolAliases = map[string]string{
-	"test_1": "get_me",
-	"test_2": "get_me",
-}
+// Example: "get_issue" : "issue_read"
+var DeprecatedToolAliases = map[string]string{}
 
 func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetGQLClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc, contentWindowSize int, flags FeatureFlags, cache *lockdown.RepoAccessCache) *toolsets.ToolsetGroup {
 	tsg := toolsets.NewToolsetGroup(readOnly)
