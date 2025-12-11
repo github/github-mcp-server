@@ -325,16 +325,38 @@ func TestIsDeprecatedToolAlias(t *testing.T) {
 	}
 }
 
-func TestFindToolByName_WithAlias(t *testing.T) {
+func TestResolveToolAliases(t *testing.T) {
+	tsg := NewToolsetGroup(false)
+	tsg.AddDeprecatedToolAliases(map[string]string{
+		"get_issue": "issue_read",
+		"create_pr": "pull_request_create",
+	})
+
+	// Test resolving a mix of aliases and canonical names
+	input := []string{"get_issue", "some_tool", "create_pr"}
+	resolved := tsg.ResolveToolAliases(input)
+
+	if len(resolved) != 3 {
+		t.Fatalf("expected 3 resolved names, got %d", len(resolved))
+	}
+	if resolved[0] != "issue_read" {
+		t.Errorf("expected 'issue_read', got '%s'", resolved[0])
+	}
+	if resolved[1] != "some_tool" {
+		t.Errorf("expected 'some_tool' (unchanged), got '%s'", resolved[1])
+	}
+	if resolved[2] != "pull_request_create" {
+		t.Errorf("expected 'pull_request_create', got '%s'", resolved[2])
+	}
+}
+
+func TestFindToolByName(t *testing.T) {
 	tsg := NewToolsetGroup(false)
 
 	// Create a toolset with a tool
 	toolset := NewToolset("test-toolset", "Test toolset")
 	toolset.readTools = append(toolset.readTools, mockTool("issue_read", true))
 	tsg.AddToolset(toolset)
-
-	// Add an alias
-	tsg.AddDeprecatedToolAliases(map[string]string{"get_issue": "issue_read"})
 
 	// Find by canonical name
 	tool, toolsetName, err := tsg.FindToolByName("issue_read")
@@ -348,40 +370,14 @@ func TestFindToolByName_WithAlias(t *testing.T) {
 		t.Errorf("expected toolset name 'test-toolset', got '%s'", toolsetName)
 	}
 
-	// Find by deprecated alias (should resolve to canonical)
-	tool, toolsetName, err = tsg.FindToolByName("get_issue")
-	if err != nil {
-		t.Fatalf("expected no error when using alias, got %v", err)
-	}
-	if tool.Tool.Name != "issue_read" {
-		t.Errorf("expected tool name 'issue_read' when using alias, got '%s'", tool.Tool.Name)
-	}
-	if toolsetName != "test-toolset" {
-		t.Errorf("expected toolset name 'test-toolset', got '%s'", toolsetName)
-	}
-}
-
-func TestFindToolByName_NotFound(t *testing.T) {
-	tsg := NewToolsetGroup(false)
-
-	// Create a toolset with a tool
-	toolset := NewToolset("test-toolset", "Test toolset")
-	toolset.readTools = append(toolset.readTools, mockTool("some_tool", true))
-	tsg.AddToolset(toolset)
-
-	// Try to find a non-existent tool
-	_, _, err := tsg.FindToolByName("nonexistent_tool")
+	// FindToolByName does NOT resolve aliases - it expects canonical names
+	_, _, err = tsg.FindToolByName("get_issue")
 	if err == nil {
-		t.Error("expected error for non-existent tool")
-	}
-
-	var toolErr *ToolDoesNotExistError
-	if !errors.As(err, &toolErr) {
-		t.Errorf("expected ToolDoesNotExistError, got %T", err)
+		t.Error("expected error when using alias directly with FindToolByName")
 	}
 }
 
-func TestRegisterSpecificTools_WithAliases(t *testing.T) {
+func TestRegisterSpecificTools(t *testing.T) {
 	tsg := NewToolsetGroup(false)
 
 	// Create a toolset with both read and write tools
@@ -390,20 +386,14 @@ func TestRegisterSpecificTools_WithAliases(t *testing.T) {
 	toolset.writeTools = append(toolset.writeTools, mockTool("issue_write", false))
 	tsg.AddToolset(toolset)
 
-	// Add aliases
-	tsg.AddDeprecatedToolAliases(map[string]string{
-		"get_issue":    "issue_read",
-		"create_issue": "issue_write",
-	})
-
-	// Test registering with aliases (should work)
-	err := tsg.RegisterSpecificTools(nil, []string{"get_issue"}, false)
+	// Test registering with canonical names
+	err := tsg.RegisterSpecificTools(nil, []string{"issue_read"}, false)
 	if err != nil {
-		t.Errorf("expected no error registering aliased tool, got %v", err)
+		t.Errorf("expected no error registering tool, got %v", err)
 	}
 
-	// Test registering write tool alias in read-only mode (should skip but not error)
-	err = tsg.RegisterSpecificTools(nil, []string{"create_issue"}, true)
+	// Test registering write tool in read-only mode (should skip but not error)
+	err = tsg.RegisterSpecificTools(nil, []string{"issue_write"}, true)
 	if err != nil {
 		t.Errorf("expected no error when skipping write tool in read-only mode, got %v", err)
 	}

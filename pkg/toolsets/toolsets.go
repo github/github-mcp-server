@@ -322,16 +322,26 @@ func NewToolDoesNotExistError(name string) *ToolDoesNotExistError {
 	return &ToolDoesNotExistError{Name: name}
 }
 
-// FindToolByName searches all toolsets (enabled or disabled) for a tool by name.
-// It resolves deprecated aliases automatically and logs a warning when an alias is used.
-// Returns the tool, its parent toolset name, and an error if not found.
-func (tg *ToolsetGroup) FindToolByName(toolName string) (*ServerTool, string, error) {
-	// Resolve deprecated alias if applicable
-	if canonicalName, isAlias := tg.deprecatedAliases[toolName]; isAlias {
-		fmt.Fprintf(os.Stderr, "Warning: tool %q is deprecated, use %q instead\n", toolName, canonicalName)
-		toolName = canonicalName
+// ResolveToolAliases resolves deprecated tool aliases to their canonical names.
+// It logs a warning to stderr for each deprecated alias that is resolved.
+// Returns the list of tool names with aliases replaced by canonical names.
+func (tg *ToolsetGroup) ResolveToolAliases(toolNames []string) []string {
+	resolved := make([]string, 0, len(toolNames))
+	for _, toolName := range toolNames {
+		if canonicalName, isAlias := tg.deprecatedAliases[toolName]; isAlias {
+			fmt.Fprintf(os.Stderr, "Warning: tool %q is deprecated, use %q instead\n", toolName, canonicalName)
+			resolved = append(resolved, canonicalName)
+		} else {
+			resolved = append(resolved, toolName)
+		}
 	}
+	return resolved
+}
 
+// FindToolByName searches all toolsets (enabled or disabled) for a tool by its canonical name.
+// Returns the tool, its parent toolset name, and an error if not found.
+// Note: This function does NOT resolve deprecated aliases. Use ResolveToolAliases first if needed.
+func (tg *ToolsetGroup) FindToolByName(toolName string) (*ServerTool, string, error) {
 	for toolsetName, toolset := range tg.Toolsets {
 		// Check read tools
 		for _, tool := range toolset.readTools {
@@ -352,7 +362,7 @@ func (tg *ToolsetGroup) FindToolByName(toolName string) (*ServerTool, string, er
 // RegisterSpecificTools registers only the specified tools.
 // Respects read-only mode (skips write tools if readOnly=true).
 // Returns error if any tool is not found.
-// Deprecated tool aliases are resolved automatically.
+// Note: This function expects canonical tool names. Use ResolveToolAliases first if needed.
 func (tg *ToolsetGroup) RegisterSpecificTools(s *mcp.Server, toolNames []string, readOnly bool) error {
 	var skippedTools []string
 	for _, toolName := range toolNames {
