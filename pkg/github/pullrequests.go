@@ -337,19 +337,19 @@ func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 		return utils.NewToolResultError(fmt.Sprintf("invalid pagination parameters: %v", err)), nil
 	}
 
-	// Default to 100 threads if not specified, max is 100 for GraphQL
-	perPage := int32(100)
+	// Default to 30 threads if not specified, max is 100 for GraphQL
+	perPage := int32(30)
 	if gqlParams.First != nil && *gqlParams.First > 0 {
 		perPage = *gqlParams.First
 	}
 
 	// Build variables for GraphQL query
-	vars := map[string]interface{}{
+	vars := map[string]any{
 		"owner":             githubv4.String(owner),
 		"repo":              githubv4.String(repo),
 		"prNum":             githubv4.Int(int32(pullNumber)), //nolint:gosec // pullNumber is controlled by user input validation
 		"first":             githubv4.Int(perPage),
-		"commentsPerThread": githubv4.Int(50), // Max 50 comments per thread
+		"commentsPerThread": githubv4.Int(50),
 	}
 
 	// Add cursor if provided
@@ -398,9 +398,9 @@ func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 	}
 
 	// Build response with review threads and pagination info
-	response := map[string]interface{}{
+	response := map[string]any{
 		"reviewThreads": query.Repository.PullRequest.ReviewThreads.Nodes,
-		"pageInfo": map[string]interface{}{
+		"pageInfo": map[string]any{
 			"hasNextPage":     query.Repository.PullRequest.ReviewThreads.PageInfo.HasNextPage,
 			"hasPreviousPage": query.Repository.PullRequest.ReviewThreads.PageInfo.HasPreviousPage,
 			"startCursor":     string(query.Repository.PullRequest.ReviewThreads.PageInfo.StartCursor),
@@ -777,7 +777,7 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 					} `graphql:"repository(owner: $owner, name: $repo)"`
 				}
 
-				err = gqlClient.Query(ctx, &prQuery, map[string]interface{}{
+				err = gqlClient.Query(ctx, &prQuery, map[string]any{
 					"owner": githubv4.String(owner),
 					"repo":  githubv4.String(repo),
 					"prNum": githubv4.Int(pullNumber), // #nosec G115 - pull request numbers are always small positive integers
