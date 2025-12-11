@@ -402,6 +402,8 @@ func CreateOrUpdateFile(getClient GetClientFn, t translations.TranslationHelperF
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 		}
+
+		path = strings.TrimPrefix(path, "/")
 		fileContent, resp, err := client.Repositories.CreateFile(ctx, owner, repo, path, opts)
 		if err != nil {
 			return ghErrors.NewGitHubAPIErrorResponse(ctx,
