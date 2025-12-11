@@ -1,4 +1,4 @@
-// tool_aliases.go
+// deprecated_tool_aliases.go
 package github
 
 // DeprecatedToolAliases maps old tool names to their new canonical names.
