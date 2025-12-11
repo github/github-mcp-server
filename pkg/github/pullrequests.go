@@ -111,7 +111,11 @@ Possible options:
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
 				}
-				result, err := GetPullRequestReviewComments(ctx, gqlClient, cache, owner, repo, pullNumber, pagination, flags)
+				cursorPagination, err := OptionalCursorPaginationParams(args)
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				result, err := GetPullRequestReviewComments(ctx, gqlClient, cache, owner, repo, pullNumber, cursorPagination, flags)
 				return result, nil, err
 			case "get_reviews":
 				result, err := GetPullRequestReviews(ctx, client, cache, owner, repo, pullNumber, flags)
@@ -330,17 +334,11 @@ type pageInfoFragment struct {
 	EndCursor       githubv4.String
 }
 
-func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Client, cache *lockdown.RepoAccessCache, owner, repo string, pullNumber int, pagination PaginationParams, ff FeatureFlags) (*mcp.CallToolResult, error) {
+func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Client, cache *lockdown.RepoAccessCache, owner, repo string, pullNumber int, pagination CursorPaginationParams, ff FeatureFlags) (*mcp.CallToolResult, error) {
 	// Convert pagination parameters to GraphQL format
 	gqlParams, err := pagination.ToGraphQLParams()
 	if err != nil {
 		return utils.NewToolResultError(fmt.Sprintf("invalid pagination parameters: %v", err)), nil
-	}
-
-	// Default to 30 threads if not specified, max is 100 for GraphQL
-	perPage := int32(30)
-	if gqlParams.First != nil && *gqlParams.First > 0 {
-		perPage = *gqlParams.First
 	}
 
 	// Build variables for GraphQL query
@@ -348,12 +346,12 @@ func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 		"owner":             githubv4.String(owner),
 		"repo":              githubv4.String(repo),
 		"prNum":             githubv4.Int(int32(pullNumber)), //nolint:gosec // pullNumber is controlled by user input validation
-		"first":             githubv4.Int(perPage),
+		"first":             githubv4.Int(*gqlParams.First),
 		"commentsPerThread": githubv4.Int(50),
 	}
 
 	// Add cursor if provided
-	if gqlParams.After != nil && *gqlParams.After != "" {
+	if gqlParams.After != nil {
 		vars["after"] = githubv4.String(*gqlParams.After)
 	} else {
 		vars["after"] = (*githubv4.String)(nil)
