@@ -334,8 +334,9 @@ func TestResolveToolAliases(t *testing.T) {
 
 	// Test resolving a mix of aliases and canonical names
 	input := []string{"get_issue", "some_tool", "create_pr"}
-	resolved := tsg.ResolveToolAliases(input)
+	resolved, aliasesUsed := tsg.ResolveToolAliases(input)
 
+	// Verify resolved names
 	if len(resolved) != 3 {
 		t.Fatalf("expected 3 resolved names, got %d", len(resolved))
 	}
@@ -347,6 +348,17 @@ func TestResolveToolAliases(t *testing.T) {
 	}
 	if resolved[2] != "pull_request_create" {
 		t.Errorf("expected 'pull_request_create', got '%s'", resolved[2])
+	}
+
+	// Verify aliasesUsed map
+	if len(aliasesUsed) != 2 {
+		t.Fatalf("expected 2 aliases used, got %d", len(aliasesUsed))
+	}
+	if aliasesUsed["get_issue"] != "issue_read" {
+		t.Errorf("expected aliasesUsed['get_issue'] = 'issue_read', got '%s'", aliasesUsed["get_issue"])
+	}
+	if aliasesUsed["create_pr"] != "pull_request_create" {
+		t.Errorf("expected aliasesUsed['create_pr'] = 'pull_request_create', got '%s'", aliasesUsed["create_pr"])
 	}
 }
 
