@@ -3,7 +3,22 @@ package toolsets
 import (
 	"errors"
 	"testing"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+// mockTool creates a minimal ServerTool for testing
+func mockTool(name string, readOnly bool) ServerTool {
+	return ServerTool{
+		Tool: mcp.Tool{
+			Name: name,
+			Annotations: &mcp.ToolAnnotations{
+				ReadOnlyHint: readOnly,
+			},
+		},
+		RegisterFunc: func(_ *mcp.Server) {},
+	}
+}
 
 func TestNewToolsetGroupIsEmptyWithoutEverythingOn(t *testing.T) {
 	tsg := NewToolsetGroup(false)
@@ -260,5 +275,142 @@ func TestToolsetGroup_GetToolset(t *testing.T) {
 	}
 	if !errors.Is(err, NewToolsetDoesNotExistError("does-not-exist")) {
 		t.Errorf("expected error to be ToolsetDoesNotExistError, got %v", err)
+	}
+}
+
+func TestAddDeprecatedToolAliases(t *testing.T) {
+	tsg := NewToolsetGroup(false)
+
+	// Test adding aliases
+	tsg.AddDeprecatedToolAliases(map[string]string{
+		"old_name":  "new_name",
+		"get_issue": "issue_read",
+		"create_pr": "pull_request_create",
+	})
+
+	if len(tsg.deprecatedAliases) != 3 {
+		t.Errorf("expected 3 aliases, got %d", len(tsg.deprecatedAliases))
+	}
+	if tsg.deprecatedAliases["old_name"] != "new_name" {
+		t.Errorf("expected alias 'old_name' -> 'new_name', got '%s'", tsg.deprecatedAliases["old_name"])
+	}
+	if tsg.deprecatedAliases["get_issue"] != "issue_read" {
+		t.Errorf("expected alias 'get_issue' -> 'issue_read'")
+	}
+	if tsg.deprecatedAliases["create_pr"] != "pull_request_create" {
+		t.Errorf("expected alias 'create_pr' -> 'pull_request_create'")
+	}
+}
+
+func TestIsDeprecatedToolAlias(t *testing.T) {
+	tsg := NewToolsetGroup(false)
+	tsg.AddDeprecatedToolAliases(map[string]string{"old_tool": "new_tool"})
+
+	// Test with a deprecated alias
+	canonical, isAlias := tsg.IsDeprecatedToolAlias("old_tool")
+	if !isAlias {
+		t.Error("expected 'old_tool' to be recognized as an alias")
+	}
+	if canonical != "new_tool" {
+		t.Errorf("expected canonical name 'new_tool', got '%s'", canonical)
+	}
+
+	// Test with a non-alias
+	canonical, isAlias = tsg.IsDeprecatedToolAlias("some_other_tool")
+	if isAlias {
+		t.Error("expected 'some_other_tool' to not be an alias")
+	}
+	if canonical != "" {
+		t.Errorf("expected empty canonical name, got '%s'", canonical)
+	}
+}
+
+func TestFindToolByName_WithAlias(t *testing.T) {
+	tsg := NewToolsetGroup(false)
+
+	// Create a toolset with a tool
+	toolset := NewToolset("test-toolset", "Test toolset")
+	toolset.readTools = append(toolset.readTools, mockTool("issue_read", true))
+	tsg.AddToolset(toolset)
+
+	// Add an alias
+	tsg.AddDeprecatedToolAliases(map[string]string{"get_issue": "issue_read"})
+
+	// Find by canonical name
+	tool, toolsetName, err := tsg.FindToolByName("issue_read")
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if tool.Tool.Name != "issue_read" {
+		t.Errorf("expected tool name 'issue_read', got '%s'", tool.Tool.Name)
+	}
+	if toolsetName != "test-toolset" {
+		t.Errorf("expected toolset name 'test-toolset', got '%s'", toolsetName)
+	}
+
+	// Find by deprecated alias (should resolve to canonical)
+	tool, toolsetName, err = tsg.FindToolByName("get_issue")
+	if err != nil {
+		t.Fatalf("expected no error when using alias, got %v", err)
+	}
+	if tool.Tool.Name != "issue_read" {
+		t.Errorf("expected tool name 'issue_read' when using alias, got '%s'", tool.Tool.Name)
+	}
+	if toolsetName != "test-toolset" {
+		t.Errorf("expected toolset name 'test-toolset', got '%s'", toolsetName)
+	}
+}
+
+func TestFindToolByName_NotFound(t *testing.T) {
+	tsg := NewToolsetGroup(false)
+
+	// Create a toolset with a tool
+	toolset := NewToolset("test-toolset", "Test toolset")
+	toolset.readTools = append(toolset.readTools, mockTool("some_tool", true))
+	tsg.AddToolset(toolset)
+
+	// Try to find a non-existent tool
+	_, _, err := tsg.FindToolByName("nonexistent_tool")
+	if err == nil {
+		t.Error("expected error for non-existent tool")
+	}
+
+	var toolErr *ToolDoesNotExistError
+	if !errors.As(err, &toolErr) {
+		t.Errorf("expected ToolDoesNotExistError, got %T", err)
+	}
+}
+
+func TestRegisterSpecificTools_WithAliases(t *testing.T) {
+	tsg := NewToolsetGroup(false)
+
+	// Create a toolset with both read and write tools
+	toolset := NewToolset("test-toolset", "Test toolset")
+	toolset.readTools = append(toolset.readTools, mockTool("issue_read", true))
+	toolset.writeTools = append(toolset.writeTools, mockTool("issue_write", false))
+	tsg.AddToolset(toolset)
+
+	// Add aliases
+	tsg.AddDeprecatedToolAliases(map[string]string{
+		"get_issue":    "issue_read",
+		"create_issue": "issue_write",
+	})
+
+	// Test registering with aliases (should work)
+	err := tsg.RegisterSpecificTools(nil, []string{"get_issue"}, false)
+	if err != nil {
+		t.Errorf("expected no error registering aliased tool, got %v", err)
+	}
+
+	// Test registering write tool alias in read-only mode (should skip but not error)
+	err = tsg.RegisterSpecificTools(nil, []string{"create_issue"}, true)
+	if err != nil {
+		t.Errorf("expected no error when skipping write tool in read-only mode, got %v", err)
+	}
+
+	// Test registering non-existent tool (should error)
+	err = tsg.RegisterSpecificTools(nil, []string{"nonexistent"}, false)
+	if err == nil {
+		t.Error("expected error for non-existent tool")
 	}
 }

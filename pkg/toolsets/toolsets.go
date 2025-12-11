@@ -207,10 +207,6 @@ func NewToolsetGroup(readOnly bool) *ToolsetGroup {
 	}
 }
 
-func (tg *ToolsetGroup) AddDeprecatedToolAlias(oldName, newName string) {
-	tg.deprecatedAliases[oldName] = newName
-}
-
 func (tg *ToolsetGroup) AddDeprecatedToolAliases(aliases map[string]string) {
 	for oldName, newName := range aliases {
 		tg.deprecatedAliases[oldName] = newName
