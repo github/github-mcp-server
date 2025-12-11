@@ -207,7 +207,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(GetLabel(getGQLClient, t)),
 		).
 		AddWriteTools(
-			toolsets.NewServerTool(IssueWrite(getClient, getGQLClient, t)),
+			toolsets.NewServerTool(IssueWrite(getClient, getGQLClient, cache, t, flags)),
 			toolsets.NewServerTool(AddIssueComment(getClient, t)),
 			toolsets.NewServerTool(AssignCopilotToIssue(getGQLClient, t)),
 			toolsets.NewServerTool(SubIssueWrite(getClient, t)),

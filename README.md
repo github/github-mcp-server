@@ -731,6 +731,7 @@ Options are:
 2. get_comments - Get issue comments.
 3. get_sub_issues - Get sub-issues of the issue.
 4. get_labels - Get labels assigned to the issue.
+5. get_relationships - Get relationships (blocks/blocked_by) for the issue.
  (string, required)
   - `owner`: The owner of the repository (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -747,12 +748,16 @@ Options are:
 Options are:
 - 'create' - creates a new issue.
 - 'update' - updates an existing issue.
+- 'add_relationship' - add a relationship between two issues.
+- 'remove_relationship' - remove a relationship between two issues.
  (string, required)
   - `milestone`: Milestone number (number, optional)
   - `owner`: Repository owner (string, required)
+  - `relationship`: Relationship between source and target issues (string, optional)
   - `repo`: Repository name (string, required)
   - `state`: New state (string, optional)
   - `state_reason`: Reason for the state change. Ignored unless state is changed. (string, optional)
+  - `target_issue_number`: Target issue number for relationship operations (number, optional)
   - `title`: Issue title (string, optional)
   - `type`: Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
 
