@@ -326,14 +326,6 @@ func NewToolDoesNotExistError(name string) *ToolDoesNotExistError {
 	return &ToolDoesNotExistError{Name: name}
 }
 
-// ToolLookupResult contains the result of a tool lookup operation.
-type ToolLookupResult struct {
-	Tool          *ServerTool
-	ToolsetName   string
-	RequestedName string // The name that was requested (may differ from Tool.Name if alias was used)
-	AliasUsed     bool   // True if the requested name was a deprecated alias
-}
-
 // FindToolByName searches all toolsets (enabled or disabled) for a tool by name.
 // It resolves deprecated aliases automatically and logs a warning when an alias is used.
 // Returns the tool, its parent toolset name, and an error if not found.
@@ -359,32 +351,6 @@ func (tg *ToolsetGroup) FindToolByName(toolName string) (*ServerTool, string, er
 		}
 	}
 	return nil, "", NewToolDoesNotExistError(toolName)
-}
-
-// FindToolWithAliasInfo searches all toolsets for a tool by name and returns
-// additional metadata about whether a deprecated alias was used.
-// Use this when you need to track/log deprecated alias usage (e.g., for telemetry).
-func (tg *ToolsetGroup) FindToolWithAliasInfo(toolName string) (*ToolLookupResult, error) {
-	requestedName := toolName
-	aliasUsed := false
-
-	// Check if this is a deprecated alias and resolve to canonical name
-	if canonicalName, isAlias := tg.deprecatedAliases[toolName]; isAlias {
-		toolName = canonicalName
-		aliasUsed = true
-	}
-
-	tool, toolsetName, err := tg.FindToolByName(toolName)
-	if err != nil {
-		return nil, NewToolDoesNotExistError(requestedName)
-	}
-
-	return &ToolLookupResult{
-		Tool:          tool,
-		ToolsetName:   toolsetName,
-		RequestedName: requestedName,
-		AliasUsed:     aliasUsed,
-	}, nil
 }
 
 // RegisterSpecificTools registers only the specified tools.
