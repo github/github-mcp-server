@@ -1184,6 +1184,16 @@ func Test_ListIssues(t *testing.T) {
 			expectedCount: 2,
 		},
 		{
+			name: "filter by open state - lc",
+			reqParams: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+				"state": "open",
+			},
+			expectError:   false,
+			expectedCount: 2,
+		},
+		{
 			name: "filter by closed state",
 			reqParams: map[string]interface{}{
 				"owner": "owner",
@@ -1227,6 +1237,9 @@ func Test_ListIssues(t *testing.T) {
 				matcher := githubv4mock.NewQueryMatcher(qBasicNoLabels, varsListAll, mockResponseListAll)
 				httpClient = githubv4mock.NewMockedHTTPClient(matcher)
 			case "filter by open state":
+				matcher := githubv4mock.NewQueryMatcher(qBasicNoLabels, varsOpenOnly, mockResponseOpenOnly)
+				httpClient = githubv4mock.NewMockedHTTPClient(matcher)
+			case "filter by open state - lc":
 				matcher := githubv4mock.NewQueryMatcher(qBasicNoLabels, varsOpenOnly, mockResponseOpenOnly)
 				httpClient = githubv4mock.NewMockedHTTPClient(matcher)
 			case "filter by closed state":
