@@ -26,6 +26,10 @@ import (
 // The function uses a ring buffer to efficiently store only the last maxJobLogLines lines.
 // If the response contains more lines than maxJobLogLines, only the most recent lines are kept.
 func ProcessResponseAsRingBufferToEnd(httpResp *http.Response, maxJobLogLines int) (string, int, *http.Response, error) {
+	if maxJobLogLines > 100000 {
+		maxJobLogLines = 100000
+	}
+
 	lines := make([]string, maxJobLogLines)
 	validLines := make([]bool, maxJobLogLines)
 	totalLines := 0
