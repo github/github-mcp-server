@@ -21,6 +21,14 @@ set -e
 
 go install github.com/google/go-licenses@latest
 
+# actions/setup-go does not setup the installed toolchain to be preferred over the system install,
+# which causes go-licenses to raise "Package ... does not have module info" errors in CI.
+# For more information, https://github.com/google/go-licenses/issues/244#issuecomment-1885098633
+if [ "$CI" = "true" ]; then
+    export GOROOT=$(go env GOROOT)
+    export PATH=${GOROOT}/bin:$PATH
+fi
+
 rm -rf third-party
 mkdir -p third-party
 export TEMPDIR="$(mktemp -d)"
