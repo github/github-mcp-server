@@ -612,13 +612,11 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 			ref = rawOpts.SHA
 		}
 
-		// If the path is (most likely) not to be a directory, we will
-		// first try to get the raw content from the GitHub raw content API.
-
 		var rawAPIResponseCode int
-		// First, get file info from Contents API to retrieve SHA
 		var fileSHA string
 		opts := &github.RepositoryContentGetOptions{Ref: ref}
+
+		// Always call GitHub Contents API first to get metadata including SHA and determine if it's a file or directory
 		fileContent, dirContent, respContents, err := client.Repositories.GetContents(ctx, owner, repo, path, opts)
 		if respContents != nil {
 			defer func() { _ = respContents.Body.Close() }()
