@@ -1,0 +1,47 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Search repository milestones."
+  },
+  "description": "Search milestones for a repository.",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "owner",
+      "repo",
+      "query"
+    ],
+    "properties": {
+      "owner": {
+        "type": "string",
+        "description": "Repository owner (username or organization name)"
+      },
+      "page": {
+        "type": "number",
+        "description": "Page number (1-indexed)"
+      },
+      "per_page": {
+        "type": "number",
+        "description": "Results per page (max 100)"
+      },
+      "query": {
+        "type": "string",
+        "description": "Text to search for in milestone title or description"
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      },
+      "state": {
+        "type": "string",
+        "description": "Filter by state: open, closed, or all (default: open)",
+        "enum": [
+          "open",
+          "closed",
+          "all"
+        ]
+      }
+    }
+  },
+  "name": "search_milestones"
+}

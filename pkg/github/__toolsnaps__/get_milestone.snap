@@ -1,0 +1,30 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get repository milestone."
+  },
+  "description": "Get a milestone by number.",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "owner",
+      "repo",
+      "milestone_number"
+    ],
+    "properties": {
+      "milestone_number": {
+        "type": "number",
+        "description": "Milestone number to fetch"
+      },
+      "owner": {
+        "type": "string",
+        "description": "Repository owner (username or organization name)"
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      }
+    }
+  },
+  "name": "get_milestone"
+}
