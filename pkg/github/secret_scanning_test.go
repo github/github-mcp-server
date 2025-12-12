@@ -6,8 +6,10 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,12 +19,18 @@ func Test_GetSecretScanningAlert(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := GetSecretScanningAlert(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
 	assert.Equal(t, "get_secret_scanning_alert", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "alertNumber")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "alertNumber"})
+
+	// Verify InputSchema structure
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "alertNumber")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "alertNumber"})
 
 	// Setup mock alert for success case
 	mockAlert := &github.SecretScanningAlert{
@@ -86,7 +94,7 @@ func Test_GetSecretScanningAlert(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -120,14 +128,20 @@ func Test_ListSecretScanningAlerts(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := ListSecretScanningAlerts(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
 	assert.Equal(t, "list_secret_scanning_alerts", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "state")
-	assert.Contains(t, tool.InputSchema.Properties, "secret_type")
-	assert.Contains(t, tool.InputSchema.Properties, "resolution")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
+
+	// Verify InputSchema structure
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "state")
+	assert.Contains(t, schema.Properties, "secret_type")
+	assert.Contains(t, schema.Properties, "resolution")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
 	// Setup mock alerts for success case
 	resolvedAlert := github.SecretScanningAlert{
@@ -217,7 +231,7 @@ func Test_ListSecretScanningAlerts(t *testing.T) {
 
 			request := createMCPRequest(tc.requestArgs)
 
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			if tc.expectError {
 				require.NoError(t, err)

@@ -3,7 +3,22 @@ package toolsets
 import (
 	"errors"
 	"testing"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
+
+// mockTool creates a minimal ServerTool for testing
+func mockTool(name string, readOnly bool) ServerTool {
+	return ServerTool{
+		Tool: mcp.Tool{
+			Name: name,
+			Annotations: &mcp.ToolAnnotations{
+				ReadOnlyHint: readOnly,
+			},
+		},
+		RegisterFunc: func(_ *mcp.Server) {},
+	}
+}
 
 func TestNewToolsetGroupIsEmptyWithoutEverythingOn(t *testing.T) {
 	tsg := NewToolsetGroup(false)

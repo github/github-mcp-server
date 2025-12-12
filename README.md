@@ -95,11 +95,13 @@ See [Remote Server Documentation](docs/remote-server.md) for full details on rem
 
 When no toolsets are specified, [default toolsets](#default-toolset) are used.
 
-#### Enterprise Cloud with data residency (ghe.com)
+#### GitHub Enterprise
+
+##### GitHub Enterprise Cloud with data residency (ghe.com)
 
 GitHub Enterprise Cloud can also make use of the remote server.
 
-Example for `https://octocorp.ghe.com`:
+Example for `https://octocorp.ghe.com` with GitHub PAT token:
 ```
 {
     ...
@@ -113,6 +115,10 @@ Example for `https://octocorp.ghe.com`:
     ...
 }
 ```
+
+> **Note:** When using OAuth with GitHub Enterprise with VS Code and GitHub Copilot, you also need to configure your VS Code settings to point to your GitHub Enterprise instance - see [Authenticate from VS Code](https://docs.github.com/en/enterprise-cloud@latest/copilot/how-tos/configure-personal-settings/authenticate-to-ghecom)
+
+##### GitHub Enterprise Server
 
 GitHub Enterprise Server does not support remote server hosting. Please refer to [GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)](#github-enterprise-server-and-enterprise-cloud-with-data-residency-ghecom) from the local server configuration.
 
@@ -719,13 +725,13 @@ The following sets of tools are available:
 
 - **issue_read** - Get issue details
   - `issue_number`: The number of the issue (number, required)
-  - `method`: The read operation to perform on a single issue. 
-Options are: 
-1. get - Get details of a specific issue.
-2. get_comments - Get issue comments.
-3. get_sub_issues - Get sub-issues of the issue.
-4. get_labels - Get labels assigned to the issue.
- (string, required)
+  - `method`: The read operation to perform on a single issue.
+    Options are:
+    1. get - Get details of a specific issue.
+    2. get_comments - Get issue comments.
+    3. get_sub_issues - Get sub-issues of the issue.
+    4. get_labels - Get labels assigned to the issue.
+     (string, required)
   - `owner`: The owner of the repository (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -738,10 +744,10 @@ Options are:
   - `issue_number`: Issue number to update (number, optional)
   - `labels`: Labels to apply to this issue (string[], optional)
   - `method`: Write operation to perform on a single issue.
-Options are: 
-- 'create' - creates a new issue. 
-- 'update' - updates an existing issue.
- (string, required)
+    Options are:
+    - 'create' - creates a new issue.
+    - 'update' - updates an existing issue.
+     (string, required)
   - `milestone`: Milestone number (number, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
@@ -778,11 +784,11 @@ Options are:
   - `before_id`: The ID of the sub-issue to be prioritized before (either after_id OR before_id should be specified) (number, optional)
   - `issue_number`: The number of the parent issue (number, required)
   - `method`: The action to perform on a single sub-issue
-Options are:
-- 'add' - add a sub-issue to a parent issue in a GitHub repository.
-- 'remove' - remove a sub-issue from a parent issue in a GitHub repository.
-- 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.
-				 (string, required)
+    Options are:
+    - 'add' - add a sub-issue to a parent issue in a GitHub repository.
+    - 'remove' - remove a sub-issue from a parent issue in a GitHub repository.
+    - 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.
+    				 (string, required)
   - `owner`: Repository owner (string, required)
   - `replace_parent`: When true, replaces the sub-issue's current parent issue. Use with 'add' method only. (boolean, optional)
   - `repo`: Repository name (string, required)
@@ -819,7 +825,7 @@ Options are:
 <summary>Notifications</summary>
 
 - **dismiss_notification** - Dismiss notification
-  - `state`: The new state of the notification (read/done) (string, optional)
+  - `state`: The new state of the notification (read/done) (string, required)
   - `threadID`: The ID of the notification thread (string, required)
 
 - **get_notification_details** - Get notification details
@@ -980,15 +986,15 @@ Options are:
 
 - **pull_request_read** - Get details for a single pull request
   - `method`: Action to specify what pull request data needs to be retrieved from GitHub. 
-Possible options: 
- 1. get - Get details of a specific pull request.
- 2. get_diff - Get the diff of a pull request.
- 3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
- 4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
- 5. get_review_comments - Get the review comments on a pull request. They are comments made on a portion of the unified diff during a pull request review. Use with pagination parameters to control the number of results returned.
- 6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
- 7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
- (string, required)
+    Possible options: 
+     1. get - Get details of a specific pull request.
+     2. get_diff - Get the diff of a pull request.
+     3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
+     4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
+     5. get_review_comments - Get the review comments on a pull request. They are comments made on a portion of the unified diff during a pull request review. Use with pagination parameters to control the number of results returned.
+     6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
+     7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
+     (string, required)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)

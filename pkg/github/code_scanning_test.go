@@ -9,6 +9,7 @@ import (
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,10 +23,14 @@ func Test_GetCodeScanningAlert(t *testing.T) {
 
 	assert.Equal(t, "get_code_scanning_alert", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "alertNumber")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "alertNumber"})
+
+	// InputSchema is of type any, need to cast to *jsonschema.Schema
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "alertNumber")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "alertNumber"})
 
 	// Setup mock alert for success case
 	mockAlert := &github.Alert{
@@ -89,8 +94,8 @@ func Test_GetCodeScanningAlert(t *testing.T) {
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
-			result, err := handler(context.Background(), request)
+			// Call handler with new signature
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -128,13 +133,17 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 
 	assert.Equal(t, "list_code_scanning_alerts", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "ref")
-	assert.Contains(t, tool.InputSchema.Properties, "state")
-	assert.Contains(t, tool.InputSchema.Properties, "severity")
-	assert.Contains(t, tool.InputSchema.Properties, "tool_name")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
+
+	// InputSchema is of type any, need to cast to *jsonschema.Schema
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "ref")
+	assert.Contains(t, schema.Properties, "state")
+	assert.Contains(t, schema.Properties, "severity")
+	assert.Contains(t, schema.Properties, "tool_name")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
 	// Setup mock alerts for success case
 	mockAlerts := []*github.Alert{
@@ -215,8 +224,8 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler
-			result, err := handler(context.Background(), request)
+			// Call handler with new signature
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
