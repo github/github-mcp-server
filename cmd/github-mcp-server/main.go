@@ -76,6 +76,56 @@ var (
 			return ghmcp.RunStdioServer(stdioServerConfig)
 		},
 	}
+
+	sseCmd = &cobra.Command{
+		Use:   "sse",
+		Short: "Start SSE server",
+		Long:  `Start a server that communicates via Server-Sent Events (SSE) over HTTP.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			token := viper.GetString("personal_access_token")
+			if token == "" {
+				return errors.New("GITHUB_PERSONAL_ACCESS_TOKEN not set")
+			}
+
+			// If you're wondering why we're not using viper.GetStringSlice("toolsets"),
+			// it's because viper doesn't handle comma-separated values correctly for env
+			// vars when using GetStringSlice.
+			// https://github.com/spf13/viper/issues/380
+			var enabledToolsets []string
+			if err := viper.UnmarshalKey("toolsets", &enabledToolsets); err != nil {
+				return fmt.Errorf("failed to unmarshal toolsets: %w", err)
+			}
+
+			// Parse tools (similar to toolsets)
+			var enabledTools []string
+			if err := viper.UnmarshalKey("tools", &enabledTools); err != nil {
+				return fmt.Errorf("failed to unmarshal tools: %w", err)
+			}
+
+			// If neither toolset config nor tools config is passed we enable the default toolset
+			if len(enabledToolsets) == 0 && len(enabledTools) == 0 {
+				enabledToolsets = []string{github.ToolsetMetadataDefault.ID}
+			}
+
+			ttl := viper.GetDuration("repo-access-cache-ttl")
+			sseServerConfig := ghmcp.SSEServerConfig{
+				Version:            version,
+				Host:               viper.GetString("host"),
+				Token:              token,
+				EnabledToolsets:    enabledToolsets,
+				EnabledTools:       enabledTools,
+				DynamicToolsets:    viper.GetBool("dynamic_toolsets"),
+				ReadOnly:           viper.GetBool("read-only"),
+				ExportTranslations: viper.GetBool("export-translations"),
+				LogFilePath:        viper.GetString("log-file"),
+				ContentWindowSize:  viper.GetInt("content-window-size"),
+				LockdownMode:       viper.GetBool("lockdown-mode"),
+				RepoAccessCacheTTL: &ttl,
+				SSEAddr:            viper.GetString("sse-addr"),
+			}
+			return ghmcp.RunSSEServer(sseServerConfig)
+		},
+	}
 )
 
 func init() {
@@ -110,8 +160,13 @@ func init() {
 	_ = viper.BindPFlag("lockdown-mode", rootCmd.PersistentFlags().Lookup("lockdown-mode"))
 	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
 
+	// Add SSE-specific flags
+	sseCmd.Flags().String("sse-addr", ":8080", "Address to listen on for SSE connections (e.g., :8080 or localhost:8080)")
+	_ = viper.BindPFlag("sse-addr", sseCmd.Flags().Lookup("sse-addr"))
+
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)
+	rootCmd.AddCommand(sseCmd)
 }
 
 func initConfig() {
