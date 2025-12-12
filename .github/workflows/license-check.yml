@@ -85,3 +85,61 @@ I noticed the third-party license files were out of date and pushed a fix to thi
 Please pull the latest changes before pushing again.`
             })
 
+      # After pushing the fix, check if PR now has no functional changes (just license updates)
+      # This handles the case where the PR only needed license updates and nothing else
+      - name: Check if PR is now empty
+        if: steps.changes.outputs.changed == 'true'
+        id: empty_check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            
+            // Check if ALL changes are just license files
+            const nonLicenseFiles = files.filter(f => 
+              !f.filename.startsWith('third-party-licenses.') &&
+              !f.filename.startsWith('third-party/')
+            );
+            
+            const isEmpty = nonLicenseFiles.length === 0;
+            core.setOutput('is_empty', isEmpty);
+            
+            if (isEmpty) {
+              core.info('PR only contains license file changes - will close as stale');
+            } else {
+              core.info(`PR has ${nonLicenseFiles.length} non-license file changes - keeping open`);
+            }
+
+      - name: Close stale license-only PR
+        if: steps.changes.outputs.changed == 'true' && steps.empty_check.outputs.is_empty == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## 🤖 Auto-closing stale PR
+
+This PR now only contains license file updates with no other functional changes. The license updates have been applied, so closing this PR as complete.
+
+If this PR should have had other changes, please reopen it and add the intended changes.`
+            });
+            
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+              state: 'closed'
+            });
+
