@@ -986,15 +986,15 @@ The following sets of tools are available:
 
 - **pull_request_read** - Get details for a single pull request
   - `method`: Action to specify what pull request data needs to be retrieved from GitHub. 
-Possible options: 
- 1. get - Get details of a specific pull request.
- 2. get_diff - Get the diff of a pull request.
- 3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
- 4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
- 5. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Use cursor-based pagination (perPage, after) to control results.
- 6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
- 7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
- (string, required)
+    Possible options: 
+     1. get - Get details of a specific pull request.
+     2. get_diff - Get the diff of a pull request.
+     3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
+     4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
+     5. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Use cursor-based pagination (perPage, after) to control results.
+     6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
+     7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
+     (string, required)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
