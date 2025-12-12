@@ -11,6 +11,8 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/lockdown"
+	"github.com/github/github-mcp-server/pkg/observability"
+	"github.com/github/github-mcp-server/pkg/observability/log"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/toolsets"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -67,7 +69,9 @@ func generateReadmeDocs(readmePath string) error {
 
 	// Create toolset group with mock clients
 	repoAccessCache := lockdown.GetInstance(nil)
-	tsg := github.DefaultToolsetGroup(false, mockGetClient, mockGetGQLClient, mockGetRawClient, t, 5000, github.FeatureFlags{}, repoAccessCache)
+	nilLogger := log.NewNoopLogger()
+	nilObsv := observability.NewExporters(nilLogger)
+	tsg := github.DefaultToolsetGroup(false, mockGetClient, mockGetGQLClient, mockGetRawClient, t, 5000, github.FeatureFlags{}, repoAccessCache, nilObsv)
 
 	// Generate toolsets documentation
 	toolsetsDoc := generateToolsetsDoc(tsg)
@@ -323,7 +327,9 @@ func generateRemoteToolsetsDoc() string {
 
 	// Create toolset group with mock clients
 	repoAccessCache := lockdown.GetInstance(nil)
-	tsg := github.DefaultToolsetGroup(false, mockGetClient, mockGetGQLClient, mockGetRawClient, t, 5000, github.FeatureFlags{}, repoAccessCache)
+	nilLogger := log.NewNoopLogger()
+	nilObsv := observability.NewExporters(nilLogger)
+	tsg := github.DefaultToolsetGroup(false, mockGetClient, mockGetGQLClient, mockGetRawClient, t, 5000, github.FeatureFlags{}, repoAccessCache, nilObsv)
 
 	// Generate table header
 	buf.WriteString("| Name           | Description                                      | API URL                                               | 1-Click Install (VS Code)                                                                                                                                                                                                 | Read-only Link                                                                                                 | 1-Click Read-only Install (VS Code)                                                                                                                                                                                                 |\n")

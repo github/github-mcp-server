@@ -14,6 +14,8 @@ import (
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/lockdown"
+	ghMcpObsv "github.com/github/github-mcp-server/pkg/observability"
+	ghMcpLogger "github.com/github/github-mcp-server/pkg/observability/log"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -124,7 +126,9 @@ func Test_GetIssue(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
 	defaultGQLClient := githubv4.NewClient(nil)
-	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(defaultGQLClient), repoAccessCache, translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+	nilLogger := ghMcpLogger.NewNoopLogger()
+	obsv := ghMcpObsv.NewExporters(nilLogger)
+	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(defaultGQLClient), repoAccessCache, translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}), obsv)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "issue_read", tool.Name)
@@ -331,7 +335,7 @@ func Test_GetIssue(t *testing.T) {
 			}
 
 			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
-			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), cache, translations.NullTranslationHelper, flags)
+			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), cache, translations.NullTranslationHelper, flags, obsv)
 
 			request := createMCPRequest(tc.requestArgs)
 			result, _, err := handler(context.Background(), &request, tc.requestArgs)
@@ -1846,7 +1850,11 @@ func Test_GetIssueComments(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
 	gqlClient := githubv4.NewClient(nil)
-	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+
+	nilLogger := ghMcpLogger.NewNoopLogger()
+	obsv := ghMcpObsv.NewExporters(nilLogger)
+
+	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}), obsv)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "issue_read", tool.Name)
@@ -1997,7 +2005,10 @@ func Test_GetIssueComments(t *testing.T) {
 			}
 			cache := stubRepoAccessCache(gqlClient, 15*time.Minute)
 			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
-			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), cache, translations.NullTranslationHelper, flags)
+			nilLogger := ghMcpLogger.NewNoopLogger()
+			obsv := ghMcpObsv.NewExporters(nilLogger)
+
+			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), cache, translations.NullTranslationHelper, flags, obsv)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -2037,7 +2048,11 @@ func Test_GetIssueLabels(t *testing.T) {
 	// Verify tool definition
 	mockGQClient := githubv4.NewClient(nil)
 	mockClient := github.NewClient(nil)
-	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(mockGQClient), stubRepoAccessCache(mockGQClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+
+	nilLogger := ghMcpLogger.NewNoopLogger()
+	obsv := ghMcpObsv.NewExporters(nilLogger)
+
+	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(mockGQClient), stubRepoAccessCache(mockGQClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}), obsv)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "issue_read", tool.Name)
@@ -2112,7 +2127,11 @@ func Test_GetIssueLabels(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			gqlClient := githubv4.NewClient(tc.mockedClient)
 			client := github.NewClient(nil)
-			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+
+			nilLogger := ghMcpLogger.NewNoopLogger()
+			obsv := ghMcpObsv.NewExporters(nilLogger)
+
+			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}), obsv)
 
 			request := createMCPRequest(tc.requestArgs)
 			result, _, err := handler(context.Background(), &request, tc.requestArgs)
@@ -2803,7 +2822,11 @@ func Test_GetSubIssues(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
 	gqlClient := githubv4.NewClient(nil)
-	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+
+	nilLogger := ghMcpLogger.NewNoopLogger()
+	obsv := ghMcpObsv.NewExporters(nilLogger)
+
+	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}), obsv)
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "issue_read", tool.Name)
@@ -3000,7 +3023,11 @@ func Test_GetSubIssues(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
 			gqlClient := githubv4.NewClient(nil)
-			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+
+			nilLogger := ghMcpLogger.NewNoopLogger()
+			obsv := ghMcpObsv.NewExporters(nilLogger)
+
+			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}), obsv)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)

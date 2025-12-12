@@ -17,6 +17,8 @@ import (
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	mcplog "github.com/github/github-mcp-server/pkg/log"
+	"github.com/github/github-mcp-server/pkg/observability"
+	"github.com/github/github-mcp-server/pkg/observability/log"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v79/github"
@@ -151,6 +153,9 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
 	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, restClient, gqlHTTPClient))
 
+	slogAdapter := log.NewSlogLogger(cfg.Logger, log.InfoLevel)
+	obsv := observability.NewExporters(slogAdapter)
+
 	// Create default toolsets
 	tsg := github.DefaultToolsetGroup(
 		cfg.ReadOnly,
@@ -161,6 +166,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		cfg.ContentWindowSize,
 		github.FeatureFlags{LockdownMode: cfg.LockdownMode},
 		repoAccessCache,
+		obsv,
 	)
 
 	// Enable and register toolsets if configured
