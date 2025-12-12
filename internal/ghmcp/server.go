@@ -100,9 +100,10 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 
 	enabledToolsets := cfg.EnabledToolsets
 
-	// If dynamic toolsets are enabled, remove "all" from the enabled toolsets
+	// If dynamic toolsets are enabled, remove "all" and "default" from the enabled toolsets
 	if cfg.DynamicToolsets {
 		enabledToolsets = github.RemoveToolset(enabledToolsets, github.ToolsetMetadataAll.ID)
+		enabledToolsets = github.RemoveToolset(enabledToolsets, github.ToolsetMetadataDefault.ID)
 	}
 
 	// Clean up the passed toolsets
@@ -176,8 +177,8 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 
 	// Register specific tools if configured
 	if len(cfg.EnabledTools) > 0 {
-		// Clean and validate tool names
 		enabledTools := github.CleanTools(cfg.EnabledTools)
+		enabledTools, _ = tsg.ResolveToolAliases(enabledTools)
 
 		// Register the specified tools (additive to any toolsets already enabled)
 		err = tsg.RegisterSpecificTools(ghServer, enabledTools, cfg.ReadOnly)
