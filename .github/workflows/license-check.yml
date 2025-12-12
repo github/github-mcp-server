@@ -112,16 +112,30 @@ Please pull the latest changes before pushing again.`
             );
             
             const isEmpty = nonLicenseFiles.length === 0;
-            core.setOutput('is_empty', isEmpty);
             
-            if (isEmpty) {
-              core.info('PR only contains license file changes - will close as stale');
+            // Only close if the PR title/body suggests it wasn't meant to be about licenses
+            // or if it was created by a bot (which might auto-update dependencies)
+            const isLicenseFocused = 
+              pr.title.toLowerCase().includes('licen') ||
+              pr.title.toLowerCase().includes('third-party') ||
+              pr.body?.toLowerCase().includes('update.*licen');
+            
+            const shouldClose = isEmpty && !isLicenseFocused && pr.user.type !== 'Bot';
+            
+            core.setOutput('should_close', shouldClose);
+            
+            if (isEmpty && isLicenseFocused) {
+              core.info('PR only has license files but appears to be intentionally about licenses - keeping open');
+            } else if (isEmpty && pr.user.type === 'Bot') {
+              core.info('PR is from a bot and only has license files - keeping open (might be dependabot)');
+            } else if (shouldClose) {
+              core.info('PR only contains license file changes and appears stale - will close');
             } else {
               core.info(`PR has ${nonLicenseFiles.length} non-license file changes - keeping open`);
             }
 
       - name: Close stale license-only PR
-        if: steps.changes.outputs.changed == 'true' && steps.empty_check.outputs.is_empty == 'true'
+        if: steps.changes.outputs.changed == 'true' && steps.empty_check.outputs.should_close == 'true'
         uses: actions/github-script@v7
         with:
           script: |
