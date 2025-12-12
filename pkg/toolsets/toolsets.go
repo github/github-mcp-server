@@ -192,16 +192,24 @@ func (t *Toolset) AddReadTools(tools ...ServerTool) *Toolset {
 }
 
 type ToolsetGroup struct {
-	Toolsets     map[string]*Toolset
-	everythingOn bool
-	readOnly     bool
+	Toolsets          map[string]*Toolset
+	deprecatedAliases map[string]string
+	everythingOn      bool
+	readOnly          bool
 }
 
 func NewToolsetGroup(readOnly bool) *ToolsetGroup {
 	return &ToolsetGroup{
-		Toolsets:     make(map[string]*Toolset),
-		everythingOn: false,
-		readOnly:     readOnly,
+		Toolsets:          make(map[string]*Toolset),
+		deprecatedAliases: make(map[string]string),
+		everythingOn:      false,
+		readOnly:          readOnly,
+	}
+}
+
+func (tg *ToolsetGroup) AddDeprecatedToolAliases(aliases map[string]string) {
+	for oldName, newName := range aliases {
+		tg.deprecatedAliases[oldName] = newName
 	}
 }
 
@@ -305,6 +313,26 @@ func (e *ToolDoesNotExistError) Error() string {
 
 func NewToolDoesNotExistError(name string) *ToolDoesNotExistError {
 	return &ToolDoesNotExistError{Name: name}
+}
+
+// ResolveToolAliases resolves deprecated tool aliases to their canonical names.
+// It logs a warning to stderr for each deprecated alias that is resolved.
+// Returns:
+//   - resolved: tool names with aliases replaced by canonical names
+//   - aliasesUsed: map of oldName → newName for each alias that was resolved
+func (tg *ToolsetGroup) ResolveToolAliases(toolNames []string) (resolved []string, aliasesUsed map[string]string) {
+	resolved = make([]string, 0, len(toolNames))
+	aliasesUsed = make(map[string]string)
+	for _, toolName := range toolNames {
+		if canonicalName, isAlias := tg.deprecatedAliases[toolName]; isAlias {
+			fmt.Fprintf(os.Stderr, "Warning: tool %q is deprecated, use %q instead\n", toolName, canonicalName)
+			aliasesUsed[toolName] = canonicalName
+			resolved = append(resolved, canonicalName)
+		} else {
+			resolved = append(resolved, toolName)
+		}
+	}
+	return resolved, aliasesUsed
 }
 
 // FindToolByName searches all toolsets (enabled or disabled) for a tool by name.
