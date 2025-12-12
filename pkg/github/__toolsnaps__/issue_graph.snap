@@ -1,0 +1,43 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get issue relationship graph"
+  },
+  "description": "Get a graph representation of issue and pull request relationships, showing the full work hierarchy in one call.\n\nReturns a comprehensive view including:\n- Node types: epic (large initiatives), batch (parent issues), task (regular issues), pr (pull requests)\n- Full hierarchy: epic → batch → task → PR relationships\n- Sub-issues and \"closes/fixes\" references\n- Cross-references and related work\n- Status updates extracted from issue bodies and comments\n- Open/closed/merged state of all related items\n\nUse focus=\"epic\" to automatically find and focus on the parent epic of any issue.\nUse focus=\"batch\" to find the nearest batch/parent issue in the hierarchy.",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "owner",
+      "repo",
+      "issue_number"
+    ],
+    "properties": {
+      "focus": {
+        "type": "string",
+        "description": "Which node type to focus on: 'provided' (default) uses the specified issue/PR, 'epic' shifts focus to the nearest epic in the hierarchy, 'batch' shifts focus to the nearest batch/parent issue",
+        "enum": [
+          "provided",
+          "epic",
+          "batch"
+        ]
+      },
+      "issue_number": {
+        "type": "number",
+        "description": "Issue or pull request number to build the graph from"
+      },
+      "owner": {
+        "type": "string",
+        "description": "Repository owner"
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      },
+      "verbose": {
+        "type": "boolean",
+        "description": "Include crawl statistics showing how the graph was traversed (nodes fetched, depth reached, repos accessed, etc.)"
+      }
+    }
+  },
+  "name": "issue_graph"
+}
