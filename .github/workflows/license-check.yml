@@ -4,6 +4,8 @@
 name: License Check
 on:
   pull_request:
+    branches:
+      - main  # Only run when PR targets main
     paths:
       - "**.go"
       - go.mod

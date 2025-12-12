@@ -7,6 +7,8 @@ name: Auto-fix License Files
 on:
   pull_request:
     types: [synchronize, opened, reopened, ready_for_review]
+    branches:
+      - main  # Only run when PR targets main
     paths:
       - "**.go"
       - go.mod
@@ -19,11 +21,8 @@ permissions:
 jobs:
   auto-fix-licenses:
     runs-on: ubuntu-latest
-    # Only run on PRs targeting main, from same repo, not drafts
-    if: |
-      github.event.pull_request.base.ref == 'main' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.draft == false
+    # Only run on PRs from same repo (not forks)
+    if: github.event.pull_request.head.repo.full_name == github.repository
 
     steps:
       - name: Check out base PR branch
