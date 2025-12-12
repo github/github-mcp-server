@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 
 	"github.com/migueleliasweb/go-github-mock/src/mock"
@@ -1756,6 +1758,56 @@ func Test_GetPullRequestComments(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_GetPullRequestReviewComments_WarnsOnLargePayload(t *testing.T) {
+	largeText := strings.Repeat("x", mcpLargePayloadWarningThresholdBytes+1_000)
+	largeComments := []*github.PullRequestComment{
+		{
+			ID:       github.Ptr(int64(999)),
+			Body:     github.Ptr(largeText),
+			DiffHunk: github.Ptr(largeText),
+			User:     &github.User{Login: github.Ptr("reviewer")},
+		},
+	}
+
+	mockedClient := mock.NewMockedHTTPClient(
+		mock.WithRequestMatch(
+			mock.GetReposPullsCommentsByOwnerByRepoByPullNumber,
+			largeComments,
+		),
+	)
+
+	client := github.NewClient(mockedClient)
+	cache := stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute)
+	flags := stubFeatureFlags(map[string]bool{"lockdown-mode": false})
+	_, handler := PullRequestRead(stubGetClientFn(client), cache, translations.NullTranslationHelper, flags)
+
+	args := map[string]interface{}{
+		"method":     "get_review_comments",
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(42),
+	}
+	request := createMCPRequest(args)
+	result, _, err := handler(context.Background(), &request, args)
+
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	require.Len(t, result.Content, 2)
+
+	warningContent, ok := result.Content[0].(*mcp.TextContent)
+	require.True(t, ok)
+	assert.Contains(t, warningContent.Text, "WARNING")
+
+	dataContent, ok := result.Content[1].(*mcp.TextContent)
+	require.True(t, ok)
+
+	var returnedComments []*github.PullRequestComment
+	err = json.Unmarshal([]byte(dataContent.Text), &returnedComments)
+	require.NoError(t, err)
+	require.Len(t, returnedComments, 1)
+	assert.Equal(t, largeComments[0].GetID(), returnedComments[0].GetID())
 }
 
 func Test_GetPullRequestReviews(t *testing.T) {
