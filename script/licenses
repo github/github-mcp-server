@@ -78,9 +78,10 @@ for goos in darwin linux windows; do
         fi
         
         # Extract just the package list (skip header), sort it, and hash it
+        # Use LC_ALL=C for consistent sorting across different systems
         packages_file="${TEMPDIR}/${goos}_${goarch}_packages.txt"
         if [ -s "${report_file}" ] && grep -qE '^ - \[' "${report_file}" 2>/dev/null; then
-            grep -E '^ - \[' "${report_file}" | sort > "${packages_file}"
+            grep -E '^ - \[' "${report_file}" | LC_ALL=C sort > "${packages_file}"
             hash=$(cat "${packages_file}" | compute_hash)
         else
             echo "(FAILED TO GENERATE LICENSE REPORT FOR ${goos}/${goarch})" > "${packages_file}"
@@ -124,7 +125,8 @@ The following open source dependencies are used to build the [github/github-mcp-
 EOF
 
     # Build table of contents (sorted for determinism)
-    sort "${groups_file}" | while IFS=: read -r hash group_archs; do
+    # Use LC_ALL=C for consistent sorting across different systems
+    LC_ALL=C sort "${groups_file}" | while IFS=: read -r hash group_archs; do
         # Create anchor-friendly name
         anchor=$(echo "${group_archs}" | tr ', ' '-' | tr -s '-')
         echo "- [${group_archs}](#${anchor})" >> "${output_file}"
@@ -135,7 +137,8 @@ EOF
     echo "" >> "${output_file}"
     
     # Add each unique report section (sorted for determinism)
-    sort "${groups_file}" | while IFS=: read -r hash group_archs; do
+    # Use LC_ALL=C for consistent sorting across different systems
+    LC_ALL=C sort "${groups_file}" | while IFS=: read -r hash group_archs; do
         # Get the packages from the first arch in this group
         first_arch=$(echo "${group_archs}" | cut -d',' -f1 | tr -d ' ')
         packages=$(cat "${TEMPDIR}/${goos}_${first_arch}_packages.txt")
