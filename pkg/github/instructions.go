@@ -50,6 +50,11 @@ Tool usage guidance:
 // getToolsetInstructions returns specific instructions for individual toolsets
 func getToolsetInstructions(toolset string, enabledToolsets []string) string {
 	switch toolset {
+	case "repos":
+		return `## Repositories
+
+Before updating an existing file, always call 'get_file_contents' to retrieve the SHA of the file blob. Use this SHA as the "sha" parameter in create_or_update_file tool call to avoid conflicts.
+		`
 	case "pull_requests":
 		pullRequestInstructions := `## Pull Requests
 
