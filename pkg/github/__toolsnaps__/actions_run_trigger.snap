@@ -1,0 +1,53 @@
+{
+  "annotations": {
+    "destructiveHint": true,
+    "title": "Trigger GitHub Actions workflow actions"
+  },
+  "description": "Trigger GitHub Actions workflow operations, including running, re-running, cancelling workflow runs, and deleting workflow run logs.",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "method",
+      "owner",
+      "repo"
+    ],
+    "properties": {
+      "inputs": {
+        "type": "object",
+        "description": "Inputs the workflow accepts. Only used for 'run_workflow' method."
+      },
+      "method": {
+        "type": "string",
+        "description": "The method to execute",
+        "enum": [
+          "run_workflow",
+          "rerun_workflow_run",
+          "rerun_failed_jobs",
+          "cancel_workflow_run",
+          "delete_workflow_run_logs"
+        ]
+      },
+      "owner": {
+        "type": "string",
+        "description": "Repository owner"
+      },
+      "ref": {
+        "type": "string",
+        "description": "The git reference for the workflow. The reference can be a branch or tag name. Required for 'run_workflow' method."
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      },
+      "run_id": {
+        "type": "number",
+        "description": "The ID of the workflow run. Required for all methods except 'run_workflow'."
+      },
+      "workflow_id": {
+        "type": "string",
+        "description": "The workflow ID (numeric) or workflow file name (e.g., main.yml, ci.yaml). Required for 'run_workflow' method."
+      }
+    }
+  },
+  "name": "actions_run_trigger"
+}
