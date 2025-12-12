@@ -19,12 +19,11 @@ permissions:
 jobs:
   auto-fix-licenses:
     runs-on: ubuntu-latest
-    # Only run on PRs targeting main, from same repo, not drafts, not bots
+    # Only run on PRs targeting main, from same repo, not drafts
     if: |
       github.event.pull_request.base.ref == 'main' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.draft == false &&
-      github.actor != 'dependabot[bot]'
+      github.event.pull_request.draft == false
 
     steps:
       - name: Check out base PR branch
