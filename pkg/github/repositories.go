@@ -560,7 +560,7 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 				},
 				"path": {
 					Type:        "string",
-					Description: "Path to file/directory (directories must end with a slash '/')",
+					Description: "Path to file/directory",
 					Default:     json.RawMessage(`"/"`),
 				},
 				"ref": {
@@ -608,132 +608,126 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 			return utils.NewToolResultError(fmt.Sprintf("failed to resolve git reference: %s", err)), nil, nil
 		}
 
+		if rawOpts.SHA != "" {
+			ref = rawOpts.SHA
+		}
+
 		// If the path is (most likely) not to be a directory, we will
 		// first try to get the raw content from the GitHub raw content API.
 
 		var rawAPIResponseCode int
-		if path != "" && !strings.HasSuffix(path, "/") {
-			// First, get file info from Contents API to retrieve SHA
-			var fileSHA string
-			opts := &github.RepositoryContentGetOptions{Ref: ref}
-			fileContent, _, respContents, err := client.Repositories.GetContents(ctx, owner, repo, path, opts)
-			if respContents != nil {
-				defer func() { _ = respContents.Body.Close() }()
-			}
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get file SHA",
-					respContents,
-					err,
-				), nil, nil
-			}
-			if fileContent == nil || fileContent.SHA == nil {
-				return utils.NewToolResultError("file content SHA is nil, if a directory was requested, path parameters should end with a trailing slash '/'"), nil, nil
-			}
-			fileSHA = *fileContent.SHA
+		// First, get file info from Contents API to retrieve SHA
+		var fileSHA string
+		opts := &github.RepositoryContentGetOptions{Ref: ref}
+		fileContent, dirContent, respContents, err := client.Repositories.GetContents(ctx, owner, repo, path, opts)
+		if respContents != nil {
+			defer func() { _ = respContents.Body.Close() }()
+		}
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				"failed to get file SHA",
+				respContents,
+				err,
+			), nil, nil
+		}
 
-			rawClient, err := getRawClient(ctx)
+		// file content or file SHA is nil which means it's a directory
+		if fileContent == nil || fileContent.SHA == nil {
+			defer func() { _ = respContents.Body.Close() }()
+			r, err := json.Marshal(dirContent)
 			if err != nil {
-				return utils.NewToolResultError("failed to get GitHub raw content client"), nil, nil
+				return utils.NewToolResultError("failed to marshal response"), nil, nil
 			}
-			resp, err := rawClient.GetRawContent(ctx, owner, repo, path, rawOpts)
-			if err != nil {
-				return utils.NewToolResultError("failed to get raw repository content"), nil, nil
-			}
-			defer func() {
-				_ = resp.Body.Close()
-			}()
+			return utils.NewToolResultText(string(r)), nil, nil
+		}
 
-			if resp.StatusCode == http.StatusOK {
-				// If the raw content is found, return it directly
-				body, err := io.ReadAll(resp.Body)
+		fileSHA = *fileContent.SHA
+
+		rawClient, err := getRawClient(ctx)
+		if err != nil {
+			return utils.NewToolResultError("failed to get GitHub raw content client"), nil, nil
+		}
+		resp, err := rawClient.GetRawContent(ctx, owner, repo, path, rawOpts)
+		if err != nil {
+			return utils.NewToolResultError("failed to get raw repository content"), nil, nil
+		}
+		defer func() {
+			_ = resp.Body.Close()
+		}()
+
+		if resp.StatusCode == http.StatusOK {
+			// If the raw content is found, return it directly
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return utils.NewToolResultError("failed to read response body"), nil, nil
+			}
+			contentType := resp.Header.Get("Content-Type")
+
+			var resourceURI string
+			switch {
+			case sha != "":
+				resourceURI, err = url.JoinPath("repo://", owner, repo, "sha", sha, "contents", path)
 				if err != nil {
-					return utils.NewToolResultError("failed to read response body"), nil, nil
+					return nil, nil, fmt.Errorf("failed to create resource URI: %w", err)
 				}
-				contentType := resp.Header.Get("Content-Type")
-
-				var resourceURI string
-				switch {
-				case sha != "":
-					resourceURI, err = url.JoinPath("repo://", owner, repo, "sha", sha, "contents", path)
-					if err != nil {
-						return nil, nil, fmt.Errorf("failed to create resource URI: %w", err)
-					}
-				case ref != "":
-					resourceURI, err = url.JoinPath("repo://", owner, repo, ref, "contents", path)
-					if err != nil {
-						return nil, nil, fmt.Errorf("failed to create resource URI: %w", err)
-					}
-				default:
-					resourceURI, err = url.JoinPath("repo://", owner, repo, "contents", path)
-					if err != nil {
-						return nil, nil, fmt.Errorf("failed to create resource URI: %w", err)
-					}
+			case ref != "":
+				resourceURI, err = url.JoinPath("repo://", owner, repo, ref, "contents", path)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to create resource URI: %w", err)
 				}
-
-				// Determine if content is text or binary
-				isTextContent := strings.HasPrefix(contentType, "text/") ||
-					contentType == "application/json" ||
-					contentType == "application/xml" ||
-					strings.HasSuffix(contentType, "+json") ||
-					strings.HasSuffix(contentType, "+xml")
-
-				if isTextContent {
-					result := &mcp.ResourceContents{
-						URI:      resourceURI,
-						Text:     string(body),
-						MIMEType: contentType,
-					}
-					// Include SHA in the result metadata
-					if fileSHA != "" {
-						return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)", fileSHA), result), nil, nil
-					}
-					return utils.NewToolResultResource("successfully downloaded text file", result), nil, nil
+			default:
+				resourceURI, err = url.JoinPath("repo://", owner, repo, "contents", path)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to create resource URI: %w", err)
 				}
+			}
 
+			// Determine if content is text or binary
+			isTextContent := strings.HasPrefix(contentType, "text/") ||
+				contentType == "application/json" ||
+				contentType == "application/xml" ||
+				strings.HasSuffix(contentType, "+json") ||
+				strings.HasSuffix(contentType, "+xml")
+
+			if isTextContent {
 				result := &mcp.ResourceContents{
 					URI:      resourceURI,
-					Blob:     body,
+					Text:     string(body),
 					MIMEType: contentType,
 				}
 				// Include SHA in the result metadata
 				if fileSHA != "" {
-					return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)", fileSHA), result), nil, nil
+					return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)", fileSHA), result), nil, nil
 				}
-				return utils.NewToolResultResource("successfully downloaded binary file", result), nil, nil
+				return utils.NewToolResultResource("successfully downloaded text file", result), nil, nil
 			}
-			rawAPIResponseCode = resp.StatusCode
-		}
 
-		if rawOpts.SHA != "" {
-			ref = rawOpts.SHA
-		}
-		if strings.HasSuffix(path, "/") {
-			opts := &github.RepositoryContentGetOptions{Ref: ref}
-			_, dirContent, resp, err := client.Repositories.GetContents(ctx, owner, repo, path, opts)
-			if err == nil && resp.StatusCode == http.StatusOK {
-				defer func() { _ = resp.Body.Close() }()
-				r, err := json.Marshal(dirContent)
-				if err != nil {
-					return utils.NewToolResultError("failed to marshal response"), nil, nil
-				}
-				return utils.NewToolResultText(string(r)), nil, nil
+			result := &mcp.ResourceContents{
+				URI:      resourceURI,
+				Blob:     body,
+				MIMEType: contentType,
 			}
+			// Include SHA in the result metadata
+			if fileSHA != "" {
+				return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)", fileSHA), result), nil, nil
+			}
+			return utils.NewToolResultResource("successfully downloaded binary file", result), nil, nil
 		}
+		rawAPIResponseCode = resp.StatusCode
 
 		// The path does not point to a file or directory.
 		// Instead let's try to find it in the Git Tree by matching the end of the path.
 
 		// Step 1: Get Git Tree recursively
-		tree, resp, err := client.Git.GetTree(ctx, owner, repo, ref, true)
+		tree, response, err := client.Git.GetTree(ctx, owner, repo, ref, true)
 		if err != nil {
 			return ghErrors.NewGitHubAPIErrorResponse(ctx,
 				"failed to get git tree",
-				resp,
+				response,
 				err,
 			), nil, nil
 		}
-		defer func() { _ = resp.Body.Close() }()
+		defer func() { _ = response.Body.Close() }()
 
 		// Step 2: Filter tree for matching paths
 		const maxMatchingFiles = 3
