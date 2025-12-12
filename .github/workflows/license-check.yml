@@ -21,10 +21,17 @@ permissions:
 jobs:
   license-check:
     runs-on: ubuntu-latest
-    # Don't run on forks (they can't push back)
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    outputs:
+      needs_fix: ${{ steps.changes.outputs.changed }}
+      is_fork: ${{ steps.fork_check.outputs.is_fork }}
 
     steps:
+      - name: Check if fork PR
+        id: fork_check
+        run: |
+          IS_FORK=${{ github.event.pull_request.head.repo.full_name != github.repository }}
+          echo "is_fork=${IS_FORK}" >> $GITHUB_OUTPUT
+
       - name: Check out code
         uses: actions/checkout@v6
         with:
@@ -60,6 +67,8 @@ jobs:
 
       - name: Commit and push fixes
         if: steps.changes.outputs.changed == 'true'
+        continue-on-error: true  # Don't fail if push fails (e.g., on forks)
+        id: push
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -72,11 +81,26 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: `## 📜 License files updated
+            const isFork = context.payload.pull_request.head.repo.full_name !== context.repo.owner + '/' + context.repo.repo;
+            const pushFailed = '${{ steps.push.outcome }}' === 'failure';
+            
+            let body;
+            if (isFork || pushFailed) {
+              body = `## 📜 License files need updating
+
+License files are out of date. Since this is from a fork, I can't push the fix directly.
+
+**Please run locally:**
+\`\`\`bash
+./script/licenses
+git add third-party third-party-licenses.*.md third-party/
+git commit -m "chore: update license files"
+git push
+\`\`\`
+
+Or a maintainer can push to your branch after approving the workflow.`;
+            } else {
+              body = `## 📜 License files updated
 
 I noticed the third-party license files were out of date and pushed a fix to this PR.
 
@@ -84,8 +108,202 @@ I noticed the third-party license files were out of date and pushed a fix to thi
 
 **What I did:** Ran \`./script/licenses\` and committed the result.
 
-Please pull the latest changes before pushing again.`
+Please pull the latest changes before pushing again.`;
+            }
+            
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
             })
+
+      - name: Fail check if licenses not fixed
+        if: steps.changes.outputs.changed == 'true' && steps.push.outcome == 'failure'
+        run: |
+          echo "::error::License files are out of date. Please run ./script/licenses locally."
+          exit 1
+
+  auto-create-fix-pr:
+    runs-on: ubuntu-latest
+    needs: license-check
+    if: needs.license-check.outputs.needs_fix == 'true' && needs.license-check.outputs.is_fork == 'false'
+    
+    steps:
+      - name: Check out base PR branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+
+      - name: Regenerate licenses
+        id: regen
+        env:
+          CI: "true"
+        run: |
+          export GOROOT=$(go env GOROOT)
+          export PATH=${GOROOT}/bin:$PATH
+          ./script/licenses
+          
+          # Compute hash of license changes only
+          LICENSE_HASH=$(git diff third-party-licenses.*.md third-party/ | sha256sum | cut -c1-8)
+          echo "license_hash=${LICENSE_HASH}" >> $GITHUB_OUTPUT
+          echo "License changes hash: ${LICENSE_HASH}"
+
+      - name: Find existing license fix PR
+        id: find_pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const basePR = context.payload.pull_request.number;
+            const baseBranch = context.payload.pull_request.head.ref;
+            
+            // Search for existing auto-fix PR
+            const { data: prs } = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              base: baseBranch,
+              sort: 'created',
+              direction: 'desc'
+            });
+            
+            // Find PR with our marker in the title or body
+            const existingPR = prs.find(pr => 
+              pr.title.includes('🤖 Auto-fix licenses') &&
+              pr.body?.includes(`<!-- auto-fix-for-pr:${basePR} -->`)
+            );
+            
+            if (existingPR) {
+              core.setOutput('exists', 'true');
+              core.setOutput('pr_number', existingPR.number);
+              core.setOutput('pr_branch', existingPR.head.ref);
+              
+              // Extract hash from PR body
+              const hashMatch = existingPR.body?.match(/<!-- license-hash:(\w+) -->/);
+              const oldHash = hashMatch ? hashMatch[1] : '';
+              core.setOutput('old_hash', oldHash);
+              
+              core.info(`Found existing PR #${existingPR.number} with hash ${oldHash}`);
+            } else {
+              core.setOutput('exists', 'false');
+              core.info('No existing auto-fix PR found');
+            }
+
+      - name: Close PR if hash changed (dependencies changed)
+        id: check_hash_changed
+        if: |
+          steps.find_pr.outputs.exists == 'true' &&
+          steps.find_pr.outputs.old_hash != '' &&
+          steps.find_pr.outputs.old_hash != steps.regen.outputs.license_hash
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = ${{ steps.find_pr.outputs.pr_number }};
+            const oldHash = '${{ steps.find_pr.outputs.old_hash }}';
+            const newHash = '${{ steps.regen.outputs.license_hash }}';
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: `## 🔄 Closing - dependencies changed\n\nThe base PR #${context.payload.pull_request.number} has different license requirements now.\n\n- Old hash: \`${oldHash}\`\n- New hash: \`${newHash}\`\n\nA new auto-fix PR will be created.`
+            });
+            
+            await github.rest.pulls.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+              state: 'closed'
+            });
+            
+            core.setOutput('create_new', 'true');
+            core.info(`Closed PR #${prNumber} due to hash change`);
+
+      - name: Create or update license fix PR
+        if: steps.find_pr.outputs.exists == 'false' || steps.check_hash_changed.outputs.create_new == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const basePR = context.payload.pull_request.number;
+            const baseBranch = context.payload.pull_request.head.ref;
+            const licenseHash = '${{ steps.regen.outputs.license_hash }}';
+            const branchName = `auto-fix/licenses-for-pr-${basePR}`;
+            
+            // Create new branch from base PR
+            const { data: baseRef } = await github.rest.git.getRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `heads/${baseBranch}`
+            });
+            
+            try {
+              await github.rest.git.createRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `refs/heads/${branchName}`,
+                sha: baseRef.object.sha
+              });
+            } catch (error) {
+              // Branch might exist, update it
+              await github.rest.git.updateRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `heads/${branchName}`,
+                sha: baseRef.object.sha,
+                force: true
+              });
+            }
+            
+            // Checkout the new branch and commit license changes
+            await exec.exec('git', ['fetch', 'origin', branchName]);
+            await exec.exec('git', ['checkout', '-B', branchName, `origin/${branchName}`]);
+            await exec.exec('git', ['config', 'user.name', 'github-actions[bot]']);
+            await exec.exec('git', ['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
+            
+            // Regenerate licenses on this branch
+            process.env.CI = 'true';
+            const goRoot = (await exec.getExecOutput('go', ['env', 'GOROOT'])).stdout.trim();
+            process.env.GOROOT = goRoot;
+            process.env.PATH = `${goRoot}/bin:${process.env.PATH}`;
+            await exec.exec('./script/licenses');
+            
+            await exec.exec('git', ['add', 'third-party', 'third-party-licenses.*.md']);
+            await exec.exec('git', ['commit', '-m', `chore: auto-fix license files for PR #${basePR}`]);
+            await exec.exec('git', ['push', 'origin', branchName, '--force']);
+            
+            // Create PR
+            const { data: newPR } = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🤖 Auto-fix licenses for PR #${basePR}`,
+              head: branchName,
+              base: baseBranch,
+              body: `## Automated License Update
+
+This PR automatically updates license files for PR #${basePR}.
+
+### What happened
+Dependencies were added/updated in #${basePR}, which requires regenerating license documentation.
+
+### What to do
+- **Option 1:** Merge this PR to add the license updates to #${basePR}
+- **Option 2:** Manually run \`./script/licenses\` in #${basePR} and push (this PR will auto-close)
+
+This PR will automatically close if:
+- License files in #${basePR} are updated manually
+- Dependencies in #${basePR} change (a new PR will be created)
+
+<!-- auto-fix-for-pr:${basePR} -->
+<!-- license-hash:${licenseHash} -->`
+            });
+            
+            core.info(`Created auto-fix PR #${newPR.number}`);
 
       # After pushing the fix, check if PR now has no functional changes (just license updates)
       # This handles the case where the PR only needed license updates and nothing else
