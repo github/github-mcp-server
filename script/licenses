@@ -1,4 +1,19 @@
 #!/bin/bash
+#
+# Generate license files for all platform/arch combinations.
+# This script handles architecture-specific dependency differences by:
+# 1. Generating separate license reports per GOOS/GOARCH combination
+# 2. Grouping identical reports together (comma-separated arch names)
+# 3. Creating an index at the top of each platform file
+# 4. Copying all license files to third-party/
+#
+# Note: we ignore warnings because we want the command to succeed, however the output should be checked
+#       for any new warnings, and potentially we may need to add license information.
+#
+#       Normally these warnings are packages containing non go code, which may or may not require explicit attribution,
+#       depending on the license.
+
+set -e
 
 go install github.com/google/go-licenses@latest
 
@@ -8,14 +23,105 @@ export TEMPDIR="$(mktemp -d)"
 
 trap "rm -fr ${TEMPDIR}" EXIT
 
-for goos in linux darwin windows ; do
-    # Note: we ignore warnings because we want the command to succeed, however the output should be checked
-    #       for any new warnings, and potentially we may need to add license information. 
-    #
-    #       Normally these warnings are packages containing non go code, which may or may not require explicit attribution,
-    #       depending on the license.
-    GOOS="${goos}" GOFLAGS=-mod=mod go-licenses save ./... --save_path="${TEMPDIR}/${goos}" --force || echo "Ignore warnings"
-    GOOS="${goos}" GOFLAGS=-mod=mod go-licenses report ./... --template .github/licenses.tmpl > third-party-licenses.${goos}.md || echo "Ignore warnings"
-    cp -fR "${TEMPDIR}/${goos}"/* third-party/
+# Define platforms and their architectures
+declare -A PLATFORM_ARCHS
+PLATFORM_ARCHS["linux"]="amd64 arm64 386"
+PLATFORM_ARCHS["darwin"]="amd64 arm64"
+PLATFORM_ARCHS["windows"]="amd64 arm64 386"
+
+# Generate reports for each platform/arch combination
+for goos in linux darwin windows; do
+    echo "Processing ${goos}..."
+    
+    # Store reports per arch for this platform
+    declare -A ARCH_REPORTS
+    declare -A ARCH_HASHES
+    
+    for goarch in ${PLATFORM_ARCHS[$goos]}; do
+        echo "  Generating for ${goos}/${goarch}..."
+        
+        # Generate the license report for this arch
+        report_file="${TEMPDIR}/${goos}_${goarch}_report.md"
+        GOOS="${goos}" GOARCH="${goarch}" GOFLAGS=-mod=mod go-licenses report ./... --template .github/licenses.tmpl > "${report_file}" 2>/dev/null || echo "  (warnings ignored for ${goos}/${goarch})"
+        
+        # Save licenses to temp directory
+        GOOS="${goos}" GOARCH="${goarch}" GOFLAGS=-mod=mod go-licenses save ./... --save_path="${TEMPDIR}/${goos}_${goarch}" --force 2>/dev/null || echo "  (warnings ignored for ${goos}/${goarch})"
+        
+        # Copy to third-party (accumulate all)
+        if [ -d "${TEMPDIR}/${goos}_${goarch}" ]; then
+            cp -fR "${TEMPDIR}/${goos}_${goarch}"/* third-party/ 2>/dev/null || true
+        fi
+        
+        # Extract just the package list (skip header) and hash it
+        packages=$(grep -E '^ - \[' "${report_file}" 2>/dev/null | sort || echo "")
+        hash=$(echo "${packages}" | md5sum | cut -d' ' -f1)
+        
+        ARCH_REPORTS["${goarch}"]="${packages}"
+        ARCH_HASHES["${goarch}"]="${hash}"
+    done
+    
+    # Group architectures with identical reports
+    declare -A HASH_TO_ARCHS
+    for goarch in ${PLATFORM_ARCHS[$goos]}; do
+        hash="${ARCH_HASHES[$goarch]}"
+        if [ -n "${HASH_TO_ARCHS[$hash]}" ]; then
+            HASH_TO_ARCHS["${hash}"]="${HASH_TO_ARCHS[$hash]}, ${goarch}"
+        else
+            HASH_TO_ARCHS["${hash}"]="${goarch}"
+        fi
+    done
+    
+    # Generate the combined report for this platform
+    output_file="third-party-licenses.${goos}.md"
+    
+    cat > "${output_file}" << 'EOF'
+# GitHub MCP Server dependencies
+
+The following open source dependencies are used to build the [github/github-mcp-server][] GitHub Model Context Protocol Server.
+
+## Table of Contents
+
+EOF
+
+    # Build table of contents
+    for hash in "${!HASH_TO_ARCHS[@]}"; do
+        archs="${HASH_TO_ARCHS[$hash]}"
+        # Create anchor-friendly name
+        anchor=$(echo "${archs}" | tr ', ' '-' | tr -s '-')
+        echo "- [${archs}](#${anchor})" >> "${output_file}"
+    done
+    
+    echo "" >> "${output_file}"
+    echo "---" >> "${output_file}"
+    echo "" >> "${output_file}"
+    
+    # Add each unique report section
+    for hash in "${!HASH_TO_ARCHS[@]}"; do
+        archs="${HASH_TO_ARCHS[$hash]}"
+        # Get the packages from the first arch in this group
+        first_arch=$(echo "${archs}" | cut -d',' -f1 | tr -d ' ')
+        packages="${ARCH_REPORTS[$first_arch]}"
+        
+        cat >> "${output_file}" << EOF
+## ${archs}
+
+The following packages are included for the ${archs} architecture(s).
+
+${packages}
+
+EOF
+    done
+    
+    # Add footer
+    echo "[github/github-mcp-server]: https://github.com/github/github-mcp-server" >> "${output_file}"
+    
+    echo "Generated ${output_file}"
+    
+    # Clean up associative arrays for next platform
+    unset ARCH_REPORTS
+    unset ARCH_HASHES
+    unset HASH_TO_ARCHS
 done
+
+echo "Done! License files generated."
 
