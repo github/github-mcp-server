@@ -1,3 +1,5 @@
+[![Go Report Card](https://goreportcard.com/badge/github.com/github/github-mcp-server)](https://goreportcard.com/report/github.com/github/github-mcp-server)
+
 # GitHub MCP Server
 
 The GitHub MCP Server connects AI tools directly to GitHub's platform. This gives AI agents, assistants, and chatbots the ability to read repositories and code files, manage issues and PRs, analyze code, and automate workflows. All through natural language interactions.
@@ -93,11 +95,13 @@ See [Remote Server Documentation](docs/remote-server.md) for full details on rem
 
 When no toolsets are specified, [default toolsets](#default-toolset) are used.
 
-#### Enterprise Cloud with data residency (ghe.com)
+#### GitHub Enterprise
+
+##### GitHub Enterprise Cloud with data residency (ghe.com)
 
 GitHub Enterprise Cloud can also make use of the remote server.
 
-Example for `https://octocorp.ghe.com`:
+Example for `https://octocorp.ghe.com` with GitHub PAT token:
 ```
 {
     ...
@@ -111,6 +115,10 @@ Example for `https://octocorp.ghe.com`:
     ...
 }
 ```
+
+> **Note:** When using OAuth with GitHub Enterprise with VS Code and GitHub Copilot, you also need to configure your VS Code settings to point to your GitHub Enterprise instance - see [Authenticate from VS Code](https://docs.github.com/en/enterprise-cloud@latest/copilot/how-tos/configure-personal-settings/authenticate-to-ghecom)
+
+##### GitHub Enterprise Server
 
 GitHub Enterprise Server does not support remote server hosting. Please refer to [GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)](#github-enterprise-server-and-enterprise-cloud-with-data-residency-ghecom) from the local server configuration.
 
@@ -326,6 +334,8 @@ _Toolsets are not limited to Tools. Relevant MCP Resources and Prompts are also 
 
 When no toolsets are specified, [default toolsets](#default-toolset) are used.
 
+> **Looking for examples?** See the [Server Configuration Guide](./docs/server-configuration.md) for common recipes like minimal setups, read-only mode, and combining tools with toolsets.
+
 #### Specifying Toolsets
 
 To specify toolsets you want available to the LLM, you can pass an allow-list in two ways:
@@ -343,6 +353,38 @@ To specify toolsets you want available to the LLM, you can pass an allow-list in
 
 The environment variable `GITHUB_TOOLSETS` takes precedence over the command line argument if both are provided.
 
+#### Specifying Individual Tools
+
+You can also configure specific tools using the `--tools` flag. Tools can be used independently or combined with toolsets and dynamic toolsets discovery for fine-grained control.
+
+1. **Using Command Line Argument**:
+
+   ```bash
+   github-mcp-server --tools get_file_contents,issue_read,create_pull_request
+   ```
+
+2. **Using Environment Variable**:
+   ```bash
+   GITHUB_TOOLS="get_file_contents,issue_read,create_pull_request" ./github-mcp-server
+   ```
+
+3. **Combining with Toolsets** (additive):
+   ```bash
+   github-mcp-server --toolsets repos,issues --tools get_gist
+   ```
+   This registers all tools from `repos` and `issues` toolsets, plus `get_gist`.
+
+4. **Combining with Dynamic Toolsets** (additive):
+   ```bash
+   github-mcp-server --tools get_file_contents --dynamic-toolsets
+   ```
+   This registers `get_file_contents` plus the dynamic toolset tools (`enable_toolset`, `list_available_toolsets`, `get_toolset_tools`).
+
+**Important Notes:**
+- Tools, toolsets, and dynamic toolsets can all be used together
+- Read-only mode takes priority: write tools are skipped if `--read-only` is set, even if explicitly requested via `--tools`
+- Tool names must match exactly (e.g., `get_file_contents`, not `getFileContents`). Invalid tool names will cause the server to fail at startup with an error message
+
 ### Using Toolsets With Docker
 
 When using Docker, you can pass the toolsets as environment variables:
@@ -351,6 +393,25 @@ When using Docker, you can pass the toolsets as environment variables:
 docker run -i --rm \
   -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
   -e GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security,experiments" \
+  ghcr.io/github/github-mcp-server
+```
+
+### Using Tools With Docker
+
+When using Docker, you can pass specific tools as environment variables. You can also combine tools with toolsets:
+
+```bash
+# Tools only
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_TOOLS="get_file_contents,issue_read,create_pull_request" \
+  ghcr.io/github/github-mcp-server
+
+# Tools combined with toolsets (additive)
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_TOOLSETS="repos,issues" \
+  -e GITHUB_TOOLS="get_gist" \
   ghcr.io/github/github-mcp-server
 ```
 
@@ -414,7 +475,7 @@ The following sets of tools are available:
 | `users` | GitHub User related tools |
 <!-- END AUTOMATED TOOLSETS -->
 
-### Additional Toolsets in Remote Github MCP Server
+### Additional Toolsets in Remote GitHub MCP Server
 
 | Toolset                 | Description                                                   |
 | ----------------------- | ------------------------------------------------------------- |
@@ -664,13 +725,13 @@ The following sets of tools are available:
 
 - **issue_read** - Get issue details
   - `issue_number`: The number of the issue (number, required)
-  - `method`: The read operation to perform on a single issue. 
-Options are: 
-1. get - Get details of a specific issue.
-2. get_comments - Get issue comments.
-3. get_sub_issues - Get sub-issues of the issue.
-4. get_labels - Get labels assigned to the issue.
- (string, required)
+  - `method`: The read operation to perform on a single issue.
+    Options are:
+    1. get - Get details of a specific issue.
+    2. get_comments - Get issue comments.
+    3. get_sub_issues - Get sub-issues of the issue.
+    4. get_labels - Get labels assigned to the issue.
+     (string, required)
   - `owner`: The owner of the repository (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -683,10 +744,10 @@ Options are:
   - `issue_number`: Issue number to update (number, optional)
   - `labels`: Labels to apply to this issue (string[], optional)
   - `method`: Write operation to perform on a single issue.
-Options are: 
-- 'create' - creates a new issue. 
-- 'update' - updates an existing issue.
- (string, required)
+    Options are:
+    - 'create' - creates a new issue.
+    - 'update' - updates an existing issue.
+     (string, required)
   - `milestone`: Milestone number (number, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
@@ -723,11 +784,11 @@ Options are:
   - `before_id`: The ID of the sub-issue to be prioritized before (either after_id OR before_id should be specified) (number, optional)
   - `issue_number`: The number of the parent issue (number, required)
   - `method`: The action to perform on a single sub-issue
-Options are:
-- 'add' - add a sub-issue to a parent issue in a GitHub repository.
-- 'remove' - remove a sub-issue from a parent issue in a GitHub repository.
-- 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.
-				 (string, required)
+    Options are:
+    - 'add' - add a sub-issue to a parent issue in a GitHub repository.
+    - 'remove' - remove a sub-issue from a parent issue in a GitHub repository.
+    - 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.
+    				 (string, required)
   - `owner`: Repository owner (string, required)
   - `replace_parent`: When true, replaces the sub-issue's current parent issue. Use with 'add' method only. (boolean, optional)
   - `repo`: Repository name (string, required)
@@ -764,7 +825,7 @@ Options are:
 <summary>Notifications</summary>
 
 - **dismiss_notification** - Dismiss notification
-  - `state`: The new state of the notification (read/done) (string, optional)
+  - `state`: The new state of the notification (read/done) (string, required)
   - `threadID`: The ID of the notification thread (string, required)
 
 - **get_notification_details** - Get notification details
@@ -844,24 +905,30 @@ Options are:
   - `project_number`: The project's number. (number, required)
 
 - **list_project_fields** - List project fields
+  - `after`: Forward pagination cursor from previous pageInfo.nextCursor. (string, optional)
+  - `before`: Backward pagination cursor from previous pageInfo.prevCursor (rare). (string, optional)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
-  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
+  - `per_page`: Results per page (max 50) (number, optional)
   - `project_number`: The project's number. (number, required)
 
 - **list_project_items** - List project items
-  - `fields`: Specific list of field IDs to include in the response (e.g. ["102589", "985201", "169875"]). If not provided, only the title field is included. (string[], optional)
+  - `after`: Forward pagination cursor from previous pageInfo.nextCursor. (string, optional)
+  - `before`: Backward pagination cursor from previous pageInfo.prevCursor (rare). (string, optional)
+  - `fields`: Field IDs to include (e.g. ["102589", "985201"]). CRITICAL: Always provide to get field values. Without this, only titles returned. (string[], optional)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
-  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
+  - `per_page`: Results per page (max 50) (number, optional)
   - `project_number`: The project's number. (number, required)
-  - `query`: Search query to filter items (string, optional)
+  - `query`: Query string for advanced filtering of project items using GitHub's project filtering syntax. (string, optional)
 
 - **list_projects** - List projects
+  - `after`: Forward pagination cursor from previous pageInfo.nextCursor. (string, optional)
+  - `before`: Backward pagination cursor from previous pageInfo.prevCursor (rare). (string, optional)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
-  - `per_page`: Number of results per page (max 100, default: 30) (number, optional)
-  - `query`: Filter projects by a search query (matches title and description) (string, optional)
+  - `per_page`: Results per page (max 50) (number, optional)
+  - `query`: Filter projects by title text and open/closed state; permitted qualifiers: is:open, is:closed; examples: "roadmap is:open", "is:open feature planning". (string, optional)
 
 - **update_project_item** - Update project item
   - `item_id`: The unique identifier of the project item. This is not the issue or pull request ID. (number, required)
@@ -919,15 +986,15 @@ Options are:
 
 - **pull_request_read** - Get details for a single pull request
   - `method`: Action to specify what pull request data needs to be retrieved from GitHub. 
-Possible options: 
- 1. get - Get details of a specific pull request.
- 2. get_diff - Get the diff of a pull request.
- 3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
- 4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
- 5. get_review_comments - Get the review comments on a pull request. They are comments made on a portion of the unified diff during a pull request review. Use with pagination parameters to control the number of results returned.
- 6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
- 7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
- (string, required)
+    Possible options: 
+     1. get - Get details of a specific pull request.
+     2. get_diff - Get the diff of a pull request.
+     3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
+     4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
+     5. get_review_comments - Get the review comments on a pull request. They are comments made on a portion of the unified diff during a pull request review. Use with pagination parameters to control the number of results returned.
+     6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
+     7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
+     (string, required)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -1182,7 +1249,7 @@ Possible options:
 </details>
 <!-- END AUTOMATED TOOLS -->
 
-### Additional Tools in Remote Github MCP Server
+### Additional Tools in Remote GitHub MCP Server
 
 <details>
 
@@ -1258,7 +1325,7 @@ docker run -i --rm \
 
 ## Lockdown Mode
 
-Lockdown mode limits the content that the server will surface from public repositories. When enabled, requests that fetch issue details will return an error if the issue was created by someone who does not have push access to the repository. Private repositories are unaffected, and collaborators can still access their own issues.
+Lockdown mode limits the content that the server will surface from public repositories. When enabled, the server checks whether the author of each item has push access to the repository. Private repositories are unaffected, and collaborators keep full access to their own content.
 
 ```bash
 ./github-mcp-server --lockdown-mode
@@ -1273,7 +1340,20 @@ docker run -i --rm \
   ghcr.io/github/github-mcp-server
 ```
 
-At the moment lockdown mode applies to the issue read toolset, but it is designed to extend to additional data surfaces over time.
+The behavior of lockdown mode depends on the tool invoked.
+
+Following tools will return an error when the author lacks the push access:
+
+- `issue_read:get`
+- `pull_request_read:get`
+
+Following tools will filter out content from users lacking the push access:
+
+- `issue_read:get_comments`
+- `issue_read:get_sub_issues`
+- `pull_request_read:get_comments`
+- `pull_request_read:get_review_comments`
+- `pull_request_read:get_reviews`
 
 ## i18n / Overriding Descriptions
 

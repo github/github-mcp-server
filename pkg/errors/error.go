@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/go-github/v77/github"
-	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/github/github-mcp-server/pkg/utils"
+	"github.com/google/go-github/v79/github"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type GitHubAPIError struct {
@@ -112,7 +113,7 @@ func NewGitHubAPIErrorResponse(ctx context.Context, message string, resp *github
 	if ctx != nil {
 		_, _ = addGitHubAPIErrorToContext(ctx, apiErr) // Explicitly ignore error for graceful handling
 	}
-	return mcp.NewToolResultErrorFromErr(message, err)
+	return utils.NewToolResultErrorFromErr(message, err)
 }
 
 // NewGitHubGraphQLErrorResponse returns an mcp.NewToolResultError and retains the error in the context for access via middleware
@@ -121,5 +122,5 @@ func NewGitHubGraphQLErrorResponse(ctx context.Context, message string, err erro
 	if ctx != nil {
 		_, _ = addGitHubGraphQLErrorToContext(ctx, graphQLErr) // Explicitly ignore error for graceful handling
 	}
-	return mcp.NewToolResultErrorFromErr(message, err)
+	return utils.NewToolResultErrorFromErr(message, err)
 }

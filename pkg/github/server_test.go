@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
+	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/google/go-github/v77/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 )
@@ -36,6 +38,11 @@ func stubGetGQLClientFn(client *githubv4.Client) GetGQLClientFn {
 	return func(_ context.Context) (*githubv4.Client, error) {
 		return client, nil
 	}
+}
+
+func stubRepoAccessCache(client *githubv4.Client, ttl time.Duration) *lockdown.RepoAccessCache {
+	cacheName := fmt.Sprintf("repo-access-cache-test-%d", time.Now().UnixNano())
+	return lockdown.GetInstance(client, lockdown.WithTTL(ttl), lockdown.WithCacheName(cacheName))
 }
 
 func stubFeatureFlags(enabledFlags map[string]bool) FeatureFlags {
@@ -141,8 +148,7 @@ func Test_RequiredStringParam(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			request := createMCPRequest(tc.params)
-			result, err := RequiredParam[string](request, tc.paramName)
+			result, err := RequiredParam[string](tc.params, tc.paramName)
 
 			if tc.expectError {
 				assert.Error(t, err)
@@ -194,8 +200,7 @@ func Test_OptionalStringParam(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			request := createMCPRequest(tc.params)
-			result, err := OptionalParam[string](request, tc.paramName)
+			result, err := OptionalParam[string](tc.params, tc.paramName)
 
 			if tc.expectError {
 				assert.Error(t, err)
@@ -240,8 +245,7 @@ func Test_RequiredInt(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			request := createMCPRequest(tc.params)
-			result, err := RequiredInt(request, tc.paramName)
+			result, err := RequiredInt(tc.params, tc.paramName)
 
 			if tc.expectError {
 				assert.Error(t, err)
@@ -292,8 +296,7 @@ func Test_OptionalIntParam(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			request := createMCPRequest(tc.params)
-			result, err := OptionalIntParam(request, tc.paramName)
+			result, err := OptionalIntParam(tc.params, tc.paramName)
 
 			if tc.expectError {
 				assert.Error(t, err)
@@ -350,8 +353,7 @@ func Test_OptionalNumberParamWithDefault(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			request := createMCPRequest(tc.params)
-			result, err := OptionalIntParamWithDefault(request, tc.paramName, tc.defaultVal)
+			result, err := OptionalIntParamWithDefault(tc.params, tc.paramName, tc.defaultVal)
 
 			if tc.expectError {
 				assert.Error(t, err)
@@ -403,8 +405,7 @@ func Test_OptionalBooleanParam(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			request := createMCPRequest(tc.params)
-			result, err := OptionalParam[bool](request, tc.paramName)
+			result, err := OptionalParam[bool](tc.params, tc.paramName)
 
 			if tc.expectError {
 				assert.Error(t, err)
@@ -471,8 +472,7 @@ func TestOptionalStringArrayParam(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			request := createMCPRequest(tc.params)
-			result, err := OptionalStringArrayParam(request, tc.paramName)
+			result, err := OptionalStringArrayParam(tc.params, tc.paramName)
 
 			if tc.expectError {
 				assert.Error(t, err)
@@ -554,8 +554,7 @@ func TestOptionalPaginationParams(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			request := createMCPRequest(tc.params)
-			result, err := OptionalPaginationParams(request)
+			result, err := OptionalPaginationParams(tc.params)
 
 			if tc.expectError {
 				assert.Error(t, err)

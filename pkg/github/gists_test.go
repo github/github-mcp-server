@@ -7,8 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v77/github"
+	"github.com/google/go-github/v79/github"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,13 +21,19 @@ func Test_ListGists(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := ListGists(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
 	assert.Equal(t, "list_gists", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "username")
-	assert.Contains(t, tool.InputSchema.Properties, "since")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.Empty(t, tool.InputSchema.Required)
+	assert.True(t, tool.Annotations.ReadOnlyHint, "list_gists tool should be read-only")
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "username")
+	assert.Contains(t, schema.Properties, "since")
+	assert.Contains(t, schema.Properties, "page")
+	assert.Contains(t, schema.Properties, "perPage")
+	assert.Empty(t, schema.Required)
 
 	// Setup mock gists for success case
 	mockGists := []*github.Gist{
@@ -156,7 +164,7 @@ func Test_ListGists(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -197,11 +205,17 @@ func Test_GetGist(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := GetGist(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
 	assert.Equal(t, "get_gist", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "gist_id")
+	assert.True(t, tool.Annotations.ReadOnlyHint, "get_gist tool should be read-only")
 
-	assert.Contains(t, tool.InputSchema.Required, "gist_id")
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "gist_id")
+
+	assert.Contains(t, schema.Required, "gist_id")
 
 	// Setup mock gist for success case
 	mockGist := github.Gist{
@@ -268,7 +282,7 @@ func Test_GetGist(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -306,16 +320,22 @@ func Test_CreateGist(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := CreateGist(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
 	assert.Equal(t, "create_gist", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "description")
-	assert.Contains(t, tool.InputSchema.Properties, "filename")
-	assert.Contains(t, tool.InputSchema.Properties, "content")
-	assert.Contains(t, tool.InputSchema.Properties, "public")
+	assert.False(t, tool.Annotations.ReadOnlyHint, "create_gist tool should not be read-only")
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "description")
+	assert.Contains(t, schema.Properties, "filename")
+	assert.Contains(t, schema.Properties, "content")
+	assert.Contains(t, schema.Properties, "public")
 
 	// Verify required parameters
-	assert.Contains(t, tool.InputSchema.Required, "filename")
-	assert.Contains(t, tool.InputSchema.Required, "content")
+	assert.Contains(t, schema.Required, "filename")
+	assert.Contains(t, schema.Required, "content")
 
 	// Setup mock data for test cases
 	createdGist := &github.Gist{
@@ -409,7 +429,7 @@ func Test_CreateGist(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {
@@ -445,17 +465,23 @@ func Test_UpdateGist(t *testing.T) {
 	mockClient := github.NewClient(nil)
 	tool, _ := UpdateGist(stubGetClientFn(mockClient), translations.NullTranslationHelper)
 
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
 	assert.Equal(t, "update_gist", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "gist_id")
-	assert.Contains(t, tool.InputSchema.Properties, "description")
-	assert.Contains(t, tool.InputSchema.Properties, "filename")
-	assert.Contains(t, tool.InputSchema.Properties, "content")
+	assert.False(t, tool.Annotations.ReadOnlyHint, "update_gist tool should not be read-only")
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "gist_id")
+	assert.Contains(t, schema.Properties, "description")
+	assert.Contains(t, schema.Properties, "filename")
+	assert.Contains(t, schema.Properties, "content")
 
 	// Verify required parameters
-	assert.Contains(t, tool.InputSchema.Required, "gist_id")
-	assert.Contains(t, tool.InputSchema.Required, "filename")
-	assert.Contains(t, tool.InputSchema.Required, "content")
+	assert.Contains(t, schema.Required, "gist_id")
+	assert.Contains(t, schema.Required, "filename")
+	assert.Contains(t, schema.Required, "content")
 
 	// Setup mock data for test cases
 	updatedGist := &github.Gist{
@@ -563,7 +589,7 @@ func Test_UpdateGist(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, _, err := handler(context.Background(), &request, tc.requestArgs)
 
 			// Verify results
 			if tc.expectError {

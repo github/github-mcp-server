@@ -1,44 +1,10 @@
 {
   "annotations": {
-    "title": "Open new pull request",
-    "readOnlyHint": false
+    "title": "Open new pull request"
   },
   "description": "Create a new pull request in a GitHub repository.",
   "inputSchema": {
-    "properties": {
-      "base": {
-        "description": "Branch to merge into",
-        "type": "string"
-      },
-      "body": {
-        "description": "PR description",
-        "type": "string"
-      },
-      "draft": {
-        "description": "Create as draft PR",
-        "type": "boolean"
-      },
-      "head": {
-        "description": "Branch containing changes",
-        "type": "string"
-      },
-      "maintainer_can_modify": {
-        "description": "Allow maintainer edits",
-        "type": "boolean"
-      },
-      "owner": {
-        "description": "Repository owner",
-        "type": "string"
-      },
-      "repo": {
-        "description": "Repository name",
-        "type": "string"
-      },
-      "title": {
-        "description": "PR title",
-        "type": "string"
-      }
-    },
+    "type": "object",
     "required": [
       "owner",
       "repo",
@@ -46,7 +12,40 @@
       "head",
       "base"
     ],
-    "type": "object"
+    "properties": {
+      "base": {
+        "type": "string",
+        "description": "Branch to merge into"
+      },
+      "body": {
+        "type": "string",
+        "description": "PR description"
+      },
+      "draft": {
+        "type": "boolean",
+        "description": "Create as draft PR"
+      },
+      "head": {
+        "type": "string",
+        "description": "Branch containing changes"
+      },
+      "maintainer_can_modify": {
+        "type": "boolean",
+        "description": "Allow maintainer edits"
+      },
+      "owner": {
+        "type": "string",
+        "description": "Repository owner"
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      },
+      "title": {
+        "type": "string",
+        "description": "PR title"
+      }
+    }
   },
   "name": "create_pull_request"
 }

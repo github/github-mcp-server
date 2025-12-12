@@ -2,61 +2,23 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
   "name": "io.github.github/github-mcp-server",
   "description": "Connect AI assistants to GitHub - manage repos, issues, PRs, and workflows through natural language.",
+  "title": "GitHub",
   "status": "active",
   "repository": {
     "url": "https://github.com/github/github-mcp-server",
     "source": "github"
   },
   "version": "${VERSION}",
-  "packages": [
+  "remotes": [
     {
-      "registryType": "oci",
-      "identifier": "ghcr.io/github/github-mcp-server:${VERSION}",
-      "transport": {
-        "type": "stdio"
-      },
-      "runtimeArguments": [
+      "type": "streamable-http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": [
         {
-          "type": "positional",
-          "value": "run",
-          "description": "The runtime command to execute",
-          "isRequired": true
-        },
-        {
-          "type": "named",
-          "name": "-i",
-          "value": "true",
-          "description": "Run container in interactive mode",
-          "format": "boolean",
-          "isRequired": true
-        },
-        {
-          "type": "named",
-          "name": "--rm",
-          "value": "true",
-          "description": "Automatically remove the container when it exits",
-          "format": "boolean"
-        },
-        {
-          "type": "named",
-          "name": "-e",
-          "description": "Set an environment variable in the runtime",
-          "value": "GITHUB_PERSONAL_ACCESS_TOKEN={token}",
+          "name": "Authorization",
+          "description": "Authentication token (PAT or App token)",
           "isRequired": true,
-          "variables": {
-            "token": {
-              "isRequired": true,
-              "isSecret": true,
-              "format": "string"
-            }
-          }
-        },
-        {
-          "type": "positional",
-          "valueHint": "image_name",
-          "value": "ghcr.io/github/github-mcp-server",
-          "description": "The container image to run",
-          "isRequired": true
+          "isSecret": true
         }
       ]
     }
