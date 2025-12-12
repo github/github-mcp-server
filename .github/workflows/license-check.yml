@@ -19,8 +19,8 @@ permissions:
 jobs:
   license-check:
     runs-on: ubuntu-latest
-    # Don't run on forks (they can't push back) or dependabot
-    if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
+    # Don't run on forks (they can't push back)
+    if: github.event.pull_request.head.repo.full_name == github.repository
 
     steps:
       - name: Check out code
