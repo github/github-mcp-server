@@ -19,7 +19,13 @@
 
 set -e
 
-go install github.com/google/go-licenses@latest
+# Pinned version for CI reproducibility, latest for local development
+# See: https://github.com/cli/cli/pull/11161
+if [ "$CI" = "true" ]; then
+    go install github.com/google/go-licenses@5348b744d0983d85713295ea08a20cca1654a45e # v2.0.1
+else
+    go install github.com/google/go-licenses@latest
+fi
 
 # actions/setup-go does not setup the installed toolchain to be preferred over the system install,
 # which causes go-licenses to raise "Package ... does not have module info" errors in CI.

@@ -1,21 +1,87 @@
-# Create a github action that runs the license check script and fails if it exits with a non-zero status
+# Automatically fix license files on PRs that need updates
+# Instead of just failing, this workflow pushes the fix and comments on the PR
 
 name: License Check
-on: [push, pull_request]
+on:
+  pull_request:
+    paths:
+      - "**.go"
+      - go.mod
+      - go.sum
+      - ".github/licenses.tmpl"
+      - "script/licenses*"
+      - "third-party-licenses.*.md"
+      - "third-party/**"
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
 
 jobs:
   license-check:
     runs-on: ubuntu-latest
+    # Don't run on forks (they can't push back) or dependabot
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
 
     steps:
       - name: Check out code
         uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref }}
 
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
-      - name: check licenses
-        run: ./script/licenses-check
+
+      # actions/setup-go does not setup the installed toolchain to be preferred over the system install,
+      # which causes go-licenses to raise "Package ... does not have module info" errors.
+      # For more information, https://github.com/google/go-licenses/issues/244#issuecomment-1885098633
+      - name: Regenerate licenses
+        env:
+          CI: "true"
+        run: |
+          export GOROOT=$(go env GOROOT)
+          export PATH=${GOROOT}/bin:$PATH
+          ./script/licenses
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --exit-code; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "✅ License files are up to date"
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "📝 License files need updating"
+            git diff --stat
+          fi
+
+      - name: Commit and push fixes
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add third-party third-party-licenses.*.md
+          git commit -m "chore: regenerate third-party licenses"
+          git push
+
+      - name: Comment on PR
+        if: steps.changes.outputs.changed == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## 📜 License files updated
+
+I noticed the third-party license files were out of date and pushed a fix to this PR.
+
+**What changed:** Dependencies were added, removed, or updated, which requires regenerating the license documentation.
+
+**What I did:** Ran \`./script/licenses\` and committed the result.
+
+Please pull the latest changes before pushing again.`
+            })
+
