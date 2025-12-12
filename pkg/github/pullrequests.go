@@ -20,6 +20,11 @@ import (
 	"github.com/github/github-mcp-server/pkg/utils"
 )
 
+// Some MCP clients truncate large tool responses. This heuristic adds a leading
+// warning when a marshaled payload is likely to exceed those limits so agents
+// can retry with smaller pages.
+const mcpLargePayloadWarningThresholdBytes = 8_000
+
 // PullRequestRead creates a tool to get details of a specific pull request.
 func PullRequestRead(getClient GetClientFn, cache *lockdown.RepoAccessCache, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 	schema := &jsonschema.Schema{
@@ -329,12 +334,25 @@ func GetPullRequestReviewComments(ctx context.Context, client *github.Client, ca
 		comments = filteredComments
 	}
 
-	r, err := json.Marshal(comments)
+	payload, err := json.Marshal(comments)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	if len(payload) > mcpLargePayloadWarningThresholdBytes {
+		warning := fmt.Sprintf(
+			"WARNING: pull request review comments payload is %d bytes and may be truncated by some MCP clients. If you don't see all expected comments, retry with a smaller perPage (e.g., 1–5).",
+			len(payload),
+		)
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: warning},
+				&mcp.TextContent{Text: string(payload)},
+			},
+		}, nil
+	}
+
+	return utils.NewToolResultText(string(payload)), nil
 }
 
 func GetPullRequestReviews(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner, repo string, pullNumber int, ff FeatureFlags) (*mcp.CallToolResult, error) {
