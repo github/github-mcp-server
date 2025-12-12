@@ -277,22 +277,12 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 
 	actions := toolsets.NewToolset(ToolsetMetadataActions.ID, ToolsetMetadataActions.Description).
 		AddReadTools(
-			toolsets.NewServerTool(ListWorkflows(getClient, t)),
-			toolsets.NewServerTool(ListWorkflowRuns(getClient, t)),
-			toolsets.NewServerTool(GetWorkflowRun(getClient, t)),
-			toolsets.NewServerTool(GetWorkflowRunLogs(getClient, t)),
-			toolsets.NewServerTool(ListWorkflowJobs(getClient, t)),
-			toolsets.NewServerTool(GetJobLogs(getClient, t, contentWindowSize)),
-			toolsets.NewServerTool(ListWorkflowRunArtifacts(getClient, t)),
-			toolsets.NewServerTool(DownloadWorkflowRunArtifact(getClient, t)),
-			toolsets.NewServerTool(GetWorkflowRunUsage(getClient, t)),
+			toolsets.NewServerTool(ActionsGet(getClient, t)),
+			toolsets.NewServerTool(ActionsList(getClient, t)),
+			toolsets.NewServerTool(ActionsGetJobLogs(getClient, t, contentWindowSize)),
 		).
 		AddWriteTools(
-			toolsets.NewServerTool(RunWorkflow(getClient, t)),
-			toolsets.NewServerTool(RerunWorkflowRun(getClient, t)),
-			toolsets.NewServerTool(RerunFailedJobs(getClient, t)),
-			toolsets.NewServerTool(CancelWorkflowRun(getClient, t)),
-			toolsets.NewServerTool(DeleteWorkflowRunLogs(getClient, t)),
+			toolsets.NewServerTool(ActionsRunTrigger(getClient, t)),
 		)
 
 	securityAdvisories := toolsets.NewToolset(ToolsetMetadataSecurityAdvisories.ID, ToolsetMetadataSecurityAdvisories.Description).
