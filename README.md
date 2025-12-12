@@ -726,12 +726,12 @@ The following sets of tools are available:
 - **issue_read** - Get issue details
   - `issue_number`: The number of the issue (number, required)
   - `method`: The read operation to perform on a single issue.
-Options are:
-1. get - Get details of a specific issue.
-2. get_comments - Get issue comments.
-3. get_sub_issues - Get sub-issues of the issue.
-4. get_labels - Get labels assigned to the issue.
- (string, required)
+    Options are:
+    1. get - Get details of a specific issue.
+    2. get_comments - Get issue comments.
+    3. get_sub_issues - Get sub-issues of the issue.
+    4. get_labels - Get labels assigned to the issue.
+     (string, required)
   - `owner`: The owner of the repository (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -744,10 +744,10 @@ Options are:
   - `issue_number`: Issue number to update (number, optional)
   - `labels`: Labels to apply to this issue (string[], optional)
   - `method`: Write operation to perform on a single issue.
-Options are:
-- 'create' - creates a new issue.
-- 'update' - updates an existing issue.
- (string, required)
+    Options are:
+    - 'create' - creates a new issue.
+    - 'update' - updates an existing issue.
+     (string, required)
   - `milestone`: Milestone number (number, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
@@ -784,11 +784,11 @@ Options are:
   - `before_id`: The ID of the sub-issue to be prioritized before (either after_id OR before_id should be specified) (number, optional)
   - `issue_number`: The number of the parent issue (number, required)
   - `method`: The action to perform on a single sub-issue
-Options are:
-- 'add' - add a sub-issue to a parent issue in a GitHub repository.
-- 'remove' - remove a sub-issue from a parent issue in a GitHub repository.
-- 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.
-				 (string, required)
+    Options are:
+    - 'add' - add a sub-issue to a parent issue in a GitHub repository.
+    - 'remove' - remove a sub-issue from a parent issue in a GitHub repository.
+    - 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.
+    				 (string, required)
   - `owner`: Repository owner (string, required)
   - `replace_parent`: When true, replaces the sub-issue's current parent issue. Use with 'add' method only. (boolean, optional)
   - `repo`: Repository name (string, required)

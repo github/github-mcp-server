@@ -378,6 +378,8 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	tsg.AddToolset(stargazers)
 	tsg.AddToolset(labels)
 
+	tsg.AddDeprecatedToolAliases(DeprecatedToolAliases)
+
 	return tsg
 }
 
