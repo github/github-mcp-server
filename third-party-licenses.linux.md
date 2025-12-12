@@ -4,13 +4,13 @@ The following open source dependencies are used to build the [github/github-mcp-
 
 ## Table of Contents
 
-- [amd64, arm64, 386](#amd64-arm64-386)
+- [386, amd64, arm64](#386-amd64-arm64)
 
 ---
 
-## amd64, arm64, 386
+## 386, amd64, arm64
 
-The following packages are included for the amd64, arm64, 386 architecture(s).
+The following packages are included for the 386, amd64, arm64 architectures.
 
  - [github.com/aymerick/douceur](https://pkg.go.dev/github.com/aymerick/douceur) ([MIT](https://github.com/aymerick/douceur/blob/v0.2.0/LICENSE))
  - [github.com/fsnotify/fsnotify](https://pkg.go.dev/github.com/fsnotify/fsnotify) ([BSD-3-Clause](https://github.com/fsnotify/fsnotify/blob/v1.9.0/LICENSE))
