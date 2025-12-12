@@ -612,7 +612,6 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 			ref = rawOpts.SHA
 		}
 
-		var rawAPIResponseCode int
 		var fileSHA string
 		opts := &github.RepositoryContentGetOptions{Ref: ref}
 
@@ -625,32 +624,7 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 		// The path does not point to a file or directory.
 		// Instead let's try to find it in the Git Tree by matching the end of the path.
 		if err != nil || (fileContent == nil && dirContent == nil) {
-			// Step 1: Get Git Tree recursively
-			tree, response, err := client.Git.GetTree(ctx, owner, repo, ref, true)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get git tree",
-					response,
-					err,
-				), nil, nil
-			}
-			defer func() { _ = response.Body.Close() }()
-
-			// Step 2: Filter tree for matching paths
-			const maxMatchingFiles = 3
-			matchingFiles := filterPaths(tree.Entries, path, maxMatchingFiles)
-			if len(matchingFiles) > 0 {
-				matchingFilesJSON, err := json.Marshal(matchingFiles)
-				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("failed to marshal matching files: %s", err)), nil, nil
-				}
-				resolvedRefs, err := json.Marshal(rawOpts)
-				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("failed to marshal resolved refs: %s", err)), nil, nil
-				}
-				return utils.NewToolResultError(fmt.Sprintf("Resolved potential matches in the repository tree (resolved refs: %s, matching files: %s), but the raw content API returned an unexpected status code %d.", string(resolvedRefs), string(matchingFilesJSON), rawAPIResponseCode)), nil, nil
-			}
-			return utils.NewToolResultError("Failed to get file contents. The path does not point to a file or directory, or the file does not exist in the repository."), nil, nil
+			return matchFiles(ctx, client, owner, repo, ref, path, rawOpts, 0)
 		}
 
 		if fileContent != nil && fileContent.SHA != nil {
@@ -726,6 +700,9 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 				}
 				return utils.NewToolResultResource("successfully downloaded binary file", result), nil, nil
 			}
+
+			// Raw API call failed
+			return matchFiles(ctx, client, owner, repo, ref, path, rawOpts, resp.StatusCode)
 		} else if dirContent != nil {
 			// file content or file SHA is nil which means it's a directory
 			r, err := json.Marshal(dirContent)
@@ -2099,4 +2076,36 @@ func UnstarRepository(getClient GetClientFn, t translations.TranslationHelperFun
 	})
 
 	return tool, handler
+}
+
+func matchFiles(ctx context.Context, client *github.Client, owner, repo, ref, path string, rawOpts *raw.ContentOpts, rawAPIResponseCode int) (*mcp.CallToolResult, any, error) {
+	// Step 1: Get Git Tree recursively
+	tree, response, err := client.Git.GetTree(ctx, owner, repo, ref, true)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to get git tree",
+			response,
+			err,
+		), nil, nil
+	}
+	defer func() { _ = response.Body.Close() }()
+
+	// Step 2: Filter tree for matching paths
+	const maxMatchingFiles = 3
+	matchingFiles := filterPaths(tree.Entries, path, maxMatchingFiles)
+	if len(matchingFiles) > 0 {
+		matchingFilesJSON, err := json.Marshal(matchingFiles)
+		if err != nil {
+			return utils.NewToolResultError(fmt.Sprintf("failed to marshal matching files: %s", err)), nil, nil
+		}
+		resolvedRefs, err := json.Marshal(rawOpts)
+		if err != nil {
+			return utils.NewToolResultError(fmt.Sprintf("failed to marshal resolved refs: %s", err)), nil, nil
+		}
+		if rawAPIResponseCode > 0 {
+			return utils.NewToolResultText(fmt.Sprintf("Resolved potential matches in the repository tree (resolved refs: %s, matching files: %s), but the content API returned an unexpected status code %d.", string(resolvedRefs), string(matchingFilesJSON), rawAPIResponseCode)), nil, nil
+		}
+		return utils.NewToolResultText(fmt.Sprintf("Resolved potential matches in the repository tree (resolved refs: %s, matching files: %s).", string(resolvedRefs), string(matchingFilesJSON))), nil, nil
+	}
+	return utils.NewToolResultError("Failed to get file contents. The path does not point to a file or directory, or the file does not exist in the repository."), nil, nil
 }
