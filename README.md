@@ -1048,6 +1048,12 @@ The following sets of tools are available:
 
 <summary>Repositories</summary>
 
+- **add_repository_collaborator** - Add repository collaborator
+  - `owner`: Repository owner (string, required)
+  - `permission`: Permission level to grant. Defaults to 'push' when not specified. (string, optional)
+  - `repo`: Repository name (string, required)
+  - `username`: Username of the collaborator to add (string, required)
+
 - **create_branch** - Create branch
   - `branch`: Name for new branch (string, required)
   - `from_branch`: Source branch (defaults to repo default) (string, optional)

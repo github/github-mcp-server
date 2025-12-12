@@ -2115,3 +2115,113 @@ func UnstarRepository(getClient GetClientFn, t translations.TranslationHelperFun
 
 	return tool, handler
 }
+
+// AddRepositoryCollaborator creates a tool to add a collaborator to a repository with a specific permission level.
+func AddRepositoryCollaborator(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	tool := mcp.Tool{
+		Name:        "add_repository_collaborator",
+		Description: t("TOOL_ADD_REPOSITORY_COLLABORATOR_DESCRIPTION", "Add a collaborator to a GitHub repository and set their permission level"),
+		Annotations: &mcp.ToolAnnotations{
+			Title:        t("TOOL_ADD_REPOSITORY_COLLABORATOR_USER_TITLE", "Add repository collaborator"),
+			ReadOnlyHint: false,
+		},
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"owner": {
+					Type:        "string",
+					Description: "Repository owner",
+				},
+				"repo": {
+					Type:        "string",
+					Description: "Repository name",
+				},
+				"username": {
+					Type:        "string",
+					Description: "Username of the collaborator to add",
+				},
+				"permission": {
+					Type:        "string",
+					Description: "Permission level to grant. Defaults to 'push' when not specified.",
+					Enum:        []any{"pull", "triage", "push", "maintain", "admin"},
+				},
+			},
+			Required: []string{"owner", "repo", "username"},
+		},
+	}
+
+	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		owner, err := RequiredParam[string](args, "owner")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		repo, err := RequiredParam[string](args, "repo")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		username, err := RequiredParam[string](args, "username")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		permission, err := OptionalParam[string](args, "permission")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+
+		var opts *github.RepositoryAddCollaboratorOptions
+		if permission != "" {
+			opts = &github.RepositoryAddCollaboratorOptions{
+				Permission: permission,
+			}
+		}
+
+		client, err := getClient(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+		}
+
+		invitation, resp, err := client.Repositories.AddCollaborator(ctx, owner, repo, username, opts)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				fmt.Sprintf("failed to add collaborator %s to %s/%s", username, owner, repo),
+				resp,
+				err,
+			), nil, nil
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusAccepted {
+			body, err := io.ReadAll(resp.Body)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			}
+			return utils.NewToolResultError(fmt.Sprintf("failed to add collaborator: %s", string(body))), nil, nil
+		}
+
+		effectivePermission := permission
+		if effectivePermission == "" && invitation != nil {
+			effectivePermission = invitation.GetPermissions()
+		}
+
+		var message string
+		switch resp.StatusCode {
+		case http.StatusCreated, http.StatusAccepted:
+			message = fmt.Sprintf("Invitation sent to %s for %s/%s", username, owner, repo)
+			if effectivePermission != "" {
+				message += fmt.Sprintf(" with %s permission", effectivePermission)
+			}
+			if invitation != nil && invitation.GetID() != 0 {
+				message += fmt.Sprintf(" (invitation id %d)", invitation.GetID())
+			}
+		case http.StatusNoContent:
+			message = fmt.Sprintf("%s already has access to %s/%s", username, owner, repo)
+			if effectivePermission != "" {
+				message += fmt.Sprintf(" (permission %s)", effectivePermission)
+			}
+		}
+
+		return utils.NewToolResultText(message), nil, nil
+	})
+
+	return tool, handler
+}
