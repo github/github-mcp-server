@@ -176,8 +176,8 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 
 	// Register specific tools if configured
 	if len(cfg.EnabledTools) > 0 {
-		// Clean and validate tool names
 		enabledTools := github.CleanTools(cfg.EnabledTools)
+		enabledTools, _ = tsg.ResolveToolAliases(enabledTools)
 
 		// Register the specified tools (additive to any toolsets already enabled)
 		err = tsg.RegisterSpecificTools(ghServer, enabledTools, cfg.ReadOnly)
