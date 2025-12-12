@@ -16,6 +16,7 @@ import (
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/shurcooL/githubv4"
 )
 
 func GetCommit(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
@@ -2111,6 +2112,201 @@ func UnstarRepository(getClient GetClientFn, t translations.TranslationHelperFun
 		}
 
 		return utils.NewToolResultText(fmt.Sprintf("Successfully unstarred repository %s/%s", owner, repo)), nil, nil
+	})
+
+	return tool, handler
+}
+
+func GetFileBlame(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+	tool := mcp.Tool{
+		Name:        "get_file_blame",
+		Description: t("TOOL_GET_FILE_BLAME_DESCRIPTION", "Get git blame information for a file, showing who last modified each line"),
+		Annotations: &mcp.ToolAnnotations{
+			Title:        t("TOOL_GET_FILE_BLAME_USER_TITLE", "Get file blame information"),
+			ReadOnlyHint: true,
+		},
+		InputSchema: &jsonschema.Schema{
+			Type: "object",
+			Properties: map[string]*jsonschema.Schema{
+				"owner": {
+					Type:        "string",
+					Description: "Repository owner (username or organization)",
+				},
+				"repo": {
+					Type:        "string",
+					Description: "Repository name",
+				},
+				"path": {
+					Type:        "string",
+					Description: "Path to the file in the repository",
+				},
+				"ref": {
+					Type:        "string",
+					Description: "Git reference (branch, tag, or commit SHA). Defaults to the repository's default branch",
+				},
+			},
+			Required: []string{"owner", "repo", "path"},
+		},
+	}
+
+	handler := mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		owner, err := RequiredParam[string](args, "owner")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		repo, err := RequiredParam[string](args, "repo")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		path, err := RequiredParam[string](args, "path")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+		ref, err := OptionalParam[string](args, "ref")
+		if err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+
+		client, err := getGQLClient(ctx)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get GitHub GraphQL client: %w", err)
+		}
+
+		// First, get the default branch if ref is not specified
+		if ref == "" {
+			var repoQuery struct {
+				Repository struct {
+					DefaultBranchRef struct {
+						Name githubv4.String
+					}
+				} `graphql:"repository(owner: $owner, name: $repo)"`
+			}
+
+			vars := map[string]interface{}{
+				"owner": githubv4.String(owner),
+				"repo":  githubv4.String(repo),
+			}
+
+			if err := client.Query(ctx, &repoQuery, vars); err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+					"failed to get default branch",
+					err,
+				), nil, nil
+			}
+
+			// Validate that the repository has a default branch
+			if repoQuery.Repository.DefaultBranchRef.Name == "" {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+					"repository has no default branch",
+					fmt.Errorf("repository %s/%s has no default branch or is empty", owner, repo),
+				), nil, nil
+			}
+
+			ref = string(repoQuery.Repository.DefaultBranchRef.Name)
+		}
+		// Now query the blame information
+		var blameQuery struct {
+			Repository struct {
+				Object struct {
+					Commit struct {
+						Blame struct {
+							Ranges []struct {
+								StartingLine githubv4.Int
+								EndingLine   githubv4.Int
+								Age          githubv4.Int
+								Commit       struct {
+									OID           githubv4.String
+									Message       githubv4.String
+									CommittedDate githubv4.DateTime
+									Author        struct {
+										Name  githubv4.String
+										Email githubv4.String
+										User  *struct {
+											Login githubv4.String
+											URL   githubv4.String
+										}
+									}
+								}
+							}
+						} `graphql:"blame(path: $path)"`
+					} `graphql:"... on Commit"`
+				} `graphql:"object(expression: $ref)"`
+			} `graphql:"repository(owner: $owner, name: $repo)"`
+		}
+
+		vars := map[string]interface{}{
+			"owner": githubv4.String(owner),
+			"repo":  githubv4.String(repo),
+			"ref":   githubv4.String(ref),
+			"path":  githubv4.String(path),
+		}
+
+		if err := client.Query(ctx, &blameQuery, vars); err != nil {
+			return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+				fmt.Sprintf("failed to get blame for file: %s", path),
+				err,
+			), nil, nil
+		}
+
+		// Convert the blame ranges to a more readable format
+		type BlameRange struct {
+			StartingLine int `json:"starting_line"`
+			EndingLine   int `json:"ending_line"`
+			Age          int `json:"age"`
+			Commit       struct {
+				SHA           string `json:"sha"`
+				Message       string `json:"message"`
+				CommittedDate string `json:"committed_date"`
+				Author        struct {
+					Name  string  `json:"name"`
+					Email string  `json:"email"`
+					Login *string `json:"login,omitempty"`
+					URL   *string `json:"url,omitempty"`
+				} `json:"author"`
+			} `json:"commit"`
+		}
+
+		type BlameResult struct {
+			Repository string       `json:"repository"`
+			Path       string       `json:"path"`
+			Ref        string       `json:"ref"`
+			Ranges     []BlameRange `json:"ranges"`
+		}
+
+		result := BlameResult{
+			Repository: fmt.Sprintf("%s/%s", owner, repo),
+			Path:       path,
+			Ref:        ref,
+			Ranges:     make([]BlameRange, 0, len(blameQuery.Repository.Object.Commit.Blame.Ranges)),
+		}
+
+		for _, r := range blameQuery.Repository.Object.Commit.Blame.Ranges {
+			br := BlameRange{
+				StartingLine: int(r.StartingLine),
+				EndingLine:   int(r.EndingLine),
+				Age:          int(r.Age),
+			}
+			br.Commit.SHA = string(r.Commit.OID)
+			br.Commit.Message = string(r.Commit.Message)
+			br.Commit.CommittedDate = r.Commit.CommittedDate.Format("2006-01-02T15:04:05Z")
+			br.Commit.Author.Name = string(r.Commit.Author.Name)
+			br.Commit.Author.Email = string(r.Commit.Author.Email)
+			if r.Commit.Author.User != nil {
+				login := string(r.Commit.Author.User.Login)
+				url := string(r.Commit.Author.User.URL)
+				br.Commit.Author.Login = &login
+				br.Commit.Author.URL = &url
+			}
+
+			result.Ranges = append(result.Ranges, br)
+		}
+
+		r, err := json.Marshal(result)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+		}
+
+		return utils.NewToolResultText(string(r)), nil, nil
 	})
 
 	return tool, handler

@@ -1,0 +1,34 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get file blame information"
+  },
+  "description": "Get git blame information for a file, showing who last modified each line",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "owner",
+      "repo",
+      "path"
+    ],
+    "properties": {
+      "owner": {
+        "type": "string",
+        "description": "Repository owner (username or organization)"
+      },
+      "path": {
+        "type": "string",
+        "description": "Path to the file in the repository"
+      },
+      "ref": {
+        "type": "string",
+        "description": "Git reference (branch, tag, or commit SHA). Defaults to the repository's default branch"
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      }
+    }
+  },
+  "name": "get_file_blame"
+}
