@@ -1093,7 +1093,8 @@ Possible options:
 - **get_file_contents** - Get file or directory contents
   - `owner`: Repository owner (username or organization) (string, required)
   - `path`: Path to file/directory (string, optional)
-  - `ref`: Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head` (string, optional)
+  - `raw_content`: If true, returns file content as plain text (for text files) or base64-encoded (for binary files) instead of embedded resource format. Useful for clients that don't support embedded resources. (boolean, optional)
+  - `ref`: Accepts optional git refs such as refs/tags/{tag}, refs/heads/{branch} or refs/pull/{pr_number}/head (string, optional)
   - `repo`: Repository name (string, required)
   - `sha`: Accepts optional commit SHA. If specified, it will be used instead of ref (string, optional)
 
