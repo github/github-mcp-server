@@ -17,8 +17,8 @@ import (
 )
 
 func Test_ListProjects(t *testing.T) {
-	mockClient := gh.NewClient(nil)
-	tool, _ := ListProjects(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ListProjects(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_projects", tool.Name)
@@ -141,9 +141,12 @@ func Test_ListProjects(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			_, handler := ListProjects(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -177,8 +180,8 @@ func Test_ListProjects(t *testing.T) {
 }
 
 func Test_GetProject(t *testing.T) {
-	mockClient := gh.NewClient(nil)
-	tool, _ := GetProject(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := GetProject(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "get_project", tool.Name)
@@ -277,9 +280,12 @@ func Test_GetProject(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			_, handler := GetProject(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -310,8 +316,8 @@ func Test_GetProject(t *testing.T) {
 }
 
 func Test_ListProjectFields(t *testing.T) {
-	mockClient := gh.NewClient(nil)
-	tool, _ := ListProjectFields(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ListProjectFields(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_project_fields", tool.Name)
@@ -426,9 +432,12 @@ func Test_ListProjectFields(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			_, handler := ListProjectFields(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -464,8 +473,8 @@ func Test_ListProjectFields(t *testing.T) {
 }
 
 func Test_GetProjectField(t *testing.T) {
-	mockClient := gh.NewClient(nil)
-	tool, _ := GetProjectField(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := GetProjectField(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "get_project_field", tool.Name)
@@ -583,9 +592,12 @@ func Test_GetProjectField(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			_, handler := GetProjectField(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -622,8 +634,8 @@ func Test_GetProjectField(t *testing.T) {
 }
 
 func Test_ListProjectItems(t *testing.T) {
-	mockClient := gh.NewClient(nil)
-	tool, _ := ListProjectItems(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ListProjectItems(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_project_items", tool.Name)
@@ -786,9 +798,12 @@ func Test_ListProjectItems(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			_, handler := ListProjectItems(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -824,8 +839,8 @@ func Test_ListProjectItems(t *testing.T) {
 }
 
 func Test_GetProjectItem(t *testing.T) {
-	mockClient := gh.NewClient(nil)
-	tool, _ := GetProjectItem(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := GetProjectItem(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "get_project_item", tool.Name)
@@ -980,9 +995,12 @@ func Test_GetProjectItem(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			_, handler := GetProjectItem(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -1019,8 +1037,8 @@ func Test_GetProjectItem(t *testing.T) {
 }
 
 func Test_AddProjectItem(t *testing.T) {
-	mockClient := gh.NewClient(nil)
-	tool, _ := AddProjectItem(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := AddProjectItem(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "add_project_item", tool.Name)
@@ -1206,10 +1224,13 @@ func Test_AddProjectItem(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			_, handler := AddProjectItem(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
 
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 			require.NoError(t, err)
 
 			if tc.expectError {
@@ -1255,8 +1276,8 @@ func Test_AddProjectItem(t *testing.T) {
 }
 
 func Test_UpdateProjectItem(t *testing.T) {
-	mockClient := gh.NewClient(nil)
-	tool, _ := UpdateProjectItem(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := UpdateProjectItem(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "update_project_item", tool.Name)
@@ -1488,9 +1509,12 @@ func Test_UpdateProjectItem(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			_, handler := UpdateProjectItem(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -1532,8 +1556,8 @@ func Test_UpdateProjectItem(t *testing.T) {
 }
 
 func Test_DeleteProjectItem(t *testing.T) {
-	mockClient := gh.NewClient(nil)
-	tool, _ := DeleteProjectItem(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := DeleteProjectItem(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "delete_project_item", tool.Name)
@@ -1652,9 +1676,12 @@ func Test_DeleteProjectItem(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			_, handler := DeleteProjectItem(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
