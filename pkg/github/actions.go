@@ -27,6 +27,7 @@ const (
 // ListWorkflows creates a tool to list workflows in a repository
 func ListWorkflows(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "list_workflows",
 			Description: t("TOOL_LIST_WORKFLOWS_DESCRIPTION", "List workflows in a repository"),
@@ -97,6 +98,7 @@ func ListWorkflows(t translations.TranslationHelperFunc) toolsets.ServerTool {
 // ListWorkflowRuns creates a tool to list workflow runs for a specific workflow
 func ListWorkflowRuns(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "list_workflow_runs",
 			Description: t("TOOL_LIST_WORKFLOW_RUNS_DESCRIPTION", "List workflow runs for a specific workflow"),
@@ -250,6 +252,7 @@ func ListWorkflowRuns(t translations.TranslationHelperFunc) toolsets.ServerTool 
 // RunWorkflow creates a tool to run an Actions workflow
 func RunWorkflow(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "run_workflow",
 			Description: t("TOOL_RUN_WORKFLOW_DESCRIPTION", "Run an Actions workflow by workflow ID or filename"),
@@ -361,6 +364,7 @@ func RunWorkflow(t translations.TranslationHelperFunc) toolsets.ServerTool {
 // GetWorkflowRun creates a tool to get details of a specific workflow run
 func GetWorkflowRun(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "get_workflow_run",
 			Description: t("TOOL_GET_WORKFLOW_RUN_DESCRIPTION", "Get details of a specific workflow run"),
@@ -428,6 +432,7 @@ func GetWorkflowRun(t translations.TranslationHelperFunc) toolsets.ServerTool {
 // GetWorkflowRunLogs creates a tool to download logs for a specific workflow run
 func GetWorkflowRunLogs(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "get_workflow_run_logs",
 			Description: t("TOOL_GET_WORKFLOW_RUN_LOGS_DESCRIPTION", "Download logs for a specific workflow run (EXPENSIVE: downloads ALL logs as ZIP. Consider using get_job_logs with failed_only=true for debugging failed jobs)"),
@@ -505,6 +510,7 @@ func GetWorkflowRunLogs(t translations.TranslationHelperFunc) toolsets.ServerToo
 // ListWorkflowJobs creates a tool to list jobs for a specific workflow run
 func ListWorkflowJobs(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "list_workflow_jobs",
 			Description: t("TOOL_LIST_WORKFLOW_JOBS_DESCRIPTION", "List jobs for a specific workflow run"),
@@ -604,6 +610,7 @@ func ListWorkflowJobs(t translations.TranslationHelperFunc) toolsets.ServerTool 
 // GetJobLogs creates a tool to download logs for a specific workflow job or efficiently get all failed job logs for a workflow run
 func GetJobLogs(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "get_job_logs",
 			Description: t("TOOL_GET_JOB_LOGS_DESCRIPTION", "Download logs for a specific workflow job or efficiently get all failed job logs for a workflow run"),
@@ -868,6 +875,7 @@ func downloadLogContent(ctx context.Context, logURL string, tailLines int, maxLi
 // RerunWorkflowRun creates a tool to re-run an entire workflow run
 func RerunWorkflowRun(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "rerun_workflow_run",
 			Description: t("TOOL_RERUN_WORKFLOW_RUN_DESCRIPTION", "Re-run an entire workflow run"),
@@ -942,6 +950,7 @@ func RerunWorkflowRun(t translations.TranslationHelperFunc) toolsets.ServerTool 
 // RerunFailedJobs creates a tool to re-run only the failed jobs in a workflow run
 func RerunFailedJobs(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "rerun_failed_jobs",
 			Description: t("TOOL_RERUN_FAILED_JOBS_DESCRIPTION", "Re-run only the failed jobs in a workflow run"),
@@ -1016,6 +1025,7 @@ func RerunFailedJobs(t translations.TranslationHelperFunc) toolsets.ServerTool {
 // CancelWorkflowRun creates a tool to cancel a workflow run
 func CancelWorkflowRun(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "cancel_workflow_run",
 			Description: t("TOOL_CANCEL_WORKFLOW_RUN_DESCRIPTION", "Cancel a workflow run"),
@@ -1092,6 +1102,7 @@ func CancelWorkflowRun(t translations.TranslationHelperFunc) toolsets.ServerTool
 // ListWorkflowRunArtifacts creates a tool to list artifacts for a workflow run
 func ListWorkflowRunArtifacts(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "list_workflow_run_artifacts",
 			Description: t("TOOL_LIST_WORKFLOW_RUN_ARTIFACTS_DESCRIPTION", "List artifacts for a workflow run"),
@@ -1171,6 +1182,7 @@ func ListWorkflowRunArtifacts(t translations.TranslationHelperFunc) toolsets.Ser
 // DownloadWorkflowRunArtifact creates a tool to download a workflow run artifact
 func DownloadWorkflowRunArtifact(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "download_workflow_run_artifact",
 			Description: t("TOOL_DOWNLOAD_WORKFLOW_RUN_ARTIFACT_DESCRIPTION", "Get download URL for a workflow run artifact"),
@@ -1247,6 +1259,7 @@ func DownloadWorkflowRunArtifact(t translations.TranslationHelperFunc) toolsets.
 // DeleteWorkflowRunLogs creates a tool to delete logs for a workflow run
 func DeleteWorkflowRunLogs(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "delete_workflow_run_logs",
 			Description: t("TOOL_DELETE_WORKFLOW_RUN_LOGS_DESCRIPTION", "Delete logs for a workflow run"),
@@ -1322,6 +1335,7 @@ func DeleteWorkflowRunLogs(t translations.TranslationHelperFunc) toolsets.Server
 // GetWorkflowRunUsage creates a tool to get usage metrics for a workflow run
 func GetWorkflowRunUsage(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "get_workflow_run_usage",
 			Description: t("TOOL_GET_WORKFLOW_RUN_USAGE_DESCRIPTION", "Get usage metrics for a workflow run"),

@@ -39,6 +39,7 @@ type UserDetails struct {
 // GetMe creates a tool to get details of the authenticated user.
 func GetMe(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataContext,
 		mcp.Tool{
 			Name:        "get_me",
 			Description: t("TOOL_GET_ME_DESCRIPTION", "Get details of the authenticated GitHub user. Use this when a request is about the user's own profile for GitHub. Or when information is missing to build other tool calls."),
@@ -112,6 +113,7 @@ type OrganizationTeams struct {
 
 func GetTeams(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataContext,
 		mcp.Tool{
 			Name:        "get_teams",
 			Description: t("TOOL_GET_TEAMS_DESCRIPTION", "Get details of the teams the user is a member of. Limited to organizations accessible with current credentials"),
@@ -210,6 +212,7 @@ func GetTeams(t translations.TranslationHelperFunc) toolsets.ServerTool {
 
 func GetTeamMembers(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataContext,
 		mcp.Tool{
 			Name:        "get_team_members",
 			Description: t("TOOL_GET_TEAM_MEMBERS_DESCRIPTION", "Get member usernames of a specific team in an organization. Limited to organizations accessible with current credentials"),

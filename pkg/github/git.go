@@ -40,6 +40,7 @@ type TreeResponse struct {
 // GetRepositoryTree creates a tool to get the tree structure of a GitHub repository.
 func GetRepositoryTree(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataGit,
 		mcp.Tool{
 			Name:        "get_repository_tree",
 			Description: t("TOOL_GET_REPOSITORY_TREE_DESCRIPTION", "Get the tree structure (files and directories) of a GitHub repository at a specific ref or SHA"),
