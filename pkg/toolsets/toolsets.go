@@ -1,8 +1,6 @@
 package toolsets
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -32,27 +30,7 @@ func NewToolsetDoesNotExistError(name string) *ToolsetDoesNotExistError {
 	return &ToolsetDoesNotExistError{Name: name}
 }
 
-type ServerTool struct {
-	Tool         mcp.Tool
-	RegisterFunc func(s *mcp.Server)
-}
-
-func NewServerTool[In any, Out any](tool mcp.Tool, handler mcp.ToolHandlerFor[In, Out]) ServerTool {
-	return ServerTool{Tool: tool, RegisterFunc: func(s *mcp.Server) {
-		th := func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			var arguments In
-			if err := json.Unmarshal(req.Params.Arguments, &arguments); err != nil {
-				return nil, err
-			}
-
-			resp, _, err := handler(ctx, req, arguments)
-
-			return resp, err
-		}
-
-		s.AddTool(&tool, th)
-	}}
-}
+// ServerTool is defined in server_tool.go
 
 type ServerResourceTemplate struct {
 	Template mcp.ResourceTemplate
@@ -86,6 +64,8 @@ type Toolset struct {
 	readOnly    bool
 	writeTools  []ServerTool
 	readTools   []ServerTool
+	// deps holds the dependencies for tool handlers
+	deps ToolDependencies
 	// resources are not tools, but the community seems to be moving towards namespaces as a broader concept
 	// and in order to have multiple servers running concurrently, we want to avoid overlapping resources too.
 	resourceTemplates []ServerResourceTemplate
@@ -114,14 +94,20 @@ func (t *Toolset) RegisterTools(s *mcp.Server) {
 	if !t.Enabled {
 		return
 	}
-	for _, tool := range t.readTools {
-		tool.RegisterFunc(s)
+	for i := range t.readTools {
+		t.readTools[i].RegisterFunc(s, t.deps)
 	}
 	if !t.readOnly {
-		for _, tool := range t.writeTools {
-			tool.RegisterFunc(s)
+		for i := range t.writeTools {
+			t.writeTools[i].RegisterFunc(s, t.deps)
 		}
 	}
+}
+
+// SetDependencies sets the dependencies for this toolset's tool handlers.
+func (t *Toolset) SetDependencies(deps ToolDependencies) *Toolset {
+	t.deps = deps
+	return t
 }
 
 func (t *Toolset) AddResourceTemplates(templates ...ServerResourceTemplate) *Toolset {
@@ -358,7 +344,7 @@ func (tg *ToolsetGroup) FindToolByName(toolName string) (*ServerTool, string, er
 // RegisterSpecificTools registers only the specified tools.
 // Respects read-only mode (skips write tools if readOnly=true).
 // Returns error if any tool is not found.
-func (tg *ToolsetGroup) RegisterSpecificTools(s *mcp.Server, toolNames []string, readOnly bool) error {
+func (tg *ToolsetGroup) RegisterSpecificTools(s *mcp.Server, toolNames []string, readOnly bool, deps ToolDependencies) error {
 	var skippedTools []string
 	for _, toolName := range toolNames {
 		tool, _, err := tg.FindToolByName(toolName)
@@ -373,7 +359,7 @@ func (tg *ToolsetGroup) RegisterSpecificTools(s *mcp.Server, toolNames []string,
 		}
 
 		// Register the tool
-		tool.RegisterFunc(s)
+		tool.RegisterFunc(s, deps)
 	}
 
 	// Log skipped write tools if any

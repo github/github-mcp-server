@@ -61,9 +61,7 @@ func EnableToolset(s *mcp.Server, toolsetGroup *toolsets.ToolsetGroup, t transla
 			//
 			// Send notification to all initialized sessions
 			// s.sendNotificationToAllClients("notifications/tools/list_changed", nil)
-			for _, serverTool := range toolset.GetActiveTools() {
-				serverTool.RegisterFunc(s)
-			}
+			toolset.RegisterTools(s)
 
 			return utils.NewToolResultText(fmt.Sprintf("Toolset %s enabled", toolsetName)), nil, nil
 		})

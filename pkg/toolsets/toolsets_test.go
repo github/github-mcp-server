@@ -1,6 +1,8 @@
 package toolsets
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -9,15 +11,20 @@ import (
 
 // mockTool creates a minimal ServerTool for testing
 func mockTool(name string, readOnly bool) ServerTool {
-	return ServerTool{
-		Tool: mcp.Tool{
+	return NewServerToolFromHandler(
+		mcp.Tool{
 			Name: name,
 			Annotations: &mcp.ToolAnnotations{
 				ReadOnlyHint: readOnly,
 			},
+			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
 		},
-		RegisterFunc: func(_ *mcp.Server) {},
-	}
+		func(_ ToolDependencies) mcp.ToolHandler {
+			return func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				return nil, nil
+			}
+		},
+	)
 }
 
 func TestNewToolsetGroupIsEmptyWithoutEverythingOn(t *testing.T) {
@@ -375,20 +382,25 @@ func TestRegisterSpecificTools(t *testing.T) {
 	toolset.writeTools = append(toolset.writeTools, mockTool("issue_write", false))
 	tsg.AddToolset(toolset)
 
+	deps := ToolDependencies{}
+
+	// Create a real server for testing
+	server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "1.0.0"}, nil)
+
 	// Test registering with canonical names
-	err := tsg.RegisterSpecificTools(nil, []string{"issue_read"}, false)
+	err := tsg.RegisterSpecificTools(server, []string{"issue_read"}, false, deps)
 	if err != nil {
 		t.Errorf("expected no error registering tool, got %v", err)
 	}
 
 	// Test registering write tool in read-only mode (should skip but not error)
-	err = tsg.RegisterSpecificTools(nil, []string{"issue_write"}, true)
+	err = tsg.RegisterSpecificTools(server, []string{"issue_write"}, true, deps)
 	if err != nil {
 		t.Errorf("expected no error when skipping write tool in read-only mode, got %v", err)
 	}
 
 	// Test registering non-existent tool (should error)
-	err = tsg.RegisterSpecificTools(nil, []string{"nonexistent"}, false)
+	err = tsg.RegisterSpecificTools(server, []string{"nonexistent"}, false, deps)
 	if err == nil {
 		t.Error("expected error for non-existent tool")
 	}
