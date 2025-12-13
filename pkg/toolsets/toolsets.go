@@ -207,6 +207,75 @@ func NewToolsetGroup(readOnly bool) *ToolsetGroup {
 	}
 }
 
+// ToolsetInfo holds the name and description for a toolset
+type ToolsetInfo struct {
+	Name        string
+	Description string
+}
+
+// NewToolsetGroupFromTools creates a ToolsetGroup from a list of ServerTools.
+// Tools are automatically categorized as read or write based on their ReadOnlyHint annotation.
+// Tools are grouped into toolsets based on the "toolset" field in their Meta.
+// The toolsetInfos map provides descriptions for each toolset name.
+func NewToolsetGroupFromTools(readOnly bool, toolsetInfos map[string]ToolsetInfo, tools ...ServerTool) *ToolsetGroup {
+	tsg := NewToolsetGroup(readOnly)
+
+	// Group tools by toolset name
+	toolsByToolset := make(map[string][]ServerTool)
+	for _, tool := range tools {
+		toolsetName := getToolsetFromMeta(tool.Tool.Meta)
+		if toolsetName == "" {
+			panic(fmt.Sprintf("tool %q has no toolset in Meta", tool.Tool.Name))
+		}
+		toolsByToolset[toolsetName] = append(toolsByToolset[toolsetName], tool)
+	}
+
+	// Create toolsets and add tools
+	for toolsetName, toolsetTools := range toolsByToolset {
+		info, ok := toolsetInfos[toolsetName]
+		if !ok {
+			// Use a default description if not provided
+			info = ToolsetInfo{Name: toolsetName, Description: ""}
+		}
+
+		ts := NewToolset(info.Name, info.Description)
+
+		for _, tool := range toolsetTools {
+			if isReadOnlyTool(tool) {
+				ts.readTools = append(ts.readTools, tool)
+			} else {
+				ts.writeTools = append(ts.writeTools, tool)
+			}
+		}
+
+		tsg.AddToolset(ts)
+	}
+
+	return tsg
+}
+
+// getToolsetFromMeta extracts the toolset name from tool metadata
+func getToolsetFromMeta(meta mcp.Meta) string {
+	if meta == nil {
+		return ""
+	}
+	if toolset, ok := meta["toolset"].(string); ok {
+		return toolset
+	}
+	return ""
+}
+
+// isReadOnlyTool determines if a tool is read-only based on its annotations.
+// A tool is considered read-only only if ReadOnlyHint is explicitly true.
+// Write tools have ReadOnlyHint=false or DestructiveHint=true.
+func isReadOnlyTool(tool ServerTool) bool {
+	if tool.Tool.Annotations == nil {
+		// No annotations means we assume it could write (worst case)
+		return false
+	}
+	return tool.Tool.Annotations.ReadOnlyHint
+}
+
 func (tg *ToolsetGroup) AddDeprecatedToolAliases(aliases map[string]string) {
 	for oldName, newName := range aliases {
 		tg.deprecatedAliases[oldName] = newName

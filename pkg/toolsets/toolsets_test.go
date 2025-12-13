@@ -393,3 +393,209 @@ func TestRegisterSpecificTools(t *testing.T) {
 		t.Error("expected error for non-existent tool")
 	}
 }
+
+// mockToolWithMeta creates a ServerTool with metadata for testing NewToolsetGroupFromTools
+func mockToolWithMeta(name string, toolsetName string, readOnly bool) ServerTool {
+	return ServerTool{
+		Tool: mcp.Tool{
+			Name: name,
+			Meta: mcp.Meta{"toolset": toolsetName},
+			Annotations: &mcp.ToolAnnotations{
+				ReadOnlyHint: readOnly,
+			},
+		},
+		RegisterFunc: func(_ *mcp.Server) {},
+	}
+}
+
+func TestNewToolsetGroupFromTools(t *testing.T) {
+	toolsetInfos := map[string]ToolsetInfo{
+		"repos":  {Name: "repos", Description: "Repository tools"},
+		"issues": {Name: "issues", Description: "Issue tools"},
+	}
+
+	// Create tools with meta containing toolset info
+	tools := []ServerTool{
+		mockToolWithMeta("get_repo", "repos", true),
+		mockToolWithMeta("create_repo", "repos", false),
+		mockToolWithMeta("get_issue", "issues", true),
+		mockToolWithMeta("create_issue", "issues", false),
+		mockToolWithMeta("list_issues", "issues", true),
+	}
+
+	tsg := NewToolsetGroupFromTools(false, toolsetInfos, tools...)
+
+	// Verify toolsets were created
+	if len(tsg.Toolsets) != 2 {
+		t.Fatalf("expected 2 toolsets, got %d", len(tsg.Toolsets))
+	}
+
+	// Verify repos toolset
+	reposToolset, exists := tsg.Toolsets["repos"]
+	if !exists {
+		t.Fatal("expected 'repos' toolset to exist")
+	}
+	if reposToolset.Description != "Repository tools" {
+		t.Errorf("expected repos description 'Repository tools', got '%s'", reposToolset.Description)
+	}
+	if len(reposToolset.readTools) != 1 {
+		t.Errorf("expected 1 read tool in repos, got %d", len(reposToolset.readTools))
+	}
+	if len(reposToolset.writeTools) != 1 {
+		t.Errorf("expected 1 write tool in repos, got %d", len(reposToolset.writeTools))
+	}
+
+	// Verify issues toolset
+	issuesToolset, exists := tsg.Toolsets["issues"]
+	if !exists {
+		t.Fatal("expected 'issues' toolset to exist")
+	}
+	if len(issuesToolset.readTools) != 2 {
+		t.Errorf("expected 2 read tools in issues, got %d", len(issuesToolset.readTools))
+	}
+	if len(issuesToolset.writeTools) != 1 {
+		t.Errorf("expected 1 write tool in issues, got %d", len(issuesToolset.writeTools))
+	}
+}
+
+func TestNewToolsetGroupFromToolsReadOnly(t *testing.T) {
+	toolsetInfos := map[string]ToolsetInfo{
+		"repos": {Name: "repos", Description: "Repository tools"},
+	}
+
+	tools := []ServerTool{
+		mockToolWithMeta("get_repo", "repos", true),
+		mockToolWithMeta("create_repo", "repos", false),
+	}
+
+	// Create with readOnly=true
+	tsg := NewToolsetGroupFromTools(true, toolsetInfos, tools...)
+
+	reposToolset := tsg.Toolsets["repos"]
+	if !reposToolset.readOnly {
+		t.Error("expected toolset to be in read-only mode")
+	}
+
+	// GetActiveTools should only return read tools
+	activeTools := reposToolset.GetActiveTools()
+	if len(activeTools) != 0 {
+		// Toolset is not enabled yet
+		t.Errorf("expected 0 active tools (not enabled), got %d", len(activeTools))
+	}
+
+	reposToolset.Enabled = true
+	activeTools = reposToolset.GetActiveTools()
+	if len(activeTools) != 1 {
+		t.Errorf("expected 1 active tool in read-only mode, got %d", len(activeTools))
+	}
+	if activeTools[0].Tool.Name != "get_repo" {
+		t.Errorf("expected only read tool 'get_repo', got '%s'", activeTools[0].Tool.Name)
+	}
+}
+
+func TestNewToolsetGroupFromToolsPanicsOnMissingToolset(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("expected panic when tool has no toolset in Meta")
+		}
+	}()
+
+	// Tool without toolset in meta
+	tools := []ServerTool{
+		{
+			Tool: mcp.Tool{
+				Name: "bad_tool",
+				Meta: nil, // No meta
+				Annotations: &mcp.ToolAnnotations{
+					ReadOnlyHint: true,
+				},
+			},
+			RegisterFunc: func(_ *mcp.Server) {},
+		},
+	}
+
+	NewToolsetGroupFromTools(false, nil, tools...)
+}
+
+func TestIsReadOnlyTool(t *testing.T) {
+	tests := []struct {
+		name     string
+		tool     ServerTool
+		expected bool
+	}{
+		{
+			name: "read-only tool",
+			tool: ServerTool{
+				Tool: mcp.Tool{
+					Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "write tool",
+			tool: ServerTool{
+				Tool: mcp.Tool{
+					Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "no annotations (assume write)",
+			tool: ServerTool{
+				Tool: mcp.Tool{
+					Annotations: nil,
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isReadOnlyTool(tt.tool)
+			if result != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestGetToolsetFromMeta(t *testing.T) {
+	tests := []struct {
+		name     string
+		meta     mcp.Meta
+		expected string
+	}{
+		{
+			name:     "valid toolset",
+			meta:     mcp.Meta{"toolset": "repos"},
+			expected: "repos",
+		},
+		{
+			name:     "nil meta",
+			meta:     nil,
+			expected: "",
+		},
+		{
+			name:     "missing toolset key",
+			meta:     mcp.Meta{"other": "value"},
+			expected: "",
+		},
+		{
+			name:     "wrong type for toolset",
+			meta:     mcp.Meta{"toolset": 123},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getToolsetFromMeta(tt.meta)
+			if result != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, result)
+			}
+		})
+	}
+}
