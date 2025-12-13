@@ -180,24 +180,24 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		SetDependencies(deps).
 		AddReadTools(
 			SearchRepositories(t),
-			toolsets.NewServerToolLegacy(GetFileContents(getClient, getRawClient, t)),
-			toolsets.NewServerToolLegacy(ListCommits(getClient, t)),
+			GetFileContents(t),
+			ListCommits(t),
 			SearchCode(t),
-			toolsets.NewServerToolLegacy(GetCommit(getClient, t)),
-			toolsets.NewServerToolLegacy(ListBranches(getClient, t)),
-			toolsets.NewServerToolLegacy(ListTags(getClient, t)),
-			toolsets.NewServerToolLegacy(GetTag(getClient, t)),
-			toolsets.NewServerToolLegacy(ListReleases(getClient, t)),
-			toolsets.NewServerToolLegacy(GetLatestRelease(getClient, t)),
-			toolsets.NewServerToolLegacy(GetReleaseByTag(getClient, t)),
+			GetCommit(t),
+			ListBranches(t),
+			ListTags(t),
+			GetTag(t),
+			ListReleases(t),
+			GetLatestRelease(t),
+			GetReleaseByTag(t),
 		).
 		AddWriteTools(
-			toolsets.NewServerToolLegacy(CreateOrUpdateFile(getClient, t)),
-			toolsets.NewServerToolLegacy(CreateRepository(getClient, t)),
-			toolsets.NewServerToolLegacy(ForkRepository(getClient, t)),
-			toolsets.NewServerToolLegacy(CreateBranch(getClient, t)),
-			toolsets.NewServerToolLegacy(PushFiles(getClient, t)),
-			toolsets.NewServerToolLegacy(DeleteFile(getClient, t)),
+			CreateOrUpdateFile(t),
+			CreateRepository(t),
+			ForkRepository(t),
+			CreateBranch(t),
+			PushFiles(t),
+			DeleteFile(t),
 		).
 		AddResourceTemplates(
 			toolsets.NewServerResourceTemplate(GetRepositoryResourceContent(getClient, getRawClient, t)),
@@ -368,11 +368,11 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	stargazers := toolsets.NewToolset(ToolsetMetadataStargazers.ID, ToolsetMetadataStargazers.Description).
 		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerToolLegacy(ListStarredRepositories(getClient, t)),
+			ListStarredRepositories(t),
 		).
 		AddWriteTools(
-			toolsets.NewServerToolLegacy(StarRepository(getClient, t)),
-			toolsets.NewServerToolLegacy(UnstarRepository(getClient, t)),
+			StarRepository(t),
+			UnstarRepository(t),
 		)
 	labels := toolsets.NewToolset(ToolsetLabels.ID, ToolsetLabels.Description).
 		SetDependencies(deps).
