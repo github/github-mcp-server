@@ -21,96 +21,144 @@ type GetGQLClientFn func(context.Context) (*githubv4.Client, error)
 type ToolsetMetadata struct {
 	ID          string
 	Description string
+	// Icon is the name of the Octicon to use for this toolset (without size suffix, e.g., "repo" not "repo-16")
+	Icon string
+}
+
+// OcticonURL returns the URL for an Octicon SVG icon. Size should be 16 or 24.
+func OcticonURL(name string, size int) string {
+	return fmt.Sprintf("https://raw.githubusercontent.com/primer/octicons/main/icons/%s-%d.svg", name, size)
+}
+
+// ToolsetIcon creates an mcp.Icon for the toolset using Octicons
+func (tm ToolsetMetadata) ToolsetIcon() []mcp.Icon {
+	if tm.Icon == "" {
+		return nil
+	}
+	return []mcp.Icon{
+		{
+			Source:   OcticonURL(tm.Icon, 16),
+			MIMEType: "image/svg+xml",
+			Sizes:    []string{"16x16"},
+		},
+		{
+			Source:   OcticonURL(tm.Icon, 24),
+			MIMEType: "image/svg+xml",
+			Sizes:    []string{"24x24"},
+		},
+	}
 }
 
 var (
 	ToolsetMetadataAll = ToolsetMetadata{
 		ID:          "all",
 		Description: "Special toolset that enables all available toolsets",
+		Icon:        "apps",
 	}
 	ToolsetMetadataDefault = ToolsetMetadata{
 		ID:          "default",
 		Description: "Special toolset that enables the default toolset configuration. When no toolsets are specified, this is the set that is enabled",
+		Icon:        "check-circle",
 	}
 	ToolsetMetadataContext = ToolsetMetadata{
 		ID:          "context",
 		Description: "Tools that provide context about the current user and GitHub context you are operating in",
+		Icon:        "person",
 	}
 	ToolsetMetadataRepos = ToolsetMetadata{
 		ID:          "repos",
 		Description: "GitHub Repository related tools",
+		Icon:        "repo",
 	}
 	ToolsetMetadataGit = ToolsetMetadata{
 		ID:          "git",
 		Description: "GitHub Git API related tools for low-level Git operations",
+		Icon:        "git-branch",
 	}
 	ToolsetMetadataIssues = ToolsetMetadata{
 		ID:          "issues",
 		Description: "GitHub Issues related tools",
+		Icon:        "issue-opened",
 	}
 	ToolsetMetadataPullRequests = ToolsetMetadata{
 		ID:          "pull_requests",
 		Description: "GitHub Pull Request related tools",
+		Icon:        "git-pull-request",
 	}
 	ToolsetMetadataUsers = ToolsetMetadata{
 		ID:          "users",
 		Description: "GitHub User related tools",
+		Icon:        "people",
 	}
 	ToolsetMetadataOrgs = ToolsetMetadata{
 		ID:          "orgs",
 		Description: "GitHub Organization related tools",
+		Icon:        "organization",
 	}
 	ToolsetMetadataActions = ToolsetMetadata{
 		ID:          "actions",
 		Description: "GitHub Actions workflows and CI/CD operations",
+		Icon:        "play",
 	}
 	ToolsetMetadataCodeSecurity = ToolsetMetadata{
 		ID:          "code_security",
 		Description: "Code security related tools, such as GitHub Code Scanning",
+		Icon:        "codescan",
 	}
 	ToolsetMetadataSecretProtection = ToolsetMetadata{
 		ID:          "secret_protection",
 		Description: "Secret protection related tools, such as GitHub Secret Scanning",
+		Icon:        "key",
 	}
 	ToolsetMetadataDependabot = ToolsetMetadata{
 		ID:          "dependabot",
 		Description: "Dependabot tools",
+		Icon:        "dependabot",
 	}
 	ToolsetMetadataNotifications = ToolsetMetadata{
 		ID:          "notifications",
 		Description: "GitHub Notifications related tools",
+		Icon:        "bell",
 	}
 	ToolsetMetadataExperiments = ToolsetMetadata{
 		ID:          "experiments",
 		Description: "Experimental features that are not considered stable yet",
+		Icon:        "beaker",
 	}
 	ToolsetMetadataDiscussions = ToolsetMetadata{
 		ID:          "discussions",
 		Description: "GitHub Discussions related tools",
+		Icon:        "comment-discussion",
 	}
 	ToolsetMetadataGists = ToolsetMetadata{
 		ID:          "gists",
 		Description: "GitHub Gist related tools",
+		Icon:        "code",
 	}
 	ToolsetMetadataSecurityAdvisories = ToolsetMetadata{
 		ID:          "security_advisories",
 		Description: "Security advisories related tools",
+		Icon:        "shield",
 	}
 	ToolsetMetadataProjects = ToolsetMetadata{
 		ID:          "projects",
 		Description: "GitHub Projects related tools",
+		Icon:        "project",
 	}
 	ToolsetMetadataStargazers = ToolsetMetadata{
 		ID:          "stargazers",
 		Description: "GitHub Stargazers related tools",
+		Icon:        "star",
 	}
 	ToolsetMetadataDynamic = ToolsetMetadata{
 		ID:          "dynamic",
 		Description: "Discover GitHub MCP tools that can help achieve tasks by enabling additional sets of tools, you can control the enablement of any toolset to access its tools when this toolset is enabled.",
+		Icon:        "tools",
 	}
 	ToolsetLabels = ToolsetMetadata{
 		ID:          "labels",
 		Description: "GitHub Labels related tools",
+		Icon:        "tag",
 	}
 )
 
@@ -166,6 +214,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	// Define all available features with their default state (disabled)
 	// Create toolsets
 	repos := toolsets.NewToolset(ToolsetMetadataRepos.ID, ToolsetMetadataRepos.Description).
+		SetIcons(ToolsetMetadataRepos.ToolsetIcon()).
 		AddReadTools(
 			toolsets.NewServerTool(SearchRepositories(getClient, t)),
 			toolsets.NewServerTool(GetFileContents(getClient, getRawClient, t)),
@@ -195,10 +244,12 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerResourceTemplate(GetRepositoryResourcePrContent(getClient, getRawClient, t)),
 		)
 	git := toolsets.NewToolset(ToolsetMetadataGit.ID, ToolsetMetadataGit.Description).
+		SetIcons(ToolsetMetadataGit.ToolsetIcon()).
 		AddReadTools(
 			toolsets.NewServerTool(GetRepositoryTree(getClient, t)),
 		)
 	issues := toolsets.NewToolset(ToolsetMetadataIssues.ID, ToolsetMetadataIssues.Description).
+		SetIcons(ToolsetMetadataIssues.ToolsetIcon()).
 		AddReadTools(
 			toolsets.NewServerTool(IssueRead(getClient, getGQLClient, cache, t, flags)),
 			toolsets.NewServerTool(SearchIssues(getClient, t)),
@@ -216,14 +267,17 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		toolsets.NewServerPrompt(IssueToFixWorkflowPrompt(t)),
 	)
 	users := toolsets.NewToolset(ToolsetMetadataUsers.ID, ToolsetMetadataUsers.Description).
+		SetIcons(ToolsetMetadataUsers.ToolsetIcon()).
 		AddReadTools(
 			toolsets.NewServerTool(SearchUsers(getClient, t)),
 		)
 	orgs := toolsets.NewToolset(ToolsetMetadataOrgs.ID, ToolsetMetadataOrgs.Description).
+		SetIcons(ToolsetMetadataOrgs.ToolsetIcon()).
 		AddReadTools(
 			toolsets.NewServerTool(SearchOrgs(getClient, t)),
 		)
 	pullRequests := toolsets.NewToolset(ToolsetMetadataPullRequests.ID, ToolsetMetadataPullRequests.Description).
+		SetIcons(ToolsetMetadataPullRequests.ToolsetIcon()).
 		AddReadTools(
 			toolsets.NewServerTool(PullRequestRead(getClient, cache, t, flags)),
 			toolsets.NewServerTool(ListPullRequests(getClient, t)),
@@ -240,22 +294,26 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(AddCommentToPendingReview(getGQLClient, t)),
 		)
 	codeSecurity := toolsets.NewToolset(ToolsetMetadataCodeSecurity.ID, ToolsetMetadataCodeSecurity.Description).
+		SetIcons(ToolsetMetadataCodeSecurity.ToolsetIcon()).
 		AddReadTools(
 			toolsets.NewServerTool(GetCodeScanningAlert(getClient, t)),
 			toolsets.NewServerTool(ListCodeScanningAlerts(getClient, t)),
 		)
 	secretProtection := toolsets.NewToolset(ToolsetMetadataSecretProtection.ID, ToolsetMetadataSecretProtection.Description).
+		SetIcons(ToolsetMetadataSecretProtection.ToolsetIcon()).
 		AddReadTools(
 			toolsets.NewServerTool(GetSecretScanningAlert(getClient, t)),
 			toolsets.NewServerTool(ListSecretScanningAlerts(getClient, t)),
 		)
 	dependabot := toolsets.NewToolset(ToolsetMetadataDependabot.ID, ToolsetMetadataDependabot.Description).
+		SetIcons(ToolsetMetadataDependabot.ToolsetIcon()).
 		AddReadTools(
 			toolsets.NewServerTool(GetDependabotAlert(getClient, t)),
 			toolsets.NewServerTool(ListDependabotAlerts(getClient, t)),
 		)
 
 	notifications := toolsets.NewToolset(ToolsetMetadataNotifications.ID, ToolsetMetadataNotifications.Description).
+		SetIcons(ToolsetMetadataNotifications.ToolsetIcon()).
 		AddReadTools(
 			toolsets.NewServerTool(ListNotifications(getClient, t)),
 			toolsets.NewServerTool(GetNotificationDetails(getClient, t)),
@@ -268,6 +326,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		)
 
 	discussions := toolsets.NewToolset(ToolsetMetadataDiscussions.ID, ToolsetMetadataDiscussions.Description).
+		SetIcons(ToolsetMetadataDiscussions.ToolsetIcon()).
 		AddReadTools(
 			toolsets.NewServerTool(ListDiscussions(getGQLClient, t)),
 			toolsets.NewServerTool(GetDiscussion(getGQLClient, t)),
@@ -276,6 +335,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		)
 
 	actions := toolsets.NewToolset(ToolsetMetadataActions.ID, ToolsetMetadataActions.Description).
+		SetIcons(ToolsetMetadataActions.ToolsetIcon()).
 		AddReadTools(
 			toolsets.NewServerTool(ListWorkflows(getClient, t)),
 			toolsets.NewServerTool(ListWorkflowRuns(getClient, t)),
@@ -296,6 +356,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		)
 
 	securityAdvisories := toolsets.NewToolset(ToolsetMetadataSecurityAdvisories.ID, ToolsetMetadataSecurityAdvisories.Description).
+		SetIcons(ToolsetMetadataSecurityAdvisories.ToolsetIcon()).
 		AddReadTools(
 			toolsets.NewServerTool(ListGlobalSecurityAdvisories(getClient, t)),
 			toolsets.NewServerTool(GetGlobalSecurityAdvisory(getClient, t)),
@@ -304,9 +365,11 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		)
 
 	// // Keep experiments alive so the system doesn't error out when it's always enabled
-	experiments := toolsets.NewToolset(ToolsetMetadataExperiments.ID, ToolsetMetadataExperiments.Description)
+	experiments := toolsets.NewToolset(ToolsetMetadataExperiments.ID, ToolsetMetadataExperiments.Description).
+		SetIcons(ToolsetMetadataExperiments.ToolsetIcon())
 
 	contextTools := toolsets.NewToolset(ToolsetMetadataContext.ID, ToolsetMetadataContext.Description).
+		SetIcons(ToolsetMetadataContext.ToolsetIcon()).
 		AddReadTools(
 			toolsets.NewServerTool(GetMe(getClient, t)),
 			toolsets.NewServerTool(GetTeams(getClient, getGQLClient, t)),
@@ -314,6 +377,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		)
 
 	gists := toolsets.NewToolset(ToolsetMetadataGists.ID, ToolsetMetadataGists.Description).
+		SetIcons(ToolsetMetadataGists.ToolsetIcon()).
 		AddReadTools(
 			toolsets.NewServerTool(ListGists(getClient, t)),
 			toolsets.NewServerTool(GetGist(getClient, t)),
@@ -324,6 +388,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		)
 
 	projects := toolsets.NewToolset(ToolsetMetadataProjects.ID, ToolsetMetadataProjects.Description).
+		SetIcons(ToolsetMetadataProjects.ToolsetIcon()).
 		AddReadTools(
 			toolsets.NewServerTool(ListProjects(getClient, t)),
 			toolsets.NewServerTool(GetProject(getClient, t)),
@@ -338,6 +403,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(UpdateProjectItem(getClient, t)),
 		)
 	stargazers := toolsets.NewToolset(ToolsetMetadataStargazers.ID, ToolsetMetadataStargazers.Description).
+		SetIcons(ToolsetMetadataStargazers.ToolsetIcon()).
 		AddReadTools(
 			toolsets.NewServerTool(ListStarredRepositories(getClient, t)),
 		).
@@ -346,6 +412,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(UnstarRepository(getClient, t)),
 		)
 	labels := toolsets.NewToolset(ToolsetLabels.ID, ToolsetLabels.Description).
+		SetIcons(ToolsetLabels.ToolsetIcon()).
 		AddReadTools(
 			// get
 			toolsets.NewServerTool(GetLabel(getGQLClient, t)),
@@ -390,6 +457,7 @@ func InitDynamicToolset(s *mcp.Server, tsg *toolsets.ToolsetGroup, t translation
 	// Create a new dynamic toolset
 	// Need to add the dynamic toolset last so it can be used to enable other toolsets
 	dynamicToolSelection := toolsets.NewToolset(ToolsetMetadataDynamic.ID, ToolsetMetadataDynamic.Description).
+		SetIcons(ToolsetMetadataDynamic.ToolsetIcon()).
 		AddReadTools(
 			toolsets.NewServerTool(ListAvailableToolsets(tsg, t)),
 			toolsets.NewServerTool(GetToolsetsTools(tsg, t)),
