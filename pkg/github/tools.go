@@ -259,20 +259,20 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	codeSecurity := toolsets.NewToolset(ToolsetMetadataCodeSecurity.ID, ToolsetMetadataCodeSecurity.Description).
 		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerToolLegacy(GetCodeScanningAlert(getClient, t)),
-			toolsets.NewServerToolLegacy(ListCodeScanningAlerts(getClient, t)),
+			GetCodeScanningAlert(t),
+			ListCodeScanningAlerts(t),
 		)
 	secretProtection := toolsets.NewToolset(ToolsetMetadataSecretProtection.ID, ToolsetMetadataSecretProtection.Description).
 		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerToolLegacy(GetSecretScanningAlert(getClient, t)),
-			toolsets.NewServerToolLegacy(ListSecretScanningAlerts(getClient, t)),
+			GetSecretScanningAlert(t),
+			ListSecretScanningAlerts(t),
 		)
 	dependabot := toolsets.NewToolset(ToolsetMetadataDependabot.ID, ToolsetMetadataDependabot.Description).
 		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerToolLegacy(GetDependabotAlert(getClient, t)),
-			toolsets.NewServerToolLegacy(ListDependabotAlerts(getClient, t)),
+			GetDependabotAlert(t),
+			ListDependabotAlerts(t),
 		)
 
 	notifications := toolsets.NewToolset(ToolsetMetadataNotifications.ID, ToolsetMetadataNotifications.Description).

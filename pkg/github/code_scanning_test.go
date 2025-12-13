@@ -17,15 +17,14 @@ import (
 
 func Test_GetCodeScanningAlert(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := GetCodeScanningAlert(stubGetClientFn(mockClient), translations.NullTranslationHelper)
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	toolDef := GetCodeScanningAlert(translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
 
-	assert.Equal(t, "get_code_scanning_alert", tool.Name)
-	assert.NotEmpty(t, tool.Description)
+	assert.Equal(t, "get_code_scanning_alert", toolDef.Tool.Name)
+	assert.NotEmpty(t, toolDef.Tool.Description)
 
 	// InputSchema is of type any, need to cast to *jsonschema.Schema
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	schema, ok := toolDef.Tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
@@ -89,13 +88,16 @@ func Test_GetCodeScanningAlert(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetCodeScanningAlert(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := toolDef.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler with new signature
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -127,15 +129,14 @@ func Test_GetCodeScanningAlert(t *testing.T) {
 
 func Test_ListCodeScanningAlerts(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := ListCodeScanningAlerts(stubGetClientFn(mockClient), translations.NullTranslationHelper)
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	toolDef := ListCodeScanningAlerts(translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
 
-	assert.Equal(t, "list_code_scanning_alerts", tool.Name)
-	assert.NotEmpty(t, tool.Description)
+	assert.Equal(t, "list_code_scanning_alerts", toolDef.Tool.Name)
+	assert.NotEmpty(t, toolDef.Tool.Description)
 
 	// InputSchema is of type any, need to cast to *jsonschema.Schema
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	schema, ok := toolDef.Tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
@@ -219,13 +220,16 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListCodeScanningAlerts(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := toolDef.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler with new signature
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
