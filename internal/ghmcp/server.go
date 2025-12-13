@@ -151,6 +151,17 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
 	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, restClient, gqlHTTPClient))
 
+	// Create the dependencies struct for tool handlers
+	deps := github.ToolDependencies{
+		GetClient:         getClient,
+		GetGQLClient:      getGQLClient,
+		GetRawClient:      getRawClient,
+		RepoAccessCache:   repoAccessCache,
+		T:                 cfg.Translator,
+		Flags:             github.FeatureFlags{LockdownMode: cfg.LockdownMode},
+		ContentWindowSize: cfg.ContentWindowSize,
+	}
+
 	// Create default toolsets
 	tsg := github.DefaultToolsetGroup(
 		cfg.ReadOnly,
@@ -181,7 +192,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		enabledTools, _ = tsg.ResolveToolAliases(enabledTools)
 
 		// Register the specified tools (additive to any toolsets already enabled)
-		err = tsg.RegisterSpecificTools(ghServer, enabledTools, cfg.ReadOnly)
+		err = tsg.RegisterSpecificTools(ghServer, enabledTools, cfg.ReadOnly, deps)
 		if err != nil {
 			return nil, fmt.Errorf("failed to register tools: %w", err)
 		}
