@@ -278,14 +278,14 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	notifications := toolsets.NewToolset(ToolsetMetadataNotifications.ID, ToolsetMetadataNotifications.Description).
 		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerToolLegacy(ListNotifications(getClient, t)),
-			toolsets.NewServerToolLegacy(GetNotificationDetails(getClient, t)),
+			ListNotifications(t),
+			GetNotificationDetails(t),
 		).
 		AddWriteTools(
-			toolsets.NewServerToolLegacy(DismissNotification(getClient, t)),
-			toolsets.NewServerToolLegacy(MarkAllNotificationsRead(getClient, t)),
-			toolsets.NewServerToolLegacy(ManageNotificationSubscription(getClient, t)),
-			toolsets.NewServerToolLegacy(ManageRepositoryNotificationSubscription(getClient, t)),
+			DismissNotification(t),
+			MarkAllNotificationsRead(t),
+			ManageNotificationSubscription(t),
+			ManageRepositoryNotificationSubscription(t),
 		)
 
 	discussions := toolsets.NewToolset(ToolsetMetadataDiscussions.ID, ToolsetMetadataDiscussions.Description).
