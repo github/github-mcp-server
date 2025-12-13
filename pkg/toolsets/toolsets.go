@@ -207,38 +207,44 @@ func NewToolsetGroup(readOnly bool) *ToolsetGroup {
 	}
 }
 
-// ToolsetInfo holds the name and description for a toolset
-type ToolsetInfo struct {
-	Name        string
+// ToolsetMetadata holds metadata for a toolset including its ID and description
+type ToolsetMetadata struct {
+	ID          string
 	Description string
 }
 
 // NewToolsetGroupFromTools creates a ToolsetGroup from a list of ServerTools.
 // Tools are automatically categorized as read or write based on their ReadOnlyHint annotation.
 // Tools are grouped into toolsets based on the "toolset" field in their Meta.
-// The toolsetInfos map provides descriptions for each toolset name.
-func NewToolsetGroupFromTools(readOnly bool, toolsetInfos map[string]ToolsetInfo, tools ...ServerTool) *ToolsetGroup {
+// The toolsetMetadatas slice provides IDs and descriptions for each toolset.
+func NewToolsetGroupFromTools(readOnly bool, toolsetMetadatas []ToolsetMetadata, tools ...ServerTool) *ToolsetGroup {
 	tsg := NewToolsetGroup(readOnly)
+
+	// Build a map for quick lookup of toolset metadata by ID
+	metadataByID := make(map[string]ToolsetMetadata)
+	for _, meta := range toolsetMetadatas {
+		metadataByID[meta.ID] = meta
+	}
 
 	// Group tools by toolset name
 	toolsByToolset := make(map[string][]ServerTool)
 	for _, tool := range tools {
-		toolsetName := getToolsetFromMeta(tool.Tool.Meta)
-		if toolsetName == "" {
+		toolsetID := getToolsetFromMeta(tool.Tool.Meta)
+		if toolsetID == "" {
 			panic(fmt.Sprintf("tool %q has no toolset in Meta", tool.Tool.Name))
 		}
-		toolsByToolset[toolsetName] = append(toolsByToolset[toolsetName], tool)
+		toolsByToolset[toolsetID] = append(toolsByToolset[toolsetID], tool)
 	}
 
 	// Create toolsets and add tools
-	for toolsetName, toolsetTools := range toolsByToolset {
-		info, ok := toolsetInfos[toolsetName]
+	for toolsetID, toolsetTools := range toolsByToolset {
+		meta, ok := metadataByID[toolsetID]
 		if !ok {
 			// Use a default description if not provided
-			info = ToolsetInfo{Name: toolsetName, Description: ""}
+			meta = ToolsetMetadata{ID: toolsetID, Description: ""}
 		}
 
-		ts := NewToolset(info.Name, info.Description)
+		ts := NewToolset(meta.ID, meta.Description)
 
 		for _, tool := range toolsetTools {
 			if isReadOnlyTool(tool) {

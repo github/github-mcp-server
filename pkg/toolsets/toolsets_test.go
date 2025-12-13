@@ -409,9 +409,9 @@ func mockToolWithMeta(name string, toolsetName string, readOnly bool) ServerTool
 }
 
 func TestNewToolsetGroupFromTools(t *testing.T) {
-	toolsetInfos := map[string]ToolsetInfo{
-		"repos":  {Name: "repos", Description: "Repository tools"},
-		"issues": {Name: "issues", Description: "Issue tools"},
+	toolsetMetadatas := []ToolsetMetadata{
+		{ID: "repos", Description: "Repository tools"},
+		{ID: "issues", Description: "Issue tools"},
 	}
 
 	// Create tools with meta containing toolset info
@@ -423,7 +423,7 @@ func TestNewToolsetGroupFromTools(t *testing.T) {
 		mockToolWithMeta("list_issues", "issues", true),
 	}
 
-	tsg := NewToolsetGroupFromTools(false, toolsetInfos, tools...)
+	tsg := NewToolsetGroupFromTools(false, toolsetMetadatas, tools...)
 
 	// Verify toolsets were created
 	if len(tsg.Toolsets) != 2 {
@@ -459,8 +459,8 @@ func TestNewToolsetGroupFromTools(t *testing.T) {
 }
 
 func TestNewToolsetGroupFromToolsReadOnly(t *testing.T) {
-	toolsetInfos := map[string]ToolsetInfo{
-		"repos": {Name: "repos", Description: "Repository tools"},
+	toolsetMetadatas := []ToolsetMetadata{
+		{ID: "repos", Description: "Repository tools"},
 	}
 
 	tools := []ServerTool{
@@ -469,7 +469,7 @@ func TestNewToolsetGroupFromToolsReadOnly(t *testing.T) {
 	}
 
 	// Create with readOnly=true
-	tsg := NewToolsetGroupFromTools(true, toolsetInfos, tools...)
+	tsg := NewToolsetGroupFromTools(true, toolsetMetadatas, tools...)
 
 	reposToolset := tsg.Toolsets["repos"]
 	if !reposToolset.readOnly {

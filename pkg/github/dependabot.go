@@ -20,7 +20,7 @@ func GetDependabotAlert(getClient GetClientFn, t translations.TranslationHelperF
 	tool := mcp.Tool{
 		Name:        "get_dependabot_alert",
 		Description: t("TOOL_GET_DEPENDABOT_ALERT_DESCRIPTION", "Get details of a specific dependabot alert in a GitHub repository."),
-		Meta:        NewToolMeta(ToolsetMetadataDependabot.ID, scopes.SecurityEvents),
+		Meta:        NewToolMeta(ToolsetMetadataDependabot, scopes.SecurityEvents),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_GET_DEPENDABOT_ALERT_USER_TITLE", "Get dependabot alert"),
 			ReadOnlyHint: true,
@@ -97,7 +97,7 @@ func ListDependabotAlerts(getClient GetClientFn, t translations.TranslationHelpe
 	tool := mcp.Tool{
 		Name:        "list_dependabot_alerts",
 		Description: t("TOOL_LIST_DEPENDABOT_ALERTS_DESCRIPTION", "List dependabot alerts in a GitHub repository."),
-		Meta:        NewToolMeta(ToolsetMetadataDependabot.ID, scopes.SecurityEvents),
+		Meta:        NewToolMeta(ToolsetMetadataDependabot, scopes.SecurityEvents),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_LIST_DEPENDABOT_ALERTS_USER_TITLE", "List dependabot alerts"),
 			ReadOnlyHint: true,

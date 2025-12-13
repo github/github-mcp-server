@@ -20,7 +20,7 @@ func ListGists(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp
 	tool := mcp.Tool{
 		Name:        "list_gists",
 		Description: t("TOOL_LIST_GISTS_DESCRIPTION", "List gists for a user"),
-		Meta:        NewToolMeta(ToolsetMetadataGists.ID),
+		Meta:        NewToolMeta(ToolsetMetadataGists),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_LIST_GISTS", "List Gists"),
 			ReadOnlyHint: true,
@@ -107,7 +107,7 @@ func GetGist(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.T
 	tool := mcp.Tool{
 		Name:        "get_gist",
 		Description: t("TOOL_GET_GIST_DESCRIPTION", "Get gist content of a particular gist, by gist ID"),
-		Meta:        NewToolMeta(ToolsetMetadataGists.ID),
+		Meta:        NewToolMeta(ToolsetMetadataGists),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_GET_GIST", "Get Gist Content"),
 			ReadOnlyHint: true,
@@ -165,7 +165,7 @@ func CreateGist(getClient GetClientFn, t translations.TranslationHelperFunc) (mc
 	tool := mcp.Tool{
 		Name:        "create_gist",
 		Description: t("TOOL_CREATE_GIST_DESCRIPTION", "Create a new gist"),
-		Meta:        NewToolMeta(ToolsetMetadataGists.ID, scopes.Gist),
+		Meta:        NewToolMeta(ToolsetMetadataGists, scopes.Gist),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_CREATE_GIST", "Create Gist"),
 			ReadOnlyHint: false,
@@ -268,7 +268,7 @@ func UpdateGist(getClient GetClientFn, t translations.TranslationHelperFunc) (mc
 	tool := mcp.Tool{
 		Name:        "update_gist",
 		Description: t("TOOL_UPDATE_GIST_DESCRIPTION", "Update an existing gist"),
-		Meta:        NewToolMeta(ToolsetMetadataGists.ID, scopes.Gist),
+		Meta:        NewToolMeta(ToolsetMetadataGists, scopes.Gist),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_UPDATE_GIST", "Update Gist"),
 			ReadOnlyHint: false,

@@ -41,7 +41,7 @@ func GetMe(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Too
 	return mcp.Tool{
 			Name:        "get_me",
 			Description: t("TOOL_GET_ME_DESCRIPTION", "Get details of the authenticated GitHub user. Use this when a request is about the user's own profile for GitHub. Or when information is missing to build other tool calls."),
-			Meta:        NewToolMeta(ToolsetMetadataContext.ID),
+			Meta:        NewToolMeta(ToolsetMetadataContext),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_ME_USER_TITLE", "Get my user profile"),
 				ReadOnlyHint: true,
@@ -111,7 +111,7 @@ func GetTeams(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations
 	return mcp.Tool{
 			Name:        "get_teams",
 			Description: t("TOOL_GET_TEAMS_DESCRIPTION", "Get details of the teams the user is a member of. Limited to organizations accessible with current credentials"),
-			Meta:        NewToolMeta(ToolsetMetadataContext.ID, scopes.ReadOrg),
+			Meta:        NewToolMeta(ToolsetMetadataContext, scopes.ReadOrg),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_TEAMS_TITLE", "Get teams"),
 				ReadOnlyHint: true,
@@ -206,7 +206,7 @@ func GetTeamMembers(getGQLClient GetGQLClientFn, t translations.TranslationHelpe
 	return mcp.Tool{
 			Name:        "get_team_members",
 			Description: t("TOOL_GET_TEAM_MEMBERS_DESCRIPTION", "Get member usernames of a specific team in an organization. Limited to organizations accessible with current credentials"),
-			Meta:        NewToolMeta(ToolsetMetadataContext.ID, scopes.ReadOrg),
+			Meta:        NewToolMeta(ToolsetMetadataContext, scopes.ReadOrg),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_TEAM_MEMBERS_TITLE", "Get team members"),
 				ReadOnlyHint: true,

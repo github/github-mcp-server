@@ -42,7 +42,7 @@ func GetRepositoryTree(getClient GetClientFn, t translations.TranslationHelperFu
 	tool := mcp.Tool{
 		Name:        "get_repository_tree",
 		Description: t("TOOL_GET_REPOSITORY_TREE_DESCRIPTION", "Get the tree structure (files and directories) of a GitHub repository at a specific ref or SHA"),
-		Meta:        NewToolMeta(ToolsetMetadataGit.ID, scopes.Repo),
+		Meta:        NewToolMeta(ToolsetMetadataGit, scopes.Repo),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_GET_REPOSITORY_TREE_USER_TITLE", "Get repository tree"),
 			ReadOnlyHint: true,

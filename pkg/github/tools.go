@@ -18,13 +18,16 @@ import (
 type GetClientFn func(context.Context) (*github.Client, error)
 type GetGQLClientFn func(context.Context) (*githubv4.Client, error)
 
+// ToolsetMetadata is an alias to toolsets.ToolsetMetadata for convenience
+type ToolsetMetadata = toolsets.ToolsetMetadata
+
 // NewToolMeta creates tool metadata with the given toolset (required) and scopes.
 // Returns mcp.Meta (map[string]any) for direct use in mcp.Tool.Meta.
-func NewToolMeta(toolset string, requiredScopes ...scopes.Scope) mcp.Meta {
-	if toolset == "" {
-		panic("toolset is required for ToolMeta")
+func NewToolMeta(toolset ToolsetMetadata, requiredScopes ...scopes.Scope) mcp.Meta {
+	if toolset.ID == "" {
+		panic("toolset ID is required for ToolMeta")
 	}
-	meta := mcp.Meta{"toolset": toolset}
+	meta := mcp.Meta{"toolset": toolset.ID}
 
 	// Filter out NoScope and collect required scope strings
 	var scopeStrs []string
@@ -38,12 +41,6 @@ func NewToolMeta(toolset string, requiredScopes ...scopes.Scope) mcp.Meta {
 	}
 
 	return meta
-}
-
-// ToolsetMetadata holds metadata for a toolset including its ID and description
-type ToolsetMetadata struct {
-	ID          string
-	Description string
 }
 
 var (
@@ -137,8 +134,8 @@ var (
 	}
 )
 
-func AvailableTools() []ToolsetMetadata {
-	return []ToolsetMetadata{
+func AvailableTools() []toolsets.ToolsetMetadata {
+	return []toolsets.ToolsetMetadata{
 		ToolsetMetadataContext,
 		ToolsetMetadataRepos,
 		ToolsetMetadataIssues,

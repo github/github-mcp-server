@@ -29,7 +29,7 @@ func ListWorkflows(getClient GetClientFn, t translations.TranslationHelperFunc) 
 	return mcp.Tool{
 			Name:        "list_workflows",
 			Description: t("TOOL_LIST_WORKFLOWS_DESCRIPTION", "List workflows in a repository"),
-			Meta:        NewToolMeta(ToolsetMetadataActions.ID, scopes.Repo),
+			Meta:        NewToolMeta(ToolsetMetadataActions, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_WORKFLOWS_USER_TITLE", "List workflows"),
 				ReadOnlyHint: true,
@@ -96,7 +96,7 @@ func ListWorkflowRuns(getClient GetClientFn, t translations.TranslationHelperFun
 	return mcp.Tool{
 			Name:        "list_workflow_runs",
 			Description: t("TOOL_LIST_WORKFLOW_RUNS_DESCRIPTION", "List workflow runs for a specific workflow"),
-			Meta:        NewToolMeta(ToolsetMetadataActions.ID, scopes.Repo),
+			Meta:        NewToolMeta(ToolsetMetadataActions, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_WORKFLOW_RUNS_USER_TITLE", "List workflow runs"),
 				ReadOnlyHint: true,
@@ -246,7 +246,7 @@ func RunWorkflow(getClient GetClientFn, t translations.TranslationHelperFunc) (m
 	return mcp.Tool{
 			Name:        "run_workflow",
 			Description: t("TOOL_RUN_WORKFLOW_DESCRIPTION", "Run an Actions workflow by workflow ID or filename"),
-			Meta:        NewToolMeta(ToolsetMetadataActions.ID, scopes.Repo),
+			Meta:        NewToolMeta(ToolsetMetadataActions, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_RUN_WORKFLOW_USER_TITLE", "Run workflow"),
 				ReadOnlyHint: false,
@@ -354,7 +354,7 @@ func GetWorkflowRun(getClient GetClientFn, t translations.TranslationHelperFunc)
 	return mcp.Tool{
 			Name:        "get_workflow_run",
 			Description: t("TOOL_GET_WORKFLOW_RUN_DESCRIPTION", "Get details of a specific workflow run"),
-			Meta:        NewToolMeta(ToolsetMetadataActions.ID, scopes.Repo),
+			Meta:        NewToolMeta(ToolsetMetadataActions, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_WORKFLOW_RUN_USER_TITLE", "Get workflow run"),
 				ReadOnlyHint: true,
@@ -418,7 +418,7 @@ func GetWorkflowRunLogs(getClient GetClientFn, t translations.TranslationHelperF
 	return mcp.Tool{
 			Name:        "get_workflow_run_logs",
 			Description: t("TOOL_GET_WORKFLOW_RUN_LOGS_DESCRIPTION", "Download logs for a specific workflow run (EXPENSIVE: downloads ALL logs as ZIP. Consider using get_job_logs with failed_only=true for debugging failed jobs)"),
-			Meta:        NewToolMeta(ToolsetMetadataActions.ID, scopes.Repo),
+			Meta:        NewToolMeta(ToolsetMetadataActions, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_WORKFLOW_RUN_LOGS_USER_TITLE", "Get workflow run logs"),
 				ReadOnlyHint: true,
@@ -492,7 +492,7 @@ func ListWorkflowJobs(getClient GetClientFn, t translations.TranslationHelperFun
 	return mcp.Tool{
 			Name:        "list_workflow_jobs",
 			Description: t("TOOL_LIST_WORKFLOW_JOBS_DESCRIPTION", "List jobs for a specific workflow run"),
-			Meta:        NewToolMeta(ToolsetMetadataActions.ID, scopes.Repo),
+			Meta:        NewToolMeta(ToolsetMetadataActions, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_WORKFLOW_JOBS_USER_TITLE", "List workflow jobs"),
 				ReadOnlyHint: true,
@@ -588,7 +588,7 @@ func GetJobLogs(getClient GetClientFn, t translations.TranslationHelperFunc, con
 	return mcp.Tool{
 			Name:        "get_job_logs",
 			Description: t("TOOL_GET_JOB_LOGS_DESCRIPTION", "Download logs for a specific workflow job or efficiently get all failed job logs for a workflow run"),
-			Meta:        NewToolMeta(ToolsetMetadataActions.ID, scopes.Repo),
+			Meta:        NewToolMeta(ToolsetMetadataActions, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_JOB_LOGS_USER_TITLE", "Get job logs"),
 				ReadOnlyHint: true,
@@ -849,7 +849,7 @@ func RerunWorkflowRun(getClient GetClientFn, t translations.TranslationHelperFun
 	return mcp.Tool{
 			Name:        "rerun_workflow_run",
 			Description: t("TOOL_RERUN_WORKFLOW_RUN_DESCRIPTION", "Re-run an entire workflow run"),
-			Meta:        NewToolMeta(ToolsetMetadataActions.ID, scopes.Repo),
+			Meta:        NewToolMeta(ToolsetMetadataActions, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_RERUN_WORKFLOW_RUN_USER_TITLE", "Rerun workflow run"),
 				ReadOnlyHint: false,
@@ -920,7 +920,7 @@ func RerunFailedJobs(getClient GetClientFn, t translations.TranslationHelperFunc
 	return mcp.Tool{
 			Name:        "rerun_failed_jobs",
 			Description: t("TOOL_RERUN_FAILED_JOBS_DESCRIPTION", "Re-run only the failed jobs in a workflow run"),
-			Meta:        NewToolMeta(ToolsetMetadataActions.ID, scopes.Repo),
+			Meta:        NewToolMeta(ToolsetMetadataActions, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_RERUN_FAILED_JOBS_USER_TITLE", "Rerun failed jobs"),
 				ReadOnlyHint: false,
@@ -991,7 +991,7 @@ func CancelWorkflowRun(getClient GetClientFn, t translations.TranslationHelperFu
 	return mcp.Tool{
 			Name:        "cancel_workflow_run",
 			Description: t("TOOL_CANCEL_WORKFLOW_RUN_DESCRIPTION", "Cancel a workflow run"),
-			Meta:        NewToolMeta(ToolsetMetadataActions.ID, scopes.Repo),
+			Meta:        NewToolMeta(ToolsetMetadataActions, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_CANCEL_WORKFLOW_RUN_USER_TITLE", "Cancel workflow run"),
 				ReadOnlyHint: false,
@@ -1064,7 +1064,7 @@ func ListWorkflowRunArtifacts(getClient GetClientFn, t translations.TranslationH
 	return mcp.Tool{
 			Name:        "list_workflow_run_artifacts",
 			Description: t("TOOL_LIST_WORKFLOW_RUN_ARTIFACTS_DESCRIPTION", "List artifacts for a workflow run"),
-			Meta:        NewToolMeta(ToolsetMetadataActions.ID, scopes.Repo),
+			Meta:        NewToolMeta(ToolsetMetadataActions, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_WORKFLOW_RUN_ARTIFACTS_USER_TITLE", "List workflow artifacts"),
 				ReadOnlyHint: true,
@@ -1140,7 +1140,7 @@ func DownloadWorkflowRunArtifact(getClient GetClientFn, t translations.Translati
 	return mcp.Tool{
 			Name:        "download_workflow_run_artifact",
 			Description: t("TOOL_DOWNLOAD_WORKFLOW_RUN_ARTIFACT_DESCRIPTION", "Get download URL for a workflow run artifact"),
-			Meta:        NewToolMeta(ToolsetMetadataActions.ID, scopes.Repo),
+			Meta:        NewToolMeta(ToolsetMetadataActions, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_DOWNLOAD_WORKFLOW_RUN_ARTIFACT_USER_TITLE", "Download workflow artifact"),
 				ReadOnlyHint: true,
@@ -1213,7 +1213,7 @@ func DeleteWorkflowRunLogs(getClient GetClientFn, t translations.TranslationHelp
 	return mcp.Tool{
 			Name:        "delete_workflow_run_logs",
 			Description: t("TOOL_DELETE_WORKFLOW_RUN_LOGS_DESCRIPTION", "Delete logs for a workflow run"),
-			Meta:        NewToolMeta(ToolsetMetadataActions.ID, scopes.Repo),
+			Meta:        NewToolMeta(ToolsetMetadataActions, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_DELETE_WORKFLOW_RUN_LOGS_USER_TITLE", "Delete workflow logs"),
 				ReadOnlyHint:    false,
@@ -1285,7 +1285,7 @@ func GetWorkflowRunUsage(getClient GetClientFn, t translations.TranslationHelper
 	return mcp.Tool{
 			Name:        "get_workflow_run_usage",
 			Description: t("TOOL_GET_WORKFLOW_RUN_USAGE_DESCRIPTION", "Get usage metrics for a workflow run"),
-			Meta:        NewToolMeta(ToolsetMetadataActions.ID, scopes.Repo),
+			Meta:        NewToolMeta(ToolsetMetadataActions, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_WORKFLOW_RUN_USAGE_USER_TITLE", "Get workflow usage"),
 				ReadOnlyHint: true,

@@ -20,7 +20,7 @@ func GetSecretScanningAlert(getClient GetClientFn, t translations.TranslationHel
 	return mcp.Tool{
 			Name:        "get_secret_scanning_alert",
 			Description: t("TOOL_GET_SECRET_SCANNING_ALERT_DESCRIPTION", "Get details of a specific secret scanning alert in a GitHub repository."),
-			Meta:        NewToolMeta(ToolsetMetadataSecretProtection.ID, scopes.SecurityEvents),
+			Meta:        NewToolMeta(ToolsetMetadataSecretProtection, scopes.SecurityEvents),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_SECRET_SCANNING_ALERT_USER_TITLE", "Get secret scanning alert"),
 				ReadOnlyHint: true,
@@ -94,7 +94,7 @@ func ListSecretScanningAlerts(getClient GetClientFn, t translations.TranslationH
 	return mcp.Tool{
 			Name:        "list_secret_scanning_alerts",
 			Description: t("TOOL_LIST_SECRET_SCANNING_ALERTS_DESCRIPTION", "List secret scanning alerts in a GitHub repository."),
-			Meta:        NewToolMeta(ToolsetMetadataSecretProtection.ID, scopes.SecurityEvents),
+			Meta:        NewToolMeta(ToolsetMetadataSecretProtection, scopes.SecurityEvents),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_SECRET_SCANNING_ALERTS_USER_TITLE", "List secret scanning alerts"),
 				ReadOnlyHint: true,

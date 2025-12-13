@@ -126,7 +126,7 @@ func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelp
 	return mcp.Tool{
 			Name:        "list_discussions",
 			Description: t("TOOL_LIST_DISCUSSIONS_DESCRIPTION", "List discussions for a repository or organisation."),
-			Meta:        NewToolMeta(ToolsetMetadataDiscussions.ID, scopes.Repo),
+			Meta:        NewToolMeta(ToolsetMetadataDiscussions, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_DISCUSSIONS_USER_TITLE", "List discussions"),
 				ReadOnlyHint: true,
@@ -276,7 +276,7 @@ func GetDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelper
 	return mcp.Tool{
 			Name:        "get_discussion",
 			Description: t("TOOL_GET_DISCUSSION_DESCRIPTION", "Get a specific discussion by ID"),
-			Meta:        NewToolMeta(ToolsetMetadataDiscussions.ID, scopes.Repo),
+			Meta:        NewToolMeta(ToolsetMetadataDiscussions, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_DISCUSSION_USER_TITLE", "Get discussion"),
 				ReadOnlyHint: true,
@@ -377,7 +377,7 @@ func GetDiscussionComments(getGQLClient GetGQLClientFn, t translations.Translati
 	return mcp.Tool{
 			Name:        "get_discussion_comments",
 			Description: t("TOOL_GET_DISCUSSION_COMMENTS_DESCRIPTION", "Get comments from a discussion"),
-			Meta:        NewToolMeta(ToolsetMetadataDiscussions.ID, scopes.Repo),
+			Meta:        NewToolMeta(ToolsetMetadataDiscussions, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_DISCUSSION_COMMENTS_USER_TITLE", "Get discussion comments"),
 				ReadOnlyHint: true,
@@ -501,7 +501,7 @@ func ListDiscussionCategories(getGQLClient GetGQLClientFn, t translations.Transl
 	return mcp.Tool{
 			Name:        "list_discussion_categories",
 			Description: t("TOOL_LIST_DISCUSSION_CATEGORIES_DESCRIPTION", "List discussion categories with their id and name, for a repository or organisation."),
-			Meta:        NewToolMeta(ToolsetMetadataDiscussions.ID, scopes.Repo),
+			Meta:        NewToolMeta(ToolsetMetadataDiscussions, scopes.Repo),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_DISCUSSION_CATEGORIES_USER_TITLE", "List discussion categories"),
 				ReadOnlyHint: true,
