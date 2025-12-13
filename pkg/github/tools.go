@@ -342,12 +342,12 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	gists := toolsets.NewToolset(ToolsetMetadataGists.ID, ToolsetMetadataGists.Description).
 		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerToolLegacy(ListGists(getClient, t)),
-			toolsets.NewServerToolLegacy(GetGist(getClient, t)),
+			ListGists(t),
+			GetGist(t),
 		).
 		AddWriteTools(
-			toolsets.NewServerToolLegacy(CreateGist(getClient, t)),
-			toolsets.NewServerToolLegacy(UpdateGist(getClient, t)),
+			CreateGist(t),
+			UpdateGist(t),
 		)
 
 	projects := toolsets.NewToolset(ToolsetMetadataProjects.ID, ToolsetMetadataProjects.Description).
