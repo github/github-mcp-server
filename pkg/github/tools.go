@@ -291,10 +291,10 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	discussions := toolsets.NewToolset(ToolsetMetadataDiscussions.ID, ToolsetMetadataDiscussions.Description).
 		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerToolLegacy(ListDiscussions(getGQLClient, t)),
-			toolsets.NewServerToolLegacy(GetDiscussion(getGQLClient, t)),
-			toolsets.NewServerToolLegacy(GetDiscussionComments(getGQLClient, t)),
-			toolsets.NewServerToolLegacy(ListDiscussionCategories(getGQLClient, t)),
+			ListDiscussions(t),
+			GetDiscussion(t),
+			GetDiscussionComments(t),
+			ListDiscussionCategories(t),
 		)
 
 	actions := toolsets.NewToolset(ToolsetMetadataActions.ID, ToolsetMetadataActions.Description).
