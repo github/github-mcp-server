@@ -393,3 +393,420 @@ func TestRegisterSpecificTools(t *testing.T) {
 		t.Error("expected error for non-existent tool")
 	}
 }
+
+// mockToolWithMeta creates a ServerTool with metadata for testing NewToolsetGroupFromTools
+func mockToolWithMeta(name string, toolsetName string, readOnly bool) ServerTool {
+	return ServerTool{
+		Tool: mcp.Tool{
+			Name: name,
+			Meta: mcp.Meta{"toolset": toolsetName},
+			Annotations: &mcp.ToolAnnotations{
+				ReadOnlyHint: readOnly,
+			},
+		},
+		RegisterFunc: func(_ *mcp.Server) {},
+	}
+}
+
+// mockToolWithScopes creates a ServerTool with metadata including required scopes
+func mockToolWithScopes(name string, toolsetName string, readOnly bool, requiredScopes []string) ServerTool {
+	meta := mcp.Meta{"toolset": toolsetName}
+	if requiredScopes != nil {
+		meta["requiredOAuthScopes"] = requiredScopes
+	}
+	return ServerTool{
+		Tool: mcp.Tool{
+			Name: name,
+			Meta: meta,
+			Annotations: &mcp.ToolAnnotations{
+				ReadOnlyHint: readOnly,
+			},
+		},
+		RegisterFunc: func(_ *mcp.Server) {},
+	}
+}
+
+func TestNewToolsetGroupFromTools(t *testing.T) {
+	toolsetMetadatas := []ToolsetMetadata{
+		{ID: "repos", Description: "Repository tools"},
+		{ID: "issues", Description: "Issue tools"},
+	}
+
+	// Create tools with meta containing toolset info
+	tools := []ServerTool{
+		mockToolWithMeta("get_repo", "repos", true),
+		mockToolWithMeta("create_repo", "repos", false),
+		mockToolWithMeta("get_issue", "issues", true),
+		mockToolWithMeta("create_issue", "issues", false),
+		mockToolWithMeta("list_issues", "issues", true),
+	}
+
+	tsg := NewToolsetGroupFromTools(false, toolsetMetadatas, tools...)
+
+	// Verify toolsets were created
+	if len(tsg.Toolsets) != 2 {
+		t.Fatalf("expected 2 toolsets, got %d", len(tsg.Toolsets))
+	}
+
+	// Verify repos toolset
+	reposToolset, exists := tsg.Toolsets["repos"]
+	if !exists {
+		t.Fatal("expected 'repos' toolset to exist")
+	}
+	if reposToolset.Description != "Repository tools" {
+		t.Errorf("expected repos description 'Repository tools', got '%s'", reposToolset.Description)
+	}
+	if len(reposToolset.readTools) != 1 {
+		t.Errorf("expected 1 read tool in repos, got %d", len(reposToolset.readTools))
+	}
+	if len(reposToolset.writeTools) != 1 {
+		t.Errorf("expected 1 write tool in repos, got %d", len(reposToolset.writeTools))
+	}
+
+	// Verify issues toolset
+	issuesToolset, exists := tsg.Toolsets["issues"]
+	if !exists {
+		t.Fatal("expected 'issues' toolset to exist")
+	}
+	if len(issuesToolset.readTools) != 2 {
+		t.Errorf("expected 2 read tools in issues, got %d", len(issuesToolset.readTools))
+	}
+	if len(issuesToolset.writeTools) != 1 {
+		t.Errorf("expected 1 write tool in issues, got %d", len(issuesToolset.writeTools))
+	}
+}
+
+func TestNewToolsetGroupFromToolsReadOnly(t *testing.T) {
+	toolsetMetadatas := []ToolsetMetadata{
+		{ID: "repos", Description: "Repository tools"},
+	}
+
+	tools := []ServerTool{
+		mockToolWithMeta("get_repo", "repos", true),
+		mockToolWithMeta("create_repo", "repos", false),
+	}
+
+	// Create with readOnly=true
+	tsg := NewToolsetGroupFromTools(true, toolsetMetadatas, tools...)
+
+	reposToolset := tsg.Toolsets["repos"]
+	if !reposToolset.readOnly {
+		t.Error("expected toolset to be in read-only mode")
+	}
+
+	// GetActiveTools should only return read tools
+	activeTools := reposToolset.GetActiveTools()
+	if len(activeTools) != 0 {
+		// Toolset is not enabled yet
+		t.Errorf("expected 0 active tools (not enabled), got %d", len(activeTools))
+	}
+
+	reposToolset.Enabled = true
+	activeTools = reposToolset.GetActiveTools()
+	if len(activeTools) != 1 {
+		t.Errorf("expected 1 active tool in read-only mode, got %d", len(activeTools))
+	}
+	if activeTools[0].Tool.Name != "get_repo" {
+		t.Errorf("expected only read tool 'get_repo', got '%s'", activeTools[0].Tool.Name)
+	}
+}
+
+func TestNewToolsetGroupFromToolsPanicsOnMissingToolset(t *testing.T) {
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("expected panic when tool has no toolset in Meta")
+		}
+	}()
+
+	// Tool without toolset in meta
+	tools := []ServerTool{
+		{
+			Tool: mcp.Tool{
+				Name: "bad_tool",
+				Meta: nil, // No meta
+				Annotations: &mcp.ToolAnnotations{
+					ReadOnlyHint: true,
+				},
+			},
+			RegisterFunc: func(_ *mcp.Server) {},
+		},
+	}
+
+	NewToolsetGroupFromTools(false, nil, tools...)
+}
+
+func TestIsReadOnlyTool(t *testing.T) {
+	tests := []struct {
+		name     string
+		tool     ServerTool
+		expected bool
+	}{
+		{
+			name: "read-only tool",
+			tool: ServerTool{
+				Tool: mcp.Tool{
+					Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "write tool",
+			tool: ServerTool{
+				Tool: mcp.Tool{
+					Annotations: &mcp.ToolAnnotations{ReadOnlyHint: false},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "no annotations (assume write)",
+			tool: ServerTool{
+				Tool: mcp.Tool{
+					Annotations: nil,
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isReadOnlyTool(tt.tool)
+			if result != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestGetToolsetFromMeta(t *testing.T) {
+	tests := []struct {
+		name     string
+		meta     mcp.Meta
+		expected string
+	}{
+		{
+			name:     "valid toolset",
+			meta:     mcp.Meta{"toolset": "repos"},
+			expected: "repos",
+		},
+		{
+			name:     "nil meta",
+			meta:     nil,
+			expected: "",
+		},
+		{
+			name:     "missing toolset key",
+			meta:     mcp.Meta{"other": "value"},
+			expected: "",
+		},
+		{
+			name:     "wrong type for toolset",
+			meta:     mcp.Meta{"toolset": 123},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := getToolsetFromMeta(tt.meta)
+			if result != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestToolsetRegistry_NewToolsetGroup(t *testing.T) {
+	toolsetMetadatas := []ToolsetMetadata{
+		{ID: "repos", Description: "Repository tools"},
+		{ID: "issues", Description: "Issue tools"},
+	}
+
+	tools := []ServerTool{
+		mockToolWithMeta("get_repo", "repos", true),
+		mockToolWithMeta("create_repo", "repos", false),
+		mockToolWithMeta("get_issue", "issues", true),
+		mockToolWithMeta("create_issue", "issues", false),
+	}
+
+	registry := NewToolsetRegistry(toolsetMetadatas, tools)
+
+	t.Run("basic creation", func(t *testing.T) {
+		tsg := registry.NewToolsetGroup(ToolsetGroupConfig{})
+
+		if len(tsg.Toolsets) != 2 {
+			t.Fatalf("expected 2 toolsets, got %d", len(tsg.Toolsets))
+		}
+
+		// Verify toolsets are not enabled by default
+		if tsg.IsEnabled("repos") {
+			t.Error("expected repos to be disabled by default")
+		}
+	})
+
+	t.Run("with active toolsets", func(t *testing.T) {
+		tsg := registry.NewToolsetGroup(ToolsetGroupConfig{
+			ActiveToolsets: []string{"repos"},
+		})
+
+		if !tsg.IsEnabled("repos") {
+			t.Error("expected repos to be enabled")
+		}
+		if tsg.IsEnabled("issues") {
+			t.Error("expected issues to be disabled")
+		}
+	})
+
+	t.Run("with read-only mode", func(t *testing.T) {
+		tsg := registry.NewToolsetGroup(ToolsetGroupConfig{
+			ReadOnly:       true,
+			ActiveToolsets: []string{"repos"},
+		})
+
+		reposToolset := tsg.Toolsets["repos"]
+		if !reposToolset.readOnly {
+			t.Error("expected toolset to be in read-only mode")
+		}
+
+		activeTools := reposToolset.GetActiveTools()
+		if len(activeTools) != 1 {
+			t.Errorf("expected 1 active tool in read-only mode, got %d", len(activeTools))
+		}
+	})
+}
+
+func TestToolsetRegistry_NewToolsetGroup_WithScopes(t *testing.T) {
+	toolsetMetadatas := []ToolsetMetadata{
+		{ID: "repos", Description: "Repository tools"},
+		{ID: "issues", Description: "Issue tools"},
+	}
+
+	tools := []ServerTool{
+		mockToolWithScopes("get_repo", "repos", true, nil),                  // No scope required
+		mockToolWithScopes("create_repo", "repos", false, []string{"repo"}), // Requires repo scope
+		mockToolWithScopes("get_issue", "issues", true, []string{"repo"}),   // Requires repo scope
+		mockToolWithScopes("public_issue", "issues", true, []string{}),      // Empty scopes (no requirement)
+	}
+
+	registry := NewToolsetRegistry(toolsetMetadatas, tools)
+
+	t.Run("nil scopes allows all tools", func(t *testing.T) {
+		tsg := registry.NewToolsetGroup(ToolsetGroupConfig{
+			AvailableScopes: nil,
+		})
+
+		reposToolset := tsg.Toolsets["repos"]
+		if len(reposToolset.readTools)+len(reposToolset.writeTools) != 2 {
+			t.Errorf("expected 2 tools in repos, got %d", len(reposToolset.readTools)+len(reposToolset.writeTools))
+		}
+	})
+
+	t.Run("empty scopes filters tools requiring scopes", func(t *testing.T) {
+		tsg := registry.NewToolsetGroup(ToolsetGroupConfig{
+			AvailableScopes: []string{}, // No scopes available
+		})
+
+		// repos should only have get_repo (no scope required)
+		reposToolset, exists := tsg.Toolsets["repos"]
+		if !exists {
+			t.Fatal("expected repos toolset to exist")
+		}
+		if len(reposToolset.readTools) != 1 {
+			t.Errorf("expected 1 read tool in repos (no scope required), got %d", len(reposToolset.readTools))
+		}
+		if len(reposToolset.writeTools) != 0 {
+			t.Errorf("expected 0 write tools in repos (scope required), got %d", len(reposToolset.writeTools))
+		}
+
+		// issues should only have public_issue (empty scopes)
+		issuesToolset, exists := tsg.Toolsets["issues"]
+		if !exists {
+			t.Fatal("expected issues toolset to exist")
+		}
+		if len(issuesToolset.readTools) != 1 {
+			t.Errorf("expected 1 read tool in issues, got %d", len(issuesToolset.readTools))
+		}
+	})
+
+	t.Run("with repo scope allows repo-scoped tools", func(t *testing.T) {
+		tsg := registry.NewToolsetGroup(ToolsetGroupConfig{
+			AvailableScopes: []string{"repo"},
+		})
+
+		reposToolset := tsg.Toolsets["repos"]
+		if len(reposToolset.readTools) != 1 {
+			t.Errorf("expected 1 read tool, got %d", len(reposToolset.readTools))
+		}
+		if len(reposToolset.writeTools) != 1 {
+			t.Errorf("expected 1 write tool, got %d", len(reposToolset.writeTools))
+		}
+
+		issuesToolset := tsg.Toolsets["issues"]
+		if len(issuesToolset.readTools) != 2 {
+			t.Errorf("expected 2 read tools in issues, got %d", len(issuesToolset.readTools))
+		}
+	})
+}
+
+func TestToolScopeSatisfied(t *testing.T) {
+	tests := []struct {
+		name            string
+		tool            ServerTool
+		availableScopes []string
+		expected        bool
+	}{
+		{
+			name:            "no meta",
+			tool:            ServerTool{Tool: mcp.Tool{Meta: nil}},
+			availableScopes: []string{},
+			expected:        true,
+		},
+		{
+			name:            "no scope requirement",
+			tool:            mockToolWithScopes("test", "repos", true, nil),
+			availableScopes: []string{},
+			expected:        true,
+		},
+		{
+			name:            "empty scope requirement",
+			tool:            mockToolWithScopes("test", "repos", true, []string{}),
+			availableScopes: []string{},
+			expected:        true,
+		},
+		{
+			name:            "scope required and available",
+			tool:            mockToolWithScopes("test", "repos", true, []string{"repo"}),
+			availableScopes: []string{"repo"},
+			expected:        true,
+		},
+		{
+			name:            "scope required but not available",
+			tool:            mockToolWithScopes("test", "repos", true, []string{"repo"}),
+			availableScopes: []string{"gist"},
+			expected:        false,
+		},
+		{
+			name:            "multiple scopes required all available",
+			tool:            mockToolWithScopes("test", "repos", true, []string{"repo", "gist"}),
+			availableScopes: []string{"repo", "gist", "user"},
+			expected:        true,
+		},
+		{
+			name:            "multiple scopes required one missing",
+			tool:            mockToolWithScopes("test", "repos", true, []string{"repo", "admin:org"}),
+			availableScopes: []string{"repo"},
+			expected:        false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := toolScopeSatisfied(tt.tool, tt.availableScopes)
+			if result != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, result)
+			}
+		})
+	}
+}

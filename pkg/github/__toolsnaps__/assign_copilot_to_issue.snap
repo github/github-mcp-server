@@ -1,4 +1,10 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "repo"
+    ],
+    "toolset": "issues"
+  },
   "annotations": {
     "idempotentHint": true,
     "title": "Assign Copilot to issue"

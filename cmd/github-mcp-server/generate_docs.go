@@ -12,6 +12,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/raw"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/toolsets"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v79/github"
@@ -224,7 +225,22 @@ func generateToolDoc(tool mcp.Tool) string {
 	var lines []string
 
 	// Tool name only (using annotation name instead of verbose description)
-	lines = append(lines, fmt.Sprintf("- **%s** - %s", tool.Name, tool.Annotations.Title))
+	toolLine := fmt.Sprintf("- **%s** - %s", tool.Name, tool.Annotations.Title)
+
+	// Add required scopes if present (skip NoScope which is empty string)
+	if tool.Meta != nil {
+		toolScopes := scopes.GetScopesFromMeta(tool.Meta)
+		var scopeStrs []string
+		for _, s := range toolScopes {
+			if s != scopes.NoScope {
+				scopeStrs = append(scopeStrs, fmt.Sprintf("`%s`", s.String()))
+			}
+		}
+		if len(scopeStrs) > 0 {
+			toolLine += fmt.Sprintf(" (scopes: %s)", strings.Join(scopeStrs, ", "))
+		}
+	}
+	lines = append(lines, toolLine)
 
 	// Parameters
 	if tool.InputSchema == nil {

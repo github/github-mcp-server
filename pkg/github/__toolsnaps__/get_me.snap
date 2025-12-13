@@ -1,4 +1,7 @@
 {
+  "_meta": {
+    "toolset": "context"
+  },
   "annotations": {
     "readOnlyHint": true,
     "title": "Get my user profile"

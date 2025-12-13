@@ -1,4 +1,10 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "repo"
+    ],
+    "toolset": "users"
+  },
   "annotations": {
     "readOnlyHint": true,
     "title": "Search users"

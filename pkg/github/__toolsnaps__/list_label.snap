@@ -1,4 +1,10 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "repo"
+    ],
+    "toolset": "labels"
+  },
   "annotations": {
     "readOnlyHint": true,
     "title": "List labels from a repository."

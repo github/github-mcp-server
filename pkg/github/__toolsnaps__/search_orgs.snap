@@ -1,4 +1,10 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "repo"
+    ],
+    "toolset": "orgs"
+  },
   "annotations": {
     "readOnlyHint": true,
     "title": "Search organizations"

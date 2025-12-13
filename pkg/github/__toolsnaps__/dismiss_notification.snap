@@ -1,4 +1,10 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "notifications"
+    ],
+    "toolset": "notifications"
+  },
   "annotations": {
     "title": "Dismiss notification"
   },

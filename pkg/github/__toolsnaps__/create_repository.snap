@@ -1,4 +1,10 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "repo"
+    ],
+    "toolset": "repos"
+  },
   "annotations": {
     "title": "Create repository"
   },

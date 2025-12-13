@@ -207,6 +207,241 @@ func NewToolsetGroup(readOnly bool) *ToolsetGroup {
 	}
 }
 
+// ToolsetMetadata holds metadata for a toolset including its ID and description
+type ToolsetMetadata struct {
+	ID          string
+	Description string
+}
+
+// ToolsetRegistry holds a collection of toolset definitions and their tools, resources, and prompts.
+// It provides a NewToolsetGroup method to create configured ToolsetGroups.
+type ToolsetRegistry struct {
+	toolsetMetadatas  []ToolsetMetadata
+	tools             []ServerTool
+	resourceTemplates []ServerResourceTemplate
+	prompts           []ServerPrompt
+}
+
+// NewToolsetRegistry creates a new ToolsetRegistry with the given toolset metadata and tools.
+func NewToolsetRegistry(toolsetMetadatas []ToolsetMetadata, tools []ServerTool) *ToolsetRegistry {
+	return &ToolsetRegistry{
+		toolsetMetadatas: toolsetMetadatas,
+		tools:            tools,
+	}
+}
+
+// WithResourceTemplates adds resource templates to the registry.
+func (r *ToolsetRegistry) WithResourceTemplates(templates ...ServerResourceTemplate) *ToolsetRegistry {
+	r.resourceTemplates = append(r.resourceTemplates, templates...)
+	return r
+}
+
+// WithPrompts adds prompts to the registry.
+func (r *ToolsetRegistry) WithPrompts(prompts ...ServerPrompt) *ToolsetRegistry {
+	r.prompts = append(r.prompts, prompts...)
+	return r
+}
+
+// ToolsetGroupConfig specifies the configuration for creating a ToolsetGroup.
+type ToolsetGroupConfig struct {
+	// ReadOnly when true restricts the group to read-only tools
+	ReadOnly bool
+	// ActiveToolsets specifies which toolsets should be enabled.
+	// If nil, no toolsets are enabled by default.
+	ActiveToolsets []string
+	// AvailableScopes specifies the OAuth scopes available to the user.
+	// - nil means scopes are not checked (all tools available)
+	// - empty slice means no scopes (only tools requiring no scopes are available)
+	// - non-empty slice means only tools whose required scopes are satisfied are available
+	AvailableScopes []string
+}
+
+// NewToolsetGroup creates a ToolsetGroup from the registry with the given configuration.
+// Tools are automatically categorized as read or write based on their ReadOnlyHint annotation.
+// Tools are grouped into toolsets based on the "toolset" field in their Meta.
+// If AvailableScopes is non-nil, tools are filtered based on scope requirements.
+func (r *ToolsetRegistry) NewToolsetGroup(config ToolsetGroupConfig) *ToolsetGroup {
+	tsg := NewToolsetGroup(config.ReadOnly)
+
+	// Build a map for quick lookup of toolset metadata by ID
+	metadataByID := make(map[string]ToolsetMetadata)
+	for _, meta := range r.toolsetMetadatas {
+		metadataByID[meta.ID] = meta
+	}
+
+	// Group tools by toolset name, filtering by scopes if specified
+	toolsByToolset := make(map[string][]ServerTool)
+	for _, tool := range r.tools {
+		// Check scope requirements if AvailableScopes is specified
+		if config.AvailableScopes != nil {
+			if !toolScopeSatisfied(tool, config.AvailableScopes) {
+				continue // Skip tools that don't have required scopes
+			}
+		}
+
+		toolsetID := getToolsetFromMeta(tool.Tool.Meta)
+		if toolsetID == "" {
+			panic(fmt.Sprintf("tool %q has no toolset in Meta", tool.Tool.Name))
+		}
+		toolsByToolset[toolsetID] = append(toolsByToolset[toolsetID], tool)
+	}
+
+	// Group resources by toolset
+	resourcesByToolset := make(map[string][]ServerResourceTemplate)
+	for _, resource := range r.resourceTemplates {
+		toolsetID := getToolsetFromMeta(resource.Template.Meta)
+		if toolsetID == "" {
+			panic(fmt.Sprintf("resource template %q has no toolset in Meta", resource.Template.Name))
+		}
+		resourcesByToolset[toolsetID] = append(resourcesByToolset[toolsetID], resource)
+	}
+
+	// Group prompts by toolset
+	promptsByToolset := make(map[string][]ServerPrompt)
+	for _, prompt := range r.prompts {
+		toolsetID := getToolsetFromMeta(prompt.Prompt.Meta)
+		if toolsetID == "" {
+			panic(fmt.Sprintf("prompt %q has no toolset in Meta", prompt.Prompt.Name))
+		}
+		promptsByToolset[toolsetID] = append(promptsByToolset[toolsetID], prompt)
+	}
+
+	// Collect all toolset IDs that have tools, resources, or prompts
+	allToolsetIDs := make(map[string]bool)
+	for id := range toolsByToolset {
+		allToolsetIDs[id] = true
+	}
+	for id := range resourcesByToolset {
+		allToolsetIDs[id] = true
+	}
+	for id := range promptsByToolset {
+		allToolsetIDs[id] = true
+	}
+
+	// Create toolsets and add tools, resources, and prompts
+	for toolsetID := range allToolsetIDs {
+		meta, ok := metadataByID[toolsetID]
+		if !ok {
+			// Use a default description if not provided
+			meta = ToolsetMetadata{ID: toolsetID, Description: ""}
+		}
+
+		ts := NewToolset(meta.ID, meta.Description)
+
+		// Add tools
+		for _, tool := range toolsByToolset[toolsetID] {
+			if isReadOnlyTool(tool) {
+				ts.readTools = append(ts.readTools, tool)
+			} else {
+				ts.writeTools = append(ts.writeTools, tool)
+			}
+		}
+
+		// Add resources
+		ts.resourceTemplates = append(ts.resourceTemplates, resourcesByToolset[toolsetID]...)
+
+		// Add prompts
+		ts.prompts = append(ts.prompts, promptsByToolset[toolsetID]...)
+
+		tsg.AddToolset(ts)
+	}
+
+	// Enable active toolsets
+	if len(config.ActiveToolsets) > 0 {
+		// Ignore errors for non-existent toolsets (they may have been filtered out by scopes)
+		_ = tsg.EnableToolsets(config.ActiveToolsets, nil)
+	}
+
+	return tsg
+}
+
+// toolScopeSatisfied checks if the tool's required scopes are satisfied by available scopes.
+// Returns true if the tool has no scope requirements or if all requirements are met.
+func toolScopeSatisfied(tool ServerTool, availableScopes []string) bool {
+	if tool.Tool.Meta == nil {
+		return true // No meta means no scope requirements
+	}
+
+	requiredScopes, ok := tool.Tool.Meta[scopeMetaKey]
+	if !ok {
+		return true // No scope requirements
+	}
+
+	// Handle both []string and []any (from JSON unmarshaling)
+	var required []string
+	switch v := requiredScopes.(type) {
+	case []string:
+		required = v
+	case []any:
+		required = make([]string, 0, len(v))
+		for _, s := range v {
+			if str, ok := s.(string); ok {
+				required = append(required, str)
+			}
+		}
+	default:
+		return true // Unknown format, allow
+	}
+
+	if len(required) == 0 {
+		return true // Empty requirements
+	}
+
+	// Check if any available scope satisfies the requirements
+	// For now, simple string matching - scope hierarchy should be handled by caller
+	availableSet := make(map[string]bool)
+	for _, s := range availableScopes {
+		availableSet[s] = true
+	}
+
+	for _, req := range required {
+		if !availableSet[req] {
+			return false
+		}
+	}
+
+	return true
+}
+
+// scopeMetaKey is the key used to store OAuth scopes in the mcp.Tool.Meta field.
+const scopeMetaKey = "requiredOAuthScopes"
+
+// NewToolsetGroupFromTools creates a ToolsetGroup from a list of ServerTools.
+// Tools are automatically categorized as read or write based on their ReadOnlyHint annotation.
+// Tools are grouped into toolsets based on the "toolset" field in their Meta.
+// The toolsetMetadatas slice provides IDs and descriptions for each toolset.
+//
+// Deprecated: Use NewToolsetRegistry and ToolsetRegistry.NewToolsetGroup instead.
+func NewToolsetGroupFromTools(readOnly bool, toolsetMetadatas []ToolsetMetadata, tools ...ServerTool) *ToolsetGroup {
+	registry := NewToolsetRegistry(toolsetMetadatas, tools)
+	return registry.NewToolsetGroup(ToolsetGroupConfig{
+		ReadOnly:        readOnly,
+		AvailableScopes: nil, // No scope filtering
+	})
+}
+
+// getToolsetFromMeta extracts the toolset name from tool metadata
+func getToolsetFromMeta(meta mcp.Meta) string {
+	if meta == nil {
+		return ""
+	}
+	if toolset, ok := meta["toolset"].(string); ok {
+		return toolset
+	}
+	return ""
+}
+
+// isReadOnlyTool determines if a tool is read-only based on its annotations.
+// A tool is considered read-only only if ReadOnlyHint is explicitly true.
+// Write tools have ReadOnlyHint=false or DestructiveHint=true.
+func isReadOnlyTool(tool ServerTool) bool {
+	if tool.Tool.Annotations == nil {
+		// No annotations means we assume it could write (worst case)
+		return false
+	}
+	return tool.Tool.Annotations.ReadOnlyHint
+}
+
 func (tg *ToolsetGroup) AddDeprecatedToolAliases(aliases map[string]string) {
 	for oldName, newName := range aliases {
 		tg.deprecatedAliases[oldName] = newName

@@ -1,4 +1,10 @@
 {
+  "_meta": {
+    "requiredOAuthScopes": [
+      "read:project"
+    ],
+    "toolset": "projects"
+  },
   "annotations": {
     "readOnlyHint": true,
     "title": "Get project"
