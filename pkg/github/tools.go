@@ -218,7 +218,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			SearchIssues(t),
 			ListIssues(t),
 			ListIssueTypes(t),
-			toolsets.NewServerToolLegacy(GetLabel(getGQLClient, t)),
+			GetLabel(t),
 		).
 		AddWriteTools(
 			IssueWrite(t),
@@ -353,17 +353,17 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	projects := toolsets.NewToolset(ToolsetMetadataProjects.ID, ToolsetMetadataProjects.Description).
 		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerToolLegacy(ListProjects(getClient, t)),
-			toolsets.NewServerToolLegacy(GetProject(getClient, t)),
-			toolsets.NewServerToolLegacy(ListProjectFields(getClient, t)),
-			toolsets.NewServerToolLegacy(GetProjectField(getClient, t)),
-			toolsets.NewServerToolLegacy(ListProjectItems(getClient, t)),
-			toolsets.NewServerToolLegacy(GetProjectItem(getClient, t)),
+			ListProjects(t),
+			GetProject(t),
+			ListProjectFields(t),
+			GetProjectField(t),
+			ListProjectItems(t),
+			GetProjectItem(t),
 		).
 		AddWriteTools(
-			toolsets.NewServerToolLegacy(AddProjectItem(getClient, t)),
-			toolsets.NewServerToolLegacy(DeleteProjectItem(getClient, t)),
-			toolsets.NewServerToolLegacy(UpdateProjectItem(getClient, t)),
+			AddProjectItem(t),
+			DeleteProjectItem(t),
+			UpdateProjectItem(t),
 		)
 	stargazers := toolsets.NewToolset(ToolsetMetadataStargazers.ID, ToolsetMetadataStargazers.Description).
 		SetDependencies(deps).
@@ -378,13 +378,13 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		SetDependencies(deps).
 		AddReadTools(
 			// get
-			toolsets.NewServerToolLegacy(GetLabel(getGQLClient, t)),
+			GetLabel(t),
 			// list labels on repo or issue
-			toolsets.NewServerToolLegacy(ListLabels(getGQLClient, t)),
+			ListLabels(t),
 		).
 		AddWriteTools(
 			// create or update
-			toolsets.NewServerToolLegacy(LabelWrite(getGQLClient, t)),
+			LabelWrite(t),
 		)
 
 	// Add toolsets to the group
@@ -421,9 +421,9 @@ func InitDynamicToolset(s *mcp.Server, tsg *toolsets.ToolsetGroup, t translation
 	// Need to add the dynamic toolset last so it can be used to enable other toolsets
 	dynamicToolSelection := toolsets.NewToolset(ToolsetMetadataDynamic.ID, ToolsetMetadataDynamic.Description).
 		AddReadTools(
-			toolsets.NewServerToolLegacy(ListAvailableToolsets(tsg, t)),
-			toolsets.NewServerToolLegacy(GetToolsetsTools(tsg, t)),
-			toolsets.NewServerToolLegacy(EnableToolset(s, tsg, t)),
+			ListAvailableToolsets(tsg, t),
+			GetToolsetsTools(tsg, t),
+			EnableToolset(s, tsg, t),
 		)
 
 	dynamicToolSelection.Enabled = true
