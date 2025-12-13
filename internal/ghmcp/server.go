@@ -103,14 +103,24 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		repoAccessCache = lockdown.GetInstance(gqlClient, repoAccessOpts...)
 	}
 
-	enabledToolsets := cfg.EnabledToolsets
-
-	// Clean up the passed toolsets (removes duplicates, whitespace)
-	enabledToolsets, invalidToolsets := github.CleanToolsets(enabledToolsets)
-
-	if len(invalidToolsets) > 0 {
-		fmt.Fprintf(os.Stderr, "Invalid toolsets ignored: %s\n", strings.Join(invalidToolsets, ", "))
+	// Determine enabled toolsets based on configuration:
+	// - nil means "use defaults" (unless dynamic mode without explicit toolsets)
+	// - empty slice means "no toolsets" (for dynamic mode to enable on demand)
+	// - explicit list means "use these toolsets"
+	var enabledToolsets []string
+	if cfg.EnabledToolsets != nil {
+		// Clean up explicitly passed toolsets (removes duplicates, whitespace)
+		var invalidToolsets []string
+		enabledToolsets, invalidToolsets = github.CleanToolsets(cfg.EnabledToolsets)
+		if len(invalidToolsets) > 0 {
+			fmt.Fprintf(os.Stderr, "Invalid toolsets ignored: %s\n", strings.Join(invalidToolsets, ", "))
+		}
+	} else if cfg.DynamicToolsets {
+		// Dynamic mode with no toolsets specified: start with no toolsets enabled
+		// so users can enable them on demand via the dynamic tools
+		enabledToolsets = []string{}
 	}
+	// else: enabledToolsets stays nil, which means "use defaults" in WithToolsets
 
 	// Generate instructions based on enabled toolsets
 	instructions := github.GenerateInstructions(enabledToolsets)
@@ -161,14 +171,6 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 
 	// Clean tool names (WithTools will resolve any deprecated aliases)
 	enabledTools := github.CleanTools(cfg.EnabledTools)
-
-	// For dynamic toolsets mode:
-	// - If toolsets are explicitly provided (including "default"), honor them
-	// - If no toolsets are specified (nil), start with no toolsets enabled (empty slice)
-	//   so users can enable them on demand via the dynamic tools
-	if cfg.DynamicToolsets && cfg.EnabledToolsets == nil {
-		enabledToolsets = []string{}
-	}
 
 	// Apply filters based on configuration
 	// - WithReadOnly: filters out write tools when true
