@@ -111,6 +111,7 @@ func AvailableToolsets() []toolsets.ToolsetMetadata {
 	return []toolsets.ToolsetMetadata{
 		ToolsetMetadataContext,
 		ToolsetMetadataRepos,
+		ToolsetMetadataGit,
 		ToolsetMetadataIssues,
 		ToolsetMetadataPullRequests,
 		ToolsetMetadataUsers,
