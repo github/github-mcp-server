@@ -16,8 +16,8 @@ import (
 )
 
 func Test_ListGlobalSecurityAdvisories(t *testing.T) {
-	mockClient := github.NewClient(nil)
-	tool, _ := ListGlobalSecurityAdvisories(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	toolDef := ListGlobalSecurityAdvisories(translations.NullTranslationHelper)
+	tool := toolDef.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_global_security_advisories", tool.Name)
@@ -103,13 +103,14 @@ func Test_ListGlobalSecurityAdvisories(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListGlobalSecurityAdvisories(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{GetClient: stubGetClientFn(client)}
+			handler := toolDef.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler - note the new signature with 3 parameters and 3 return values
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			// Call handler
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -139,8 +140,8 @@ func Test_ListGlobalSecurityAdvisories(t *testing.T) {
 }
 
 func Test_GetGlobalSecurityAdvisory(t *testing.T) {
-	mockClient := github.NewClient(nil)
-	tool, _ := GetGlobalSecurityAdvisory(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	toolDef := GetGlobalSecurityAdvisory(translations.NullTranslationHelper)
+	tool := toolDef.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "get_global_security_advisory", tool.Name)
@@ -223,13 +224,14 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetGlobalSecurityAdvisory(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{GetClient: stubGetClientFn(client)}
+			handler := toolDef.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler - note the new signature with 3 parameters and 3 return values
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			// Call handler
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -254,8 +256,8 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 
 func Test_ListRepositorySecurityAdvisories(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := ListRepositorySecurityAdvisories(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	toolDef := ListRepositorySecurityAdvisories(translations.NullTranslationHelper)
+	tool := toolDef.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_repository_security_advisories", tool.Name)
@@ -370,12 +372,13 @@ func Test_ListRepositorySecurityAdvisories(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListRepositorySecurityAdvisories(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{GetClient: stubGetClientFn(client)}
+			handler := toolDef.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler - note the new signature with 3 parameters and 3 return values
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			// Call handler
+			result, err := handler(context.Background(), &request)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -403,8 +406,8 @@ func Test_ListRepositorySecurityAdvisories(t *testing.T) {
 
 func Test_ListOrgRepositorySecurityAdvisories(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := ListOrgRepositorySecurityAdvisories(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	toolDef := ListOrgRepositorySecurityAdvisories(translations.NullTranslationHelper)
+	tool := toolDef.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_org_repository_security_advisories", tool.Name)
@@ -514,12 +517,13 @@ func Test_ListOrgRepositorySecurityAdvisories(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListOrgRepositorySecurityAdvisories(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{GetClient: stubGetClientFn(client)}
+			handler := toolDef.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
 
-			// Call handler - note the new signature with 3 parameters and 3 return values
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			// Call handler
+			result, err := handler(context.Background(), &request)
 
 			if tc.expectError {
 				require.Error(t, err)
