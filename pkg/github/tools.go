@@ -214,17 +214,17 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	issues := toolsets.NewToolset(ToolsetMetadataIssues.ID, ToolsetMetadataIssues.Description).
 		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerToolLegacy(IssueRead(getClient, getGQLClient, cache, t, flags)),
-			toolsets.NewServerToolLegacy(SearchIssues(getClient, t)),
-			toolsets.NewServerToolLegacy(ListIssues(getGQLClient, t)),
-			toolsets.NewServerToolLegacy(ListIssueTypes(getClient, t)),
+			IssueRead(t),
+			SearchIssues(t),
+			ListIssues(t),
+			ListIssueTypes(t),
 			toolsets.NewServerToolLegacy(GetLabel(getGQLClient, t)),
 		).
 		AddWriteTools(
-			toolsets.NewServerToolLegacy(IssueWrite(getClient, getGQLClient, t)),
-			toolsets.NewServerToolLegacy(AddIssueComment(getClient, t)),
-			toolsets.NewServerToolLegacy(AssignCopilotToIssue(getGQLClient, t)),
-			toolsets.NewServerToolLegacy(SubIssueWrite(getClient, t)),
+			IssueWrite(t),
+			AddIssueComment(t),
+			AssignCopilotToIssue(t),
+			SubIssueWrite(t),
 		).AddPrompts(
 		toolsets.NewServerPrompt(AssignCodingAgentPrompt(t)),
 		toolsets.NewServerPrompt(IssueToFixWorkflowPrompt(t)),
