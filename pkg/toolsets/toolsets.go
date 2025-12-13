@@ -213,22 +213,58 @@ type ToolsetMetadata struct {
 	Description string
 }
 
-// NewToolsetGroupFromTools creates a ToolsetGroup from a list of ServerTools.
+// ToolsetRegistry holds a collection of toolset definitions and their tools.
+// It provides a NewToolsetGroup method to create configured ToolsetGroups.
+type ToolsetRegistry struct {
+	toolsetMetadatas []ToolsetMetadata
+	tools            []ServerTool
+}
+
+// NewToolsetRegistry creates a new ToolsetRegistry with the given toolset metadata and tools.
+func NewToolsetRegistry(toolsetMetadatas []ToolsetMetadata, tools []ServerTool) *ToolsetRegistry {
+	return &ToolsetRegistry{
+		toolsetMetadatas: toolsetMetadatas,
+		tools:            tools,
+	}
+}
+
+// ToolsetGroupConfig specifies the configuration for creating a ToolsetGroup.
+type ToolsetGroupConfig struct {
+	// ReadOnly when true restricts the group to read-only tools
+	ReadOnly bool
+	// ActiveToolsets specifies which toolsets should be enabled.
+	// If nil, no toolsets are enabled by default.
+	ActiveToolsets []string
+	// AvailableScopes specifies the OAuth scopes available to the user.
+	// - nil means scopes are not checked (all tools available)
+	// - empty slice means no scopes (only tools requiring no scopes are available)
+	// - non-empty slice means only tools whose required scopes are satisfied are available
+	AvailableScopes []string
+}
+
+// NewToolsetGroup creates a ToolsetGroup from the registry with the given configuration.
 // Tools are automatically categorized as read or write based on their ReadOnlyHint annotation.
 // Tools are grouped into toolsets based on the "toolset" field in their Meta.
-// The toolsetMetadatas slice provides IDs and descriptions for each toolset.
-func NewToolsetGroupFromTools(readOnly bool, toolsetMetadatas []ToolsetMetadata, tools ...ServerTool) *ToolsetGroup {
-	tsg := NewToolsetGroup(readOnly)
+// If AvailableScopes is non-nil, tools are filtered based on scope requirements.
+func (r *ToolsetRegistry) NewToolsetGroup(config ToolsetGroupConfig) *ToolsetGroup {
+	tsg := NewToolsetGroup(config.ReadOnly)
 
 	// Build a map for quick lookup of toolset metadata by ID
 	metadataByID := make(map[string]ToolsetMetadata)
-	for _, meta := range toolsetMetadatas {
+	for _, meta := range r.toolsetMetadatas {
 		metadataByID[meta.ID] = meta
 	}
 
-	// Group tools by toolset name
+	// Group tools by toolset name, filtering by scopes if specified
 	toolsByToolset := make(map[string][]ServerTool)
-	for _, tool := range tools {
+	for _, tool := range r.tools {
+		// Check scope requirements if AvailableScopes is specified
+		if config.AvailableScopes != nil {
+			if !toolScopeSatisfied(tool, config.AvailableScopes) {
+				continue // Skip tools that don't have required scopes
+			}
+		}
+
 		toolsetID := getToolsetFromMeta(tool.Tool.Meta)
 		if toolsetID == "" {
 			panic(fmt.Sprintf("tool %q has no toolset in Meta", tool.Tool.Name))
@@ -257,7 +293,78 @@ func NewToolsetGroupFromTools(readOnly bool, toolsetMetadatas []ToolsetMetadata,
 		tsg.AddToolset(ts)
 	}
 
+	// Enable active toolsets
+	if len(config.ActiveToolsets) > 0 {
+		// Ignore errors for non-existent toolsets (they may have been filtered out by scopes)
+		_ = tsg.EnableToolsets(config.ActiveToolsets, nil)
+	}
+
 	return tsg
+}
+
+// toolScopeSatisfied checks if the tool's required scopes are satisfied by available scopes.
+// Returns true if the tool has no scope requirements or if all requirements are met.
+func toolScopeSatisfied(tool ServerTool, availableScopes []string) bool {
+	if tool.Tool.Meta == nil {
+		return true // No meta means no scope requirements
+	}
+
+	requiredScopes, ok := tool.Tool.Meta[scopeMetaKey]
+	if !ok {
+		return true // No scope requirements
+	}
+
+	// Handle both []string and []any (from JSON unmarshaling)
+	var required []string
+	switch v := requiredScopes.(type) {
+	case []string:
+		required = v
+	case []any:
+		required = make([]string, 0, len(v))
+		for _, s := range v {
+			if str, ok := s.(string); ok {
+				required = append(required, str)
+			}
+		}
+	default:
+		return true // Unknown format, allow
+	}
+
+	if len(required) == 0 {
+		return true // Empty requirements
+	}
+
+	// Check if any available scope satisfies the requirements
+	// For now, simple string matching - scope hierarchy should be handled by caller
+	availableSet := make(map[string]bool)
+	for _, s := range availableScopes {
+		availableSet[s] = true
+	}
+
+	for _, req := range required {
+		if !availableSet[req] {
+			return false
+		}
+	}
+
+	return true
+}
+
+// scopeMetaKey is the key used to store OAuth scopes in the mcp.Tool.Meta field.
+const scopeMetaKey = "requiredOAuthScopes"
+
+// NewToolsetGroupFromTools creates a ToolsetGroup from a list of ServerTools.
+// Tools are automatically categorized as read or write based on their ReadOnlyHint annotation.
+// Tools are grouped into toolsets based on the "toolset" field in their Meta.
+// The toolsetMetadatas slice provides IDs and descriptions for each toolset.
+//
+// Deprecated: Use NewToolsetRegistry and ToolsetRegistry.NewToolsetGroup instead.
+func NewToolsetGroupFromTools(readOnly bool, toolsetMetadatas []ToolsetMetadata, tools ...ServerTool) *ToolsetGroup {
+	registry := NewToolsetRegistry(toolsetMetadatas, tools)
+	return registry.NewToolsetGroup(ToolsetGroupConfig{
+		ReadOnly:        readOnly,
+		AvailableScopes: nil, // No scope filtering
+	})
 }
 
 // getToolsetFromMeta extracts the toolset name from tool metadata
