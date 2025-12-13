@@ -17,8 +17,8 @@ import (
 
 func Test_SearchRepositories(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := SearchRepositories(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := SearchRepositories(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "search_repositories", tool.Name)
@@ -134,13 +134,16 @@ func Test_SearchRepositories(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := SearchRepositories(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -205,7 +208,11 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 	)
 
 	client := github.NewClient(mockedClient)
-	_, handlerTest := SearchRepositories(stubGetClientFn(client), translations.NullTranslationHelper)
+	serverTool := SearchRepositories(translations.NullTranslationHelper)
+	deps := ToolDependencies{
+		GetClient: stubGetClientFn(client),
+	}
+	handler := serverTool.Handler(deps)
 
 	args := map[string]interface{}{
 		"query":          "golang test",
@@ -214,7 +221,7 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 
 	request := createMCPRequest(args)
 
-	result, _, err := handlerTest(context.Background(), &request, args)
+	result, err := handler(context.Background(), &request)
 
 	require.NoError(t, err)
 	require.False(t, result.IsError)
@@ -236,8 +243,8 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 
 func Test_SearchCode(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := SearchCode(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := SearchCode(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "search_code", tool.Name)
@@ -351,13 +358,16 @@ func Test_SearchCode(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := SearchCode(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -394,8 +404,8 @@ func Test_SearchCode(t *testing.T) {
 
 func Test_SearchUsers(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := SearchUsers(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := SearchUsers(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "search_users", tool.Name)
@@ -548,13 +558,16 @@ func Test_SearchUsers(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := SearchUsers(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -592,8 +605,8 @@ func Test_SearchUsers(t *testing.T) {
 
 func Test_SearchOrgs(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := SearchOrgs(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := SearchOrgs(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
@@ -720,13 +733,16 @@ func Test_SearchOrgs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := SearchOrgs(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {

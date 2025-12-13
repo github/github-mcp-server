@@ -179,10 +179,10 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	repos := toolsets.NewToolset(ToolsetMetadataRepos.ID, ToolsetMetadataRepos.Description).
 		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerToolLegacy(SearchRepositories(getClient, t)),
+			SearchRepositories(t),
 			toolsets.NewServerToolLegacy(GetFileContents(getClient, getRawClient, t)),
 			toolsets.NewServerToolLegacy(ListCommits(getClient, t)),
-			toolsets.NewServerToolLegacy(SearchCode(getClient, t)),
+			SearchCode(t),
 			toolsets.NewServerToolLegacy(GetCommit(getClient, t)),
 			toolsets.NewServerToolLegacy(ListBranches(getClient, t)),
 			toolsets.NewServerToolLegacy(ListTags(getClient, t)),
@@ -232,12 +232,12 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	users := toolsets.NewToolset(ToolsetMetadataUsers.ID, ToolsetMetadataUsers.Description).
 		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerToolLegacy(SearchUsers(getClient, t)),
+			SearchUsers(t),
 		)
 	orgs := toolsets.NewToolset(ToolsetMetadataOrgs.ID, ToolsetMetadataOrgs.Description).
 		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerToolLegacy(SearchOrgs(getClient, t)),
+			SearchOrgs(t),
 		)
 	pullRequests := toolsets.NewToolset(ToolsetMetadataPullRequests.ID, ToolsetMetadataPullRequests.Description).
 		SetDependencies(deps).
