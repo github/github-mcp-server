@@ -41,10 +41,16 @@ var (
 			// it's because viper doesn't handle comma-separated values correctly for env
 			// vars when using GetStringSlice.
 			// https://github.com/spf13/viper/issues/380
+			//
+			// Additionally, viper.UnmarshalKey returns an empty slice even when the flag
+			// is not set, but we need nil to indicate "use defaults". So we check IsSet first.
 			var enabledToolsets []string
-			if err := viper.UnmarshalKey("toolsets", &enabledToolsets); err != nil {
-				return fmt.Errorf("failed to unmarshal toolsets: %w", err)
+			if viper.IsSet("toolsets") {
+				if err := viper.UnmarshalKey("toolsets", &enabledToolsets); err != nil {
+					return fmt.Errorf("failed to unmarshal toolsets: %w", err)
+				}
 			}
+			// else: enabledToolsets stays nil, meaning "use defaults"
 
 			// Parse tools (similar to toolsets)
 			var enabledTools []string
