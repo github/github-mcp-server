@@ -321,10 +321,10 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	securityAdvisories := toolsets.NewToolset(ToolsetMetadataSecurityAdvisories.ID, ToolsetMetadataSecurityAdvisories.Description).
 		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerToolLegacy(ListGlobalSecurityAdvisories(getClient, t)),
-			toolsets.NewServerToolLegacy(GetGlobalSecurityAdvisory(getClient, t)),
-			toolsets.NewServerToolLegacy(ListRepositorySecurityAdvisories(getClient, t)),
-			toolsets.NewServerToolLegacy(ListOrgRepositorySecurityAdvisories(getClient, t)),
+			ListGlobalSecurityAdvisories(t),
+			GetGlobalSecurityAdvisory(t),
+			ListRepositorySecurityAdvisories(t),
+			ListOrgRepositorySecurityAdvisories(t),
 		)
 
 	// // Keep experiments alive so the system doesn't error out when it's always enabled
