@@ -813,3 +813,253 @@ func Test_ListDiscussionCategories(t *testing.T) {
 		})
 	}
 }
+
+func Test_CreateDiscussion(t *testing.T) {
+	mockClient := githubv4.NewClient(nil)
+	toolDef, _ := CreateDiscussion(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(toolDef.Name, toolDef))
+
+	assert.Equal(t, "create_discussion", toolDef.Name)
+	assert.NotEmpty(t, toolDef.Description)
+	schema, ok := toolDef.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "categoryId")
+	assert.Contains(t, schema.Properties, "title")
+	assert.Contains(t, schema.Properties, "body")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "categoryId", "title", "body"})
+
+	// Query to get repository ID
+	qGetRepoID := "query($owner:String!$repo:String!){repository(owner: $owner, name: $repo){id}}"
+
+	varsRepoID := map[string]interface{}{
+		"owner": "owner",
+		"repo":  "repo",
+	}
+
+	varsRepoIDOrg := map[string]interface{}{
+		"owner": "owner",
+		"repo":  ".github",
+	}
+
+	mockRepoIDResponse := githubv4mock.DataResponse(map[string]any{
+		"repository": map[string]any{
+			"id": "R_kgDOABC123",
+		},
+	})
+
+	// Mutation to create discussion
+	qCreateDiscussion := "mutation($input:CreateDiscussionInput!){createDiscussion(input: $input){discussion{id,number,url}}}"
+
+	varsCreateDiscussion := map[string]interface{}{
+		"input": map[string]interface{}{
+			"repositoryId": "R_kgDOABC123",
+			"categoryId":   "DIC_kwDOABC456",
+			"title":        "Test Discussion",
+			"body":         "This is a test discussion body",
+		},
+	}
+
+	varsCreateDiscussionOrg := map[string]interface{}{
+		"input": map[string]interface{}{
+			"repositoryId": "R_kgDOABC123",
+			"categoryId":   "DIC_kwDOABC456",
+			"title":        "Org Level Discussion",
+			"body":         "This is an org-level discussion",
+		},
+	}
+
+	mockCreateResponse := githubv4mock.DataResponse(map[string]any{
+		"createDiscussion": map[string]any{
+			"discussion": map[string]any{
+				"id":     "D_kwDOABC789",
+				"number": 42,
+				"url":    "https://github.com/owner/repo/discussions/42",
+			},
+		},
+	})
+
+	mockErrorCategoryNotFound := githubv4mock.ErrorResponse("category not found")
+	mockErrorRepoNotFound := githubv4mock.ErrorResponse("repository not found")
+
+	tests := []struct {
+		name                   string
+		reqParams              map[string]interface{}
+		expectError            bool
+		errContains            string
+		expectedID             string
+		expectedNumber         int
+		expectedURL            string
+		useOrgRepo             bool
+		mockRepoNotFoundError  bool
+		mockCategoryErrorInMut bool
+	}{
+		{
+			name: "successful creation",
+			reqParams: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"categoryId": "DIC_kwDOABC456",
+				"title":      "Test Discussion",
+				"body":       "This is a test discussion body",
+			},
+			expectError:    false,
+			expectedID:     "D_kwDOABC789",
+			expectedNumber: 42,
+			expectedURL:    "https://github.com/owner/repo/discussions/42",
+		},
+		{
+			name: "create at org level (no repo provided)",
+			reqParams: map[string]interface{}{
+				"owner":      "owner",
+				"categoryId": "DIC_kwDOABC456",
+				"title":      "Org Level Discussion",
+				"body":       "This is an org-level discussion",
+			},
+			expectError:    false,
+			expectedID:     "D_kwDOABC789",
+			expectedNumber: 42,
+			expectedURL:    "https://github.com/owner/repo/discussions/42",
+			useOrgRepo:     true,
+		},
+		{
+			name: "missing required categoryId",
+			reqParams: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+				"title": "Test Discussion",
+				"body":  "This is a test discussion body",
+			},
+			expectError: true,
+			errContains: "categoryId",
+		},
+		{
+			name: "missing required title",
+			reqParams: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"categoryId": "DIC_kwDOABC456",
+				"body":       "This is a test discussion body",
+			},
+			expectError: true,
+			errContains: "title",
+		},
+		{
+			name: "missing required body",
+			reqParams: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"categoryId": "DIC_kwDOABC456",
+				"title":      "Test Discussion",
+			},
+			expectError: true,
+			errContains: "body",
+		},
+		{
+			name: "repository not found",
+			reqParams: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "nonexistent-repo",
+				"categoryId": "DIC_kwDOABC456",
+				"title":      "Test Discussion",
+				"body":       "This is a test discussion body",
+			},
+			expectError:           true,
+			errContains:           "repository not found",
+			mockRepoNotFoundError: true,
+		},
+		{
+			name: "category not found",
+			reqParams: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"categoryId": "DIC_invalid",
+				"title":      "Test Discussion",
+				"body":       "This is a test discussion body",
+			},
+			expectError:            true,
+			errContains:            "category not found",
+			mockCategoryErrorInMut: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Skip tests that require missing parameters - they fail during parameter extraction
+			if tc.name == "missing required categoryId" || tc.name == "missing required title" || tc.name == "missing required body" {
+				_, handler := CreateDiscussion(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
+				req := createMCPRequest(tc.reqParams)
+				res, _, _ := handler(context.Background(), &req, tc.reqParams)
+				text := getTextResult(t, res).Text
+				require.True(t, res.IsError)
+				assert.Contains(t, text, tc.errContains)
+				return
+			}
+
+			var httpClient *http.Client
+
+			switch {
+			case tc.mockRepoNotFoundError:
+				// Mock repository not found error
+				varsRepoIDNotFound := map[string]interface{}{
+					"owner": "owner",
+					"repo":  "nonexistent-repo",
+				}
+				matcher := githubv4mock.NewQueryMatcher(qGetRepoID, varsRepoIDNotFound, mockErrorRepoNotFound)
+				httpClient = githubv4mock.NewMockedHTTPClient(matcher)
+			case tc.mockCategoryErrorInMut:
+				// Mock successful repo ID query but category not found in mutation
+				varsCategoryError := map[string]interface{}{
+					"input": map[string]interface{}{
+						"repositoryId": "R_kgDOABC123",
+						"categoryId":   "DIC_invalid",
+						"title":        "Test Discussion",
+						"body":         "This is a test discussion body",
+					},
+				}
+				repoMatcher := githubv4mock.NewQueryMatcher(qGetRepoID, varsRepoID, mockRepoIDResponse)
+				mutationMatcher := githubv4mock.NewQueryMatcher(qCreateDiscussion, varsCategoryError, mockErrorCategoryNotFound)
+				httpClient = githubv4mock.NewMockedHTTPClient(repoMatcher, mutationMatcher)
+			default:
+				// Normal successful flow
+				repoVars := varsRepoID
+				mutVars := varsCreateDiscussion
+				if tc.useOrgRepo {
+					repoVars = varsRepoIDOrg
+					mutVars = varsCreateDiscussionOrg
+				}
+				repoMatcher := githubv4mock.NewQueryMatcher(qGetRepoID, repoVars, mockRepoIDResponse)
+				mutationMatcher := githubv4mock.NewQueryMatcher(qCreateDiscussion, mutVars, mockCreateResponse)
+				httpClient = githubv4mock.NewMockedHTTPClient(repoMatcher, mutationMatcher)
+			}
+
+			gqlClient := githubv4.NewClient(httpClient)
+			_, handler := CreateDiscussion(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+
+			req := createMCPRequest(tc.reqParams)
+			res, _, err := handler(context.Background(), &req, tc.reqParams)
+			text := getTextResult(t, res).Text
+
+			if tc.expectError {
+				require.True(t, res.IsError)
+				assert.Contains(t, text, tc.errContains)
+				return
+			}
+
+			require.NoError(t, err)
+
+			var response struct {
+				ID     string `json:"id"`
+				Number int    `json:"number"`
+				URL    string `json:"url"`
+			}
+			err = json.Unmarshal([]byte(text), &response)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.expectedID, response.ID)
+			assert.Equal(t, tc.expectedNumber, response.Number)
+			assert.Equal(t, tc.expectedURL, response.URL)
+		})
+	}
+}
