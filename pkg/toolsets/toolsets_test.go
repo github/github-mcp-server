@@ -19,7 +19,7 @@ func mockTool(name string, readOnly bool) ServerTool {
 			},
 			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
 		},
-		func(_ ToolDependencies) mcp.ToolHandler {
+		func(_ any) mcp.ToolHandler {
 			return func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 				return nil, nil
 			}
@@ -382,7 +382,8 @@ func TestRegisterSpecificTools(t *testing.T) {
 	toolset.writeTools = append(toolset.writeTools, mockTool("issue_write", false))
 	tsg.AddToolset(toolset)
 
-	deps := ToolDependencies{}
+	// deps is typed as any in toolsets package (to avoid circular deps)
+	var deps any
 
 	// Create a real server for testing
 	server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "1.0.0"}, nil)

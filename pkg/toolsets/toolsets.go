@@ -64,8 +64,8 @@ type Toolset struct {
 	readOnly    bool
 	writeTools  []ServerTool
 	readTools   []ServerTool
-	// deps holds the dependencies for tool handlers
-	deps ToolDependencies
+	// deps holds the dependencies for tool handlers (typed as any to avoid circular deps)
+	deps any
 	// resources are not tools, but the community seems to be moving towards namespaces as a broader concept
 	// and in order to have multiple servers running concurrently, we want to avoid overlapping resources too.
 	resourceTemplates []ServerResourceTemplate
@@ -105,7 +105,8 @@ func (t *Toolset) RegisterTools(s *mcp.Server) {
 }
 
 // SetDependencies sets the dependencies for this toolset's tool handlers.
-func (t *Toolset) SetDependencies(deps ToolDependencies) *Toolset {
+// The deps parameter is typed as `any` to avoid circular dependencies between packages.
+func (t *Toolset) SetDependencies(deps any) *Toolset {
 	t.deps = deps
 	return t
 }
@@ -344,7 +345,7 @@ func (tg *ToolsetGroup) FindToolByName(toolName string) (*ServerTool, string, er
 // RegisterSpecificTools registers only the specified tools.
 // Respects read-only mode (skips write tools if readOnly=true).
 // Returns error if any tool is not found.
-func (tg *ToolsetGroup) RegisterSpecificTools(s *mcp.Server, toolNames []string, readOnly bool, deps ToolDependencies) error {
+func (tg *ToolsetGroup) RegisterSpecificTools(s *mcp.Server, toolNames []string, readOnly bool, deps any) error {
 	var skippedTools []string
 	for _, toolName := range toolNames {
 		tool, _, err := tg.FindToolByName(toolName)

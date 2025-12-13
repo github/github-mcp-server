@@ -163,29 +163,41 @@ func GetDefaultToolsetIDs() []string {
 func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetGQLClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc, contentWindowSize int, flags FeatureFlags, cache *lockdown.RepoAccessCache) *toolsets.ToolsetGroup {
 	tsg := toolsets.NewToolsetGroup(readOnly)
 
+	// Create the dependencies struct that will be passed to all tool handlers
+	deps := ToolDependencies{
+		GetClient:         getClient,
+		GetGQLClient:      getGQLClient,
+		GetRawClient:      getRawClient,
+		RepoAccessCache:   cache,
+		T:                 t,
+		Flags:             flags,
+		ContentWindowSize: contentWindowSize,
+	}
+
 	// Define all available features with their default state (disabled)
 	// Create toolsets
 	repos := toolsets.NewToolset(ToolsetMetadataRepos.ID, ToolsetMetadataRepos.Description).
+		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerTool(SearchRepositories(getClient, t)),
-			toolsets.NewServerTool(GetFileContents(getClient, getRawClient, t)),
-			toolsets.NewServerTool(ListCommits(getClient, t)),
-			toolsets.NewServerTool(SearchCode(getClient, t)),
-			toolsets.NewServerTool(GetCommit(getClient, t)),
-			toolsets.NewServerTool(ListBranches(getClient, t)),
-			toolsets.NewServerTool(ListTags(getClient, t)),
-			toolsets.NewServerTool(GetTag(getClient, t)),
-			toolsets.NewServerTool(ListReleases(getClient, t)),
-			toolsets.NewServerTool(GetLatestRelease(getClient, t)),
-			toolsets.NewServerTool(GetReleaseByTag(getClient, t)),
+			toolsets.NewServerToolLegacy(SearchRepositories(getClient, t)),
+			toolsets.NewServerToolLegacy(GetFileContents(getClient, getRawClient, t)),
+			toolsets.NewServerToolLegacy(ListCommits(getClient, t)),
+			toolsets.NewServerToolLegacy(SearchCode(getClient, t)),
+			toolsets.NewServerToolLegacy(GetCommit(getClient, t)),
+			toolsets.NewServerToolLegacy(ListBranches(getClient, t)),
+			toolsets.NewServerToolLegacy(ListTags(getClient, t)),
+			toolsets.NewServerToolLegacy(GetTag(getClient, t)),
+			toolsets.NewServerToolLegacy(ListReleases(getClient, t)),
+			toolsets.NewServerToolLegacy(GetLatestRelease(getClient, t)),
+			toolsets.NewServerToolLegacy(GetReleaseByTag(getClient, t)),
 		).
 		AddWriteTools(
-			toolsets.NewServerTool(CreateOrUpdateFile(getClient, t)),
-			toolsets.NewServerTool(CreateRepository(getClient, t)),
-			toolsets.NewServerTool(ForkRepository(getClient, t)),
-			toolsets.NewServerTool(CreateBranch(getClient, t)),
-			toolsets.NewServerTool(PushFiles(getClient, t)),
-			toolsets.NewServerTool(DeleteFile(getClient, t)),
+			toolsets.NewServerToolLegacy(CreateOrUpdateFile(getClient, t)),
+			toolsets.NewServerToolLegacy(CreateRepository(getClient, t)),
+			toolsets.NewServerToolLegacy(ForkRepository(getClient, t)),
+			toolsets.NewServerToolLegacy(CreateBranch(getClient, t)),
+			toolsets.NewServerToolLegacy(PushFiles(getClient, t)),
+			toolsets.NewServerToolLegacy(DeleteFile(getClient, t)),
 		).
 		AddResourceTemplates(
 			toolsets.NewServerResourceTemplate(GetRepositoryResourceContent(getClient, getRawClient, t)),
@@ -195,166 +207,184 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerResourceTemplate(GetRepositoryResourcePrContent(getClient, getRawClient, t)),
 		)
 	git := toolsets.NewToolset(ToolsetMetadataGit.ID, ToolsetMetadataGit.Description).
+		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerTool(GetRepositoryTree(getClient, t)),
+			toolsets.NewServerToolLegacy(GetRepositoryTree(getClient, t)),
 		)
 	issues := toolsets.NewToolset(ToolsetMetadataIssues.ID, ToolsetMetadataIssues.Description).
+		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerTool(IssueRead(getClient, getGQLClient, cache, t, flags)),
-			toolsets.NewServerTool(SearchIssues(getClient, t)),
-			toolsets.NewServerTool(ListIssues(getGQLClient, t)),
-			toolsets.NewServerTool(ListIssueTypes(getClient, t)),
-			toolsets.NewServerTool(GetLabel(getGQLClient, t)),
+			toolsets.NewServerToolLegacy(IssueRead(getClient, getGQLClient, cache, t, flags)),
+			toolsets.NewServerToolLegacy(SearchIssues(getClient, t)),
+			toolsets.NewServerToolLegacy(ListIssues(getGQLClient, t)),
+			toolsets.NewServerToolLegacy(ListIssueTypes(getClient, t)),
+			toolsets.NewServerToolLegacy(GetLabel(getGQLClient, t)),
 		).
 		AddWriteTools(
-			toolsets.NewServerTool(IssueWrite(getClient, getGQLClient, t)),
-			toolsets.NewServerTool(AddIssueComment(getClient, t)),
-			toolsets.NewServerTool(AssignCopilotToIssue(getGQLClient, t)),
-			toolsets.NewServerTool(SubIssueWrite(getClient, t)),
+			toolsets.NewServerToolLegacy(IssueWrite(getClient, getGQLClient, t)),
+			toolsets.NewServerToolLegacy(AddIssueComment(getClient, t)),
+			toolsets.NewServerToolLegacy(AssignCopilotToIssue(getGQLClient, t)),
+			toolsets.NewServerToolLegacy(SubIssueWrite(getClient, t)),
 		).AddPrompts(
 		toolsets.NewServerPrompt(AssignCodingAgentPrompt(t)),
 		toolsets.NewServerPrompt(IssueToFixWorkflowPrompt(t)),
 	)
 	users := toolsets.NewToolset(ToolsetMetadataUsers.ID, ToolsetMetadataUsers.Description).
+		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerTool(SearchUsers(getClient, t)),
+			toolsets.NewServerToolLegacy(SearchUsers(getClient, t)),
 		)
 	orgs := toolsets.NewToolset(ToolsetMetadataOrgs.ID, ToolsetMetadataOrgs.Description).
+		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerTool(SearchOrgs(getClient, t)),
+			toolsets.NewServerToolLegacy(SearchOrgs(getClient, t)),
 		)
 	pullRequests := toolsets.NewToolset(ToolsetMetadataPullRequests.ID, ToolsetMetadataPullRequests.Description).
+		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerTool(PullRequestRead(getClient, cache, t, flags)),
-			toolsets.NewServerTool(ListPullRequests(getClient, t)),
-			toolsets.NewServerTool(SearchPullRequests(getClient, t)),
+			toolsets.NewServerToolLegacy(PullRequestRead(getClient, cache, t, flags)),
+			toolsets.NewServerToolLegacy(ListPullRequests(getClient, t)),
+			toolsets.NewServerToolLegacy(SearchPullRequests(getClient, t)),
 		).
 		AddWriteTools(
-			toolsets.NewServerTool(MergePullRequest(getClient, t)),
-			toolsets.NewServerTool(UpdatePullRequestBranch(getClient, t)),
-			toolsets.NewServerTool(CreatePullRequest(getClient, t)),
-			toolsets.NewServerTool(UpdatePullRequest(getClient, getGQLClient, t)),
-			toolsets.NewServerTool(RequestCopilotReview(getClient, t)),
+			toolsets.NewServerToolLegacy(MergePullRequest(getClient, t)),
+			toolsets.NewServerToolLegacy(UpdatePullRequestBranch(getClient, t)),
+			toolsets.NewServerToolLegacy(CreatePullRequest(getClient, t)),
+			toolsets.NewServerToolLegacy(UpdatePullRequest(getClient, getGQLClient, t)),
+			toolsets.NewServerToolLegacy(RequestCopilotReview(getClient, t)),
 			// Reviews
-			toolsets.NewServerTool(PullRequestReviewWrite(getGQLClient, t)),
-			toolsets.NewServerTool(AddCommentToPendingReview(getGQLClient, t)),
+			toolsets.NewServerToolLegacy(PullRequestReviewWrite(getGQLClient, t)),
+			toolsets.NewServerToolLegacy(AddCommentToPendingReview(getGQLClient, t)),
 		)
 	codeSecurity := toolsets.NewToolset(ToolsetMetadataCodeSecurity.ID, ToolsetMetadataCodeSecurity.Description).
+		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerTool(GetCodeScanningAlert(getClient, t)),
-			toolsets.NewServerTool(ListCodeScanningAlerts(getClient, t)),
+			toolsets.NewServerToolLegacy(GetCodeScanningAlert(getClient, t)),
+			toolsets.NewServerToolLegacy(ListCodeScanningAlerts(getClient, t)),
 		)
 	secretProtection := toolsets.NewToolset(ToolsetMetadataSecretProtection.ID, ToolsetMetadataSecretProtection.Description).
+		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerTool(GetSecretScanningAlert(getClient, t)),
-			toolsets.NewServerTool(ListSecretScanningAlerts(getClient, t)),
+			toolsets.NewServerToolLegacy(GetSecretScanningAlert(getClient, t)),
+			toolsets.NewServerToolLegacy(ListSecretScanningAlerts(getClient, t)),
 		)
 	dependabot := toolsets.NewToolset(ToolsetMetadataDependabot.ID, ToolsetMetadataDependabot.Description).
+		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerTool(GetDependabotAlert(getClient, t)),
-			toolsets.NewServerTool(ListDependabotAlerts(getClient, t)),
+			toolsets.NewServerToolLegacy(GetDependabotAlert(getClient, t)),
+			toolsets.NewServerToolLegacy(ListDependabotAlerts(getClient, t)),
 		)
 
 	notifications := toolsets.NewToolset(ToolsetMetadataNotifications.ID, ToolsetMetadataNotifications.Description).
+		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerTool(ListNotifications(getClient, t)),
-			toolsets.NewServerTool(GetNotificationDetails(getClient, t)),
+			toolsets.NewServerToolLegacy(ListNotifications(getClient, t)),
+			toolsets.NewServerToolLegacy(GetNotificationDetails(getClient, t)),
 		).
 		AddWriteTools(
-			toolsets.NewServerTool(DismissNotification(getClient, t)),
-			toolsets.NewServerTool(MarkAllNotificationsRead(getClient, t)),
-			toolsets.NewServerTool(ManageNotificationSubscription(getClient, t)),
-			toolsets.NewServerTool(ManageRepositoryNotificationSubscription(getClient, t)),
+			toolsets.NewServerToolLegacy(DismissNotification(getClient, t)),
+			toolsets.NewServerToolLegacy(MarkAllNotificationsRead(getClient, t)),
+			toolsets.NewServerToolLegacy(ManageNotificationSubscription(getClient, t)),
+			toolsets.NewServerToolLegacy(ManageRepositoryNotificationSubscription(getClient, t)),
 		)
 
 	discussions := toolsets.NewToolset(ToolsetMetadataDiscussions.ID, ToolsetMetadataDiscussions.Description).
+		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerTool(ListDiscussions(getGQLClient, t)),
-			toolsets.NewServerTool(GetDiscussion(getGQLClient, t)),
-			toolsets.NewServerTool(GetDiscussionComments(getGQLClient, t)),
-			toolsets.NewServerTool(ListDiscussionCategories(getGQLClient, t)),
+			toolsets.NewServerToolLegacy(ListDiscussions(getGQLClient, t)),
+			toolsets.NewServerToolLegacy(GetDiscussion(getGQLClient, t)),
+			toolsets.NewServerToolLegacy(GetDiscussionComments(getGQLClient, t)),
+			toolsets.NewServerToolLegacy(ListDiscussionCategories(getGQLClient, t)),
 		)
 
 	actions := toolsets.NewToolset(ToolsetMetadataActions.ID, ToolsetMetadataActions.Description).
+		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerTool(ListWorkflows(getClient, t)),
-			toolsets.NewServerTool(ListWorkflowRuns(getClient, t)),
-			toolsets.NewServerTool(GetWorkflowRun(getClient, t)),
-			toolsets.NewServerTool(GetWorkflowRunLogs(getClient, t)),
-			toolsets.NewServerTool(ListWorkflowJobs(getClient, t)),
-			toolsets.NewServerTool(GetJobLogs(getClient, t, contentWindowSize)),
-			toolsets.NewServerTool(ListWorkflowRunArtifacts(getClient, t)),
-			toolsets.NewServerTool(DownloadWorkflowRunArtifact(getClient, t)),
-			toolsets.NewServerTool(GetWorkflowRunUsage(getClient, t)),
+			toolsets.NewServerToolLegacy(ListWorkflows(getClient, t)),
+			toolsets.NewServerToolLegacy(ListWorkflowRuns(getClient, t)),
+			toolsets.NewServerToolLegacy(GetWorkflowRun(getClient, t)),
+			toolsets.NewServerToolLegacy(GetWorkflowRunLogs(getClient, t)),
+			toolsets.NewServerToolLegacy(ListWorkflowJobs(getClient, t)),
+			toolsets.NewServerToolLegacy(GetJobLogs(getClient, t, contentWindowSize)),
+			toolsets.NewServerToolLegacy(ListWorkflowRunArtifacts(getClient, t)),
+			toolsets.NewServerToolLegacy(DownloadWorkflowRunArtifact(getClient, t)),
+			toolsets.NewServerToolLegacy(GetWorkflowRunUsage(getClient, t)),
 		).
 		AddWriteTools(
-			toolsets.NewServerTool(RunWorkflow(getClient, t)),
-			toolsets.NewServerTool(RerunWorkflowRun(getClient, t)),
-			toolsets.NewServerTool(RerunFailedJobs(getClient, t)),
-			toolsets.NewServerTool(CancelWorkflowRun(getClient, t)),
-			toolsets.NewServerTool(DeleteWorkflowRunLogs(getClient, t)),
+			toolsets.NewServerToolLegacy(RunWorkflow(getClient, t)),
+			toolsets.NewServerToolLegacy(RerunWorkflowRun(getClient, t)),
+			toolsets.NewServerToolLegacy(RerunFailedJobs(getClient, t)),
+			toolsets.NewServerToolLegacy(CancelWorkflowRun(getClient, t)),
+			toolsets.NewServerToolLegacy(DeleteWorkflowRunLogs(getClient, t)),
 		)
 
 	securityAdvisories := toolsets.NewToolset(ToolsetMetadataSecurityAdvisories.ID, ToolsetMetadataSecurityAdvisories.Description).
+		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerTool(ListGlobalSecurityAdvisories(getClient, t)),
-			toolsets.NewServerTool(GetGlobalSecurityAdvisory(getClient, t)),
-			toolsets.NewServerTool(ListRepositorySecurityAdvisories(getClient, t)),
-			toolsets.NewServerTool(ListOrgRepositorySecurityAdvisories(getClient, t)),
+			toolsets.NewServerToolLegacy(ListGlobalSecurityAdvisories(getClient, t)),
+			toolsets.NewServerToolLegacy(GetGlobalSecurityAdvisory(getClient, t)),
+			toolsets.NewServerToolLegacy(ListRepositorySecurityAdvisories(getClient, t)),
+			toolsets.NewServerToolLegacy(ListOrgRepositorySecurityAdvisories(getClient, t)),
 		)
 
 	// // Keep experiments alive so the system doesn't error out when it's always enabled
-	experiments := toolsets.NewToolset(ToolsetMetadataExperiments.ID, ToolsetMetadataExperiments.Description)
+	experiments := toolsets.NewToolset(ToolsetMetadataExperiments.ID, ToolsetMetadataExperiments.Description).
+		SetDependencies(deps)
 
 	contextTools := toolsets.NewToolset(ToolsetMetadataContext.ID, ToolsetMetadataContext.Description).
+		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerTool(GetMe(getClient, t)),
-			toolsets.NewServerTool(GetTeams(getClient, getGQLClient, t)),
-			toolsets.NewServerTool(GetTeamMembers(getGQLClient, t)),
+			toolsets.NewServerToolLegacy(GetMe(getClient, t)),
+			toolsets.NewServerToolLegacy(GetTeams(getClient, getGQLClient, t)),
+			toolsets.NewServerToolLegacy(GetTeamMembers(getGQLClient, t)),
 		)
 
 	gists := toolsets.NewToolset(ToolsetMetadataGists.ID, ToolsetMetadataGists.Description).
+		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerTool(ListGists(getClient, t)),
-			toolsets.NewServerTool(GetGist(getClient, t)),
+			toolsets.NewServerToolLegacy(ListGists(getClient, t)),
+			toolsets.NewServerToolLegacy(GetGist(getClient, t)),
 		).
 		AddWriteTools(
-			toolsets.NewServerTool(CreateGist(getClient, t)),
-			toolsets.NewServerTool(UpdateGist(getClient, t)),
+			toolsets.NewServerToolLegacy(CreateGist(getClient, t)),
+			toolsets.NewServerToolLegacy(UpdateGist(getClient, t)),
 		)
 
 	projects := toolsets.NewToolset(ToolsetMetadataProjects.ID, ToolsetMetadataProjects.Description).
+		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerTool(ListProjects(getClient, t)),
-			toolsets.NewServerTool(GetProject(getClient, t)),
-			toolsets.NewServerTool(ListProjectFields(getClient, t)),
-			toolsets.NewServerTool(GetProjectField(getClient, t)),
-			toolsets.NewServerTool(ListProjectItems(getClient, t)),
-			toolsets.NewServerTool(GetProjectItem(getClient, t)),
+			toolsets.NewServerToolLegacy(ListProjects(getClient, t)),
+			toolsets.NewServerToolLegacy(GetProject(getClient, t)),
+			toolsets.NewServerToolLegacy(ListProjectFields(getClient, t)),
+			toolsets.NewServerToolLegacy(GetProjectField(getClient, t)),
+			toolsets.NewServerToolLegacy(ListProjectItems(getClient, t)),
+			toolsets.NewServerToolLegacy(GetProjectItem(getClient, t)),
 		).
 		AddWriteTools(
-			toolsets.NewServerTool(AddProjectItem(getClient, t)),
-			toolsets.NewServerTool(DeleteProjectItem(getClient, t)),
-			toolsets.NewServerTool(UpdateProjectItem(getClient, t)),
+			toolsets.NewServerToolLegacy(AddProjectItem(getClient, t)),
+			toolsets.NewServerToolLegacy(DeleteProjectItem(getClient, t)),
+			toolsets.NewServerToolLegacy(UpdateProjectItem(getClient, t)),
 		)
 	stargazers := toolsets.NewToolset(ToolsetMetadataStargazers.ID, ToolsetMetadataStargazers.Description).
+		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerTool(ListStarredRepositories(getClient, t)),
+			toolsets.NewServerToolLegacy(ListStarredRepositories(getClient, t)),
 		).
 		AddWriteTools(
-			toolsets.NewServerTool(StarRepository(getClient, t)),
-			toolsets.NewServerTool(UnstarRepository(getClient, t)),
+			toolsets.NewServerToolLegacy(StarRepository(getClient, t)),
+			toolsets.NewServerToolLegacy(UnstarRepository(getClient, t)),
 		)
 	labels := toolsets.NewToolset(ToolsetLabels.ID, ToolsetLabels.Description).
+		SetDependencies(deps).
 		AddReadTools(
 			// get
-			toolsets.NewServerTool(GetLabel(getGQLClient, t)),
+			toolsets.NewServerToolLegacy(GetLabel(getGQLClient, t)),
 			// list labels on repo or issue
-			toolsets.NewServerTool(ListLabels(getGQLClient, t)),
+			toolsets.NewServerToolLegacy(ListLabels(getGQLClient, t)),
 		).
 		AddWriteTools(
 			// create or update
-			toolsets.NewServerTool(LabelWrite(getGQLClient, t)),
+			toolsets.NewServerToolLegacy(LabelWrite(getGQLClient, t)),
 		)
 
 	// Add toolsets to the group
@@ -391,9 +421,9 @@ func InitDynamicToolset(s *mcp.Server, tsg *toolsets.ToolsetGroup, t translation
 	// Need to add the dynamic toolset last so it can be used to enable other toolsets
 	dynamicToolSelection := toolsets.NewToolset(ToolsetMetadataDynamic.ID, ToolsetMetadataDynamic.Description).
 		AddReadTools(
-			toolsets.NewServerTool(ListAvailableToolsets(tsg, t)),
-			toolsets.NewServerTool(GetToolsetsTools(tsg, t)),
-			toolsets.NewServerTool(EnableToolset(s, tsg, t)),
+			toolsets.NewServerToolLegacy(ListAvailableToolsets(tsg, t)),
+			toolsets.NewServerToolLegacy(GetToolsetsTools(tsg, t)),
+			toolsets.NewServerToolLegacy(EnableToolset(s, tsg, t)),
 		)
 
 	dynamicToolSelection.Enabled = true
