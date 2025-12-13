@@ -3,6 +3,7 @@ package inventory
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -26,6 +27,35 @@ type ToolsetMetadata struct {
 	Description string
 	// Default indicates this toolset should be enabled by default
 	Default bool
+	// Icon is the name of the Octicon to use for tools in this toolset.
+	// Use the base name without size suffix, e.g., "repo" not "repo-16".
+	// See https://primer.style/foundations/icons for available icons.
+	Icon string
+}
+
+// OcticonURL returns the CDN URL for a GitHub Octicon SVG. Size should be 16 or 24.
+func OcticonURL(name string, size int) string {
+	return fmt.Sprintf("https://raw.githubusercontent.com/primer/octicons/main/icons/%s-%d.svg", name, size)
+}
+
+// Icons returns MCP Icon objects for this toolset, or nil if no icon is set.
+// Icons are provided in both 16x16 and 24x24 sizes.
+func (tm ToolsetMetadata) Icons() []mcp.Icon {
+	if tm.Icon == "" {
+		return nil
+	}
+	return []mcp.Icon{
+		{
+			Source:   OcticonURL(tm.Icon, 16),
+			MIMEType: "image/svg+xml",
+			Sizes:    []string{"16x16"},
+		},
+		{
+			Source:   OcticonURL(tm.Icon, 24),
+			MIMEType: "image/svg+xml",
+			Sizes:    []string{"24x24"},
+		},
+	}
 }
 
 // ServerTool represents an MCP tool with metadata and a handler generator function.
@@ -81,9 +111,14 @@ func (st *ServerTool) Handler(deps any) mcp.ToolHandler {
 }
 
 // RegisterFunc registers the tool with the server using the provided dependencies.
+// Icons are automatically applied from the toolset metadata if not already set.
 // Panics if the tool has no handler - all tools should have handlers.
 func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any) {
 	handler := st.Handler(deps) // This will panic if HandlerFunc is nil
+	// Apply icons from toolset metadata if tool doesn't have icons set
+	if len(st.Tool.Icons) == 0 {
+		st.Tool.Icons = st.Toolset.Icons()
+	}
 	s.AddTool(&st.Tool, handler)
 }
 
