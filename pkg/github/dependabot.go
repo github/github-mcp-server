@@ -18,6 +18,7 @@ import (
 
 func GetDependabotAlert(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataDependabot,
 		mcp.Tool{
 			Name:        "get_dependabot_alert",
 			Description: t("TOOL_GET_DEPENDABOT_ALERT_DESCRIPTION", "Get details of a specific dependabot alert in a GitHub repository."),
@@ -95,6 +96,7 @@ func GetDependabotAlert(t translations.TranslationHelperFunc) toolsets.ServerToo
 
 func ListDependabotAlerts(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataDependabot,
 		mcp.Tool{
 			Name:        "list_dependabot_alerts",
 			Description: t("TOOL_LIST_DEPENDABOT_ALERTS_DESCRIPTION", "List dependabot alerts in a GitHub repository."),

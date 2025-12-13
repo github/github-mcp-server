@@ -14,17 +14,47 @@ import (
 // should define their own typed dependencies struct and type-assert as needed.
 type HandlerFunc func(deps any) mcp.ToolHandler
 
-// ServerTool represents an MCP tool with a handler generator function.
+// ToolsetID is a unique identifier for a toolset.
+// Using a distinct type provides compile-time type safety.
+type ToolsetID string
+
+// ToolsetMetadata contains metadata about the toolset a tool belongs to.
+type ToolsetMetadata struct {
+	// ID is the unique identifier for the toolset (e.g., "repos", "issues")
+	ID ToolsetID
+	// Description provides a human-readable description of the toolset
+	Description string
+}
+
+// ServerTool represents an MCP tool with metadata and a handler generator function.
 // The tool definition is static, while the handler is generated on-demand
 // when the tool is registered with a server.
+// Tools are now self-describing with their toolset membership and read-only status
+// derived from the Tool.Annotations.ReadOnlyHint field.
 type ServerTool struct {
 	// Tool is the MCP tool definition containing name, description, schema, etc.
 	Tool mcp.Tool
+
+	// Toolset contains metadata about which toolset this tool belongs to.
+	Toolset ToolsetMetadata
 
 	// HandlerFunc generates the handler when given dependencies.
 	// This allows tools to be passed around without handlers being set up,
 	// and handlers are only created when needed.
 	HandlerFunc HandlerFunc
+
+	// FeatureFlagEnable specifies a feature flag that must be enabled for this tool
+	// to be available. If set and the flag is not enabled, the tool is omitted.
+	FeatureFlagEnable string
+
+	// FeatureFlagDisable specifies a feature flag that, when enabled, causes this tool
+	// to be omitted. Used to disable tools when a feature flag is on.
+	FeatureFlagDisable string
+}
+
+// IsReadOnly returns true if this tool is marked as read-only via annotations.
+func (st *ServerTool) IsReadOnly() bool {
+	return st.Tool.Annotations != nil && st.Tool.Annotations.ReadOnlyHint
 }
 
 // Handler returns a tool handler by calling HandlerFunc with the given dependencies.
@@ -41,12 +71,13 @@ func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any) {
 	s.AddTool(&st.Tool, handler)
 }
 
-// NewServerTool creates a ServerTool from a tool definition and a typed handler function.
+// NewServerTool creates a ServerTool from a tool definition, toolset metadata, and a typed handler function.
 // The handler function takes dependencies (as any) and returns a typed handler.
 // Callers should type-assert deps to their typed dependencies struct.
-func NewServerTool[In any, Out any](tool mcp.Tool, handlerFn func(deps any) mcp.ToolHandlerFor[In, Out]) ServerTool {
+func NewServerTool[In any, Out any](tool mcp.Tool, toolset ToolsetMetadata, handlerFn func(deps any) mcp.ToolHandlerFor[In, Out]) ServerTool {
 	return ServerTool{
-		Tool: tool,
+		Tool:    tool,
+		Toolset: toolset,
 		HandlerFunc: func(deps any) mcp.ToolHandler {
 			typedHandler := handlerFn(deps)
 			return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -61,18 +92,19 @@ func NewServerTool[In any, Out any](tool mcp.Tool, handlerFn func(deps any) mcp.
 	}
 }
 
-// NewServerToolFromHandler creates a ServerTool from a tool definition and a raw handler function.
+// NewServerToolFromHandler creates a ServerTool from a tool definition, toolset metadata, and a raw handler function.
 // Use this when you have a handler that already conforms to mcp.ToolHandler.
-func NewServerToolFromHandler(tool mcp.Tool, handlerFn func(deps any) mcp.ToolHandler) ServerTool {
-	return ServerTool{Tool: tool, HandlerFunc: handlerFn}
+func NewServerToolFromHandler(tool mcp.Tool, toolset ToolsetMetadata, handlerFn func(deps any) mcp.ToolHandler) ServerTool {
+	return ServerTool{Tool: tool, Toolset: toolset, HandlerFunc: handlerFn}
 }
 
-// NewServerToolLegacy creates a ServerTool from a tool definition and an already-bound typed handler.
+// NewServerToolLegacy creates a ServerTool from a tool definition, toolset metadata, and an already-bound typed handler.
 // This is for backward compatibility during the refactor - the handler doesn't use dependencies.
 // Deprecated: Use NewServerTool instead for new code.
-func NewServerToolLegacy[In any, Out any](tool mcp.Tool, handler mcp.ToolHandlerFor[In, Out]) ServerTool {
+func NewServerToolLegacy[In any, Out any](tool mcp.Tool, toolset ToolsetMetadata, handler mcp.ToolHandlerFor[In, Out]) ServerTool {
 	return ServerTool{
-		Tool: tool,
+		Tool:    tool,
+		Toolset: toolset,
 		HandlerFunc: func(_ any) mcp.ToolHandler {
 			return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 				var arguments In
@@ -86,12 +118,13 @@ func NewServerToolLegacy[In any, Out any](tool mcp.Tool, handler mcp.ToolHandler
 	}
 }
 
-// NewServerToolFromHandlerLegacy creates a ServerTool from a tool definition and an already-bound raw handler.
+// NewServerToolFromHandlerLegacy creates a ServerTool from a tool definition, toolset metadata, and an already-bound raw handler.
 // This is for backward compatibility during the refactor - the handler doesn't use dependencies.
 // Deprecated: Use NewServerToolFromHandler instead for new code.
-func NewServerToolFromHandlerLegacy(tool mcp.Tool, handler mcp.ToolHandler) ServerTool {
+func NewServerToolFromHandlerLegacy(tool mcp.Tool, toolset ToolsetMetadata, handler mcp.ToolHandler) ServerTool {
 	return ServerTool{
-		Tool: tool,
+		Tool:    tool,
+		Toolset: toolset,
 		HandlerFunc: func(_ any) mcp.ToolHandler {
 			return handler
 		},

@@ -18,6 +18,7 @@ import (
 // GetLabel retrieves a specific label by name from a GitHub repository
 func GetLabel(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetLabels,
 		mcp.Tool{
 			Name:        "get_label",
 			Description: t("TOOL_GET_LABEL_DESCRIPTION", "Get a specific label from a repository."),
@@ -112,6 +113,7 @@ func GetLabel(t translations.TranslationHelperFunc) toolsets.ServerTool {
 // ListLabels lists labels from a repository
 func ListLabels(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetLabels,
 		mcp.Tool{
 			Name:        "list_label",
 			Description: t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository"),
@@ -203,6 +205,7 @@ func ListLabels(t translations.TranslationHelperFunc) toolsets.ServerTool {
 // LabelWrite handles create, update, and delete operations for GitHub labels
 func LabelWrite(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetLabels,
 		mcp.Tool{
 			Name:        "label_write",
 			Description: t("TOOL_LABEL_WRITE_DESCRIPTION", "Perform write operations on repository labels. To set labels on issues, use the 'update_issue' tool."),
