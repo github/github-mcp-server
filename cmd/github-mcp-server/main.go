@@ -52,9 +52,10 @@ var (
 				return fmt.Errorf("failed to unmarshal tools: %w", err)
 			}
 
-			// If neither toolset config nor tools config is passed we enable the default toolset
-			if len(enabledToolsets) == 0 && len(enabledTools) == 0 {
-				enabledToolsets = []string{github.ToolsetMetadataDefault.ID}
+			// Parse enabled features (similar to toolsets)
+			var enabledFeatures []string
+			if err := viper.UnmarshalKey("features", &enabledFeatures); err != nil {
+				return fmt.Errorf("failed to unmarshal features: %w", err)
 			}
 
 			ttl := viper.GetDuration("repo-access-cache-ttl")
@@ -64,6 +65,7 @@ var (
 				Token:                token,
 				EnabledToolsets:      enabledToolsets,
 				EnabledTools:         enabledTools,
+				EnabledFeatures:      enabledFeatures,
 				DynamicToolsets:      viper.GetBool("dynamic_toolsets"),
 				ReadOnly:             viper.GetBool("read-only"),
 				ExportTranslations:   viper.GetBool("export-translations"),
@@ -87,6 +89,7 @@ func init() {
 	// Add global flags that will be shared by all commands
 	rootCmd.PersistentFlags().StringSlice("toolsets", nil, github.GenerateToolsetsHelp())
 	rootCmd.PersistentFlags().StringSlice("tools", nil, "Comma-separated list of specific tools to enable")
+	rootCmd.PersistentFlags().StringSlice("features", nil, "Comma-separated list of feature flags to enable")
 	rootCmd.PersistentFlags().Bool("dynamic-toolsets", false, "Enable dynamic toolsets")
 	rootCmd.PersistentFlags().Bool("read-only", false, "Restrict the server to read-only operations")
 	rootCmd.PersistentFlags().String("log-file", "", "Path to log file")
@@ -100,6 +103,7 @@ func init() {
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
 	_ = viper.BindPFlag("tools", rootCmd.PersistentFlags().Lookup("tools"))
+	_ = viper.BindPFlag("features", rootCmd.PersistentFlags().Lookup("features"))
 	_ = viper.BindPFlag("dynamic_toolsets", rootCmd.PersistentFlags().Lookup("dynamic-toolsets"))
 	_ = viper.BindPFlag("read-only", rootCmd.PersistentFlags().Lookup("read-only"))
 	_ = viper.BindPFlag("log-file", rootCmd.PersistentFlags().Lookup("log-file"))

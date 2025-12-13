@@ -27,6 +27,7 @@ const (
 
 func ListProjects(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "list_projects",
 			Description: t("TOOL_LIST_PROJECTS_DESCRIPTION", `List Projects for a user or organization`),
@@ -145,6 +146,7 @@ func ListProjects(t translations.TranslationHelperFunc) toolsets.ServerTool {
 
 func GetProject(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "get_project",
 			Description: t("TOOL_GET_PROJECT_DESCRIPTION", "Get Project for a user or org"),
@@ -234,6 +236,7 @@ func GetProject(t translations.TranslationHelperFunc) toolsets.ServerTool {
 
 func ListProjectFields(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "list_project_fields",
 			Description: t("TOOL_LIST_PROJECT_FIELDS_DESCRIPTION", "List Project fields for a user or org"),
@@ -341,6 +344,7 @@ func ListProjectFields(t translations.TranslationHelperFunc) toolsets.ServerTool
 
 func GetProjectField(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "get_project_field",
 			Description: t("TOOL_GET_PROJECT_FIELD_DESCRIPTION", "Get Project field for a user or org"),
@@ -434,6 +438,7 @@ func GetProjectField(t translations.TranslationHelperFunc) toolsets.ServerTool {
 
 func ListProjectItems(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "list_project_items",
 			Description: t("TOOL_LIST_PROJECT_ITEMS_DESCRIPTION", `Search project items with advanced filtering`),
@@ -571,6 +576,7 @@ func ListProjectItems(t translations.TranslationHelperFunc) toolsets.ServerTool 
 
 func GetProjectItem(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "get_project_item",
 			Description: t("TOOL_GET_PROJECT_ITEM_DESCRIPTION", "Get a specific Project item for a user or org"),
@@ -678,6 +684,7 @@ func GetProjectItem(t translations.TranslationHelperFunc) toolsets.ServerTool {
 
 func AddProjectItem(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "add_project_item",
 			Description: t("TOOL_ADD_PROJECT_ITEM_DESCRIPTION", "Add a specific Project item for a user or org"),
@@ -790,6 +797,7 @@ func AddProjectItem(t translations.TranslationHelperFunc) toolsets.ServerTool {
 
 func UpdateProjectItem(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "update_project_item",
 			Description: t("TOOL_UPDATE_PROJECT_ITEM_DESCRIPTION", "Update a specific Project item for a user or org"),
@@ -903,6 +911,7 @@ func UpdateProjectItem(t translations.TranslationHelperFunc) toolsets.ServerTool
 
 func DeleteProjectItem(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "delete_project_item",
 			Description: t("TOOL_DELETE_PROJECT_ITEM_DESCRIPTION", "Delete a specific Project item for a user or org"),

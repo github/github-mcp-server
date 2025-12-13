@@ -263,6 +263,7 @@ Options are:
 	WithPagination(schema)
 
 	return NewTool(
+		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "issue_read",
 			Description: t("TOOL_ISSUE_READ_DESCRIPTION", "Get information about a specific issue in a GitHub repository."),
@@ -546,6 +547,7 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 // ListIssueTypes creates a tool to list defined issue types for an organization. This can be used to understand supported issue type values for creating or updating issues.
 func ListIssueTypes(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "list_issue_types",
 			Description: t("TOOL_LIST_ISSUE_TYPES_FOR_ORG", "List supported issue types for repository owner (organization)."),
@@ -602,6 +604,7 @@ func ListIssueTypes(t translations.TranslationHelperFunc) toolsets.ServerTool {
 // AddIssueComment creates a tool to add a comment to an issue.
 func AddIssueComment(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "add_issue_comment",
 			Description: t("TOOL_ADD_ISSUE_COMMENT_DESCRIPTION", "Add a comment to a specific issue in a GitHub repository. Use this tool to add comments to pull requests as well (in this case pass pull request number as issue_number), but only if user is not asking specifically to add review comments."),
@@ -686,6 +689,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) toolsets.ServerTool {
 // SubIssueWrite creates a tool to add a sub-issue to a parent issue.
 func SubIssueWrite(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "sub_issue_write",
 			Description: t("TOOL_SUB_ISSUE_WRITE_DESCRIPTION", "Add a sub-issue to a parent issue in a GitHub repository."),
@@ -956,6 +960,7 @@ func SearchIssues(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	WithPagination(schema)
 
 	return NewTool(
+		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "search_issues",
 			Description: t("TOOL_SEARCH_ISSUES_DESCRIPTION", "Search for issues in GitHub repositories using issues search syntax already scoped to is:issue"),
@@ -976,6 +981,7 @@ func SearchIssues(t translations.TranslationHelperFunc) toolsets.ServerTool {
 // IssueWrite creates a tool to create a new or update an existing issue in a GitHub repository.
 func IssueWrite(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "issue_write",
 			Description: t("TOOL_ISSUE_WRITE_DESCRIPTION", "Create a new or update an existing issue in a GitHub repository."),
@@ -1376,6 +1382,7 @@ func ListIssues(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	WithCursorPagination(schema)
 
 	return NewTool(
+		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "list_issues",
 			Description: t("TOOL_LIST_ISSUES_DESCRIPTION", "List issues in a GitHub repository. For pagination, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter."),
@@ -1611,6 +1618,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) toolsets.ServerT
 	}
 
 	return NewTool(
+		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "assign_copilot_to_issue",
 			Description: t("TOOL_ASSIGN_COPILOT_TO_ISSUE_DESCRIPTION", description.String()),
@@ -1797,8 +1805,10 @@ func parseISOTimestamp(timestamp string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("invalid ISO 8601 timestamp: %s (supported formats: YYYY-MM-DDThh:mm:ssZ or YYYY-MM-DD)", timestamp)
 }
 
-func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) (mcp.Prompt, mcp.PromptHandler) {
-	return mcp.Prompt{
+func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) toolsets.ServerPrompt {
+	return toolsets.NewServerPrompt(
+		ToolsetMetadataIssues,
+		mcp.Prompt{
 			Name:        "AssignCodingAgent",
 			Description: t("PROMPT_ASSIGN_CODING_AGENT_DESCRIPTION", "Assign GitHub Coding Agent to multiple tasks in a GitHub repository."),
 			Arguments: []*mcp.PromptArgument{
@@ -1808,7 +1818,8 @@ func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) (mcp.Prompt, 
 					Required:    true,
 				},
 			},
-		}, func(_ context.Context, request *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+		},
+		func(_ context.Context, request *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 			repo := request.Params.Arguments["repo"]
 
 			messages := []*mcp.PromptMessage{
@@ -1852,5 +1863,6 @@ func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) (mcp.Prompt, 
 			return &mcp.GetPromptResult{
 				Messages: messages,
 			}, nil
-		}
+		},
+	)
 }
