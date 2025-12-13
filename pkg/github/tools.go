@@ -300,22 +300,22 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	actions := toolsets.NewToolset(ToolsetMetadataActions.ID, ToolsetMetadataActions.Description).
 		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerToolLegacy(ListWorkflows(getClient, t)),
-			toolsets.NewServerToolLegacy(ListWorkflowRuns(getClient, t)),
-			toolsets.NewServerToolLegacy(GetWorkflowRun(getClient, t)),
-			toolsets.NewServerToolLegacy(GetWorkflowRunLogs(getClient, t)),
-			toolsets.NewServerToolLegacy(ListWorkflowJobs(getClient, t)),
-			toolsets.NewServerToolLegacy(GetJobLogs(getClient, t, contentWindowSize)),
-			toolsets.NewServerToolLegacy(ListWorkflowRunArtifacts(getClient, t)),
-			toolsets.NewServerToolLegacy(DownloadWorkflowRunArtifact(getClient, t)),
-			toolsets.NewServerToolLegacy(GetWorkflowRunUsage(getClient, t)),
+			ListWorkflows(t),
+			ListWorkflowRuns(t),
+			GetWorkflowRun(t),
+			GetWorkflowRunLogs(t),
+			ListWorkflowJobs(t),
+			GetJobLogs(t),
+			ListWorkflowRunArtifacts(t),
+			DownloadWorkflowRunArtifact(t),
+			GetWorkflowRunUsage(t),
 		).
 		AddWriteTools(
-			toolsets.NewServerToolLegacy(RunWorkflow(getClient, t)),
-			toolsets.NewServerToolLegacy(RerunWorkflowRun(getClient, t)),
-			toolsets.NewServerToolLegacy(RerunFailedJobs(getClient, t)),
-			toolsets.NewServerToolLegacy(CancelWorkflowRun(getClient, t)),
-			toolsets.NewServerToolLegacy(DeleteWorkflowRunLogs(getClient, t)),
+			RunWorkflow(t),
+			RerunWorkflowRun(t),
+			RerunFailedJobs(t),
+			CancelWorkflowRun(t),
+			DeleteWorkflowRunLogs(t),
 		)
 
 	securityAdvisories := toolsets.NewToolset(ToolsetMetadataSecurityAdvisories.ID, ToolsetMetadataSecurityAdvisories.Description).
