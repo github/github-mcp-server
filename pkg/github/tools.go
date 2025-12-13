@@ -242,19 +242,19 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	pullRequests := toolsets.NewToolset(ToolsetMetadataPullRequests.ID, ToolsetMetadataPullRequests.Description).
 		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerToolLegacy(PullRequestRead(getClient, cache, t, flags)),
-			toolsets.NewServerToolLegacy(ListPullRequests(getClient, t)),
-			toolsets.NewServerToolLegacy(SearchPullRequests(getClient, t)),
+			PullRequestRead(t),
+			ListPullRequests(t),
+			SearchPullRequests(t),
 		).
 		AddWriteTools(
-			toolsets.NewServerToolLegacy(MergePullRequest(getClient, t)),
-			toolsets.NewServerToolLegacy(UpdatePullRequestBranch(getClient, t)),
-			toolsets.NewServerToolLegacy(CreatePullRequest(getClient, t)),
-			toolsets.NewServerToolLegacy(UpdatePullRequest(getClient, getGQLClient, t)),
-			toolsets.NewServerToolLegacy(RequestCopilotReview(getClient, t)),
+			MergePullRequest(t),
+			UpdatePullRequestBranch(t),
+			CreatePullRequest(t),
+			UpdatePullRequest(t),
+			RequestCopilotReview(t),
 			// Reviews
-			toolsets.NewServerToolLegacy(PullRequestReviewWrite(getGQLClient, t)),
-			toolsets.NewServerToolLegacy(AddCommentToPendingReview(getGQLClient, t)),
+			PullRequestReviewWrite(t),
+			AddCommentToPendingReview(t),
 		)
 	codeSecurity := toolsets.NewToolset(ToolsetMetadataCodeSecurity.ID, ToolsetMetadataCodeSecurity.Description).
 		SetDependencies(deps).
