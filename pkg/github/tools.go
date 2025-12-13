@@ -209,7 +209,7 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	git := toolsets.NewToolset(ToolsetMetadataGit.ID, ToolsetMetadataGit.Description).
 		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerToolLegacy(GetRepositoryTree(getClient, t)),
+			GetRepositoryTree(t),
 		)
 	issues := toolsets.NewToolset(ToolsetMetadataIssues.ID, ToolsetMetadataIssues.Description).
 		SetDependencies(deps).

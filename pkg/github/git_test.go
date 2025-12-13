@@ -18,15 +18,14 @@ import (
 
 func Test_GetRepositoryTree(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := GetRepositoryTree(stubGetClientFn(mockClient), translations.NullTranslationHelper)
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	toolDef := GetRepositoryTree(translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
 
-	assert.Equal(t, "get_repository_tree", tool.Name)
-	assert.NotEmpty(t, tool.Description)
+	assert.Equal(t, "get_repository_tree", toolDef.Tool.Name)
+	assert.NotEmpty(t, toolDef.Tool.Description)
 
 	// Type assert the InputSchema to access its properties
-	inputSchema, ok := tool.InputSchema.(*jsonschema.Schema)
+	inputSchema, ok := toolDef.Tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "expected InputSchema to be *jsonschema.Schema")
 	assert.Contains(t, inputSchema.Properties, "owner")
 	assert.Contains(t, inputSchema.Properties, "repo")
@@ -148,12 +147,16 @@ func Test_GetRepositoryTree(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, handler := GetRepositoryTree(stubGetClientFromHTTPFn(tc.mockedClient), translations.NullTranslationHelper)
+			client := github.NewClient(tc.mockedClient)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := toolDef.Handler(deps)
 
 			// Create the tool request
 			request := createMCPRequest(tc.requestArgs)
 
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			if tc.expectError {
 				require.NoError(t, err)
