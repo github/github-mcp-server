@@ -334,9 +334,9 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 	contextTools := toolsets.NewToolset(ToolsetMetadataContext.ID, ToolsetMetadataContext.Description).
 		SetDependencies(deps).
 		AddReadTools(
-			toolsets.NewServerToolLegacy(GetMe(getClient, t)),
-			toolsets.NewServerToolLegacy(GetTeams(getClient, getGQLClient, t)),
-			toolsets.NewServerToolLegacy(GetTeamMembers(getGQLClient, t)),
+			GetMe(t),
+			GetTeams(t),
+			GetTeamMembers(t),
 		)
 
 	gists := toolsets.NewToolset(ToolsetMetadataGists.ID, ToolsetMetadataGists.Description).
