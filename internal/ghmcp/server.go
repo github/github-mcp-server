@@ -18,6 +18,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	mcplog "github.com/github/github-mcp-server/pkg/log"
 	"github.com/github/github-mcp-server/pkg/raw"
+	"github.com/github/github-mcp-server/pkg/toolsets"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v79/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -41,6 +42,10 @@ type MCPServerConfig struct {
 	// EnabledTools is a list of specific tools to enable (additive to toolsets)
 	// When specified, these tools are registered in addition to any specified toolset tools
 	EnabledTools []string
+
+	// EnabledFeatures is a list of feature flags that are enabled
+	// Items with FeatureFlagEnable matching an entry in this list will be available
+	EnabledFeatures []string
 
 	// Whether to enable dynamic toolsets
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#dynamic-tool-discovery
@@ -100,23 +105,8 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 
 	enabledToolsets := cfg.EnabledToolsets
 
-	// If dynamic toolsets are enabled, remove "all" and "default" from the enabled toolsets
-	if cfg.DynamicToolsets {
-		enabledToolsets = github.RemoveToolset(enabledToolsets, github.ToolsetMetadataAll.ID)
-		enabledToolsets = github.RemoveToolset(enabledToolsets, github.ToolsetMetadataDefault.ID)
-	}
-
-	// Clean up the passed toolsets
+	// Clean up the passed toolsets (removes duplicates, whitespace)
 	enabledToolsets, invalidToolsets := github.CleanToolsets(enabledToolsets)
-
-	// If "all" is present, override all other toolsets
-	if github.ContainsToolset(enabledToolsets, github.ToolsetMetadataAll.ID) {
-		enabledToolsets = []string{github.ToolsetMetadataAll.ID}
-	}
-	// If "default" is present, expand to real toolset IDs
-	if github.ContainsToolset(enabledToolsets, github.ToolsetMetadataDefault.ID) {
-		enabledToolsets = github.AddDefaultToolset(enabledToolsets)
-	}
 
 	if len(invalidToolsets) > 0 {
 		fmt.Fprintf(os.Stderr, "Invalid toolsets ignored: %s\n", strings.Join(invalidToolsets, ", "))
@@ -162,49 +152,71 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		ContentWindowSize: cfg.ContentWindowSize,
 	}
 
-	// Create default toolsets
-	tsg := github.DefaultToolsetGroup(
-		cfg.ReadOnly,
-		getClient,
-		getGQLClient,
-		getRawClient,
-		cfg.Translator,
-		cfg.ContentWindowSize,
-		github.FeatureFlags{LockdownMode: cfg.LockdownMode},
-		repoAccessCache,
-	)
+	// Create toolset group with all tools, resources, and prompts
+	tsg := github.NewToolsetGroup(cfg.Translator, getClient, getRawClient)
 
-	// Enable and register toolsets if configured
-	// This always happens if toolsets are specified, regardless of whether tools are also specified
-	if len(enabledToolsets) > 0 {
-		err = tsg.EnableToolsets(enabledToolsets, nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to enable toolsets: %w", err)
-		}
+	// Add deprecated tool aliases for backward compatibility
+	// See docs/deprecated-tool-aliases.md for the full list of renames
+	tsg.AddDeprecatedToolAliases(github.DeprecatedToolAliases)
 
-		// Register all mcp functionality with the server
-		tsg.RegisterAll(ghServer)
+	// Clean tool names (WithTools will resolve any deprecated aliases)
+	enabledTools := github.CleanTools(cfg.EnabledTools)
+
+	// For dynamic toolsets mode:
+	// - If toolsets are explicitly provided (including "default"), honor them
+	// - If no toolsets are specified (nil), start with no toolsets enabled (empty slice)
+	//   so users can enable them on demand via the dynamic tools
+	if cfg.DynamicToolsets && cfg.EnabledToolsets == nil {
+		enabledToolsets = []string{}
 	}
 
-	// Register specific tools if configured
-	if len(cfg.EnabledTools) > 0 {
-		enabledTools := github.CleanTools(cfg.EnabledTools)
-		enabledTools, _ = tsg.ResolveToolAliases(enabledTools)
+	// Apply filters based on configuration
+	// - WithReadOnly: filters out write tools when true
+	// - WithToolsets: nil=defaults, empty=none, handles "all"/"default" keywords
+	// - WithTools: additional tools that bypass toolset filtering (additive, resolves aliases)
+	// - WithFeatureChecker: filters based on feature flags
+	filteredTsg := tsg.
+		WithReadOnly(cfg.ReadOnly).
+		WithToolsets(enabledToolsets).
+		WithTools(enabledTools).
+		WithFeatureChecker(createFeatureChecker(cfg.EnabledFeatures))
 
-		// Register the specified tools (additive to any toolsets already enabled)
-		err = tsg.RegisterSpecificTools(ghServer, enabledTools, cfg.ReadOnly, deps)
-		if err != nil {
-			return nil, fmt.Errorf("failed to register tools: %w", err)
-		}
-	}
+	// Register all mcp functionality with the server
+	// Use background context for local server (no per-request actor context)
+	filteredTsg.RegisterAll(context.Background(), ghServer, deps)
 
-	// Register dynamic toolsets if configured (additive to toolsets and tools)
+	// Register dynamic toolset management if configured
+	// Dynamic tools get access to the filtered toolset group which tracks enabled state.
+	// ToolsForToolset() returns all tools for a toolset regardless of enabled status,
+	// so dynamic tools can enable any toolset at runtime.
 	if cfg.DynamicToolsets {
-		dynamic := github.InitDynamicToolset(ghServer, tsg, cfg.Translator)
-		dynamic.RegisterTools(ghServer)
+		dynamicDeps := github.DynamicToolDependencies{
+			Server:       ghServer,
+			ToolsetGroup: filteredTsg,
+			ToolDeps:     deps,
+			T:            cfg.Translator,
+		}
+		dynamicTools := github.DynamicTools()
+		for _, tool := range dynamicTools {
+			tool.RegisterFunc(ghServer, dynamicDeps)
+		}
 	}
 
 	return ghServer, nil
+}
+
+// createFeatureChecker returns a FeatureFlagChecker that checks if a flag name
+// is present in the provided list of enabled features. For the local server,
+// this is populated from the --features CLI flag.
+func createFeatureChecker(enabledFeatures []string) toolsets.FeatureFlagChecker {
+	// Build a set for O(1) lookup
+	featureSet := make(map[string]bool, len(enabledFeatures))
+	for _, f := range enabledFeatures {
+		featureSet[f] = true
+	}
+	return func(_ context.Context, flagName string) (bool, error) {
+		return featureSet[flagName], nil
+	}
 }
 
 type StdioServerConfig struct {
@@ -224,6 +236,10 @@ type StdioServerConfig struct {
 	// EnabledTools is a list of specific tools to enable (additive to toolsets)
 	// When specified, these tools are registered in addition to any specified toolset tools
 	EnabledTools []string
+
+	// EnabledFeatures is a list of feature flags that are enabled
+	// Items with FeatureFlagEnable matching an entry in this list will be available
+	EnabledFeatures []string
 
 	// Whether to enable dynamic toolsets
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#dynamic-tool-discovery
@@ -282,6 +298,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		Token:             cfg.Token,
 		EnabledToolsets:   cfg.EnabledToolsets,
 		EnabledTools:      cfg.EnabledTools,
+		EnabledFeatures:   cfg.EnabledFeatures,
 		DynamicToolsets:   cfg.DynamicToolsets,
 		ReadOnly:          cfg.ReadOnly,
 		Translator:        t,

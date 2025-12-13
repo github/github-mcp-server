@@ -17,6 +17,7 @@ import (
 
 func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataSecurityAdvisories,
 		mcp.Tool{
 			Name:        "list_global_security_advisories",
 			Description: t("TOOL_LIST_GLOBAL_SECURITY_ADVISORIES_DESCRIPTION", "List global security advisories from GitHub."),
@@ -208,6 +209,7 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) toolsets
 
 func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataSecurityAdvisories,
 		mcp.Tool{
 			Name:        "list_repository_security_advisories",
 			Description: t("TOOL_LIST_REPOSITORY_SECURITY_ADVISORIES_DESCRIPTION", "List repository security advisories for a GitHub repository."),
@@ -312,6 +314,7 @@ func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) tool
 
 func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataSecurityAdvisories,
 		mcp.Tool{
 			Name:        "get_global_security_advisory",
 			Description: t("TOOL_GET_GLOBAL_SECURITY_ADVISORY_DESCRIPTION", "Get a global security advisory"),
@@ -369,6 +372,7 @@ func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) toolsets.Se
 
 func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataSecurityAdvisories,
 		mcp.Tool{
 			Name:        "list_org_repository_security_advisories",
 			Description: t("TOOL_LIST_ORG_REPOSITORY_SECURITY_ADVISORIES_DESCRIPTION", "List repository security advisories for a GitHub organization."),

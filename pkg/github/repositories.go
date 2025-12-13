@@ -21,6 +21,7 @@ import (
 
 func GetCommit(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "get_commit",
 			Description: t("TOOL_GET_COMMITS_DESCRIPTION", "Get details for a commit from a GitHub repository"),
@@ -119,6 +120,7 @@ func GetCommit(t translations.TranslationHelperFunc) toolsets.ServerTool {
 // ListCommits creates a tool to get commits of a branch in a repository.
 func ListCommits(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "list_commits",
 			Description: t("TOOL_LIST_COMMITS_DESCRIPTION", "Get list of commits of a branch in a GitHub repository. Returns at least 30 results per page by default, but can return more if specified using the perPage parameter (up to 100)."),
@@ -227,6 +229,7 @@ func ListCommits(t translations.TranslationHelperFunc) toolsets.ServerTool {
 // ListBranches creates a tool to list branches in a GitHub repository.
 func ListBranches(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "list_branches",
 			Description: t("TOOL_LIST_BRANCHES_DESCRIPTION", "List branches in a GitHub repository"),
@@ -314,6 +317,7 @@ func ListBranches(t translations.TranslationHelperFunc) toolsets.ServerTool {
 // CreateOrUpdateFile creates a tool to create or update a file in a GitHub repository.
 func CreateOrUpdateFile(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "create_or_update_file",
 			Description: t("TOOL_CREATE_OR_UPDATE_FILE_DESCRIPTION", "Create or update a single file in a GitHub repository. If updating, you must provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations."),
@@ -441,6 +445,7 @@ func CreateOrUpdateFile(t translations.TranslationHelperFunc) toolsets.ServerToo
 // CreateRepository creates a tool to create a new GitHub repository.
 func CreateRepository(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "create_repository",
 			Description: t("TOOL_CREATE_REPOSITORY_DESCRIPTION", "Create a new GitHub repository in your account or specified organization"),
@@ -547,6 +552,7 @@ func CreateRepository(t translations.TranslationHelperFunc) toolsets.ServerTool 
 // GetFileContents creates a tool to get the contents of a file or directory from a GitHub repository.
 func GetFileContents(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "get_file_contents",
 			Description: t("TOOL_GET_FILE_CONTENTS_DESCRIPTION", "Get the contents of a file or directory from a GitHub repository"),
@@ -766,6 +772,7 @@ func GetFileContents(t translations.TranslationHelperFunc) toolsets.ServerTool {
 // ForkRepository creates a tool to fork a repository.
 func ForkRepository(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "fork_repository",
 			Description: t("TOOL_FORK_REPOSITORY_DESCRIPTION", "Fork a GitHub repository to your account or specified organization"),
@@ -864,6 +871,7 @@ func ForkRepository(t translations.TranslationHelperFunc) toolsets.ServerTool {
 // both of which suit an LLM well.
 func DeleteFile(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "delete_file",
 			Description: t("TOOL_DELETE_FILE_DESCRIPTION", "Delete a file from a GitHub repository"),
@@ -1049,6 +1057,7 @@ func DeleteFile(t translations.TranslationHelperFunc) toolsets.ServerTool {
 // CreateBranch creates a tool to create a new branch.
 func CreateBranch(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "create_branch",
 			Description: t("TOOL_CREATE_BRANCH_DESCRIPTION", "Create a new branch in a GitHub repository"),
@@ -1162,6 +1171,7 @@ func CreateBranch(t translations.TranslationHelperFunc) toolsets.ServerTool {
 // PushFiles creates a tool to push multiple files in a single commit to a GitHub repository.
 func PushFiles(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "push_files",
 			Description: t("TOOL_PUSH_FILES_DESCRIPTION", "Push multiple files to a GitHub repository in a single commit"),
@@ -1346,6 +1356,7 @@ func PushFiles(t translations.TranslationHelperFunc) toolsets.ServerTool {
 // ListTags creates a tool to list tags in a GitHub repository.
 func ListTags(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "list_tags",
 			Description: t("TOOL_LIST_TAGS_DESCRIPTION", "List git tags in a GitHub repository"),
@@ -1425,6 +1436,7 @@ func ListTags(t translations.TranslationHelperFunc) toolsets.ServerTool {
 // GetTag creates a tool to get details about a specific tag in a GitHub repository.
 func GetTag(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "get_tag",
 			Description: t("TOOL_GET_TAG_DESCRIPTION", "Get details about a specific git tag in a GitHub repository"),
@@ -1523,6 +1535,7 @@ func GetTag(t translations.TranslationHelperFunc) toolsets.ServerTool {
 // ListReleases creates a tool to list releases in a GitHub repository.
 func ListReleases(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "list_releases",
 			Description: t("TOOL_LIST_RELEASES_DESCRIPTION", "List releases in a GitHub repository"),
@@ -1598,6 +1611,7 @@ func ListReleases(t translations.TranslationHelperFunc) toolsets.ServerTool {
 // GetLatestRelease creates a tool to get the latest release in a GitHub repository.
 func GetLatestRelease(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "get_latest_release",
 			Description: t("TOOL_GET_LATEST_RELEASE_DESCRIPTION", "Get the latest release in a GitHub repository"),
@@ -1663,6 +1677,7 @@ func GetLatestRelease(t translations.TranslationHelperFunc) toolsets.ServerTool 
 
 func GetReleaseByTag(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "get_release_by_tag",
 			Description: t("TOOL_GET_RELEASE_BY_TAG_DESCRIPTION", "Get a specific release by its tag name in a GitHub repository"),
@@ -1876,6 +1891,7 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 // ListStarredRepositories creates a tool to list starred repositories for the authenticated user or a specified user.
 func ListStarredRepositories(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataStargazers,
 		mcp.Tool{
 			Name:        "list_starred_repositories",
 			Description: t("TOOL_LIST_STARRED_REPOSITORIES_DESCRIPTION", "List starred repositories"),
@@ -2008,6 +2024,7 @@ func ListStarredRepositories(t translations.TranslationHelperFunc) toolsets.Serv
 // StarRepository creates a tool to star a repository.
 func StarRepository(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataStargazers,
 		mcp.Tool{
 			Name:        "star_repository",
 			Description: t("TOOL_STAR_REPOSITORY_DESCRIPTION", "Star a GitHub repository"),
@@ -2073,6 +2090,7 @@ func StarRepository(t translations.TranslationHelperFunc) toolsets.ServerTool {
 // UnstarRepository creates a tool to unstar a repository.
 func UnstarRepository(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataStargazers,
 		mcp.Tool{
 			Name:        "unstar_repository",
 			Description: t("TOOL_UNSTAR_REPOSITORY_DESCRIPTION", "Unstar a GitHub repository"),

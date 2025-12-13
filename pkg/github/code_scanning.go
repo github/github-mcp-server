@@ -18,6 +18,7 @@ import (
 
 func GetCodeScanningAlert(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataCodeSecurity,
 		mcp.Tool{
 			Name:        "get_code_scanning_alert",
 			Description: t("TOOL_GET_CODE_SCANNING_ALERT_DESCRIPTION", "Get details of a specific code scanning alert in a GitHub repository."),
@@ -95,6 +96,7 @@ func GetCodeScanningAlert(t translations.TranslationHelperFunc) toolsets.ServerT
 
 func ListCodeScanningAlerts(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataCodeSecurity,
 		mcp.Tool{
 			Name:        "list_code_scanning_alerts",
 			Description: t("TOOL_LIST_CODE_SCANNING_ALERTS_DESCRIPTION", "List code scanning alerts in a GitHub repository."),

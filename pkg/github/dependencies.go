@@ -35,19 +35,19 @@ type ToolDependencies struct {
 	ContentWindowSize int
 }
 
-// NewTool creates a ServerTool with fully-typed ToolDependencies.
+// NewTool creates a ServerTool with fully-typed ToolDependencies and toolset metadata.
 // This helper isolates the type assertion from `any` to `ToolDependencies`,
 // so tool implementations remain fully typed without assertions scattered throughout.
-func NewTool[In, Out any](tool mcp.Tool, handler func(deps ToolDependencies) mcp.ToolHandlerFor[In, Out]) toolsets.ServerTool {
-	return toolsets.NewServerTool(tool, func(d any) mcp.ToolHandlerFor[In, Out] {
+func NewTool[In, Out any](toolset toolsets.ToolsetMetadata, tool mcp.Tool, handler func(deps ToolDependencies) mcp.ToolHandlerFor[In, Out]) toolsets.ServerTool {
+	return toolsets.NewServerTool(tool, toolset, func(d any) mcp.ToolHandlerFor[In, Out] {
 		return handler(d.(ToolDependencies))
 	})
 }
 
-// NewToolFromHandler creates a ServerTool with fully-typed ToolDependencies
+// NewToolFromHandler creates a ServerTool with fully-typed ToolDependencies and toolset metadata
 // for handlers that conform to mcp.ToolHandler directly.
-func NewToolFromHandler(tool mcp.Tool, handler func(deps ToolDependencies) mcp.ToolHandler) toolsets.ServerTool {
-	return toolsets.NewServerToolFromHandler(tool, func(d any) mcp.ToolHandler {
+func NewToolFromHandler(toolset toolsets.ToolsetMetadata, tool mcp.Tool, handler func(deps ToolDependencies) mcp.ToolHandler) toolsets.ServerTool {
+	return toolsets.NewServerToolFromHandler(tool, toolset, func(d any) mcp.ToolHandler {
 		return handler(d.(ToolDependencies))
 	})
 }
