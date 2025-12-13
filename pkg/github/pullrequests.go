@@ -58,6 +58,7 @@ Possible options:
 	WithPagination(schema)
 
 	return NewTool(
+		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "pull_request_read",
 			Description: t("TOOL_PULL_REQUEST_READ_DESCRIPTION", "Get information on a specific pull request in GitHub repository."),
@@ -430,6 +431,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) toolsets.ServerTool
 	}
 
 	return NewTool(
+		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "create_pull_request",
 			Description: t("TOOL_CREATE_PULL_REQUEST_DESCRIPTION", "Create a new pull request in a GitHub repository."),
@@ -582,6 +584,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) toolsets.ServerTool
 	}
 
 	return NewTool(
+		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "update_pull_request",
 			Description: t("TOOL_UPDATE_PULL_REQUEST_DESCRIPTION", "Update an existing pull request in a GitHub repository."),
@@ -864,6 +867,7 @@ func ListPullRequests(t translations.TranslationHelperFunc) toolsets.ServerTool 
 	WithPagination(schema)
 
 	return NewTool(
+		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "list_pull_requests",
 			Description: t("TOOL_LIST_PULL_REQUESTS_DESCRIPTION", "List pull requests in a GitHub repository. If the user specifies an author, then DO NOT use this tool and use the search_pull_requests tool instead."),
@@ -1000,6 +1004,7 @@ func MergePullRequest(t translations.TranslationHelperFunc) toolsets.ServerTool 
 	}
 
 	return NewTool(
+		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "merge_pull_request",
 			Description: t("TOOL_MERGE_PULL_REQUEST_DESCRIPTION", "Merge a pull request in a GitHub repository."),
@@ -1118,6 +1123,7 @@ func SearchPullRequests(t translations.TranslationHelperFunc) toolsets.ServerToo
 	WithPagination(schema)
 
 	return NewTool(
+		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "search_pull_requests",
 			Description: t("TOOL_SEARCH_PULL_REQUESTS_DESCRIPTION", "Search for pull requests in GitHub repositories using issues search syntax already scoped to is:pr"),
@@ -1161,6 +1167,7 @@ func UpdatePullRequestBranch(t translations.TranslationHelperFunc) toolsets.Serv
 	}
 
 	return NewTool(
+		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "update_pull_request_branch",
 			Description: t("TOOL_UPDATE_PULL_REQUEST_BRANCH_DESCRIPTION", "Update the branch of a pull request with the latest changes from the base branch."),
@@ -1282,6 +1289,7 @@ func PullRequestReviewWrite(t translations.TranslationHelperFunc) toolsets.Serve
 	}
 
 	return NewTool(
+		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name: "pull_request_review_write",
 			Description: t("TOOL_PULL_REQUEST_REVIEW_WRITE_DESCRIPTION", `Create and/or submit, delete review of a pull request.
@@ -1612,6 +1620,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) toolsets.Se
 	}
 
 	return NewTool(
+		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "add_comment_to_pending_review",
 			Description: t("TOOL_ADD_COMMENT_TO_PENDING_REVIEW_DESCRIPTION", "Add review comment to the requester's latest pending pull request review. A pending review needs to already exist to call this (check with the user if not sure)."),
@@ -1764,6 +1773,7 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) toolsets.ServerT
 	}
 
 	return NewTool(
+		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "request_copilot_review",
 			Description: t("TOOL_REQUEST_COPILOT_REVIEW_DESCRIPTION", "Request a GitHub Copilot code review for a pull request. Use this for automated feedback on pull requests, usually before requesting a human reviewer."),

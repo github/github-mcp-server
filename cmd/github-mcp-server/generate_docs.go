@@ -10,14 +10,12 @@ import (
 	"strings"
 
 	"github.com/github/github-mcp-server/pkg/github"
-	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/toolsets"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/shurcooL/githubv4"
 	"github.com/spf13/cobra"
 )
 
@@ -39,11 +37,6 @@ func mockGetClient(_ context.Context) (*gogithub.Client, error) {
 	return gogithub.NewClient(nil), nil
 }
 
-// mockGetGQLClient returns a mock GraphQL client for documentation generation
-func mockGetGQLClient(_ context.Context) (*githubv4.Client, error) {
-	return githubv4.NewClient(nil), nil
-}
-
 // mockGetRawClient returns a mock raw client for documentation generation
 func mockGetRawClient(_ context.Context) (*raw.Client, error) {
 	return nil, nil
@@ -58,6 +51,10 @@ func generateAllDocs() error {
 		return fmt.Errorf("failed to generate remote-server docs: %w", err)
 	}
 
+	if err := generateDeprecatedAliasesDocs("docs/deprecated-tool-aliases.md"); err != nil {
+		return fmt.Errorf("failed to generate deprecated aliases docs: %w", err)
+	}
+
 	return nil
 }
 
@@ -65,9 +62,8 @@ func generateReadmeDocs(readmePath string) error {
 	// Create translation helper
 	t, _ := translations.TranslationHelper()
 
-	// Create toolset group with mock clients
-	repoAccessCache := lockdown.GetInstance(nil)
-	tsg := github.DefaultToolsetGroup(false, mockGetClient, mockGetGQLClient, mockGetRawClient, t, 5000, github.FeatureFlags{}, repoAccessCache)
+	// Create toolset group with mock clients (no deps needed for doc generation)
+	tsg := github.NewToolsetGroup(t, mockGetClient, mockGetRawClient)
 
 	// Generate toolsets documentation
 	toolsetsDoc := generateToolsetsDoc(tsg)
@@ -133,20 +129,16 @@ func generateToolsetsDoc(tsg *toolsets.ToolsetGroup) string {
 	// Add the context toolset row (handled separately in README)
 	lines = append(lines, "| `context`               | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |")
 
-	// Get all toolsets except context (which is handled separately above)
-	var toolsetNames []string
-	for name := range tsg.Toolsets {
-		if name != "context" && name != "dynamic" { // Skip context and dynamic toolsets as they're handled separately
-			toolsetNames = append(toolsetNames, name)
+	// Get toolset IDs and descriptions
+	toolsetIDs := tsg.ToolsetIDs()
+	descriptions := tsg.ToolsetDescriptions()
+
+	// Filter out context and dynamic toolsets (handled separately)
+	for _, id := range toolsetIDs {
+		if id != "context" && id != "dynamic" {
+			description := descriptions[id]
+			lines = append(lines, fmt.Sprintf("| `%s` | %s |", id, description))
 		}
-	}
-
-	// Sort toolset names for consistent output
-	sort.Strings(toolsetNames)
-
-	for _, name := range toolsetNames {
-		toolset := tsg.Toolsets[name]
-		lines = append(lines, fmt.Sprintf("| `%s` | %s |", name, toolset.Description))
 	}
 
 	return strings.Join(lines, "\n")
@@ -155,30 +147,22 @@ func generateToolsetsDoc(tsg *toolsets.ToolsetGroup) string {
 func generateToolsDoc(tsg *toolsets.ToolsetGroup) string {
 	var sections []string
 
-	// Get all toolset names and sort them alphabetically for deterministic order
-	var toolsetNames []string
-	for name := range tsg.Toolsets {
-		if name != "dynamic" { // Skip dynamic toolset as it's handled separately
-			toolsetNames = append(toolsetNames, name)
+	// Get toolset IDs (already sorted deterministically)
+	toolsetIDs := tsg.ToolsetIDs()
+
+	for _, toolsetID := range toolsetIDs {
+		if toolsetID == "dynamic" { // Skip dynamic toolset as it's handled separately
+			continue
 		}
-	}
-	sort.Strings(toolsetNames)
 
-	for _, toolsetName := range toolsetNames {
-		toolset := tsg.Toolsets[toolsetName]
-
-		tools := toolset.GetAvailableTools()
+		// Get tools for this toolset (already sorted deterministically)
+		tools := tsg.ToolsForToolset(toolsetID)
 		if len(tools) == 0 {
 			continue
 		}
 
-		// Sort tools by name for deterministic order
-		sort.Slice(tools, func(i, j int) bool {
-			return tools[i].Tool.Name < tools[j].Tool.Name
-		})
-
 		// Generate section header - capitalize first letter and replace underscores
-		sectionName := formatToolsetName(toolsetName)
+		sectionName := formatToolsetName(string(toolsetID))
 
 		var toolDocs []string
 		for _, serverTool := range tools {
@@ -322,33 +306,30 @@ func generateRemoteToolsetsDoc() string {
 	t, _ := translations.TranslationHelper()
 
 	// Create toolset group with mock clients
-	repoAccessCache := lockdown.GetInstance(nil)
-	tsg := github.DefaultToolsetGroup(false, mockGetClient, mockGetGQLClient, mockGetRawClient, t, 5000, github.FeatureFlags{}, repoAccessCache)
+	tsg := github.NewToolsetGroup(t, mockGetClient, mockGetRawClient)
 
 	// Generate table header
 	buf.WriteString("| Name           | Description                                      | API URL                                               | 1-Click Install (VS Code)                                                                                                                                                                                                 | Read-only Link                                                                                                 | 1-Click Read-only Install (VS Code)                                                                                                                                                                                                 |\n")
 	buf.WriteString("|----------------|--------------------------------------------------|-------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|\n")
 
-	// Get all toolsets
-	toolsetNames := make([]string, 0, len(tsg.Toolsets))
-	for name := range tsg.Toolsets {
-		if name != "context" && name != "dynamic" { // Skip context and dynamic toolsets as they're handled separately
-			toolsetNames = append(toolsetNames, name)
-		}
-	}
-	sort.Strings(toolsetNames)
+	// Get toolset IDs and descriptions
+	toolsetIDs := tsg.ToolsetIDs()
+	descriptions := tsg.ToolsetDescriptions()
 
 	// Add "all" toolset first (special case)
 	buf.WriteString("| all            | All available GitHub MCP tools                    | https://api.githubcopilot.com/mcp/                    | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%22%7D)                                      | [read-only](https://api.githubcopilot.com/mcp/readonly)                                                      | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Freadonly%22%7D) |\n")
 
 	// Add individual toolsets
-	for _, name := range toolsetNames {
-		toolset := tsg.Toolsets[name]
+	for _, id := range toolsetIDs {
+		idStr := string(id)
+		if idStr == "context" || idStr == "dynamic" { // Skip context and dynamic toolsets as they're handled separately
+			continue
+		}
 
-		formattedName := formatToolsetName(name)
-		description := toolset.Description
-		apiURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s", name)
-		readonlyURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s/readonly", name)
+		description := descriptions[id]
+		formattedName := formatToolsetName(idStr)
+		apiURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s", idStr)
+		readonlyURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s/readonly", idStr)
 
 		// Create install config JSON (URL encoded)
 		installConfig := url.QueryEscape(fmt.Sprintf(`{"type": "http","url": "%s"}`, apiURL))
@@ -358,8 +339,8 @@ func generateRemoteToolsetsDoc() string {
 		installConfig = strings.ReplaceAll(installConfig, "+", "%20")
 		readonlyConfig = strings.ReplaceAll(readonlyConfig, "+", "%20")
 
-		installLink := fmt.Sprintf("[Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", name, installConfig)
-		readonlyInstallLink := fmt.Sprintf("[Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", name, readonlyConfig)
+		installLink := fmt.Sprintf("[Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, installConfig)
+		readonlyInstallLink := fmt.Sprintf("[Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, readonlyConfig)
 
 		buf.WriteString(fmt.Sprintf("| %-14s | %-48s | %-53s | %-218s | %-110s | %-288s |\n",
 			formattedName,
@@ -372,4 +353,54 @@ func generateRemoteToolsetsDoc() string {
 	}
 
 	return buf.String()
+}
+
+func generateDeprecatedAliasesDocs(docsPath string) error {
+	// Read the current file
+	content, err := os.ReadFile(docsPath) //#nosec G304
+	if err != nil {
+		return fmt.Errorf("failed to read docs file: %w", err)
+	}
+
+	// Generate the table
+	aliasesDoc := generateDeprecatedAliasesTable()
+
+	// Replace content between markers
+	updatedContent := replaceSection(string(content), "START AUTOMATED ALIASES", "END AUTOMATED ALIASES", aliasesDoc)
+
+	// Write back to file
+	err = os.WriteFile(docsPath, []byte(updatedContent), 0600)
+	if err != nil {
+		return fmt.Errorf("failed to write deprecated aliases docs: %w", err)
+	}
+
+	fmt.Println("Successfully updated docs/deprecated-tool-aliases.md with automated documentation")
+	return nil
+}
+
+func generateDeprecatedAliasesTable() string {
+	var lines []string
+
+	// Add table header
+	lines = append(lines, "| Old Name | New Name |")
+	lines = append(lines, "|----------|----------|")
+
+	aliases := github.DeprecatedToolAliases
+	if len(aliases) == 0 {
+		lines = append(lines, "| *(none currently)* | |")
+	} else {
+		// Sort keys for deterministic output
+		var oldNames []string
+		for oldName := range aliases {
+			oldNames = append(oldNames, oldName)
+		}
+		sort.Strings(oldNames)
+
+		for _, oldName := range oldNames {
+			newName := aliases[oldName]
+			lines = append(lines, fmt.Sprintf("| `%s` | `%s` |", oldName, newName))
+		}
+	}
+
+	return strings.Join(lines, "\n")
 }
