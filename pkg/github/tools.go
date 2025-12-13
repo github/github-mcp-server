@@ -134,7 +134,7 @@ var (
 	}
 )
 
-func AvailableTools() []toolsets.ToolsetMetadata {
+func AvailableToolsets() []toolsets.ToolsetMetadata {
 	return []toolsets.ToolsetMetadata{
 		ToolsetMetadataContext,
 		ToolsetMetadataRepos,
@@ -153,7 +153,6 @@ func AvailableTools() []toolsets.ToolsetMetadata {
 		ToolsetMetadataSecurityAdvisories,
 		ToolsetMetadataProjects,
 		ToolsetMetadataStargazers,
-		ToolsetMetadataDynamic,
 		ToolsetLabels,
 	}
 }
@@ -161,7 +160,7 @@ func AvailableTools() []toolsets.ToolsetMetadata {
 // GetValidToolsetIDs returns a map of all valid toolset IDs for quick lookup
 func GetValidToolsetIDs() map[string]bool {
 	validIDs := make(map[string]bool)
-	for _, tool := range AvailableTools() {
+	for _, tool := range AvailableToolsets() {
 		validIDs[tool.ID] = true
 	}
 	// Add special keywords
@@ -316,13 +315,8 @@ func NewDefaultToolsetRegistry(getClient GetClientFn, getGQLClient GetGQLClientF
 		toolsets.NewServerTool(LabelWrite(getGQLClient, t)),
 	}
 
-	// Convert AvailableTools to toolsets.ToolsetMetadata slice
-	toolsetMetadatas := make([]toolsets.ToolsetMetadata, 0, len(AvailableTools())+1)
-	for _, tm := range AvailableTools() {
-		toolsetMetadatas = append(toolsetMetadatas, tm)
-	}
-	// Add experiments toolset (even though it has no tools, it needs to exist)
-	toolsetMetadatas = append(toolsetMetadatas, ToolsetMetadataExperiments)
+	// Include all available toolsets plus experiments (which has no tools but needs to exist)
+	toolsetMetadatas := append(AvailableToolsets(), ToolsetMetadataExperiments)
 
 	return toolsets.NewToolsetRegistry(toolsetMetadatas, tools)
 }
@@ -404,30 +398,30 @@ func GenerateToolsetsHelp() string {
 	defaultTools := strings.Join(GetDefaultToolsetIDs(), ", ")
 
 	// Format available tools with line breaks for better readability
-	allTools := AvailableTools()
-	var availableToolsLines []string
+	allToolsets := AvailableToolsets()
+	var availableToolsetsLines []string
 	const maxLineLength = 70
 	currentLine := ""
 
-	for i, tool := range allTools {
+	for i, toolset := range allToolsets {
 		switch {
 		case i == 0:
-			currentLine = tool.ID
-		case len(currentLine)+len(tool.ID)+2 <= maxLineLength:
-			currentLine += ", " + tool.ID
+			currentLine = toolset.ID
+		case len(currentLine)+len(toolset.ID)+2 <= maxLineLength:
+			currentLine += ", " + toolset.ID
 		default:
-			availableToolsLines = append(availableToolsLines, currentLine)
-			currentLine = tool.ID
+			availableToolsetsLines = append(availableToolsetsLines, currentLine)
+			currentLine = toolset.ID
 		}
 	}
 	if currentLine != "" {
-		availableToolsLines = append(availableToolsLines, currentLine)
+		availableToolsetsLines = append(availableToolsetsLines, currentLine)
 	}
 
-	availableTools := strings.Join(availableToolsLines, ",\n\t     ")
+	availableToolsets := strings.Join(availableToolsetsLines, ",\n\t     ")
 
 	toolsetsHelp := fmt.Sprintf("Comma-separated list of tool groups to enable (no spaces).\n"+
-		"Available: %s\n", availableTools) +
+		"Available: %s\n", availableToolsets) +
 		"Special toolset keywords:\n" +
 		"  - all: Enables all available toolsets\n" +
 		fmt.Sprintf("  - default: Enables the default toolset configuration of:\n\t     %s\n", defaultTools) +
