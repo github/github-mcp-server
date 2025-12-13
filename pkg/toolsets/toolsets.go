@@ -37,6 +37,12 @@ type ServerTool struct {
 	RegisterFunc func(s *mcp.Server)
 }
 
+// WithIcons sets the icons on the tool and returns the modified ServerTool.
+func (st ServerTool) WithIcons(icons []mcp.Icon) ServerTool {
+	st.Tool.Icons = icons
+	return st
+}
+
 func NewServerTool[In any, Out any](tool mcp.Tool, handler mcp.ToolHandlerFor[In, Out]) ServerTool {
 	return ServerTool{Tool: tool, RegisterFunc: func(s *mcp.Server) {
 		th := func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -86,6 +92,8 @@ type Toolset struct {
 	readOnly    bool
 	writeTools  []ServerTool
 	readTools   []ServerTool
+	// icons are optional icons to apply to all tools in this toolset (if not already set)
+	icons []mcp.Icon
 	// resources are not tools, but the community seems to be moving towards namespaces as a broader concept
 	// and in order to have multiple servers running concurrently, we want to avoid overlapping resources too.
 	resourceTemplates []ServerResourceTemplate
@@ -170,10 +178,11 @@ func (t *Toolset) SetReadOnly() {
 
 func (t *Toolset) AddWriteTools(tools ...ServerTool) *Toolset {
 	// Silently ignore if the toolset is read-only to avoid any breach of that contract
-	for _, tool := range tools {
-		if tool.Tool.Annotations.ReadOnlyHint {
-			panic(fmt.Sprintf("tool (%s) is incorrectly annotated as read-only", tool.Tool.Name))
+	for i := range tools {
+		if tools[i].Tool.Annotations.ReadOnlyHint {
+			panic(fmt.Sprintf("tool (%s) is incorrectly annotated as read-only", tools[i].Tool.Name))
 		}
+		t.applyIcons(&tools[i])
 	}
 	if !t.readOnly {
 		t.writeTools = append(t.writeTools, tools...)
@@ -182,10 +191,11 @@ func (t *Toolset) AddWriteTools(tools ...ServerTool) *Toolset {
 }
 
 func (t *Toolset) AddReadTools(tools ...ServerTool) *Toolset {
-	for _, tool := range tools {
-		if !tool.Tool.Annotations.ReadOnlyHint {
-			panic(fmt.Sprintf("tool (%s) must be annotated as read-only", tool.Tool.Name))
+	for i := range tools {
+		if !tools[i].Tool.Annotations.ReadOnlyHint {
+			panic(fmt.Sprintf("tool (%s) must be annotated as read-only", tools[i].Tool.Name))
 		}
+		t.applyIcons(&tools[i])
 	}
 	t.readTools = append(t.readTools, tools...)
 	return t
@@ -226,6 +236,20 @@ func NewToolset(name string, description string) *Toolset {
 		Description: description,
 		Enabled:     false,
 		readOnly:    false,
+	}
+}
+
+// SetIcons sets the default icons for all tools in this toolset.
+// Icons will be applied to tools that don't already have icons set.
+func (t *Toolset) SetIcons(icons []mcp.Icon) *Toolset {
+	t.icons = icons
+	return t
+}
+
+// applyIcons applies the toolset's icons to a tool if it doesn't already have icons.
+func (t *Toolset) applyIcons(tool *ServerTool) {
+	if len(tool.Tool.Icons) == 0 && len(t.icons) > 0 {
+		tool.Tool.Icons = t.icons
 	}
 }
 
