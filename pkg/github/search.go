@@ -46,6 +46,7 @@ func SearchRepositories(t translations.TranslationHelperFunc) toolsets.ServerToo
 	WithPagination(schema)
 
 	return NewTool(
+		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "search_repositories",
 			Description: t("TOOL_SEARCH_REPOSITORIES_DESCRIPTION", "Find GitHub repositories by name, description, readme, topics, or other metadata. Perfect for discovering projects, finding examples, or locating specific repositories across GitHub."),
@@ -189,6 +190,7 @@ func SearchCode(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	WithPagination(schema)
 
 	return NewTool(
+		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "search_code",
 			Description: t("TOOL_SEARCH_CODE_DESCRIPTION", "Fast and precise code search across ALL GitHub repositories using GitHub's native search engine. Best for finding exact symbols, functions, classes, or specific code patterns."),
@@ -373,6 +375,7 @@ func SearchUsers(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	WithPagination(schema)
 
 	return NewTool(
+		ToolsetMetadataUsers,
 		mcp.Tool{
 			Name:        "search_users",
 			Description: t("TOOL_SEARCH_USERS_DESCRIPTION", "Find GitHub users by username, real name, or other profile information. Useful for locating developers, contributors, or team members."),
@@ -413,6 +416,7 @@ func SearchOrgs(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	WithPagination(schema)
 
 	return NewTool(
+		ToolsetMetadataOrgs,
 		mcp.Tool{
 			Name:        "search_orgs",
 			Description: t("TOOL_SEARCH_ORGS_DESCRIPTION", "Find GitHub organizations by name, location, or other organization metadata. Ideal for discovering companies, open source foundations, or teams."),

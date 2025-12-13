@@ -124,6 +124,7 @@ func getQueryType(useOrdering bool, categoryID *githubv4.ID) any {
 
 func ListDiscussions(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataDiscussions,
 		mcp.Tool{
 			Name:        "list_discussions",
 			Description: t("TOOL_LIST_DISCUSSIONS_DESCRIPTION", "List discussions for a repository or organisation."),
@@ -277,6 +278,7 @@ func ListDiscussions(t translations.TranslationHelperFunc) toolsets.ServerTool {
 
 func GetDiscussion(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataDiscussions,
 		mcp.Tool{
 			Name:        "get_discussion",
 			Description: t("TOOL_GET_DISCUSSION_DESCRIPTION", "Get a specific discussion by ID"),
@@ -381,6 +383,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) toolsets.ServerTool {
 
 func GetDiscussionComments(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataDiscussions,
 		mcp.Tool{
 			Name:        "get_discussion_comments",
 			Description: t("TOOL_GET_DISCUSSION_COMMENTS_DESCRIPTION", "Get comments from a discussion"),
@@ -508,6 +511,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) toolsets.Server
 
 func ListDiscussionCategories(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataDiscussions,
 		mcp.Tool{
 			Name:        "list_discussion_categories",
 			Description: t("TOOL_LIST_DISCUSSION_CATEGORIES_DESCRIPTION", "List discussion categories with their id and name, for a repository or organisation."),

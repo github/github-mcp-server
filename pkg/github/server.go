@@ -18,13 +18,15 @@ import (
 
 func NewServer(version string, opts *mcp.ServerOptions) *mcp.Server {
 	if opts == nil {
-		// Add default options
-		opts = &mcp.ServerOptions{
-			HasTools:     true,
-			HasResources: true,
-			HasPrompts:   true,
-		}
+		opts = &mcp.ServerOptions{}
 	}
+
+	// Always advertise capabilities so clients know we support list_changed notifications.
+	// This is important for dynamic toolsets mode where we start with few tools
+	// and add more at runtime.
+	opts.HasTools = true
+	opts.HasResources = true
+	opts.HasPrompts = true
 
 	// Create a new MCP server
 	s := mcp.NewServer(&mcp.Implementation{
