@@ -17,8 +17,8 @@ import (
 
 func Test_ListNotifications(t *testing.T) {
 	// Verify tool definition and schema
-	mockClient := github.NewClient(nil)
-	tool, _ := ListNotifications(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ListNotifications(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_notifications", tool.Name)
@@ -125,12 +125,15 @@ func Test_ListNotifications(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListNotifications(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
+			require.NoError(t, err)
 			if tc.expectError {
-				require.NoError(t, err)
 				require.True(t, result.IsError)
 				errorContent := getErrorResult(t, result)
 				if tc.expectedErrMsg != "" {
@@ -139,7 +142,6 @@ func Test_ListNotifications(t *testing.T) {
 				return
 			}
 
-			require.NoError(t, err)
 			require.False(t, result.IsError)
 			textContent := getTextResult(t, result)
 			t.Logf("textContent: %s", textContent.Text)
@@ -154,8 +156,8 @@ func Test_ListNotifications(t *testing.T) {
 
 func Test_ManageNotificationSubscription(t *testing.T) {
 	// Verify tool definition and schema
-	mockClient := github.NewClient(nil)
-	tool, _ := ManageNotificationSubscription(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ManageNotificationSubscription(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "manage_notification_subscription", tool.Name)
@@ -256,10 +258,14 @@ func Test_ManageNotificationSubscription(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ManageNotificationSubscription(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
+			require.NoError(t, err)
 			if tc.expectError {
 				require.NoError(t, err)
 				require.NotNil(t, result)
@@ -295,8 +301,8 @@ func Test_ManageNotificationSubscription(t *testing.T) {
 
 func Test_ManageRepositoryNotificationSubscription(t *testing.T) {
 	// Verify tool definition and schema
-	mockClient := github.NewClient(nil)
-	tool, _ := ManageRepositoryNotificationSubscription(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ManageRepositoryNotificationSubscription(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "manage_repository_notification_subscription", tool.Name)
@@ -415,12 +421,15 @@ func Test_ManageRepositoryNotificationSubscription(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ManageRepositoryNotificationSubscription(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
+			require.NoError(t, err)
 			if tc.expectError {
-				require.NoError(t, err)
 				require.NotNil(t, result)
 				text := getTextResult(t, result).Text
 				switch {
@@ -461,8 +470,8 @@ func Test_ManageRepositoryNotificationSubscription(t *testing.T) {
 
 func Test_DismissNotification(t *testing.T) {
 	// Verify tool definition and schema
-	mockClient := github.NewClient(nil)
-	tool, _ := DismissNotification(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := DismissNotification(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "dismiss_notification", tool.Name)
@@ -554,13 +563,16 @@ func Test_DismissNotification(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := DismissNotification(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
+			require.NoError(t, err)
 			if tc.expectError {
 				// The tool returns a ToolResultError with a specific message
-				require.NoError(t, err)
 				require.NotNil(t, result)
 				text := getTextResult(t, result).Text
 				switch {
@@ -596,8 +608,8 @@ func Test_DismissNotification(t *testing.T) {
 
 func Test_MarkAllNotificationsRead(t *testing.T) {
 	// Verify tool definition and schema
-	mockClient := github.NewClient(nil)
-	tool, _ := MarkAllNotificationsRead(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := MarkAllNotificationsRead(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "mark_all_notifications_read", tool.Name)
@@ -676,12 +688,15 @@ func Test_MarkAllNotificationsRead(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := MarkAllNotificationsRead(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
+			require.NoError(t, err)
 			if tc.expectError {
-				require.NoError(t, err)
 				require.True(t, result.IsError)
 				errorContent := getErrorResult(t, result)
 				if tc.expectedErrMsg != "" {
@@ -702,8 +717,8 @@ func Test_MarkAllNotificationsRead(t *testing.T) {
 
 func Test_GetNotificationDetails(t *testing.T) {
 	// Verify tool definition and schema
-	mockClient := github.NewClient(nil)
-	tool, _ := GetNotificationDetails(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := GetNotificationDetails(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "get_notification_details", tool.Name)
@@ -757,12 +772,15 @@ func Test_GetNotificationDetails(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetNotificationDetails(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
+			require.NoError(t, err)
 			if tc.expectError {
-				require.NoError(t, err)
 				require.True(t, result.IsError)
 				errorContent := getErrorResult(t, result)
 				if tc.expectedErrMsg != "" {
