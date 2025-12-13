@@ -27,6 +27,7 @@ const (
 // ListNotifications creates a tool to list notifications for the current user.
 func ListNotifications(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataNotifications,
 		mcp.Tool{
 			Name:        "list_notifications",
 			Description: t("TOOL_LIST_NOTIFICATIONS_DESCRIPTION", "Lists all GitHub notifications for the authenticated user, including unread notifications, mentions, review requests, assignments, and updates on issues or pull requests. Use this tool whenever the user asks what to work on next, requests a summary of their GitHub activity, wants to see pending reviews, or needs to check for new updates or tasks. This tool is the primary way to discover actionable items, reminders, and outstanding work on GitHub. Always call this tool when asked what to work on next, what is pending, or what needs attention in GitHub."),
@@ -164,6 +165,7 @@ func ListNotifications(t translations.TranslationHelperFunc) toolsets.ServerTool
 // DismissNotification creates a tool to mark a notification as read/done.
 func DismissNotification(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataNotifications,
 		mcp.Tool{
 			Name:        "dismiss_notification",
 			Description: t("TOOL_DISMISS_NOTIFICATION_DESCRIPTION", "Dismiss a notification by marking it as read or done"),
@@ -246,6 +248,7 @@ func DismissNotification(t translations.TranslationHelperFunc) toolsets.ServerTo
 // MarkAllNotificationsRead creates a tool to mark all notifications as read.
 func MarkAllNotificationsRead(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataNotifications,
 		mcp.Tool{
 			Name:        "mark_all_notifications_read",
 			Description: t("TOOL_MARK_ALL_NOTIFICATIONS_READ_DESCRIPTION", "Mark all notifications as read"),
@@ -338,6 +341,7 @@ func MarkAllNotificationsRead(t translations.TranslationHelperFunc) toolsets.Ser
 // GetNotificationDetails creates a tool to get details for a specific notification.
 func GetNotificationDetails(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataNotifications,
 		mcp.Tool{
 			Name:        "get_notification_details",
 			Description: t("TOOL_GET_NOTIFICATION_DETAILS_DESCRIPTION", "Get detailed information for a specific GitHub notification, always call this tool when the user asks for details about a specific notification, if you don't know the ID list notifications first."),
@@ -407,6 +411,7 @@ const (
 // ManageNotificationSubscription creates a tool to manage a notification subscription (ignore, watch, delete)
 func ManageNotificationSubscription(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataNotifications,
 		mcp.Tool{
 			Name:        "manage_notification_subscription",
 			Description: t("TOOL_MANAGE_NOTIFICATION_SUBSCRIPTION_DESCRIPTION", "Manage a notification subscription: ignore, watch, or delete a notification thread subscription."),
@@ -503,6 +508,7 @@ const (
 // ManageRepositoryNotificationSubscription creates a tool to manage a repository notification subscription (ignore, watch, delete)
 func ManageRepositoryNotificationSubscription(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	return NewTool(
+		ToolsetMetadataNotifications,
 		mcp.Tool{
 			Name:        "manage_repository_notification_subscription",
 			Description: t("TOOL_MANAGE_REPOSITORY_NOTIFICATION_SUBSCRIPTION_DESCRIPTION", "Manage a repository notification subscription: ignore, watch, or delete repository notifications subscription for the provided repository."),
