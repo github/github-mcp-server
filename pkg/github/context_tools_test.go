@@ -20,7 +20,8 @@ import (
 func Test_GetMe(t *testing.T) {
 	t.Parallel()
 
-	tool, _ := GetMe(nil, translations.NullTranslationHelper)
+	serverTool := GetMe(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	// Verify some basic very important properties
@@ -108,21 +109,28 @@ func Test_GetMe(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, handler := GetMe(tc.stubbedGetClientFn, translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: tc.stubbedGetClientFn,
+			}
+			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, _, _ := handler(context.Background(), &request, tc.requestArgs)
-			textContent := getTextResult(t, result)
+			result, err := handler(context.Background(), &request)
+			require.NoError(t, err)
 
 			if tc.expectToolError {
-				assert.True(t, result.IsError, "expected tool call result to be an error")
-				assert.Contains(t, textContent.Text, tc.expectedToolErrMsg)
+				require.True(t, result.IsError, "expected tool call result to be an error")
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedToolErrMsg)
 				return
 			}
 
+			require.False(t, result.IsError)
+			textContent := getTextResult(t, result)
+
 			// Unmarshal and verify the result
 			var returnedUser MinimalUser
-			err := json.Unmarshal([]byte(textContent.Text), &returnedUser)
+			err = json.Unmarshal([]byte(textContent.Text), &returnedUser)
 			require.NoError(t, err)
 
 			// Verify minimal user details
@@ -145,7 +153,8 @@ func Test_GetMe(t *testing.T) {
 func Test_GetTeams(t *testing.T) {
 	t.Parallel()
 
-	tool, _ := GetTeams(nil, nil, translations.NullTranslationHelper)
+	serverTool := GetTeams(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "get_teams", tool.Name)
@@ -331,18 +340,25 @@ func Test_GetTeams(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, handler := GetTeams(tc.stubbedGetClientFn, tc.stubbedGetGQLClientFn, translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient:    tc.stubbedGetClientFn,
+				GetGQLClient: tc.stubbedGetGQLClientFn,
+			}
+			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 			require.NoError(t, err)
-			textContent := getTextResult(t, result)
 
 			if tc.expectToolError {
-				assert.True(t, result.IsError, "expected tool call result to be an error")
-				assert.Contains(t, textContent.Text, tc.expectedToolErrMsg)
+				require.True(t, result.IsError, "expected tool call result to be an error")
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedToolErrMsg)
 				return
 			}
+
+			require.False(t, result.IsError)
+			textContent := getTextResult(t, result)
 
 			var organizations []OrganizationTeams
 			err = json.Unmarshal([]byte(textContent.Text), &organizations)
@@ -372,7 +388,8 @@ func Test_GetTeams(t *testing.T) {
 func Test_GetTeamMembers(t *testing.T) {
 	t.Parallel()
 
-	tool, _ := GetTeamMembers(nil, translations.NullTranslationHelper)
+	serverTool := GetTeamMembers(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "get_team_members", tool.Name)
@@ -467,18 +484,24 @@ func Test_GetTeamMembers(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, handler := GetTeamMembers(tc.stubbedGetGQLClientFn, translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetGQLClient: tc.stubbedGetGQLClientFn,
+			}
+			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 			require.NoError(t, err)
-			textContent := getTextResult(t, result)
 
 			if tc.expectToolError {
-				assert.True(t, result.IsError, "expected tool call result to be an error")
-				assert.Contains(t, textContent.Text, tc.expectedToolErrMsg)
+				require.True(t, result.IsError, "expected tool call result to be an error")
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedToolErrMsg)
 				return
 			}
+
+			require.False(t, result.IsError)
+			textContent := getTextResult(t, result)
 
 			var members []string
 			err = json.Unmarshal([]byte(textContent.Text), &members)
