@@ -1783,6 +1783,7 @@ func parseISOTimestamp(timestamp string) (time.Time, error) {
 
 func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) (mcp.Prompt, mcp.PromptHandler) {
 	return mcp.Prompt{
+			Meta:        NewPromptMeta(ToolsetMetadataIssues),
 			Name:        "AssignCodingAgent",
 			Description: t("PROMPT_ASSIGN_CODING_AGENT_DESCRIPTION", "Assign GitHub Coding Agent to multiple tasks in a GitHub repository."),
 			Arguments: []*mcp.PromptArgument{

@@ -43,6 +43,24 @@ func NewToolMeta(toolset ToolsetMetadata, requiredScopes ...scopes.Scope) mcp.Me
 	return meta
 }
 
+// NewResourceMeta creates resource template metadata with the given toolset.
+// Returns mcp.Meta (map[string]any) for direct use in mcp.ResourceTemplate.Meta.
+func NewResourceMeta(toolset ToolsetMetadata) mcp.Meta {
+	if toolset.ID == "" {
+		panic("toolset ID is required for ResourceMeta")
+	}
+	return mcp.Meta{"toolset": toolset.ID}
+}
+
+// NewPromptMeta creates prompt metadata with the given toolset.
+// Returns mcp.Meta (map[string]any) for direct use in mcp.Prompt.Meta.
+func NewPromptMeta(toolset ToolsetMetadata) mcp.Meta {
+	if toolset.ID == "" {
+		panic("toolset ID is required for PromptMeta")
+	}
+	return mcp.Meta{"toolset": toolset.ID}
+}
+
 var (
 	ToolsetMetadataAll = ToolsetMetadata{
 		ID:          "all",
@@ -318,7 +336,24 @@ func NewDefaultToolsetRegistry(getClient GetClientFn, getGQLClient GetGQLClientF
 	// Include all available toolsets plus experiments (which has no tools but needs to exist)
 	toolsetMetadatas := append(AvailableToolsets(), ToolsetMetadataExperiments)
 
-	return toolsets.NewToolsetRegistry(toolsetMetadatas, tools)
+	// Resource templates - self-describing with toolset in Meta
+	resourceTemplates := []toolsets.ServerResourceTemplate{
+		toolsets.NewServerResourceTemplate(GetRepositoryResourceContent(getClient, getRawClient, t)),
+		toolsets.NewServerResourceTemplate(GetRepositoryResourceBranchContent(getClient, getRawClient, t)),
+		toolsets.NewServerResourceTemplate(GetRepositoryResourceCommitContent(getClient, getRawClient, t)),
+		toolsets.NewServerResourceTemplate(GetRepositoryResourceTagContent(getClient, getRawClient, t)),
+		toolsets.NewServerResourceTemplate(GetRepositoryResourcePrContent(getClient, getRawClient, t)),
+	}
+
+	// Prompts - self-describing with toolset in Meta
+	prompts := []toolsets.ServerPrompt{
+		toolsets.NewServerPrompt(AssignCodingAgentPrompt(t)),
+		toolsets.NewServerPrompt(IssueToFixWorkflowPrompt(t)),
+	}
+
+	return toolsets.NewToolsetRegistry(toolsetMetadatas, tools).
+		WithResourceTemplates(resourceTemplates...).
+		WithPrompts(prompts...)
 }
 
 // DefaultToolsetGroup creates a ToolsetGroup with the default configuration.
@@ -330,35 +365,9 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 		AvailableScopes: nil, // No scope filtering for backwards compatibility
 	})
 
-	// Add resource templates and prompts (these aren't tools, handled separately)
-	addResourceTemplatesAndPrompts(tsg, getClient, getRawClient, t)
-
 	tsg.AddDeprecatedToolAliases(DeprecatedToolAliases)
 
 	return tsg
-}
-
-// addResourceTemplatesAndPrompts adds resource templates and prompts to toolsets.
-// These are not tools and need to be added separately.
-func addResourceTemplatesAndPrompts(tsg *toolsets.ToolsetGroup, getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) {
-	// Add repository resource templates
-	if repos, err := tsg.GetToolset(ToolsetMetadataRepos.ID); err == nil {
-		repos.AddResourceTemplates(
-			toolsets.NewServerResourceTemplate(GetRepositoryResourceContent(getClient, getRawClient, t)),
-			toolsets.NewServerResourceTemplate(GetRepositoryResourceBranchContent(getClient, getRawClient, t)),
-			toolsets.NewServerResourceTemplate(GetRepositoryResourceCommitContent(getClient, getRawClient, t)),
-			toolsets.NewServerResourceTemplate(GetRepositoryResourceTagContent(getClient, getRawClient, t)),
-			toolsets.NewServerResourceTemplate(GetRepositoryResourcePrContent(getClient, getRawClient, t)),
-		)
-	}
-
-	// Add issue prompts
-	if issues, err := tsg.GetToolset(ToolsetMetadataIssues.ID); err == nil {
-		issues.AddPrompts(
-			toolsets.NewServerPrompt(AssignCodingAgentPrompt(t)),
-			toolsets.NewServerPrompt(IssueToFixWorkflowPrompt(t)),
-		)
-	}
 }
 
 // InitDynamicToolset creates a dynamic toolset that can be used to enable other toolsets, and so requires the server and toolset group as arguments

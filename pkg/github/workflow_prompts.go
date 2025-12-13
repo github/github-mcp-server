@@ -11,6 +11,7 @@ import (
 // IssueToFixWorkflowPrompt provides a guided workflow for creating an issue and then generating a PR to fix it
 func IssueToFixWorkflowPrompt(t translations.TranslationHelperFunc) (tool mcp.Prompt, handler mcp.PromptHandler) {
 	return mcp.Prompt{
+			Meta:        NewPromptMeta(ToolsetMetadataIssues),
 			Name:        "issue_to_fix_workflow",
 			Description: t("PROMPT_ISSUE_TO_FIX_WORKFLOW_DESCRIPTION", "Create an issue for a problem and then generate a pull request to fix it"),
 			Arguments: []*mcp.PromptArgument{

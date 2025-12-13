@@ -213,11 +213,13 @@ type ToolsetMetadata struct {
 	Description string
 }
 
-// ToolsetRegistry holds a collection of toolset definitions and their tools.
+// ToolsetRegistry holds a collection of toolset definitions and their tools, resources, and prompts.
 // It provides a NewToolsetGroup method to create configured ToolsetGroups.
 type ToolsetRegistry struct {
-	toolsetMetadatas []ToolsetMetadata
-	tools            []ServerTool
+	toolsetMetadatas  []ToolsetMetadata
+	tools             []ServerTool
+	resourceTemplates []ServerResourceTemplate
+	prompts           []ServerPrompt
 }
 
 // NewToolsetRegistry creates a new ToolsetRegistry with the given toolset metadata and tools.
@@ -226,6 +228,18 @@ func NewToolsetRegistry(toolsetMetadatas []ToolsetMetadata, tools []ServerTool) 
 		toolsetMetadatas: toolsetMetadatas,
 		tools:            tools,
 	}
+}
+
+// WithResourceTemplates adds resource templates to the registry.
+func (r *ToolsetRegistry) WithResourceTemplates(templates ...ServerResourceTemplate) *ToolsetRegistry {
+	r.resourceTemplates = append(r.resourceTemplates, templates...)
+	return r
+}
+
+// WithPrompts adds prompts to the registry.
+func (r *ToolsetRegistry) WithPrompts(prompts ...ServerPrompt) *ToolsetRegistry {
+	r.prompts = append(r.prompts, prompts...)
+	return r
 }
 
 // ToolsetGroupConfig specifies the configuration for creating a ToolsetGroup.
@@ -272,8 +286,40 @@ func (r *ToolsetRegistry) NewToolsetGroup(config ToolsetGroupConfig) *ToolsetGro
 		toolsByToolset[toolsetID] = append(toolsByToolset[toolsetID], tool)
 	}
 
-	// Create toolsets and add tools
-	for toolsetID, toolsetTools := range toolsByToolset {
+	// Group resources by toolset
+	resourcesByToolset := make(map[string][]ServerResourceTemplate)
+	for _, resource := range r.resourceTemplates {
+		toolsetID := getToolsetFromMeta(resource.Template.Meta)
+		if toolsetID == "" {
+			panic(fmt.Sprintf("resource template %q has no toolset in Meta", resource.Template.Name))
+		}
+		resourcesByToolset[toolsetID] = append(resourcesByToolset[toolsetID], resource)
+	}
+
+	// Group prompts by toolset
+	promptsByToolset := make(map[string][]ServerPrompt)
+	for _, prompt := range r.prompts {
+		toolsetID := getToolsetFromMeta(prompt.Prompt.Meta)
+		if toolsetID == "" {
+			panic(fmt.Sprintf("prompt %q has no toolset in Meta", prompt.Prompt.Name))
+		}
+		promptsByToolset[toolsetID] = append(promptsByToolset[toolsetID], prompt)
+	}
+
+	// Collect all toolset IDs that have tools, resources, or prompts
+	allToolsetIDs := make(map[string]bool)
+	for id := range toolsByToolset {
+		allToolsetIDs[id] = true
+	}
+	for id := range resourcesByToolset {
+		allToolsetIDs[id] = true
+	}
+	for id := range promptsByToolset {
+		allToolsetIDs[id] = true
+	}
+
+	// Create toolsets and add tools, resources, and prompts
+	for toolsetID := range allToolsetIDs {
 		meta, ok := metadataByID[toolsetID]
 		if !ok {
 			// Use a default description if not provided
@@ -282,13 +328,20 @@ func (r *ToolsetRegistry) NewToolsetGroup(config ToolsetGroupConfig) *ToolsetGro
 
 		ts := NewToolset(meta.ID, meta.Description)
 
-		for _, tool := range toolsetTools {
+		// Add tools
+		for _, tool := range toolsByToolset[toolsetID] {
 			if isReadOnlyTool(tool) {
 				ts.readTools = append(ts.readTools, tool)
 			} else {
 				ts.writeTools = append(ts.writeTools, tool)
 			}
 		}
+
+		// Add resources
+		ts.resourceTemplates = append(ts.resourceTemplates, resourcesByToolset[toolsetID]...)
+
+		// Add prompts
+		ts.prompts = append(ts.prompts, promptsByToolset[toolsetID]...)
 
 		tsg.AddToolset(ts)
 	}
