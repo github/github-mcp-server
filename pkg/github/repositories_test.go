@@ -23,9 +23,8 @@ import (
 
 func Test_GetFileContents(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	mockRawClient := raw.NewClient(mockClient, &url.URL{Scheme: "https", Host: "raw.githubusercontent.com", Path: "/"})
-	tool, _ := GetFileContents(stubGetClientFn(mockClient), stubGetRawClientFn(mockRawClient), translations.NullTranslationHelper)
+	serverTool := GetFileContents(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -287,18 +286,23 @@ func Test_GetFileContents(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
 			mockRawClient := raw.NewClient(client, &url.URL{Scheme: "https", Host: "raw.example.com", Path: "/"})
-			_, handler := GetFileContents(stubGetClientFn(client), stubGetRawClientFn(mockRawClient), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient:    stubGetClientFn(client),
+				GetRawClient: stubGetRawClientFn(mockRawClient),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				require.NoError(t, err)
+				textContent := getErrorResult(t, result)
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
 				return
 			}
 
@@ -331,8 +335,8 @@ func Test_GetFileContents(t *testing.T) {
 
 func Test_ForkRepository(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := ForkRepository(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ForkRepository(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -406,13 +410,16 @@ func Test_ForkRepository(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ForkRepository(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -436,8 +443,8 @@ func Test_ForkRepository(t *testing.T) {
 
 func Test_CreateBranch(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := CreateBranch(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := CreateBranch(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -599,13 +606,16 @@ func Test_CreateBranch(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := CreateBranch(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -634,8 +644,8 @@ func Test_CreateBranch(t *testing.T) {
 
 func Test_GetCommit(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := GetCommit(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := GetCommit(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -728,13 +738,16 @@ func Test_GetCommit(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetCommit(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -766,8 +779,8 @@ func Test_GetCommit(t *testing.T) {
 
 func Test_ListCommits(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := ListCommits(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ListCommits(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -951,13 +964,16 @@ func Test_ListCommits(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListCommits(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -999,8 +1015,8 @@ func Test_ListCommits(t *testing.T) {
 
 func Test_CreateOrUpdateFile(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := CreateOrUpdateFile(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := CreateOrUpdateFile(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -1127,13 +1143,16 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := CreateOrUpdateFile(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -1169,8 +1188,8 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 
 func Test_CreateRepository(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := CreateRepository(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := CreateRepository(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -1310,13 +1329,16 @@ func Test_CreateRepository(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := CreateRepository(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -1346,8 +1368,8 @@ func Test_CreateRepository(t *testing.T) {
 
 func Test_PushFiles(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := PushFiles(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := PushFiles(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -1646,13 +1668,16 @@ func Test_PushFiles(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := PushFiles(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -1690,8 +1715,8 @@ func Test_PushFiles(t *testing.T) {
 
 func Test_ListBranches(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := ListBranches(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ListBranches(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -1764,17 +1789,21 @@ func Test_ListBranches(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mock client
 			mockClient := github.NewClient(mock.NewMockedHTTPClient(tt.mockResponses...))
-			_, handler := ListBranches(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(mockClient),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create request
 			request := createMCPRequest(tt.args)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tt.args)
+			result, err := handler(context.Background(), &request)
 			if tt.wantErr {
-				require.Error(t, err)
+				require.NoError(t, err)
 				if tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
+					textContent := getErrorResult(t, result)
+					assert.Contains(t, textContent.Text, tt.errContains)
 				}
 				return
 			}
@@ -1804,8 +1833,8 @@ func Test_ListBranches(t *testing.T) {
 
 func Test_DeleteFile(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := DeleteFile(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := DeleteFile(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -1948,13 +1977,16 @@ func Test_DeleteFile(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := DeleteFile(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -1985,8 +2017,8 @@ func Test_DeleteFile(t *testing.T) {
 
 func Test_ListTags(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := ListTags(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ListTags(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -2072,13 +2104,16 @@ func Test_ListTags(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListTags(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -2112,8 +2147,8 @@ func Test_ListTags(t *testing.T) {
 
 func Test_GetTag(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := GetTag(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := GetTag(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -2229,13 +2264,16 @@ func Test_GetTag(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetTag(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -2267,8 +2305,8 @@ func Test_GetTag(t *testing.T) {
 }
 
 func Test_ListReleases(t *testing.T) {
-	mockClient := github.NewClient(nil)
-	tool, _ := ListReleases(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ListReleases(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -2339,9 +2377,12 @@ func Test_ListReleases(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListReleases(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -2362,8 +2403,8 @@ func Test_ListReleases(t *testing.T) {
 	}
 }
 func Test_GetLatestRelease(t *testing.T) {
-	mockClient := github.NewClient(nil)
-	tool, _ := GetLatestRelease(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := GetLatestRelease(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -2427,9 +2468,12 @@ func Test_GetLatestRelease(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetLatestRelease(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -2448,8 +2492,8 @@ func Test_GetLatestRelease(t *testing.T) {
 }
 
 func Test_GetReleaseByTag(t *testing.T) {
-	mockClient := github.NewClient(nil)
-	tool, _ := GetReleaseByTag(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := GetReleaseByTag(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -2572,11 +2616,14 @@ func Test_GetReleaseByTag(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetReleaseByTag(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
 
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -2960,8 +3007,8 @@ func Test_resolveGitReference(t *testing.T) {
 
 func Test_ListStarredRepositories(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := ListStarredRepositories(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ListStarredRepositories(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -3081,13 +3128,16 @@ func Test_ListStarredRepositories(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListStarredRepositories(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -3119,8 +3169,8 @@ func Test_ListStarredRepositories(t *testing.T) {
 
 func Test_StarRepository(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := StarRepository(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := StarRepository(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -3179,13 +3229,16 @@ func Test_StarRepository(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := StarRepository(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -3207,8 +3260,8 @@ func Test_StarRepository(t *testing.T) {
 
 func Test_UnstarRepository(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := UnstarRepository(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := UnstarRepository(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -3267,13 +3320,16 @@ func Test_UnstarRepository(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := UnstarRepository(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
