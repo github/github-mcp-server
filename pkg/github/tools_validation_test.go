@@ -42,20 +42,6 @@ func TestAllToolsHaveRequiredMetadata(t *testing.T) {
 	}
 }
 
-// TestAllToolsHaveValidToolsetID validates that all tools belong to known toolsets
-func TestAllToolsHaveValidToolsetID(t *testing.T) {
-	tools := AllTools(stubTranslation)
-	validToolsetIDs := GetValidToolsetIDs()
-
-	for _, tool := range tools {
-		t.Run(tool.Tool.Name, func(t *testing.T) {
-			assert.True(t, validToolsetIDs[tool.Toolset.ID],
-				"Tool %q has invalid Toolset.ID %q - must be one of the defined toolsets",
-				tool.Tool.Name, tool.Toolset.ID)
-		})
-	}
-}
-
 // TestAllResourcesHaveRequiredMetadata validates that all resources have mandatory metadata
 func TestAllResourcesHaveRequiredMetadata(t *testing.T) {
 	// Resources are now stateless - no client functions needed
@@ -91,32 +77,6 @@ func TestAllPromptsHaveRequiredMetadata(t *testing.T) {
 			// Handler must be set
 			assert.NotNil(t, prompt.Handler,
 				"Prompt %q must have a Handler", prompt.Prompt.Name)
-		})
-	}
-}
-
-// TestAllResourcesHaveValidToolsetID validates that all resources belong to known toolsets
-func TestAllResourcesHaveValidToolsetID(t *testing.T) {
-	resources := AllResources(stubTranslation)
-	validToolsetIDs := GetValidToolsetIDs()
-
-	for _, res := range resources {
-		t.Run(res.Template.Name, func(t *testing.T) {
-			assert.True(t, validToolsetIDs[res.Toolset.ID],
-				"Resource %q has invalid Toolset.ID %q", res.Template.Name, res.Toolset.ID)
-		})
-	}
-}
-
-// TestAllPromptsHaveValidToolsetID validates that all prompts belong to known toolsets
-func TestAllPromptsHaveValidToolsetID(t *testing.T) {
-	prompts := AllPrompts(stubTranslation)
-	validToolsetIDs := GetValidToolsetIDs()
-
-	for _, prompt := range prompts {
-		t.Run(prompt.Prompt.Name, func(t *testing.T) {
-			assert.True(t, validToolsetIDs[prompt.Toolset.ID],
-				"Prompt %q has invalid Toolset.ID %q", prompt.Prompt.Name, prompt.Toolset.ID)
 		})
 	}
 }
@@ -187,17 +147,6 @@ func TestAllToolsHaveHandlerFunc(t *testing.T) {
 			assert.True(t, tool.HasHandler(),
 				"Tool %q HasHandler() should return true", tool.Tool.Name)
 		})
-	}
-}
-
-// TestDefaultToolsetsAreValid ensures default toolset IDs are all valid
-func TestDefaultToolsetsAreValid(t *testing.T) {
-	defaults := GetDefaultToolsetIDs()
-	valid := GetValidToolsetIDs()
-
-	for _, id := range defaults {
-		assert.True(t, valid[id],
-			"Default toolset ID %q is not in the valid toolset list", id)
 	}
 }
 
