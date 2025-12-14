@@ -13,13 +13,13 @@ import (
 )
 
 // DynamicToolDependencies contains dependencies for dynamic toolset management tools.
-// It includes the managed ToolsetGroup, the server for registration, and the deps
+// It includes the managed Registry, the server for registration, and the deps
 // that will be passed to tools when they are dynamically enabled.
 type DynamicToolDependencies struct {
 	// Server is the MCP server to register tools with
 	Server *mcp.Server
-	// ToolsetGroup contains all available tools that can be enabled dynamically
-	ToolsetGroup *toolsets.ToolsetGroup
+	// Registry contains all available tools that can be enabled dynamically
+	Registry *toolsets.Registry
 	// ToolDeps are the dependencies passed to tools when they are registered
 	ToolDeps any
 	// T is the translation helper function
@@ -33,20 +33,9 @@ func NewDynamicTool(toolset toolsets.ToolsetMetadata, tool mcp.Tool, handler fun
 	})
 }
 
-// AllToolsetIDsEnum returns all available toolset IDs as an enum for JSON Schema.
-func AllToolsetIDsEnum() []any {
-	toolsets := AvailableToolsets()
-	result := make([]any, len(toolsets))
-	for i, ts := range toolsets {
-		result[i] = ts.ID
-	}
-	return result
-}
-
-// ToolsetEnum returns the list of toolset IDs as an enum for JSON Schema.
-// Deprecated: Use AllToolsetIDsEnum() instead.
-func ToolsetEnum(toolsetGroup *toolsets.ToolsetGroup) []any {
-	toolsetIDs := toolsetGroup.ToolsetIDs()
+// toolsetIDsEnum returns the list of toolset IDs as an enum for JSON Schema.
+func toolsetIDsEnum(r *toolsets.Registry) []any {
+	toolsetIDs := r.ToolsetIDs()
 	result := make([]any, len(toolsetIDs))
 	for i, id := range toolsetIDs {
 		result[i] = id
@@ -56,16 +45,17 @@ func ToolsetEnum(toolsetGroup *toolsets.ToolsetGroup) []any {
 
 // DynamicTools returns the tools for dynamic toolset management.
 // These tools allow runtime discovery and enablement of toolsets.
-func DynamicTools() []toolsets.ServerTool {
+// The r parameter provides the available toolset IDs for JSON Schema enums.
+func DynamicTools(r *toolsets.Registry) []toolsets.ServerTool {
 	return []toolsets.ServerTool{
 		ListAvailableToolsets(),
-		GetToolsetsTools(),
-		EnableToolset(),
+		GetToolsetsTools(r),
+		EnableToolset(r),
 	}
 }
 
 // EnableToolset creates a tool that enables a toolset at runtime.
-func EnableToolset() toolsets.ServerTool {
+func EnableToolset(r *toolsets.Registry) toolsets.ServerTool {
 	return NewDynamicTool(
 		ToolsetMetadataDynamic,
 		mcp.Tool{
@@ -81,7 +71,7 @@ func EnableToolset() toolsets.ServerTool {
 					"toolset": {
 						Type:        "string",
 						Description: "The name of the toolset to enable",
-						Enum:        AllToolsetIDsEnum(),
+						Enum:        toolsetIDsEnum(r),
 					},
 				},
 				Required: []string{"toolset"},
@@ -96,19 +86,19 @@ func EnableToolset() toolsets.ServerTool {
 
 				toolsetID := toolsets.ToolsetID(toolsetName)
 
-				if !deps.ToolsetGroup.HasToolset(toolsetID) {
+				if !deps.Registry.HasToolset(toolsetID) {
 					return utils.NewToolResultError(fmt.Sprintf("Toolset %s not found", toolsetName)), nil, nil
 				}
 
-				if deps.ToolsetGroup.IsToolsetEnabled(toolsetID) {
+				if deps.Registry.IsToolsetEnabled(toolsetID) {
 					return utils.NewToolResultText(fmt.Sprintf("Toolset %s is already enabled", toolsetName)), nil, nil
 				}
 
 				// Mark the toolset as enabled so IsToolsetEnabled returns true
-				deps.ToolsetGroup.EnableToolset(toolsetID)
+				deps.Registry.EnableToolset(toolsetID)
 
 				// Get tools for this toolset and register them with the managed deps
-				toolsForToolset := deps.ToolsetGroup.ToolsForToolset(toolsetID)
+				toolsForToolset := deps.Registry.ToolsForToolset(toolsetID)
 				for _, st := range toolsForToolset {
 					st.RegisterFunc(deps.Server, deps.ToolDeps)
 				}
@@ -137,8 +127,8 @@ func ListAvailableToolsets() toolsets.ServerTool {
 		},
 		func(deps DynamicToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
 			return func(_ context.Context, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
-				toolsetIDs := deps.ToolsetGroup.ToolsetIDs()
-				descriptions := deps.ToolsetGroup.ToolsetDescriptions()
+				toolsetIDs := deps.Registry.ToolsetIDs()
+				descriptions := deps.Registry.ToolsetDescriptions()
 
 				payload := make([]map[string]string, 0, len(toolsetIDs))
 				for _, id := range toolsetIDs {
@@ -146,7 +136,7 @@ func ListAvailableToolsets() toolsets.ServerTool {
 						"name":              string(id),
 						"description":       descriptions[id],
 						"can_enable":        "true",
-						"currently_enabled": fmt.Sprintf("%t", deps.ToolsetGroup.IsToolsetEnabled(id)),
+						"currently_enabled": fmt.Sprintf("%t", deps.Registry.IsToolsetEnabled(id)),
 					}
 					payload = append(payload, t)
 				}
@@ -163,7 +153,7 @@ func ListAvailableToolsets() toolsets.ServerTool {
 }
 
 // GetToolsetsTools creates a tool that lists all tools in a specific toolset.
-func GetToolsetsTools() toolsets.ServerTool {
+func GetToolsetsTools(r *toolsets.Registry) toolsets.ServerTool {
 	return NewDynamicTool(
 		ToolsetMetadataDynamic,
 		mcp.Tool{
@@ -179,7 +169,7 @@ func GetToolsetsTools() toolsets.ServerTool {
 					"toolset": {
 						Type:        "string",
 						Description: "The name of the toolset you want to get the tools for",
-						Enum:        AllToolsetIDsEnum(),
+						Enum:        toolsetIDsEnum(r),
 					},
 				},
 				Required: []string{"toolset"},
@@ -194,12 +184,12 @@ func GetToolsetsTools() toolsets.ServerTool {
 
 				toolsetID := toolsets.ToolsetID(toolsetName)
 
-				if !deps.ToolsetGroup.HasToolset(toolsetID) {
+				if !deps.Registry.HasToolset(toolsetID) {
 					return utils.NewToolResultError(fmt.Sprintf("Toolset %s not found", toolsetName)), nil, nil
 				}
 
 				// Get all tools for this toolset (ignoring current filters for discovery)
-				toolsInToolset := deps.ToolsetGroup.ToolsForToolset(toolsetID)
+				toolsInToolset := deps.Registry.ToolsForToolset(toolsetID)
 				payload := make([]map[string]string, 0, len(toolsInToolset))
 
 				for _, st := range toolsInToolset {
