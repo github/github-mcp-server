@@ -162,8 +162,8 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		ContentWindowSize: cfg.ContentWindowSize,
 	}
 
-	// Create toolset group with all tools, resources, and prompts
-	tsg := github.NewToolsetGroup(cfg.Translator, getClient, getRawClient)
+	// Create toolset group with all tools, resources, and prompts (stateless)
+	tsg := github.NewToolsetGroup(cfg.Translator)
 
 	// Clean tool names (WithTools will resolve any deprecated aliases)
 	enabledTools := github.CleanTools(cfg.EnabledTools)
