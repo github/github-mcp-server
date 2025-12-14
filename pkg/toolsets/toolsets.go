@@ -767,3 +767,32 @@ func (tg *ToolsetGroup) AllTools() []ServerTool {
 
 	return result
 }
+
+// AvailableToolsets returns the unique toolsets that have tools, in sorted order.
+// This is the ordered intersection of toolsets with reality - only toolsets that
+// actually contain tools are returned, sorted by toolset ID.
+// Optional exclude parameter filters out specific toolset IDs from the result.
+func (tg *ToolsetGroup) AvailableToolsets(exclude ...ToolsetID) []ToolsetMetadata {
+	tools := tg.AllTools()
+	if len(tools) == 0 {
+		return nil
+	}
+
+	// Build exclude set for O(1) lookup
+	excludeSet := make(map[ToolsetID]bool, len(exclude))
+	for _, id := range exclude {
+		excludeSet[id] = true
+	}
+
+	var result []ToolsetMetadata
+	var lastID ToolsetID
+	for _, tool := range tools {
+		if tool.Toolset.ID != lastID {
+			lastID = tool.Toolset.ID
+			if !excludeSet[lastID] {
+				result = append(result, tool.Toolset)
+			}
+		}
+	}
+	return result
+}
