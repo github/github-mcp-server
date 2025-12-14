@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/github/github-mcp-server/pkg/github"
-	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/toolsets"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v79/github"
@@ -37,11 +36,6 @@ func mockGetClient(_ context.Context) (*gogithub.Client, error) {
 	return gogithub.NewClient(nil), nil
 }
 
-// mockGetRawClient returns a mock raw client for documentation generation
-func mockGetRawClient(_ context.Context) (*raw.Client, error) {
-	return nil, nil
-}
-
 func generateAllDocs() error {
 	if err := generateReadmeDocs("README.md"); err != nil {
 		return fmt.Errorf("failed to generate README docs: %w", err)
@@ -63,7 +57,7 @@ func generateReadmeDocs(readmePath string) error {
 	t, _ := translations.TranslationHelper()
 
 	// Create toolset group with mock clients (no deps needed for doc generation)
-	tsg := github.NewToolsetGroup(t, mockGetClient, mockGetRawClient)
+	tsg := github.NewToolsetGroup(t, mockGetClient, nil)
 
 	// Generate toolsets documentation
 	toolsetsDoc := generateToolsetsDoc(tsg)
@@ -306,7 +300,7 @@ func generateRemoteToolsetsDoc() string {
 	t, _ := translations.TranslationHelper()
 
 	// Create toolset group with mock clients
-	tsg := github.NewToolsetGroup(t, mockGetClient, mockGetRawClient)
+	tsg := github.NewToolsetGroup(t, mockGetClient, nil)
 
 	// Generate table header
 	buf.WriteString("| Name           | Description                                      | API URL                                               | 1-Click Install (VS Code)                                                                                                                                                                                                 | Read-only Link                                                                                                 | 1-Click Read-only Install (VS Code)                                                                                                                                                                                                 |\n")
