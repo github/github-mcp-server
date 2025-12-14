@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"regexp"
 	"sort"
 	"strings"
 
@@ -30,18 +29,20 @@ func init() {
 }
 
 func generateAllDocs() error {
-	if err := generateReadmeDocs("README.md"); err != nil {
-		return fmt.Errorf("failed to generate README docs: %w", err)
+	for _, doc := range []struct {
+		path string
+		fn   func(string) error
+	}{
+		// File to edit, function to generate its docs
+		{"README.md", generateReadmeDocs},
+		{"docs/remote-server.md", generateRemoteServerDocs},
+		{"docs/deprecated-tool-aliases.md", generateDeprecatedAliasesDocs},
+	} {
+		if err := doc.fn(doc.path); err != nil {
+			return fmt.Errorf("failed to generate docs for %s: %w", doc.path, err)
+		}
+		fmt.Printf("Successfully updated %s with automated documentation\n", doc.path)
 	}
-
-	if err := generateRemoteServerDocs("docs/remote-server.md"); err != nil {
-		return fmt.Errorf("failed to generate remote-server docs: %w", err)
-	}
-
-	if err := generateDeprecatedAliasesDocs("docs/deprecated-tool-aliases.md"); err != nil {
-		return fmt.Errorf("failed to generate deprecated aliases docs: %w", err)
-	}
-
 	return nil
 }
 
@@ -66,10 +67,16 @@ func generateReadmeDocs(readmePath string) error {
 	}
 
 	// Replace toolsets section
-	updatedContent := replaceSection(string(content), "START AUTOMATED TOOLSETS", "END AUTOMATED TOOLSETS", toolsetsDoc)
+	updatedContent, err := replaceSection(string(content), "START AUTOMATED TOOLSETS", "END AUTOMATED TOOLSETS", toolsetsDoc)
+	if err != nil {
+		return err
+	}
 
 	// Replace tools section
-	updatedContent = replaceSection(updatedContent, "START AUTOMATED TOOLS", "END AUTOMATED TOOLS", toolsDoc)
+	updatedContent, err = replaceSection(updatedContent, "START AUTOMATED TOOLS", "END AUTOMATED TOOLS", toolsDoc)
+	if err != nil {
+		return err
+	}
 
 	// Write back to file
 	err = os.WriteFile(readmePath, []byte(updatedContent), 0600)
@@ -77,7 +84,6 @@ func generateReadmeDocs(readmePath string) error {
 		return fmt.Errorf("failed to write README.md: %w", err)
 	}
 
-	fmt.Println("Successfully updated README.md with automated documentation")
 	return nil
 }
 
@@ -90,20 +96,12 @@ func generateRemoteServerDocs(docsPath string) error {
 	toolsetsDoc := generateRemoteToolsetsDoc()
 
 	// Replace content between markers
-	startMarker := "<!-- START AUTOMATED TOOLSETS -->"
-	endMarker := "<!-- END AUTOMATED TOOLSETS -->"
-
-	contentStr := string(content)
-	startIndex := strings.Index(contentStr, startMarker)
-	endIndex := strings.Index(contentStr, endMarker)
-
-	if startIndex == -1 || endIndex == -1 {
-		return fmt.Errorf("automation markers not found in %s", docsPath)
+	updatedContent, err := replaceSection(string(content), "START AUTOMATED TOOLSETS", "END AUTOMATED TOOLSETS", toolsetsDoc)
+	if err != nil {
+		return err
 	}
 
-	newContent := contentStr[:startIndex] + startMarker + "\n" + toolsetsDoc + "\n" + endMarker + contentStr[endIndex+len(endMarker):]
-
-	return os.WriteFile(docsPath, []byte(newContent), 0600) //#nosec G306
+	return os.WriteFile(docsPath, []byte(updatedContent), 0600) //#nosec G306
 }
 
 func generateToolsetsDoc(tsg *toolsets.ToolsetGroup) string {
@@ -275,15 +273,24 @@ func indentMultilineDescription(description, indent string) string {
 	return buf.String()
 }
 
-func replaceSection(content, startMarker, endMarker, newContent string) string {
-	startPattern := fmt.Sprintf(`<!-- %s -->`, regexp.QuoteMeta(startMarker))
-	endPattern := fmt.Sprintf(`<!-- %s -->`, regexp.QuoteMeta(endMarker))
+func replaceSection(content, startMarker, endMarker, newContent string) (string, error) {
+	start := fmt.Sprintf("<!-- %s -->", startMarker)
+	end := fmt.Sprintf("<!-- %s -->", endMarker)
 
-	re := regexp.MustCompile(fmt.Sprintf(`(?s)%s.*?%s`, startPattern, endPattern))
+	startIdx := strings.Index(content, start)
+	endIdx := strings.Index(content, end)
+	if startIdx == -1 || endIdx == -1 {
+		return "", fmt.Errorf("markers not found: %s / %s", start, end)
+	}
 
-	replacement := fmt.Sprintf("<!-- %s -->\n%s\n<!-- %s -->", startMarker, newContent, endMarker)
-
-	return re.ReplaceAllString(content, replacement)
+	var buf strings.Builder
+	buf.WriteString(content[:startIdx])
+	buf.WriteString(start)
+	buf.WriteString("\n")
+	buf.WriteString(newContent)
+	buf.WriteString("\n")
+	buf.WriteString(content[endIdx:])
+	return buf.String(), nil
 }
 
 func generateRemoteToolsetsDoc() string {
@@ -346,7 +353,10 @@ func generateDeprecatedAliasesDocs(docsPath string) error {
 	aliasesDoc := generateDeprecatedAliasesTable()
 
 	// Replace content between markers
-	updatedContent := replaceSection(string(content), "START AUTOMATED ALIASES", "END AUTOMATED ALIASES", aliasesDoc)
+	updatedContent, err := replaceSection(string(content), "START AUTOMATED ALIASES", "END AUTOMATED ALIASES", aliasesDoc)
+	if err != nil {
+		return err
+	}
 
 	// Write back to file
 	err = os.WriteFile(docsPath, []byte(updatedContent), 0600)
@@ -354,7 +364,6 @@ func generateDeprecatedAliasesDocs(docsPath string) error {
 		return fmt.Errorf("failed to write deprecated aliases docs: %w", err)
 	}
 
-	fmt.Println("Successfully updated docs/deprecated-tool-aliases.md with automated documentation")
 	return nil
 }
 
