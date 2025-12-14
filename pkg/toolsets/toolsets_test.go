@@ -252,22 +252,27 @@ func TestToolsForToolset(t *testing.T) {
 	}
 }
 
-func TestAddDeprecatedToolAliases(t *testing.T) {
+func TestWithDeprecatedToolAliases(t *testing.T) {
 	tools := []ServerTool{
 		mockTool("new_name", "toolset1", true),
 	}
 
 	tsg := NewToolsetGroup(tools, nil, nil)
-	tsg.AddDeprecatedToolAliases(map[string]string{
+	tsgWithAliases := tsg.WithDeprecatedToolAliases(map[string]string{
 		"old_name":  "new_name",
 		"get_issue": "issue_read",
 	})
 
-	if len(tsg.deprecatedAliases) != 2 {
-		t.Errorf("expected 2 aliases, got %d", len(tsg.deprecatedAliases))
+	// Original should be unchanged (immutable)
+	if len(tsg.deprecatedAliases) != 0 {
+		t.Errorf("original should have 0 aliases, got %d", len(tsg.deprecatedAliases))
 	}
-	if tsg.deprecatedAliases["old_name"] != "new_name" {
-		t.Errorf("expected alias 'old_name' -> 'new_name', got '%s'", tsg.deprecatedAliases["old_name"])
+
+	if len(tsgWithAliases.deprecatedAliases) != 2 {
+		t.Errorf("expected 2 aliases, got %d", len(tsgWithAliases.deprecatedAliases))
+	}
+	if tsgWithAliases.deprecatedAliases["old_name"] != "new_name" {
+		t.Errorf("expected alias 'old_name' -> 'new_name', got '%s'", tsgWithAliases.deprecatedAliases["old_name"])
 	}
 }
 
@@ -277,10 +282,10 @@ func TestResolveToolAliases(t *testing.T) {
 		mockTool("some_tool", "toolset1", true),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
-	tsg.AddDeprecatedToolAliases(map[string]string{
-		"get_issue": "issue_read",
-	})
+	tsg := NewToolsetGroup(tools, nil, nil).
+		WithDeprecatedToolAliases(map[string]string{
+			"get_issue": "issue_read",
+		})
 
 	// Test resolving a mix of aliases and canonical names
 	input := []string{"get_issue", "some_tool"}
@@ -384,10 +389,10 @@ func TestWithToolsResolvesAliases(t *testing.T) {
 		mockTool("issue_read", "toolset1", true),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
-	tsg.AddDeprecatedToolAliases(map[string]string{
-		"get_issue": "issue_read",
-	})
+	tsg := NewToolsetGroup(tools, nil, nil).
+		WithDeprecatedToolAliases(map[string]string{
+			"get_issue": "issue_read",
+		})
 
 	// Using deprecated alias should resolve to canonical name
 	filtered := tsg.WithToolsets([]string{}).WithTools([]string{"get_issue"})
@@ -593,10 +598,10 @@ func TestForMCPRequest_ToolsCall_DeprecatedAlias(t *testing.T) {
 		mockTool("list_commits", "repos", true),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
-	tsg.AddDeprecatedToolAliases(map[string]string{
-		"old_get_me": "get_me",
-	})
+	tsg := NewToolsetGroup(tools, nil, nil).
+		WithDeprecatedToolAliases(map[string]string{
+			"old_get_me": "get_me",
+		})
 
 	// Request using the deprecated alias
 	filtered := tsg.ForMCPRequest(MCPMethodToolsCall, "old_get_me")
@@ -1032,4 +1037,36 @@ func TestFeatureFlagPrompts(t *testing.T) {
 	if len(filtered.AvailablePrompts(context.Background())) != 2 {
 		t.Errorf("Expected 2 prompts with checker, got %d", len(filtered.AvailablePrompts(context.Background())))
 	}
+}
+
+func TestServerToolHasHandler(t *testing.T) {
+	// Tool with handler
+	toolWithHandler := mockTool("has_handler", "toolset1", true)
+	if !toolWithHandler.HasHandler() {
+		t.Error("Expected HasHandler() to return true for tool with handler")
+	}
+
+	// Tool without handler
+	toolWithoutHandler := ServerTool{
+		Tool:    mcp.Tool{Name: "no_handler"},
+		Toolset: testToolsetMetadata("toolset1"),
+	}
+	if toolWithoutHandler.HasHandler() {
+		t.Error("Expected HasHandler() to return false for tool without handler")
+	}
+}
+
+func TestServerToolHandlerPanicOnNil(t *testing.T) {
+	tool := ServerTool{
+		Tool:    mcp.Tool{Name: "no_handler"},
+		Toolset: testToolsetMetadata("toolset1"),
+	}
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("Expected Handler() to panic when HandlerFunc is nil")
+		}
+	}()
+
+	tool.Handler(nil)
 }
