@@ -28,10 +28,12 @@ var (
 	ToolsetMetadataContext = toolsets.ToolsetMetadata{
 		ID:          "context",
 		Description: "Tools that provide context about the current user and GitHub context you are operating in",
+		Default:     true,
 	}
 	ToolsetMetadataRepos = toolsets.ToolsetMetadata{
 		ID:          "repos",
 		Description: "GitHub Repository related tools",
+		Default:     true,
 	}
 	ToolsetMetadataGit = toolsets.ToolsetMetadata{
 		ID:          "git",
@@ -40,14 +42,17 @@ var (
 	ToolsetMetadataIssues = toolsets.ToolsetMetadata{
 		ID:          "issues",
 		Description: "GitHub Issues related tools",
+		Default:     true,
 	}
 	ToolsetMetadataPullRequests = toolsets.ToolsetMetadata{
 		ID:          "pull_requests",
 		Description: "GitHub Pull Request related tools",
+		Default:     true,
 	}
 	ToolsetMetadataUsers = toolsets.ToolsetMetadata{
 		ID:          "users",
 		Description: "GitHub User related tools",
+		Default:     true,
 	}
 	ToolsetMetadataOrgs = toolsets.ToolsetMetadata{
 		ID:          "orgs",
@@ -106,53 +111,6 @@ var (
 		Description: "GitHub Labels related tools",
 	}
 )
-
-func AvailableToolsets() []toolsets.ToolsetMetadata {
-	return []toolsets.ToolsetMetadata{
-		ToolsetMetadataContext,
-		ToolsetMetadataRepos,
-		ToolsetMetadataGit,
-		ToolsetMetadataIssues,
-		ToolsetMetadataPullRequests,
-		ToolsetMetadataUsers,
-		ToolsetMetadataOrgs,
-		ToolsetMetadataActions,
-		ToolsetMetadataCodeSecurity,
-		ToolsetMetadataSecretProtection,
-		ToolsetMetadataDependabot,
-		ToolsetMetadataNotifications,
-		ToolsetMetadataExperiments,
-		ToolsetMetadataDiscussions,
-		ToolsetMetadataGists,
-		ToolsetMetadataSecurityAdvisories,
-		ToolsetMetadataProjects,
-		ToolsetMetadataStargazers,
-		ToolsetMetadataDynamic,
-		ToolsetLabels,
-	}
-}
-
-// GetValidToolsetIDs returns a map of all valid toolset IDs for quick lookup
-func GetValidToolsetIDs() map[toolsets.ToolsetID]bool {
-	validIDs := make(map[toolsets.ToolsetID]bool)
-	for _, toolset := range AvailableToolsets() {
-		validIDs[toolset.ID] = true
-	}
-	// Add special keywords
-	validIDs[ToolsetMetadataAll.ID] = true
-	validIDs[ToolsetMetadataDefault.ID] = true
-	return validIDs
-}
-
-func GetDefaultToolsetIDs() []toolsets.ToolsetID {
-	return []toolsets.ToolsetID{
-		ToolsetMetadataContext.ID,
-		ToolsetMetadataRepos.ID,
-		ToolsetMetadataIssues.ID,
-		ToolsetMetadataPullRequests.ID,
-		ToolsetMetadataUsers.ID,
-	}
-}
 
 // AllTools returns all tools with their embedded toolset metadata.
 // Tool functions return ServerTool directly with toolset info.
@@ -304,16 +262,19 @@ func ToStringPtr(s string) *string {
 
 // GenerateToolsetsHelp generates the help text for the toolsets flag
 func GenerateToolsetsHelp() string {
-	// Format default tools
-	defaultIDs := GetDefaultToolsetIDs()
+	// Get toolset group to derive defaults and available toolsets
+	r := NewRegistry(stubTranslator)
+
+	// Format default tools from metadata
+	defaultIDs := r.DefaultToolsetIDs()
 	defaultStrings := make([]string, len(defaultIDs))
 	for i, id := range defaultIDs {
 		defaultStrings[i] = string(id)
 	}
 	defaultTools := strings.Join(defaultStrings, ", ")
 
-	// Format available tools with line breaks for better readability
-	allToolsets := AvailableToolsets()
+	// Get all available toolsets (excludes context and dynamic for display)
+	allToolsets := r.AvailableToolsets("context", "dynamic")
 	var availableToolsLines []string
 	const maxLineLength = 70
 	currentLine := ""
@@ -349,6 +310,10 @@ func GenerateToolsetsHelp() string {
 	return toolsetsHelp
 }
 
+// stubTranslator is a passthrough translator for cases where we need a Registry
+// but don't need actual translations (e.g., getting toolset IDs for CLI help).
+func stubTranslator(_, fallback string) string { return fallback }
+
 // AddDefaultToolset removes the default toolset and expands it to the actual default toolset IDs
 func AddDefaultToolset(result []string) []string {
 	hasDefault := false
@@ -367,41 +332,14 @@ func AddDefaultToolset(result []string) []string {
 
 	result = RemoveToolset(result, string(ToolsetMetadataDefault.ID))
 
-	for _, defaultToolset := range GetDefaultToolsetIDs() {
-		if !seen[string(defaultToolset)] {
-			result = append(result, string(defaultToolset))
+	// Get default toolset IDs from the Registry
+	r := NewRegistry(stubTranslator)
+	for _, id := range r.DefaultToolsetIDs() {
+		if !seen[string(id)] {
+			result = append(result, string(id))
 		}
 	}
 	return result
-}
-
-// cleanToolsets cleans and handles special toolset keywords:
-// - Duplicates are removed from the result
-// - Removes whitespaces
-// - Validates toolset names and returns invalid ones separately - for warning reporting
-// Returns: (toolsets, invalidToolsets)
-func CleanToolsets(enabledToolsets []string) ([]string, []string) {
-	seen := make(map[string]bool)
-	result := make([]string, 0, len(enabledToolsets))
-	invalid := make([]string, 0)
-	validIDs := GetValidToolsetIDs()
-
-	// Add non-default toolsets, removing duplicates and trimming whitespace
-	for _, toolset := range enabledToolsets {
-		trimmed := strings.TrimSpace(toolset)
-		if trimmed == "" {
-			continue
-		}
-		if !seen[trimmed] {
-			seen[trimmed] = true
-			result = append(result, trimmed)
-			if !validIDs[toolsets.ToolsetID(trimmed)] {
-				invalid = append(invalid, trimmed)
-			}
-		}
-	}
-
-	return result, invalid
 }
 
 func RemoveToolset(tools []string, toRemove string) []string {
