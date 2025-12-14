@@ -3,8 +3,8 @@ package inventory
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
+	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -33,29 +33,10 @@ type ToolsetMetadata struct {
 	Icon string
 }
 
-// OcticonURL returns the CDN URL for a GitHub Octicon SVG. Size should be 16 or 24.
-func OcticonURL(name string, size int) string {
-	return fmt.Sprintf("https://raw.githubusercontent.com/primer/octicons/main/icons/%s-%d.svg", name, size)
-}
-
 // Icons returns MCP Icon objects for this toolset, or nil if no icon is set.
 // Icons are provided in both 16x16 and 24x24 sizes.
 func (tm ToolsetMetadata) Icons() []mcp.Icon {
-	if tm.Icon == "" {
-		return nil
-	}
-	return []mcp.Icon{
-		{
-			Source:   OcticonURL(tm.Icon, 16),
-			MIMEType: "image/svg+xml",
-			Sizes:    []string{"16x16"},
-		},
-		{
-			Source:   OcticonURL(tm.Icon, 24),
-			MIMEType: "image/svg+xml",
-			Sizes:    []string{"24x24"},
-		},
-	}
+	return octicons.Icons(tm.Icon)
 }
 
 // ServerTool represents an MCP tool with metadata and a handler generator function.
@@ -112,14 +93,17 @@ func (st *ServerTool) Handler(deps any) mcp.ToolHandler {
 
 // RegisterFunc registers the tool with the server using the provided dependencies.
 // Icons are automatically applied from the toolset metadata if not already set.
+// A shallow copy of the tool is made to avoid mutating the original ServerTool.
 // Panics if the tool has no handler - all tools should have handlers.
 func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any) {
 	handler := st.Handler(deps) // This will panic if HandlerFunc is nil
+	// Make a shallow copy of the tool to avoid mutating the original
+	toolCopy := st.Tool
 	// Apply icons from toolset metadata if tool doesn't have icons set
-	if len(st.Tool.Icons) == 0 {
-		st.Tool.Icons = st.Toolset.Icons()
+	if len(toolCopy.Icons) == 0 {
+		toolCopy.Icons = st.Toolset.Icons()
 	}
-	s.AddTool(&st.Tool, handler)
+	s.AddTool(&toolCopy, handler)
 }
 
 // NewServerTool creates a ServerTool from a tool definition, toolset metadata, and a typed handler function.

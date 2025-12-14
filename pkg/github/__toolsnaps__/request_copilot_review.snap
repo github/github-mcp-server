@@ -25,5 +25,21 @@
       }
     }
   },
-  "name": "request_copilot_review"
+  "name": "request_copilot_review",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/primer/octicons/main/icons/copilot-16.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": [
+        "16x16"
+      ]
+    },
+    {
+      "src": "https://raw.githubusercontent.com/primer/octicons/main/icons/copilot-24.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": [
+        "24x24"
+      ]
+    }
+  ]
 }

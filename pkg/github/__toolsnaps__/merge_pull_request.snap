@@ -42,5 +42,21 @@
       }
     }
   },
-  "name": "merge_pull_request"
+  "name": "merge_pull_request",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/primer/octicons/main/icons/git-merge-16.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": [
+        "16x16"
+      ]
+    },
+    {
+      "src": "https://raw.githubusercontent.com/primer/octicons/main/icons/git-merge-24.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": [
+        "24x24"
+      ]
+    }
+  ]
 }

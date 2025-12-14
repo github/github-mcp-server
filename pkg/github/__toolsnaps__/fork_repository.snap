@@ -24,5 +24,21 @@
       }
     }
   },
-  "name": "fork_repository"
+  "name": "fork_repository",
+  "icons": [
+    {
+      "src": "https://raw.githubusercontent.com/primer/octicons/main/icons/repo-forked-16.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": [
+        "16x16"
+      ]
+    },
+    {
+      "src": "https://raw.githubusercontent.com/primer/octicons/main/icons/repo-forked-24.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": [
+        "24x24"
+      ]
+    }
+  ]
 }

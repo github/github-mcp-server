@@ -12,6 +12,7 @@ import (
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
+	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -1622,6 +1623,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 		mcp.Tool{
 			Name:        "assign_copilot_to_issue",
 			Description: t("TOOL_ASSIGN_COPILOT_TO_ISSUE_DESCRIPTION", description.String()),
+			Icons:       octicons.Icons("copilot"),
 			Annotations: &mcp.ToolAnnotations{
 				Title:          t("TOOL_ASSIGN_COPILOT_TO_ISSUE_USER_TITLE", "Assign Copilot to issue"),
 				ReadOnlyHint:   false,
