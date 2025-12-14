@@ -24,6 +24,8 @@ type ToolsetMetadata struct {
 	ID ToolsetID
 	// Description provides a human-readable description of the toolset
 	Description string
+	// Default indicates this toolset should be enabled by default
+	Default bool
 }
 
 // ServerTool represents an MCP tool with metadata and a handler generator function.
