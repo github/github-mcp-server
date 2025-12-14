@@ -29,8 +29,8 @@ var (
 	repositoryResourcePrContentURITemplate     = uritemplate.MustNew("repo://{owner}/{repo}/refs/pull/{prNumber}/head/contents{/path*}")
 )
 
-// GetRepositoryResourceContent defines the resource template and handler for getting repository content.
-func GetRepositoryResourceContent(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) toolsets.ServerResourceTemplate {
+// GetRepositoryResourceContent defines the resource template for getting repository content.
+func GetRepositoryResourceContent(t translations.TranslationHelperFunc) toolsets.ServerResourceTemplate {
 	return toolsets.NewServerResourceTemplate(
 		ToolsetMetadataRepos,
 		mcp.ResourceTemplate{
@@ -38,12 +38,12 @@ func GetRepositoryResourceContent(getClient GetClientFn, getRawClient raw.GetRaw
 			URITemplate: repositoryResourceContentURITemplate.Raw(),
 			Description: t("RESOURCE_REPOSITORY_CONTENT_DESCRIPTION", "Repository Content"),
 		},
-		RepositoryResourceContentsHandler(getClient, getRawClient, repositoryResourceContentURITemplate),
+		repositoryResourceContentsHandlerFunc(repositoryResourceContentURITemplate),
 	)
 }
 
-// GetRepositoryResourceBranchContent defines the resource template and handler for getting repository content for a branch.
-func GetRepositoryResourceBranchContent(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) toolsets.ServerResourceTemplate {
+// GetRepositoryResourceBranchContent defines the resource template for getting repository content for a branch.
+func GetRepositoryResourceBranchContent(t translations.TranslationHelperFunc) toolsets.ServerResourceTemplate {
 	return toolsets.NewServerResourceTemplate(
 		ToolsetMetadataRepos,
 		mcp.ResourceTemplate{
@@ -51,12 +51,12 @@ func GetRepositoryResourceBranchContent(getClient GetClientFn, getRawClient raw.
 			URITemplate: repositoryResourceBranchContentURITemplate.Raw(),
 			Description: t("RESOURCE_REPOSITORY_CONTENT_BRANCH_DESCRIPTION", "Repository Content for specific branch"),
 		},
-		RepositoryResourceContentsHandler(getClient, getRawClient, repositoryResourceBranchContentURITemplate),
+		repositoryResourceContentsHandlerFunc(repositoryResourceBranchContentURITemplate),
 	)
 }
 
-// GetRepositoryResourceCommitContent defines the resource template and handler for getting repository content for a commit.
-func GetRepositoryResourceCommitContent(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) toolsets.ServerResourceTemplate {
+// GetRepositoryResourceCommitContent defines the resource template for getting repository content for a commit.
+func GetRepositoryResourceCommitContent(t translations.TranslationHelperFunc) toolsets.ServerResourceTemplate {
 	return toolsets.NewServerResourceTemplate(
 		ToolsetMetadataRepos,
 		mcp.ResourceTemplate{
@@ -64,12 +64,12 @@ func GetRepositoryResourceCommitContent(getClient GetClientFn, getRawClient raw.
 			URITemplate: repositoryResourceCommitContentURITemplate.Raw(),
 			Description: t("RESOURCE_REPOSITORY_CONTENT_COMMIT_DESCRIPTION", "Repository Content for specific commit"),
 		},
-		RepositoryResourceContentsHandler(getClient, getRawClient, repositoryResourceCommitContentURITemplate),
+		repositoryResourceContentsHandlerFunc(repositoryResourceCommitContentURITemplate),
 	)
 }
 
-// GetRepositoryResourceTagContent defines the resource template and handler for getting repository content for a tag.
-func GetRepositoryResourceTagContent(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) toolsets.ServerResourceTemplate {
+// GetRepositoryResourceTagContent defines the resource template for getting repository content for a tag.
+func GetRepositoryResourceTagContent(t translations.TranslationHelperFunc) toolsets.ServerResourceTemplate {
 	return toolsets.NewServerResourceTemplate(
 		ToolsetMetadataRepos,
 		mcp.ResourceTemplate{
@@ -77,12 +77,12 @@ func GetRepositoryResourceTagContent(getClient GetClientFn, getRawClient raw.Get
 			URITemplate: repositoryResourceTagContentURITemplate.Raw(),
 			Description: t("RESOURCE_REPOSITORY_CONTENT_TAG_DESCRIPTION", "Repository Content for specific tag"),
 		},
-		RepositoryResourceContentsHandler(getClient, getRawClient, repositoryResourceTagContentURITemplate),
+		repositoryResourceContentsHandlerFunc(repositoryResourceTagContentURITemplate),
 	)
 }
 
-// GetRepositoryResourcePrContent defines the resource template and handler for getting repository content for a pull request.
-func GetRepositoryResourcePrContent(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) toolsets.ServerResourceTemplate {
+// GetRepositoryResourcePrContent defines the resource template for getting repository content for a pull request.
+func GetRepositoryResourcePrContent(t translations.TranslationHelperFunc) toolsets.ServerResourceTemplate {
 	return toolsets.NewServerResourceTemplate(
 		ToolsetMetadataRepos,
 		mcp.ResourceTemplate{
@@ -90,8 +90,16 @@ func GetRepositoryResourcePrContent(getClient GetClientFn, getRawClient raw.GetR
 			URITemplate: repositoryResourcePrContentURITemplate.Raw(),
 			Description: t("RESOURCE_REPOSITORY_CONTENT_PR_DESCRIPTION", "Repository Content for specific pull request"),
 		},
-		RepositoryResourceContentsHandler(getClient, getRawClient, repositoryResourcePrContentURITemplate),
+		repositoryResourceContentsHandlerFunc(repositoryResourcePrContentURITemplate),
 	)
+}
+
+// repositoryResourceContentsHandlerFunc returns a ResourceHandlerFunc that creates handlers on-demand.
+func repositoryResourceContentsHandlerFunc(resourceURITemplate *uritemplate.Template) toolsets.ResourceHandlerFunc {
+	return func(deps any) mcp.ResourceHandler {
+		d := deps.(ToolDependencies)
+		return RepositoryResourceContentsHandler(d.GetClient, d.GetRawClient, resourceURITemplate)
+	}
 }
 
 // RepositoryResourceContentsHandler returns a handler function for repository content requests.
