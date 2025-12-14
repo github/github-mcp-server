@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"net/url"
 	"os"
@@ -12,7 +11,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/toolsets"
 	"github.com/github/github-mcp-server/pkg/translations"
-	gogithub "github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
@@ -29,11 +27,6 @@ var generateDocsCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(generateDocsCmd)
-}
-
-// mockGetClient returns a mock GitHub client for documentation generation
-func mockGetClient(_ context.Context) (*gogithub.Client, error) {
-	return gogithub.NewClient(nil), nil
 }
 
 func generateAllDocs() error {
@@ -56,8 +49,8 @@ func generateReadmeDocs(readmePath string) error {
 	// Create translation helper
 	t, _ := translations.TranslationHelper()
 
-	// Create toolset group with mock clients (no deps needed for doc generation)
-	tsg := github.NewToolsetGroup(t, mockGetClient, nil)
+	// Create toolset group - stateless, no dependencies needed for doc generation
+	tsg := github.NewToolsetGroup(t)
 
 	// Generate toolsets documentation
 	toolsetsDoc := generateToolsetsDoc(tsg)
@@ -299,8 +292,8 @@ func generateRemoteToolsetsDoc() string {
 	// Create translation helper
 	t, _ := translations.TranslationHelper()
 
-	// Create toolset group with mock clients
-	tsg := github.NewToolsetGroup(t, mockGetClient, nil)
+	// Create toolset group - stateless
+	tsg := github.NewToolsetGroup(t)
 
 	// Generate table header
 	buf.WriteString("| Name           | Description                                      | API URL                                               | 1-Click Install (VS Code)                                                                                                                                                                                                 | Read-only Link                                                                                                 | 1-Click Read-only Install (VS Code)                                                                                                                                                                                                 |\n")
