@@ -165,19 +165,17 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	// Create toolset group with all tools, resources, and prompts
 	tsg := github.NewToolsetGroup(cfg.Translator, getClient, getRawClient)
 
-	// Add deprecated tool aliases for backward compatibility
-	// See docs/deprecated-tool-aliases.md for the full list of renames
-	tsg.AddDeprecatedToolAliases(github.DeprecatedToolAliases)
-
 	// Clean tool names (WithTools will resolve any deprecated aliases)
 	enabledTools := github.CleanTools(cfg.EnabledTools)
 
 	// Apply filters based on configuration
+	// - WithDeprecatedToolAliases: adds backward compatibility aliases
 	// - WithReadOnly: filters out write tools when true
 	// - WithToolsets: nil=defaults, empty=none, handles "all"/"default" keywords
 	// - WithTools: additional tools that bypass toolset filtering (additive, resolves aliases)
 	// - WithFeatureChecker: filters based on feature flags
 	filteredTsg := tsg.
+		WithDeprecatedToolAliases(github.DeprecatedToolAliases).
 		WithReadOnly(cfg.ReadOnly).
 		WithToolsets(enabledToolsets).
 		WithTools(enabledTools).

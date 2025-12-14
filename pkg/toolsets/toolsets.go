@@ -413,12 +413,19 @@ func (tg *ToolsetGroup) filterPromptsByName(name string) []ServerPrompt {
 	return []ServerPrompt{}
 }
 
-// AddDeprecatedToolAliases adds mappings from old tool names to new canonical names.
-func (tg *ToolsetGroup) AddDeprecatedToolAliases(aliases map[string]string) *ToolsetGroup {
-	for oldName, newName := range aliases {
-		tg.deprecatedAliases[oldName] = newName
+// WithDeprecatedToolAliases returns a new ToolsetGroup with the given deprecated aliases added.
+// Aliases map old tool names to new canonical names.
+func (tg *ToolsetGroup) WithDeprecatedToolAliases(aliases map[string]string) *ToolsetGroup {
+	newTG := tg.copy()
+	// Ensure we have a fresh map
+	newTG.deprecatedAliases = make(map[string]string, len(tg.deprecatedAliases)+len(aliases))
+	for k, v := range tg.deprecatedAliases {
+		newTG.deprecatedAliases[k] = v
 	}
-	return tg
+	for oldName, newName := range aliases {
+		newTG.deprecatedAliases[oldName] = newName
+	}
+	return newTG
 }
 
 // isToolsetEnabled checks if a toolset is enabled based on current filters.

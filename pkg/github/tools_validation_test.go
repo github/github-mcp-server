@@ -185,6 +185,8 @@ func TestAllToolsHaveHandlerFunc(t *testing.T) {
 		t.Run(tool.Tool.Name, func(t *testing.T) {
 			assert.NotNil(t, tool.HandlerFunc,
 				"Tool %q must have a HandlerFunc", tool.Tool.Name)
+			assert.True(t, tool.HasHandler(),
+				"Tool %q HasHandler() should return true", tool.Tool.Name)
 		})
 	}
 }
