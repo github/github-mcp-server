@@ -116,19 +116,10 @@ func generateToolsetsDoc(tsg *toolsets.ToolsetGroup) string {
 	// Add the context toolset row with custom description (strongly recommended)
 	buf.WriteString("| `context`               | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |\n")
 
-	// AllTools() is sorted by toolset ID then tool name.
-	// We iterate once, collecting unique toolsets (skipping context which has custom description above).
-	tools := tsg.AllTools()
-	var lastToolsetID toolsets.ToolsetID
-	for _, tool := range tools {
-		if tool.Toolset.ID != lastToolsetID {
-			lastToolsetID = tool.Toolset.ID
-			// Skip context (handled above with custom description)
-			if lastToolsetID == "context" {
-				continue
-			}
-			fmt.Fprintf(&buf, "| `%s` | %s |\n", lastToolsetID, tool.Toolset.Description)
-		}
+	// AvailableToolsets() returns toolsets that have tools, sorted by ID
+	// Exclude context (custom description above) and dynamic (internal only)
+	for _, ts := range tsg.AvailableToolsets("context", "dynamic") {
+		fmt.Fprintf(&buf, "| `%s` | %s |\n", ts.ID, ts.Description)
 	}
 
 	return strings.TrimSuffix(buf.String(), "\n")
@@ -311,43 +302,34 @@ func generateRemoteToolsetsDoc() string {
 	// Add "all" toolset first (special case)
 	buf.WriteString("| all            | All available GitHub MCP tools                    | https://api.githubcopilot.com/mcp/                    | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%22%7D)                                      | [read-only](https://api.githubcopilot.com/mcp/readonly)                                                      | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Freadonly%22%7D) |\n")
 
-	// AllTools() is sorted by toolset ID then tool name.
-	// We iterate once, collecting unique toolsets (skipping context which is handled separately).
-	tools := tsg.AllTools()
-	var lastToolsetID toolsets.ToolsetID
-	for _, tool := range tools {
-		if tool.Toolset.ID != lastToolsetID {
-			lastToolsetID = tool.Toolset.ID
-			idStr := string(lastToolsetID)
-			// Skip context toolset (handled separately)
-			if idStr == "context" {
-				continue
-			}
+	// AvailableToolsets() returns toolsets that have tools, sorted by ID
+	// Exclude context (handled separately) and dynamic (internal only)
+	for _, ts := range tsg.AvailableToolsets("context", "dynamic") {
+		idStr := string(ts.ID)
 
-			formattedName := formatToolsetName(idStr)
-			apiURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s", idStr)
-			readonlyURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s/readonly", idStr)
+		formattedName := formatToolsetName(idStr)
+		apiURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s", idStr)
+		readonlyURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s/readonly", idStr)
 
-			// Create install config JSON (URL encoded)
-			installConfig := url.QueryEscape(fmt.Sprintf(`{"type": "http","url": "%s"}`, apiURL))
-			readonlyConfig := url.QueryEscape(fmt.Sprintf(`{"type": "http","url": "%s"}`, readonlyURL))
+		// Create install config JSON (URL encoded)
+		installConfig := url.QueryEscape(fmt.Sprintf(`{"type": "http","url": "%s"}`, apiURL))
+		readonlyConfig := url.QueryEscape(fmt.Sprintf(`{"type": "http","url": "%s"}`, readonlyURL))
 
-			// Fix URL encoding to use %20 instead of + for spaces
-			installConfig = strings.ReplaceAll(installConfig, "+", "%20")
-			readonlyConfig = strings.ReplaceAll(readonlyConfig, "+", "%20")
+		// Fix URL encoding to use %20 instead of + for spaces
+		installConfig = strings.ReplaceAll(installConfig, "+", "%20")
+		readonlyConfig = strings.ReplaceAll(readonlyConfig, "+", "%20")
 
-			installLink := fmt.Sprintf("[Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, installConfig)
-			readonlyInstallLink := fmt.Sprintf("[Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, readonlyConfig)
+		installLink := fmt.Sprintf("[Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, installConfig)
+		readonlyInstallLink := fmt.Sprintf("[Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, readonlyConfig)
 
-			fmt.Fprintf(&buf, "| %-14s | %-48s | %-53s | %-218s | %-110s | %-288s |\n",
-				formattedName,
-				tool.Toolset.Description,
-				apiURL,
-				installLink,
-				fmt.Sprintf("[read-only](%s)", readonlyURL),
-				readonlyInstallLink,
-			)
-		}
+		fmt.Fprintf(&buf, "| %-14s | %-48s | %-53s | %-218s | %-110s | %-288s |\n",
+			formattedName,
+			ts.Description,
+			apiURL,
+			installLink,
+			fmt.Sprintf("[read-only](%s)", readonlyURL),
+			readonlyInstallLink,
+		)
 	}
 
 	return strings.TrimSuffix(buf.String(), "\n")
