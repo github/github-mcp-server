@@ -107,64 +107,73 @@ func generateRemoteServerDocs(docsPath string) error {
 }
 
 func generateToolsetsDoc(tsg *toolsets.ToolsetGroup) string {
-	var lines []string
+	var buf strings.Builder
 
 	// Add table header and separator
-	lines = append(lines, "| Toolset                 | Description                                                   |")
-	lines = append(lines, "| ----------------------- | ------------------------------------------------------------- |")
+	buf.WriteString("| Toolset                 | Description                                                   |\n")
+	buf.WriteString("| ----------------------- | ------------------------------------------------------------- |\n")
 
-	// Add the context toolset row (handled separately in README)
-	lines = append(lines, "| `context`               | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |")
+	// Add the context toolset row with custom description (strongly recommended)
+	buf.WriteString("| `context`               | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |\n")
 
-	// Get toolset IDs and descriptions
-	toolsetIDs := tsg.ToolsetIDs()
-	descriptions := tsg.ToolsetDescriptions()
-
-	// Filter out context and dynamic toolsets (handled separately)
-	for _, id := range toolsetIDs {
-		if id != "context" && id != "dynamic" {
-			description := descriptions[id]
-			lines = append(lines, fmt.Sprintf("| `%s` | %s |", id, description))
+	// AllTools() is sorted by toolset ID then tool name.
+	// We iterate once, collecting unique toolsets (skipping context which has custom description above).
+	tools := tsg.AllTools()
+	var lastToolsetID toolsets.ToolsetID
+	for _, tool := range tools {
+		if tool.Toolset.ID != lastToolsetID {
+			lastToolsetID = tool.Toolset.ID
+			// Skip context (handled above with custom description)
+			if lastToolsetID == "context" {
+				continue
+			}
+			fmt.Fprintf(&buf, "| `%s` | %s |\n", lastToolsetID, tool.Toolset.Description)
 		}
 	}
 
-	return strings.Join(lines, "\n")
+	return strings.TrimSuffix(buf.String(), "\n")
 }
 
 func generateToolsDoc(tsg *toolsets.ToolsetGroup) string {
-	var sections []string
-
-	// Get toolset IDs (already sorted deterministically)
-	toolsetIDs := tsg.ToolsetIDs()
-
-	for _, toolsetID := range toolsetIDs {
-		if toolsetID == "dynamic" { // Skip dynamic toolset as it's handled separately
-			continue
-		}
-
-		// Get tools for this toolset (already sorted deterministically)
-		tools := tsg.ToolsForToolset(toolsetID)
-		if len(tools) == 0 {
-			continue
-		}
-
-		// Generate section header - capitalize first letter and replace underscores
-		sectionName := formatToolsetName(string(toolsetID))
-
-		var toolDocs []string
-		for _, serverTool := range tools {
-			toolDoc := generateToolDoc(serverTool.Tool)
-			toolDocs = append(toolDocs, toolDoc)
-		}
-
-		if len(toolDocs) > 0 {
-			section := fmt.Sprintf("<details>\n\n<summary>%s</summary>\n\n%s\n\n</details>",
-				sectionName, strings.Join(toolDocs, "\n\n"))
-			sections = append(sections, section)
-		}
+	// AllTools() returns tools sorted by toolset ID then tool name.
+	// We iterate once, grouping by toolset as we encounter them.
+	tools := tsg.AllTools()
+	if len(tools) == 0 {
+		return ""
 	}
 
-	return strings.Join(sections, "\n\n")
+	var buf strings.Builder
+	var toolBuf strings.Builder
+	var currentToolsetID toolsets.ToolsetID
+	firstSection := true
+
+	writeSection := func() {
+		if toolBuf.Len() == 0 {
+			return
+		}
+		if !firstSection {
+			buf.WriteString("\n\n")
+		}
+		firstSection = false
+		sectionName := formatToolsetName(string(currentToolsetID))
+		fmt.Fprintf(&buf, "<details>\n\n<summary>%s</summary>\n\n%s\n\n</details>", sectionName, strings.TrimSuffix(toolBuf.String(), "\n\n"))
+		toolBuf.Reset()
+	}
+
+	for _, tool := range tools {
+		// When toolset changes, emit the previous section
+		if tool.Toolset.ID != currentToolsetID {
+			writeSection()
+			currentToolsetID = tool.Toolset.ID
+		}
+		writeToolDoc(&toolBuf, tool.Tool)
+		toolBuf.WriteString("\n\n")
+	}
+
+	// Emit the last section
+	writeSection()
+
+	return buf.String()
 }
 
 func formatToolsetName(name string) string {
@@ -191,21 +200,19 @@ func formatToolsetName(name string) string {
 	}
 }
 
-func generateToolDoc(tool mcp.Tool) string {
-	var lines []string
-
+func writeToolDoc(buf *strings.Builder, tool mcp.Tool) {
 	// Tool name only (using annotation name instead of verbose description)
-	lines = append(lines, fmt.Sprintf("- **%s** - %s", tool.Name, tool.Annotations.Title))
+	fmt.Fprintf(buf, "- **%s** - %s\n", tool.Name, tool.Annotations.Title)
 
 	// Parameters
 	if tool.InputSchema == nil {
-		lines = append(lines, "  - No parameters required")
-		return strings.Join(lines, "\n")
+		buf.WriteString("  - No parameters required")
+		return
 	}
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	if !ok || schema == nil {
-		lines = append(lines, "  - No parameters required")
-		return strings.Join(lines, "\n")
+		buf.WriteString("  - No parameters required")
+		return
 	}
 
 	if len(schema.Properties) > 0 {
@@ -216,7 +223,7 @@ func generateToolDoc(tool mcp.Tool) string {
 		}
 		sort.Strings(paramNames)
 
-		for _, propName := range paramNames {
+		for i, propName := range paramNames {
 			prop := schema.Properties[propName]
 			required := contains(schema.Required, propName)
 			requiredStr := "optional"
@@ -224,7 +231,7 @@ func generateToolDoc(tool mcp.Tool) string {
 				requiredStr = "required"
 			}
 
-			var typeStr, description string
+			var typeStr string
 
 			// Get the type and description
 			switch prop.Type {
@@ -238,19 +245,17 @@ func generateToolDoc(tool mcp.Tool) string {
 				typeStr = prop.Type
 			}
 
-			description = prop.Description
-
 			// Indent any continuation lines in the description to maintain markdown formatting
-			description = indentMultilineDescription(description, "    ")
+			description := indentMultilineDescription(prop.Description, "    ")
 
-			paramLine := fmt.Sprintf("  - `%s`: %s (%s, %s)", propName, description, typeStr, requiredStr)
-			lines = append(lines, paramLine)
+			fmt.Fprintf(buf, "  - `%s`: %s (%s, %s)", propName, description, typeStr, requiredStr)
+			if i < len(paramNames)-1 {
+				buf.WriteString("\n")
+			}
 		}
 	} else {
-		lines = append(lines, "  - No parameters required")
+		buf.WriteString("  - No parameters required")
 	}
-
-	return strings.Join(lines, "\n")
 }
 
 func contains(slice []string, item string) bool {
@@ -265,14 +270,18 @@ func contains(slice []string, item string) bool {
 // indentMultilineDescription adds the specified indent to all lines after the first line.
 // This ensures that multi-line descriptions maintain proper markdown list formatting.
 func indentMultilineDescription(description, indent string) string {
-	lines := strings.Split(description, "\n")
-	if len(lines) <= 1 {
+	if !strings.Contains(description, "\n") {
 		return description
 	}
+	var buf strings.Builder
+	lines := strings.Split(description, "\n")
+	buf.WriteString(lines[0])
 	for i := 1; i < len(lines); i++ {
-		lines[i] = indent + lines[i]
+		buf.WriteString("\n")
+		buf.WriteString(indent)
+		buf.WriteString(lines[i])
 	}
-	return strings.Join(lines, "\n")
+	return buf.String()
 }
 
 func replaceSection(content, startMarker, endMarker, newContent string) string {
@@ -299,47 +308,49 @@ func generateRemoteToolsetsDoc() string {
 	buf.WriteString("| Name           | Description                                      | API URL                                               | 1-Click Install (VS Code)                                                                                                                                                                                                 | Read-only Link                                                                                                 | 1-Click Read-only Install (VS Code)                                                                                                                                                                                                 |\n")
 	buf.WriteString("|----------------|--------------------------------------------------|-------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|\n")
 
-	// Get toolset IDs and descriptions
-	toolsetIDs := tsg.ToolsetIDs()
-	descriptions := tsg.ToolsetDescriptions()
-
 	// Add "all" toolset first (special case)
 	buf.WriteString("| all            | All available GitHub MCP tools                    | https://api.githubcopilot.com/mcp/                    | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%22%7D)                                      | [read-only](https://api.githubcopilot.com/mcp/readonly)                                                      | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2Freadonly%22%7D) |\n")
 
-	// Add individual toolsets
-	for _, id := range toolsetIDs {
-		idStr := string(id)
-		if idStr == "context" || idStr == "dynamic" { // Skip context and dynamic toolsets as they're handled separately
-			continue
+	// AllTools() is sorted by toolset ID then tool name.
+	// We iterate once, collecting unique toolsets (skipping context which is handled separately).
+	tools := tsg.AllTools()
+	var lastToolsetID toolsets.ToolsetID
+	for _, tool := range tools {
+		if tool.Toolset.ID != lastToolsetID {
+			lastToolsetID = tool.Toolset.ID
+			idStr := string(lastToolsetID)
+			// Skip context toolset (handled separately)
+			if idStr == "context" {
+				continue
+			}
+
+			formattedName := formatToolsetName(idStr)
+			apiURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s", idStr)
+			readonlyURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s/readonly", idStr)
+
+			// Create install config JSON (URL encoded)
+			installConfig := url.QueryEscape(fmt.Sprintf(`{"type": "http","url": "%s"}`, apiURL))
+			readonlyConfig := url.QueryEscape(fmt.Sprintf(`{"type": "http","url": "%s"}`, readonlyURL))
+
+			// Fix URL encoding to use %20 instead of + for spaces
+			installConfig = strings.ReplaceAll(installConfig, "+", "%20")
+			readonlyConfig = strings.ReplaceAll(readonlyConfig, "+", "%20")
+
+			installLink := fmt.Sprintf("[Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, installConfig)
+			readonlyInstallLink := fmt.Sprintf("[Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, readonlyConfig)
+
+			fmt.Fprintf(&buf, "| %-14s | %-48s | %-53s | %-218s | %-110s | %-288s |\n",
+				formattedName,
+				tool.Toolset.Description,
+				apiURL,
+				installLink,
+				fmt.Sprintf("[read-only](%s)", readonlyURL),
+				readonlyInstallLink,
+			)
 		}
-
-		description := descriptions[id]
-		formattedName := formatToolsetName(idStr)
-		apiURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s", idStr)
-		readonlyURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s/readonly", idStr)
-
-		// Create install config JSON (URL encoded)
-		installConfig := url.QueryEscape(fmt.Sprintf(`{"type": "http","url": "%s"}`, apiURL))
-		readonlyConfig := url.QueryEscape(fmt.Sprintf(`{"type": "http","url": "%s"}`, readonlyURL))
-
-		// Fix URL encoding to use %20 instead of + for spaces
-		installConfig = strings.ReplaceAll(installConfig, "+", "%20")
-		readonlyConfig = strings.ReplaceAll(readonlyConfig, "+", "%20")
-
-		installLink := fmt.Sprintf("[Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, installConfig)
-		readonlyInstallLink := fmt.Sprintf("[Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, readonlyConfig)
-
-		buf.WriteString(fmt.Sprintf("| %-14s | %-48s | %-53s | %-218s | %-110s | %-288s |\n",
-			formattedName,
-			description,
-			apiURL,
-			installLink,
-			fmt.Sprintf("[read-only](%s)", readonlyURL),
-			readonlyInstallLink,
-		))
 	}
 
-	return buf.String()
+	return strings.TrimSuffix(buf.String(), "\n")
 }
 
 func generateDeprecatedAliasesDocs(docsPath string) error {
@@ -366,15 +377,15 @@ func generateDeprecatedAliasesDocs(docsPath string) error {
 }
 
 func generateDeprecatedAliasesTable() string {
-	var lines []string
+	var buf strings.Builder
 
 	// Add table header
-	lines = append(lines, "| Old Name | New Name |")
-	lines = append(lines, "|----------|----------|")
+	buf.WriteString("| Old Name | New Name |\n")
+	buf.WriteString("|----------|----------|\n")
 
 	aliases := github.DeprecatedToolAliases
 	if len(aliases) == 0 {
-		lines = append(lines, "| *(none currently)* | |")
+		buf.WriteString("| *(none currently)* | |")
 	} else {
 		// Sort keys for deterministic output
 		var oldNames []string
@@ -383,11 +394,14 @@ func generateDeprecatedAliasesTable() string {
 		}
 		sort.Strings(oldNames)
 
-		for _, oldName := range oldNames {
+		for i, oldName := range oldNames {
 			newName := aliases[oldName]
-			lines = append(lines, fmt.Sprintf("| `%s` | `%s` |", oldName, newName))
+			fmt.Fprintf(&buf, "| `%s` | `%s` |", oldName, newName)
+			if i < len(oldNames)-1 {
+				buf.WriteString("\n")
+			}
 		}
 	}
 
-	return strings.Join(lines, "\n")
+	return buf.String()
 }
