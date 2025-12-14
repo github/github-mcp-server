@@ -337,58 +337,39 @@ const (
 func (tg *ToolsetGroup) ForMCPRequest(method string, itemName string) *ToolsetGroup {
 	result := tg.copy()
 
-	switch method {
-	case MCPMethodInitialize:
-		// Capabilities only - no items need to be registered
-		// The server capabilities (tools, resources, prompts support) are set via ServerOptions
+	// Helper to clear all item types
+	clearAll := func() {
 		result.tools = []ServerTool{}
 		result.resourceTemplates = []ServerResourceTemplate{}
 		result.prompts = []ServerPrompt{}
+	}
 
+	switch method {
+	case MCPMethodInitialize:
+		clearAll()
 	case MCPMethodToolsList:
-		// All available tools, but no resources or prompts
-		result.resourceTemplates = []ServerResourceTemplate{}
-		result.prompts = []ServerPrompt{}
-
+		result.resourceTemplates, result.prompts = nil, nil
 	case MCPMethodToolsCall:
-		// Only the specific tool (if found), no resources or prompts
-		result.resourceTemplates = []ServerResourceTemplate{}
-		result.prompts = []ServerPrompt{}
+		result.resourceTemplates, result.prompts = nil, nil
 		if itemName != "" {
 			result.tools = tg.filterToolsByName(itemName)
 		}
-
 	case MCPMethodResourcesList, MCPMethodResourcesTemplatesList:
-		// All available resources, but no tools or prompts
-		result.tools = []ServerTool{}
-		result.prompts = []ServerPrompt{}
-
+		result.tools, result.prompts = nil, nil
 	case MCPMethodResourcesRead:
-		// Only the specific resource template, no tools or prompts
-		result.tools = []ServerTool{}
-		result.prompts = []ServerPrompt{}
+		result.tools, result.prompts = nil, nil
 		if itemName != "" {
 			result.resourceTemplates = tg.filterResourcesByURI(itemName)
 		}
-
 	case MCPMethodPromptsList:
-		// All available prompts, but no tools or resources
-		result.tools = []ServerTool{}
-		result.resourceTemplates = []ServerResourceTemplate{}
-
+		result.tools, result.resourceTemplates = nil, nil
 	case MCPMethodPromptsGet:
-		// Only the specific prompt, no tools or resources
-		result.tools = []ServerTool{}
-		result.resourceTemplates = []ServerResourceTemplate{}
+		result.tools, result.resourceTemplates = nil, nil
 		if itemName != "" {
 			result.prompts = tg.filterPromptsByName(itemName)
 		}
-
 	default:
-		// Unknown method - register nothing
-		result.tools = []ServerTool{}
-		result.resourceTemplates = []ServerResourceTemplate{}
-		result.prompts = []ServerPrompt{}
+		clearAll()
 	}
 
 	return result
