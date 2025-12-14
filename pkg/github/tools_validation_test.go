@@ -58,9 +58,8 @@ func TestAllToolsHaveValidToolsetID(t *testing.T) {
 
 // TestAllResourcesHaveRequiredMetadata validates that all resources have mandatory metadata
 func TestAllResourcesHaveRequiredMetadata(t *testing.T) {
-	// Resources need client functions, but we can pass nil for validation
-	// since we're not actually calling handlers
-	resources := AllResources(stubTranslation, nil, nil)
+	// Resources are now stateless - no client functions needed
+	resources := AllResources(stubTranslation)
 
 	require.NotEmpty(t, resources, "AllResources should return at least one resource")
 
@@ -70,9 +69,9 @@ func TestAllResourcesHaveRequiredMetadata(t *testing.T) {
 			assert.NotEmpty(t, res.Toolset.ID,
 				"Resource %q must have a Toolset.ID", res.Template.Name)
 
-			// Handler must be set
-			assert.NotNil(t, res.Handler,
-				"Resource %q must have a Handler", res.Template.Name)
+			// HandlerFunc must be set
+			assert.True(t, res.HasHandler(),
+				"Resource %q must have a HandlerFunc", res.Template.Name)
 		})
 	}
 }
@@ -98,7 +97,7 @@ func TestAllPromptsHaveRequiredMetadata(t *testing.T) {
 
 // TestAllResourcesHaveValidToolsetID validates that all resources belong to known toolsets
 func TestAllResourcesHaveValidToolsetID(t *testing.T) {
-	resources := AllResources(stubTranslation, nil, nil)
+	resources := AllResources(stubTranslation)
 	validToolsetIDs := GetValidToolsetIDs()
 
 	for _, res := range resources {
@@ -153,7 +152,7 @@ func TestNoDuplicateToolNames(t *testing.T) {
 
 // TestNoDuplicateResourceNames ensures all resources have unique names
 func TestNoDuplicateResourceNames(t *testing.T) {
-	resources := AllResources(stubTranslation, nil, nil)
+	resources := AllResources(stubTranslation)
 	seen := make(map[string]bool)
 
 	for _, res := range resources {
