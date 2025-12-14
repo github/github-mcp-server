@@ -489,8 +489,10 @@ func mockResource(name string, toolsetID string, uriTemplate string) ServerResou
 			Name:        name,
 			URITemplate: uriTemplate,
 		},
-		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-			return nil, nil
+		func(_ any) mcp.ResourceHandler {
+			return func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+				return nil, nil
+			}
 		},
 	)
 }
