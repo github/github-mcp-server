@@ -51,13 +51,13 @@ func generateReadmeDocs(readmePath string) error {
 	t, _ := translations.TranslationHelper()
 
 	// Create toolset group - stateless, no dependencies needed for doc generation
-	tsg := github.NewToolsetGroup(t)
+	r := github.NewRegistry(t)
 
 	// Generate toolsets documentation
-	toolsetsDoc := generateToolsetsDoc(tsg)
+	toolsetsDoc := generateToolsetsDoc(r)
 
 	// Generate tools documentation
-	toolsDoc := generateToolsDoc(tsg)
+	toolsDoc := generateToolsDoc(r)
 
 	// Read the current README.md
 	// #nosec G304 - readmePath is controlled by command line flag, not user input
@@ -104,7 +104,7 @@ func generateRemoteServerDocs(docsPath string) error {
 	return os.WriteFile(docsPath, []byte(updatedContent), 0600) //#nosec G306
 }
 
-func generateToolsetsDoc(tsg *toolsets.ToolsetGroup) string {
+func generateToolsetsDoc(r *toolsets.Registry) string {
 	var buf strings.Builder
 
 	// Add table header and separator
@@ -116,17 +116,17 @@ func generateToolsetsDoc(tsg *toolsets.ToolsetGroup) string {
 
 	// AvailableToolsets() returns toolsets that have tools, sorted by ID
 	// Exclude context (custom description above) and dynamic (internal only)
-	for _, ts := range tsg.AvailableToolsets("context", "dynamic") {
+	for _, ts := range r.AvailableToolsets("context", "dynamic") {
 		fmt.Fprintf(&buf, "| `%s` | %s |\n", ts.ID, ts.Description)
 	}
 
 	return strings.TrimSuffix(buf.String(), "\n")
 }
 
-func generateToolsDoc(tsg *toolsets.ToolsetGroup) string {
+func generateToolsDoc(r *toolsets.Registry) string {
 	// AllTools() returns tools sorted by toolset ID then tool name.
 	// We iterate once, grouping by toolset as we encounter them.
-	tools := tsg.AllTools()
+	tools := r.AllTools()
 	if len(tools) == 0 {
 		return ""
 	}
@@ -300,7 +300,7 @@ func generateRemoteToolsetsDoc() string {
 	t, _ := translations.TranslationHelper()
 
 	// Create toolset group - stateless
-	tsg := github.NewToolsetGroup(t)
+	r := github.NewRegistry(t)
 
 	// Generate table header
 	buf.WriteString("| Name           | Description                                      | API URL                                               | 1-Click Install (VS Code)                                                                                                                                                                                                 | Read-only Link                                                                                                 | 1-Click Read-only Install (VS Code)                                                                                                                                                                                                 |\n")
@@ -311,7 +311,7 @@ func generateRemoteToolsetsDoc() string {
 
 	// AvailableToolsets() returns toolsets that have tools, sorted by ID
 	// Exclude context (handled separately) and dynamic (internal only)
-	for _, ts := range tsg.AvailableToolsets("context", "dynamic") {
+	for _, ts := range r.AvailableToolsets("context", "dynamic") {
 		idStr := string(ts.ID)
 
 		formattedName := formatToolsetName(idStr)

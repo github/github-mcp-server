@@ -109,12 +109,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	// - explicit list means "use these toolsets"
 	var enabledToolsets []string
 	if cfg.EnabledToolsets != nil {
-		// Clean up explicitly passed toolsets (removes duplicates, whitespace)
-		var invalidToolsets []string
-		enabledToolsets, invalidToolsets = github.CleanToolsets(cfg.EnabledToolsets)
-		if len(invalidToolsets) > 0 {
-			fmt.Fprintf(os.Stderr, "Invalid toolsets ignored: %s\n", strings.Join(invalidToolsets, ", "))
-		}
+		enabledToolsets = cfg.EnabledToolsets
 	} else if cfg.DynamicToolsets {
 		// Dynamic mode with no toolsets specified: start with no toolsets enabled
 		// so users can enable them on demand via the dynamic tools
@@ -163,7 +158,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	}
 
 	// Create toolset group with all tools, resources, and prompts (stateless)
-	tsg := github.NewToolsetGroup(cfg.Translator)
+	r := github.NewRegistry(cfg.Translator)
 
 	// Clean tool names (WithTools will resolve any deprecated aliases)
 	enabledTools := github.CleanTools(cfg.EnabledTools)
@@ -174,16 +169,21 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	// - WithToolsets: nil=defaults, empty=none, handles "all"/"default" keywords
 	// - WithTools: additional tools that bypass toolset filtering (additive, resolves aliases)
 	// - WithFeatureChecker: filters based on feature flags
-	filteredTsg := tsg.
+	filteredReg := r.
 		WithDeprecatedToolAliases(github.DeprecatedToolAliases).
 		WithReadOnly(cfg.ReadOnly).
 		WithToolsets(enabledToolsets).
 		WithTools(enabledTools).
 		WithFeatureChecker(createFeatureChecker(cfg.EnabledFeatures))
 
+	// Warn about unrecognized toolset names (likely typos)
+	if unrecognized := filteredReg.UnrecognizedToolsets(); len(unrecognized) > 0 {
+		fmt.Fprintf(os.Stderr, "Warning: unrecognized toolsets ignored: %s\n", strings.Join(unrecognized, ", "))
+	}
+
 	// Register all mcp functionality with the server
 	// Use background context for local server (no per-request actor context)
-	filteredTsg.RegisterAll(context.Background(), ghServer, deps)
+	filteredReg.RegisterAll(context.Background(), ghServer, deps)
 
 	// Register dynamic toolset management if configured
 	// Dynamic tools get access to the filtered toolset group which tracks enabled state.
@@ -191,12 +191,12 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	// so dynamic tools can enable any toolset at runtime.
 	if cfg.DynamicToolsets {
 		dynamicDeps := github.DynamicToolDependencies{
-			Server:       ghServer,
-			ToolsetGroup: filteredTsg,
-			ToolDeps:     deps,
-			T:            cfg.Translator,
+			Server:   ghServer,
+			Registry: filteredReg,
+			ToolDeps: deps,
+			T:        cfg.Translator,
 		}
-		dynamicTools := github.DynamicTools()
+		dynamicTools := github.DynamicTools(filteredReg)
 		for _, tool := range dynamicTools {
 			tool.RegisterFunc(ghServer, dynamicDeps)
 		}
