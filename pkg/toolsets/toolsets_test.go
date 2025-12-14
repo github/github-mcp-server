@@ -17,6 +17,34 @@ func testToolsetMetadata(id string) ToolsetMetadata {
 	}
 }
 
+// testToolsetMetadataWithDefault returns a ToolsetMetadata with Default flag for testing
+func testToolsetMetadataWithDefault(id string, isDefault bool) ToolsetMetadata {
+	return ToolsetMetadata{
+		ID:          ToolsetID(id),
+		Description: "Test toolset: " + id,
+		Default:     isDefault,
+	}
+}
+
+// mockToolWithDefault creates a mock tool with a default toolset flag
+func mockToolWithDefault(name string, toolsetID string, readOnly bool, isDefault bool) ServerTool {
+	return NewServerToolFromHandler(
+		mcp.Tool{
+			Name: name,
+			Annotations: &mcp.ToolAnnotations{
+				ReadOnlyHint: readOnly,
+			},
+			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+		},
+		testToolsetMetadataWithDefault(toolsetID, isDefault),
+		func(_ any) mcp.ToolHandler {
+			return func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				return nil, nil
+			}
+		},
+	)
+}
+
 // mockTool creates a minimal ServerTool for testing
 func mockTool(name string, toolsetID string, readOnly bool) ServerTool {
 	return NewServerToolFromHandler(
@@ -36,8 +64,8 @@ func mockTool(name string, toolsetID string, readOnly bool) ServerTool {
 	)
 }
 
-func TestNewToolsetGroupEmpty(t *testing.T) {
-	tsg := NewToolsetGroup(nil, nil, nil)
+func TestNewRegistryEmpty(t *testing.T) {
+	tsg := NewRegistry()
 	if len(tsg.tools) != 0 {
 		t.Fatalf("Expected tools to be empty, got %d items", len(tsg.tools))
 	}
@@ -49,14 +77,14 @@ func TestNewToolsetGroupEmpty(t *testing.T) {
 	}
 }
 
-func TestNewToolsetGroupWithTools(t *testing.T) {
+func TestNewRegistryWithTools(t *testing.T) {
 	tools := []ServerTool{
 		mockTool("tool1", "toolset1", true),
 		mockTool("tool2", "toolset1", false),
 		mockTool("tool3", "toolset2", true),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
+	tsg := NewRegistry().SetTools(tools)
 
 	if len(tsg.tools) != 3 {
 		t.Errorf("Expected 3 tools, got %d", len(tsg.tools))
@@ -70,7 +98,7 @@ func TestAvailableTools_NoFilters(t *testing.T) {
 		mockTool("tool_c", "toolset2", true),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
+	tsg := NewRegistry().SetTools(tools)
 	available := tsg.AvailableTools(context.Background())
 
 	if len(available) != 3 {
@@ -92,7 +120,7 @@ func TestWithReadOnly(t *testing.T) {
 		mockTool("write_tool", "toolset1", false),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
+	tsg := NewRegistry().SetTools(tools)
 
 	// Original should have both tools
 	allTools := tsg.AvailableTools(context.Background())
@@ -124,11 +152,11 @@ func TestWithToolsets(t *testing.T) {
 		mockTool("tool3", "toolset3", true),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
+	tsg := NewRegistry().SetTools(tools)
 
 	// Filter to specific toolsets
-	filteredTsg := tsg.WithToolsets([]string{"toolset1", "toolset3"})
-	filteredTools := filteredTsg.AvailableTools(context.Background())
+	filteredReg := tsg.WithToolsets([]string{"toolset1", "toolset3"})
+	filteredTools := filteredReg.AvailableTools(context.Background())
 
 	if len(filteredTools) != 2 {
 		t.Fatalf("Expected 2 filtered tools, got %d", len(filteredTools))
@@ -150,6 +178,114 @@ func TestWithToolsets(t *testing.T) {
 	}
 }
 
+func TestWithToolsetsTrimsWhitespace(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("tool1", "toolset1", true),
+		mockTool("tool2", "toolset2", true),
+	}
+
+	tsg := NewRegistry().SetTools(tools)
+
+	// Whitespace should be trimmed
+	filteredReg := tsg.WithToolsets([]string{" toolset1 ", "  toolset2  "})
+	filteredTools := filteredReg.AvailableTools(context.Background())
+
+	if len(filteredTools) != 2 {
+		t.Fatalf("Expected 2 tools after whitespace trimming, got %d", len(filteredTools))
+	}
+}
+
+func TestWithToolsetsDeduplicates(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("tool1", "toolset1", true),
+	}
+
+	tsg := NewRegistry().SetTools(tools)
+
+	// Duplicates should be removed
+	filteredReg := tsg.WithToolsets([]string{"toolset1", "toolset1", " toolset1 "})
+	filteredTools := filteredReg.AvailableTools(context.Background())
+
+	if len(filteredTools) != 1 {
+		t.Fatalf("Expected 1 tool after deduplication, got %d", len(filteredTools))
+	}
+}
+
+func TestWithToolsetsIgnoresEmptyStrings(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("tool1", "toolset1", true),
+	}
+
+	tsg := NewRegistry().SetTools(tools)
+
+	// Empty strings should be ignored
+	filteredReg := tsg.WithToolsets([]string{"", "toolset1", "  ", ""})
+	filteredTools := filteredReg.AvailableTools(context.Background())
+
+	if len(filteredTools) != 1 {
+		t.Fatalf("Expected 1 tool, got %d", len(filteredTools))
+	}
+}
+
+func TestUnrecognizedToolsets(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("tool1", "toolset1", true),
+		mockTool("tool2", "toolset2", true),
+	}
+
+	tsg := NewRegistry().SetTools(tools)
+
+	tests := []struct {
+		name                 string
+		input                []string
+		expectedUnrecognized []string
+	}{
+		{
+			name:                 "all valid",
+			input:                []string{"toolset1", "toolset2"},
+			expectedUnrecognized: nil,
+		},
+		{
+			name:                 "one invalid",
+			input:                []string{"toolset1", "invalid_toolset"},
+			expectedUnrecognized: []string{"invalid_toolset"},
+		},
+		{
+			name:                 "multiple invalid",
+			input:                []string{"typo1", "toolset1", "typo2"},
+			expectedUnrecognized: []string{"typo1", "typo2"},
+		},
+		{
+			name:                 "invalid with whitespace trimmed",
+			input:                []string{" invalid_tool "},
+			expectedUnrecognized: []string{"invalid_tool"},
+		},
+		{
+			name:                 "empty input",
+			input:                []string{},
+			expectedUnrecognized: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filtered := tsg.WithToolsets(tt.input)
+			unrecognized := filtered.UnrecognizedToolsets()
+
+			if len(unrecognized) != len(tt.expectedUnrecognized) {
+				t.Fatalf("Expected %d unrecognized, got %d: %v",
+					len(tt.expectedUnrecognized), len(unrecognized), unrecognized)
+			}
+
+			for i, expected := range tt.expectedUnrecognized {
+				if unrecognized[i] != expected {
+					t.Errorf("Expected unrecognized[%d] = %q, got %q", i, expected, unrecognized[i])
+				}
+			}
+		})
+	}
+}
+
 func TestWithTools(t *testing.T) {
 	tools := []ServerTool{
 		mockTool("tool1", "toolset1", true),
@@ -157,12 +293,12 @@ func TestWithTools(t *testing.T) {
 		mockTool("tool3", "toolset2", true),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
+	tsg := NewRegistry().SetTools(tools)
 
 	// WithTools adds additional tools that bypass toolset filtering
 	// When combined with WithToolsets([]), only the additional tools should be available
-	filteredTsg := tsg.WithToolsets([]string{}).WithTools([]string{"tool1", "tool3"})
-	filteredTools := filteredTsg.AvailableTools(context.Background())
+	filteredReg := tsg.WithToolsets([]string{}).WithTools([]string{"tool1", "tool3"})
+	filteredTools := filteredReg.AvailableTools(context.Background())
 
 	if len(filteredTools) != 2 {
 		t.Fatalf("Expected 2 filtered tools, got %d", len(filteredTools))
@@ -185,7 +321,7 @@ func TestChainedFilters(t *testing.T) {
 		mockTool("write2", "toolset2", false),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
+	tsg := NewRegistry().SetTools(tools)
 
 	// Chain read-only and toolset filter
 	filtered := tsg.WithReadOnly(true).WithToolsets([]string{"toolset1"})
@@ -206,7 +342,7 @@ func TestToolsetIDs(t *testing.T) {
 		mockTool("tool3", "toolset_b", true), // duplicate toolset
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
+	tsg := NewRegistry().SetTools(tools)
 	ids := tsg.ToolsetIDs()
 
 	if len(ids) != 2 {
@@ -225,7 +361,7 @@ func TestToolsetDescriptions(t *testing.T) {
 		mockTool("tool2", "toolset2", true),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
+	tsg := NewRegistry().SetTools(tools)
 	descriptions := tsg.ToolsetDescriptions()
 
 	if len(descriptions) != 2 {
@@ -244,7 +380,7 @@ func TestToolsForToolset(t *testing.T) {
 		mockTool("tool3", "toolset2", true),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
+	tsg := NewRegistry().SetTools(tools)
 	toolset1Tools := tsg.ToolsForToolset("toolset1")
 
 	if len(toolset1Tools) != 2 {
@@ -257,7 +393,7 @@ func TestWithDeprecatedToolAliases(t *testing.T) {
 		mockTool("new_name", "toolset1", true),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
+	tsg := NewRegistry().SetTools(tools)
 	tsgWithAliases := tsg.WithDeprecatedToolAliases(map[string]string{
 		"old_name":  "new_name",
 		"get_issue": "issue_read",
@@ -282,7 +418,7 @@ func TestResolveToolAliases(t *testing.T) {
 		mockTool("some_tool", "toolset1", true),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil).
+	tsg := NewRegistry().SetTools(tools).
 		WithDeprecatedToolAliases(map[string]string{
 			"get_issue": "issue_read",
 		})
@@ -314,7 +450,7 @@ func TestFindToolByName(t *testing.T) {
 		mockTool("issue_read", "toolset1", true),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
+	tsg := NewRegistry().SetTools(tools)
 
 	// Find by name
 	tool, toolsetID, err := tsg.FindToolByName("issue_read")
@@ -342,7 +478,7 @@ func TestWithToolsAdditive(t *testing.T) {
 		mockTool("repo_read", "toolset2", true),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
+	tsg := NewRegistry().SetTools(tools)
 
 	// Test WithTools bypasses toolset filtering
 	// Enable only toolset2, but add issue_read as additional tool
@@ -389,7 +525,7 @@ func TestWithToolsResolvesAliases(t *testing.T) {
 		mockTool("issue_read", "toolset1", true),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil).
+	tsg := NewRegistry().SetTools(tools).
 		WithDeprecatedToolAliases(map[string]string{
 			"get_issue": "issue_read",
 		})
@@ -411,7 +547,7 @@ func TestHasToolset(t *testing.T) {
 		mockTool("tool1", "toolset1", true),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
+	tsg := NewRegistry().SetTools(tools)
 
 	if !tsg.HasToolset("toolset1") {
 		t.Error("expected HasToolset to return true for existing toolset")
@@ -427,7 +563,7 @@ func TestEnabledToolsetIDs(t *testing.T) {
 		mockTool("tool2", "toolset2", true),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
+	tsg := NewRegistry().SetTools(tools)
 
 	// Without filter, all toolsets are enabled
 	ids := tsg.EnabledToolsetIDs()
@@ -452,7 +588,7 @@ func TestAllTools(t *testing.T) {
 		mockTool("write_tool", "toolset1", false),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
+	tsg := NewRegistry().SetTools(tools)
 
 	// Even with read-only filter, AllTools returns everything
 	readOnlyTsg := tsg.WithReadOnly(true)
@@ -520,7 +656,7 @@ func TestForMCPRequest_Initialize(t *testing.T) {
 		mockPrompt("prompt1", "repos"),
 	}
 
-	tsg := NewToolsetGroup(tools, resources, prompts)
+	tsg := NewRegistry().SetTools(tools).SetResources(resources).SetPrompts(prompts)
 	filtered := tsg.ForMCPRequest(MCPMethodInitialize, "")
 
 	// Initialize should return empty - capabilities come from ServerOptions
@@ -547,7 +683,7 @@ func TestForMCPRequest_ToolsList(t *testing.T) {
 		mockPrompt("prompt1", "repos"),
 	}
 
-	tsg := NewToolsetGroup(tools, resources, prompts)
+	tsg := NewRegistry().SetTools(tools).SetResources(resources).SetPrompts(prompts)
 	filtered := tsg.ForMCPRequest(MCPMethodToolsList, "")
 
 	// tools/list should return all tools, no resources or prompts
@@ -569,7 +705,7 @@ func TestForMCPRequest_ToolsCall(t *testing.T) {
 		mockTool("list_repos", "repos", true),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
+	tsg := NewRegistry().SetTools(tools)
 	filtered := tsg.ForMCPRequest(MCPMethodToolsCall, "get_me")
 
 	available := filtered.AvailableTools(context.Background())
@@ -586,7 +722,7 @@ func TestForMCPRequest_ToolsCall_NotFound(t *testing.T) {
 		mockTool("get_me", "context", true),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
+	tsg := NewRegistry().SetTools(tools)
 	filtered := tsg.ForMCPRequest(MCPMethodToolsCall, "nonexistent")
 
 	if len(filtered.AvailableTools(context.Background())) != 0 {
@@ -600,7 +736,7 @@ func TestForMCPRequest_ToolsCall_DeprecatedAlias(t *testing.T) {
 		mockTool("list_commits", "repos", true),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil).
+	tsg := NewRegistry().SetTools(tools).
 		WithDeprecatedToolAliases(map[string]string{
 			"old_get_me": "get_me",
 		})
@@ -622,7 +758,7 @@ func TestForMCPRequest_ToolsCall_RespectsFilters(t *testing.T) {
 		mockTool("create_issue", "issues", false), // write tool
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
+	tsg := NewRegistry().SetTools(tools)
 	// Apply read-only filter, then ForMCPRequest
 	filtered := tsg.WithReadOnly(true).ForMCPRequest(MCPMethodToolsCall, "create_issue")
 
@@ -645,7 +781,7 @@ func TestForMCPRequest_ResourcesList(t *testing.T) {
 		mockPrompt("prompt1", "repos"),
 	}
 
-	tsg := NewToolsetGroup(tools, resources, prompts)
+	tsg := NewRegistry().SetTools(tools).SetResources(resources).SetPrompts(prompts)
 	filtered := tsg.ForMCPRequest(MCPMethodResourcesList, "")
 
 	if len(filtered.AvailableTools(context.Background())) != 0 {
@@ -665,7 +801,7 @@ func TestForMCPRequest_ResourcesRead(t *testing.T) {
 		mockResource("res2", "repos", "branch://{owner}/{repo}/{branch}"),
 	}
 
-	tsg := NewToolsetGroup(nil, resources, nil)
+	tsg := NewRegistry().SetResources(resources)
 	filtered := tsg.ForMCPRequest(MCPMethodResourcesRead, "repo://{owner}/{repo}")
 
 	available := filtered.AvailableResourceTemplates(context.Background())
@@ -689,7 +825,7 @@ func TestForMCPRequest_PromptsList(t *testing.T) {
 		mockPrompt("prompt2", "issues"),
 	}
 
-	tsg := NewToolsetGroup(tools, resources, prompts)
+	tsg := NewRegistry().SetTools(tools).SetResources(resources).SetPrompts(prompts)
 	filtered := tsg.ForMCPRequest(MCPMethodPromptsList, "")
 
 	if len(filtered.AvailableTools(context.Background())) != 0 {
@@ -709,7 +845,7 @@ func TestForMCPRequest_PromptsGet(t *testing.T) {
 		mockPrompt("prompt2", "issues"),
 	}
 
-	tsg := NewToolsetGroup(nil, nil, prompts)
+	tsg := NewRegistry().SetPrompts(prompts)
 	filtered := tsg.ForMCPRequest(MCPMethodPromptsGet, "prompt1")
 
 	available := filtered.AvailablePrompts(context.Background())
@@ -732,7 +868,7 @@ func TestForMCPRequest_UnknownMethod(t *testing.T) {
 		mockPrompt("prompt1", "repos"),
 	}
 
-	tsg := NewToolsetGroup(tools, resources, prompts)
+	tsg := NewRegistry().SetTools(tools).SetResources(resources).SetPrompts(prompts)
 	filtered := tsg.ForMCPRequest("unknown/method", "")
 
 	// Unknown methods should return empty
@@ -759,7 +895,7 @@ func TestForMCPRequest_Immutability(t *testing.T) {
 		mockPrompt("prompt1", "repos"),
 	}
 
-	original := NewToolsetGroup(tools, resources, prompts)
+	original := NewRegistry().SetTools(tools).SetResources(resources).SetPrompts(prompts)
 	filtered := original.ForMCPRequest(MCPMethodToolsCall, "tool1")
 
 	// Original should be unchanged
@@ -787,14 +923,13 @@ func TestForMCPRequest_Immutability(t *testing.T) {
 
 func TestForMCPRequest_ChainedWithOtherFilters(t *testing.T) {
 	tools := []ServerTool{
-		mockTool("get_me", "context", true),
-		mockTool("create_issue", "issues", false),
-		mockTool("list_repos", "repos", true),
-		mockTool("delete_repo", "repos", false),
+		mockToolWithDefault("get_me", "context", true, true),        // default toolset
+		mockToolWithDefault("create_issue", "issues", false, false), // not default
+		mockToolWithDefault("list_repos", "repos", true, true),      // default toolset
+		mockToolWithDefault("delete_repo", "repos", false, true),    // default but write
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
-	tsg.SetDefaultToolsetIDs([]ToolsetID{"context", "repos"})
+	tsg := NewRegistry().SetTools(tools)
 
 	// Chain: default toolsets -> read-only -> specific method
 	filtered := tsg.
@@ -837,7 +972,7 @@ func TestForMCPRequest_ResourcesTemplatesList(t *testing.T) {
 		mockResource("res1", "repos", "repo://{owner}/{repo}"),
 	}
 
-	tsg := NewToolsetGroup(tools, resources, nil)
+	tsg := NewRegistry().SetTools(tools).SetResources(resources)
 	filtered := tsg.ForMCPRequest(MCPMethodResourcesTemplatesList, "")
 
 	// Same behavior as resources/list
@@ -886,7 +1021,7 @@ func TestFeatureFlagEnable(t *testing.T) {
 		mockToolWithFlags("needs_flag", "toolset1", true, "my_feature", ""),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
+	tsg := NewRegistry().SetTools(tools)
 
 	// Without feature checker, tool with FeatureFlagEnable should be excluded
 	available := tsg.AvailableTools(context.Background())
@@ -922,7 +1057,7 @@ func TestFeatureFlagDisable(t *testing.T) {
 		mockToolWithFlags("disabled_by_flag", "toolset1", true, "", "kill_switch"),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
+	tsg := NewRegistry().SetTools(tools)
 
 	// Without feature checker, tool with FeatureFlagDisable should be included (flag is false)
 	available := tsg.AvailableTools(context.Background())
@@ -950,7 +1085,7 @@ func TestFeatureFlagBoth(t *testing.T) {
 		mockToolWithFlags("complex_tool", "toolset1", true, "new_feature", "kill_switch"),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
+	tsg := NewRegistry().SetTools(tools)
 
 	// Enable flag not set -> excluded
 	checker1 := func(_ context.Context, _ string) (bool, error) { return false, nil }
@@ -976,7 +1111,7 @@ func TestFeatureFlagError(t *testing.T) {
 		mockToolWithFlags("needs_flag", "toolset1", true, "my_feature", ""),
 	}
 
-	tsg := NewToolsetGroup(tools, nil, nil)
+	tsg := NewRegistry().SetTools(tools)
 
 	// Checker that returns error should treat as false (tool excluded)
 	checkerError := func(_ context.Context, _ string) (bool, error) {
@@ -999,7 +1134,7 @@ func TestFeatureFlagResources(t *testing.T) {
 		},
 	}
 
-	tsg := NewToolsetGroup(nil, resources, nil)
+	tsg := NewRegistry().SetResources(resources)
 
 	// Without checker, resource with enable flag should be excluded
 	available := tsg.AvailableResourceTemplates(context.Background())
@@ -1025,7 +1160,7 @@ func TestFeatureFlagPrompts(t *testing.T) {
 		},
 	}
 
-	tsg := NewToolsetGroup(nil, nil, prompts)
+	tsg := NewRegistry().SetPrompts(prompts)
 
 	// Without checker, prompt with enable flag should be excluded
 	available := tsg.AvailablePrompts(context.Background())
@@ -1071,4 +1206,62 @@ func TestServerToolHandlerPanicOnNil(t *testing.T) {
 	}()
 
 	tool.Handler(nil)
+}
+
+// TestRegistryCopyCopiesAllFields ensures the copy() method stays in sync with the struct.
+// If you add a new field to Registry, this test will fail until you update copy().
+func TestRegistryCopyCopiesAllFields(t *testing.T) {
+	// Create a Registry with non-zero/non-nil values for ALL fields
+	original := &Registry{
+		tools:                []ServerTool{mockTool("t1", "ts1", true)},
+		resourceTemplates:    []ServerResourceTemplate{{Template: mcp.ResourceTemplate{Name: "r1"}}},
+		prompts:              []ServerPrompt{{Prompt: mcp.Prompt{Name: "p1"}}},
+		deprecatedAliases:    map[string]string{"old": "new"},
+		readOnly:             true,
+		enabledToolsets:      map[ToolsetID]bool{"ts1": true},
+		additionalTools:      map[string]bool{"extra": true},
+		featureChecker:       func(_ context.Context, _ string) (bool, error) { return true, nil },
+		unrecognizedToolsets: []string{"unknown"},
+	}
+
+	copied := original.copy()
+
+	// Verify all fields are copied correctly
+	if len(copied.tools) != len(original.tools) || (len(copied.tools) > 0 && copied.tools[0].Tool.Name != original.tools[0].Tool.Name) {
+		t.Error("tools not copied correctly")
+	}
+	if len(copied.resourceTemplates) != len(original.resourceTemplates) {
+		t.Error("resourceTemplates not copied correctly")
+	}
+	if len(copied.prompts) != len(original.prompts) {
+		t.Error("prompts not copied correctly")
+	}
+	if len(copied.deprecatedAliases) != len(original.deprecatedAliases) || copied.deprecatedAliases["old"] != "new" {
+		t.Error("deprecatedAliases not copied correctly")
+	}
+	if copied.readOnly != original.readOnly {
+		t.Error("readOnly not copied correctly")
+	}
+	if len(copied.enabledToolsets) != len(original.enabledToolsets) || !copied.enabledToolsets["ts1"] {
+		t.Error("enabledToolsets not copied correctly")
+	}
+	if len(copied.additionalTools) != len(original.additionalTools) || !copied.additionalTools["extra"] {
+		t.Error("additionalTools not copied correctly")
+	}
+	if copied.featureChecker == nil {
+		t.Error("featureChecker not copied correctly")
+	}
+	if len(copied.unrecognizedToolsets) != len(original.unrecognizedToolsets) || copied.unrecognizedToolsets[0] != "unknown" {
+		t.Error("unrecognizedToolsets not copied correctly")
+	}
+
+	// Verify maps are deep copied (mutations don't affect original)
+	copied.enabledToolsets["ts2"] = true
+	if original.enabledToolsets["ts2"] {
+		t.Error("enabledToolsets should be deep copied, not shared")
+	}
+	copied.additionalTools["another"] = true
+	if original.additionalTools["another"] {
+		t.Error("additionalTools should be deep copied, not shared")
+	}
 }
