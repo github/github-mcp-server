@@ -57,17 +57,24 @@ func (st *ServerTool) IsReadOnly() bool {
 	return st.Tool.Annotations != nil && st.Tool.Annotations.ReadOnlyHint
 }
 
+// HasHandler returns true if this tool has a handler function.
+func (st *ServerTool) HasHandler() bool {
+	return st.HandlerFunc != nil
+}
+
 // Handler returns a tool handler by calling HandlerFunc with the given dependencies.
+// Panics if HandlerFunc is nil - all tools should have handlers.
 func (st *ServerTool) Handler(deps any) mcp.ToolHandler {
 	if st.HandlerFunc == nil {
-		return nil
+		panic("HandlerFunc is nil for tool: " + st.Tool.Name)
 	}
 	return st.HandlerFunc(deps)
 }
 
 // RegisterFunc registers the tool with the server using the provided dependencies.
+// Panics if the tool has no handler - all tools should have handlers.
 func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any) {
-	handler := st.Handler(deps)
+	handler := st.Handler(deps) // This will panic if HandlerFunc is nil
 	s.AddTool(&st.Tool, handler)
 }
 
@@ -96,37 +103,4 @@ func NewServerTool[In any, Out any](tool mcp.Tool, toolset ToolsetMetadata, hand
 // Use this when you have a handler that already conforms to mcp.ToolHandler.
 func NewServerToolFromHandler(tool mcp.Tool, toolset ToolsetMetadata, handlerFn func(deps any) mcp.ToolHandler) ServerTool {
 	return ServerTool{Tool: tool, Toolset: toolset, HandlerFunc: handlerFn}
-}
-
-// NewServerToolLegacy creates a ServerTool from a tool definition, toolset metadata, and an already-bound typed handler.
-// This is for backward compatibility during the refactor - the handler doesn't use dependencies.
-// Deprecated: Use NewServerTool instead for new code.
-func NewServerToolLegacy[In any, Out any](tool mcp.Tool, toolset ToolsetMetadata, handler mcp.ToolHandlerFor[In, Out]) ServerTool {
-	return ServerTool{
-		Tool:    tool,
-		Toolset: toolset,
-		HandlerFunc: func(_ any) mcp.ToolHandler {
-			return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-				var arguments In
-				if err := json.Unmarshal(req.Params.Arguments, &arguments); err != nil {
-					return nil, err
-				}
-				resp, _, err := handler(ctx, req, arguments)
-				return resp, err
-			}
-		},
-	}
-}
-
-// NewServerToolFromHandlerLegacy creates a ServerTool from a tool definition, toolset metadata, and an already-bound raw handler.
-// This is for backward compatibility during the refactor - the handler doesn't use dependencies.
-// Deprecated: Use NewServerToolFromHandler instead for new code.
-func NewServerToolFromHandlerLegacy(tool mcp.Tool, toolset ToolsetMetadata, handler mcp.ToolHandler) ServerTool {
-	return ServerTool{
-		Tool:    tool,
-		Toolset: toolset,
-		HandlerFunc: func(_ any) mcp.ToolHandler {
-			return handler
-		},
-	}
 }
