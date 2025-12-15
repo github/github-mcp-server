@@ -105,8 +105,8 @@ func Test_ListWorkflows(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := toolDef.Handler(deps)
 
@@ -194,8 +194,8 @@ func Test_RunWorkflow(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := toolDef.Handler(deps)
 
@@ -290,8 +290,8 @@ func Test_RunWorkflow_WithFilename(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := toolDef.Handler(deps)
 
@@ -398,8 +398,8 @@ func Test_CancelWorkflowRun(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := toolDef.Handler(deps)
 
@@ -528,8 +528,8 @@ func Test_ListWorkflowRunArtifacts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := toolDef.Handler(deps)
 
@@ -618,8 +618,8 @@ func Test_DownloadWorkflowRunArtifact(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := toolDef.Handler(deps)
 
@@ -704,8 +704,8 @@ func Test_DeleteWorkflowRunLogs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := toolDef.Handler(deps)
 
@@ -808,8 +808,8 @@ func Test_GetWorkflowRunUsage(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := toolDef.Handler(deps)
 
@@ -1072,8 +1072,8 @@ func Test_GetJobLogs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient:         stubGetClientFn(client),
+			deps := BaseDeps{
+				Client:            client,
 				ContentWindowSize: 5000,
 			}
 			handler := toolDef.Handler(deps)
@@ -1136,8 +1136,8 @@ func Test_GetJobLogs_WithContentReturn(t *testing.T) {
 
 	client := github.NewClient(mockedClient)
 	toolDef := GetJobLogs(translations.NullTranslationHelper)
-	deps := ToolDependencies{
-		GetClient:         stubGetClientFn(client),
+	deps := BaseDeps{
+		Client:            client,
 		ContentWindowSize: 5000,
 	}
 	handler := toolDef.Handler(deps)
@@ -1188,8 +1188,8 @@ func Test_GetJobLogs_WithContentReturnAndTailLines(t *testing.T) {
 
 	client := github.NewClient(mockedClient)
 	toolDef := GetJobLogs(translations.NullTranslationHelper)
-	deps := ToolDependencies{
-		GetClient:         stubGetClientFn(client),
+	deps := BaseDeps{
+		Client:            client,
 		ContentWindowSize: 5000,
 	}
 	handler := toolDef.Handler(deps)
@@ -1240,8 +1240,8 @@ func Test_GetJobLogs_WithContentReturnAndLargeTailLines(t *testing.T) {
 
 	client := github.NewClient(mockedClient)
 	toolDef := GetJobLogs(translations.NullTranslationHelper)
-	deps := ToolDependencies{
-		GetClient:         stubGetClientFn(client),
+	deps := BaseDeps{
+		Client:            client,
 		ContentWindowSize: 5000,
 	}
 	handler := toolDef.Handler(deps)
