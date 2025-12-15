@@ -149,7 +149,7 @@ func (r *Registry) AvailablePrompts(ctx context.Context) []ServerPrompt {
 }
 
 // filterToolsByName returns tools matching the given name, checking deprecated aliases.
-// Returns from the current tools slice (respects existing filter chain).
+// Uses linear scan - optimized for single-lookup per-request scenarios (ForMCPRequest).
 func (r *Registry) filterToolsByName(name string) []ServerTool {
 	// First check for exact match
 	for i := range r.tools {
@@ -169,9 +169,9 @@ func (r *Registry) filterToolsByName(name string) []ServerTool {
 }
 
 // filterResourcesByURI returns resource templates matching the given URI pattern.
+// Uses linear scan - optimized for single-lookup per-request scenarios (ForMCPRequest).
 func (r *Registry) filterResourcesByURI(uri string) []ServerResourceTemplate {
 	for i := range r.resourceTemplates {
-		// Check if URI matches the template pattern (exact match on URITemplate string)
 		if r.resourceTemplates[i].Template.URITemplate == uri {
 			return []ServerResourceTemplate{r.resourceTemplates[i]}
 		}
@@ -180,6 +180,7 @@ func (r *Registry) filterResourcesByURI(uri string) []ServerResourceTemplate {
 }
 
 // filterPromptsByName returns prompts matching the given name.
+// Uses linear scan - optimized for single-lookup per-request scenarios (ForMCPRequest).
 func (r *Registry) filterPromptsByName(name string) []ServerPrompt {
 	for i := range r.prompts {
 		if r.prompts[i].Prompt.Name == name {
