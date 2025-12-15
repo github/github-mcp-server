@@ -1,0 +1,242 @@
+================================================================================
+API SYMBOL RESEARCH FOR 100% FACTOR COVERAGE
+================================================================================
+Date: 2025-11-27 15:05:49
+API: EODHD
+Goal: Find working symbols for all critical factors
+================================================================================
+
+================================================================================
+RESEARCHING: DOLLAR INDEX (DXY)
+================================================================================
+CRITICAL: #1 inverse correlation with gold (80%)
+
+Testing: DX-Y.NYB             - ICE Dollar Index Futures
+  [X] HTTP_404
+Testing: DXY.NYB              - Dollar Index NYBOT
+  [X] HTTP_404
+Testing: DX.NYB               - Dollar Index Short
+  [X] HTTP_404
+Testing: DXY.FOREX            - Dollar Index Forex
+  [X] HTTP_404
+Testing: USDX.FOREX           - US Dollar Index Forex
+  [X] HTTP_404
+Testing: DXY.FX               - Dollar Index FX
+  [X] HTTP_404
+Testing: DXY.INDX             - Dollar Index
+  [OK] SUCCESS! Value: 99.595
+Testing: ^DXY.INDX            - Dollar Index with caret
+  [X] HTTP_404
+Testing: DXY                  - Dollar Index plain
+  [X] HTTP_404
+Testing: ^DXY                 - Dollar Index caret plain
+  [X] HTTP_404
+Testing: USDOLLAR.INDX        - US Dollar Index
+  [X] HTTP_404
+Testing: USD.INDX             - USD Index
+  [X] HTTP_404
+Testing: USDU.INDX            - USD Universe Index
+  [X] HTTP_404
+Testing: UUP.US               - Invesco DB USD Bullish ETF
+  [OK] SUCCESS! Value: 28.23
+Testing: USDU.US              - USD Bullish Fund
+  [OK] SUCCESS! Value: 26.98
+Testing: EURUSD.FOREX         - EUR/USD (inverse proxy)
+  [OK] SUCCESS! Value: 1.1602
+
+================================================================================
+RESEARCHING: 10-YEAR TREASURY YIELD
+================================================================================
+CRITICAL: Real rates calculation for gold
+
+Testing: ^TNX.INDX            - 10Y Treasury Yield Index
+  [X] HTTP_404
+Testing: TNX.INDX             - 10Y Yield without caret
+  [OK] SUCCESS! Value: 39.98
+Testing: ^TNX                 - 10Y Yield plain
+  [X] HTTP_404
+Testing: TNX                  - 10Y Yield short
+  [X] HTTP_404
+Testing: US10Y.INDX           - US 10Y Index
+  [OK] SUCCESS! Value: 3.999
+Testing: ^US10Y.INDX          - US 10Y with caret
+  [X] HTTP_404
+Testing: US10YT.INDX          - US 10Y Treasury
+  [X] HTTP_404
+Testing: TY.COMM              - 10Y Treasury Futures
+  [X] HTTP_404
+Testing: ZN.COMM              - 10Y Note Futures
+  [X] HTTP_404
+Testing: IEF.US               - iShares 7-10Y Treasury ETF
+  [OK] SUCCESS! Value: 97.67
+Testing: TLT.US               - iShares 20+ Year Treasury ETF
+  [OK] SUCCESS! Value: 90.64
+Testing: SHY.US               - iShares 1-3Y Treasury ETF
+  [OK] SUCCESS! Value: 83.08
+Testing: DGS10.FRED           - 10Y Treasury Constant Maturity
+  [X] HTTP_404
+Testing: GS10.FRED            - 10 Year Treasury Rate
+  [X] HTTP_404
+
+================================================================================
+RESEARCHING: NASDAQ COMPOSITE
+================================================================================
+CRITICAL: #1 correlation with Apple (high beta)
+
+Testing: ^IXIC.INDX           - NASDAQ Composite Index
+  [X] HTTP_404
+Testing: IXIC.INDX            - NASDAQ without caret
+  [OK] SUCCESS! Value: 23214.6895
+Testing: ^IXIC                - NASDAQ plain
+  [X] HTTP_404
+Testing: IXIC                 - NASDAQ short
+  [X] HTTP_404
+Testing: ^COMP.INDX           - NASDAQ COMP
+  [X] HTTP_404
+Testing: COMP.INDX            - Composite Index
+  [X] HTTP_404
+Testing: COMPX.INDX           - Composite X
+  [X] HTTP_404
+Testing: ^NDX.INDX            - NASDAQ 100 Index
+  [X] HTTP_404
+Testing: NDX.INDX             - NDX without caret
+  [OK] SUCCESS! Value: 25236.9395
+Testing: ^NDX                 - NDX plain
+  [X] HTTP_404
+Testing: QQQ.US               - Invesco QQQ NASDAQ 100 ETF
+  [OK] SUCCESS! Value: 614.27
+Testing: ONEQ.US              - Fidelity NASDAQ Composite ETF
+  [OK] SUCCESS! Value: 91.36
+Testing: QQQM.US              - Invesco NASDAQ 100 Mini ETF
+  [OK] SUCCESS! Value: 252.92
+Testing: NQ.COMM              - NASDAQ 100 Futures
+  [X] HTTP_404
+
+================================================================================
+RESEARCHING: S&P 500
+================================================================================
+IMPORTANT: Broad market sentiment indicator
+
+Testing: ^GSPC.INDX           - S&P 500 Index
+  [X] HTTP_404
+Testing: GSPC.INDX            - S&P without caret
+  [OK] SUCCESS! Value: 6812.6099
+Testing: ^GSPC                - S&P plain
+  [X] HTTP_404
+Testing: GSPC                 - S&P short
+  [X] HTTP_404
+Testing: ^SPX.INDX            - SPX Index
+  [X] HTTP_404
+Testing: SPX.INDX             - SPX without caret
+  [X] HTTP_404
+Testing: ^INX.INDX            - INX Index
+  [X] HTTP_404
+Testing: INX.INDX             - INX without caret
+  [X] HTTP_404
+Testing: SPY.US               - SPDR S&P 500 ETF
+  [OK] SUCCESS! Value: 679.68
+Testing: VOO.US               - Vanguard S&P 500 ETF
+  [OK] SUCCESS! Value: 624.95
+Testing: IVV.US               - iShares Core S&P 500 ETF
+  [OK] SUCCESS! Value: 683.06
+Testing: ES.COMM              - E-mini S&P 500 Futures
+  [X] HTTP_404
+
+================================================================================
+RESEARCHING: APPLE FUNDAMENTALS
+================================================================================
+CRITICAL: P/E, revenue growth, margins for valuation
+
+Testing: AAPL.US              - Apple Inc
+  [OK] SUCCESS!
+     Highlights: True
+     Financials: True
+     Ratings: True
+Testing: AAPL                 - Apple without exchange
+  [OK] SUCCESS!
+     Highlights: True
+     Financials: True
+     Ratings: True
+Testing: AAPL.NASDAQ          - Apple NASDAQ
+  [X] HTTP_404
+
+================================================================================
+RESEARCHING: ADDITIONAL FACTORS
+================================================================================
+
+
+--- CPI (Inflation) ---
+Testing: ^CPI.INDX            - CPI Index
+  [X] Failed
+Testing: CPI.INDX             - CPI without caret
+  [X] Failed
+Testing: CPIAUCSL.FRED        - CPI All Urban FRED
+  [X] Failed
+
+--- Fed Funds Rate ---
+Testing: FEDFUNDS.FRED        - Federal Funds Rate
+  [X] Failed
+Testing: EFFR.FRED            - Effective Federal Funds Rate
+  [X] Failed
+Testing: ^IRX.INDX            - 13 Week Treasury Bill
+  [X] Failed
+
+--- Gold Futures ---
+Testing: GC.COMM              - Gold Futures
+  [X] Failed
+Testing: GOLD.COMM            - Gold Commodity
+  [X] Failed
+Testing: XAUUSD.FOREX         - Gold Spot (current)
+  [OK] SUCCESS! Value: 4165.0148
+
+================================================================================
+RESEARCH SUMMARY
+================================================================================
+
+CRITICAL FACTORS:
+  Dollar Index (DXY):     4 working symbols
+  10Y Treasury Yield:     5 working symbols
+  NASDAQ Composite:       5 working symbols
+  S&P 500:                4 working symbols
+  Apple Fundamentals:     2 working symbols
+
+ADDITIONAL FACTORS:
+  CPI (Inflation):        0 working symbols
+  Fed Funds Rate:         0 working symbols
+  Gold Futures:           1 working symbols
+
+================================================================================
+RECOMMENDED SYMBOLS
+================================================================================
+
+DXY:
+  Symbol: DXY.INDX
+  Description: Dollar Index
+  Current Value: 99.595
+
+TREASURY:
+  Symbol: TNX.INDX
+  Description: 10Y Yield without caret
+  Current Value: 39.98
+
+NASDAQ:
+  Symbol: IXIC.INDX
+  Description: NASDAQ without caret
+  Current Value: 23214.6895
+
+SP500:
+  Symbol: GSPC.INDX
+  Description: S&P without caret
+  Current Value: 6812.6099
+
+FUNDAMENTALS:
+  Symbol: AAPL.US
+  Description: Apple Inc
+
+GOLD:
+  Symbol: XAUUSD.FOREX
+  Current Value: 4165.0148
+
+================================================================================
+Results saved to: api_symbol_research_results.json
+================================================================================

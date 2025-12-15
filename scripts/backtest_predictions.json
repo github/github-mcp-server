@@ -1,0 +1,50 @@
+[
+  {
+    "timestamp": "2025-12-01T11:00:40.761575",
+    "current_price": 958.4057726252672,
+    "predicted_price": 959.3641783978924,
+    "horizon": "1d",
+    "factors": {},
+    "validated": false
+  },
+  {
+    "timestamp": "2025-12-01T12:22:47.335257",
+    "current_price": 958.4057726252672,
+    "predicted_price": 959.3641783978924,
+    "horizon": "1d",
+    "factors": {},
+    "validated": false
+  },
+  {
+    "timestamp": "2025-12-01T12:29:44.508020",
+    "current_price": 958.4057726252672,
+    "predicted_price": 959.3641783978924,
+    "horizon": "1d",
+    "factors": {},
+    "validated": false
+  },
+  {
+    "timestamp": "2025-12-01T12:59:47.737367",
+    "current_price": 958.3786741373157,
+    "predicted_price": 959.3370528114528,
+    "horizon": "1d",
+    "factors": {},
+    "validated": false
+  },
+  {
+    "timestamp": "2025-12-01T13:03:23.883363",
+    "current_price": 960.3099907923544,
+    "predicted_price": 963.5847991829955,
+    "horizon": "1d",
+    "factors": {},
+    "validated": false
+  },
+  {
+    "timestamp": "2025-12-01T13:06:20.653507",
+    "current_price": 960.3235673406529,
+    "predicted_price": 963.5984220294631,
+    "horizon": "1d",
+    "factors": {},
+    "validated": false
+  }
+]

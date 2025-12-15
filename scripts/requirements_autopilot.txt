@@ -1,0 +1,27 @@
+# Shanghai Gold Auto-Pilot System - Python Requirements
+# Version: 1.0
+
+# Core dependencies (Required)
+requests>=2.31.0          # API calls to EODHD
+pandas>=2.0.0             # Data manipulation
+numpy>=1.24.0             # Numerical operations
+schedule>=1.2.0           # Daily scheduling
+
+# Deep Learning (Optional but recommended)
+tensorflow>=2.13.0        # LSTM neural networks
+scikit-learn>=1.3.0       # Data preprocessing and scaling
+
+# Data Analysis (Optional)
+matplotlib>=3.7.0         # Plotting and visualization
+seaborn>=0.12.0           # Statistical visualization
+
+# Additional utilities
+python-dateutil>=2.8.2    # Date parsing
+pytz>=2023.3              # Timezone support
+
+# For production deployment
+python-dotenv>=1.0.0      # Environment variable management
+
+# Testing (Optional)
+pytest>=7.4.0             # Unit testing
+pytest-cov>=4.1.0         # Coverage reporting

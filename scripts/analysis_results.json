@@ -1,0 +1,345 @@
+{
+  "GOLD": {
+    "symbol": "XAUUSD.FOREX",
+    "latest_data": {
+      "date": "2025-11-22",
+      "open": 4065.01,
+      "high": 4065.01,
+      "low": 4065.01,
+      "close": 4065.01,
+      "adjusted_close": 4065.01,
+      "volume": 6625
+    },
+    "metrics": {
+      "current_price": 4065.01,
+      "previous_close": 4065.01,
+      "ma_10": 4087.5,
+      "ma_21": 4058.09,
+      "ma_50": 4064.1,
+      "ma_200": 3555.26,
+      "high_52w": 4365.83,
+      "low_52w": 2741.1,
+      "pct_from_high": -6.89,
+      "pct_from_low": 48.3,
+      "rs_10d": -2.89,
+      "rs_21d": 1.55,
+      "rs_50d": 5.24,
+      "is_above_ma10": false,
+      "is_above_ma21": true,
+      "is_above_ma50": true,
+      "is_above_ma200": true,
+      "avg_volume_50d": 186445,
+      "latest_volume": 6625,
+      "volume_ratio": 0.04,
+      "resistance": 4245.06,
+      "support": 3928.97,
+      "atr_pct": 1.8,
+      "trend_consistency": 57.89,
+      "latest_date": "2025-11-22"
+    },
+    "ibd_score": 47,
+    "ibd_rating": "B-",
+    "sentiment": 10,
+    "citations": {
+      "positive": [
+        {
+          "title": "If You Had Invested $100 in NuScale Power 1 Year Ago, Here's How Much You Would Have Today",
+          "date": "2025-11-23T21:30:00+00:00",
+          "link": "https://finance.yahoo.com/news/had-invested-100-nuscale-power-213000583.html",
+          "symbols": [
+            "SMR.US"
+          ]
+        },
+        {
+          "title": "Is This the Great Bitcoin Crash of 2025?",
+          "date": "2025-11-23T21:30:00+00:00",
+          "link": "https://finance.yahoo.com/news/great-bitcoin-crash-2025-213000609.html",
+          "symbols": [
+            "BTC-USD.US",
+            "BTC.CC"
+          ]
+        },
+        {
+          "title": "What Are the Best Healthcare Stocks to Buy Now? I Think It's Intuitive Surgical (ISRG) -- or, to Play It Safer, Medtronic (MDT)",
+          "date": "2025-11-23T21:18:00+00:00",
+          "link": "https://finance.yahoo.com/news/best-healthcare-stocks-buy-now-211800315.html",
+          "symbols": [
+            "ISRG.US",
+            "MDT.US"
+          ]
+        },
+        {
+          "title": "Some 42% of $200,000 Earners Avoid Checking Their Bank Accounts Due To Stress — And Half Say They'd Need Double Their Income To Feel Secure",
+          "date": "2025-11-23T20:31:24+00:00",
+          "link": "https://finance.yahoo.com/news/42-200-000-earners-avoid-203124680.html",
+          "symbols": [
+            "AAPL.US",
+            "TSLA.US"
+          ]
+        },
+        {
+          "title": "Should You Reconsider T-Mobile Stock After Recent 3% Drop and 5G Expansion News?",
+          "date": "2025-11-23T20:05:56+00:00",
+          "link": "https://finance.yahoo.com/news/reconsider-t-mobile-stock-recent-200556977.html",
+          "symbols": [
+            "TMUS.US"
+          ]
+        },
+        {
+          "title": "Why The Narrative Around Ashtead Group Is Shifting After Fresh Analyst Updates",
+          "date": "2025-11-23T20:05:40+00:00",
+          "link": "https://finance.yahoo.com/news/why-narrative-around-ashtead-group-200540519.html",
+          "symbols": [
+            "700.US",
+            "AHT.LSE",
+            "AHT.US",
+            "ASHTF.US",
+            "ASHTY.US"
+          ]
+        },
+        {
+          "title": "3 Soaring Stocks to Hold for the Next 20 Years",
+          "date": "2025-11-23T20:00:00+00:00",
+          "link": "https://www.nasdaq.com/articles/3-soaring-stocks-hold-next-20-years-0",
+          "symbols": [
+            "FOMC.US",
+            "HOOD.US",
+            "JOBY.US",
+            "O.US",
+            "OPEN.US",
+            "PEP.US",
+            "PM.US",
+            "UBER.US"
+          ]
+        },
+        {
+          "title": "3 Soaring Stocks to Hold for the Next 20 Years",
+          "date": "2025-11-23T20:00:00+00:00",
+          "link": "https://finance.yahoo.com/news/3-soaring-stocks-hold-next-200000927.html",
+          "symbols": [
+            "HOOD.US",
+            "JOBY.US",
+            "OPEN.US",
+            "SPX.INDX"
+          ]
+        },
+        {
+          "title": "The IRS quietly released new tax brackets for 2026. Some Americans will save thousands while others won't be so lucky",
+          "date": "2025-11-23T20:00:00+00:00",
+          "link": "https://finance.yahoo.com/news/irs-quietly-released-tax-brackets-200000886.html",
+          "symbols": [
+            "700.US"
+          ]
+        },
+        {
+          "title": "Guru Fundamental Report for T",
+          "date": "2025-11-23T20:00:00+00:00",
+          "link": "https://www.nasdaq.com/articles/guru-fundamental-report-t-5",
+          "symbols": [
+            "T.US"
+          ]
+        }
+      ],
+      "negative": []
+    },
+    "prediction": {
+      "base_prediction": 4471.51,
+      "upside_target": 4654.44,
+      "downside_target": 4288.59,
+      "support_level": 3928.97,
+      "resistance_level": 4245.06,
+      "expected_range_pct": 4.5,
+      "trend_bias_pct": 0,
+      "sentiment_bias_pct": 10.0
+    },
+    "recommendation": "WEAK HOLD"
+  },
+  "APPLE": {
+    "symbol": "AAPL.US",
+    "latest_data": {
+      "date": "2025-11-21",
+      "open": 265.95,
+      "high": 273.33,
+      "low": 265.67,
+      "close": 271.49,
+      "adjusted_close": 271.49,
+      "volume": 58784100
+    },
+    "metrics": {
+      "current_price": 271.49,
+      "previous_close": 266.25,
+      "ma_10": 270.47,
+      "ma_21": 269.73,
+      "ma_50": 259.49,
+      "ma_200": 226.27,
+      "high_52w": 275.25,
+      "low_52w": 172.42,
+      "pct_from_high": -1.37,
+      "pct_from_low": 57.46,
+      "rs_10d": 0.76,
+      "rs_21d": 3.3,
+      "rs_50d": 14.7,
+      "is_above_ma10": true,
+      "is_above_ma21": true,
+      "is_above_ma50": true,
+      "is_above_ma200": true,
+      "avg_volume_50d": 51124658,
+      "latest_volume": 58784100,
+      "volume_ratio": 1.15,
+      "resistance": 277.32,
+      "support": 264.65,
+      "atr_pct": 2.13,
+      "trend_consistency": 47.37,
+      "latest_date": "2025-11-21"
+    },
+    "ibd_score": 75,
+    "ibd_rating": "A-",
+    "sentiment": 8,
+    "citations": {
+      "positive": [
+        {
+          "title": "Bitget s’associe à Ampersan pour accélérer la liquidité institutionnelle à l’ère de l’UEX",
+          "date": "2025-11-23T21:57:00+00:00",
+          "link": "https://www.globenewswire.com/news-release/2025/11/23/3193169/0/fr/Bitget-s-associe-%C3%A0-Ampersan-pour-acc%C3%A9l%C3%A9rer-la-liquidit%C3%A9-institutionnelle-%C3%A0-l-%C3%A8re-de-l-UEX.html",
+          "symbols": []
+        },
+        {
+          "title": "On Running Shoes Won't Be Running Black Friday Deals Despite 'Price-Competitive Environment'",
+          "date": "2025-11-23T21:00:52+00:00",
+          "link": "https://finance.yahoo.com/news/running-shoes-wont-running-black-210052052.html",
+          "symbols": [
+            "700.US",
+            "AAPL.US",
+            "ADS.XETRA",
+            "AMZN.US",
+            "DECK.US",
+            "GOOG.US",
+            "GOOGL.US",
+            "META.US",
+            "NKE.US",
+            "ONON.US",
+            "TSLA.US"
+          ]
+        },
+        {
+          "title": "Mark Gurman Says Tim Cook Likely To Remain As Apple CEO Through At Least Mid-2026",
+          "date": "2025-11-23T20:58:51+00:00",
+          "link": "https://finance.yahoo.com/news/mark-gurman-says-tim-cook-205851696.html",
+          "symbols": [
+            "AAPL.US",
+            "TSLA.US"
+          ]
+        },
+        {
+          "title": "Some 42% of $200,000 Earners Avoid Checking Their Bank Accounts Due To Stress — And Half Say They'd Need Double Their Income To Feel Secure",
+          "date": "2025-11-23T20:31:24+00:00",
+          "link": "https://finance.yahoo.com/news/42-200-000-earners-avoid-203124680.html",
+          "symbols": [
+            "AAPL.US",
+            "TSLA.US"
+          ]
+        },
+        {
+          "title": "Fund Increases Holdings: Is This Stock a Good Buy?",
+          "date": "2025-11-23T20:17:12+00:00",
+          "link": "https://finance.yahoo.com/news/fund-increases-holdings-stock-good-201712288.html",
+          "symbols": [
+            "700.US",
+            "AAPL.US",
+            "AMLP.US",
+            "AVUS.US",
+            "FSK.US",
+            "SPY.US",
+            "SPYM.US"
+          ]
+        },
+        {
+          "title": "Fund Increases Holdings: Is This Stock a Good Buy?",
+          "date": "2025-11-23T20:17:12+00:00",
+          "link": "https://www.nasdaq.com/articles/fund-increases-holdings-stock-good-buy",
+          "symbols": [
+            "700.US",
+            "AAPL.US",
+            "AMLP.US",
+            "AVUS.US",
+            "FSK.US",
+            "SPY.US"
+          ]
+        },
+        {
+          "title": "Prediction: This Will Be Palantir's Stock Price in 2027",
+          "date": "2025-11-23T20:15:00+00:00",
+          "link": "https://finance.yahoo.com/news/prediction-palantirs-stock-price-2027-201500911.html",
+          "symbols": [
+            "PLTR.US"
+          ]
+        },
+        {
+          "title": "Prediction: This Will Be Palantir's Stock Price in 2027",
+          "date": "2025-11-23T20:15:00+00:00",
+          "link": "https://www.nasdaq.com/articles/prediction-will-be-palantirs-stock-price-2027",
+          "symbols": [
+            "PLTR.US"
+          ]
+        },
+        {
+          "title": "Why The Narrative Around Ashtead Group Is Shifting After Fresh Analyst Updates",
+          "date": "2025-11-23T20:05:40+00:00",
+          "link": "https://finance.yahoo.com/news/why-narrative-around-ashtead-group-200540519.html",
+          "symbols": [
+            "700.US",
+            "AHT.LSE",
+            "AHT.US",
+            "ASHTF.US",
+            "ASHTY.US"
+          ]
+        },
+        {
+          "title": "3 Soaring Stocks to Hold for the Next 20 Years",
+          "date": "2025-11-23T20:00:00+00:00",
+          "link": "https://www.nasdaq.com/articles/3-soaring-stocks-hold-next-20-years-0",
+          "symbols": [
+            "FOMC.US",
+            "HOOD.US",
+            "JOBY.US",
+            "O.US",
+            "OPEN.US",
+            "PEP.US",
+            "PM.US",
+            "UBER.US"
+          ]
+        }
+      ],
+      "negative": [
+        {
+          "title": "Should You Reconsider T-Mobile Stock After Recent 3% Drop and 5G Expansion News?",
+          "date": "2025-11-23T20:05:56+00:00",
+          "link": "https://finance.yahoo.com/news/reconsider-t-mobile-stock-recent-200556977.html",
+          "symbols": [
+            "TMUS.US"
+          ]
+        },
+        {
+          "title": "Jim Cramer on Abbott: “I Think It’s a Terrific Time to Do Some Buying”",
+          "date": "2025-11-23T19:51:36+00:00",
+          "link": "https://finance.yahoo.com/news/jim-cramer-abbott-think-terrific-195136332.html",
+          "symbols": [
+            "ABT.US",
+            "EXAS.US"
+          ]
+        }
+      ]
+    },
+    "prediction": {
+      "base_prediction": 298.64,
+      "upside_target": 313.1,
+      "downside_target": 284.18,
+      "support_level": 264.65,
+      "resistance_level": 277.32,
+      "expected_range_pct": 5.32,
+      "trend_bias_pct": 2.0,
+      "sentiment_bias_pct": 8.0
+    },
+    "recommendation": "STRONG BUY"
+  }
+}

@@ -1,0 +1,404 @@
+{
+  "timestamp": "2025-11-27T15:08:19.663428",
+  "all_results": {
+    "dxy": [
+      {
+        "symbol": "DX-Y.NYB",
+        "status": "HTTP_404",
+        "description": "ICE Dollar Index Futures"
+      },
+      {
+        "symbol": "DXY.NYB",
+        "status": "HTTP_404",
+        "description": "Dollar Index NYBOT"
+      },
+      {
+        "symbol": "DX.NYB",
+        "status": "HTTP_404",
+        "description": "Dollar Index Short"
+      },
+      {
+        "symbol": "DXY.FOREX",
+        "status": "HTTP_404",
+        "description": "Dollar Index Forex"
+      },
+      {
+        "symbol": "USDX.FOREX",
+        "status": "HTTP_404",
+        "description": "US Dollar Index Forex"
+      },
+      {
+        "symbol": "DXY.FX",
+        "status": "HTTP_404",
+        "description": "Dollar Index FX"
+      },
+      {
+        "symbol": "DXY.INDX",
+        "status": "SUCCESS",
+        "description": "Dollar Index",
+        "sample_value": 99.595,
+        "data_points": 10356
+      },
+      {
+        "symbol": "^DXY.INDX",
+        "status": "HTTP_404",
+        "description": "Dollar Index with caret"
+      },
+      {
+        "symbol": "DXY",
+        "status": "HTTP_404",
+        "description": "Dollar Index plain"
+      },
+      {
+        "symbol": "^DXY",
+        "status": "HTTP_404",
+        "description": "Dollar Index caret plain"
+      },
+      {
+        "symbol": "USDOLLAR.INDX",
+        "status": "HTTP_404",
+        "description": "US Dollar Index"
+      },
+      {
+        "symbol": "USD.INDX",
+        "status": "HTTP_404",
+        "description": "USD Index"
+      },
+      {
+        "symbol": "USDU.INDX",
+        "status": "HTTP_404",
+        "description": "USD Universe Index"
+      },
+      {
+        "symbol": "UUP.US",
+        "status": "SUCCESS",
+        "description": "Invesco DB USD Bullish ETF",
+        "sample_value": 28.23,
+        "data_points": 4724
+      },
+      {
+        "symbol": "USDU.US",
+        "status": "SUCCESS",
+        "description": "USD Bullish Fund",
+        "sample_value": 26.98,
+        "data_points": 3004
+      },
+      {
+        "symbol": "EURUSD.FOREX",
+        "status": "SUCCESS",
+        "description": "EUR/USD (inverse proxy)",
+        "sample_value": 1.1602,
+        "data_points": 6420
+      }
+    ],
+    "treasury": [
+      {
+        "symbol": "^TNX.INDX",
+        "status": "HTTP_404",
+        "description": "10Y Treasury Yield Index"
+      },
+      {
+        "symbol": "TNX.INDX",
+        "status": "SUCCESS",
+        "description": "10Y Yield without caret",
+        "sample_value": 39.98,
+        "data_points": 8051
+      },
+      {
+        "symbol": "^TNX",
+        "status": "HTTP_404",
+        "description": "10Y Yield plain"
+      },
+      {
+        "symbol": "TNX",
+        "status": "HTTP_404",
+        "description": "10Y Yield short"
+      },
+      {
+        "symbol": "US10Y.INDX",
+        "status": "SUCCESS",
+        "description": "US 10Y Index",
+        "sample_value": 3.999,
+        "data_points": 5032
+      },
+      {
+        "symbol": "^US10Y.INDX",
+        "status": "HTTP_404",
+        "description": "US 10Y with caret"
+      },
+      {
+        "symbol": "US10YT.INDX",
+        "status": "HTTP_404",
+        "description": "US 10Y Treasury"
+      },
+      {
+        "symbol": "TY.COMM",
+        "status": "HTTP_404",
+        "description": "10Y Treasury Futures"
+      },
+      {
+        "symbol": "ZN.COMM",
+        "status": "HTTP_404",
+        "description": "10Y Note Futures"
+      },
+      {
+        "symbol": "IEF.US",
+        "status": "SUCCESS",
+        "description": "iShares 7-10Y Treasury ETF",
+        "sample_value": 97.67,
+        "data_points": 5874
+      },
+      {
+        "symbol": "TLT.US",
+        "status": "SUCCESS",
+        "description": "iShares 20+ Year Treasury ETF",
+        "sample_value": 90.64,
+        "data_points": 5874
+      },
+      {
+        "symbol": "SHY.US",
+        "status": "SUCCESS",
+        "description": "iShares 1-3Y Treasury ETF",
+        "sample_value": 83.08,
+        "data_points": 5874
+      },
+      {
+        "symbol": "DGS10.FRED",
+        "status": "HTTP_404",
+        "description": "10Y Treasury Constant Maturity"
+      },
+      {
+        "symbol": "GS10.FRED",
+        "status": "HTTP_404",
+        "description": "10 Year Treasury Rate"
+      }
+    ],
+    "nasdaq": [
+      {
+        "symbol": "^IXIC.INDX",
+        "status": "HTTP_404",
+        "description": "NASDAQ Composite Index"
+      },
+      {
+        "symbol": "IXIC.INDX",
+        "status": "SUCCESS",
+        "description": "NASDAQ without caret",
+        "sample_value": 23214.6895,
+        "data_points": 13820
+      },
+      {
+        "symbol": "^IXIC",
+        "status": "HTTP_404",
+        "description": "NASDAQ plain"
+      },
+      {
+        "symbol": "IXIC",
+        "status": "HTTP_404",
+        "description": "NASDAQ short"
+      },
+      {
+        "symbol": "^COMP.INDX",
+        "status": "HTTP_404",
+        "description": "NASDAQ COMP"
+      },
+      {
+        "symbol": "COMP.INDX",
+        "status": "HTTP_404",
+        "description": "Composite Index"
+      },
+      {
+        "symbol": "COMPX.INDX",
+        "status": "HTTP_404",
+        "description": "Composite X"
+      },
+      {
+        "symbol": "^NDX.INDX",
+        "status": "HTTP_404",
+        "description": "NASDAQ 100 Index"
+      },
+      {
+        "symbol": "NDX.INDX",
+        "status": "SUCCESS",
+        "description": "NDX without caret",
+        "sample_value": 25236.9395,
+        "data_points": 10123
+      },
+      {
+        "symbol": "^NDX",
+        "status": "HTTP_404",
+        "description": "NDX plain"
+      },
+      {
+        "symbol": "QQQ.US",
+        "status": "SUCCESS",
+        "description": "Invesco QQQ NASDAQ 100 ETF",
+        "sample_value": 614.27,
+        "data_points": 6723
+      },
+      {
+        "symbol": "ONEQ.US",
+        "status": "SUCCESS",
+        "description": "Fidelity NASDAQ Composite ETF",
+        "sample_value": 91.36,
+        "data_points": 5576
+      },
+      {
+        "symbol": "QQQM.US",
+        "status": "SUCCESS",
+        "description": "Invesco NASDAQ 100 Mini ETF",
+        "sample_value": 252.92,
+        "data_points": 1288
+      },
+      {
+        "symbol": "NQ.COMM",
+        "status": "HTTP_404",
+        "description": "NASDAQ 100 Futures"
+      }
+    ],
+    "sp500": [
+      {
+        "symbol": "^GSPC.INDX",
+        "status": "HTTP_404",
+        "description": "S&P 500 Index"
+      },
+      {
+        "symbol": "GSPC.INDX",
+        "status": "SUCCESS",
+        "description": "S&P without caret",
+        "sample_value": 6812.6099,
+        "data_points": 24594
+      },
+      {
+        "symbol": "^GSPC",
+        "status": "HTTP_404",
+        "description": "S&P plain"
+      },
+      {
+        "symbol": "GSPC",
+        "status": "HTTP_404",
+        "description": "S&P short"
+      },
+      {
+        "symbol": "^SPX.INDX",
+        "status": "HTTP_404",
+        "description": "SPX Index"
+      },
+      {
+        "symbol": "SPX.INDX",
+        "status": "HTTP_404",
+        "description": "SPX without caret"
+      },
+      {
+        "symbol": "^INX.INDX",
+        "status": "HTTP_404",
+        "description": "INX Index"
+      },
+      {
+        "symbol": "INX.INDX",
+        "status": "HTTP_404",
+        "description": "INX without caret"
+      },
+      {
+        "symbol": "SPY.US",
+        "status": "SUCCESS",
+        "description": "SPDR S&P 500 ETF",
+        "sample_value": 679.68,
+        "data_points": 8265
+      },
+      {
+        "symbol": "VOO.US",
+        "status": "SUCCESS",
+        "description": "Vanguard S&P 500 ETF",
+        "sample_value": 624.95,
+        "data_points": 3829
+      },
+      {
+        "symbol": "IVV.US",
+        "status": "SUCCESS",
+        "description": "iShares Core S&P 500 ETF",
+        "sample_value": 683.06,
+        "data_points": 6420
+      },
+      {
+        "symbol": "ES.COMM",
+        "status": "HTTP_404",
+        "description": "E-mini S&P 500 Futures"
+      }
+    ],
+    "fundamentals": [
+      {
+        "symbol": "AAPL.US",
+        "status": "SUCCESS",
+        "description": "Apple Inc",
+        "has_highlights": true,
+        "has_financials": true,
+        "has_ratings": true
+      },
+      {
+        "symbol": "AAPL",
+        "status": "SUCCESS",
+        "description": "Apple without exchange",
+        "has_highlights": true,
+        "has_financials": true,
+        "has_ratings": true
+      },
+      {
+        "symbol": "AAPL.NASDAQ",
+        "status": "HTTP_404",
+        "description": "Apple NASDAQ"
+      }
+    ],
+    "additional": {
+      "cpi": [],
+      "fed": [],
+      "gold": [
+        {
+          "symbol": "XAUUSD.FOREX",
+          "status": "SUCCESS",
+          "description": "Gold Spot (current)",
+          "sample_value": 4165.0148,
+          "data_points": 11940
+        }
+      ]
+    }
+  },
+  "recommendations": {
+    "dxy": {
+      "symbol": "DXY.INDX",
+      "description": "Dollar Index",
+      "sample_value": 99.595
+    },
+    "treasury": {
+      "symbol": "TNX.INDX",
+      "description": "10Y Yield without caret",
+      "sample_value": 39.98
+    },
+    "nasdaq": {
+      "symbol": "IXIC.INDX",
+      "description": "NASDAQ without caret",
+      "sample_value": 23214.6895
+    },
+    "sp500": {
+      "symbol": "GSPC.INDX",
+      "description": "S&P without caret",
+      "sample_value": 6812.6099
+    },
+    "fundamentals": {
+      "symbol": "AAPL.US",
+      "description": "Apple Inc",
+      "sample_value": "N/A"
+    },
+    "additional_gold": {
+      "symbol": "XAUUSD.FOREX",
+      "description": "Gold Spot (current)",
+      "sample_value": 4165.0148
+    }
+  },
+  "summary": {
+    "dxy_found": true,
+    "treasury_found": true,
+    "nasdaq_found": true,
+    "sp500_found": true,
+    "fundamentals_found": true
+  }
+}

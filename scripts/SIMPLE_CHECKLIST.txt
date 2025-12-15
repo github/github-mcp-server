@@ -1,0 +1,235 @@
+════════════════════════════════════════════════════════════════════════════════
+            DIVIDEND ROTATION SIMPLE CHECKLIST
+        Starting Monday, November 18, 2025
+════════════════════════════════════════════════════════════════════════════════
+
+WEEK 1: NOVEMBER 18-22, 2025
+────────────────────────────────────────────────────────────────────────────────
+Monday, November 18
+  [ ] Open brokerage account (or verify existing)
+  [ ] Initiate $200,000 transfer
+  [ ] Read INVESTMENT_PLAN_2025-11-13.md
+  [ ] Create watchlist: JEPI, XYLD, SDIV, SCHD, VYM, DGRO, HDV, NOBL
+
+Tuesday, November 19
+  [ ] Verify funds cleared/settled
+  [ ] Research XYLD dividend schedule
+  [ ] Set price alert: XYLD @ $40.00
+  [ ] Verify XYLD ex-date: November 25, 2025
+
+Wednesday, November 20
+  [ ] Final check: XYLD ex-date confirmed
+  [ ] Prepare buy order: 1,665 shares @ $40.10 limit
+  [ ] Review execution plan for tomorrow
+
+Thursday, November 21 ★ FIRST BUY
+  [ ] Execute: BUY 1,665 XYLD @ $40.08 (or better)
+  [ ] Target: $66,700 total cost
+  [ ] Verify order filled before 4 PM ET
+  [ ] Record: Entry date, price, shares, cost
+
+Friday, November 22
+  [ ] Confirm XYLD position: 1,665 shares
+  [ ] Hold position (do nothing)
+  [ ] Prepare for Monday ex-date
+
+────────────────────────────────────────────────────────────────────────────────
+
+WEEK 2: NOVEMBER 25-29, 2025 (Thanksgiving Week)
+────────────────────────────────────────────────────────────────────────────────
+Monday, November 25 ★ EX-DIVIDEND DATE
+  [ ] HOLD XYLD (do NOT sell today)
+  [ ] Expect price drop to ~$39.68
+  [ ] Verify dividend will post: $660
+  [ ] Prepare sell order for tomorrow
+
+Tuesday, November 26 ★ FIRST EXIT
+  [ ] SELL 1,665 XYLD @ market open
+  [ ] Target exit: $39.80 or better
+  [ ] Record: Exit date, price, proceeds
+  [ ] Calculate P&L: Expected +$194
+  [ ] ★ CELEBRATE FIRST SUCCESSFUL TRADE! ★
+
+Wednesday, November 27
+  [ ] Verify XYLD dividend posted ($660)
+  [ ] Review Trade #1 lessons learned
+  [ ] Prepare for JEPI + SDIV trades
+
+Thursday, November 28 - THANKSGIVING
+  [ ] Market closed - enjoy holiday!
+
+Friday, November 29
+  [ ] Early close - light trading
+  [ ] Research JEPI and SDIV ex-dates (Dec 5)
+
+────────────────────────────────────────────────────────────────────────────────
+
+WEEK 3: DECEMBER 2-6, 2025 (Double Trade)
+────────────────────────────────────────────────────────────────────────────────
+Monday, December 2
+  [ ] Verify JEPI ex-date: December 5
+  [ ] Verify SDIV ex-date: December 5
+  [ ] Calculate positions: JEPI 1,157 sh, SDIV 2,727 sh
+  [ ] Prepare two buy orders
+
+Tuesday, December 3 ★ DOUBLE BUY
+  [ ] BUY 1,157 JEPI @ $57.30 limit → $66,253
+  [ ] BUY 2,727 SDIV @ $24.30 limit → $66,270
+  [ ] Verify both orders filled
+  [ ] Total deployed: $132,523
+
+Wednesday, December 4
+  [ ] Hold both positions
+  [ ] Monitor for news
+
+Thursday, December 5 ★ DOUBLE EX-DATE
+  [ ] HOLD both JEPI and SDIV
+  [ ] Expected dividends: $919 total
+  [ ] Prepare to sell tomorrow
+
+Friday, December 6 ★ DOUBLE EXIT
+  [ ] SELL 1,157 JEPI @ market
+  [ ] SELL 2,727 SDIV @ market
+  [ ] Record both trades
+  [ ] JEPI P&L: +$97
+  [ ] SDIV P&L: +$128
+
+────────────────────────────────────────────────────────────────────────────────
+
+WEEK 4: DECEMBER 9-13, 2025 (Prep Week)
+────────────────────────────────────────────────────────────────────────────────
+Monday, December 9
+  [ ] Verify ex-dates: DGRO (Dec 16), HDV (Dec 16)
+  [ ] Calculate positions for Thursday
+
+Tuesday, December 10
+  [ ] Prepare buy orders: DGRO, HDV
+  [ ] Review execution plan
+
+Wednesday, December 11
+  [ ] Final checks before tomorrow's buys
+  [ ] Set price alerts
+
+Thursday, December 12 ★ DOUBLE BUY
+  [ ] BUY 956 DGRO @ $69.20 limit → $66,117
+  [ ] BUY 546 HDV @ $121.80 limit → $66,459
+  [ ] Verify both filled
+  [ ] Total deployed: $132,576
+
+Friday, December 13
+  [ ] Hold DGRO + HDV
+  [ ] Prepare for Monday ex-dates
+
+────────────────────────────────────────────────────────────────────────────────
+
+WEEK 5: DECEMBER 16-20, 2025 (Busiest Week!)
+────────────────────────────────────────────────────────────────────────────────
+Monday, December 16 ★ DOUBLE EX-DATE
+  [ ] HOLD DGRO and HDV
+  [ ] Expected dividends: $872 total
+  [ ] Prepare for complex Tuesday
+
+Tuesday, December 17 ★ SELL 2 + BUY 1
+  [ ] SELL 956 DGRO @ market → P&L: +$100
+  [ ] SELL 546 HDV @ market → P&L: +$150
+  [ ] BUY 466 VYM @ $142.90 limit → $66,577
+  [ ] Verify all 3 orders executed
+
+Wednesday, December 18
+  [ ] Hold VYM
+  [ ] Tomorrow is ex-date
+
+Thursday, December 19 ★ VYM EX-DATE
+  [ ] HOLD VYM
+  [ ] Expected dividend: $392
+  [ ] Prepare to sell tomorrow
+
+Friday, December 20 ★ VYM EXIT
+  [ ] SELL 466 VYM @ market
+  [ ] Record P&L: +$120
+  [ ] Week 5 complete!
+
+────────────────────────────────────────────────────────────────────────────────
+
+WEEK 6: DECEMBER 23-27, 2025 (Holiday Week)
+────────────────────────────────────────────────────────────────────────────────
+Monday, December 22 ★ SCHD BUY
+  [ ] BUY 2,447 SCHD @ $27.20 limit → $66,529
+  [ ] Verify filled
+
+Tuesday, December 23 ★ NOBL BUY
+  [ ] BUY 642 NOBL @ $103.60 limit → $66,498
+  [ ] Verify filled
+  [ ] Total deployed: $133,027
+
+Wednesday, December 24 ★ SCHD EX-DATE
+  [ ] HOLD SCHD
+  [ ] Expected dividend: $636
+  [ ] Early close for Christmas Eve
+
+Thursday, December 25 - CHRISTMAS
+  [ ] Market closed - Merry Christmas!
+
+Friday, December 26 ★ COMPLEX DAY
+  [ ] NOBL EX-DATE - HOLD
+  [ ] Expected dividend: $352
+  [ ] SELL 2,447 SCHD @ market
+  [ ] SCHD P&L: +$140
+
+────────────────────────────────────────────────────────────────────────────────
+
+WEEK 7: DECEMBER 29-31, 2025 (Final Week!)
+────────────────────────────────────────────────────────────────────────────────
+Monday, December 29 ★ FINAL EXIT
+  [ ] SELL 642 NOBL @ market
+  [ ] NOBL P&L: +$95
+  [ ] ★★★ ALL 8 TRADES COMPLETE! ★★★
+  [ ] Calculate total return
+
+Tuesday, December 30
+  [ ] Final accounting
+  [ ] Export all trades for taxes
+  [ ] Review entire strategy
+
+Wednesday, December 31 - NEW YEAR'S EVE
+  [ ] Celebrate successful strategy!
+  [ ] Plan for January 2026
+  [ ] Expected total P&L: +$1,024 (0.51%)
+
+════════════════════════════════════════════════════════════════════════════════
+
+QUICK REFERENCE: ALL 8 TRADES
+────────────────────────────────────────────────────────────────────────────────
+#1 XYLD:  Buy Nov 21 → Ex Nov 25 → Sell Nov 26 | $660 div | +$194
+#2 JEPI:  Buy Dec 3  → Ex Dec 5  → Sell Dec 6  | $401 div | +$97
+#3 SDIV:  Buy Dec 3  → Ex Dec 5  → Sell Dec 6  | $518 div | +$128
+#4 DGRO:  Buy Dec 12 → Ex Dec 16 → Sell Dec 17 | $353 div | +$100
+#5 HDV:   Buy Dec 12 → Ex Dec 16 → Sell Dec 17 | $519 div | +$150
+#6 VYM:   Buy Dec 17 → Ex Dec 19 → Sell Dec 20 | $392 div | +$120
+#7 SCHD:  Buy Dec 22 → Ex Dec 24 → Sell Dec 26 | $636 div | +$140
+#8 NOBL:  Buy Dec 23 → Ex Dec 26 → Sell Dec 29 | $352 div | +$95
+
+Total Dividends: $4,332
+Total P&L: +$1,024
+Return: 0.51% in 6 weeks
+
+════════════════════════════════════════════════════════════════════════════════
+
+DAILY RULES (MEMORIZE THESE!)
+────────────────────────────────────────────────────────────────────────────────
+✓ Buy 2 TRADING DAYS before ex-date
+✓ Hold THROUGH ex-date (never sell ON ex-date)
+✓ Sell 1 TRADING DAY after ex-date
+✓ Use limit orders to control prices
+✓ Record every trade immediately
+✓ Stop-loss at -2% if price drops before ex-date
+✓ Never hold more than 5 trading days
+
+════════════════════════════════════════════════════════════════════════════════
+
+★ = Critical Action Day (must execute trades)
+📅 = Ex-Dividend Date (just hold, don't sell)
+🎯 = Exit Day (sell and take profits)
+
+Print this checklist and mark off each item as you complete it!
+Good luck! 🎯📈

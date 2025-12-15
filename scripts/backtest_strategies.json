@@ -1,0 +1,146 @@
+[
+  {
+    "timestamp": "2025-12-01T11:00:40.764488",
+    "action": "HOLD",
+    "position": "Position 1",
+    "price": 958.4057726252672,
+    "reason": "",
+    "executed": false
+  },
+  {
+    "timestamp": "2025-12-01T11:00:40.766771",
+    "action": "HOLD",
+    "position": "Position 2",
+    "price": 958.4057726252672,
+    "reason": "",
+    "executed": false
+  },
+  {
+    "timestamp": "2025-12-01T11:00:40.768517",
+    "action": "HOLD",
+    "position": "Position 3",
+    "price": 958.4057726252672,
+    "reason": "",
+    "executed": false
+  },
+  {
+    "timestamp": "2025-12-01T12:22:47.336083",
+    "action": "HOLD",
+    "position": "Position 1",
+    "price": 958.4057726252672,
+    "reason": "",
+    "executed": false
+  },
+  {
+    "timestamp": "2025-12-01T12:22:47.336796",
+    "action": "HOLD",
+    "position": "Position 2",
+    "price": 958.4057726252672,
+    "reason": "",
+    "executed": false
+  },
+  {
+    "timestamp": "2025-12-01T12:22:47.337468",
+    "action": "HOLD",
+    "position": "Position 3",
+    "price": 958.4057726252672,
+    "reason": "",
+    "executed": false
+  },
+  {
+    "timestamp": "2025-12-01T12:29:44.509181",
+    "action": "HOLD",
+    "position": "Position 1",
+    "price": 958.4057726252672,
+    "reason": "",
+    "executed": false
+  },
+  {
+    "timestamp": "2025-12-01T12:29:44.509931",
+    "action": "HOLD",
+    "position": "Position 2",
+    "price": 958.4057726252672,
+    "reason": "",
+    "executed": false
+  },
+  {
+    "timestamp": "2025-12-01T12:29:44.510835",
+    "action": "HOLD",
+    "position": "Position 3",
+    "price": 958.4057726252672,
+    "reason": "",
+    "executed": false
+  },
+  {
+    "timestamp": "2025-12-01T12:59:47.739076",
+    "action": "HOLD",
+    "position": "Position 1",
+    "price": 958.3786741373157,
+    "reason": "",
+    "executed": false
+  },
+  {
+    "timestamp": "2025-12-01T12:59:47.740178",
+    "action": "HOLD",
+    "position": "Position 2",
+    "price": 958.3786741373157,
+    "reason": "",
+    "executed": false
+  },
+  {
+    "timestamp": "2025-12-01T12:59:47.740946",
+    "action": "HOLD",
+    "position": "Position 3",
+    "price": 958.3786741373157,
+    "reason": "",
+    "executed": false
+  },
+  {
+    "timestamp": "2025-12-01T13:03:23.884623",
+    "action": "HOLD",
+    "position": "Position 1",
+    "price": 960.3099907923544,
+    "reason": "",
+    "executed": false
+  },
+  {
+    "timestamp": "2025-12-01T13:03:23.885226",
+    "action": "HOLD",
+    "position": "Position 2",
+    "price": 960.3099907923544,
+    "reason": "",
+    "executed": false
+  },
+  {
+    "timestamp": "2025-12-01T13:03:23.885839",
+    "action": "HOLD",
+    "position": "Position 3",
+    "price": 960.3099907923544,
+    "reason": "",
+    "executed": false
+  },
+  {
+    "timestamp": "2025-12-01T13:06:20.655005",
+    "action": "HOLD",
+    "position": "Position 1",
+    "price": 960.3235673406529,
+    "reason": "",
+    "executed": false
+  },
+  {
+    "timestamp": "2025-12-01T13:06:20.655843",
+    "action": "HOLD",
+    "position": "Position 2",
+    "price": 960.3235673406529,
+    "reason": "",
+    "executed": false
+  },
+  {
+    "timestamp": "2025-12-01T13:06:20.656520",
+    "action": "HOLD",
+    "position": "Position 3",
+    "price": 960.3235673406529,
+    "reason": "",
+    "executed": false
+  }
+]

@@ -1,0 +1,1046 @@
+{
+  "China CPI": [
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2024-12-31",
+      "Period": "Annual",
+      "Value": 0.2181
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2023-12-31",
+      "Period": "Annual",
+      "Value": 0.2348
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2022-12-31",
+      "Period": "Annual",
+      "Value": 1.9736
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2021-12-31",
+      "Period": "Annual",
+      "Value": 0.981
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2020-12-31",
+      "Period": "Annual",
+      "Value": 2.4194
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2019-12-31",
+      "Period": "Annual",
+      "Value": 2.8992
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2018-12-31",
+      "Period": "Annual",
+      "Value": 2.0748
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2017-12-31",
+      "Period": "Annual",
+      "Value": 1.5931
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2016-12-31",
+      "Period": "Annual",
+      "Value": 2
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2015-12-31",
+      "Period": "Annual",
+      "Value": 1.437
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2014-12-31",
+      "Period": "Annual",
+      "Value": 1.9216
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2013-12-31",
+      "Period": "Annual",
+      "Value": 2.6211
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2012-12-31",
+      "Period": "Annual",
+      "Value": 2.6195
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2011-12-31",
+      "Period": "Annual",
+      "Value": 5.5539
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2010-12-31",
+      "Period": "Annual",
+      "Value": 3.1753
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2009-12-31",
+      "Period": "Annual",
+      "Value": -0.7282
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2008-12-31",
+      "Period": "Annual",
+      "Value": 5.9253
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2007-12-31",
+      "Period": "Annual",
+      "Value": 4.8168
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2006-12-31",
+      "Period": "Annual",
+      "Value": 1.6494
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2005-12-31",
+      "Period": "Annual",
+      "Value": 1.7764
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2004-12-31",
+      "Period": "Annual",
+      "Value": 3.8246
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2003-12-31",
+      "Period": "Annual",
+      "Value": 1.1276
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2002-12-31",
+      "Period": "Annual",
+      "Value": -0.732
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2001-12-31",
+      "Period": "Annual",
+      "Value": 0.7191
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2000-12-31",
+      "Period": "Annual",
+      "Value": 0.3478
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1999-12-31",
+      "Period": "Annual",
+      "Value": -1.4015
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1998-12-31",
+      "Period": "Annual",
+      "Value": -0.7732
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1997-12-31",
+      "Period": "Annual",
+      "Value": 2.7865
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1996-12-31",
+      "Period": "Annual",
+      "Value": 8.3132
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1995-12-31",
+      "Period": "Annual",
+      "Value": 16.7912
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1994-12-31",
+      "Period": "Annual",
+      "Value": 24.257
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1993-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1992-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1991-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1990-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1989-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1988-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1987-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1986-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1985-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1984-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1983-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1982-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1981-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1980-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1979-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1978-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1977-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1976-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1975-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1974-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1973-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1972-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1971-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1970-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1969-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1968-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1967-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1966-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1965-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1964-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1963-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1962-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1961-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1960-12-31",
+      "Period": "Annual",
+      "Value": 0
+    }
+  ],
+  "China GDP Growth": [
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2024-12-31",
+      "Period": "Annual",
+      "Value": 4.9774
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2023-12-31",
+      "Period": "Annual",
+      "Value": 5.4148
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2022-12-31",
+      "Period": "Annual",
+      "Value": 3.1342
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2021-12-31",
+      "Period": "Annual",
+      "Value": 8.5701
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2020-12-31",
+      "Period": "Annual",
+      "Value": 2.3402
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2019-12-31",
+      "Period": "Annual",
+      "Value": 6.0685
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2018-12-31",
+      "Period": "Annual",
+      "Value": 6.7567
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2017-12-31",
+      "Period": "Annual",
+      "Value": 6.8913
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2016-12-31",
+      "Period": "Annual",
+      "Value": 6.7756
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2015-12-31",
+      "Period": "Annual",
+      "Value": 6.9788
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2014-12-31",
+      "Period": "Annual",
+      "Value": 7.4619
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2013-12-31",
+      "Period": "Annual",
+      "Value": 7.7787
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2012-12-31",
+      "Period": "Annual",
+      "Value": 7.8562
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2011-12-31",
+      "Period": "Annual",
+      "Value": 9.4613
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2010-12-31",
+      "Period": "Annual",
+      "Value": 10.5963
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2009-12-31",
+      "Period": "Annual",
+      "Value": 9.4027
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2008-12-31",
+      "Period": "Annual",
+      "Value": 9.6702
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2007-12-31",
+      "Period": "Annual",
+      "Value": 14.15
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2006-12-31",
+      "Period": "Annual",
+      "Value": 12.6747
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2005-12-31",
+      "Period": "Annual",
+      "Value": 11.4582
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2004-12-31",
+      "Period": "Annual",
+      "Value": 10.1314
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2003-12-31",
+      "Period": "Annual",
+      "Value": 10.1182
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2002-12-31",
+      "Period": "Annual",
+      "Value": 9.2434
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2001-12-31",
+      "Period": "Annual",
+      "Value": 8.3126
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2000-12-31",
+      "Period": "Annual",
+      "Value": 8.5864
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1999-12-31",
+      "Period": "Annual",
+      "Value": 7.737
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1998-12-31",
+      "Period": "Annual",
+      "Value": 7.9208
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1997-12-31",
+      "Period": "Annual",
+      "Value": 9.2876
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1996-12-31",
+      "Period": "Annual",
+      "Value": 9.9762
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1995-12-31",
+      "Period": "Annual",
+      "Value": 11.0328
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1994-12-31",
+      "Period": "Annual",
+      "Value": 13.0727
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1993-12-31",
+      "Period": "Annual",
+      "Value": 13.9291
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1992-12-31",
+      "Period": "Annual",
+      "Value": 14.2996
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1991-12-31",
+      "Period": "Annual",
+      "Value": 9.3617
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1990-12-31",
+      "Period": "Annual",
+      "Value": 3.9416
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1989-12-31",
+      "Period": "Annual",
+      "Value": 4.2063
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1988-12-31",
+      "Period": "Annual",
+      "Value": 11.2226
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1987-12-31",
+      "Period": "Annual",
+      "Value": 11.6282
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1986-12-31",
+      "Period": "Annual",
+      "Value": 8.9351
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1985-12-31",
+      "Period": "Annual",
+      "Value": 13.4355
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1984-12-31",
+      "Period": "Annual",
+      "Value": 15.2326
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1983-12-31",
+      "Period": "Annual",
+      "Value": 10.7274
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1982-12-31",
+      "Period": "Annual",
+      "Value": 9.0593
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1981-12-31",
+      "Period": "Annual",
+      "Value": 5.1128
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1980-12-31",
+      "Period": "Annual",
+      "Value": 7.8341
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1979-12-31",
+      "Period": "Annual",
+      "Value": 7.5913
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1978-12-31",
+      "Period": "Annual",
+      "Value": 11.326
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1977-12-31",
+      "Period": "Annual",
+      "Value": 7.57
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1976-12-31",
+      "Period": "Annual",
+      "Value": -1.57
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1975-12-31",
+      "Period": "Annual",
+      "Value": 8.72
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1974-12-31",
+      "Period": "Annual",
+      "Value": 2.31
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1973-12-31",
+      "Period": "Annual",
+      "Value": 7.76
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1972-12-31",
+      "Period": "Annual",
+      "Value": 3.81
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1971-12-31",
+      "Period": "Annual",
+      "Value": 7.06
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1970-12-31",
+      "Period": "Annual",
+      "Value": 19.3
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1969-12-31",
+      "Period": "Annual",
+      "Value": 16.94
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1968-12-31",
+      "Period": "Annual",
+      "Value": -4.1
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1967-12-31",
+      "Period": "Annual",
+      "Value": -5.77
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1966-12-31",
+      "Period": "Annual",
+      "Value": 10.65
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1965-12-31",
+      "Period": "Annual",
+      "Value": 16.95
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1964-12-31",
+      "Period": "Annual",
+      "Value": 18.18
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1963-12-31",
+      "Period": "Annual",
+      "Value": 10.3
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1962-12-31",
+      "Period": "Annual",
+      "Value": -5.58
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1961-12-31",
+      "Period": "Annual",
+      "Value": -27.27
+    },
+    {
+      "CountryCode": "CHN",
+      "CountryName": "China",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1960-12-31",
+      "Period": "Annual",
+      "Value": 0
+    }
+  ]
+}

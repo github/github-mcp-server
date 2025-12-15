@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash($null)",
+      "Bash(Select-Object -Last 10)",
+      "Bash(cat:*)",
+      "Bash(timeout 180 python:*)",
+      "Bash(tee:*)",
+      "Bash(timeout 120 python:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -1,0 +1,4 @@
+--- Running Gemini 3 Enhanced Sentiment Analyzer (v2) ---
+Fetching 50 latest news from EODHD for symbols: AAPL.US,XAUUSD.FOREX,SPY.US...
+Error fetching news: Expecting value: line 1 column 1 (char 0)
+Could not fetch news. Aborting analysis.

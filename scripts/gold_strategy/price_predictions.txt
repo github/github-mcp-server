@@ -1,0 +1,8 @@
+GOLD PRICE PREDICTIONS - END OF NOVEMBER 2025
+============================================================
+
+Current Price: $4085.14
+Predicted Price: $4163.52
+Expected Return: +1.92%
+Lower Bound (95%): $4139.15
+Upper Bound (95%): $4187.88

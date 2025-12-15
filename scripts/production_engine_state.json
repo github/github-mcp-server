@@ -1,0 +1,725 @@
+{
+  "timestamp": "2025-12-01T02:57:26.764375+00:00",
+  "engine_version": "5.0",
+  "update_interval_minutes": 15,
+  "cycle_count": 1,
+  "latest_predictions": [
+    {
+      "symbol": "XAUUSD.FOREX",
+      "timestamp": "2025-12-01T10:44:55.957098",
+      "current_price": 4222.7817,
+      "predictions": {
+        "1day": {
+          "horizon_days": 1,
+          "predicted_price": 4225.765556909483,
+          "raw_prediction": 4211.233683686111,
+          "change_pct": 0.07066093209326024,
+          "lower_95": 4124.960580916446,
+          "upper_95": 4297.506786455777,
+          "total_adjustment": 0.34507401666326437
+        },
+        "5day": {
+          "horizon_days": 5,
+          "predicted_price": 4231.3984487320895,
+          "raw_prediction": 4216.847204706257,
+          "change_pct": 0.20405385227680478,
+          "lower_95": 4036.1009044344023,
+          "upper_95": 4397.593504978111,
+          "total_adjustment": 0.34507401666326437
+        },
+        "10day": {
+          "horizon_days": 10,
+          "predicted_price": 4230.252858018721,
+          "raw_prediction": 4215.705553534443,
+          "change_pct": 0.1769250354267976,
+          "lower_95": 3963.5663202100754,
+          "upper_95": 4467.844786858811,
+          "total_adjustment": 0.34507401666326437
+        },
+        "20day": {
+          "horizon_days": 20,
+          "predicted_price": 4228.568977590259,
+          "raw_prediction": 4214.027463757778,
+          "change_pct": 0.13704894075532467,
+          "lower_95": 3858.1627472117502,
+          "upper_95": 4569.892180303805,
+          "total_adjustment": 0.34507401666326437
+        }
+      },
+      "model_order": [
+        3,
+        1,
+        3
+      ],
+      "context": {
+        "dxy": {
+          "DXY": 99.459,
+          "DXY_Day_Change": -0.13655303981123118,
+          "DXY_Week_Change": -0.6820315152483402,
+          "Gold_Adjustment": 0.0034101575762417007
+        },
+        "treasury": {
+          "10Y_Yield": 4.017,
+          "Yield_Change": 0.019000000000000572,
+          "Gold_Adjustment": 0
+        },
+        "vix": {
+          "VIX": 16.35,
+          "Market_Fear": "LOW",
+          "Gold_Adjustment": 0,
+          "Apple_Adjustment": 0
+        },
+        "nasdaq": {
+          "NASDAQ": 23365.6895,
+          "NASDAQ_Day_Change": 0.6504502246304005,
+          "NASDAQ_Week_Change": 4.905515515117289,
+          "Apple_Adjustment": 0.012263788787793222
+        },
+        "sp500": {
+          "SP500": 6849.0898,
+          "SP500_Day_Change": 0.535476132282275,
+          "SP500_Week_Change": 3.7270932190691357
+        },
+        "news": {
+          "score": 0.0,
+          "count": 0,
+          "adjustment": 0.0,
+          "top_articles": []
+        },
+        "sector": {
+          "sector_etf": "GLD.US",
+          "trend_strength": 4.058259039094301,
+          "adjustment": 4.058259039094301e-05
+        }
+      },
+      "citations": {
+        "total_citations": 32,
+        "sources": [
+          "EODHD_News",
+          "Market_Data",
+          "EODHD_API"
+        ],
+        "latest_update": "2025-12-01T02:44:54.500483+00:00",
+        "verified_count": 32
+      }
+    },
+    {
+      "symbol": "AAPL.US",
+      "timestamp": "2025-12-01T10:45:19.510416",
+      "current_price": 278.85,
+      "predictions": {
+        "1day": {
+          "horizon_days": 1,
+          "predicted_price": 282.1087101539238,
+          "raw_prediction": 278.2184384967162,
+          "change_pct": 1.1686247638242067,
+          "lower_95": 269.64926288716293,
+          "upper_95": 286.7876141062695,
+          "total_adjustment": 1.3982795957837093
+        },
+        "5day": {
+          "horizon_days": 5,
+          "predicted_price": 279.9505485343267,
+          "raw_prediction": 276.0900378688155,
+          "change_pct": 0.3946740305994846,
+          "lower_95": 255.86500457854427,
+          "upper_95": 296.3150711590867,
+          "total_adjustment": 1.3982795957837093
+        },
+        "10day": {
+          "horizon_days": 10,
+          "predicted_price": 279.88906868358134,
+          "raw_prediction": 276.0294058235871,
+          "change_pct": 0.3726263882307046,
+          "lower_95": 250.92127317314504,
+          "upper_95": 301.1375384740292,
+          "total_adjustment": 1.3982795957837093
+        },
+        "20day": {
+          "horizon_days": 20,
+          "predicted_price": 279.9647896697138,
+          "raw_prediction": 276.104082619322,
+          "change_pct": 0.3997811259507931,
+          "lower_95": 243.73307067701424,
+          "upper_95": 308.47509456162976,
+          "total_adjustment": 1.3982795957837093
+        }
+      },
+      "model_order": [
+        3,
+        1,
+        3
+      ],
+      "context": {
+        "dxy": {
+          "DXY": 99.459,
+          "DXY_Day_Change": -0.13655303981123118,
+          "DXY_Week_Change": -0.6820315152483402,
+          "Gold_Adjustment": 0.0034101575762417007
+        },
+        "treasury": {
+          "10Y_Yield": 4.017,
+          "Yield_Change": 0.019000000000000572,
+          "Gold_Adjustment": 0
+        },
+        "vix": {
+          "VIX": 16.35,
+          "Market_Fear": "LOW",
+          "Gold_Adjustment": 0,
+          "Apple_Adjustment": 0
+        },
+        "nasdaq": {
+          "NASDAQ": 23365.6895,
+          "NASDAQ_Day_Change": 0.6504502246304005,
+          "NASDAQ_Week_Change": 4.905515515117289,
+          "Apple_Adjustment": 0.012263788787793222
+        },
+        "sp500": {
+          "SP500": 6849.0898,
+          "SP500_Day_Change": 0.535476132282275,
+          "SP500_Week_Change": 3.7270932190691357
+        },
+        "news": {
+          "score": 0.7442768673618373,
+          "count": 50,
+          "adjustment": 0.0037213843368091863,
+          "top_articles": [
+            {
+              "title": "Canva CEO Melanie Perkins Shares How She Built A $42 Billion Company: 'Everything Good Was Once Imagined'",
+              "link": "https://finance.yahoo.com/news/canva-ceo-melanie-perkins-shares-000133973.html",
+              "date": "2025-12-01T00:01:33+00:00",
+              "sentiment": "positive"
+            },
+            {
+              "title": "Prediction: This Will Be the Next Quantum Computing Stock That Berkshire Hathaway Buys",
+              "link": "https://www.nasdaq.com/articles/prediction-will-be-next-quantum-computing-stock-berkshire-hathaway-buys",
+              "date": "2025-11-30T23:30:00+00:00",
+              "sentiment": "positive"
+            },
+            {
+              "title": "1 Vanguard ETF I Keep Buying for My Kids",
+              "link": "https://www.nasdaq.com/articles/1-vanguard-etf-i-keep-buying-my-kids",
+              "date": "2025-11-30T23:15:00+00:00",
+              "sentiment": "negative"
+            },
+            {
+              "title": "1 Vanguard ETF I Keep Buying for My Kids",
+              "link": "https://finance.yahoo.com/news/1-vanguard-etf-keep-buying-231500608.html",
+              "date": "2025-11-30T23:15:00+00:00",
+              "sentiment": "negative"
+            },
+            {
+              "title": "Three metrics to know as the Magnificent 7 enter December",
+              "link": "https://seekingalpha.com/news/4526642-three-metrics-to-know-as-the-magnificent-7-enter-december?utm_source=feed_news_all&amp;utm_medium=referral&amp;feed_item_type=news",
+              "date": "2025-11-30T21:10:21+00:00",
+              "sentiment": "positive"
+            }
+          ]
+        },
+        "sector": {
+          "sector_etf": "XLK.US",
+          "trend_strength": -0.23771667653147005,
+          "adjustment": -2.3771667653147006e-06
+        },
+        "fundamentals": {
+          "PE_Ratio": 37.3293,
+          "EPS": 7.47,
+          "Market_Cap_B": 4138.242670592,
+          "Dividend_Yield": 0.0037,
+          "Analyst_Rating": 3.913,
+          "Target_Price": 281.7481,
+          "Revenue_Growth_QoQ": 8.964651835467267,
+          "Latest_Revenue_B": 102.466,
+          "Operating_Margin": 31.646594968086976,
+          "Adjustment": -0.002
+        }
+      },
+      "citations": {
+        "total_citations": 41,
+        "sources": [
+          "EODHD_News",
+          "Market_Data",
+          "EODHD_API",
+          "EODHD_Fundamentals"
+        ],
+        "latest_update": "2025-12-01T02:45:18.532100+00:00",
+        "verified_count": 41
+      }
+    }
+  ],
+  "model_weights": [
+    {
+      "order": "(1, 1, 1)",
+      "weight": 0.33
+    },
+    {
+      "order": "(2, 1, 2)",
+      "weight": 0.33
+    },
+    {
+      "order": "(3, 1, 3)",
+      "weight": 0.34
+    }
+  ],
+  "performance_history": [],
+  "best_models": {},
+  "best_rmse": {},
+  "citations": [
+    {
+      "source": "EODHD_News",
+      "data_type": "us_market_news",
+      "value": "Stocks Settle Higher as Chip Makers and Energy Producers Rally",
+      "timestamp": "2025-12-01T02:44:21.306939+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://www.nasdaq.com/articles/stocks-settle-higher-chip-makers-and-energy-producers-rally",
+      "article_title": "Stocks Settle Higher as Chip Makers and Energy Producers Rally"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "us_market_news",
+      "value": "Stocks Supported by Fed Rate Cut Optimism",
+      "timestamp": "2025-12-01T02:44:21.307348+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://www.nasdaq.com/articles/stocks-supported-fed-rate-cut-optimism-0",
+      "article_title": "Stocks Supported by Fed Rate Cut Optimism"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "us_market_news",
+      "value": "Stocks Climb on Strength in Chip Makers and Energy Producers",
+      "timestamp": "2025-12-01T02:44:21.307754+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://www.nasdaq.com/articles/stocks-climb-strength-chip-makers-and-energy-producers",
+      "article_title": "Stocks Climb on Strength in Chip Makers and Energy Producers"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "us_market_news",
+      "value": "ETFs to Benefit From Rate Cut Bets and Upbeat Forecasts",
+      "timestamp": "2025-12-01T02:44:21.308064+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://finance.yahoo.com/news/etfs-benefit-rate-cut-bets-151000943.html",
+      "article_title": "ETFs to Benefit From Rate Cut Bets and Upbeat Forecasts"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "us_market_news",
+      "value": "5 ETFs Primed to Soar if the Fed Cuts Rates in December",
+      "timestamp": "2025-12-01T02:44:21.308379+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://finance.yahoo.com/news/5-etfs-primed-soar-fed-141100686.html",
+      "article_title": "5 ETFs Primed to Soar if the Fed Cuts Rates in December"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "china_tech_news",
+      "value": "Trending tickers: Gamestop, Alphabet, Baidu, Puma and Mitchells &amp; Butlers",
+      "timestamp": "2025-12-01T02:44:26.212006+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://uk.finance.yahoo.com/news/gamestop-alphabet-baidu-puma-mitchells-butlers-trending-tickers-093833009.html",
+      "article_title": "Trending tickers: Gamestop, Alphabet, Baidu, Puma and Mitchells &amp; Butlers"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "china_tech_news",
+      "value": "Bull vs. Bear: Chinese Stock Showdown",
+      "timestamp": "2025-12-01T02:44:26.212865+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://finance.yahoo.com/news/bull-vs-bear-chinese-stock-142300526.html",
+      "article_title": "Bull vs. Bear: Chinese Stock Showdown"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "china_tech_news",
+      "value": "Notable analyst calls this week: Baidu, Shell and T-Applied Materials among top picks",
+      "timestamp": "2025-12-01T02:44:26.213422+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://seekingalpha.com/news/4526590-notable-analyst-calls-this-week-baidu-shell-and-t-applied-materials-among-top-picks?utm_source=feed_news_all&amp;utm_medium=referral&amp;feed_item_type=news",
+      "article_title": "Notable analyst calls this week: Baidu, Shell and T-Applied Materials among top picks"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "china_tech_news",
+      "value": "Alibaba (BABA) Earns $195 Price Target as AI and Cloud Demand Accelerate",
+      "timestamp": "2025-12-01T02:44:26.214022+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://finance.yahoo.com/news/alibaba-baba-earns-195-price-100024689.html",
+      "article_title": "Alibaba (BABA) Earns $195 Price Target as AI and Cloud Demand Accelerate"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "china_tech_news",
+      "value": "Alibaba (NYSE:BABA): Examining Valuation After Recent Share Price Swings",
+      "timestamp": "2025-12-01T02:44:26.214333+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://finance.yahoo.com/news/alibaba-nyse-baba-examining-valuation-171232430.html",
+      "article_title": "Alibaba (NYSE:BABA): Examining Valuation After Recent Share Price Swings"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "us_tech_news",
+      "value": "Stocks Settle Higher as Chip Makers and Energy Producers Rally",
+      "timestamp": "2025-12-01T02:44:30.413898+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://www.nasdaq.com/articles/stocks-settle-higher-chip-makers-and-energy-producers-rally",
+      "article_title": "Stocks Settle Higher as Chip Makers and Energy Producers Rally"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "us_tech_news",
+      "value": "This Historical Market Pattern Just Ended, and It Could Be a Precursor to a Market Crash",
+      "timestamp": "2025-12-01T02:44:30.414475+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://finance.yahoo.com/news/historical-market-pattern-just-ended-183500325.html",
+      "article_title": "This Historical Market Pattern Just Ended, and It Could Be a Precursor to a Market Crash"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "us_tech_news",
+      "value": "5 Tech ETF Deals to Grab on Black Friday",
+      "timestamp": "2025-12-01T02:44:30.414936+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://finance.yahoo.com/news/5-tech-etf-deals-grab-163100704.html",
+      "article_title": "5 Tech ETF Deals to Grab on Black Friday"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "us_tech_news",
+      "value": "Markets remain \u2018pretty strong\u2019 heading into the next months \u2013 MS Wealth Management\u2019s Lacamp",
+      "timestamp": "2025-12-01T02:44:30.415356+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://seekingalpha.com/news/4526567-markets-remain-pretty-strong-heading-into-the-next-months-ms-wealth-management-s-lacamp?utm_source=feed_news_all&amp;utm_medium=referral&amp;feed_item_type=news",
+      "article_title": "Markets remain \u2018pretty strong\u2019 heading into the next months \u2013 MS Wealth Management\u2019s Lacamp"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "us_tech_news",
+      "value": "5 ETFs Primed to Soar if the Fed Cuts Rates in December",
+      "timestamp": "2025-12-01T02:44:30.415607+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://finance.yahoo.com/news/5-etfs-primed-soar-fed-141100686.html",
+      "article_title": "5 ETFs Primed to Soar if the Fed Cuts Rates in December"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "apple_news",
+      "value": "SA Asks: What happens to the chip sector if China retakes Taiwan?",
+      "timestamp": "2025-12-01T02:44:31.533118+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://seekingalpha.com/news/4526643-sa-asks-what-happens-to-the-chip-sector-if-china-retakes-taiwan?utm_source=feed_news_all&amp;utm_medium=referral&amp;feed_item_type=news",
+      "article_title": "SA Asks: What happens to the chip sector if China retakes Taiwan?"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "apple_news",
+      "value": "Prediction: This Will Be the Next Quantum Computing Stock That Berkshire Hathaway Buys",
+      "timestamp": "2025-12-01T02:44:31.534506+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://www.nasdaq.com/articles/prediction-will-be-next-quantum-computing-stock-berkshire-hathaway-buys",
+      "article_title": "Prediction: This Will Be the Next Quantum Computing Stock That Berkshire Hathaway Buys"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "apple_news",
+      "value": "Ford CEO Says The U.S. Is 'In Trouble' With Over 1 Million Critical Jobs Empty &amp; Even $120K Tech",
+      "timestamp": "2025-12-01T02:44:31.536438+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://finance.yahoo.com/news/ford-ceo-says-u-trouble-203130587.html",
+      "article_title": "Ford CEO Says The U.S. Is 'In Trouble' With Over 1 Million Critical Jobs Empty &amp; Even $120K Tech Roles Sitting Vacant. 'God Forbid We Get In A War'"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "apple_news",
+      "value": "Here's How Americans Spent a Record $18 Billion Chasing Thanksgiving Week Deals",
+      "timestamp": "2025-12-01T02:44:31.538004+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://finance.yahoo.com/news/heres-americans-spent-record-18-200837771.html",
+      "article_title": "Here's How Americans Spent a Record $18 Billion Chasing Thanksgiving Week Deals"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "apple_news",
+      "value": "Canva CEO Melanie Perkins Shares How She Built A $42 Billion Company: 'Everything Good Was Once Imag",
+      "timestamp": "2025-12-01T02:44:31.538381+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://finance.yahoo.com/news/canva-ceo-melanie-perkins-shares-000133973.html",
+      "article_title": "Canva CEO Melanie Perkins Shares How She Built A $42 Billion Company: 'Everything Good Was Once Imagined'"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "gold_news",
+      "value": "Gold to $5,000? What Bank of America and UBS Have to Say",
+      "timestamp": "2025-12-01T02:44:35.721357+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://finance.yahoo.com/news/gold-5-000-bank-america-135100493.html",
+      "article_title": "Gold to $5,000? What Bank of America and UBS Have to Say"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "gold_news",
+      "value": "Gold futures post fifth straight daily gain, silver surges to fresh record high",
+      "timestamp": "2025-12-01T02:44:35.721847+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://seekingalpha.com/news/4526584-gold-futures-post-fifth-straight-daily-gain-silver-surges-to-fresh-record-high?utm_source=feed_news_all&amp;utm_medium=referral&amp;feed_item_type=news",
+      "article_title": "Gold futures post fifth straight daily gain, silver surges to fresh record high"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "gold_news",
+      "value": "Commodity index hits highest level since 2022 as metals rally",
+      "timestamp": "2025-12-01T02:44:35.722521+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://seekingalpha.com/news/4526554-commodity-index-hits-highest-level-since-2022-as-metals-rally?utm_source=feed_news_all&amp;utm_medium=referral&amp;feed_item_type=news",
+      "article_title": "Commodity index hits highest level since 2022 as metals rally"
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "gold_news",
+      "value": "BofA\u2019s \u2018triple momentum\u2019 stocks in gold, defense, nuclear, AI: WDC, GD, NVDA, and more",
+      "timestamp": "2025-12-01T02:44:35.723110+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://seekingalpha.com/news/4526547-bofa-s-triple-momentum-stocks-in-gold-defense-nuclear-ai-wdc-gd-nvda-and-more?utm_source=feed_news_all&amp;utm_medium=referral&amp;feed_item_type=news",
+      "article_title": "BofA\u2019s \u2018triple momentum\u2019 stocks in gold, defense, nuclear, AI: WDC, GD, NVDA, and more"
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "XAUUSD.FOREX_historical",
+      "value": "200 days",
+      "timestamp": "2025-12-01T02:44:37.821746+00:00",
+      "reliability": 0.95,
+      "verified": true,
+      "source_url": "https://eodhd.com",
+      "article_title": null
+    },
+    {
+      "source": "Market_Data",
+      "data_type": "DXY",
+      "value": 99.459,
+      "timestamp": "2025-12-01T02:44:40.238835+00:00",
+      "reliability": 0.98,
+      "verified": true,
+      "source_url": "https://eodhd.com",
+      "article_title": null
+    },
+    {
+      "source": "Market_Data",
+      "data_type": "10Y_Treasury",
+      "value": 4.017,
+      "timestamp": "2025-12-01T02:44:42.163132+00:00",
+      "reliability": 0.98,
+      "verified": true,
+      "source_url": "https://eodhd.com",
+      "article_title": null
+    },
+    {
+      "source": "Market_Data",
+      "data_type": "VIX",
+      "value": 16.35,
+      "timestamp": "2025-12-01T02:44:45.117443+00:00",
+      "reliability": 0.98,
+      "verified": true,
+      "source_url": "https://eodhd.com",
+      "article_title": null
+    },
+    {
+      "source": "Market_Data",
+      "data_type": "NASDAQ",
+      "value": 23365.6895,
+      "timestamp": "2025-12-01T02:44:48.023496+00:00",
+      "reliability": 0.98,
+      "verified": true,
+      "source_url": "https://eodhd.com",
+      "article_title": null
+    },
+    {
+      "source": "Market_Data",
+      "data_type": "SP500",
+      "value": 6849.0898,
+      "timestamp": "2025-12-01T02:44:51.605238+00:00",
+      "reliability": 0.98,
+      "verified": true,
+      "source_url": "https://eodhd.com",
+      "article_title": null
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "XAUUSD.FOREX_sentiment",
+      "value": "0 articles, sentiment: 0.000",
+      "timestamp": "2025-12-01T02:44:52.717843+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://eodhd.com/financial-apis/stock-market-financial-news-api",
+      "article_title": null
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "XAUUSD.FOREX_sector",
+      "value": "GLD.US",
+      "timestamp": "2025-12-01T02:44:54.500483+00:00",
+      "reliability": 0.95,
+      "verified": true,
+      "source_url": "https://eodhd.com",
+      "article_title": null
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "AAPL.US_historical",
+      "value": "200 days",
+      "timestamp": "2025-12-01T02:44:58.365005+00:00",
+      "reliability": 0.95,
+      "verified": true,
+      "source_url": "https://eodhd.com",
+      "article_title": null
+    },
+    {
+      "source": "Market_Data",
+      "data_type": "DXY",
+      "value": 99.459,
+      "timestamp": "2025-12-01T02:45:00.600798+00:00",
+      "reliability": 0.98,
+      "verified": true,
+      "source_url": "https://eodhd.com",
+      "article_title": null
+    },
+    {
+      "source": "Market_Data",
+      "data_type": "10Y_Treasury",
+      "value": 4.017,
+      "timestamp": "2025-12-01T02:45:02.382862+00:00",
+      "reliability": 0.98,
+      "verified": true,
+      "source_url": "https://eodhd.com",
+      "article_title": null
+    },
+    {
+      "source": "Market_Data",
+      "data_type": "VIX",
+      "value": 16.35,
+      "timestamp": "2025-12-01T02:45:05.372383+00:00",
+      "reliability": 0.98,
+      "verified": true,
+      "source_url": "https://eodhd.com",
+      "article_title": null
+    },
+    {
+      "source": "Market_Data",
+      "data_type": "NASDAQ",
+      "value": 23365.6895,
+      "timestamp": "2025-12-01T02:45:08.760060+00:00",
+      "reliability": 0.98,
+      "verified": true,
+      "source_url": "https://eodhd.com",
+      "article_title": null
+    },
+    {
+      "source": "Market_Data",
+      "data_type": "SP500",
+      "value": 6849.0898,
+      "timestamp": "2025-12-01T02:45:12.599503+00:00",
+      "reliability": 0.98,
+      "verified": true,
+      "source_url": "https://eodhd.com",
+      "article_title": null
+    },
+    {
+      "source": "EODHD_Fundamentals",
+      "data_type": "AAPL_Fundamentals",
+      "value": "comprehensive",
+      "timestamp": "2025-12-01T02:45:14.108537+00:00",
+      "reliability": 0.95,
+      "verified": true,
+      "source_url": "https://eodhd.com/financial-apis/stock-etfs-fundamental-data-feeds",
+      "article_title": null
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "AAPL.US_sentiment",
+      "value": "50 articles, sentiment: 0.744",
+      "timestamp": "2025-12-01T02:45:16.125608+00:00",
+      "reliability": 0.85,
+      "verified": true,
+      "source_url": "https://eodhd.com/financial-apis/stock-market-financial-news-api",
+      "article_title": null
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "AAPL.US_sector",
+      "value": "XLK.US",
+      "timestamp": "2025-12-01T02:45:18.532100+00:00",
+      "reliability": 0.95,
+      "verified": true,
+      "source_url": "https://eodhd.com",
+      "article_title": null
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "XAUUSD.FOREX_historical",
+      "value": "200 days",
+      "timestamp": "2025-12-01T02:45:22.452647+00:00",
+      "reliability": 0.95,
+      "verified": true,
+      "source_url": "https://eodhd.com",
+      "article_title": null
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "AAPL.US_historical",
+      "value": "200 days",
+      "timestamp": "2025-12-01T02:45:27.754575+00:00",
+      "reliability": 0.95,
+      "verified": true,
+      "source_url": "https://eodhd.com",
+      "article_title": null
+    }
+  ],
+  "citation_summary": {
+    "total_citations": 43,
+    "sources": [
+      "EODHD_News",
+      "Market_Data",
+      "EODHD_API",
+      "EODHD_Fundamentals"
+    ],
+    "latest_update": "2025-12-01T02:45:27.754575+00:00",
+    "verified_count": 43
+  },
+  "market_segments_covered": [
+    "china_market",
+    "us_market",
+    "china_tech",
+    "us_tech",
+    "apple",
+    "gold"
+  ],
+  "uptime_seconds": 793.562535,
+  "data_verification": {
+    "all_data_cited": true,
+    "sources_verified": true,
+    "primary_source": "EODHD API (https://eodhd.com)",
+    "api_documentation": "https://eodhd.com/financial-apis"
+  }
+}

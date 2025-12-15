@@ -1,0 +1,1568 @@
+{
+  "CPI Inflation": [
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2024-12-31",
+      "Period": "Annual",
+      "Value": 2.9495
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2023-12-31",
+      "Period": "Annual",
+      "Value": 4.1163
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2022-12-31",
+      "Period": "Annual",
+      "Value": 8.0028
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2021-12-31",
+      "Period": "Annual",
+      "Value": 4.6979
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2020-12-31",
+      "Period": "Annual",
+      "Value": 1.2336
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2019-12-31",
+      "Period": "Annual",
+      "Value": 1.8122
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2018-12-31",
+      "Period": "Annual",
+      "Value": 2.4426
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2017-12-31",
+      "Period": "Annual",
+      "Value": 2.1301
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2016-12-31",
+      "Period": "Annual",
+      "Value": 1.2616
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2015-12-31",
+      "Period": "Annual",
+      "Value": 0.1186
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2014-12-31",
+      "Period": "Annual",
+      "Value": 1.6222
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2013-12-31",
+      "Period": "Annual",
+      "Value": 1.4648
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2012-12-31",
+      "Period": "Annual",
+      "Value": 2.0693
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2011-12-31",
+      "Period": "Annual",
+      "Value": 3.1568
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2010-12-31",
+      "Period": "Annual",
+      "Value": 1.64
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2009-12-31",
+      "Period": "Annual",
+      "Value": -0.3555
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2008-12-31",
+      "Period": "Annual",
+      "Value": 3.8391
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2007-12-31",
+      "Period": "Annual",
+      "Value": 2.8527
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2006-12-31",
+      "Period": "Annual",
+      "Value": 3.2259
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2005-12-31",
+      "Period": "Annual",
+      "Value": 3.3927
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2004-12-31",
+      "Period": "Annual",
+      "Value": 2.6772
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2003-12-31",
+      "Period": "Annual",
+      "Value": 2.2701
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2002-12-31",
+      "Period": "Annual",
+      "Value": 1.586
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2001-12-31",
+      "Period": "Annual",
+      "Value": 2.8262
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "2000-12-31",
+      "Period": "Annual",
+      "Value": 3.3769
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1999-12-31",
+      "Period": "Annual",
+      "Value": 2.188
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1998-12-31",
+      "Period": "Annual",
+      "Value": 1.5523
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1997-12-31",
+      "Period": "Annual",
+      "Value": 2.3377
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1996-12-31",
+      "Period": "Annual",
+      "Value": 2.9312
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1995-12-31",
+      "Period": "Annual",
+      "Value": 2.8054
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1994-12-31",
+      "Period": "Annual",
+      "Value": 2.6074
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1993-12-31",
+      "Period": "Annual",
+      "Value": 2.9517
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1992-12-31",
+      "Period": "Annual",
+      "Value": 3.0288
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1991-12-31",
+      "Period": "Annual",
+      "Value": 4.235
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1990-12-31",
+      "Period": "Annual",
+      "Value": 5.398
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1989-12-31",
+      "Period": "Annual",
+      "Value": 4.827
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1988-12-31",
+      "Period": "Annual",
+      "Value": 4.0777
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1987-12-31",
+      "Period": "Annual",
+      "Value": 3.6646
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1986-12-31",
+      "Period": "Annual",
+      "Value": 1.898
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1985-12-31",
+      "Period": "Annual",
+      "Value": 3.5456
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1984-12-31",
+      "Period": "Annual",
+      "Value": 4.3005
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1983-12-31",
+      "Period": "Annual",
+      "Value": 3.2124
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1982-12-31",
+      "Period": "Annual",
+      "Value": 6.1314
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1981-12-31",
+      "Period": "Annual",
+      "Value": 10.3347
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1980-12-31",
+      "Period": "Annual",
+      "Value": 13.5492
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1979-12-31",
+      "Period": "Annual",
+      "Value": 11.2545
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1978-12-31",
+      "Period": "Annual",
+      "Value": 7.631
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1977-12-31",
+      "Period": "Annual",
+      "Value": 6.5017
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1976-12-31",
+      "Period": "Annual",
+      "Value": 5.7448
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1975-12-31",
+      "Period": "Annual",
+      "Value": 9.1431
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1974-12-31",
+      "Period": "Annual",
+      "Value": 11.0548
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1973-12-31",
+      "Period": "Annual",
+      "Value": 6.1778
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1972-12-31",
+      "Period": "Annual",
+      "Value": 3.2723
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1971-12-31",
+      "Period": "Annual",
+      "Value": 4.2928
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1970-12-31",
+      "Period": "Annual",
+      "Value": 5.8383
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1969-12-31",
+      "Period": "Annual",
+      "Value": 5.4624
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1968-12-31",
+      "Period": "Annual",
+      "Value": 4.2718
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1967-12-31",
+      "Period": "Annual",
+      "Value": 2.7728
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1966-12-31",
+      "Period": "Annual",
+      "Value": 3.0151
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1965-12-31",
+      "Period": "Annual",
+      "Value": 1.5852
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1964-12-31",
+      "Period": "Annual",
+      "Value": 1.2789
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1963-12-31",
+      "Period": "Annual",
+      "Value": 1.2397
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1962-12-31",
+      "Period": "Annual",
+      "Value": 1.1988
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1961-12-31",
+      "Period": "Annual",
+      "Value": 1.0707
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Inflation, consumer prices (annual %)",
+      "Date": "1960-12-31",
+      "Period": "Annual",
+      "Value": 1.458
+    }
+  ],
+  "Real Interest Rate": [
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2024-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2023-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2022-12-31",
+      "Period": "Annual",
+      "Value": 0
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2021-12-31",
+      "Period": "Annual",
+      "Value": -1.2585
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2020-12-31",
+      "Period": "Annual",
+      "Value": 2.1863
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2019-12-31",
+      "Period": "Annual",
+      "Value": 3.5731
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2018-12-31",
+      "Period": "Annual",
+      "Value": 2.5547
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2017-12-31",
+      "Period": "Annual",
+      "Value": 2.2653
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2016-12-31",
+      "Period": "Annual",
+      "Value": 2.5372
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2015-12-31",
+      "Period": "Annual",
+      "Value": 2.3105
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2014-12-31",
+      "Period": "Annual",
+      "Value": 1.4826
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2013-12-31",
+      "Period": "Annual",
+      "Value": 1.5222
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2012-12-31",
+      "Period": "Annual",
+      "Value": 1.3625
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2011-12-31",
+      "Period": "Annual",
+      "Value": 1.1629
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2010-12-31",
+      "Period": "Annual",
+      "Value": 2.0103
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2009-12-31",
+      "Period": "Annual",
+      "Value": 2.6171
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2008-12-31",
+      "Period": "Annual",
+      "Value": 3.101
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2007-12-31",
+      "Period": "Annual",
+      "Value": 5.1999
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2006-12-31",
+      "Period": "Annual",
+      "Value": 4.7279
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2005-12-31",
+      "Period": "Annual",
+      "Value": 2.9609
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2004-12-31",
+      "Period": "Annual",
+      "Value": 1.6077
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2003-12-31",
+      "Period": "Annual",
+      "Value": 2.1066
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2002-12-31",
+      "Period": "Annual",
+      "Value": 3.0732
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2001-12-31",
+      "Period": "Annual",
+      "Value": 4.5671
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "2000-12-31",
+      "Period": "Annual",
+      "Value": 6.8138
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1999-12-31",
+      "Period": "Annual",
+      "Value": 6.4873
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1998-12-31",
+      "Period": "Annual",
+      "Value": 7.1499
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1997-12-31",
+      "Period": "Annual",
+      "Value": 6.6033
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1996-12-31",
+      "Period": "Annual",
+      "Value": 6.3243
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1995-12-31",
+      "Period": "Annual",
+      "Value": 6.5942
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1994-12-31",
+      "Period": "Annual",
+      "Value": 4.8985
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1993-12-31",
+      "Period": "Annual",
+      "Value": 3.5456
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1992-12-31",
+      "Period": "Annual",
+      "Value": 3.8843
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1991-12-31",
+      "Period": "Annual",
+      "Value": 4.9153
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1990-12-31",
+      "Period": "Annual",
+      "Value": 6.0397
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1989-12-31",
+      "Period": "Annual",
+      "Value": 6.6903
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1988-12-31",
+      "Period": "Annual",
+      "Value": 5.5903
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1987-12-31",
+      "Period": "Annual",
+      "Value": 5.5875
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1986-12-31",
+      "Period": "Annual",
+      "Value": 6.1939
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1985-12-31",
+      "Period": "Annual",
+      "Value": 6.5632
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1984-12-31",
+      "Period": "Annual",
+      "Value": 8.1409
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1983-12-31",
+      "Period": "Annual",
+      "Value": 6.618
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1982-12-31",
+      "Period": "Annual",
+      "Value": 8.1772
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1981-12-31",
+      "Period": "Annual",
+      "Value": 8.5946
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1980-12-31",
+      "Period": "Annual",
+      "Value": 5.7164
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1979-12-31",
+      "Period": "Annual",
+      "Value": 4.0344
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1978-12-31",
+      "Period": "Annual",
+      "Value": 1.8898
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1977-12-31",
+      "Period": "Annual",
+      "Value": 0.5751
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1976-12-31",
+      "Period": "Annual",
+      "Value": 1.2668
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1975-12-31",
+      "Period": "Annual",
+      "Value": -1.2816
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1974-12-31",
+      "Period": "Annual",
+      "Value": 1.6511
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1973-12-31",
+      "Period": "Annual",
+      "Value": 2.4097
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1972-12-31",
+      "Period": "Annual",
+      "Value": 0.884
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1971-12-31",
+      "Period": "Annual",
+      "Value": 0.622
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1970-12-31",
+      "Period": "Annual",
+      "Value": 2.5862
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1969-12-31",
+      "Period": "Annual",
+      "Value": 2.9244
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1968-12-31",
+      "Period": "Annual",
+      "Value": 1.9544
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1967-12-31",
+      "Period": "Annual",
+      "Value": 2.6478
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1966-12-31",
+      "Period": "Annual",
+      "Value": 2.83
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1965-12-31",
+      "Period": "Annual",
+      "Value": 2.6627
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1964-12-31",
+      "Period": "Annual",
+      "Value": 2.9054
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1963-12-31",
+      "Period": "Annual",
+      "Value": 3.3048
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1962-12-31",
+      "Period": "Annual",
+      "Value": 3.1865
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1961-12-31",
+      "Period": "Annual",
+      "Value": 3.3232
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "Real interest rate (%)",
+      "Date": "1960-12-31",
+      "Period": "Annual",
+      "Value": 0
+    }
+  ],
+  "GDP Growth": [
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2024-12-31",
+      "Period": "Annual",
+      "Value": 2.7962
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2023-12-31",
+      "Period": "Annual",
+      "Value": 2.8876
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2022-12-31",
+      "Period": "Annual",
+      "Value": 2.5124
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2021-12-31",
+      "Period": "Annual",
+      "Value": 6.0551
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2020-12-31",
+      "Period": "Annual",
+      "Value": -2.163
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2019-12-31",
+      "Period": "Annual",
+      "Value": 2.5838
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2018-12-31",
+      "Period": "Annual",
+      "Value": 2.9665
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2017-12-31",
+      "Period": "Annual",
+      "Value": 2.4576
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2016-12-31",
+      "Period": "Annual",
+      "Value": 1.8195
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2015-12-31",
+      "Period": "Annual",
+      "Value": 2.9456
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2014-12-31",
+      "Period": "Annual",
+      "Value": 2.5238
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2013-12-31",
+      "Period": "Annual",
+      "Value": 2.1178
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2012-12-31",
+      "Period": "Annual",
+      "Value": 2.2891
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2011-12-31",
+      "Period": "Annual",
+      "Value": 1.5644
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2010-12-31",
+      "Period": "Annual",
+      "Value": 2.6952
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2009-12-31",
+      "Period": "Annual",
+      "Value": -2.5765
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2008-12-31",
+      "Period": "Annual",
+      "Value": 0.1136
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2007-12-31",
+      "Period": "Annual",
+      "Value": 2.0039
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2006-12-31",
+      "Period": "Annual",
+      "Value": 2.7845
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2005-12-31",
+      "Period": "Annual",
+      "Value": 3.4835
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2004-12-31",
+      "Period": "Annual",
+      "Value": 3.8478
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2003-12-31",
+      "Period": "Annual",
+      "Value": 2.7956
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2002-12-31",
+      "Period": "Annual",
+      "Value": 1.7004
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2001-12-31",
+      "Period": "Annual",
+      "Value": 0.9555
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "2000-12-31",
+      "Period": "Annual",
+      "Value": 4.0776
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1999-12-31",
+      "Period": "Annual",
+      "Value": 4.7884
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1998-12-31",
+      "Period": "Annual",
+      "Value": 4.4831
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1997-12-31",
+      "Period": "Annual",
+      "Value": 4.4471
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1996-12-31",
+      "Period": "Annual",
+      "Value": 3.7728
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1995-12-31",
+      "Period": "Annual",
+      "Value": 2.6844
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1994-12-31",
+      "Period": "Annual",
+      "Value": 4.029
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1993-12-31",
+      "Period": "Annual",
+      "Value": 2.7518
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1992-12-31",
+      "Period": "Annual",
+      "Value": 3.5225
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1991-12-31",
+      "Period": "Annual",
+      "Value": -0.1083
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1990-12-31",
+      "Period": "Annual",
+      "Value": 1.886
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1989-12-31",
+      "Period": "Annual",
+      "Value": 3.6722
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1988-12-31",
+      "Period": "Annual",
+      "Value": 4.177
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1987-12-31",
+      "Period": "Annual",
+      "Value": 3.4546
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1986-12-31",
+      "Period": "Annual",
+      "Value": 3.4627
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1985-12-31",
+      "Period": "Annual",
+      "Value": 4.1696
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1984-12-31",
+      "Period": "Annual",
+      "Value": 7.2365
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1983-12-31",
+      "Period": "Annual",
+      "Value": 4.5838
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1982-12-31",
+      "Period": "Annual",
+      "Value": -1.803
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1981-12-31",
+      "Period": "Annual",
+      "Value": 2.5377
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1980-12-31",
+      "Period": "Annual",
+      "Value": -0.2568
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1979-12-31",
+      "Period": "Annual",
+      "Value": 3.166
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1978-12-31",
+      "Period": "Annual",
+      "Value": 5.5352
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1977-12-31",
+      "Period": "Annual",
+      "Value": 4.6242
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1976-12-31",
+      "Period": "Annual",
+      "Value": 5.388
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1975-12-31",
+      "Period": "Annual",
+      "Value": -0.2056
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1974-12-31",
+      "Period": "Annual",
+      "Value": -0.5406
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1973-12-31",
+      "Period": "Annual",
+      "Value": 5.6457
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1972-12-31",
+      "Period": "Annual",
+      "Value": 5.2555
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1971-12-31",
+      "Period": "Annual",
+      "Value": 3.2927
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1970-12-31",
+      "Period": "Annual",
+      "Value": 0.1846
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1969-12-31",
+      "Period": "Annual",
+      "Value": 3.1225
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1968-12-31",
+      "Period": "Annual",
+      "Value": 4.9145
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1967-12-31",
+      "Period": "Annual",
+      "Value": 2.7427
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1966-12-31",
+      "Period": "Annual",
+      "Value": 6.5953
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1965-12-31",
+      "Period": "Annual",
+      "Value": 6.4985
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1964-12-31",
+      "Period": "Annual",
+      "Value": 5.7627
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1963-12-31",
+      "Period": "Annual",
+      "Value": 4.3573
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1962-12-31",
+      "Period": "Annual",
+      "Value": 6.1296
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1961-12-31",
+      "Period": "Annual",
+      "Value": 2.5653
+    },
+    {
+      "CountryCode": "USA",
+      "CountryName": "United States",
+      "Indicator": "GDP growth (annual %)",
+      "Date": "1960-12-31",
+      "Period": "Annual",
+      "Value": 0
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+{
+  "timestamp": "2025-11-26T09:32:35.078499",
+  "data_fetched": {
+    "macro_indicators": {},
+    "apple_fundamentals": {
+      "PE_Ratio": 37.0362,
+      "EPS": 7.45,
+      "Dividend_Yield": 0.0038,
+      "Market_Cap": 4094760583168,
+      "Latest_EPS_Actual": null,
+      "Latest_EPS_Estimate": null,
+      "Analyst_Rating": 3.913,
+      "Target_Price": 281.7481
+    },
+    "gold_factors": {},
+    "market_sentiment": {}
+  },
+  "calculated_priors": {
+    "gold": {
+      "name": "Gold (XAU/USD)",
+      "factors": {},
+      "bullish_score": 0,
+      "prior_mean_return": -0.001,
+      "prior_volatility": 0.015,
+      "confidence": 0.7,
+      "data_sources": {
+        "macro": [],
+        "gold_specific": [],
+        "sentiment": []
+      }
+    },
+    "apple": {
+      "name": "Apple Inc. (AAPL)",
+      "factors": {
+        "reasonable_valuation": false,
+        "analyst_support": true
+      },
+      "bullish_score": 1,
+      "prior_mean_return": -0.001,
+      "prior_volatility": 0.02,
+      "confidence": 0.6,
+      "data_sources": {
+        "fundamentals": [
+          "PE_Ratio",
+          "EPS",
+          "Dividend_Yield",
+          "Market_Cap",
+          "Latest_EPS_Actual",
+          "Latest_EPS_Estimate",
+          "Analyst_Rating",
+          "Target_Price"
+        ],
+        "macro": [],
+        "sentiment": []
+      }
+    }
+  }
+}

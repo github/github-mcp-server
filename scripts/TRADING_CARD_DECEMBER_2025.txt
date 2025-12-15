@@ -1,0 +1,150 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    DIVIDEND ROTATION TRADING CARD                            ║
+║                          DECEMBER 2025                                        ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ STRATEGY SNAPSHOT                                                            │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ Capital Available:        $200,000                                           │
+│ Per-Trade Allocation:     $66,000 (33% of capital)                          │
+│ Hold Period:              3-4 trading days                                   │
+│ Entry Timing:             2 trading days BEFORE ex-date                      │
+│ Exit Timing:              1 trading day AFTER ex-date                        │
+│ Historical Win Rate:      83.2% (113 trades)                                │
+│ Expected Return/Trade:    0.3-0.5% of position                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ DECEMBER 2025 TRADE CALENDAR                                                 │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│ WEEK 1: November 28 - December 2                                            │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│ ► JEPI - JPMorgan Equity Premium Income ETF                                 │
+│   BUY:  Thursday, Nov 28 (before market close)                              │
+│   EX:   Monday, Dec 2                                                        │
+│   SELL: Tuesday, Dec 3                                                       │
+│   Price: $58.00  |  Shares: 1,150  |  Cost: $66,700                         │
+│   Expected Dividend: $398  |  Yield: 7.2% annual                            │
+│                                                                              │
+│ WEEK 1: December 3 - December 6                                             │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│ ► SDIV - Global X SuperDividend U.S. ETF                                    │
+│   BUY:  Tuesday, Dec 3 (before market close)                                │
+│   EX:   Thursday, Dec 5                                                      │
+│   SELL: Friday, Dec 6                                                        │
+│   Price: $14.50  |  Shares: 4,600  |  Cost: $66,700                         │
+│   Expected Dividend: $874  |  Yield: 8.9% annual                            │
+│                                                                              │
+│ WEEK 2-3: December 12 - December 17                                         │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│ ► HDV - iShares Core High Dividend ETF                                      │
+│   BUY:  Thursday, Dec 12                                                     │
+│   EX:   Monday, Dec 16                                                       │
+│   SELL: Tuesday, Dec 17                                                      │
+│   Price: $110  |  Shares: 606  |  Cost: $66,660  |  Dividend: $576          │
+│                                                                              │
+│ ► DGRO - iShares Core Dividend Growth ETF                                   │
+│   BUY:  Thursday, Dec 12                                                     │
+│   EX:   Monday, Dec 16                                                       │
+│   SELL: Tuesday, Dec 17                                                      │
+│   Price: $63  |  Shares: 1,058  |  Cost: $66,654  |  Dividend: $390         │
+│                                                                              │
+│ WEEK 3: December 16 - December 19                                           │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│ ► XYLD - Global X S&P 500 Covered Call ETF                                  │
+│   BUY:  Monday, Dec 16 (before market close)                                │
+│   EX:   Wednesday, Dec 18                                                    │
+│   SELL: Thursday, Dec 19                                                     │
+│   Price: $43.00  |  Shares: 1,550  |  Cost: $66,650                         │
+│   Expected Dividend: $615  |  Yield: 8.3% annual                            │
+│                                                                              │
+│ ► VYM - Vanguard High Dividend Yield ETF                                    │
+│   BUY:  Wednesday, Dec 18                                                    │
+│   EX:   Friday, Dec 20                                                       │
+│   SELL: Monday, Dec 23                                                       │
+│   Price: $120  |  Shares: 556  |  Cost: $66,720  |  Dividend: $468          │
+│                                                                              │
+│ WEEK 4: December 19 - December 26                                           │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│ ► SCHD - Schwab U.S. Dividend Equity ETF                                    │
+│   BUY:  Thursday, Dec 19 (before market close)                              │
+│   EX:   Monday, Dec 23                                                       │
+│   SELL: Tuesday, Dec 26                                                      │
+│   Price: $28.88  |  Shares: 2,310  |  Cost: $66,713                         │
+│   Expected Dividend: $600  |  Yield: 3.8% annual                            │
+│                                                                              │
+│ ► NOBL - ProShares S&P 500 Dividend Aristocrats ETF                         │
+│   BUY:  Friday, Dec 20                                                       │
+│   EX:   Tuesday, Dec 24                                                      │
+│   SELL: Friday, Dec 27                                                       │
+│   Price: $96  |  Shares: 694  |  Cost: $66,624  |  Dividend: $381           │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ DECEMBER SUMMARY                                                             │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ Total Trades:               8 opportunities                                  │
+│ Total Capital Required:     $533,421 (can recycle - need $200k available)   │
+│ Total Expected Dividends:   $4,302                                          │
+│ Expected Return:            2.15% on $200k capital                          │
+│ Active Trading Days:        12 days (scattered throughout month)            │
+│ Monthly Payers:             JEPI, XYLD, SDIV (3 trades)                     │
+│ Quarterly Payers:           SCHD, VYM, HDV, DGRO, NOBL (5 trades)           │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ PRE-TRADE CHECKLIST                                                          │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ [ ] Verify exact ex-dividend date with broker or company IR                 │
+│ [ ] Confirm sufficient settled cash in account                              │
+│ [ ] Check for any special corporate actions (splits, mergers)               │
+│ [ ] Set price alerts at target entry price                                  │
+│ [ ] Prepare limit buy order (enter at or below target price)                │
+│ [ ] Note calendar: Hold through ex-date, sell day after                     │
+│ [ ] Check market conditions - avoid during high volatility                  │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ EXECUTION TIPS                                                               │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ ✓ Use LIMIT ORDERS to control entry price (don't chase)                     │
+│ ✓ Buy in morning of buy date (or previous afternoon if confident)           │
+│ ✓ Must own shares before market close on day BEFORE ex-date                 │
+│ ✓ Hold through ex-date - DO NOT SELL on ex-date                             │
+│ ✓ Sell on first trading day AFTER ex-date (morning preferred)               │
+│ ✓ Set stop-loss at -2% if held overnight before ex-date                     │
+│ ✓ Record every trade: entry, exit, dividend, total P&L                      │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ RISK WARNINGS                                                                │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ ⚠  Stock price typically DROPS by dividend amount on ex-date                │
+│ ⚠  Not all ex-dates are confirmed - VERIFY before trading                   │
+│ ⚠  Short-term capital gains taxed as ordinary income                        │
+│ ⚠  Dividends may not qualify for preferential tax treatment                 │
+│ ⚠  Market volatility can cause losses despite dividend capture              │
+│ ⚠  Requires active management - not a passive strategy                      │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ BROKER REQUIREMENTS                                                          │
+├──────────────────────────────────────────────────────────────────────────────┤
+│ Account Type:     Cash or Margin (margin preferred for faster settlement)   │
+│ Commission:       $0 for ETFs (most major brokers)                          │
+│ Recommended:      Fidelity, Charles Schwab, Interactive Brokers            │
+│ Settlement:       T+2 (need cash available or use margin)                   │
+│ Tools Needed:     Level 2 quotes, limit orders, price alerts                │
+└──────────────────────────────────────────────────────────────────────────────┘
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║ IMPORTANT: All dates are ESTIMATES based on historical patterns.            ║
+║ Always verify exact ex-dividend dates with official sources before trading. ║
+║                                                                              ║
+║ Generated from REAL EODHD data | Backtest: 113 trades | 83.2% win rate     ║
+║ Files: See Dividend_Rotation_Buy_Sell_Plan.xlsx for full analysis          ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+Print this card and keep it handy for December 2025 trading!

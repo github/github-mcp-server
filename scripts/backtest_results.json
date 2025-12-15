@@ -1,0 +1,178 @@
+{
+  "AAPL.US": {
+    "symbol": "AAPL.US",
+    "start_date": "2023-01-01",
+    "end_date": "2025-11-21",
+    "trading_days": 726,
+    "total_trades": 5,
+    "winning_trades": 3,
+    "losing_trades": 2,
+    "win_rate": 60.0,
+    "total_return": 27.32515428697546,
+    "buy_hold_return": 49.244131713484705,
+    "outperformance": -21.918977426509244,
+    "final_value": 127325.15428697546,
+    "avg_profit_pct": 5.162947683322333,
+    "avg_winning_pct": 9.979665148970776,
+    "avg_losing_pct": -2.0621285151503312,
+    "avg_days_held": 41.6,
+    "max_drawdown": -9.258002471281875,
+    "sharpe_ratio": 1.0718754382227051,
+    "sample_trades": [
+      {
+        "entry_date": "2024-05-15",
+        "entry_price": 189.72,
+        "exit_date": "2024-07-25",
+        "exit_price": 217.49,
+        "shares": 527.0925574530887,
+        "profit": 14637.360320472279,
+        "profit_pct": 14.63736032047228,
+        "days_held": 71,
+        "exit_reason": "IBD score dropped to 47"
+      },
+      {
+        "entry_date": "2024-10-15",
+        "entry_price": 233.85,
+        "exit_date": "2024-10-23",
+        "exit_price": 230.76,
+        "shares": 490.21749121433515,
+        "profit": -1514.7720478522972,
+        "profit_pct": -1.321359846055165,
+        "days_held": 8,
+        "exit_reason": "IBD score dropped to 48"
+      },
+      {
+        "entry_date": "2024-11-25",
+        "entry_price": 232.87,
+        "exit_date": "2025-01-02",
+        "exit_price": 243.85,
+        "shares": 485.7757043527289,
+        "profit": 5333.817233792958,
+        "profit_pct": 4.715077081633525,
+        "days_held": 38,
+        "exit_reason": "IBD score dropped to 40"
+      },
+      {
+        "entry_date": "2025-08-13",
+        "entry_price": 233.33,
+        "exit_date": "2025-09-10",
+        "exit_price": 226.79,
+        "shares": 507.6775618497961,
+        "profit": -3320.211254497677,
+        "profit_pct": -2.8028971842454977,
+        "days_held": 28,
+        "exit_reason": "IBD score dropped to 48"
+      },
+      {
+        "entry_date": "2025-09-19",
+        "entry_price": 245.5,
+        "exit_date": "2025-11-21",
+        "exit_price": 271.49,
+        "shares": 468.9865346310194,
+        "profit": 12188.9600350602,
+        "profit_pct": 10.586558044806521,
+        "days_held": 63,
+        "exit_reason": "End of backtest"
+      }
+    ]
+  },
+  "GLD.US": {
+    "symbol": "GLD.US",
+    "start_date": "2023-01-01",
+    "end_date": "2025-11-21",
+    "trading_days": 726,
+    "total_trades": 7,
+    "winning_trades": 5,
+    "losing_trades": 2,
+    "win_rate": 71.42857142857143,
+    "total_return": 39.91320948635467,
+    "buy_hold_return": 97.69173885484894,
+    "outperformance": -57.77852936849427,
+    "final_value": 139913.20948635467,
+    "avg_profit_pct": 5.060397963556109,
+    "avg_winning_pct": 7.4443191576786285,
+    "avg_losing_pct": -0.8994050217501902,
+    "avg_days_held": 49.57142857142857,
+    "max_drawdown": -9.959072305593452,
+    "sharpe_ratio": 1.33546921391052,
+    "sample_trades": [
+      {
+        "entry_date": "2024-03-20",
+        "entry_price": 202.18,
+        "exit_date": "2024-05-23",
+        "exit_price": 215.72,
+        "shares": 494.60876446730634,
+        "profit": 6697.002670887324,
+        "profit_pct": 6.697002670887324,
+        "days_held": 64,
+        "exit_reason": "IBD score dropped to 48"
+      },
+      {
+        "entry_date": "2024-07-11",
+        "entry_price": 223.25,
+        "exit_date": "2024-07-22",
+        "exit_price": 221.8,
+        "shares": 477.92610378896893,
+        "profit": -692.9928504939995,
+        "profit_pct": -0.6494960806270946,
+        "days_held": 11,
+        "exit_reason": "IBD score dropped to 45"
+      },
+      {
+        "entry_date": "2024-08-16",
+        "entry_price": 231.99,
+        "exit_date": "2024-10-09",
+        "exit_price": 241.05,
+        "shares": 456.93353084354203,
+        "profit": 4139.817789442492,
+        "profit_pct": 3.9053407474460116,
+        "days_held": 54,
+        "exit_reason": "IBD score dropped to 42"
+      },
+      {
+        "entry_date": "2024-10-15",
+        "entry_price": 245.92,
+        "exit_date": "2024-11-08",
+        "exit_price": 247.96,
+        "shares": 447.8847902156629,
+        "profit": 913.6849720399615,
+        "profit_pct": 0.8295380611581086,
+        "days_held": 24,
+        "exit_reason": "IBD score dropped to 45"
+      },
+      {
+        "entry_date": "2025-01-30",
+        "entry_price": 258.05,
+        "exit_date": "2025-05-14",
+        "exit_price": 293.16,
+        "shares": 430.3720696836883,
+        "profit": 15110.363366594303,
+        "profit_pct": 13.60589033133114,
+        "days_held": 104,
+        "exit_reason": "IBD score dropped to 45"
+      },
+      {
+        "entry_date": "2025-05-23",
+        "entry_price": 309.75,
+        "exit_date": "2025-06-24",
+        "exit_price": 306.19,
+        "shares": 407.3216334091044,
+        "profit": -1450.0650149364126,
+        "profit_pct": -1.1493139628732858,
+        "days_held": 32,
+        "exit_reason": "IBD score dropped to 37"
+      },
+      {
+        "entry_date": "2025-09-03",
+        "entry_price": 328.14,
+        "exit_date": "2025-10-31",
+        "exit_price": 368.12,
+        "shares": 380.0750013211851,
+        "profit": 15195.398552820987,
+        "profit_pct": 12.183823977570556,
+        "days_held": 58,
+        "exit_reason": "IBD score dropped to 47"
+      }
+    ]
+  }
+}

@@ -1,0 +1,111 @@
+{
+  "timestamp": "2025-11-26T09:18:53.298221",
+  "methodology": "Bayesian Model Averaging + Hierarchical + Informed Priors",
+  "description": "Ultimate prediction framework using best practices",
+  "results": {
+    "Gold (XAU/USD)": {
+      "symbol": "XAUUSD.FOREX",
+      "asset_name": "Gold (XAU/USD)",
+      "current_price": 4142.27,
+      "predictions": [
+        4141.74658467071,
+        4141.7893455037865,
+        4141.766117195225,
+        4141.828077790406,
+        4141.685031882372
+      ],
+      "lower_95": [
+        4128.730856591424,
+        4121.2671064175,
+        4118.178904251819,
+        4114.5928859685255,
+        4111.090305703334
+      ],
+      "upper_95": [
+        4155.826143650689,
+        4161.582616428905,
+        4164.507636838365,
+        4169.153656053729,
+        4171.448566771764
+      ],
+      "prob_up": 0.0,
+      "prob_down": 0.0,
+      "prob_loss": 51.475737868934466,
+      "expected_return": -0.014121921497843089,
+      "var_95": -27.005522670916434,
+      "signal": "NEUTRAL",
+      "model_weights": {
+        "Hierarchical_Bayesian_ARIMA(1,1,1)": 0.9999628307216384,
+        "Hierarchical_Bayesian_ARIMA(2,1,2)": 1.7157280211307513e-11,
+        "Hierarchical_Bayesian_ARIMA(3,1,3)": 3.716926120440258e-05
+      },
+      "priors_used": {
+        "name": "Gold (XAU/USD)",
+        "factors": {
+          "fed_rate_cuts_expected": true,
+          "geopolitical_risk_elevated": true,
+          "central_bank_demand_strong": true,
+          "usd_weakness_trend": false,
+          "inflation_hedge_demand": true,
+          "technical_above_200sma": true
+        },
+        "bullish_score": 5,
+        "prior_mean_return": 0.001,
+        "prior_volatility": 0.015,
+        "confidence": 0.7
+      }
+    },
+    "Apple Inc. (AAPL)": {
+      "symbol": "AAPL.US",
+      "asset_name": "Apple Inc. (AAPL)",
+      "current_price": 276.97,
+      "predictions": [
+        277.18285589187224,
+        277.1511371695374,
+        277.11900739627265,
+        277.09410336773175,
+        277.16279886884706
+      ],
+      "lower_95": [
+        272.62563567377947,
+        270.3208972907398,
+        268.6012826132984,
+        266.99817522100335,
+        266.3021369850567
+      ],
+      "upper_95": [
+        281.5890304162937,
+        283.5287463888061,
+        285.4683377992476,
+        286.76698495844374,
+        287.9039657900222
+      ],
+      "prob_up": 16.766766766766768,
+      "prob_down": 15.865865865865866,
+      "prob_loss": 47.547547547547545,
+      "expected_return": 0.06961001871936852,
+      "var_95": -9.101996101621182,
+      "signal": "NEUTRAL",
+      "model_weights": {
+        "Hierarchical_Bayesian_ARIMA(1,1,1)": 0.3319558563902073,
+        "Hierarchical_Bayesian_ARIMA(2,1,2)": 0.10495128740996842,
+        "Hierarchical_Bayesian_ARIMA(3,1,3)": 0.5630928561998243
+      },
+      "priors_used": {
+        "name": "Apple Inc. (AAPL)",
+        "factors": {
+          "strong_earnings_expected": true,
+          "services_growth": true,
+          "ai_integration": true,
+          "china_risk": false,
+          "regulatory_pressure": false,
+          "technical_above_200sma": true
+        },
+        "bullish_score": 4,
+        "prior_mean_return": 0.0005,
+        "prior_volatility": 0.02,
+        "confidence": 0.6
+      }
+    }
+  }
+}

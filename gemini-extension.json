@@ -8,6 +8,10 @@
 			"headers": {
 				"Authorization": "Bearer $GITHUB_MCP_PAT"
 			}
+		},
+		"eodhd": {
+			"description": "EODHD MCP Server",
+			"httpUrl": "https://mcp.eodhd.dev/mcp?apikey=690d7cdc3013f4.57364117"
 		}
 	}
 }

@@ -1,0 +1,9 @@
+ticker,name,ex_date,amount,currency,plan_buy_date,plan_sell_date,estimated_pct_gain,note
+HDV.US,iShares Core High Dividend ETF,2025-11-20,0.0,USD,2025-11-18,2025-11-24,0.00%,
+SDIV.US,Global X SuperDividend U.S. ETF,2025-11-20,0.0,USD,2025-11-18,2025-11-24,0.00%,
+VYM.US,Vanguard High Dividend Yield ETF,2025-11-21,0.0,USD,2025-11-19,2025-11-25,0.00%,
+DGRO.US,iShares Core Dividend Growth ETF,2025-11-25,0.0,USD,2025-11-21,2025-11-27,0.00%,
+JEPI.US,Janus Henderson Equity Premium Income ETF,2025-11-30,0.0,USD,2025-11-26,2025-12-02,0.00%,
+NOBL.US,ProShares S&P 500 Dividend Aristocrats ETF,2025-12-10,0.0,USD,2025-12-08,2025-12-12,0.00%,
+SCHD.US,Schwab US Dividend Equity ETF,2025-12-15,0.0,USD,2025-12-11,2025-12-17,0.00%,
+XYLD.US,Global X S&P 500 Covered Call ETF,2025-12-15,0.0,USD,2025-12-11,2025-12-17,0.00%,

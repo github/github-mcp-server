@@ -1,0 +1,245 @@
+{
+  "timestamp": "2025-11-27T14:43:09.429752",
+  "latest_predictions": [
+    {
+      "symbol": "XAUUSD.FOREX",
+      "timestamp": "2025-11-27T14:38:48.192358",
+      "current_price": 4165.0148,
+      "predictions": {
+        "1day": {
+          "horizon_days": 1,
+          "predicted_price": 4150.789517398782,
+          "raw_prediction": 4142.806205762851,
+          "change_pct": -0.3415421861458492,
+          "lower_95": 4057.5036677595785,
+          "upper_95": 4228.108743766124,
+          "adjustment": 0.19270299500916127
+        },
+        "5day": {
+          "horizon_days": 5,
+          "predicted_price": 4154.223319955995,
+          "raw_prediction": 4146.233404006405,
+          "change_pct": -0.259098240035182,
+          "lower_95": 3965.282612502032,
+          "upper_95": 4327.184195510778,
+          "adjustment": 0.19270299500916127
+        },
+        "10day": {
+          "horizon_days": 10,
+          "predicted_price": 4162.811484423614,
+          "raw_prediction": 4154.805050654212,
+          "change_pct": -0.052900546148975235,
+          "lower_95": 3901.502499909002,
+          "upper_95": 4408.1076013994225,
+          "adjustment": 0.19270299500916127
+        },
+        "20day": {
+          "horizon_days": 20,
+          "predicted_price": 4155.806304367572,
+          "raw_prediction": 4147.813343826629,
+          "change_pct": -0.22109154647968868,
+          "lower_95": 3790.0930737075205,
+          "upper_95": 4505.533613945737,
+          "adjustment": 0.19270299500916127
+        }
+      },
+      "model_order": [
+        3,
+        1,
+        3
+      ],
+      "context": {
+        "market_indicators": {},
+        "news_sentiment": {
+          "score": 0,
+          "article_count": 0
+        },
+        "sector_trend": {
+          "sector_etf": "GLD.US",
+          "recent_return": 2.206215819661193,
+          "medium_return": 0.06529631467599968,
+          "long_return": 3.509577715937646,
+          "trend_strength": 1.9270299500916128
+        },
+        "fundamentals": null
+      },
+      "citations": {
+        "total_citations": 3,
+        "sources": [
+          "EODHD_API",
+          "EODHD_News"
+        ],
+        "latest_update": "2025-11-27T14:38:46.613411"
+      }
+    },
+    {
+      "symbol": "AAPL.US",
+      "timestamp": "2025-11-27T14:39:01.445917",
+      "current_price": 277.55,
+      "predictions": {
+        "1day": {
+          "horizon_days": 1,
+          "predicted_price": 277.98530270215184,
+          "raw_prediction": 276.99833428494657,
+          "change_pct": 0.15683757958992256,
+          "lower_95": 268.41151172993574,
+          "upper_95": 285.5851568399574,
+          "adjustment": 0.35630843042905136
+        },
+        "5day": {
+          "horizon_days": 5,
+          "predicted_price": 275.6094265186831,
+          "raw_prediction": 274.63089349260633,
+          "change_pct": -0.6991797806942545,
+          "lower_95": 254.34026862945558,
+          "upper_95": 294.9215183557571,
+          "adjustment": 0.35630843042905136
+        },
+        "10day": {
+          "horizon_days": 10,
+          "predicted_price": 275.56675132005074,
+          "raw_prediction": 274.58836980944204,
+          "change_pct": -0.7145554602591496,
+          "lower_95": 249.43703744396964,
+          "upper_95": 299.73970217491444,
+          "adjustment": 0.35630843042905136
+        },
+        "20day": {
+          "horizon_days": 20,
+          "predicted_price": 275.6354543490279,
+          "raw_prediction": 274.6568289128623,
+          "change_pct": -0.6898020720490419,
+          "lower_95": 242.36213401788777,
+          "upper_95": 306.9515238078368,
+          "adjustment": 0.35630843042905136
+        }
+      },
+      "model_order": [
+        3,
+        1,
+        3
+      ],
+      "context": {
+        "market_indicators": {},
+        "news_sentiment": {
+          "score": 0.8617231593133063,
+          "article_count": 50
+        },
+        "sector_trend": {
+          "sector_etf": "XLK.US",
+          "recent_return": 4.2733786514789625,
+          "medium_return": -0.9804947834886083,
+          "long_return": -5.529478344818408,
+          "trend_strength": -0.7455314922760179
+        },
+        "fundamentals": null
+      },
+      "citations": {
+        "total_citations": 6,
+        "sources": [
+          "EODHD_API",
+          "EODHD_News"
+        ],
+        "latest_update": "2025-11-27T14:38:58.212693"
+      }
+    }
+  ],
+  "model_weights": [
+    {
+      "order": "(1, 1, 1)",
+      "weight": NaN
+    },
+    {
+      "order": "(2, 1, 2)",
+      "weight": NaN
+    },
+    {
+      "order": "(3, 1, 3)",
+      "weight": NaN
+    }
+  ],
+  "performance_history": [
+    {
+      "timestamp": "2025-11-27T14:39:05.826979",
+      "rmse": NaN,
+      "mae": NaN,
+      "direction_accuracy": 50.0,
+      "model_params": "{'trend': 0, 'exog': 0, 'ar': 1, 'ma': 1, 'seasonal_ar': 0, 'seasonal_ma': 0, 'reduced_ar': 1, 'reduced_ma': 1, 'exog_variance': 0, 'measurement_variance': 0, 'variance': 1}",
+      "horizon": 5
+    },
+    {
+      "timestamp": "2025-11-27T14:39:10.440476",
+      "rmse": NaN,
+      "mae": NaN,
+      "direction_accuracy": 50.0,
+      "model_params": "{'trend': 0, 'exog': 0, 'ar': 1, 'ma': 1, 'seasonal_ar': 0, 'seasonal_ma': 0, 'reduced_ar': 1, 'reduced_ma': 1, 'exog_variance': 0, 'measurement_variance': 0, 'variance': 1}",
+      "horizon": 5
+    }
+  ],
+  "best_models_by_horizon": {
+    "5": "{'trend': 0, 'exog': 0, 'ar': 1, 'ma': 1, 'seasonal_ar': 0, 'seasonal_ma': 0, 'reduced_ar': 1, 'reduced_ma': 1, 'exog_variance': 0, 'measurement_variance': 0, 'variance': 1}"
+  },
+  "best_rmse_by_horizon": {
+    "5": NaN
+  },
+  "alerts": [],
+  "citations": [
+    {
+      "source": "EODHD_API",
+      "data_type": "XAUUSD.FOREX_historical",
+      "value": "200 days",
+      "timestamp": "2025-11-27T14:38:40.662566",
+      "reliability": 0.95
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "XAUUSD.FOREX_news",
+      "value": "0 articles",
+      "timestamp": "2025-11-27T14:38:44.510392",
+      "reliability": 0.85
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "XAUUSD.FOREX_sector_trend",
+      "value": 0.01927029950091613,
+      "timestamp": "2025-11-27T14:38:46.613411",
+      "reliability": 0.95
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "AAPL.US_historical",
+      "value": "200 days",
+      "timestamp": "2025-11-27T14:38:50.709334",
+      "reliability": 0.95
+    },
+    {
+      "source": "EODHD_News",
+      "data_type": "AAPL.US_news",
+      "value": "50 articles",
+      "timestamp": "2025-11-27T14:38:56.156639",
+      "reliability": 0.85
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "AAPL.US_sector_trend",
+      "value": -0.007455314922760178,
+      "timestamp": "2025-11-27T14:38:58.212693",
+      "reliability": 0.95
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "XAUUSD.FOREX_historical",
+      "value": "200 days",
+      "timestamp": "2025-11-27T14:39:03.987922",
+      "reliability": 0.95
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "AAPL.US_historical",
+      "value": "200 days",
+      "timestamp": "2025-11-27T14:39:08.524180",
+      "reliability": 0.95
+    }
+  ],
+  "uptime_seconds": 271.441558
+}

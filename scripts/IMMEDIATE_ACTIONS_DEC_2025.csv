@@ -1,0 +1,9 @@
+Ticker,Name,Priority,Est_Ex_Date,Buy_Date,Sell_Date,Current_Price,Position_Size_Shares,Capital_Required,Est_Dividend_Per_Share,Est_Total_Dividend,Strategy_Score,Frequency
+JEPI.US,JPMorgan Equity Premium Income ETF,HIGH,2025-12-02,2025-11-28,2025-12-03,$58.00,1150,$66700,$0.3464,$398,0.894,Monthly
+SDIV.US,Global X SuperDividend U.S. ETF,HIGH,2025-12-05,2025-12-03,2025-12-06,$14.50,4600,$66700,$0.1900,$874,0.750,Monthly
+XYLD.US,Global X S&P 500 Covered Call ETF,HIGH,2025-12-18,2025-12-16,2025-12-19,$43.00,1550,$66650,$0.3967,$615,0.886,Monthly
+SCHD.US,Schwab U.S. Dividend Equity ETF,MEDIUM,2025-12-23,2025-12-19,2025-12-26,$28.88,2310,$66713,$0.2600,$600,0.588,Quarterly
+VYM.US,Vanguard High Dividend Yield ETF,MEDIUM,2025-12-20,2025-12-18,2025-12-23,$120.00,556,$66720,$0.8420,$468,0.457,Quarterly
+HDV.US,iShares Core High Dividend ETF,MEDIUM,2025-12-16,2025-12-12,2025-12-17,$110.00,606,$66660,$0.9500,$576,0.429,Quarterly
+DGRO.US,iShares Core Dividend Growth ETF,LOW,2025-12-16,2025-12-12,2025-12-17,$63.00,1058,$66654,$0.3690,$390,0.430,Quarterly
+NOBL.US,ProShares S&P 500 Dividend Aristocrats ETF,LOW,2025-12-24,2025-12-20,2025-12-27,$96.00,694,$66624,$0.5487,$381,0.373,Quarterly

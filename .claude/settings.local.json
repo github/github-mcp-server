@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(export EODHD_API_TOKEN=\"690d7cdc3013f4.57364117\")",
+      "Bash(curl:*)",
+      "Bash(tee:*)",
+      "Bash(npx -y @modelcontextprotocol/inspector)",
+      "Bash(export PYTHONIOENCODING=utf-8)",
+      "Bash(echo:*)",
+      "Bash(/tmp/gold_historical.json)",
+      "Bash(mkdir:*)",
+      "Bash(pip install:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

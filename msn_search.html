@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html xml:lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:Web="http://schemas.live.com/Web/">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+	<title>MSN</title>
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+</head>
+<body>
+	<div>
+			<style>
+		body, html {
+			font-family: "Segoe UI Semibold","Segoe WP Semibold","Segoe WP","Segoe UI",Arial,Sans-Serif !important;
+			line-height: 30px;
+			color: black;
+			background-color: #F7F7F7;
+		}
+
+		a {
+			color: #333333;
+			text-decoration: none;
+			font-family: "Segoe UI Semibold","Segoe WP Semibold","Segoe WP","Segoe UI",Arial,Sans-Serif !important;
+			font-weight: 600;
+			font-size: 10px;
+			line-height: 10px;
+		}
+
+			a.copyrightmicrosoft {
+				color: #333333;
+				text-decoration: none;
+				font-size: 10px;
+			}
+
+		.article {
+			padding-top: 100px;
+			padding-left: 120px;
+			width: 100%;
+			text-align: left;
+		}
+
+		.articletitlefgstart {
+			font-size: 38px;
+		}
+
+		.articledesc {
+
+		}
+
+		.footer {
+			position: fixed;
+			left: 0;
+			bottom: 0;
+			width: 100%;
+			color: white;
+			text-align: center;
+		}
+
+		.header {
+			position: fixed;
+			left: 0;
+			top: 0;
+			padding: 30px;
+			width: 100%;
+			color: white;
+			text-align: center;
+		}
+
+		.logowrapper {
+			padding-left: 100px;
+			text-align: left;
+		}
+
+		a:hover {
+			text-decoration: underline
+		}
+
+		a.copyrightmicrosoft:hover {
+			text-decoration: none
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		form.searchBox input[type=search] {
+			padding: 10px;
+			font-size: 17px;
+			border: 1px solid grey;
+			float: left;
+			width: 80%;
+			background: #f1f1f1;
+		}
+		form.searchBox button {
+			float: left;
+			width: 70px;
+			padding: 10px;
+			background: #2196F3;
+			color: white;
+			font-size: 17px;
+			border: 1px solid grey;
+			border-left: none;
+			cursor: pointer;
+		}
+
+		form.searchBox button:hover {
+			background: #0b7dda;
+		}
+
+		form.searchBox::after {
+			content: "";
+			clear: both;
+			display: table;
+		}
+		@ media screen and (prefers-color-scheme: dark) {
+			body, html {
+				background-color: #242424;
+				color: white;
+			}
+
+			a {
+				color: white;
+				text-decoration: none;
+				font-family: "Segoe UI Semibold","Segoe WP Semibold","Segoe WP","Segoe UI",Arial,Sans-Serif !important;
+				font-weight: 600;
+				font-size: 10px;
+				line-height: 10px;
+			}
+
+				a.copyrightmicrosoft {
+					color: white;
+					text-decoration: none;
+					font-size: 10px;
+				}
+
+			.footer {
+				background-color: #242424;
+				color: white;
+			}
+		}
+
+		@ media(max-width: 736px) {
+			body {
+				font-family: HelveticaNeue,Roboto,Arial,sans-serif
+			}
+
+			.footer {
+				position: fixed;
+				left: 0;
+				bottom: 0;
+				width: 100%;
+				color: white;
+				text-align: center;
+			}
+		}
+
+		#whoopsDiv {
+			display: none;
+		}
+
+		#errorref.hidden {
+			visibility: hidden;
+		}
+	</style>
+	<div class="header">
+        <table style="width:70%">
+            <tr>
+                <td>
+					<div class="logowrapper" id="logo">
+						<a class="logo" role="link" tabindex="0" href="https://www.msn.com/" aria-label="MSN" data-t="{"n":"CommonHeaderLogoLink","b":1}">
+							<svg width="74" height="28" fill="none" xmlns="http://www.w3.org/2000/svg">
+							<path d="M15.234 22.383s-1.231 5.661 2.234 5.611c2.613-.038 4.184-3.752 1.895-9.302 0 0-1.945-.925-4.13 3.69Z" fill="url(#a)" />
+							<path d="M15.234 22.383s-1.231 5.661 2.234 5.611c2.613-.038 4.184-3.752 1.895-9.302 0 0-1.945-.925-4.13 3.69Z" fill="url(#b)" />
+							<path d="M12.978 22.297S10.2 28.21 5.926 27.994c-4.272-.216-5.334-7.74 4.075-11.23 0 0 3.883 1.507 2.976 5.533h.001Z" fill="url(#c)" />
+							<path d="m51.295 24.537 1.395-1.805c.454.43.938.754 1.454.973.516.219 1.06.328 1.63.328.649 0 1.145-.125 1.49-.375.351-.25.527-.617.527-1.102 0-.39-.153-.711-.457-.962-.305-.258-.794-.461-1.466-.61-1.524-.336-2.6-.805-3.224-1.407-.618-.609-.927-1.363-.927-2.263 0-1.125.426-2.028 1.278-2.708.86-.688 1.958-1.032 3.295-1.032.743 0 1.438.11 2.087.328a5.339 5.339 0 0 1 1.794 1.02l-1.313 1.748c-.461-.344-.9-.595-1.313-.75a3.628 3.628 0 0 0-1.349-.247c-.61 0-1.07.121-1.383.364-.305.234-.458.559-.458.973 0 .398.16.707.481.926.32.211.91.415 1.77.61 1.282.281 2.24.73 2.873 1.348.641.618.962 1.415.962 2.392 0 1.165-.43 2.099-1.29 2.803-.852.703-1.99 1.055-3.412 1.055-.868 0-1.68-.133-2.439-.399a5.885 5.885 0 0 1-2.005-1.208ZM73.201 25.862H70.4v-6.847c0-1.055-.199-1.853-.598-2.392-.39-.54-.98-.81-1.77-.81-.813 0-1.482.306-2.005.915-.524.602-.786 1.364-.786 2.287v6.847h-2.814V13.856h2.814v1.829h.047c.438-.696.985-1.22 1.642-1.571.664-.36 1.407-.54 2.227-.54 1.33 0 2.334.422 3.014 1.266.688.837 1.031 2.056 1.031 3.66v7.362ZM46.804 25.863h2.814v-7.434c0-1.618-.336-2.83-1.009-3.635-.672-.813-1.649-1.22-2.931-1.22-.883 0-1.665.188-2.345.563-.672.375-1.24.942-1.7 1.7a3.366 3.366 0 0 0-1.29-1.653c-.594-.406-1.31-.61-2.146-.61-.797 0-1.524.184-2.18.551a4.285 4.285 0 0 0-1.595 1.513h-.047v-1.782H31.56v12.007h2.814v-6.755c0-.992.23-1.79.691-2.391.462-.602 1.064-.903 1.806-.903.774 0 1.352.254 1.736.762.383.5.574 1.255.574 2.263v7.024h2.814v-6.778c0-.915.239-1.688.715-2.322.477-.633 1.075-.95 1.794-.95.806 0 1.388.255 1.748.763.367.508.55 1.31.55 2.404v6.883Z" fill="#212121" />
+							<path d="M15.232 22.383S16.4 8.388 22.517 7.135c3.787-.776 5.481 1.534 5.481 4.485 0 4.028-4.252 6.236-6.993 7.05-3.08.913-4.742 2.358-5.773 3.714v-.001Z" fill="url(#d)" />
+							<path d="M12.977 22.306s.678-2.363-5.72-5.641C.86 13.385.113 9.405.01 7.109-.092 4.814.598 2.843 1.76 1.73 3.404.154 4.898-.127 7.082.06c2.902.25 5.942 3.221 7.46 7.87 2.205 6.755-1.565 14.376-1.565 14.376Z" fill="url(#e)" />
+							<path d="M12.977 22.297s.678-2.364-5.72-5.642C.86 13.375.113 9.395.01 7.099c-.102-2.295.588-4.266 1.75-5.378C3.404.144 4.898-.136 7.082.05c2.902.249 5.942 3.22 7.46 7.868 2.205 6.756-1.565 14.378-1.565 14.378Z" fill="url(#f)" />
+							<defs>
+								<radialGradient id="a" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="matrix(-2.72413 -8.52658 15.54159 -4.96533 17.746 27.995)"><stop stop-color="#FFB657" /> <stop offset=".643" stop-color="#FF835C" /> <stop offset=".961" stop-color="#CA2134" /></radialGradient>
+								<radialGradient id="b" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="rotate(94.548 .426 17.642) scale(10.3454 8.7988)"><stop offset=".707" stop-color="#FFCD0F" stop-opacity="0" /><stop offset="1" stop-color="#FFCD0F" /></radialGradient>
+								<radialGradient id="c" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="rotate(-71.159 25.14 12.158) scale(16.5824 10.8568)"><stop offset=".045" stop-color="#FFC800" /><stop offset=".257" stop-color="#B5BA1E" /><stop offset=".368" stop-color="#98BD42" /><stop offset=".587" stop-color="#52B471" /><stop offset=".767" stop-color="#018D32" /><stop offset=".878" stop-color="#006523" /></radialGradient>
+								<radialGradient id="d" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="matrix(-.31812 -16.3302 19.5232 -.38032 17.442 22.799)"><stop offset=".066" stop-color="#BD00FF" /><stop offset="1" stop-color="#FF5F3D" /></radialGradient>
+								<radialGradient id="e" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="rotate(94.968 5.683 3.287) scale(21.167 34.1452)"><stop stop-color="#3BD5FF" /><stop offset=".417" stop-color="#0D91E1" /><stop offset=".744" stop-color="#2764E7" /><stop offset="1" stop-color="#2052CB" /></radialGradient>
+								<radialGradient id="f" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="matrix(-.58321 18.55704 -32.85658 -1.03262 10.71 -5.196)"><stop stop-color="#3DEEDF" stop-opacity=".7" /><stop offset="1" stop-color="#0D91E1" stop-opacity="0" /></radialGradient>
+							</defs>
+							</svg>
+						</a>
+					</div>
+                </td>
+                <td>
+                    <form class="searchBox" action="https://www.bing.com/search?scope=web" method="get" id="srchfrm" data-form-code="" data-bing-action-uri="https://www.bing.com/search?scope=web" style="margin:auto;max-width:600px">
+                        <input id="q" name="q" accesskey="S" autocomplete="off" type="search" value="" maxlength="250" class="searchTerm" aria-label="Enter your search term" title="enter your search term">
+                        <button id="sb_form_go" class="searchButton" title="web search" style="width: 70px; height: 42px; background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEYAAAAsCAYAAADYQc64AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsIAAA7CARUoSoAAAAOZSURBVGhD7ZrdS1NhHMe/e3PHOW1Op1tlppim2AtUZIJFSCF4IRFdBP0HQXQRRBFEEHRReFNXXQe90UUQQYERZi8XQoWVSC9WqNOmc06bc9vZ6febRwg7oymeZ83O52bjefbC+ex5vr/fs8204+qggv8cmxmocSnYah9DjdkPj8cDGjKIJ4H+oAm3/V68kusQCAQMMYvpGnXgo+w1xGjRFzPEaPIpZDLEaMGZY4hJgyEmDYaYNGS9wdtf7cDhxkI0lNlRKJlhojE5qWAqmkTvcBQ334bRNzo3/2CBZE1MmdOKc/tLsLtCgtlsQiSWxNiMDFlRYLeY4C20Io9u5xIK7vfP4NrLydRjRJEVMdVuGy4e9GBTaR784QTu9IVx43VYnZ3HkWfG8SYX2jc74aCe/cW3WZx9HBAmR3jG8AWfanGjpiQPb0aiOPlg7A8pDAu43B3E2UcBDE3F0VyZj9N73eqs/ggXc2x7EbavlfB1Mo5LTyfwJRhXZ7ThlXLlWRATERktGx04uKlAndEXoWJ4teyrcoBiBA8HZv4qZQGW0z0YgdNuRlvtKhTTvCEfPgrV0ekEnnyOqKOZ8ZzkhKIyqiifNrhs6qh+CBVTVWyDZDPBT2K+hzJbLQvwignNJrHGbkEthbbeCBVjoXfjPoXL8nIYp5yx0mtwGdcboWIWKM5f3tu66XlcrJMcUjojVAxXojlZQTk1dxzES2HXeglFkgVh6oi/hxLqqH4IFfPhRwwTP2VUuKxor1tadWmi4OYVM0QN4Ycf+h8RhIrhwO2h6sIZ0VZLHW2Gq2aL144DNQWIUzRxCItAqBjm3rvpVP/CF3tmX8lf5fDx4URzcers9NYfxS06VIpAuBiuKnHKGRMVljbaTtcPebGHtokWHQ1OdLaXY5tPwqeJGDp7guqM/gg9RPKnf761FPVl9tSF8paqpN4mmVToPJTAwHgMCbpfSB1unccOT4El1SX3Ds0fCzLtlFcCYWJ+l9JP4Xmhaxyj1M8c3VaEjnpnaquYf2tP+DuZQapivPXu9k2ro+IQIkZLyuJPn7OmqUKCRHstPCej5+usOpMddBeTiZR/EV3DN1elMLqJyWUpjC5icl0Ks+JiVoMUZkXFrBYpzIqKqXTZsG6NNeelMFn5+SQX0K0q5TqGmDQYYtJgiEmDIUYD/nurIUYD/s+vIUaDRpvfELOYVm8E1Rg2xDCcKfVuBUfKR7BTeQ+fz4dfAON6nd0k3S8AAAAASUVORK5CYII=);"><i class="fa fa-search" ></i></button>
+                    </form>
+                </td>
+            </tr>
+        </table>
+    </div>
+	<div class="article" id="whoopsDiv">
+	 <div class="articlehead">
+		 <h1 class="articletitle fg start">Whoops!</h1>
+		 <br />
+		 <p class="articledesc">This page doesn’t exist or can’t be found.</p>
+	 </div>
+	</div>
+	<div class="footer">
+	   <table style="width:90%">
+			<tr>
+				<td>
+					<a class="copyrightmicrosoft" href="https://www.microsoft.com/en-us/" data-id="14" data-m='{"i":14,"p":13,"n":"MicrosoftCopyright","y":14,"o":1}'>
+						<svg width="106" height="22" viewBox="0 0 106 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+							<path d="M45.2018 4.40014V17.6001H42.921V7.24181H42.8906L38.8156 17.6001H37.295L33.1288 7.24181H33.0983V17.6001H31V4.40014H34.2844L38.0553 14.1779H38.1161L42.0999 4.40014H45.2018ZM47.0873 5.40847C47.0873 5.04181 47.2089 4.73625 47.4826 4.49181C47.7563 4.24736 48.0604 4.12514 48.4254 4.12514C48.8207 4.12514 49.1552 4.24736 49.3985 4.52236C49.6418 4.76681 49.7938 5.07236 49.7938 5.43903C49.7938 5.8057 49.6722 6.11125 49.3985 6.3557C49.1248 6.60014 48.8207 6.72236 48.4254 6.72236C48.03 6.72236 47.7259 6.60014 47.4826 6.3557C47.2393 6.05014 47.0873 5.74459 47.0873 5.40847ZM49.5505 8.12792V17.6001H47.3306V8.12792H49.5505ZM56.2713 15.9807C56.6058 15.9807 56.9708 15.889 57.3661 15.7363C57.7614 15.5835 58.1264 15.3696 58.4609 15.1251V17.2029C58.096 17.4168 57.7006 17.5696 57.2445 17.6613C56.7883 17.7529 56.3017 17.814 55.7543 17.814C54.3554 17.814 53.2302 17.3863 52.3787 16.5001C51.4968 15.614 51.0711 14.4835 51.0711 13.139C51.0711 11.6113 51.5273 10.3585 52.4092 9.3807C53.2911 8.40292 54.5379 7.91403 56.1801 7.91403C56.6058 7.91403 57.0012 7.97514 57.4269 8.06681C57.8527 8.18903 58.1872 8.31125 58.4305 8.43348V10.5724C58.096 10.3279 57.731 10.114 57.3965 9.99181C57.0316 9.83903 56.6667 9.77792 56.3017 9.77792C55.4198 9.77792 54.7204 10.0529 54.173 10.6335C53.6256 11.214 53.3519 11.9779 53.3519 12.9557C53.3519 13.9029 53.5952 14.6668 54.1122 15.1863C54.69 15.7057 55.3894 15.9807 56.2713 15.9807ZM64.7559 7.97514C64.9384 7.97514 65.0904 7.97514 65.2425 8.0057C65.3945 8.03625 65.5162 8.06681 65.6074 8.09736V10.3585C65.4858 10.2668 65.3337 10.2057 65.0904 10.114C64.8776 10.0224 64.6039 9.99181 64.2693 9.99181C63.722 9.99181 63.2658 10.2363 62.9009 10.6946C62.5359 11.1529 62.3231 11.8557 62.3231 12.8335V17.6001H60.1031V8.12792H62.3231V9.62514H62.3535C62.5663 9.1057 62.8705 8.70847 63.2658 8.40292C63.6915 8.12792 64.1781 7.97514 64.7559 7.97514ZM65.7291 13.0168C65.7291 11.4585 66.1548 10.2057 67.0367 9.28903C67.9186 8.37236 69.1351 7.91403 70.7164 7.91403C72.1761 7.91403 73.3317 8.34181 74.1528 9.22792C74.9739 10.114 75.3997 11.3057 75.3997 12.8029C75.3997 14.3307 74.9739 15.5529 74.092 16.4696C73.2101 17.3863 72.0241 17.8446 70.5036 17.8446C69.0438 17.8446 67.8882 17.4168 67.0367 16.5613C66.1548 15.6751 65.7291 14.4835 65.7291 13.0168ZM68.0403 12.9251C68.0403 13.9029 68.2532 14.6668 68.7093 15.1863C69.1655 15.7057 69.8041 15.9807 70.6252 15.9807C71.4463 15.9807 72.0545 15.7057 72.4802 15.1863C72.906 14.6668 73.1189 13.9029 73.1189 12.864C73.1189 11.8557 72.906 11.0918 72.4498 10.5724C72.0241 10.0529 71.4159 9.80847 70.6252 9.80847C69.8041 9.80847 69.1959 10.0835 68.7397 10.6335C68.2532 11.1529 68.0403 11.9168 68.0403 12.9251ZM78.684 10.6335C78.684 10.939 78.7753 11.214 78.9881 11.3974C79.201 11.5807 79.6268 11.7946 80.3262 12.0696C81.2081 12.4363 81.8468 12.8335 82.1813 13.2613C82.5462 13.7196 82.7287 14.239 82.7287 14.8807C82.7287 15.7668 82.3941 16.5001 81.6947 17.0196C81.0257 17.5696 80.0829 17.8446 78.9273 17.8446C78.532 17.8446 78.1062 17.7835 77.6197 17.6918C77.1331 17.6001 76.7377 17.4779 76.4032 17.3251V15.1251C76.7986 15.4001 77.2547 15.6446 77.7109 15.7974C78.1671 15.9501 78.5928 16.0418 78.9881 16.0418C79.4747 16.0418 79.8701 15.9807 80.0829 15.8279C80.3262 15.6751 80.4479 15.4613 80.4479 15.1251C80.4479 14.8196 80.3262 14.5446 80.0829 14.3613C79.8396 14.1474 79.3531 13.9029 78.684 13.6279C77.8629 13.2918 77.2851 12.8946 76.9506 12.4668C76.6161 12.039 76.4336 11.489 76.4336 10.8168C76.4336 9.96125 76.7682 9.25847 77.4372 8.70847C78.1062 8.15847 78.9881 7.88347 80.0525 7.88347C80.387 7.88347 80.752 7.91403 81.1473 8.0057C81.5426 8.06681 81.9076 8.18903 82.1813 8.2807V10.389C81.8772 10.2057 81.5426 10.0224 81.1473 9.86959C80.752 9.71681 80.3566 9.6557 79.9917 9.6557C79.5659 9.6557 79.2314 9.74736 79.0186 9.90014C78.8057 10.114 78.684 10.3279 78.684 10.6335ZM83.6714 13.0168C83.6714 11.4585 84.0972 10.2057 84.9791 9.28903C85.861 8.37236 87.0774 7.91403 88.6588 7.91403C90.1185 7.91403 91.2741 8.34181 92.0952 9.22792C92.9163 10.114 93.342 11.3057 93.342 12.8029C93.342 14.3307 92.9163 15.5529 92.0343 16.4696C91.1524 17.3863 89.9664 17.8446 88.4459 17.8446C86.9862 17.8446 85.8306 17.4168 84.9791 16.5613C84.1276 15.6751 83.6714 14.4835 83.6714 13.0168ZM85.9826 12.9251C85.9826 13.9029 86.1955 14.6668 86.6517 15.1863C87.1078 15.7057 87.7464 15.9807 88.5675 15.9807C89.3886 15.9807 89.9968 15.7057 90.4226 15.1863C90.8483 14.6668 91.0612 13.9029 91.0612 12.864C91.0612 11.8557 90.8483 11.0918 90.3922 10.5724C89.9664 10.0529 89.3582 9.80847 88.5675 9.80847C87.7464 9.80847 87.1382 10.0835 86.6821 10.6335C86.2259 11.1529 85.9826 11.9168 85.9826 12.9251ZM100.701 9.96125H97.3866V17.6001H95.1362V9.96125H93.5549V8.12792H95.1362V6.81403C95.1362 5.8057 95.4708 5.01125 96.1094 4.36959C96.748 3.72792 97.5691 3.42236 98.5727 3.42236C98.8464 3.42236 99.0896 3.42236 99.3025 3.45292C99.5154 3.48347 99.6979 3.51403 99.8499 3.57514V5.50014C99.7891 5.46959 99.637 5.40847 99.4546 5.34736C99.2721 5.28625 99.0592 5.2557 98.8159 5.2557C98.3598 5.2557 97.9949 5.40847 97.7516 5.68347C97.5083 5.98903 97.3866 6.41681 97.3866 6.96681V8.09736H100.701V5.95847L102.921 5.28625V8.09736H105.172V9.9307H102.921V14.3613C102.921 14.9418 103.013 15.3696 103.226 15.5835C103.438 15.8279 103.773 15.9501 104.229 15.9501C104.351 15.9501 104.503 15.9196 104.685 15.8585C104.868 15.7974 105.02 15.7363 105.172 15.6446V17.4779C105.02 17.5696 104.807 17.6307 104.472 17.6918C104.138 17.7529 103.834 17.7835 103.499 17.7835C102.556 17.7835 101.857 17.539 101.401 17.0196C100.945 16.5307 100.701 15.7668 100.701 14.7585V9.96125Z" fill="#737373"/>
+							<path d="M10.4005 0H0V10.45H10.4005V0Z" fill="#F25022" />
+							<path d="M21.8958 0H11.4954V10.45H21.8958V0Z" fill="#7FBA00" />
+							<path d="M10.4005 11.5503H0V22.0003H10.4005V11.5503Z" fill="#00A4EF" />
+							<path d="M21.8958 11.5503H11.4954V22.0003H21.8958V11.5503Z" fill="#FFB900" />
+						</svg>
+						<br>&#169 <span id="fullyear"></span> Microsoft
+					</a>
+			   </td>
+				<td>
+					<ul id="links">
+						<table style="width:100%">
+							<tr>
+								<td>
+									<a href="https://go.microsoft.com/fwlink/?LinkId=521839" data-id="15" data-m='{"i":15,"p":13,"n":"footer_privacy","y":14,"o":2}'>
+										Privacy &amp; Cookies
+									</a>
+								</td>
+								<td>
+									<a href="https://go.microsoft.com/fwlink/?LinkID=246338" data-id="16" data-m='{"i":16,"p":13,"n":"footer_legal","y":14,"o":3}'>
+										Terms of use
+									</a>
+								</td>
+								<td>
+									<a href="https://go.microsoft.com/fwlink/?LinkID=286759" data-id="17" data-m='{"i":17,"p":13,"n":"footer_adprivacyinfo","y":14,"o":4}'>
+										About our Ads
+									</a>
+								</td>
+							</tr>
+							<tr>
+								<td>
+									<a href="#" id="footer_feedback" data-id="18" data-m='{"i":18,"p":13,"n":"footer_feedback","y":14,"o":5}' target="_self">
+										Feedback
+									</a>
+								</td>
+								<td>
+									<a href="https://go.microsoft.com/fwlink/?LinkId=512703" data-id="19" data-m='{"i":19,"p":13,"n":"footer_help","y":14,"o":6}'>
+										Help
+									</a>
+								</td>
+								<td>
+									<a href="https://www.msn.com/en-us/msn-worldwide" data-id="20" data-m='{"i":20,"p":13,"n":"footer_worldwide","y":14,"o":7}'>
+										MSN Worldwide
+									</a>
+								</td>
+							</tr>
+							<tr>
+								<td>
+									<a href="https://go.microsoft.com/fwlink/?linkid=875132" data-id="21" data-m='{"i":21,"p":13,"n":"footer_advertise","y":14,"o":8}'>
+										Advertise
+									</a>
+								</td>
+								<td>
+									<a href="https://blogs.msn.com/" data-id="22" data-m='{"i":22,"p":13,"n":"footer_msn_blog","y":14,"o":9}'>
+										MSN Blog
+									</a>
+								</td>
+								<td>
+									<a href="https://www.msn.com/en-us/news/us/about-us/ar-BBN0NAK" data-id="23" data-m='{"i":23,"p":13,"n":"footer_aboutus","y":14,"o":10}'>
+										About Us
+									</a>
+								</td>
+							</tr>
+						</table>
+					</ul>
+				</td>
+			</tr>
+	   </table>
+	</div>
+ <script type="text/javascript">
+	document.getElementById("whoopsDiv").style.display = "block";
+	var n = new Date().getFullYear();
+	document.getElementById("fullyear").innerHTML = n;
+	setTimeout('Redirect()', 5000);
+	function Redirect() {
+		window.location = "https://www.msn.com/";
+	}
+ </script>
+
+	</div>
+</body>
+</html>

@@ -1,0 +1,445 @@
+{
+  "timestamp": "2025-11-26T14:00:25.952585",
+  "latest_predictions": [
+    {
+      "symbol": "XAUUSD.FOREX",
+      "timestamp": "2025-11-26T13:34:45.300860",
+      "current_price": 4165.88,
+      "predicted_price": 4137.097386845121,
+      "raw_prediction": 4137.097386845121,
+      "change_pct": -0.6909131601217287,
+      "lower_95": 3946.325654185835,
+      "upper_95": 4327.8691195044075,
+      "model_order": [
+        3,
+        1,
+        3
+      ],
+      "indicators_used": {},
+      "adjustments": {
+        "vix": 0,
+        "market_momentum": 0
+      },
+      "citations": {
+        "total_citations": 1,
+        "sources": [
+          "EODHD_API"
+        ],
+        "latest_update": "2025-11-26T13:34:42.109585"
+      }
+    },
+    {
+      "symbol": "AAPL.US",
+      "timestamp": "2025-11-26T13:34:56.794210",
+      "current_price": 276.97,
+      "predicted_price": 277.6879061662787,
+      "raw_prediction": 277.6879061662787,
+      "change_pct": 0.2591999733829226,
+      "lower_95": 259.99778183626864,
+      "upper_95": 295.3780304962888,
+      "model_order": [
+        3,
+        1,
+        3
+      ],
+      "indicators_used": {},
+      "adjustments": {
+        "vix": 0,
+        "market_momentum": 0
+      },
+      "citations": {
+        "total_citations": 3,
+        "sources": [
+          "EODHD_API",
+          "Model_Prediction"
+        ],
+        "latest_update": "2025-11-26T13:34:54.096695"
+      }
+    },
+    {
+      "symbol": "XAUUSD.FOREX",
+      "timestamp": "2025-11-26T13:40:38.580852",
+      "current_price": 4165.88,
+      "predicted_price": 4160.931595076831,
+      "raw_prediction": 4160.931595076831,
+      "change_pct": -0.11878414460254998,
+      "lower_95": 3959.2435820452056,
+      "upper_95": 4362.619608108457,
+      "model_order": [
+        1,
+        1,
+        1
+      ],
+      "indicators_used": {},
+      "adjustments": {
+        "vix": 0,
+        "market_momentum": 0
+      },
+      "citations": {
+        "total_citations": 9,
+        "sources": [
+          "EODHD_API",
+          "Model_Prediction"
+        ],
+        "latest_update": "2025-11-26T13:40:35.690982"
+      }
+    },
+    {
+      "symbol": "AAPL.US",
+      "timestamp": "2025-11-26T13:40:56.329839",
+      "current_price": 276.97,
+      "predicted_price": 277.03452381592984,
+      "raw_prediction": 277.03452381592984,
+      "change_pct": 0.02329631943164147,
+      "lower_95": 259.39305072816813,
+      "upper_95": 294.67599690369155,
+      "model_order": [
+        1,
+        1,
+        1
+      ],
+      "indicators_used": {},
+      "adjustments": {
+        "vix": 0,
+        "market_momentum": 0
+      },
+      "citations": {
+        "total_citations": 11,
+        "sources": [
+          "EODHD_API",
+          "Model_Prediction"
+        ],
+        "latest_update": "2025-11-26T13:40:54.033191"
+      }
+    },
+    {
+      "symbol": "XAUUSD.FOREX",
+      "timestamp": "2025-11-26T13:46:14.640274",
+      "current_price": 4165.88,
+      "predicted_price": 4160.931595076831,
+      "raw_prediction": 4160.931595076831,
+      "change_pct": -0.11878414460254998,
+      "lower_95": 3959.2435820452056,
+      "upper_95": 4362.619608108457,
+      "model_order": [
+        1,
+        1,
+        1
+      ],
+      "indicators_used": {},
+      "adjustments": {
+        "vix": 0,
+        "market_momentum": 0
+      },
+      "citations": {
+        "total_citations": 15,
+        "sources": [
+          "EODHD_API",
+          "Model_Prediction"
+        ],
+        "latest_update": "2025-11-26T13:46:12.616025"
+      }
+    },
+    {
+      "symbol": "AAPL.US",
+      "timestamp": "2025-11-26T13:46:21.963106",
+      "current_price": 276.97,
+      "predicted_price": 277.03452381592984,
+      "raw_prediction": 277.03452381592984,
+      "change_pct": 0.02329631943164147,
+      "lower_95": 259.39305072816813,
+      "upper_95": 294.67599690369155,
+      "model_order": [
+        1,
+        1,
+        1
+      ],
+      "indicators_used": {},
+      "adjustments": {
+        "vix": 0,
+        "market_momentum": 0
+      },
+      "citations": {
+        "total_citations": 17,
+        "sources": [
+          "EODHD_API",
+          "Model_Prediction"
+        ],
+        "latest_update": "2025-11-26T13:46:19.706868"
+      }
+    }
+  ],
+  "model_weights": [
+    {
+      "order": "(1, 1, 1)",
+      "weight": NaN
+    },
+    {
+      "order": "(2, 1, 2)",
+      "weight": NaN
+    },
+    {
+      "order": "(3, 1, 3)",
+      "weight": NaN
+    }
+  ],
+  "performance_history": [
+    {
+      "timestamp": "2025-11-26T13:35:04.046000",
+      "rmse": NaN,
+      "mae": NaN,
+      "direction_accuracy": 51.28205128205128,
+      "model_params": "{'trend': 0, 'exog': 0, 'ar': 1, 'ma': 1, 'seasonal_ar': 0, 'seasonal_ma': 0, 'reduced_ar': 1, 'reduced_ma': 1, 'exog_variance': 0, 'measurement_variance': 0, 'variance': 1}"
+    },
+    {
+      "timestamp": "2025-11-26T13:35:12.873029",
+      "rmse": NaN,
+      "mae": NaN,
+      "direction_accuracy": 41.02564102564102,
+      "model_params": "{'trend': 0, 'exog': 0, 'ar': 1, 'ma': 1, 'seasonal_ar': 0, 'seasonal_ma': 0, 'reduced_ar': 1, 'reduced_ma': 1, 'exog_variance': 0, 'measurement_variance': 0, 'variance': 1}"
+    },
+    {
+      "timestamp": "2025-11-26T13:39:20.575801",
+      "rmse": NaN,
+      "mae": NaN,
+      "direction_accuracy": 51.28205128205128,
+      "model_params": "{'trend': 0, 'exog': 0, 'ar': 1, 'ma': 1, 'seasonal_ar': 0, 'seasonal_ma': 0, 'reduced_ar': 1, 'reduced_ma': 1, 'exog_variance': 0, 'measurement_variance': 0, 'variance': 1}"
+    },
+    {
+      "timestamp": "2025-11-26T13:39:29.259847",
+      "rmse": NaN,
+      "mae": NaN,
+      "direction_accuracy": 41.02564102564102,
+      "model_params": "{'trend': 0, 'exog': 0, 'ar': 1, 'ma': 1, 'seasonal_ar': 0, 'seasonal_ma': 0, 'reduced_ar': 1, 'reduced_ma': 1, 'exog_variance': 0, 'measurement_variance': 0, 'variance': 1}"
+    },
+    {
+      "timestamp": "2025-11-26T13:44:02.201434",
+      "rmse": NaN,
+      "mae": NaN,
+      "direction_accuracy": 51.28205128205128,
+      "model_params": "{'trend': 0, 'exog': 0, 'ar': 1, 'ma': 1, 'seasonal_ar': 0, 'seasonal_ma': 0, 'reduced_ar': 1, 'reduced_ma': 1, 'exog_variance': 0, 'measurement_variance': 0, 'variance': 1}"
+    },
+    {
+      "timestamp": "2025-11-26T13:44:08.667561",
+      "rmse": NaN,
+      "mae": NaN,
+      "direction_accuracy": 41.02564102564102,
+      "model_params": "{'trend': 0, 'exog': 0, 'ar': 1, 'ma': 1, 'seasonal_ar': 0, 'seasonal_ma': 0, 'reduced_ar': 1, 'reduced_ma': 1, 'exog_variance': 0, 'measurement_variance': 0, 'variance': 1}"
+    },
+    {
+      "timestamp": "2025-11-26T13:48:43.655305",
+      "rmse": NaN,
+      "mae": NaN,
+      "direction_accuracy": 51.28205128205128,
+      "model_params": "{'trend': 0, 'exog': 0, 'ar': 1, 'ma': 1, 'seasonal_ar': 0, 'seasonal_ma': 0, 'reduced_ar': 1, 'reduced_ma': 1, 'exog_variance': 0, 'measurement_variance': 0, 'variance': 1}"
+    },
+    {
+      "timestamp": "2025-11-26T13:48:58.587550",
+      "rmse": NaN,
+      "mae": NaN,
+      "direction_accuracy": 41.02564102564102,
+      "model_params": "{'trend': 0, 'exog': 0, 'ar': 1, 'ma': 1, 'seasonal_ar': 0, 'seasonal_ma': 0, 'reduced_ar': 1, 'reduced_ma': 1, 'exog_variance': 0, 'measurement_variance': 0, 'variance': 1}"
+    },
+    {
+      "timestamp": "2025-11-26T13:53:34.433543",
+      "rmse": NaN,
+      "mae": NaN,
+      "direction_accuracy": 51.28205128205128,
+      "model_params": "{'trend': 0, 'exog': 0, 'ar': 1, 'ma': 1, 'seasonal_ar': 0, 'seasonal_ma': 0, 'reduced_ar': 1, 'reduced_ma': 1, 'exog_variance': 0, 'measurement_variance': 0, 'variance': 1}"
+    },
+    {
+      "timestamp": "2025-11-26T13:53:42.004460",
+      "rmse": NaN,
+      "mae": NaN,
+      "direction_accuracy": 41.02564102564102,
+      "model_params": "{'trend': 0, 'exog': 0, 'ar': 1, 'ma': 1, 'seasonal_ar': 0, 'seasonal_ma': 0, 'reduced_ar': 1, 'reduced_ma': 1, 'exog_variance': 0, 'measurement_variance': 0, 'variance': 1}"
+    },
+    {
+      "timestamp": "2025-11-26T13:59:11.899878",
+      "rmse": NaN,
+      "mae": NaN,
+      "direction_accuracy": 51.28205128205128,
+      "model_params": "{'trend': 0, 'exog': 0, 'ar': 1, 'ma': 1, 'seasonal_ar': 0, 'seasonal_ma': 0, 'reduced_ar': 1, 'reduced_ma': 1, 'exog_variance': 0, 'measurement_variance': 0, 'variance': 1}"
+    },
+    {
+      "timestamp": "2025-11-26T13:59:25.717983",
+      "rmse": NaN,
+      "mae": NaN,
+      "direction_accuracy": 41.02564102564102,
+      "model_params": "{'trend': 0, 'exog': 0, 'ar': 1, 'ma': 1, 'seasonal_ar': 0, 'seasonal_ma': 0, 'reduced_ar': 1, 'reduced_ma': 1, 'exog_variance': 0, 'measurement_variance': 0, 'variance': 1}"
+    }
+  ],
+  "best_model": "None",
+  "best_rmse": Infinity,
+  "citations": [
+    {
+      "source": "EODHD_API",
+      "data_type": "XAUUSD.FOREX_historical",
+      "value": "100 days",
+      "timestamp": "2025-11-26T13:34:42.109585",
+      "reliability": 0.95
+    },
+    {
+      "source": "Model_Prediction",
+      "data_type": "5day_forecast",
+      "value": 4137.097386845121,
+      "timestamp": "2025-11-26T13:34:45.301373",
+      "reliability": 0.8
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "AAPL.US_historical",
+      "value": "100 days",
+      "timestamp": "2025-11-26T13:34:54.096695",
+      "reliability": 0.95
+    },
+    {
+      "source": "Model_Prediction",
+      "data_type": "5day_forecast",
+      "value": 277.6879061662787,
+      "timestamp": "2025-11-26T13:34:56.794924",
+      "reliability": 0.8
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "XAUUSD.FOREX_historical",
+      "value": "200 days",
+      "timestamp": "2025-11-26T13:35:00.650698",
+      "reliability": 0.95
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "AAPL.US_historical",
+      "value": "200 days",
+      "timestamp": "2025-11-26T13:35:10.581680",
+      "reliability": 0.95
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "XAUUSD.FOREX_historical",
+      "value": "200 days",
+      "timestamp": "2025-11-26T13:39:18.493042",
+      "reliability": 0.95
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "AAPL.US_historical",
+      "value": "200 days",
+      "timestamp": "2025-11-26T13:39:27.116258",
+      "reliability": 0.95
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "XAUUSD.FOREX_historical",
+      "value": "100 days",
+      "timestamp": "2025-11-26T13:40:35.690982",
+      "reliability": 0.95
+    },
+    {
+      "source": "Model_Prediction",
+      "data_type": "5day_forecast",
+      "value": 4160.931595076831,
+      "timestamp": "2025-11-26T13:40:38.581999",
+      "reliability": 0.8
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "AAPL.US_historical",
+      "value": "100 days",
+      "timestamp": "2025-11-26T13:40:54.033191",
+      "reliability": 0.95
+    },
+    {
+      "source": "Model_Prediction",
+      "data_type": "5day_forecast",
+      "value": 277.03452381592984,
+      "timestamp": "2025-11-26T13:40:56.330530",
+      "reliability": 0.8
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "XAUUSD.FOREX_historical",
+      "value": "200 days",
+      "timestamp": "2025-11-26T13:44:00.441724",
+      "reliability": 0.95
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "AAPL.US_historical",
+      "value": "200 days",
+      "timestamp": "2025-11-26T13:44:06.903705",
+      "reliability": 0.95
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "XAUUSD.FOREX_historical",
+      "value": "100 days",
+      "timestamp": "2025-11-26T13:46:12.616025",
+      "reliability": 0.95
+    },
+    {
+      "source": "Model_Prediction",
+      "data_type": "5day_forecast",
+      "value": 4160.931595076831,
+      "timestamp": "2025-11-26T13:46:14.640640",
+      "reliability": 0.8
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "AAPL.US_historical",
+      "value": "100 days",
+      "timestamp": "2025-11-26T13:46:19.706868",
+      "reliability": 0.95
+    },
+    {
+      "source": "Model_Prediction",
+      "data_type": "5day_forecast",
+      "value": 277.03452381592984,
+      "timestamp": "2025-11-26T13:46:21.964113",
+      "reliability": 0.8
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "XAUUSD.FOREX_historical",
+      "value": "200 days",
+      "timestamp": "2025-11-26T13:48:41.614100",
+      "reliability": 0.95
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "AAPL.US_historical",
+      "value": "200 days",
+      "timestamp": "2025-11-26T13:48:55.228857",
+      "reliability": 0.95
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "XAUUSD.FOREX_historical",
+      "value": "200 days",
+      "timestamp": "2025-11-26T13:53:31.633423",
+      "reliability": 0.95
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "AAPL.US_historical",
+      "value": "200 days",
+      "timestamp": "2025-11-26T13:53:39.486346",
+      "reliability": 0.95
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "XAUUSD.FOREX_historical",
+      "value": "200 days",
+      "timestamp": "2025-11-26T13:59:06.116264",
+      "reliability": 0.95
+    },
+    {
+      "source": "EODHD_API",
+      "data_type": "AAPL.US_historical",
+      "value": "200 days",
+      "timestamp": "2025-11-26T13:59:20.228761",
+      "reliability": 0.95
+    }
+  ],
+  "uptime_seconds": 1881.611757
+}

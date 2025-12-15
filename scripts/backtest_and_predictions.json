@@ -1,0 +1,167 @@
+{
+  "timestamp": "2025-11-25T18:09:05.531047",
+  "backtest_results": {
+    "Gold (XAU/USD)": {
+      "symbol": "XAUUSD.FOREX",
+      "current_price": 4142.27,
+      "best_model": "ARIMA(2, 1, 2)",
+      "best_r2": 0.8158356379169472,
+      "all_models": [
+        {
+          "name": "ARIMA(2, 1, 2)",
+          "rmse": 121.98798326742475,
+          "r2": 0.8158356379169472,
+          "direction_accuracy": 55.319148936170215
+        },
+        {
+          "name": "ARIMA(1, 1, 1)",
+          "rmse": 122.2052864439027,
+          "r2": 0.8151789315078162,
+          "direction_accuracy": 57.446808510638306
+        },
+        {
+          "name": "LinearRegression",
+          "rmse": 691.6602289841552,
+          "r2": -105.99322791321805,
+          "direction_accuracy": 60.86956521739131
+        },
+        {
+          "name": "RandomForest",
+          "rmse": 694.6248143889543,
+          "r2": -106.91237959396803,
+          "direction_accuracy": 56.52173913043478
+        },
+        {
+          "name": "RandomForest",
+          "rmse": 695.4009454783464,
+          "r2": -107.15366364218926,
+          "direction_accuracy": 60.86956521739131
+        },
+        {
+          "name": "GradientBoosting",
+          "rmse": 725.0257734708705,
+          "r2": -116.56487121503768,
+          "direction_accuracy": 56.52173913043478
+        },
+        {
+          "name": "GradientBoosting",
+          "rmse": 743.391771516828,
+          "r2": -122.59650243598595,
+          "direction_accuracy": 47.82608695652174
+        },
+        {
+          "name": "Ridge(alpha=1.0)",
+          "rmse": 767.2826088899692,
+          "r2": -130.6683493723606,
+          "direction_accuracy": 65.21739130434783
+        },
+        {
+          "name": "Ridge(alpha=10.0)",
+          "rmse": 858.4290415988526,
+          "r2": -163.80845404640723,
+          "direction_accuracy": 52.17391304347826
+        }
+      ]
+    },
+    "Apple Inc. (AAPL)": {
+      "symbol": "AAPL.US",
+      "current_price": 275.92,
+      "best_model": "ARIMA(2, 1, 2)",
+      "best_r2": 0.7930855012737023,
+      "all_models": [
+        {
+          "name": "ARIMA(2, 1, 2)",
+          "rmse": 9.802945458139849,
+          "r2": 0.7930855012737023,
+          "direction_accuracy": 43.61702127659575
+        },
+        {
+          "name": "ARIMA(1, 1, 1)",
+          "rmse": 9.813538476273107,
+          "r2": 0.7926380779360043,
+          "direction_accuracy": 37.234042553191486
+        },
+        {
+          "name": "GradientBoosting",
+          "rmse": 21.156381132516117,
+          "r2": -0.06321659672817681,
+          "direction_accuracy": 51.13636363636363
+        },
+        {
+          "name": "RandomForest",
+          "rmse": 21.90798771693241,
+          "r2": -0.14010266367897506,
+          "direction_accuracy": 51.13636363636363
+        },
+        {
+          "name": "GradientBoosting",
+          "rmse": 21.916035770493664,
+          "r2": -0.1409404670211325,
+          "direction_accuracy": 51.13636363636363
+        },
+        {
+          "name": "RandomForest",
+          "rmse": 22.13097423281023,
+          "r2": -0.16342943641451213,
+          "direction_accuracy": 53.40909090909091
+        },
+        {
+          "name": "Ridge(alpha=1.0)",
+          "rmse": 24.162705373229343,
+          "r2": -0.38685194384895993,
+          "direction_accuracy": 45.45454545454545
+        },
+        {
+          "name": "LinearRegression",
+          "rmse": 24.181940005556893,
+          "r2": -0.38906081941333026,
+          "direction_accuracy": 46.590909090909086
+        },
+        {
+          "name": "Ridge(alpha=10.0)",
+          "rmse": 24.717772532014585,
+          "r2": -0.45130150413955805,
+          "direction_accuracy": 51.13636363636363
+        }
+      ]
+    }
+  },
+  "predictions": {
+    "Gold (XAU/USD)": {
+      "current_price": 4142.27,
+      "predicted_price": 4142.413281666418,
+      "price_change": 0.14328166641735152,
+      "price_change_pct": 0.003459013208152812,
+      "individual_predictions": [
+        4142.430885108468,
+        4142.3956640430715
+      ],
+      "top_models": [
+        "ARIMA(2, 1, 2)",
+        "ARIMA(1, 1, 1)"
+      ],
+      "weights": [
+        0.5002013183761328,
+        0.49979868162386726
+      ]
+    },
+    "Apple Inc. (AAPL)": {
+      "current_price": 275.92,
+      "predicted_price": 276.4785320685929,
+      "price_change": 0.5585320685929105,
+      "price_change_pct": 0.202425365538167,
+      "individual_predictions": [
+        276.4553981128938,
+        276.50167908280133
+      ],
+      "top_models": [
+        "ARIMA(2, 1, 2)",
+        "ARIMA(1, 1, 1)"
+      ],
+      "weights": [
+        0.5001410786039774,
+        0.49985892139602256
+      ]
+    }
+  }
+}

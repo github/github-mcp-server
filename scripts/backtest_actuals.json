@@ -1,0 +1,50 @@
+[
+  {
+    "timestamp": "2025-12-01T11:00:40.759938",
+    "actual_price": 958.4057726252672,
+    "market_data": {
+      "XAUUSD": 4214.2891,
+      "USDCNY": 7.0735
+    }
+  },
+  {
+    "timestamp": "2025-12-01T12:22:47.334237",
+    "actual_price": 958.4057726252672,
+    "market_data": {
+      "XAUUSD": 4214.2891,
+      "USDCNY": 7.0735
+    }
+  },
+  {
+    "timestamp": "2025-12-01T12:29:44.506943",
+    "actual_price": 958.4057726252672,
+    "market_data": {
+      "XAUUSD": 4214.2891,
+      "USDCNY": 7.0735
+    }
+  },
+  {
+    "timestamp": "2025-12-01T12:59:34.037209",
+    "actual_price": 958.3786741373157,
+    "market_data": {
+      "XAUUSD": 4214.2891,
+      "USDCNY": 7.0733
+    }
+  },
+  {
+    "timestamp": "2025-12-01T13:02:45.534840",
+    "actual_price": 960.3099907923544,
+    "market_data": {
+      "XAUUSD": 4222.7817,
+      "USDCNY": 7.0733
+    }
+  },
+  {
+    "timestamp": "2025-12-01T13:05:59.166250",
+    "actual_price": 960.3235673406529,
+    "market_data": {
+      "XAUUSD": 4222.7817,
+      "USDCNY": 7.0734
+    }
+  }
+]
