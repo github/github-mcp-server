@@ -27,14 +27,16 @@
       "mimeType": "image/png",
       "sizes": [
         "16x16"
-      ]
+      ],
+      "theme": "light"
     },
     {
-      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAABGUlEQVRIidXVO07DUBSE4c+QgiI94iVCQShCk4oqa2ELrCElBRAIEqSjZQHsgQXQQIPEGiBBgkCRa+kiOcZOHCFGOrKLmX+OLT+WldMRDnBfMldImxjhHduLKLjAV5jzquFreIsKhtiosuAsgqdzWhV8Fa8ZBUOszwtfQT8Dnk4/eKYqCccGWmhiN5otLP2yxBgveIrmEQ94TuHjnC1nnXFgSzBYQMEgukMS9CqEX2Xd2gQnFcAv482z1J0DfpwHnrekWxQOOzMUNLJA057x/TLb5GX+rKA1Q0FmplbC/IGbcH6YkS181TWTP1f8yt9iL/I0cI3PyDfKWfiHmlHoDu0cbzt4Un+zSEHd5LPRKWIO6oRMvUTmn+gbFfKxlxTztakAAAAASUVORK5CYII=",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAQAAAC1+jfqAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAACYktHRAD/h4/MvwAAAAd0SU1FB+kMDxY4Jr01+3kAAADDSURBVCjPfZE9TsNAEEZfLBdwgYg/KZEguACU3gFukTpX4CpAmYrS4jKkDQghlzTuTJBQHoVjxSvH+baY1TdvNTM7PQn0gDwGjs1z5spfB00vBJ5VfeoCjixV/fF068YA9LlkxJRDAA6Y88o7S74B7y3sUuFdRE5Jl0pyxKGfO9/nXtRNDvxopb88b04xaQG3VSbaVDtp1T+uQg1ct4CrKsQB8McLMCMGbsJdLFybmYiYmLn2Lfzq1HGwlbFpdevJfv0Diova5gStEDYAAAAASUVORK5CYII=",
       "mimeType": "image/png",
       "sizes": [
-        "24x24"
-      ]
+        "16x16"
+      ],
+      "theme": "dark"
     }
   ]
 }

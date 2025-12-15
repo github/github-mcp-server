@@ -1,6 +1,7 @@
 #!/bin/bash
 # Fetch Octicon icons and convert them to PNG for embedding in the MCP server.
-# Requires: rsvg-convert (from librsvg2-bin on Ubuntu/Debian)
+# Generates both light theme (dark icons) and dark theme (white icons) variants.
+# Requires: rsvg-convert (from librsvg2-bin on Ubuntu/Debian), ImageMagick (convert)
 #
 # Usage:
 #   script/fetch-icons              # Fetch all default icons
@@ -21,6 +22,7 @@ DEFAULT_ICONS=(
     comment-discussion
     copilot
     dependabot
+    file
     git-branch
     git-merge
     git-pull-request
@@ -50,6 +52,14 @@ if ! command -v rsvg-convert &> /dev/null; then
     exit 1
 fi
 
+# Check for ImageMagick convert
+if ! command -v convert &> /dev/null; then
+    echo "Error: ImageMagick convert not found. Install with:"
+    echo "  Ubuntu/Debian: sudo apt-get install imagemagick"
+    echo "  macOS: brew install imagemagick"
+    exit 1
+fi
+
 # Use provided icons or defaults
 if [ $# -gt 0 ]; then
     ICONS=("$@")
@@ -60,21 +70,24 @@ fi
 # Ensure icons directory exists
 mkdir -p "$ICONS_DIR"
 
-echo "Fetching ${#ICONS[@]} icons..."
+echo "Fetching ${#ICONS[@]} icons (light + dark themes)..."
 
 for icon in "${ICONS[@]}"; do
-    for size in 16 24; do
-        svg_url="${OCTICONS_BASE}/${icon}-${size}.svg"
-        png_file="${ICONS_DIR}/${icon}-${size}.png"
-        
-        echo "  ${icon}-${size}.png"
-        
-        # Download SVG and convert to PNG in one pipeline
-        if ! curl -sfL "$svg_url" | rsvg-convert -o "$png_file" 2>/dev/null; then
-            echo "    Warning: Failed to fetch ${icon}-${size}.svg (may not exist)"
-            rm -f "$png_file"
-        fi
-    done
+    svg_url="${OCTICONS_BASE}/${icon}-16.svg"
+    light_file="${ICONS_DIR}/${icon}-light.png"
+    dark_file="${ICONS_DIR}/${icon}-dark.png"
+    
+    echo "  ${icon} (light + dark)"
+    
+    # Download SVG and convert to PNG (light theme - dark icons for light backgrounds)
+    if curl -sfL "$svg_url" | rsvg-convert -o "$light_file" 2>/dev/null; then
+        # Create dark theme variant (invert colors for dark backgrounds)
+        # -channel RGB inverts only color channels, preserving alpha
+        convert "$light_file" -channel RGB -negate "$dark_file"
+    else
+        echo "    Warning: Failed to fetch ${icon}-16.svg (may not exist)"
+        rm -f "$light_file" "$dark_file"
+    fi
 done
 
 echo "Done. Icons saved to $ICONS_DIR"
