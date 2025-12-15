@@ -75,6 +75,7 @@ func ContextWithGitHubErrors(ctx context.Context) context.Context {
 		// If the context already has GitHubCtxErrors, we just empty the slices to start fresh
 		val.api = []*GitHubAPIError{}
 		val.graphQL = []*GitHubGraphQLError{}
+		val.raw = []*GitHubRawAPIError{}
 	} else {
 		// If not, we create a new GitHubCtxErrors and set it in the context
 		ctx = context.WithValue(ctx, GitHubErrorKey{}, &GitHubCtxErrors{})
@@ -95,6 +96,14 @@ func GetGitHubAPIErrors(ctx context.Context) ([]*GitHubAPIError, error) {
 func GetGitHubGraphQLErrors(ctx context.Context) ([]*GitHubGraphQLError, error) {
 	if val, ok := ctx.Value(GitHubErrorKey{}).(*GitHubCtxErrors); ok {
 		return val.graphQL, nil // return the slice of GraphQL errors from the context
+	}
+	return nil, fmt.Errorf("context does not contain GitHubCtxErrors")
+}
+
+// GetGitHubRawAPIErrors retrieves the slice of GitHubRawAPIErrors from the context.
+func GetGitHubRawAPIErrors(ctx context.Context) ([]*GitHubRawAPIError, error) {
+	if val, ok := ctx.Value(GitHubErrorKey{}).(*GitHubCtxErrors); ok {
+		return val.raw, nil // return the slice of raw API errors from the context
 	}
 	return nil, fmt.Errorf("context does not contain GitHubCtxErrors")
 }
