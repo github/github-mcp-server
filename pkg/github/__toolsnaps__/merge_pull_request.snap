@@ -45,15 +45,15 @@
   "name": "merge_pull_request",
   "icons": [
     {
-      "src": "https://raw.githubusercontent.com/primer/octicons/main/icons/git-merge-16.svg",
-      "mimeType": "image/svg+xml",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABmJLR0QA/wD/AP+gvaeTAAAA0klEQVQ4jbXRPVICQRCG4QcCr7FXkMLI2MhQLwIxiQkpYEYV5QHUyMAzGFtwA6oIDPjxAK7B9hZT6x9j6ZdM9Uz329Nf84c6wRyvGKOdC5hjiXuUuDikKO1S4AnDJM7SODqXWP8G0MZNAB5zimq9qTyAc0xw1Mi9xhYLdD8DXsUPJnGuMMMA07i7i0bP3wHgDA94sfemRCcg258ATRXYJKBRMyE18asNFOjjEq3mYz13GZ2y17jDLY4D0jukKF3jEqcqx+s4S13VanYqgz7M+C96B6pDN7hpxxNqAAAAAElFTkSuQmCC",
+      "mimeType": "image/png",
       "sizes": [
         "16x16"
       ]
     },
     {
-      "src": "https://raw.githubusercontent.com/primer/octicons/main/icons/git-merge-24.svg",
-      "mimeType": "image/svg+xml",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAABc0lEQVRIibXVv05UQRQG8B/YLkEThFZIbLRbKnZJeAsTfAQkQkEPVLZrQqM+gBYWu6FBrH0FFBIBS8ISEqAQE1iLMxsnBHaJ9+6X3Mzck5nvm/NnzjBgPLjFNo0XmMIh/pQpuI5rdNK3j8myyKcT+TuMooY2mmUJLItTP8xsDZwWIR3O5kdpfJbZnmf2wqiImLfxFl+FRwtlCRAJbeIqCS1gqEyBLjrYGQRxLnCJsUEKXOGj3iEawiJ2RbW13PPedLCdxk94fMe6xbRmS5R0WxRKJT/BXQLrOMcb0S6+4AfOsnUrIldz6b+Gb3gpvO/pwVqaP8UG9vDbvzbS/T5n+x4l21Iv8psCvdASYakn8g+i3VTLEpgUMe96c43VfhtaIhS/8Er/i1bBPF7rc/IRHAiXGyKpnSRSCuYT4Uxm2xaV89/Iu+l4Gr9nth1MFBHIURVJei8qoo4TJT44ROXkT+ZPPClCeFuFVDGLY2zioojAwPEXb7xhRsU8X9cAAAAASUVORK5CYII=",
+      "mimeType": "image/png",
       "sizes": [
         "24x24"
       ]

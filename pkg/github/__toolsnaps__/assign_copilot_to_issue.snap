@@ -29,15 +29,15 @@
   "name": "assign_copilot_to_issue",
   "icons": [
     {
-      "src": "https://raw.githubusercontent.com/primer/octicons/main/icons/copilot-16.svg",
-      "mimeType": "image/svg+xml",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABmJLR0QA/wD/AP+gvaeTAAABTUlEQVQ4ja3TP2tUURAF8N8+JEtA1CKCuCAGtFJIrLZJmbBgUkax8RMICmIv5Cuo/VpoodhJshYpDClSSUIaWVdRBBX7YCKua/Hm4fDYCEIOPM78OXPv3Ln3cYRo4RHeYojPuIt7YQ8j9xBnq6JG8HHs4AzWMMAsOpHvRf4CruILZrBXLXQDIyykjpoR+x12hU7Er0MRwfPBG0lYJLuR7NfB01n0M/hEEi6l4sUUP5lrjoUzCH6BdeUsbmI34l3M41twrnEKr+Jcn4K/45nyZlp4HrERPgb3qm4e+zus+nnrqHKj+LpwUFsArmEr+VtYTn61wH6BiTE7XUI7+W1cHqNrFtIwEj7gXfIHeD9G16d8XdvR0hPlCzwMV/A0tG8wXQ1lEiu4FXYfm8p/AM5hDhfxAw9wH/v1HU7jDlaVdz7EL3zFS9zG1D86/H/8AaLBT77Nh5ITAAAAAElFTkSuQmCC",
+      "mimeType": "image/png",
       "sizes": [
         "16x16"
       ]
     },
     {
-      "src": "https://raw.githubusercontent.com/primer/octicons/main/icons/copilot-24.svg",
-      "mimeType": "image/svg+xml",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAAB30lEQVRIid3VS29NURQH8J8bTVOvRErqEQNSA/UYCK2ExIhIiCC+QDsRJGVCYlofgDDgSxhIOkAMGo9JE0OkA0xK6lVXQlrkugZ733T32OcejxH/ZGffs/Za/7XOf+11Lv87luAkRvESX/EFk7iJE1j8p+RDeIdmxXqLwd8h3oixXyAurjH0VpGvEKSo4wL60RXXUEI2mNgHom89xna3S3AOjUicwxM8Ljnrj7HnU+PCgtMWPMd4CUm9TXHjeIFd7RKsFppWhg2CRGV4g2WpoVZw6BL6kMNm9GAV+kp8VqKzLHuvoOF3P/egU5iFVpNHM0QD8awhuU0L4n4cVwSJprAUdwVNmziATTgbYy7hKW7F5/XYh4+R4xWGcUMMbiTVrcV1odmz+IT7OJpUewwP4tksnuEa1iQ8DeyHCfMH5m+Rck0UDbkE24TvztYKWy5Bs3iLcjiCw+ZLlLNlURO0qvJJ9zJbDo0aLlY4vY77VIUth5HWj9OYEXQbFgauhRq2m7vSZbZFOBM5ZnCqmK0Pd6LDe2EudqOjTYUd2IOrmI6xt4WZoVBBC3uFgToYCT4LH7JJc9L0YB12Cv9o34Tpvox7KVkuQQvLcSi+xQ5hALtjldMx4SM8jOQf2nD9w/gBIjKNY9qqxzEAAAAASUVORK5CYII=",
+      "mimeType": "image/png",
       "sizes": [
         "24x24"
       ]

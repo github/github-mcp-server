@@ -23,15 +23,15 @@
   "name": "star_repository",
   "icons": [
     {
-      "src": "https://raw.githubusercontent.com/primer/octicons/main/icons/star-fill-16.svg",
-      "mimeType": "image/svg+xml",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABmJLR0QA/wD/AP+gvaeTAAAAzUlEQVQ4ja3PT0pCURTH8Q8qjhyHZqCQ8IgMaSSUOWkhbsGxy9AVNGwpzXIuEW7AUZYQ1sAbXMSu70U/OHD+fs85ZWmN0cfTkb6DOsMHNmj9BTDDV7Bp0eE61hHgHc1DjeXIP8E17jHBRVSrhLiKmt1rbz/FIVbRtry2wl0Jy3BuUa3DLGjjpcD2JTr7xBYWOYZfcf7bWbc5AIN4oLQHOE1+vVMjBejmAFzGQSUB+MRD8EdR71WKPscWj8iifBZyWzynADfoJeq90PN/+gYHuUeVIAMmAwAAAABJRU5ErkJggg==",
+      "mimeType": "image/png",
       "sizes": [
         "16x16"
       ]
     },
     {
-      "src": "https://raw.githubusercontent.com/primer/octicons/main/icons/star-fill-24.svg",
-      "mimeType": "image/svg+xml",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAABGUlEQVRIidXVO07DUBSE4c+QgiI94iVCQShCk4oqa2ELrCElBRAIEqSjZQHsgQXQQIPEGiBBgkCRa+kiOcZOHCFGOrKLmX+OLT+WldMRDnBfMldImxjhHduLKLjAV5jzquFreIsKhtiosuAsgqdzWhV8Fa8ZBUOszwtfQT8Dnk4/eKYqCccGWmhiN5otLP2yxBgveIrmEQ94TuHjnC1nnXFgSzBYQMEgukMS9CqEX2Xd2gQnFcAv482z1J0DfpwHnrekWxQOOzMUNLJA057x/TLb5GX+rKA1Q0FmplbC/IGbcH6YkS181TWTP1f8yt9iL/I0cI3PyDfKWfiHmlHoDu0cbzt4Un+zSEHd5LPRKWIO6oRMvUTmn+gbFfKxlxTztakAAAAASUVORK5CYII=",
+      "mimeType": "image/png",
       "sizes": [
         "24x24"
       ]

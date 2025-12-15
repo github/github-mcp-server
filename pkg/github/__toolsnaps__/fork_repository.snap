@@ -27,15 +27,15 @@
   "name": "fork_repository",
   "icons": [
     {
-      "src": "https://raw.githubusercontent.com/primer/octicons/main/icons/repo-forked-16.svg",
-      "mimeType": "image/svg+xml",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABmJLR0QA/wD/AP+gvaeTAAAA7UlEQVQ4ja3RwS5DURAG4K9leZdiResRBI/CgvAInqM79QDdS5q+g6WNWKAvQIhYaIhloxady3Gdi5v4k0nOmf+ff2bO4R+xhUs8o49WwrVxjJfQbOYMrnGLIWbYTridyA1Dc5U6l1jFGXpxX0m48twLTcp9oB9dZnhCN+HWMEn4o5xBG4MQdDJ8J7iB5H3SFd4wjnORMShz4zDKolsZtRqT6nQt39Ex/4Fl7EbuBI8Y4aauew6nEbVY/IErsGQ+eoHXJp0XcOFz93NfH/xXbEThYcQM6zlh3Qr3mGIv7lM8NJkADsLoDvtNi/+Md68dOylWb7mlAAAAAElFTkSuQmCC",
+      "mimeType": "image/png",
       "sizes": [
         "16x16"
       ]
     },
     {
-      "src": "https://raw.githubusercontent.com/primer/octicons/main/icons/repo-forked-24.svg",
-      "mimeType": "image/svg+xml",
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAABjUlEQVRIibXUP2sVQRQF8F8ieVWMsREUAj7LiClMpZVYCZaCRT5CLDR22qifINFOGzvBP6B2ok266CdIFREsNJoQJJ2Bp8Xc1SHZN/tW3zsw3N2zZ+65OzN3GDEO1XDzuIpT+ISfDTkO4wouYg9fSuJ76OFXjI/oFvTd0FT6Hu72E8+H4CGO4Dy28Kpg8Do05zCNR5HjbJ34RlQxnXEr2CkY7GA5ez8aOa5XxHj2cTPibMadzvg6bO7Tz2b8AUxK67mF+3gX1SwWDK6F5m3M2cZG5KpFV1rz3RAuYqxgMBYmGzHnJU4W9H/Qk07UoKhO3wGM15H4ijMtDOY0nP9+FS1hqqCbws3Q3mlj0MEzfxuoaTzFRF2i0gbCBanhqr9YiPgk4g+sYbVN9SWstk3Wb5OHhpEbDIpJPMB3fJO6tm+3/gteSHf94xh7eD6s5Ceko3gr424Hd7xp8iB7cCziesat7/v2X+hI6/5eusi6+BBcZxgGcFm6LavO3Q2uEU2dnGMGl+L5DT63mDs6/AYzsl+gNMh4PwAAAABJRU5ErkJggg==",
+      "mimeType": "image/png",
       "sizes": [
         "24x24"
       ]

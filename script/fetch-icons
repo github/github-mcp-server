@@ -1,0 +1,83 @@
+#!/bin/bash
+# Fetch Octicon icons and convert them to PNG for embedding in the MCP server.
+# Requires: rsvg-convert (from librsvg2-bin on Ubuntu/Debian)
+#
+# Usage:
+#   script/fetch-icons              # Fetch all default icons
+#   script/fetch-icons icon1 icon2  # Fetch specific icons
+
+set -e
+
+ICONS_DIR="pkg/octicons/icons"
+OCTICONS_BASE="https://raw.githubusercontent.com/primer/octicons/main/icons"
+
+# Default icons used by toolsets - add new icons here as needed
+DEFAULT_ICONS=(
+    apps
+    beaker
+    bell
+    check-circle
+    codescan
+    comment-discussion
+    copilot
+    dependabot
+    git-branch
+    git-merge
+    git-pull-request
+    issue-opened
+    logo-gist
+    organization
+    people
+    person
+    project
+    repo
+    repo-forked
+    shield
+    shield-lock
+    star
+    star-fill
+    tag
+    tools
+    workflow
+)
+
+# Check for rsvg-convert
+if ! command -v rsvg-convert &> /dev/null; then
+    echo "Error: rsvg-convert not found. Install with:"
+    echo "  Ubuntu/Debian: sudo apt-get install librsvg2-bin"
+    echo "  macOS: brew install librsvg"
+    exit 1
+fi
+
+# Use provided icons or defaults
+if [ $# -gt 0 ]; then
+    ICONS=("$@")
+else
+    ICONS=("${DEFAULT_ICONS[@]}")
+fi
+
+# Ensure icons directory exists
+mkdir -p "$ICONS_DIR"
+
+echo "Fetching ${#ICONS[@]} icons..."
+
+for icon in "${ICONS[@]}"; do
+    for size in 16 24; do
+        svg_url="${OCTICONS_BASE}/${icon}-${size}.svg"
+        png_file="${ICONS_DIR}/${icon}-${size}.png"
+        
+        echo "  ${icon}-${size}.png"
+        
+        # Download SVG and convert to PNG in one pipeline
+        if ! curl -sfL "$svg_url" | rsvg-convert -o "$png_file" 2>/dev/null; then
+            echo "    Warning: Failed to fetch ${icon}-${size}.svg (may not exist)"
+            rm -f "$png_file"
+        fi
+    done
+done
+
+echo "Done. Icons saved to $ICONS_DIR"
+echo ""
+echo "Remember to:"
+echo "  1. Update pkg/octicons/octicons_test.go if adding new icons"
+echo "  2. Run 'UPDATE_TOOLSNAPS=true go test ./...' to update snapshots"
