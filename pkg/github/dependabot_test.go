@@ -81,7 +81,7 @@ func Test_GetDependabotAlert(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{GetClient: stubGetClientFn(client)}
+			deps := BaseDeps{Client: client}
 			handler := toolDef.Handler(deps)
 
 			// Create call request
@@ -232,7 +232,7 @@ func Test_ListDependabotAlerts(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{GetClient: stubGetClientFn(client)}
+			deps := BaseDeps{Client: client}
 			handler := toolDef.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)

@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/github/github-mcp-server/pkg/toolsets"
+	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // IssueToFixWorkflowPrompt provides a guided workflow for creating an issue and then generating a PR to fix it
-func IssueToFixWorkflowPrompt(t translations.TranslationHelperFunc) toolsets.ServerPrompt {
-	return toolsets.NewServerPrompt(
+func IssueToFixWorkflowPrompt(t translations.TranslationHelperFunc) registry.ServerPrompt {
+	return registry.NewServerPrompt(
 		ToolsetMetadataIssues,
 		mcp.Prompt{
 			Name:        "issue_to_fix_workflow",

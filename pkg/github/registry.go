@@ -1,7 +1,7 @@
 package github
 
 import (
-	"github.com/github/github-mcp-server/pkg/toolsets"
+	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/translations"
 )
 
@@ -10,8 +10,8 @@ import (
 // This function is stateless - no dependencies are captured.
 // Handlers are generated on-demand during registration via RegisterAll(ctx, server, deps).
 // The "default" keyword in WithToolsets will expand to toolsets marked with Default: true.
-func NewRegistry(t translations.TranslationHelperFunc) *toolsets.Registry {
-	return toolsets.NewRegistry().
+func NewRegistry(t translations.TranslationHelperFunc) *registry.Builder {
+	return registry.NewBuilder().
 		SetTools(AllTools(t)).
 		SetResources(AllResources(t)).
 		SetPrompts(AllPrompts(t))

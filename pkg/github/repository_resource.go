@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/github/github-mcp-server/pkg/toolsets"
+	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -30,8 +30,8 @@ var (
 )
 
 // GetRepositoryResourceContent defines the resource template for getting repository content.
-func GetRepositoryResourceContent(t translations.TranslationHelperFunc) toolsets.ServerResourceTemplate {
-	return toolsets.NewServerResourceTemplate(
+func GetRepositoryResourceContent(t translations.TranslationHelperFunc) registry.ServerResourceTemplate {
+	return registry.NewServerResourceTemplate(
 		ToolsetMetadataRepos,
 		mcp.ResourceTemplate{
 			Name:        "repository_content",
@@ -43,8 +43,8 @@ func GetRepositoryResourceContent(t translations.TranslationHelperFunc) toolsets
 }
 
 // GetRepositoryResourceBranchContent defines the resource template for getting repository content for a branch.
-func GetRepositoryResourceBranchContent(t translations.TranslationHelperFunc) toolsets.ServerResourceTemplate {
-	return toolsets.NewServerResourceTemplate(
+func GetRepositoryResourceBranchContent(t translations.TranslationHelperFunc) registry.ServerResourceTemplate {
+	return registry.NewServerResourceTemplate(
 		ToolsetMetadataRepos,
 		mcp.ResourceTemplate{
 			Name:        "repository_content_branch",
@@ -56,8 +56,8 @@ func GetRepositoryResourceBranchContent(t translations.TranslationHelperFunc) to
 }
 
 // GetRepositoryResourceCommitContent defines the resource template for getting repository content for a commit.
-func GetRepositoryResourceCommitContent(t translations.TranslationHelperFunc) toolsets.ServerResourceTemplate {
-	return toolsets.NewServerResourceTemplate(
+func GetRepositoryResourceCommitContent(t translations.TranslationHelperFunc) registry.ServerResourceTemplate {
+	return registry.NewServerResourceTemplate(
 		ToolsetMetadataRepos,
 		mcp.ResourceTemplate{
 			Name:        "repository_content_commit",
@@ -69,8 +69,8 @@ func GetRepositoryResourceCommitContent(t translations.TranslationHelperFunc) to
 }
 
 // GetRepositoryResourceTagContent defines the resource template for getting repository content for a tag.
-func GetRepositoryResourceTagContent(t translations.TranslationHelperFunc) toolsets.ServerResourceTemplate {
-	return toolsets.NewServerResourceTemplate(
+func GetRepositoryResourceTagContent(t translations.TranslationHelperFunc) registry.ServerResourceTemplate {
+	return registry.NewServerResourceTemplate(
 		ToolsetMetadataRepos,
 		mcp.ResourceTemplate{
 			Name:        "repository_content_tag",
@@ -82,8 +82,8 @@ func GetRepositoryResourceTagContent(t translations.TranslationHelperFunc) tools
 }
 
 // GetRepositoryResourcePrContent defines the resource template for getting repository content for a pull request.
-func GetRepositoryResourcePrContent(t translations.TranslationHelperFunc) toolsets.ServerResourceTemplate {
-	return toolsets.NewServerResourceTemplate(
+func GetRepositoryResourcePrContent(t translations.TranslationHelperFunc) registry.ServerResourceTemplate {
+	return registry.NewServerResourceTemplate(
 		ToolsetMetadataRepos,
 		mcp.ResourceTemplate{
 			Name:        "repository_content_pr",
@@ -95,15 +95,15 @@ func GetRepositoryResourcePrContent(t translations.TranslationHelperFunc) toolse
 }
 
 // repositoryResourceContentsHandlerFunc returns a ResourceHandlerFunc that creates handlers on-demand.
-func repositoryResourceContentsHandlerFunc(resourceURITemplate *uritemplate.Template) toolsets.ResourceHandlerFunc {
+func repositoryResourceContentsHandlerFunc(resourceURITemplate *uritemplate.Template) registry.ResourceHandlerFunc {
 	return func(deps any) mcp.ResourceHandler {
 		d := deps.(ToolDependencies)
-		return RepositoryResourceContentsHandler(d.GetClient, d.GetRawClient, resourceURITemplate)
+		return RepositoryResourceContentsHandler(d, resourceURITemplate)
 	}
 }
 
 // RepositoryResourceContentsHandler returns a handler function for repository content requests.
-func RepositoryResourceContentsHandler(getClient GetClientFn, getRawClient raw.GetRawClientFn, resourceURITemplate *uritemplate.Template) mcp.ResourceHandler {
+func RepositoryResourceContentsHandler(deps ToolDependencies, resourceURITemplate *uritemplate.Template) mcp.ResourceHandler {
 	return func(ctx context.Context, request *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 		// Match the URI to extract parameters
 		uriValues := resourceURITemplate.Match(request.Params.URI)
@@ -157,7 +157,7 @@ func RepositoryResourceContentsHandler(getClient GetClientFn, getRawClient raw.G
 		prNumber := uriValues.Get("prNumber").String()
 		if prNumber != "" {
 			// fetch the PR from the API to get the latest commit and use SHA
-			githubClient, err := getClient(ctx)
+			githubClient, err := deps.GetClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
@@ -177,7 +177,7 @@ func RepositoryResourceContentsHandler(getClient GetClientFn, getRawClient raw.G
 		if path == "" || strings.HasSuffix(path, "/") {
 			return nil, fmt.Errorf("directories are not supported: %s", path)
 		}
-		rawClient, err := getRawClient(ctx)
+		rawClient, err := deps.GetRawClient(ctx)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to get GitHub raw content client: %w", err)
