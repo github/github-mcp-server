@@ -38,7 +38,7 @@ func DataURI(name string, theme Theme) string {
 }
 
 // Icons returns MCP Icon objects for the given octicon name in light and dark themes.
-// Icons are embedded as 16x16 PNG data URIs for offline use and faster loading.
+// Icons are embedded as 24x24 PNG data URIs for offline use and faster loading.
 // The name should be the base octicon name without size suffix (e.g., "repo" not "repo-16").
 // See https://primer.style/foundations/icons for available icons.
 func Icons(name string) []mcp.Icon {
@@ -49,13 +49,13 @@ func Icons(name string) []mcp.Icon {
 		{
 			Source:   DataURI(name, ThemeLight),
 			MIMEType: "image/png",
-			Sizes:    []string{"16x16"},
+			Sizes:    []string{"24x24"},
 			Theme:    string(ThemeLight),
 		},
 		{
 			Source:   DataURI(name, ThemeDark),
 			MIMEType: "image/png",
-			Sizes:    []string{"16x16"},
+			Sizes:    []string{"24x24"},
 			Theme:    string(ThemeDark),
 		},
 	}

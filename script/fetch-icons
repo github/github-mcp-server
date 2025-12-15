@@ -1,7 +1,8 @@
 #!/bin/bash
 # Fetch Octicon icons and convert them to PNG for embedding in the MCP server.
 # Generates both light theme (dark icons) and dark theme (white icons) variants.
-# Requires: rsvg-convert (from librsvg2-bin on Ubuntu/Debian), ImageMagick (convert)
+# Uses sed to modify SVG fill color before converting to PNG.
+# Requires: rsvg-convert (from librsvg2-bin on Ubuntu/Debian)
 #
 # Usage:
 #   script/fetch-icons              # Fetch all default icons
@@ -52,14 +53,6 @@ if ! command -v rsvg-convert &> /dev/null; then
     exit 1
 fi
 
-# Check for ImageMagick convert
-if ! command -v convert &> /dev/null; then
-    echo "Error: ImageMagick convert not found. Install with:"
-    echo "  Ubuntu/Debian: sudo apt-get install imagemagick"
-    echo "  macOS: brew install imagemagick"
-    exit 1
-fi
-
 # Use provided icons or defaults
 if [ $# -gt 0 ]; then
     ICONS=("$@")
@@ -70,24 +63,29 @@ fi
 # Ensure icons directory exists
 mkdir -p "$ICONS_DIR"
 
-echo "Fetching ${#ICONS[@]} icons (light + dark themes)..."
+echo "Fetching ${#ICONS[@]} icons (24px, light + dark themes)..."
 
 for icon in "${ICONS[@]}"; do
-    svg_url="${OCTICONS_BASE}/${icon}-16.svg"
+    svg_url="${OCTICONS_BASE}/${icon}-24.svg"
     light_file="${ICONS_DIR}/${icon}-light.png"
     dark_file="${ICONS_DIR}/${icon}-dark.png"
     
     echo "  ${icon} (light + dark)"
     
-    # Download SVG and convert to PNG (light theme - dark icons for light backgrounds)
-    if curl -sfL "$svg_url" | rsvg-convert -o "$light_file" 2>/dev/null; then
-        # Create dark theme variant (invert colors for dark backgrounds)
-        # -channel RGB inverts only color channels, preserving alpha
-        convert "$light_file" -channel RGB -negate "$dark_file"
-    else
-        echo "    Warning: Failed to fetch ${icon}-16.svg (may not exist)"
-        rm -f "$light_file" "$dark_file"
-    fi
+    # Download SVG
+    svg_content=$(curl -sfL "$svg_url" 2>/dev/null) || {
+        echo "    Warning: Failed to fetch ${icon}-24.svg (may not exist)"
+        continue
+    }
+    
+    # Light theme: dark icons (#24292f) for light backgrounds
+    # Add fill attribute to the svg tag
+    light_svg=$(echo "$svg_content" | sed 's/<svg /<svg fill="#24292f" /')
+    echo "$light_svg" | rsvg-convert -o "$light_file"
+    
+    # Dark theme: white icons (#ffffff) for dark backgrounds
+    dark_svg=$(echo "$svg_content" | sed 's/<svg /<svg fill="#ffffff" /')
+    echo "$dark_svg" | rsvg-convert -o "$dark_file"
 done
 
 echo "Done. Icons saved to $ICONS_DIR"

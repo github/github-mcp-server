@@ -86,13 +86,13 @@ func TestIcons(t *testing.T) {
 			// Verify first icon is light theme
 			assert.Equal(t, DataURI(tc.icon, ThemeLight), result[0].Source)
 			assert.Equal(t, "image/png", result[0].MIMEType)
-			assert.Equal(t, []string{"16x16"}, result[0].Sizes)
+			assert.Equal(t, []string{"24x24"}, result[0].Sizes)
 			assert.Equal(t, "light", result[0].Theme)
 
 			// Verify second icon is dark theme
 			assert.Equal(t, DataURI(tc.icon, ThemeDark), result[1].Source)
 			assert.Equal(t, "image/png", result[1].MIMEType)
-			assert.Equal(t, []string{"16x16"}, result[1].Sizes)
+			assert.Equal(t, []string{"24x24"}, result[1].Sizes)
 			assert.Equal(t, "dark", result[1].Theme)
 		})
 	}
