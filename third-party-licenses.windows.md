@@ -2,10 +2,15 @@
 
 The following open source dependencies are used to build the [github/github-mcp-server][] GitHub Model Context Protocol Server.
 
-## Go Packages
+## Table of Contents
 
-Some packages may only be included on certain architectures or operating systems.
+- [386, amd64, arm64](#386-amd64-arm64)
 
+---
+
+## 386, amd64, arm64
+
+The following packages are included for the 386, amd64, arm64 architectures.
 
  - [github.com/aymerick/douceur](https://pkg.go.dev/github.com/aymerick/douceur) ([MIT](https://github.com/aymerick/douceur/blob/v0.2.0/LICENSE))
  - [github.com/fsnotify/fsnotify](https://pkg.go.dev/github.com/fsnotify/fsnotify) ([BSD-3-Clause](https://github.com/fsnotify/fsnotify/blob/v1.9.0/LICENSE))

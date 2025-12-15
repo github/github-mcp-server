@@ -17,7 +17,7 @@
       },
       "path": {
         "type": "string",
-        "description": "Path to file/directory (directories must end with a slash '/')",
+        "description": "Path to file/directory",
         "default": "/"
       },
       "ref": {
