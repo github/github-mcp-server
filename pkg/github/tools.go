@@ -2,7 +2,6 @@ package github
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/github/github-mcp-server/pkg/registry"
@@ -266,17 +265,19 @@ func GenerateToolsetsHelp() string {
 	// Get toolset group to derive defaults and available toolsets
 	r := NewRegistry(stubTranslator).Build()
 
-	// Format default tools from metadata
+	// Format default tools from metadata using strings.Builder
+	var defaultBuf strings.Builder
 	defaultIDs := r.DefaultToolsetIDs()
-	defaultStrings := make([]string, len(defaultIDs))
 	for i, id := range defaultIDs {
-		defaultStrings[i] = string(id)
+		if i > 0 {
+			defaultBuf.WriteString(", ")
+		}
+		defaultBuf.WriteString(string(id))
 	}
-	defaultTools := strings.Join(defaultStrings, ", ")
 
 	// Get all available toolsets (excludes context and dynamic for display)
 	allToolsets := r.AvailableToolsets("context", "dynamic")
-	var availableToolsLines []string
+	var availableBuf strings.Builder
 	const maxLineLength = 70
 	currentLine := ""
 
@@ -288,27 +289,37 @@ func GenerateToolsetsHelp() string {
 		case len(currentLine)+len(id)+2 <= maxLineLength:
 			currentLine += ", " + id
 		default:
-			availableToolsLines = append(availableToolsLines, currentLine)
+			if availableBuf.Len() > 0 {
+				availableBuf.WriteString(",\n\t     ")
+			}
+			availableBuf.WriteString(currentLine)
 			currentLine = id
 		}
 	}
 	if currentLine != "" {
-		availableToolsLines = append(availableToolsLines, currentLine)
+		if availableBuf.Len() > 0 {
+			availableBuf.WriteString(",\n\t     ")
+		}
+		availableBuf.WriteString(currentLine)
 	}
 
-	availableTools := strings.Join(availableToolsLines, ",\n\t     ")
+	// Build the complete help text using strings.Builder
+	var buf strings.Builder
+	buf.WriteString("Comma-separated list of tool groups to enable (no spaces).\n")
+	buf.WriteString("Available: ")
+	buf.WriteString(availableBuf.String())
+	buf.WriteString("\n")
+	buf.WriteString("Special toolset keywords:\n")
+	buf.WriteString("  - all: Enables all available toolsets\n")
+	buf.WriteString("  - default: Enables the default toolset configuration of:\n\t     ")
+	buf.WriteString(defaultBuf.String())
+	buf.WriteString("\n")
+	buf.WriteString("Examples:\n")
+	buf.WriteString("  - --toolsets=actions,gists,notifications\n")
+	buf.WriteString("  - Default + additional: --toolsets=default,actions,gists\n")
+	buf.WriteString("  - All tools: --toolsets=all")
 
-	toolsetsHelp := fmt.Sprintf("Comma-separated list of tool groups to enable (no spaces).\n"+
-		"Available: %s\n", availableTools) +
-		"Special toolset keywords:\n" +
-		"  - all: Enables all available toolsets\n" +
-		fmt.Sprintf("  - default: Enables the default toolset configuration of:\n\t     %s\n", defaultTools) +
-		"Examples:\n" +
-		"  - --toolsets=actions,gists,notifications\n" +
-		"  - Default + additional: --toolsets=default,actions,gists\n" +
-		"  - All tools: --toolsets=all"
-
-	return toolsetsHelp
+	return buf.String()
 }
 
 // stubTranslator is a passthrough translator for cases where we need a Registry
