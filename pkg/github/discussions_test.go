@@ -447,7 +447,7 @@ func Test_ListDiscussions(t *testing.T) {
 			}
 
 			gqlClient := githubv4.NewClient(httpClient)
-			deps := ToolDependencies{GetGQLClient: stubGetGQLClientFn(gqlClient)}
+			deps := BaseDeps{GQLClient: gqlClient}
 			handler := toolDef.Handler(deps)
 
 			req := createMCPRequest(tc.reqParams)
@@ -559,7 +559,7 @@ func Test_GetDiscussion(t *testing.T) {
 			matcher := githubv4mock.NewQueryMatcher(qGetDiscussion, vars, tc.response)
 			httpClient := githubv4mock.NewMockedHTTPClient(matcher)
 			gqlClient := githubv4.NewClient(httpClient)
-			deps := ToolDependencies{GetGQLClient: stubGetGQLClientFn(gqlClient)}
+			deps := BaseDeps{GQLClient: gqlClient}
 			handler := toolDef.Handler(deps)
 
 			reqParams := map[string]interface{}{"owner": "owner", "repo": "repo", "discussionNumber": int32(1)}
@@ -639,7 +639,7 @@ func Test_GetDiscussionComments(t *testing.T) {
 	matcher := githubv4mock.NewQueryMatcher(qGetComments, vars, mockResponse)
 	httpClient := githubv4mock.NewMockedHTTPClient(matcher)
 	gqlClient := githubv4.NewClient(httpClient)
-	deps := ToolDependencies{GetGQLClient: stubGetGQLClientFn(gqlClient)}
+	deps := BaseDeps{GQLClient: gqlClient}
 	handler := toolDef.Handler(deps)
 
 	reqParams := map[string]interface{}{
@@ -791,7 +791,7 @@ func Test_ListDiscussionCategories(t *testing.T) {
 			httpClient := githubv4mock.NewMockedHTTPClient(matcher)
 			gqlClient := githubv4.NewClient(httpClient)
 
-			deps := ToolDependencies{GetGQLClient: stubGetGQLClientFn(gqlClient)}
+			deps := BaseDeps{GQLClient: gqlClient}
 			handler := toolDef.Handler(deps)
 
 			req := createMCPRequest(tc.reqParams)

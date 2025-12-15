@@ -10,7 +10,7 @@ import (
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/toolsets"
+	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -25,7 +25,7 @@ const (
 )
 
 // ListNotifications creates a tool to list notifications for the current user.
-func ListNotifications(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func ListNotifications(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataNotifications,
 		mcp.Tool{
@@ -163,7 +163,7 @@ func ListNotifications(t translations.TranslationHelperFunc) toolsets.ServerTool
 }
 
 // DismissNotification creates a tool to mark a notification as read/done.
-func DismissNotification(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func DismissNotification(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataNotifications,
 		mcp.Tool{
@@ -246,7 +246,7 @@ func DismissNotification(t translations.TranslationHelperFunc) toolsets.ServerTo
 }
 
 // MarkAllNotificationsRead creates a tool to mark all notifications as read.
-func MarkAllNotificationsRead(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func MarkAllNotificationsRead(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataNotifications,
 		mcp.Tool{
@@ -339,7 +339,7 @@ func MarkAllNotificationsRead(t translations.TranslationHelperFunc) toolsets.Ser
 }
 
 // GetNotificationDetails creates a tool to get details for a specific notification.
-func GetNotificationDetails(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func GetNotificationDetails(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataNotifications,
 		mcp.Tool{
@@ -409,7 +409,7 @@ const (
 )
 
 // ManageNotificationSubscription creates a tool to manage a notification subscription (ignore, watch, delete)
-func ManageNotificationSubscription(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func ManageNotificationSubscription(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataNotifications,
 		mcp.Tool{
@@ -506,7 +506,7 @@ const (
 )
 
 // ManageRepositoryNotificationSubscription creates a tool to manage a repository notification subscription (ignore, watch, delete)
-func ManageRepositoryNotificationSubscription(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func ManageRepositoryNotificationSubscription(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataNotifications,
 		mcp.Tool{

@@ -1,0 +1,343 @@
+package registry
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"slices"
+	"sort"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+)
+
+// Registry holds a collection of tools, resources, and prompts with filtering applied.
+// Create a Registry using Builder:
+//
+//	reg := NewBuilder().
+//	    SetTools(tools).
+//	    WithReadOnly(true).
+//	    WithToolsets([]string{"repos"}).
+//	    Build()
+//
+// The Registry is configured at build time and provides:
+//   - Filtered access to tools/resources/prompts via Available* methods
+//   - Deterministic ordering for documentation generation
+//   - Lazy dependency injection during registration via RegisterAll()
+//   - Runtime toolset enabling for dynamic toolsets mode
+type Registry struct {
+	// tools holds all tools in this group
+	tools []ServerTool
+	// resourceTemplates holds all resource templates in this group
+	resourceTemplates []ServerResourceTemplate
+	// prompts holds all prompts in this group
+	prompts []ServerPrompt
+	// deprecatedAliases maps old tool names to new canonical names
+	deprecatedAliases map[string]string
+
+	// Filters - these control what's returned by Available* methods
+	// readOnly when true filters out write tools
+	readOnly bool
+	// enabledToolsets when non-nil, only include tools/resources/prompts from these toolsets
+	// when nil, all toolsets are enabled
+	enabledToolsets map[ToolsetID]bool
+	// additionalTools are specific tools that bypass toolset filtering (but still respect read-only)
+	// These are additive - a tool is included if it matches toolset filters OR is in this set
+	additionalTools map[string]bool
+	// featureChecker when non-nil, checks if a feature flag is enabled.
+	// Takes context and flag name, returns (enabled, error). If error, log and treat as false.
+	// If checker is nil, all flag checks return false.
+	featureChecker FeatureFlagChecker
+	// unrecognizedToolsets holds toolset IDs that were requested but don't match any registered toolsets
+	unrecognizedToolsets []string
+}
+
+// UnrecognizedToolsets returns toolset IDs that were passed to WithToolsets but don't
+// match any registered toolsets. This is useful for warning users about typos.
+func (r *Registry) UnrecognizedToolsets() []string {
+	return r.unrecognizedToolsets
+}
+
+// MCP method constants for use with ForMCPRequest.
+const (
+	MCPMethodInitialize             = "initialize"
+	MCPMethodToolsList              = "tools/list"
+	MCPMethodToolsCall              = "tools/call"
+	MCPMethodResourcesList          = "resources/list"
+	MCPMethodResourcesRead          = "resources/read"
+	MCPMethodResourcesTemplatesList = "resources/templates/list"
+	MCPMethodPromptsList            = "prompts/list"
+	MCPMethodPromptsGet             = "prompts/get"
+)
+
+// ForMCPRequest returns a Registry optimized for a specific MCP request.
+// This is designed for servers that create a new instance per request (like the remote server),
+// allowing them to only register the items needed for that specific request rather than all ~90 tools.
+//
+// Parameters:
+//   - method: The MCP method being called (use MCP* constants)
+//   - itemName: Name of specific item for call/get methods (tool name, resource URI, or prompt name)
+//
+// Returns a new Registry containing only the items relevant to the request:
+//   - MCPMethodInitialize: Empty (capabilities are set via ServerOptions, not registration)
+//   - MCPMethodToolsList: All available tools (no resources/prompts)
+//   - MCPMethodToolsCall: Only the named tool
+//   - MCPMethodResourcesList, MCPMethodResourcesTemplatesList: All available resources (no tools/prompts)
+//   - MCPMethodResourcesRead: Only the named resource template
+//   - MCPMethodPromptsList: All available prompts (no tools/resources)
+//   - MCPMethodPromptsGet: Only the named prompt
+//   - Unknown methods: Empty (no items registered)
+//
+// All existing filters (read-only, toolsets, etc.) still apply to the returned items.
+func (r *Registry) ForMCPRequest(method string, itemName string) *Registry {
+	// Create a shallow copy with shared filter settings
+	result := &Registry{
+		tools:                r.tools,
+		resourceTemplates:    r.resourceTemplates,
+		prompts:              r.prompts,
+		deprecatedAliases:    r.deprecatedAliases,
+		readOnly:             r.readOnly,
+		enabledToolsets:      r.enabledToolsets, // shared, not modified
+		additionalTools:      r.additionalTools, // shared, not modified
+		featureChecker:       r.featureChecker,
+		unrecognizedToolsets: r.unrecognizedToolsets,
+	}
+
+	// Helper to clear all item types
+	clearAll := func() {
+		result.tools = []ServerTool{}
+		result.resourceTemplates = []ServerResourceTemplate{}
+		result.prompts = []ServerPrompt{}
+	}
+
+	switch method {
+	case MCPMethodInitialize:
+		clearAll()
+	case MCPMethodToolsList:
+		result.resourceTemplates, result.prompts = nil, nil
+	case MCPMethodToolsCall:
+		result.resourceTemplates, result.prompts = nil, nil
+		if itemName != "" {
+			result.tools = r.filterToolsByName(itemName)
+		}
+	case MCPMethodResourcesList, MCPMethodResourcesTemplatesList:
+		result.tools, result.prompts = nil, nil
+	case MCPMethodResourcesRead:
+		result.tools, result.prompts = nil, nil
+		if itemName != "" {
+			result.resourceTemplates = r.filterResourcesByURI(itemName)
+		}
+	case MCPMethodPromptsList:
+		result.tools, result.resourceTemplates = nil, nil
+	case MCPMethodPromptsGet:
+		result.tools, result.resourceTemplates = nil, nil
+		if itemName != "" {
+			result.prompts = r.filterPromptsByName(itemName)
+		}
+	default:
+		clearAll()
+	}
+
+	return result
+}
+
+// ToolsetIDs returns a sorted list of unique toolset IDs from all tools in this group.
+func (r *Registry) ToolsetIDs() []ToolsetID {
+	seen := make(map[ToolsetID]bool)
+	for i := range r.tools {
+		seen[r.tools[i].Toolset.ID] = true
+	}
+	for i := range r.resourceTemplates {
+		seen[r.resourceTemplates[i].Toolset.ID] = true
+	}
+	for i := range r.prompts {
+		seen[r.prompts[i].Toolset.ID] = true
+	}
+
+	ids := make([]ToolsetID, 0, len(seen))
+	for id := range seen {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	return ids
+}
+
+// DefaultToolsetIDs returns the IDs of toolsets marked as Default in their metadata.
+// The IDs are returned in sorted order for deterministic output.
+func (r *Registry) DefaultToolsetIDs() []ToolsetID {
+	seen := make(map[ToolsetID]bool)
+	for i := range r.tools {
+		if r.tools[i].Toolset.Default {
+			seen[r.tools[i].Toolset.ID] = true
+		}
+	}
+	for i := range r.resourceTemplates {
+		if r.resourceTemplates[i].Toolset.Default {
+			seen[r.resourceTemplates[i].Toolset.ID] = true
+		}
+	}
+	for i := range r.prompts {
+		if r.prompts[i].Toolset.Default {
+			seen[r.prompts[i].Toolset.ID] = true
+		}
+	}
+
+	ids := make([]ToolsetID, 0, len(seen))
+	for id := range seen {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	return ids
+}
+
+// ToolsetDescriptions returns a map of toolset ID to description for all toolsets.
+func (r *Registry) ToolsetDescriptions() map[ToolsetID]string {
+	descriptions := make(map[ToolsetID]string)
+	for i := range r.tools {
+		t := &r.tools[i]
+		if t.Toolset.Description != "" {
+			descriptions[t.Toolset.ID] = t.Toolset.Description
+		}
+	}
+	for i := range r.resourceTemplates {
+		res := &r.resourceTemplates[i]
+		if res.Toolset.Description != "" {
+			descriptions[res.Toolset.ID] = res.Toolset.Description
+		}
+	}
+	for i := range r.prompts {
+		p := &r.prompts[i]
+		if p.Toolset.Description != "" {
+			descriptions[p.Toolset.ID] = p.Toolset.Description
+		}
+	}
+	return descriptions
+}
+
+// RegisterTools registers all available tools with the server using the provided dependencies.
+// The context is used for feature flag evaluation.
+func (r *Registry) RegisterTools(ctx context.Context, s *mcp.Server, deps any) {
+	for _, tool := range r.AvailableTools(ctx) {
+		tool.RegisterFunc(s, deps)
+	}
+}
+
+// RegisterResourceTemplates registers all available resource templates with the server.
+// The context is used for feature flag evaluation.
+func (r *Registry) RegisterResourceTemplates(ctx context.Context, s *mcp.Server, deps any) {
+	for _, res := range r.AvailableResourceTemplates(ctx) {
+		s.AddResourceTemplate(&res.Template, res.Handler(deps))
+	}
+}
+
+// RegisterPrompts registers all available prompts with the server.
+// The context is used for feature flag evaluation.
+func (r *Registry) RegisterPrompts(ctx context.Context, s *mcp.Server) {
+	for _, prompt := range r.AvailablePrompts(ctx) {
+		s.AddPrompt(&prompt.Prompt, prompt.Handler)
+	}
+}
+
+// RegisterAll registers all available tools, resources, and prompts with the server.
+// The context is used for feature flag evaluation.
+func (r *Registry) RegisterAll(ctx context.Context, s *mcp.Server, deps any) {
+	r.RegisterTools(ctx, s, deps)
+	r.RegisterResourceTemplates(ctx, s, deps)
+	r.RegisterPrompts(ctx, s)
+}
+
+// ResolveToolAliases resolves deprecated tool aliases to their canonical names.
+// It logs a warning to stderr for each deprecated alias that is resolved.
+// Returns:
+//   - resolved: tool names with aliases replaced by canonical names
+//   - aliasesUsed: map of oldName → newName for each alias that was resolved
+func (r *Registry) ResolveToolAliases(toolNames []string) (resolved []string, aliasesUsed map[string]string) {
+	resolved = make([]string, 0, len(toolNames))
+	aliasesUsed = make(map[string]string)
+	for _, toolName := range toolNames {
+		if canonicalName, isAlias := r.deprecatedAliases[toolName]; isAlias {
+			fmt.Fprintf(os.Stderr, "Warning: tool %q is deprecated, use %q instead\n", toolName, canonicalName)
+			aliasesUsed[toolName] = canonicalName
+			resolved = append(resolved, canonicalName)
+		} else {
+			resolved = append(resolved, toolName)
+		}
+	}
+	return resolved, aliasesUsed
+}
+
+// FindToolByName searches all tools for one matching the given name.
+// Returns the tool, its toolset ID, and an error if not found.
+// This searches ALL tools regardless of filters.
+func (r *Registry) FindToolByName(toolName string) (*ServerTool, ToolsetID, error) {
+	for i := range r.tools {
+		tool := &r.tools[i]
+		if tool.Tool.Name == toolName {
+			return tool, tool.Toolset.ID, nil
+		}
+	}
+	return nil, "", NewToolDoesNotExistError(toolName)
+}
+
+// HasToolset checks if any tool/resource/prompt belongs to the given toolset.
+func (r *Registry) HasToolset(toolsetID ToolsetID) bool {
+	for i := range r.tools {
+		if r.tools[i].Toolset.ID == toolsetID {
+			return true
+		}
+	}
+	for i := range r.resourceTemplates {
+		if r.resourceTemplates[i].Toolset.ID == toolsetID {
+			return true
+		}
+	}
+	for i := range r.prompts {
+		if r.prompts[i].Toolset.ID == toolsetID {
+			return true
+		}
+	}
+	return false
+}
+
+// AllTools returns all tools without any filtering, sorted deterministically.
+func (r *Registry) AllTools() []ServerTool {
+	result := slices.Clone(r.tools)
+
+	// Sort deterministically: by toolset ID, then by tool name
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Toolset.ID != result[j].Toolset.ID {
+			return result[i].Toolset.ID < result[j].Toolset.ID
+		}
+		return result[i].Tool.Name < result[j].Tool.Name
+	})
+
+	return result
+}
+
+// AvailableToolsets returns the unique toolsets that have tools, in sorted order.
+// This is the ordered intersection of toolsets with reality - only toolsets that
+// actually contain tools are returned, sorted by toolset ID.
+// Optional exclude parameter filters out specific toolset IDs from the result.
+func (r *Registry) AvailableToolsets(exclude ...ToolsetID) []ToolsetMetadata {
+	tools := r.AllTools()
+	if len(tools) == 0 {
+		return nil
+	}
+
+	// Build exclude set for O(1) lookup
+	excludeSet := make(map[ToolsetID]bool, len(exclude))
+	for _, id := range exclude {
+		excludeSet[id] = true
+	}
+
+	var result []ToolsetMetadata
+	var lastID ToolsetID
+	for _, tool := range tools {
+		if tool.Toolset.ID != lastID {
+			lastID = tool.Toolset.ID
+			if !excludeSet[lastID] {
+				result = append(result, tool.Toolset)
+			}
+		}
+	}
+	return result
+}

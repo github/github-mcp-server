@@ -1,4 +1,4 @@
-package toolsets
+package registry
 
 import (
 	"context"

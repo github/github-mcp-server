@@ -3,7 +3,7 @@ package github
 import (
 	"testing"
 
-	"github.com/github/github-mcp-server/pkg/toolsets"
+	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -153,7 +153,7 @@ func TestAllToolsHaveHandlerFunc(t *testing.T) {
 // TestToolsetMetadataConsistency ensures tools in the same toolset have consistent descriptions
 func TestToolsetMetadataConsistency(t *testing.T) {
 	tools := AllTools(stubTranslation)
-	toolsetDescriptions := make(map[toolsets.ToolsetID]string)
+	toolsetDescriptions := make(map[registry.ToolsetID]string)
 
 	for _, tool := range tools {
 		id := tool.Toolset.ID

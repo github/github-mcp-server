@@ -6,7 +6,7 @@ import (
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/toolsets"
+	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -37,7 +37,7 @@ type UserDetails struct {
 }
 
 // GetMe creates a tool to get details of the authenticated user.
-func GetMe(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func GetMe(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataContext,
 		mcp.Tool{
@@ -111,7 +111,7 @@ type OrganizationTeams struct {
 	Teams []TeamInfo `json:"teams"`
 }
 
-func GetTeams(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func GetTeams(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataContext,
 		mcp.Tool{
@@ -210,7 +210,7 @@ func GetTeams(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	)
 }
 
-func GetTeamMembers(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func GetTeamMembers(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataContext,
 		mcp.Tool{

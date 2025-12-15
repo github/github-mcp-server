@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/github/github-mcp-server/pkg/toolsets"
+	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
 	"github.com/shurcooL/githubv4"
@@ -17,96 +17,96 @@ type GetGQLClientFn func(context.Context) (*githubv4.Client, error)
 // Toolset metadata constants - these define all available toolsets and their descriptions.
 // Tools use these constants to declare which toolset they belong to.
 var (
-	ToolsetMetadataAll = toolsets.ToolsetMetadata{
+	ToolsetMetadataAll = registry.ToolsetMetadata{
 		ID:          "all",
 		Description: "Special toolset that enables all available toolsets",
 	}
-	ToolsetMetadataDefault = toolsets.ToolsetMetadata{
+	ToolsetMetadataDefault = registry.ToolsetMetadata{
 		ID:          "default",
 		Description: "Special toolset that enables the default toolset configuration. When no toolsets are specified, this is the set that is enabled",
 	}
-	ToolsetMetadataContext = toolsets.ToolsetMetadata{
+	ToolsetMetadataContext = registry.ToolsetMetadata{
 		ID:          "context",
 		Description: "Tools that provide context about the current user and GitHub context you are operating in",
 		Default:     true,
 	}
-	ToolsetMetadataRepos = toolsets.ToolsetMetadata{
+	ToolsetMetadataRepos = registry.ToolsetMetadata{
 		ID:          "repos",
 		Description: "GitHub Repository related tools",
 		Default:     true,
 	}
-	ToolsetMetadataGit = toolsets.ToolsetMetadata{
+	ToolsetMetadataGit = registry.ToolsetMetadata{
 		ID:          "git",
 		Description: "GitHub Git API related tools for low-level Git operations",
 	}
-	ToolsetMetadataIssues = toolsets.ToolsetMetadata{
+	ToolsetMetadataIssues = registry.ToolsetMetadata{
 		ID:          "issues",
 		Description: "GitHub Issues related tools",
 		Default:     true,
 	}
-	ToolsetMetadataPullRequests = toolsets.ToolsetMetadata{
+	ToolsetMetadataPullRequests = registry.ToolsetMetadata{
 		ID:          "pull_requests",
 		Description: "GitHub Pull Request related tools",
 		Default:     true,
 	}
-	ToolsetMetadataUsers = toolsets.ToolsetMetadata{
+	ToolsetMetadataUsers = registry.ToolsetMetadata{
 		ID:          "users",
 		Description: "GitHub User related tools",
 		Default:     true,
 	}
-	ToolsetMetadataOrgs = toolsets.ToolsetMetadata{
+	ToolsetMetadataOrgs = registry.ToolsetMetadata{
 		ID:          "orgs",
 		Description: "GitHub Organization related tools",
 	}
-	ToolsetMetadataActions = toolsets.ToolsetMetadata{
+	ToolsetMetadataActions = registry.ToolsetMetadata{
 		ID:          "actions",
 		Description: "GitHub Actions workflows and CI/CD operations",
 	}
-	ToolsetMetadataCodeSecurity = toolsets.ToolsetMetadata{
+	ToolsetMetadataCodeSecurity = registry.ToolsetMetadata{
 		ID:          "code_security",
 		Description: "Code security related tools, such as GitHub Code Scanning",
 	}
-	ToolsetMetadataSecretProtection = toolsets.ToolsetMetadata{
+	ToolsetMetadataSecretProtection = registry.ToolsetMetadata{
 		ID:          "secret_protection",
 		Description: "Secret protection related tools, such as GitHub Secret Scanning",
 	}
-	ToolsetMetadataDependabot = toolsets.ToolsetMetadata{
+	ToolsetMetadataDependabot = registry.ToolsetMetadata{
 		ID:          "dependabot",
 		Description: "Dependabot tools",
 	}
-	ToolsetMetadataNotifications = toolsets.ToolsetMetadata{
+	ToolsetMetadataNotifications = registry.ToolsetMetadata{
 		ID:          "notifications",
 		Description: "GitHub Notifications related tools",
 	}
-	ToolsetMetadataExperiments = toolsets.ToolsetMetadata{
+	ToolsetMetadataExperiments = registry.ToolsetMetadata{
 		ID:          "experiments",
 		Description: "Experimental features that are not considered stable yet",
 	}
-	ToolsetMetadataDiscussions = toolsets.ToolsetMetadata{
+	ToolsetMetadataDiscussions = registry.ToolsetMetadata{
 		ID:          "discussions",
 		Description: "GitHub Discussions related tools",
 	}
-	ToolsetMetadataGists = toolsets.ToolsetMetadata{
+	ToolsetMetadataGists = registry.ToolsetMetadata{
 		ID:          "gists",
 		Description: "GitHub Gist related tools",
 	}
-	ToolsetMetadataSecurityAdvisories = toolsets.ToolsetMetadata{
+	ToolsetMetadataSecurityAdvisories = registry.ToolsetMetadata{
 		ID:          "security_advisories",
 		Description: "Security advisories related tools",
 	}
-	ToolsetMetadataProjects = toolsets.ToolsetMetadata{
+	ToolsetMetadataProjects = registry.ToolsetMetadata{
 		ID:          "projects",
 		Description: "GitHub Projects related tools",
 	}
-	ToolsetMetadataStargazers = toolsets.ToolsetMetadata{
+	ToolsetMetadataStargazers = registry.ToolsetMetadata{
 		ID:          "stargazers",
 		Description: "GitHub Stargazers related tools",
 	}
-	ToolsetMetadataDynamic = toolsets.ToolsetMetadata{
+	ToolsetMetadataDynamic = registry.ToolsetMetadata{
 		ID:          "dynamic",
 		Description: "Discover GitHub MCP tools that can help achieve tasks by enabling additional sets of tools, you can control the enablement of any toolset to access its tools when this toolset is enabled.",
 	}
-	ToolsetLabels = toolsets.ToolsetMetadata{
+	ToolsetLabels = registry.ToolsetMetadata{
 		ID:          "labels",
 		Description: "GitHub Labels related tools",
 	}
@@ -114,8 +114,8 @@ var (
 
 // AllTools returns all tools with their embedded toolset metadata.
 // Tool functions return ServerTool directly with toolset info.
-func AllTools(t translations.TranslationHelperFunc) []toolsets.ServerTool {
-	return []toolsets.ServerTool{
+func AllTools(t translations.TranslationHelperFunc) []registry.ServerTool {
+	return []registry.ServerTool{
 		// Context tools
 		GetMe(t),
 		GetTeams(t),
@@ -263,7 +263,7 @@ func ToStringPtr(s string) *string {
 // GenerateToolsetsHelp generates the help text for the toolsets flag
 func GenerateToolsetsHelp() string {
 	// Get toolset group to derive defaults and available toolsets
-	r := NewRegistry(stubTranslator)
+	r := NewRegistry(stubTranslator).Build()
 
 	// Format default tools from metadata
 	defaultIDs := r.DefaultToolsetIDs()
@@ -333,7 +333,7 @@ func AddDefaultToolset(result []string) []string {
 	result = RemoveToolset(result, string(ToolsetMetadataDefault.ID))
 
 	// Get default toolset IDs from the Registry
-	r := NewRegistry(stubTranslator)
+	r := NewRegistry(stubTranslator).Build()
 	for _, id := range r.DefaultToolsetIDs() {
 		if !seen[string(id)] {
 			result = append(result, string(id))
