@@ -114,8 +114,8 @@ func TestGetLabel(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := githubv4.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetGQLClient: stubGetGQLClientFn(client),
+			deps := BaseDeps{
+				GQLClient: client,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -212,8 +212,8 @@ func TestListLabels(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := githubv4.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetGQLClient: stubGetGQLClientFn(client),
+			deps := BaseDeps{
+				GQLClient: client,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -463,8 +463,8 @@ func TestWriteLabel(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := githubv4.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetGQLClient: stubGetGQLClientFn(client),
+			deps := BaseDeps{
+				GQLClient: client,
 			}
 			handler := serverTool.Handler(deps)
 

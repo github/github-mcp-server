@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/toolsets"
+	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -25,7 +25,7 @@ const (
 	MaxProjectsPerPage       = 50
 )
 
-func ListProjects(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func ListProjects(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataProjects,
 		mcp.Tool{
@@ -144,7 +144,7 @@ func ListProjects(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	)
 }
 
-func GetProject(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func GetProject(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataProjects,
 		mcp.Tool{
@@ -234,7 +234,7 @@ func GetProject(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	)
 }
 
-func ListProjectFields(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func ListProjectFields(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataProjects,
 		mcp.Tool{
@@ -342,7 +342,7 @@ func ListProjectFields(t translations.TranslationHelperFunc) toolsets.ServerTool
 	)
 }
 
-func GetProjectField(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func GetProjectField(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataProjects,
 		mcp.Tool{
@@ -436,7 +436,7 @@ func GetProjectField(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	)
 }
 
-func ListProjectItems(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func ListProjectItems(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataProjects,
 		mcp.Tool{
@@ -574,7 +574,7 @@ func ListProjectItems(t translations.TranslationHelperFunc) toolsets.ServerTool 
 	)
 }
 
-func GetProjectItem(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func GetProjectItem(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataProjects,
 		mcp.Tool{
@@ -682,7 +682,7 @@ func GetProjectItem(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	)
 }
 
-func AddProjectItem(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func AddProjectItem(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataProjects,
 		mcp.Tool{
@@ -795,7 +795,7 @@ func AddProjectItem(t translations.TranslationHelperFunc) toolsets.ServerTool {
 	)
 }
 
-func UpdateProjectItem(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func UpdateProjectItem(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataProjects,
 		mcp.Tool{
@@ -909,7 +909,7 @@ func UpdateProjectItem(t translations.TranslationHelperFunc) toolsets.ServerTool
 	)
 }
 
-func DeleteProjectItem(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func DeleteProjectItem(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataProjects,
 		mcp.Tool{

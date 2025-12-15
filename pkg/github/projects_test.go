@@ -141,8 +141,8 @@ func Test_ListProjects(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
@@ -280,8 +280,8 @@ func Test_GetProject(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
@@ -432,8 +432,8 @@ func Test_ListProjectFields(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
@@ -592,8 +592,8 @@ func Test_GetProjectField(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
@@ -798,8 +798,8 @@ func Test_ListProjectItems(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
@@ -995,8 +995,8 @@ func Test_GetProjectItem(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
@@ -1224,8 +1224,8 @@ func Test_AddProjectItem(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
@@ -1509,8 +1509,8 @@ func Test_UpdateProjectItem(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
@@ -1676,8 +1676,8 @@ func Test_DeleteProjectItem(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
