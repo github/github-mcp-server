@@ -328,13 +328,6 @@ func (m *MockRoundTripper) OnRequest(method, path string, handler http.HandlerFu
 	return m
 }
 
-// OnAny registers a catch-all handler
-func (m *MockRoundTripper) OnAny(_ http.HandlerFunc) *MockRoundTripper {
-	// This is a simple implementation that doesn't use the handler map
-	// It's kept for compatibility but not recommended
-	return m
-}
-
 // NewMockHTTPClient creates an HTTP client with a mock transport
 func NewMockHTTPClient() (*http.Client, *MockRoundTripper) {
 	transport := NewMockRoundTripper()
@@ -392,29 +385,28 @@ func matchPath(pattern, path string) bool {
 	return true
 }
 
-// MockHTTPClientWithHandler creates an HTTP client with a single handler function
-func MockHTTPClientWithHandler(handler http.HandlerFunc) *http.Client {
-	transport := &mockTransport{handler: handler}
-	return &http.Client{Transport: transport}
-}
-
-type mockTransport struct {
-	handler http.HandlerFunc
-}
-
-func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+// executeHandler executes an HTTP handler and returns the response
+func executeHandler(handler http.HandlerFunc, req *http.Request) *http.Response {
 	recorder := &responseRecorder{
 		header: make(http.Header),
 		body:   &bytes.Buffer{},
 	}
-	m.handler(recorder, req)
+	handler(recorder, req)
 
 	return &http.Response{
 		StatusCode: recorder.statusCode,
 		Header:     recorder.header,
 		Body:       io.NopCloser(bytes.NewReader(recorder.body.Bytes())),
 		Request:    req,
-	}, nil
+	}
+}
+
+// MockHTTPClientWithHandler creates an HTTP client with a single handler function
+func MockHTTPClientWithHandler(handler http.HandlerFunc) *http.Client {
+	handlers := map[string]http.HandlerFunc{
+		"": handler, // Empty key acts as catch-all
+	}
+	return MockHTTPClientWithHandlers(handlers)
 }
 
 // MockHTTPClientWithHandlers creates an HTTP client with multiple handlers for different paths
@@ -428,43 +420,29 @@ type multiHandlerTransport struct {
 }
 
 func (m *multiHandlerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Check for catch-all handler
+	if handler, ok := m.handlers[""]; ok {
+		return executeHandler(handler, req), nil
+	}
+
 	// Try to find a handler for this request
 	key := req.Method + " " + req.URL.Path
 
 	// First try exact match
 	if handler, ok := m.handlers[key]; ok {
-		recorder := &responseRecorder{
-			header: make(http.Header),
-			body:   &bytes.Buffer{},
-		}
-		handler(recorder, req)
-
-		return &http.Response{
-			StatusCode: recorder.statusCode,
-			Header:     recorder.header,
-			Body:       io.NopCloser(bytes.NewReader(recorder.body.Bytes())),
-			Request:    req,
-		}, nil
+		return executeHandler(handler, req), nil
 	}
 
 	// Then try pattern matching
 	for pattern, handler := range m.handlers {
+		if pattern == "" {
+			continue // Skip catch-all
+		}
 		parts := strings.SplitN(pattern, " ", 2)
 		if len(parts) == 2 {
 			method, pathPattern := parts[0], parts[1]
 			if req.Method == method && matchPath(pathPattern, req.URL.Path) {
-				recorder := &responseRecorder{
-					header: make(http.Header),
-					body:   &bytes.Buffer{},
-				}
-				handler(recorder, req)
-
-				return &http.Response{
-					StatusCode: recorder.statusCode,
-					Header:     recorder.header,
-					Body:       io.NopCloser(bytes.NewReader(recorder.body.Bytes())),
-					Request:    req,
-				}, nil
+				return executeHandler(handler, req), nil
 			}
 		}
 	}
