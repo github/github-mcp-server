@@ -15,6 +15,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// GitHub API endpoint patterns for testing
+// These constants define the URL patterns used in HTTP mocking for tests
+const (
+	// Repository endpoints
+	GetReposByOwnerByRepo = "GET /repos/{owner}/{repo}"
+
+	// Git endpoints
+	GetReposGitTreesByOwnerByRepoByTree = "GET /repos/{owner}/{repo}/git/trees/{tree}"
+
+	// Code scanning endpoints
+	GetReposCodeScanningAlertsByOwnerByRepo              = "GET /repos/{owner}/{repo}/code-scanning/alerts"
+	GetReposCodeScanningAlertsByOwnerByRepoByAlertNumber = "GET /repos/{owner}/{repo}/code-scanning/alerts/{alert_number}"
+)
+
 type expectations struct {
 	path        string
 	queryParams map[string]string

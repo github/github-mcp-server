@@ -10,7 +10,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -51,7 +50,7 @@ func Test_GetCodeScanningAlert(t *testing.T) {
 		{
 			name: "successful alert fetch",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				mock.GetReposCodeScanningAlertsByOwnerByRepoByAlertNumber.Method + " " + mock.GetReposCodeScanningAlertsByOwnerByRepoByAlertNumber.Pattern: mockResponse(t, http.StatusOK, mockAlert),
+				GetReposCodeScanningAlertsByOwnerByRepoByAlertNumber: mockResponse(t, http.StatusOK, mockAlert),
 			}),
 			requestArgs: map[string]interface{}{
 				"owner":       "owner",
@@ -64,7 +63,7 @@ func Test_GetCodeScanningAlert(t *testing.T) {
 		{
 			name: "alert fetch fails",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				mock.GetReposCodeScanningAlertsByOwnerByRepoByAlertNumber.Method + " " + mock.GetReposCodeScanningAlertsByOwnerByRepoByAlertNumber.Pattern: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				GetReposCodeScanningAlertsByOwnerByRepoByAlertNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusNotFound)
 					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
 				}),
@@ -166,7 +165,7 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 		{
 			name: "successful alerts listing",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				mock.GetReposCodeScanningAlertsByOwnerByRepo.Method + " " + mock.GetReposCodeScanningAlertsByOwnerByRepo.Pattern: expectQueryParams(t, map[string]string{
+				GetReposCodeScanningAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
 					"ref":       "main",
 					"state":     "open",
 					"severity":  "high",
@@ -189,7 +188,7 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 		{
 			name: "alerts listing fails",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				mock.GetReposCodeScanningAlertsByOwnerByRepo.Method + " " + mock.GetReposCodeScanningAlertsByOwnerByRepo.Pattern: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				GetReposCodeScanningAlertsByOwnerByRepo: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusUnauthorized)
 					_, _ = w.Write([]byte(`{"message": "Unauthorized access"}`))
 				}),
