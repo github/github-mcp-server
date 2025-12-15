@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/toolsets"
+	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -16,7 +16,7 @@ import (
 )
 
 // GetLabel retrieves a specific label by name from a GitHub repository
-func GetLabel(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func GetLabel(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetLabels,
 		mcp.Tool{
@@ -111,7 +111,7 @@ func GetLabel(t translations.TranslationHelperFunc) toolsets.ServerTool {
 }
 
 // ListLabels lists labels from a repository
-func ListLabels(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func ListLabels(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetLabels,
 		mcp.Tool{
@@ -203,7 +203,7 @@ func ListLabels(t translations.TranslationHelperFunc) toolsets.ServerTool {
 }
 
 // LabelWrite handles create, update, and delete operations for GitHub labels
-func LabelWrite(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func LabelWrite(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetLabels,
 		mcp.Tool{

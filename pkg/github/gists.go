@@ -7,7 +7,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/github/github-mcp-server/pkg/toolsets"
+	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -16,7 +16,7 @@ import (
 )
 
 // ListGists creates a tool to list gists for a user
-func ListGists(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func ListGists(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataGists,
 		mcp.Tool{
@@ -104,7 +104,7 @@ func ListGists(t translations.TranslationHelperFunc) toolsets.ServerTool {
 }
 
 // GetGist creates a tool to get the content of a gist
-func GetGist(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func GetGist(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataGists,
 		mcp.Tool{
@@ -163,7 +163,7 @@ func GetGist(t translations.TranslationHelperFunc) toolsets.ServerTool {
 }
 
 // CreateGist creates a tool to create a new gist
-func CreateGist(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func CreateGist(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataGists,
 		mcp.Tool{
@@ -267,7 +267,7 @@ func CreateGist(t translations.TranslationHelperFunc) toolsets.ServerTool {
 }
 
 // UpdateGist creates a tool to edit an existing gist
-func UpdateGist(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func UpdateGist(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataGists,
 		mcp.Tool{

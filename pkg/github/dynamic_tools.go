@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/github/github-mcp-server/pkg/toolsets"
+	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -19,7 +19,7 @@ type DynamicToolDependencies struct {
 	// Server is the MCP server to register tools with
 	Server *mcp.Server
 	// Registry contains all available tools that can be enabled dynamically
-	Registry *toolsets.Registry
+	Registry *registry.Registry
 	// ToolDeps are the dependencies passed to tools when they are registered
 	ToolDeps any
 	// T is the translation helper function
@@ -27,14 +27,14 @@ type DynamicToolDependencies struct {
 }
 
 // NewDynamicTool creates a ServerTool with fully-typed DynamicToolDependencies.
-func NewDynamicTool(toolset toolsets.ToolsetMetadata, tool mcp.Tool, handler func(deps DynamicToolDependencies) mcp.ToolHandlerFor[map[string]any, any]) toolsets.ServerTool {
-	return toolsets.NewServerTool(tool, toolset, func(d any) mcp.ToolHandlerFor[map[string]any, any] {
+func NewDynamicTool(toolset registry.ToolsetMetadata, tool mcp.Tool, handler func(deps DynamicToolDependencies) mcp.ToolHandlerFor[map[string]any, any]) registry.ServerTool {
+	return registry.NewServerTool(tool, toolset, func(d any) mcp.ToolHandlerFor[map[string]any, any] {
 		return handler(d.(DynamicToolDependencies))
 	})
 }
 
 // toolsetIDsEnum returns the list of toolset IDs as an enum for JSON Schema.
-func toolsetIDsEnum(r *toolsets.Registry) []any {
+func toolsetIDsEnum(r *registry.Registry) []any {
 	toolsetIDs := r.ToolsetIDs()
 	result := make([]any, len(toolsetIDs))
 	for i, id := range toolsetIDs {
@@ -44,10 +44,10 @@ func toolsetIDsEnum(r *toolsets.Registry) []any {
 }
 
 // DynamicTools returns the tools for dynamic toolset management.
-// These tools allow runtime discovery and enablement of toolsets.
+// These tools allow runtime discovery and enablement of registry.
 // The r parameter provides the available toolset IDs for JSON Schema enums.
-func DynamicTools(r *toolsets.Registry) []toolsets.ServerTool {
-	return []toolsets.ServerTool{
+func DynamicTools(r *registry.Registry) []registry.ServerTool {
+	return []registry.ServerTool{
 		ListAvailableToolsets(),
 		GetToolsetsTools(r),
 		EnableToolset(r),
@@ -55,7 +55,7 @@ func DynamicTools(r *toolsets.Registry) []toolsets.ServerTool {
 }
 
 // EnableToolset creates a tool that enables a toolset at runtime.
-func EnableToolset(r *toolsets.Registry) toolsets.ServerTool {
+func EnableToolset(r *registry.Registry) registry.ServerTool {
 	return NewDynamicTool(
 		ToolsetMetadataDynamic,
 		mcp.Tool{
@@ -84,7 +84,7 @@ func EnableToolset(r *toolsets.Registry) toolsets.ServerTool {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
 
-				toolsetID := toolsets.ToolsetID(toolsetName)
+				toolsetID := registry.ToolsetID(toolsetName)
 
 				if !deps.Registry.HasToolset(toolsetID) {
 					return utils.NewToolResultError(fmt.Sprintf("Toolset %s not found", toolsetName)), nil, nil
@@ -109,8 +109,8 @@ func EnableToolset(r *toolsets.Registry) toolsets.ServerTool {
 	)
 }
 
-// ListAvailableToolsets creates a tool that lists all available toolsets.
-func ListAvailableToolsets() toolsets.ServerTool {
+// ListAvailableToolsets creates a tool that lists all available registry.
+func ListAvailableToolsets() registry.ServerTool {
 	return NewDynamicTool(
 		ToolsetMetadataDynamic,
 		mcp.Tool{
@@ -153,7 +153,7 @@ func ListAvailableToolsets() toolsets.ServerTool {
 }
 
 // GetToolsetsTools creates a tool that lists all tools in a specific toolset.
-func GetToolsetsTools(r *toolsets.Registry) toolsets.ServerTool {
+func GetToolsetsTools(r *registry.Registry) registry.ServerTool {
 	return NewDynamicTool(
 		ToolsetMetadataDynamic,
 		mcp.Tool{
@@ -182,7 +182,7 @@ func GetToolsetsTools(r *toolsets.Registry) toolsets.ServerTool {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
 
-				toolsetID := toolsets.ToolsetID(toolsetName)
+				toolsetID := registry.ToolsetID(toolsetName)
 
 				if !deps.Registry.HasToolset(toolsetID) {
 					return utils.NewToolResultError(fmt.Sprintf("Toolset %s not found", toolsetName)), nil, nil

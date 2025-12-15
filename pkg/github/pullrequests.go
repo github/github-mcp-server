@@ -15,14 +15,14 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/lockdown"
+	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/sanitize"
-	"github.com/github/github-mcp-server/pkg/toolsets"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 )
 
 // PullRequestRead creates a tool to get details of a specific pull request.
-func PullRequestRead(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func PullRequestRead(t translations.TranslationHelperFunc) registry.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -99,7 +99,7 @@ Possible options:
 
 				switch method {
 				case "get":
-					result, err := GetPullRequest(ctx, client, deps.RepoAccessCache, owner, repo, pullNumber, deps.Flags)
+					result, err := GetPullRequest(ctx, client, deps.GetRepoAccessCache(), owner, repo, pullNumber, deps.GetFlags())
 					return result, nil, err
 				case "get_diff":
 					result, err := GetPullRequestDiff(ctx, client, owner, repo, pullNumber)
@@ -111,13 +111,13 @@ Possible options:
 					result, err := GetPullRequestFiles(ctx, client, owner, repo, pullNumber, pagination)
 					return result, nil, err
 				case "get_review_comments":
-					result, err := GetPullRequestReviewComments(ctx, client, deps.RepoAccessCache, owner, repo, pullNumber, pagination, deps.Flags)
+					result, err := GetPullRequestReviewComments(ctx, client, deps.GetRepoAccessCache(), owner, repo, pullNumber, pagination, deps.GetFlags())
 					return result, nil, err
 				case "get_reviews":
-					result, err := GetPullRequestReviews(ctx, client, deps.RepoAccessCache, owner, repo, pullNumber, deps.Flags)
+					result, err := GetPullRequestReviews(ctx, client, deps.GetRepoAccessCache(), owner, repo, pullNumber, deps.GetFlags())
 					return result, nil, err
 				case "get_comments":
-					result, err := GetIssueComments(ctx, client, deps.RepoAccessCache, owner, repo, pullNumber, pagination, deps.Flags)
+					result, err := GetIssueComments(ctx, client, deps.GetRepoAccessCache(), owner, repo, pullNumber, pagination, deps.GetFlags())
 					return result, nil, err
 				default:
 					return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
@@ -390,7 +390,7 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, cache *lo
 }
 
 // CreatePullRequest creates a tool to create a new pull request.
-func CreatePullRequest(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func CreatePullRequest(t translations.TranslationHelperFunc) registry.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -531,7 +531,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) toolsets.ServerTool
 }
 
 // UpdatePullRequest creates a tool to update an existing pull request.
-func UpdatePullRequest(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func UpdatePullRequest(t translations.TranslationHelperFunc) registry.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -826,7 +826,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) toolsets.ServerTool
 }
 
 // ListPullRequests creates a tool to list and filter repository pull requests.
-func ListPullRequests(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func ListPullRequests(t translations.TranslationHelperFunc) registry.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -970,7 +970,7 @@ func ListPullRequests(t translations.TranslationHelperFunc) toolsets.ServerTool 
 }
 
 // MergePullRequest creates a tool to merge a pull request.
-func MergePullRequest(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func MergePullRequest(t translations.TranslationHelperFunc) registry.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -1079,7 +1079,7 @@ func MergePullRequest(t translations.TranslationHelperFunc) toolsets.ServerTool 
 }
 
 // SearchPullRequests creates a tool to search for pull requests.
-func SearchPullRequests(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func SearchPullRequests(t translations.TranslationHelperFunc) registry.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -1142,7 +1142,7 @@ func SearchPullRequests(t translations.TranslationHelperFunc) toolsets.ServerToo
 }
 
 // UpdatePullRequestBranch creates a tool to update a pull request branch with the latest changes from the base branch.
-func UpdatePullRequestBranch(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func UpdatePullRequestBranch(t translations.TranslationHelperFunc) registry.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -1247,7 +1247,7 @@ type PullRequestReviewWriteParams struct {
 	CommitID   *string
 }
 
-func PullRequestReviewWrite(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func PullRequestReviewWrite(t translations.TranslationHelperFunc) registry.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -1559,7 +1559,7 @@ func DeletePendingPullRequestReview(ctx context.Context, client *githubv4.Client
 }
 
 // AddCommentToPendingReview creates a tool to add a comment to a pull request review.
-func AddCommentToPendingReview(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func AddCommentToPendingReview(t translations.TranslationHelperFunc) registry.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -1752,7 +1752,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) toolsets.Se
 // RequestCopilotReview creates a tool to request a Copilot review for a pull request.
 // Note that this tool will not work on GHES where this feature is unsupported. In future, we should not expose this
 // tool if the configured host does not support it.
-func RequestCopilotReview(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func RequestCopilotReview(t translations.TranslationHelperFunc) registry.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
