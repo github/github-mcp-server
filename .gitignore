@@ -19,4 +19,5 @@ bin/
 # binary
 github-mcp-server
 
-.historyconformance-report/
+.history
+conformance-report/
