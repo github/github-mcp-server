@@ -110,10 +110,18 @@ func GetLabel(t translations.TranslationHelperFunc) registry.ServerTool {
 	)
 }
 
+// GetLabelForLabelsToolset returns the same GetLabel tool but registered in the labels toolset.
+// This provides conformance with the original behavior where get_label was in both toolsets.
+func GetLabelForLabelsToolset(t translations.TranslationHelperFunc) registry.ServerTool {
+	tool := GetLabel(t)
+	tool.Toolset = ToolsetLabels
+	return tool
+}
+
 // ListLabels lists labels from a repository
 func ListLabels(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
-		ToolsetMetadataIssues,
+		ToolsetLabels,
 		mcp.Tool{
 			Name:        "list_label",
 			Description: t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository"),
@@ -205,7 +213,7 @@ func ListLabels(t translations.TranslationHelperFunc) registry.ServerTool {
 // LabelWrite handles create, update, and delete operations for GitHub labels
 func LabelWrite(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
-		ToolsetMetadataIssues,
+		ToolsetLabels,
 		mcp.Tool{
 			Name:        "label_write",
 			Description: t("TOOL_LABEL_WRITE_DESCRIPTION", "Perform write operations on repository labels. To set labels on issues, use the 'update_issue' tool."),
