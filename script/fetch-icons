@@ -25,6 +25,7 @@ DEFAULT_ICONS=(
     dependabot
     file
     git-branch
+    git-commit
     git-merge
     git-pull-request
     issue-opened
