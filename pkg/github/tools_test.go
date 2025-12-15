@@ -151,3 +151,34 @@ func TestContainsToolset(t *testing.T) {
 		})
 	}
 }
+
+func TestGenerateToolsetsHelp(t *testing.T) {
+	// Generate the help text
+	helpText := GenerateToolsetsHelp()
+
+	// Verify help text is not empty
+	require.NotEmpty(t, helpText)
+
+	// Verify it contains expected sections
+	assert.Contains(t, helpText, "Comma-separated list of tool groups to enable")
+	assert.Contains(t, helpText, "Available:")
+	assert.Contains(t, helpText, "Special toolset keywords:")
+	assert.Contains(t, helpText, "all: Enables all available toolsets")
+	assert.Contains(t, helpText, "default: Enables the default toolset configuration")
+	assert.Contains(t, helpText, "Examples:")
+	assert.Contains(t, helpText, "--toolsets=actions,gists,notifications")
+	assert.Contains(t, helpText, "--toolsets=default,actions,gists")
+	assert.Contains(t, helpText, "--toolsets=all")
+
+	// Verify it contains some expected default toolsets
+	assert.Contains(t, helpText, "context")
+	assert.Contains(t, helpText, "repos")
+	assert.Contains(t, helpText, "issues")
+	assert.Contains(t, helpText, "pull_requests")
+	assert.Contains(t, helpText, "users")
+
+	// Verify it contains some expected available toolsets
+	assert.Contains(t, helpText, "actions")
+	assert.Contains(t, helpText, "gists")
+	assert.Contains(t, helpText, "notifications")
+}
