@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"sort"
 	"strings"
 )
 
@@ -124,8 +125,10 @@ func (b *Builder) Build() *Registry {
 		featureChecker:    b.featureChecker,
 	}
 
-	// Process toolsets
-	r.enabledToolsets, r.unrecognizedToolsets = b.processToolsets()
+	// Note: toolsByName map is lazy-initialized on first use via getToolsByName()
+
+	// Process toolsets and pre-compute metadata in a single pass
+	r.enabledToolsets, r.unrecognizedToolsets, r.toolsetIDs, r.defaultToolsetIDs, r.toolsetDescriptions = b.processToolsets()
 
 	// Process additional tools (resolve aliases)
 	if len(b.additionalTools) > 0 {
@@ -146,25 +149,65 @@ func (b *Builder) Build() *Registry {
 // processToolsets processes the toolsetIDs configuration and returns:
 // - enabledToolsets map (nil means all enabled)
 // - unrecognizedToolsets list for warnings
-func (b *Builder) processToolsets() (map[ToolsetID]bool, []string) {
-	// Build a set of valid toolset IDs for validation
+// - allToolsetIDs sorted list of all toolset IDs
+// - defaultToolsetIDs sorted list of default toolset IDs
+// - toolsetDescriptions map of toolset ID to description
+func (b *Builder) processToolsets() (map[ToolsetID]bool, []string, []ToolsetID, []ToolsetID, map[ToolsetID]string) {
+	// Single pass: collect all toolset metadata together
 	validIDs := make(map[ToolsetID]bool)
-	for _, t := range b.tools {
+	defaultIDs := make(map[ToolsetID]bool)
+	descriptions := make(map[ToolsetID]string)
+
+	for i := range b.tools {
+		t := &b.tools[i]
 		validIDs[t.Toolset.ID] = true
+		if t.Toolset.Default {
+			defaultIDs[t.Toolset.ID] = true
+		}
+		if t.Toolset.Description != "" {
+			descriptions[t.Toolset.ID] = t.Toolset.Description
+		}
 	}
-	for _, r := range b.resourceTemplates {
+	for i := range b.resourceTemplates {
+		r := &b.resourceTemplates[i]
 		validIDs[r.Toolset.ID] = true
+		if r.Toolset.Default {
+			defaultIDs[r.Toolset.ID] = true
+		}
+		if r.Toolset.Description != "" {
+			descriptions[r.Toolset.ID] = r.Toolset.Description
+		}
 	}
-	for _, p := range b.prompts {
+	for i := range b.prompts {
+		p := &b.prompts[i]
 		validIDs[p.Toolset.ID] = true
+		if p.Toolset.Default {
+			defaultIDs[p.Toolset.ID] = true
+		}
+		if p.Toolset.Description != "" {
+			descriptions[p.Toolset.ID] = p.Toolset.Description
+		}
 	}
+
+	// Build sorted slices from the collected maps
+	allToolsetIDs := make([]ToolsetID, 0, len(validIDs))
+	for id := range validIDs {
+		allToolsetIDs = append(allToolsetIDs, id)
+	}
+	sort.Slice(allToolsetIDs, func(i, j int) bool { return allToolsetIDs[i] < allToolsetIDs[j] })
+
+	defaultToolsetIDList := make([]ToolsetID, 0, len(defaultIDs))
+	for id := range defaultIDs {
+		defaultToolsetIDList = append(defaultToolsetIDList, id)
+	}
+	sort.Slice(defaultToolsetIDList, func(i, j int) bool { return defaultToolsetIDList[i] < defaultToolsetIDList[j] })
 
 	toolsetIDs := b.toolsetIDs
 
 	// Check for "all" keyword - enables all toolsets
 	for _, id := range toolsetIDs {
 		if strings.TrimSpace(id) == "all" {
-			return nil, nil // nil means all enabled
+			return nil, nil, allToolsetIDs, defaultToolsetIDList, descriptions // nil means all enabled
 		}
 	}
 
@@ -184,7 +227,7 @@ func (b *Builder) processToolsets() (map[ToolsetID]bool, []string) {
 			continue
 		}
 		if trimmed == "default" {
-			for _, defaultID := range b.defaultToolsetIDs() {
+			for _, defaultID := range defaultToolsetIDList {
 				if !seen[defaultID] {
 					seen[defaultID] = true
 					expanded = append(expanded, defaultID)
@@ -204,38 +247,12 @@ func (b *Builder) processToolsets() (map[ToolsetID]bool, []string) {
 	}
 
 	if len(expanded) == 0 {
-		return make(map[ToolsetID]bool), unrecognized
+		return make(map[ToolsetID]bool), unrecognized, allToolsetIDs, defaultToolsetIDList, descriptions
 	}
 
 	enabledToolsets := make(map[ToolsetID]bool, len(expanded))
 	for _, id := range expanded {
 		enabledToolsets[id] = true
 	}
-	return enabledToolsets, unrecognized
-}
-
-// defaultToolsetIDs returns toolset IDs marked as Default in their metadata.
-func (b *Builder) defaultToolsetIDs() []ToolsetID {
-	seen := make(map[ToolsetID]bool)
-	for i := range b.tools {
-		if b.tools[i].Toolset.Default {
-			seen[b.tools[i].Toolset.ID] = true
-		}
-	}
-	for i := range b.resourceTemplates {
-		if b.resourceTemplates[i].Toolset.Default {
-			seen[b.resourceTemplates[i].Toolset.ID] = true
-		}
-	}
-	for i := range b.prompts {
-		if b.prompts[i].Toolset.Default {
-			seen[b.prompts[i].Toolset.ID] = true
-		}
-	}
-
-	ids := make([]ToolsetID, 0, len(seen))
-	for id := range seen {
-		ids = append(ids, id)
-	}
-	return ids
+	return enabledToolsets, unrecognized, allToolsetIDs, defaultToolsetIDList, descriptions
 }
