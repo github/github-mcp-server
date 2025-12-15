@@ -168,13 +168,23 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	}
 
 	// Create the MCP server
-	ghServer := github.NewServer(cfg.Version, &mcp.ServerOptions{
+	serverOpts := &mcp.ServerOptions{
 		Instructions: github.GenerateInstructions(instructionToolsets),
 		Logger:       cfg.Logger,
 		CompletionHandler: github.CompletionsHandler(func(_ context.Context) (*gogithub.Client, error) {
 			return clients.rest, nil
 		}),
-	})
+	}
+
+	// In dynamic mode, explicitly advertise capabilities since tools/resources/prompts
+	// may be enabled at runtime even if none are registered initially.
+	if cfg.DynamicToolsets {
+		serverOpts.HasTools = true
+		serverOpts.HasResources = true
+		serverOpts.HasPrompts = true
+	}
+
+	ghServer := github.NewServer(cfg.Version, serverOpts)
 
 	// Add middlewares
 	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
