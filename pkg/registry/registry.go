@@ -6,6 +6,7 @@ import (
 	"os"
 	"slices"
 	"sort"
+	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -25,14 +26,23 @@ import (
 //   - Lazy dependency injection during registration via RegisterAll()
 //   - Runtime toolset enabling for dynamic toolsets mode
 type Registry struct {
-	// tools holds all tools in this group
+	// tools holds all tools in this group (ordered for iteration)
 	tools []ServerTool
-	// resourceTemplates holds all resource templates in this group
+	// toolsByName provides O(1) lookup by tool name (lazy-initialized)
+	// Used by FindToolByName for repeated lookups in long-lived servers
+	toolsByName     map[string]*ServerTool
+	toolsByNameOnce sync.Once
+	// resourceTemplates holds all resource templates in this group (ordered for iteration)
 	resourceTemplates []ServerResourceTemplate
-	// prompts holds all prompts in this group
+	// prompts holds all prompts in this group (ordered for iteration)
 	prompts []ServerPrompt
 	// deprecatedAliases maps old tool names to new canonical names
 	deprecatedAliases map[string]string
+
+	// Pre-computed toolset metadata (set during Build)
+	toolsetIDs          []ToolsetID          // sorted list of all toolset IDs
+	defaultToolsetIDs   []ToolsetID          // sorted list of default toolset IDs
+	toolsetDescriptions map[ToolsetID]string // toolset ID -> description
 
 	// Filters - these control what's returned by Available* methods
 	// readOnly when true filters out write tools
@@ -55,6 +65,18 @@ type Registry struct {
 // match any registered toolsets. This is useful for warning users about typos.
 func (r *Registry) UnrecognizedToolsets() []string {
 	return r.unrecognizedToolsets
+}
+
+// getToolsByName returns the toolsByName map, initializing it lazily on first call.
+// Used by FindToolByName for O(1) lookups in long-lived servers with repeated lookups.
+func (r *Registry) getToolsByName() map[string]*ServerTool {
+	r.toolsByNameOnce.Do(func() {
+		r.toolsByName = make(map[string]*ServerTool, len(r.tools))
+		for i := range r.tools {
+			r.toolsByName[r.tools[i].Tool.Name] = &r.tools[i]
+		}
+	})
+	return r.toolsByName
 }
 
 // MCP method constants for use with ForMCPRequest.
@@ -90,6 +112,8 @@ const (
 // All existing filters (read-only, toolsets, etc.) still apply to the returned items.
 func (r *Registry) ForMCPRequest(method string, itemName string) *Registry {
 	// Create a shallow copy with shared filter settings
+	// Note: lazy-init maps (toolsByName, etc.) are NOT copied - the new Registry
+	// will initialize its own maps on first use if needed
 	result := &Registry{
 		tools:                r.tools,
 		resourceTemplates:    r.resourceTemplates,
@@ -142,75 +166,18 @@ func (r *Registry) ForMCPRequest(method string, itemName string) *Registry {
 
 // ToolsetIDs returns a sorted list of unique toolset IDs from all tools in this group.
 func (r *Registry) ToolsetIDs() []ToolsetID {
-	seen := make(map[ToolsetID]bool)
-	for i := range r.tools {
-		seen[r.tools[i].Toolset.ID] = true
-	}
-	for i := range r.resourceTemplates {
-		seen[r.resourceTemplates[i].Toolset.ID] = true
-	}
-	for i := range r.prompts {
-		seen[r.prompts[i].Toolset.ID] = true
-	}
-
-	ids := make([]ToolsetID, 0, len(seen))
-	for id := range seen {
-		ids = append(ids, id)
-	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-	return ids
+	return r.toolsetIDs
 }
 
 // DefaultToolsetIDs returns the IDs of toolsets marked as Default in their metadata.
 // The IDs are returned in sorted order for deterministic output.
 func (r *Registry) DefaultToolsetIDs() []ToolsetID {
-	seen := make(map[ToolsetID]bool)
-	for i := range r.tools {
-		if r.tools[i].Toolset.Default {
-			seen[r.tools[i].Toolset.ID] = true
-		}
-	}
-	for i := range r.resourceTemplates {
-		if r.resourceTemplates[i].Toolset.Default {
-			seen[r.resourceTemplates[i].Toolset.ID] = true
-		}
-	}
-	for i := range r.prompts {
-		if r.prompts[i].Toolset.Default {
-			seen[r.prompts[i].Toolset.ID] = true
-		}
-	}
-
-	ids := make([]ToolsetID, 0, len(seen))
-	for id := range seen {
-		ids = append(ids, id)
-	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-	return ids
+	return r.defaultToolsetIDs
 }
 
 // ToolsetDescriptions returns a map of toolset ID to description for all toolsets.
 func (r *Registry) ToolsetDescriptions() map[ToolsetID]string {
-	descriptions := make(map[ToolsetID]string)
-	for i := range r.tools {
-		t := &r.tools[i]
-		if t.Toolset.Description != "" {
-			descriptions[t.Toolset.ID] = t.Toolset.Description
-		}
-	}
-	for i := range r.resourceTemplates {
-		res := &r.resourceTemplates[i]
-		if res.Toolset.Description != "" {
-			descriptions[res.Toolset.ID] = res.Toolset.Description
-		}
-	}
-	for i := range r.prompts {
-		p := &r.prompts[i]
-		if p.Toolset.Description != "" {
-			descriptions[p.Toolset.ID] = p.Toolset.Description
-		}
-	}
-	return descriptions
+	return r.toolsetDescriptions
 }
 
 // RegisterTools registers all available tools with the server using the provided dependencies.
@@ -269,11 +236,8 @@ func (r *Registry) ResolveToolAliases(toolNames []string) (resolved []string, al
 // Returns the tool, its toolset ID, and an error if not found.
 // This searches ALL tools regardless of filters.
 func (r *Registry) FindToolByName(toolName string) (*ServerTool, ToolsetID, error) {
-	for i := range r.tools {
-		tool := &r.tools[i]
-		if tool.Tool.Name == toolName {
-			return tool, tool.Toolset.ID, nil
-		}
+	if tool, ok := r.getToolsByName()[toolName]; ok {
+		return tool, tool.Toolset.ID, nil
 	}
 	return nil, "", NewToolDoesNotExistError(toolName)
 }
