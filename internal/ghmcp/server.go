@@ -160,9 +160,16 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 
 	enabledToolsets := resolveEnabledToolsets(cfg)
 
+	// For instruction generation, we need actual toolset names (not nil).
+	// nil means "use defaults" in registry, so expand it for instructions.
+	instructionToolsets := enabledToolsets
+	if instructionToolsets == nil {
+		instructionToolsets = github.GetDefaultToolsetIDs()
+	}
+
 	// Create the MCP server
 	ghServer := github.NewServer(cfg.Version, &mcp.ServerOptions{
-		Instructions: github.GenerateInstructions(enabledToolsets),
+		Instructions: github.GenerateInstructions(instructionToolsets),
 		Logger:       cfg.Logger,
 		CompletionHandler: github.CompletionsHandler(func(_ context.Context) (*gogithub.Client, error) {
 			return clients.rest, nil
