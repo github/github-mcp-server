@@ -295,7 +295,7 @@ func NewMockRoundTripper() *MockRoundTripper {
 func (m *MockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Normalize the request path and method for matching
 	key := req.Method + " " + req.URL.Path
-	
+
 	// Check if we have a specific handler for this request
 	if handler, ok := m.handlers[key]; ok {
 		// Use httptest.ResponseRecorder to capture the handler's response
@@ -304,7 +304,7 @@ func (m *MockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 			body:   &bytes.Buffer{},
 		}
 		handler(recorder, req)
-		
+
 		return &http.Response{
 			StatusCode: recorder.statusCode,
 			Header:     recorder.header,
@@ -312,7 +312,7 @@ func (m *MockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 			Request:    req,
 		}, nil
 	}
-	
+
 	// Fall back to mock.Mock assertions if defined
 	args := m.Called(req)
 	if args.Get(0) == nil {
@@ -329,7 +329,7 @@ func (m *MockRoundTripper) OnRequest(method, path string, handler http.HandlerFu
 }
 
 // OnAny registers a catch-all handler
-func (m *MockRoundTripper) OnAny(handler http.HandlerFunc) *MockRoundTripper {
+func (m *MockRoundTripper) OnAny(_ http.HandlerFunc) *MockRoundTripper {
 	// This is a simple implementation that doesn't use the handler map
 	// It's kept for compatibility but not recommended
 	return m
@@ -370,15 +370,15 @@ func matchPath(pattern, path string) bool {
 	if pattern == path {
 		return true
 	}
-	
+
 	// Support for path parameters like /repos/{owner}/{repo}/issues/{issue_number}
 	patternParts := strings.Split(strings.Trim(pattern, "/"), "/")
 	pathParts := strings.Split(strings.Trim(path, "/"), "/")
-	
+
 	if len(patternParts) != len(pathParts) {
 		return false
 	}
-	
+
 	for i := range patternParts {
 		// Check if this is a path parameter (enclosed in {})
 		if strings.HasPrefix(patternParts[i], "{") && strings.HasSuffix(patternParts[i], "}") {
@@ -388,7 +388,7 @@ func matchPath(pattern, path string) bool {
 			return false
 		}
 	}
-	
+
 	return true
 }
 
@@ -408,7 +408,7 @@ func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		body:   &bytes.Buffer{},
 	}
 	m.handler(recorder, req)
-	
+
 	return &http.Response{
 		StatusCode: recorder.statusCode,
 		Header:     recorder.header,
@@ -430,7 +430,7 @@ type multiHandlerTransport struct {
 func (m *multiHandlerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Try to find a handler for this request
 	key := req.Method + " " + req.URL.Path
-	
+
 	// First try exact match
 	if handler, ok := m.handlers[key]; ok {
 		recorder := &responseRecorder{
@@ -438,7 +438,7 @@ func (m *multiHandlerTransport) RoundTrip(req *http.Request) (*http.Response, er
 			body:   &bytes.Buffer{},
 		}
 		handler(recorder, req)
-		
+
 		return &http.Response{
 			StatusCode: recorder.statusCode,
 			Header:     recorder.header,
@@ -446,7 +446,7 @@ func (m *multiHandlerTransport) RoundTrip(req *http.Request) (*http.Response, er
 			Request:    req,
 		}, nil
 	}
-	
+
 	// Then try pattern matching
 	for pattern, handler := range m.handlers {
 		parts := strings.SplitN(pattern, " ", 2)
@@ -458,7 +458,7 @@ func (m *multiHandlerTransport) RoundTrip(req *http.Request) (*http.Response, er
 					body:   &bytes.Buffer{},
 				}
 				handler(recorder, req)
-				
+
 				return &http.Response{
 					StatusCode: recorder.statusCode,
 					Header:     recorder.header,
@@ -468,7 +468,7 @@ func (m *multiHandlerTransport) RoundTrip(req *http.Request) (*http.Response, er
 			}
 		}
 	}
-	
+
 	// No handler found
 	return &http.Response{
 		StatusCode: http.StatusNotFound,
@@ -482,18 +482,18 @@ func extractPathParams(pattern, path string) map[string]string {
 	params := make(map[string]string)
 	patternParts := strings.Split(strings.Trim(pattern, "/"), "/")
 	pathParts := strings.Split(strings.Trim(path, "/"), "/")
-	
+
 	if len(patternParts) != len(pathParts) {
 		return params
 	}
-	
+
 	for i := range patternParts {
 		if strings.HasPrefix(patternParts[i], "{") && strings.HasSuffix(patternParts[i], "}") {
 			paramName := strings.Trim(patternParts[i], "{}")
 			params[paramName] = pathParts[i]
 		}
 	}
-	
+
 	return params
 }
 
