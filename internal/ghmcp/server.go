@@ -123,11 +123,24 @@ func createGitHubClients(cfg MCPServerConfig, apiHost apiHost) (*githubClients, 
 // resolveEnabledToolsets determines which toolsets should be enabled based on config.
 // Returns nil for "use defaults", empty slice for "none", or explicit list.
 func resolveEnabledToolsets(cfg MCPServerConfig) []string {
-	if cfg.EnabledToolsets != nil {
-		return cfg.EnabledToolsets
+	enabledToolsets := cfg.EnabledToolsets
+
+	// In dynamic mode, remove "all" and "default" since users enable toolsets on demand
+	if cfg.DynamicToolsets && enabledToolsets != nil {
+		enabledToolsets = github.RemoveToolset(enabledToolsets, string(github.ToolsetMetadataAll.ID))
+		enabledToolsets = github.RemoveToolset(enabledToolsets, string(github.ToolsetMetadataDefault.ID))
+	}
+
+	if enabledToolsets != nil {
+		return enabledToolsets
 	}
 	if cfg.DynamicToolsets {
 		// Dynamic mode with no toolsets specified: start empty so users enable on demand
+		return []string{}
+	}
+	if len(cfg.EnabledTools) > 0 {
+		// When specific tools are requested but no toolsets, don't use default toolsets
+		// This matches the original behavior: --tools=X alone registers only X
 		return []string{}
 	}
 	// nil means "use defaults" in WithToolsets
