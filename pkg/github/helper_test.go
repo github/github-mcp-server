@@ -216,7 +216,7 @@ func TestOptionalParamOK(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Test with string type assertion
 			if _, isString := tc.expectedVal.(string); isString || tc.errorMsg == "parameter myParam is not of type string, is bool" {
-				val, ok, err := OptionalParamOK[string, map[string]any](tc.args, tc.paramName)
+				val, ok, err := OptionalParamOK[string](tc.args, tc.paramName)
 				if tc.expectError {
 					require.Error(t, err)
 					assert.Contains(t, err.Error(), tc.errorMsg)
@@ -231,7 +231,7 @@ func TestOptionalParamOK(t *testing.T) {
 
 			// Test with bool type assertion
 			if _, isBool := tc.expectedVal.(bool); isBool || tc.errorMsg == "parameter myParam is not of type bool, is string" {
-				val, ok, err := OptionalParamOK[bool, map[string]any](tc.args, tc.paramName)
+				val, ok, err := OptionalParamOK[bool](tc.args, tc.paramName)
 				if tc.expectError {
 					require.Error(t, err)
 					assert.Contains(t, err.Error(), tc.errorMsg)
@@ -246,7 +246,7 @@ func TestOptionalParamOK(t *testing.T) {
 
 			// Test with float64 type assertion (for number case)
 			if _, isFloat := tc.expectedVal.(float64); isFloat {
-				val, ok, err := OptionalParamOK[float64, map[string]any](tc.args, tc.paramName)
+				val, ok, err := OptionalParamOK[float64](tc.args, tc.paramName)
 				if tc.expectError {
 					// This case shouldn't happen for float64 in the defined tests
 					require.Fail(t, "Unexpected error case for float64")
