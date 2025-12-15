@@ -1610,7 +1610,7 @@ func Test_GetPullRequestComments(t *testing.T) {
 						"repo":              githubv4.String("repo"),
 						"prNum":             githubv4.Int(42),
 						"first":             githubv4.Int(30),
-						"commentsPerThread": githubv4.Int(50),
+						"commentsPerThread": githubv4.Int(100),
 						"after":             (*githubv4.String)(nil),
 					},
 					githubv4mock.DataResponse(map[string]any{
@@ -1726,7 +1726,7 @@ func Test_GetPullRequestComments(t *testing.T) {
 						"repo":              githubv4.String("repo"),
 						"prNum":             githubv4.Int(999),
 						"first":             githubv4.Int(30),
-						"commentsPerThread": githubv4.Int(50),
+						"commentsPerThread": githubv4.Int(100),
 						"after":             (*githubv4.String)(nil),
 					},
 					githubv4mock.ErrorResponse("Could not resolve to a PullRequest with the number of 999."),
@@ -1751,7 +1751,7 @@ func Test_GetPullRequestComments(t *testing.T) {
 						"repo":              githubv4.String("repo"),
 						"prNum":             githubv4.Int(42),
 						"first":             githubv4.Int(30),
-						"commentsPerThread": githubv4.Int(50),
+						"commentsPerThread": githubv4.Int(100),
 						"after":             (*githubv4.String)(nil),
 					},
 					githubv4mock.DataResponse(map[string]any{
