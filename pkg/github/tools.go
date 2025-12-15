@@ -106,10 +106,6 @@ var (
 		ID:          "dynamic",
 		Description: "Discover GitHub MCP tools that can help achieve tasks by enabling additional sets of tools, you can control the enablement of any toolset to access its tools when this toolset is enabled.",
 	}
-	ToolsetLabels = registry.ToolsetMetadata{
-		ID:          "labels",
-		Description: "GitHub Labels related tools",
-	}
 )
 
 // AllTools returns all tools with their embedded toolset metadata.
