@@ -107,8 +107,8 @@ func TestEmbeddedIconsExist(t *testing.T) {
 	expectedIcons := []string{
 		"apps", "beaker", "bell", "check-circle", "codescan",
 		"comment-discussion", "copilot", "dependabot", "git-branch", "git-merge",
-		"git-pull-request", "issue-opened", "logo-gist", "organization", "people",
-		"person", "project", "repo", "repo-forked", "shield", "shield-lock",
+		"git-pull-request", "issue-opened", "logo-gist", "mark-github", "organization",
+		"people", "person", "project", "repo", "repo-forked", "shield", "shield-lock",
 		"star", "star-fill", "tag", "tools", "workflow",
 	}
 
