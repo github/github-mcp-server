@@ -463,6 +463,7 @@ The following sets of tools are available:
 | `gists` | GitHub Gist related tools |
 | `git` | GitHub Git API related tools for low-level Git operations |
 | `issues` | GitHub Issues related tools |
+| `labels` | GitHub Labels related tools |
 | `notifications` | GitHub Notifications related tools |
 | `orgs` | GitHub Organization related tools |
 | `projects` | GitHub Projects related tools |
@@ -755,15 +756,6 @@ The following sets of tools are available:
   - `title`: Issue title (string, optional)
   - `type`: Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
 
-- **label_write** - Write operations on repository labels.
-  - `color`: Label color as 6-character hex code without '#' prefix (e.g., 'f29513'). Required for 'create', optional for 'update'. (string, optional)
-  - `description`: Label description text. Optional for 'create' and 'update'. (string, optional)
-  - `method`: Operation to perform: 'create', 'update', or 'delete' (string, required)
-  - `name`: Label name - required for all operations (string, required)
-  - `new_name`: New name for the label (used only with 'update' method to rename) (string, optional)
-  - `owner`: Repository owner (username or organization name) (string, required)
-  - `repo`: Repository name (string, required)
-
 - **list_issue_types** - List available issue types
   - `owner`: The organization owner of the repository (string, required)
 
@@ -777,10 +769,6 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
   - `since`: Filter by date (ISO 8601 timestamp) (string, optional)
   - `state`: Filter by state, by default both open and closed issues are returned when not provided (string, optional)
-
-- **list_label** - List labels from a repository
-  - `owner`: Repository owner (username or organization name) - required for all operations (string, required)
-  - `repo`: Repository name - required for all operations (string, required)
 
 - **search_issues** - Search issues
   - `order`: Sort order (string, optional)
@@ -805,6 +793,30 @@ The following sets of tools are available:
   - `replace_parent`: When true, replaces the sub-issue's current parent issue. Use with 'add' method only. (boolean, optional)
   - `repo`: Repository name (string, required)
   - `sub_issue_id`: The ID of the sub-issue to add. ID is not the same as issue number (number, required)
+
+</details>
+
+<details>
+
+<summary>Labels</summary>
+
+- **get_label** - Get a specific label from a repository.
+  - `name`: Label name. (string, required)
+  - `owner`: Repository owner (username or organization name) (string, required)
+  - `repo`: Repository name (string, required)
+
+- **label_write** - Write operations on repository labels.
+  - `color`: Label color as 6-character hex code without '#' prefix (e.g., 'f29513'). Required for 'create', optional for 'update'. (string, optional)
+  - `description`: Label description text. Optional for 'create' and 'update'. (string, optional)
+  - `method`: Operation to perform: 'create', 'update', or 'delete' (string, required)
+  - `name`: Label name - required for all operations (string, required)
+  - `new_name`: New name for the label (used only with 'update' method to rename) (string, optional)
+  - `owner`: Repository owner (username or organization name) (string, required)
+  - `repo`: Repository name (string, required)
+
+- **list_label** - List labels from a repository
+  - `owner`: Repository owner (username or organization name) - required for all operations (string, required)
+  - `repo`: Repository name - required for all operations (string, required)
 
 </details>
 
