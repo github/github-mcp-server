@@ -6,7 +6,6 @@ import (
 	"os"
 	"slices"
 	"sort"
-	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -28,10 +27,6 @@ import (
 type Registry struct {
 	// tools holds all tools in this group (ordered for iteration)
 	tools []ServerTool
-	// toolsByName provides O(1) lookup by tool name (lazy-initialized)
-	// Used by FindToolByName for repeated lookups in long-lived servers
-	toolsByName     map[string]*ServerTool
-	toolsByNameOnce sync.Once
 	// resourceTemplates holds all resource templates in this group (ordered for iteration)
 	resourceTemplates []ServerResourceTemplate
 	// prompts holds all prompts in this group (ordered for iteration)
@@ -66,18 +61,6 @@ type Registry struct {
 // match any registered toolsets. This is useful for warning users about typos.
 func (r *Registry) UnrecognizedToolsets() []string {
 	return r.unrecognizedToolsets
-}
-
-// getToolsByName returns the toolsByName map, initializing it lazily on first call.
-// Used by FindToolByName for O(1) lookups in long-lived servers with repeated lookups.
-func (r *Registry) getToolsByName() map[string]*ServerTool {
-	r.toolsByNameOnce.Do(func() {
-		r.toolsByName = make(map[string]*ServerTool, len(r.tools))
-		for i := range r.tools {
-			r.toolsByName[r.tools[i].Tool.Name] = &r.tools[i]
-		}
-	})
-	return r.toolsByName
 }
 
 // MCP method constants for use with ForMCPRequest.
@@ -237,8 +220,10 @@ func (r *Registry) ResolveToolAliases(toolNames []string) (resolved []string, al
 // Returns the tool, its toolset ID, and an error if not found.
 // This searches ALL tools regardless of filters.
 func (r *Registry) FindToolByName(toolName string) (*ServerTool, ToolsetID, error) {
-	if tool, ok := r.getToolsByName()[toolName]; ok {
-		return tool, tool.Toolset.ID, nil
+	for i := range r.tools {
+		if r.tools[i].Tool.Name == toolName {
+			return &r.tools[i], r.tools[i].Toolset.ID, nil
+		}
 	}
 	return nil, "", NewToolDoesNotExistError(toolName)
 }
