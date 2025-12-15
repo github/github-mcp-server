@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/toolsets"
+	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -38,7 +38,7 @@ type TreeResponse struct {
 }
 
 // GetRepositoryTree creates a tool to get the tree structure of a GitHub repository.
-func GetRepositoryTree(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func GetRepositoryTree(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataGit,
 		mcp.Tool{

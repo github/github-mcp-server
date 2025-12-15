@@ -330,9 +330,9 @@ func Test_GetIssue(t *testing.T) {
 			}
 
 			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
-			deps := ToolDependencies{
-				GetClient:       stubGetClientFn(client),
-				GetGQLClient:    stubGetGQLClientFn(gqlClient),
+			deps := BaseDeps{
+				Client:          client,
+				GQLClient:       gqlClient,
 				RepoAccessCache: cache,
 				Flags:           flags,
 			}
@@ -447,8 +447,8 @@ func Test_AddIssueComment(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -781,8 +781,8 @@ func Test_SearchIssues(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -952,9 +952,9 @@ func Test_CreateIssue(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
 			gqlClient := githubv4.NewClient(nil)
-			deps := ToolDependencies{
-				GetClient:    stubGetClientFn(client),
-				GetGQLClient: stubGetGQLClientFn(gqlClient),
+			deps := BaseDeps{
+				Client:    client,
+				GQLClient: gqlClient,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -1268,8 +1268,8 @@ func Test_ListIssues(t *testing.T) {
 			}
 
 			gqlClient := githubv4.NewClient(httpClient)
-			deps := ToolDependencies{
-				GetGQLClient: stubGetGQLClientFn(gqlClient),
+			deps := BaseDeps{
+				GQLClient: gqlClient,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -1769,9 +1769,9 @@ func Test_UpdateIssue(t *testing.T) {
 			// Setup clients with mocks
 			restClient := github.NewClient(tc.mockedRESTClient)
 			gqlClient := githubv4.NewClient(tc.mockedGQLClient)
-			deps := ToolDependencies{
-				GetClient:    stubGetClientFn(restClient),
-				GetGQLClient: stubGetGQLClientFn(gqlClient),
+			deps := BaseDeps{
+				Client:    restClient,
+				GQLClient: gqlClient,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -2016,9 +2016,9 @@ func Test_GetIssueComments(t *testing.T) {
 			}
 			cache := stubRepoAccessCache(gqlClient, 15*time.Minute)
 			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
-			deps := ToolDependencies{
-				GetClient:       stubGetClientFn(client),
-				GetGQLClient:    stubGetGQLClientFn(gqlClient),
+			deps := BaseDeps{
+				Client:          client,
+				GQLClient:       gqlClient,
 				RepoAccessCache: cache,
 				Flags:           flags,
 			}
@@ -2136,9 +2136,9 @@ func Test_GetIssueLabels(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			gqlClient := githubv4.NewClient(tc.mockedClient)
 			client := github.NewClient(nil)
-			deps := ToolDependencies{
-				GetClient:       stubGetClientFn(client),
-				GetGQLClient:    stubGetGQLClientFn(gqlClient),
+			deps := BaseDeps{
+				Client:          client,
+				GQLClient:       gqlClient,
 				RepoAccessCache: stubRepoAccessCache(gqlClient, 15*time.Minute),
 				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
 			}
@@ -2560,8 +2560,8 @@ func TestAssignCopilotToIssue(t *testing.T) {
 			t.Parallel()
 			// Setup client with mock
 			client := githubv4.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetGQLClient: stubGetGQLClientFn(client),
+			deps := BaseDeps{
+				GQLClient: client,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -2791,8 +2791,8 @@ func Test_AddSubIssue(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -3035,9 +3035,9 @@ func Test_GetSubIssues(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
 			gqlClient := githubv4.NewClient(nil)
-			deps := ToolDependencies{
-				GetClient:       stubGetClientFn(client),
-				GetGQLClient:    stubGetGQLClientFn(gqlClient),
+			deps := BaseDeps{
+				Client:          client,
+				GQLClient:       gqlClient,
 				RepoAccessCache: stubRepoAccessCache(gqlClient, 15*time.Minute),
 				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
 			}
@@ -3275,8 +3275,8 @@ func Test_RemoveSubIssue(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -3564,8 +3564,8 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -3698,8 +3698,8 @@ func Test_ListIssueTypes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 

@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/github/github-mcp-server/pkg/github"
-	"github.com/github/github-mcp-server/pkg/toolsets"
+	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -50,8 +50,8 @@ func generateReadmeDocs(readmePath string) error {
 	// Create translation helper
 	t, _ := translations.TranslationHelper()
 
-	// Create toolset group - stateless, no dependencies needed for doc generation
-	r := github.NewRegistry(t)
+	// Build registry - stateless, no dependencies needed for doc generation
+	r := github.NewRegistry(t).Build()
 
 	// Generate toolsets documentation
 	toolsetsDoc := generateToolsetsDoc(r)
@@ -104,7 +104,7 @@ func generateRemoteServerDocs(docsPath string) error {
 	return os.WriteFile(docsPath, []byte(updatedContent), 0600) //#nosec G306
 }
 
-func generateToolsetsDoc(r *toolsets.Registry) string {
+func generateToolsetsDoc(r *registry.Registry) string {
 	var buf strings.Builder
 
 	// Add table header and separator
@@ -123,7 +123,7 @@ func generateToolsetsDoc(r *toolsets.Registry) string {
 	return strings.TrimSuffix(buf.String(), "\n")
 }
 
-func generateToolsDoc(r *toolsets.Registry) string {
+func generateToolsDoc(r *registry.Registry) string {
 	// AllTools() returns tools sorted by toolset ID then tool name.
 	// We iterate once, grouping by toolset as we encounter them.
 	tools := r.AllTools()
@@ -133,7 +133,7 @@ func generateToolsDoc(r *toolsets.Registry) string {
 
 	var buf strings.Builder
 	var toolBuf strings.Builder
-	var currentToolsetID toolsets.ToolsetID
+	var currentToolsetID registry.ToolsetID
 	firstSection := true
 
 	writeSection := func() {
@@ -299,8 +299,8 @@ func generateRemoteToolsetsDoc() string {
 	// Create translation helper
 	t, _ := translations.TranslationHelper()
 
-	// Create toolset group - stateless
-	r := github.NewRegistry(t)
+	// Build registry - stateless
+	r := github.NewRegistry(t).Build()
 
 	// Generate table header
 	buf.WriteString("| Name           | Description                                      | API URL                                               | 1-Click Install (VS Code)                                                                                                                                                                                                 | Read-only Link                                                                                                 | 1-Click Read-only Install (VS Code)                                                                                                                                                                                                 |\n")
