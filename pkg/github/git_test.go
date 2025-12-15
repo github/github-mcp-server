@@ -11,6 +11,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -71,8 +72,8 @@ func Test_GetRepositoryTree(t *testing.T) {
 		{
 			name: "successfully get repository tree",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				"GET /repos/{owner}/{repo}":                  mockResponse(t, http.StatusOK, mockRepo),
-				"GET /repos/{owner}/{repo}/git/trees/{tree}": mockResponse(t, http.StatusOK, mockTree),
+				mock.GetReposByOwnerByRepo.Method + " " + mock.GetReposByOwnerByRepo.Pattern:                                   mockResponse(t, http.StatusOK, mockRepo),
+				mock.GetReposGitTreesByOwnerByRepoByTreeSha.Method + " " + mock.GetReposGitTreesByOwnerByRepoByTreeSha.Pattern: mockResponse(t, http.StatusOK, mockTree),
 			}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
@@ -82,8 +83,8 @@ func Test_GetRepositoryTree(t *testing.T) {
 		{
 			name: "successfully get repository tree with path filter",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				"GET /repos/{owner}/{repo}":                  mockResponse(t, http.StatusOK, mockRepo),
-				"GET /repos/{owner}/{repo}/git/trees/{tree}": mockResponse(t, http.StatusOK, mockTree),
+				mock.GetReposByOwnerByRepo.Method + " " + mock.GetReposByOwnerByRepo.Pattern:                                   mockResponse(t, http.StatusOK, mockRepo),
+				mock.GetReposGitTreesByOwnerByRepoByTreeSha.Method + " " + mock.GetReposGitTreesByOwnerByRepoByTreeSha.Pattern: mockResponse(t, http.StatusOK, mockTree),
 			}),
 			requestArgs: map[string]interface{}{
 				"owner":       "owner",
@@ -94,7 +95,7 @@ func Test_GetRepositoryTree(t *testing.T) {
 		{
 			name: "repository not found",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				"GET /repos/{owner}/{repo}": http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				mock.GetReposByOwnerByRepo.Method + " " + mock.GetReposByOwnerByRepo.Pattern: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusNotFound)
 					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
 				}),
@@ -109,8 +110,8 @@ func Test_GetRepositoryTree(t *testing.T) {
 		{
 			name: "tree not found",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				"GET /repos/{owner}/{repo}": mockResponse(t, http.StatusOK, mockRepo),
-				"GET /repos/{owner}/{repo}/git/trees/{tree}": http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				mock.GetReposByOwnerByRepo.Method + " " + mock.GetReposByOwnerByRepo.Pattern: mockResponse(t, http.StatusOK, mockRepo),
+				mock.GetReposGitTreesByOwnerByRepoByTreeSha.Method + " " + mock.GetReposGitTreesByOwnerByRepoByTreeSha.Pattern: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusNotFound)
 					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
 				}),
