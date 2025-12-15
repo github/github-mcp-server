@@ -347,7 +347,7 @@ func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 		"repo":              githubv4.String(repo),
 		"prNum":             githubv4.Int(int32(pullNumber)), //nolint:gosec // pullNumber is controlled by user input validation
 		"first":             githubv4.Int(*gqlParams.First),
-		"commentsPerThread": githubv4.Int(50),
+		"commentsPerThread": githubv4.Int(100),
 	}
 
 	// Add cursor if provided
