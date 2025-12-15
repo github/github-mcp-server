@@ -102,10 +102,18 @@ func TestNoDuplicateToolNames(t *testing.T) {
 	tools := AllTools(stubTranslation)
 	seen := make(map[string]bool)
 
+	// get_label is intentionally in both issues and labels toolsets for conformance
+	// with original behavior where it was registered in both
+	allowedDuplicates := map[string]bool{
+		"get_label": true,
+	}
+
 	for _, tool := range tools {
 		name := tool.Tool.Name
-		assert.False(t, seen[name],
-			"Duplicate tool name found: %q", name)
+		if !allowedDuplicates[name] {
+			assert.False(t, seen[name],
+				"Duplicate tool name found: %q", name)
+		}
 		seen[name] = true
 	}
 }
