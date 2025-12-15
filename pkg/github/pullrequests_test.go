@@ -105,9 +105,9 @@ func Test_GetPullRequest(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
 			gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
-			deps := ToolDependencies{
-				GetClient:       stubGetClientFn(client),
-				GetGQLClient:    stubGetGQLClientFn(gqlClient),
+			deps := BaseDeps{
+				Client:          client,
+				GQLClient:       gqlClient,
 				RepoAccessCache: stubRepoAccessCache(gqlClient, 5*time.Minute),
 				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
 			}
@@ -370,9 +370,9 @@ func Test_UpdatePullRequest(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
 			gqlClient := githubv4.NewClient(nil)
-			deps := ToolDependencies{
-				GetClient:    stubGetClientFn(client),
-				GetGQLClient: stubGetGQLClientFn(gqlClient),
+			deps := BaseDeps{
+				Client:    client,
+				GQLClient: gqlClient,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -561,9 +561,9 @@ func Test_UpdatePullRequest_Draft(t *testing.T) {
 			gqlClient := githubv4.NewClient(tc.mockedClient)
 
 			serverTool := UpdatePullRequest(translations.NullTranslationHelper)
-			deps := ToolDependencies{
-				GetClient:    stubGetClientFn(restClient),
-				GetGQLClient: stubGetGQLClientFn(gqlClient),
+			deps := BaseDeps{
+				Client:    restClient,
+				GQLClient: gqlClient,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -693,8 +693,8 @@ func Test_ListPullRequests(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
 			serverTool := ListPullRequests(translations.NullTranslationHelper)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -817,8 +817,8 @@ func Test_MergePullRequest(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
 			serverTool := MergePullRequest(translations.NullTranslationHelper)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -1123,8 +1123,8 @@ func Test_SearchPullRequests(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
 			serverTool := SearchPullRequests(translations.NullTranslationHelper)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -1276,8 +1276,8 @@ func Test_GetPullRequestFiles(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
-			deps := ToolDependencies{
-				GetClient:       stubGetClientFn(client),
+			deps := BaseDeps{
+				Client:          client,
 				RepoAccessCache: stubRepoAccessCache(githubv4.NewClient(githubv4mock.NewMockedHTTPClient()), 5*time.Minute),
 				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
 			}
@@ -1451,8 +1451,8 @@ func Test_GetPullRequestStatus(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
-			deps := ToolDependencies{
-				GetClient:       stubGetClientFn(client),
+			deps := BaseDeps{
+				Client:          client,
 				RepoAccessCache: stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute),
 				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
 			}
@@ -1589,8 +1589,8 @@ func Test_UpdatePullRequestBranch(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
 			serverTool := UpdatePullRequestBranch(translations.NullTranslationHelper)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -1763,8 +1763,8 @@ func Test_GetPullRequestComments(t *testing.T) {
 			cache := stubRepoAccessCache(gqlClient, 5*time.Minute)
 			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
-			deps := ToolDependencies{
-				GetClient:       stubGetClientFn(client),
+			deps := BaseDeps{
+				Client:          client,
 				RepoAccessCache: cache,
 				Flags:           flags,
 			}
@@ -1951,8 +1951,8 @@ func Test_GetPullRequestReviews(t *testing.T) {
 			cache := stubRepoAccessCache(gqlClient, 5*time.Minute)
 			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
-			deps := ToolDependencies{
-				GetClient:       stubGetClientFn(client),
+			deps := BaseDeps{
+				Client:          client,
 				RepoAccessCache: cache,
 				Flags:           flags,
 			}
@@ -2115,8 +2115,8 @@ func Test_CreatePullRequest(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
 			serverTool := CreatePullRequest(translations.NullTranslationHelper)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -2331,8 +2331,8 @@ func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 			// Setup client with mock
 			client := githubv4.NewClient(tc.mockedClient)
 			serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
-			deps := ToolDependencies{
-				GetGQLClient: stubGetGQLClientFn(client),
+			deps := BaseDeps{
+				GQLClient: client,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -2447,8 +2447,8 @@ func Test_RequestCopilotReview(t *testing.T) {
 
 			client := github.NewClient(tc.mockedClient)
 			serverTool := RequestCopilotReview(translations.NullTranslationHelper)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -2641,8 +2641,8 @@ func TestCreatePendingPullRequestReview(t *testing.T) {
 			// Setup client with mock
 			client := githubv4.NewClient(tc.mockedClient)
 			serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
-			deps := ToolDependencies{
-				GetGQLClient: stubGetGQLClientFn(client),
+			deps := BaseDeps{
+				GQLClient: client,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -2824,8 +2824,8 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 			// Setup client with mock
 			client := githubv4.NewClient(tc.mockedClient)
 			serverTool := AddCommentToPendingReview(translations.NullTranslationHelper)
-			deps := ToolDependencies{
-				GetGQLClient: stubGetGQLClientFn(client),
+			deps := BaseDeps{
+				GQLClient: client,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -2929,8 +2929,8 @@ func TestSubmitPendingPullRequestReview(t *testing.T) {
 			// Setup client with mock
 			client := githubv4.NewClient(tc.mockedClient)
 			serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
-			deps := ToolDependencies{
-				GetGQLClient: stubGetGQLClientFn(client),
+			deps := BaseDeps{
+				GQLClient: client,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -3028,8 +3028,8 @@ func TestDeletePendingPullRequestReview(t *testing.T) {
 			// Setup client with mock
 			client := githubv4.NewClient(tc.mockedClient)
 			serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
-			deps := ToolDependencies{
-				GetGQLClient: stubGetGQLClientFn(client),
+			deps := BaseDeps{
+				GQLClient: client,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -3119,8 +3119,8 @@ index 5d6e7b2..8a4f5c3 100644
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
 			serverTool := PullRequestRead(translations.NullTranslationHelper)
-			deps := ToolDependencies{
-				GetClient:       stubGetClientFn(client),
+			deps := BaseDeps{
+				Client:          client,
 				RepoAccessCache: stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute),
 				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
 			}
