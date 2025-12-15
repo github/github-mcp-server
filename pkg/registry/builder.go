@@ -125,8 +125,6 @@ func (b *Builder) Build() *Registry {
 		featureChecker:    b.featureChecker,
 	}
 
-	// Note: toolsByName map is lazy-initialized on first use via getToolsByName()
-
 	// Process toolsets and pre-compute metadata in a single pass
 	r.enabledToolsets, r.unrecognizedToolsets, r.toolsetIDs, r.toolsetIDSet, r.defaultToolsetIDs, r.toolsetDescriptions = b.processToolsets()
 
