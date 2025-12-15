@@ -128,7 +128,7 @@ func (b *Builder) Build() *Registry {
 	// Note: toolsByName map is lazy-initialized on first use via getToolsByName()
 
 	// Process toolsets and pre-compute metadata in a single pass
-	r.enabledToolsets, r.unrecognizedToolsets, r.toolsetIDs, r.defaultToolsetIDs, r.toolsetDescriptions = b.processToolsets()
+	r.enabledToolsets, r.unrecognizedToolsets, r.toolsetIDs, r.toolsetIDSet, r.defaultToolsetIDs, r.toolsetDescriptions = b.processToolsets()
 
 	// Process additional tools (resolve aliases)
 	if len(b.additionalTools) > 0 {
@@ -150,9 +150,10 @@ func (b *Builder) Build() *Registry {
 // - enabledToolsets map (nil means all enabled)
 // - unrecognizedToolsets list for warnings
 // - allToolsetIDs sorted list of all toolset IDs
+// - toolsetIDSet map for O(1) HasToolset lookup
 // - defaultToolsetIDs sorted list of default toolset IDs
 // - toolsetDescriptions map of toolset ID to description
-func (b *Builder) processToolsets() (map[ToolsetID]bool, []string, []ToolsetID, []ToolsetID, map[ToolsetID]string) {
+func (b *Builder) processToolsets() (map[ToolsetID]bool, []string, []ToolsetID, map[ToolsetID]bool, []ToolsetID, map[ToolsetID]string) {
 	// Single pass: collect all toolset metadata together
 	validIDs := make(map[ToolsetID]bool)
 	defaultIDs := make(map[ToolsetID]bool)
@@ -207,7 +208,7 @@ func (b *Builder) processToolsets() (map[ToolsetID]bool, []string, []ToolsetID, 
 	// Check for "all" keyword - enables all toolsets
 	for _, id := range toolsetIDs {
 		if strings.TrimSpace(id) == "all" {
-			return nil, nil, allToolsetIDs, defaultToolsetIDList, descriptions // nil means all enabled
+			return nil, nil, allToolsetIDs, validIDs, defaultToolsetIDList, descriptions // nil means all enabled
 		}
 	}
 
@@ -247,12 +248,12 @@ func (b *Builder) processToolsets() (map[ToolsetID]bool, []string, []ToolsetID, 
 	}
 
 	if len(expanded) == 0 {
-		return make(map[ToolsetID]bool), unrecognized, allToolsetIDs, defaultToolsetIDList, descriptions
+		return make(map[ToolsetID]bool), unrecognized, allToolsetIDs, validIDs, defaultToolsetIDList, descriptions
 	}
 
 	enabledToolsets := make(map[ToolsetID]bool, len(expanded))
 	for _, id := range expanded {
 		enabledToolsets[id] = true
 	}
-	return enabledToolsets, unrecognized, allToolsetIDs, defaultToolsetIDList, descriptions
+	return enabledToolsets, unrecognized, allToolsetIDs, validIDs, defaultToolsetIDList, descriptions
 }
