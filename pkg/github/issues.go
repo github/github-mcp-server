@@ -11,8 +11,8 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/lockdown"
+	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/sanitize"
-	"github.com/github/github-mcp-server/pkg/toolsets"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-viper/mapstructure/v2"
@@ -230,7 +230,7 @@ func fragmentToIssue(fragment IssueFragment) *github.Issue {
 }
 
 // IssueRead creates a tool to get details of a specific issue in a GitHub repository.
-func IssueRead(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func IssueRead(t translations.TranslationHelperFunc) registry.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -310,13 +310,13 @@ Options are:
 
 				switch method {
 				case "get":
-					result, err := GetIssue(ctx, client, deps.RepoAccessCache, owner, repo, issueNumber, deps.Flags)
+					result, err := GetIssue(ctx, client, deps.GetRepoAccessCache(), owner, repo, issueNumber, deps.GetFlags())
 					return result, nil, err
 				case "get_comments":
-					result, err := GetIssueComments(ctx, client, deps.RepoAccessCache, owner, repo, issueNumber, pagination, deps.Flags)
+					result, err := GetIssueComments(ctx, client, deps.GetRepoAccessCache(), owner, repo, issueNumber, pagination, deps.GetFlags())
 					return result, nil, err
 				case "get_sub_issues":
-					result, err := GetSubIssues(ctx, client, deps.RepoAccessCache, owner, repo, issueNumber, pagination, deps.Flags)
+					result, err := GetSubIssues(ctx, client, deps.GetRepoAccessCache(), owner, repo, issueNumber, pagination, deps.GetFlags())
 					return result, nil, err
 				case "get_labels":
 					result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
@@ -545,7 +545,7 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 }
 
 // ListIssueTypes creates a tool to list defined issue types for an organization. This can be used to understand supported issue type values for creating or updating issues.
-func ListIssueTypes(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func ListIssueTypes(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
@@ -602,7 +602,7 @@ func ListIssueTypes(t translations.TranslationHelperFunc) toolsets.ServerTool {
 }
 
 // AddIssueComment creates a tool to add a comment to an issue.
-func AddIssueComment(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func AddIssueComment(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
@@ -687,7 +687,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) toolsets.ServerTool {
 }
 
 // SubIssueWrite creates a tool to add a sub-issue to a parent issue.
-func SubIssueWrite(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func SubIssueWrite(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
@@ -916,7 +916,7 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 }
 
 // SearchIssues creates a tool to search for issues.
-func SearchIssues(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func SearchIssues(t translations.TranslationHelperFunc) registry.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -979,7 +979,7 @@ func SearchIssues(t translations.TranslationHelperFunc) toolsets.ServerTool {
 }
 
 // IssueWrite creates a tool to create a new or update an existing issue in a GitHub repository.
-func IssueWrite(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func IssueWrite(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
@@ -1338,7 +1338,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 }
 
 // ListIssues creates a tool to list and filter repository issues
-func ListIssues(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func ListIssues(t translations.TranslationHelperFunc) registry.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -1606,7 +1606,7 @@ func (d *mvpDescription) String() string {
 	return sb.String()
 }
 
-func AssignCopilotToIssue(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func AssignCopilotToIssue(t translations.TranslationHelperFunc) registry.ServerTool {
 	description := mvpDescription{
 		summary: "Assign Copilot to a specific issue in a GitHub repository.",
 		outcomes: []string{
@@ -1805,8 +1805,8 @@ func parseISOTimestamp(timestamp string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("invalid ISO 8601 timestamp: %s (supported formats: YYYY-MM-DDThh:mm:ssZ or YYYY-MM-DD)", timestamp)
 }
 
-func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) toolsets.ServerPrompt {
-	return toolsets.NewServerPrompt(
+func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) registry.ServerPrompt {
+	return registry.NewServerPrompt(
 		ToolsetMetadataIssues,
 		mcp.Prompt{
 			Name:        "AssignCodingAgent",

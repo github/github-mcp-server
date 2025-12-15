@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/toolsets"
+	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -16,7 +16,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func GetCodeScanningAlert(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func GetCodeScanningAlert(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataCodeSecurity,
 		mcp.Tool{
@@ -94,7 +94,7 @@ func GetCodeScanningAlert(t translations.TranslationHelperFunc) toolsets.ServerT
 	)
 }
 
-func ListCodeScanningAlerts(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func ListCodeScanningAlerts(t translations.TranslationHelperFunc) registry.ServerTool {
 	return NewTool(
 		ToolsetMetadataCodeSecurity,
 		mcp.Tool{

@@ -178,7 +178,7 @@ func setupMCPClient(t *testing.T, options ...clientOption) *mcp.ClientSession {
 		// so that there is a shared setup mechanism, but let's wait till we feel more friction.
 		enabledToolsets := opts.enabledToolsets
 		if enabledToolsets == nil {
-			enabledToolsets = github.NewRegistry(translations.NullTranslationHelper).DefaultToolsetIDs()
+			enabledToolsets = github.NewRegistry(translations.NullTranslationHelper).Build().DefaultToolsetIDs()
 		}
 
 		ghServer, err := ghmcp.NewMCPServer(ghmcp.MCPServerConfig{
