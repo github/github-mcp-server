@@ -382,3 +382,15 @@ func CleanTools(toolNames []string) []string {
 
 	return result
 }
+
+// GetDefaultToolsetIDs returns the IDs of toolsets marked as Default.
+// This is a convenience function that builds a registry to determine defaults.
+func GetDefaultToolsetIDs() []string {
+	r := NewRegistry(stubTranslator).Build()
+	ids := r.DefaultToolsetIDs()
+	result := make([]string, len(ids))
+	for i, id := range ids {
+		result[i] = string(id)
+	}
+	return result
+}

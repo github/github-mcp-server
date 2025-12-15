@@ -1,0 +1,313 @@
+#!/bin/bash
+set -e
+
+# Conformance test script for comparing MCP server behavior between branches
+# Builds both main and current branch, runs various flag combinations,
+# and produces a conformance report with timing and diffs.
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+REPORT_DIR="$PROJECT_DIR/conformance-report"
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+echo -e "${BLUE}=== MCP Server Conformance Test ===${NC}"
+echo "Current branch: $CURRENT_BRANCH"
+echo "Report directory: $REPORT_DIR"
+
+# Find the common ancestor
+MERGE_BASE=$(git merge-base HEAD origin/main)
+echo "Comparing against merge-base: $MERGE_BASE"
+echo ""
+
+# Create report directory
+rm -rf "$REPORT_DIR"
+mkdir -p "$REPORT_DIR"/{main,branch,diffs}
+
+# Build binaries
+echo -e "${YELLOW}Building binaries...${NC}"
+
+echo "Building current branch ($CURRENT_BRANCH)..."
+go build -o "$REPORT_DIR/branch/github-mcp-server" ./cmd/github-mcp-server
+BRANCH_BUILD_OK=$?
+
+echo "Building main branch (using temp worktree at merge-base)..."
+TEMP_WORKTREE=$(mktemp -d)
+git worktree add --quiet "$TEMP_WORKTREE" "$MERGE_BASE"
+(cd "$TEMP_WORKTREE" && go build -o "$REPORT_DIR/main/github-mcp-server" ./cmd/github-mcp-server)
+MAIN_BUILD_OK=$?
+git worktree remove --force "$TEMP_WORKTREE"
+
+if [ $BRANCH_BUILD_OK -ne 0 ] || [ $MAIN_BUILD_OK -ne 0 ]; then
+    echo -e "${RED}Build failed!${NC}"
+    exit 1
+fi
+
+echo -e "${GREEN}Both binaries built successfully${NC}"
+echo ""
+
+# MCP JSON-RPC messages
+INIT_MSG='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"conformance-test","version":"1.0.0"}}}'
+INITIALIZED_MSG='{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}'
+LIST_TOOLS_MSG='{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+LIST_RESOURCES_MSG='{"jsonrpc":"2.0","id":3,"method":"resources/listTemplates","params":{}}'
+LIST_PROMPTS_MSG='{"jsonrpc":"2.0","id":4,"method":"prompts/list","params":{}}'
+
+# Function to normalize JSON for comparison
+# Sorts all arrays (including nested ones) and formats consistently
+normalize_json() {
+    local file="$1"
+    if [ -s "$file" ]; then
+        # Deep sort: sort all arrays recursively, then sort keys
+        jq -S 'walk(if type == "array" then sort_by(tostring) else . end)' "$file" 2>/dev/null > "${file}.tmp" && mv "${file}.tmp" "$file"
+    fi
+}
+
+# Function to run MCP server and capture output with timing
+run_mcp_test() {
+    local binary="$1"
+    local name="$2"
+    local flags="$3"
+    local output_prefix="$4"
+    
+    local start_time end_time duration
+    start_time=$(date +%s.%N)
+    
+    # Run the server with all list commands - each response is on its own line
+    output=$(
+        (
+            echo "$INIT_MSG"
+            echo "$INITIALIZED_MSG"
+            echo "$LIST_TOOLS_MSG"
+            echo "$LIST_RESOURCES_MSG"
+            echo "$LIST_PROMPTS_MSG"
+            sleep 0.5
+        ) | GITHUB_PERSONAL_ACCESS_TOKEN=1 $binary stdio $flags 2>/dev/null
+    )
+    
+    end_time=$(date +%s.%N)
+    duration=$(echo "$end_time - $start_time" | bc)
+    
+    # Parse and save each response by matching JSON-RPC id
+    # Each line is a separate JSON response
+    echo "$output" | while IFS= read -r line; do
+        id=$(echo "$line" | jq -r '.id // empty' 2>/dev/null)
+        case "$id" in
+            1) echo "$line" | jq -S '.' > "${output_prefix}_initialize.json" 2>/dev/null ;;
+            2) echo "$line" | jq -S '.' > "${output_prefix}_tools.json" 2>/dev/null ;;
+            3) echo "$line" | jq -S '.' > "${output_prefix}_resources.json" 2>/dev/null ;;
+            4) echo "$line" | jq -S '.' > "${output_prefix}_prompts.json" 2>/dev/null ;;
+        esac
+    done
+    
+    # Create empty files if not created (in case of errors or missing responses)
+    touch "${output_prefix}_initialize.json" "${output_prefix}_tools.json" \
+          "${output_prefix}_resources.json" "${output_prefix}_prompts.json"
+    
+    # Normalize all JSON files for consistent comparison (sorts arrays, keys)
+    for endpoint in initialize tools resources prompts; do
+        normalize_json "${output_prefix}_${endpoint}.json"
+    done
+    
+    echo "$duration"
+}
+
+# Test configurations - array of "name|flags"
+declare -a TEST_CONFIGS=(
+    "default|"
+    "read-only|--read-only"
+    "dynamic-toolsets|--dynamic-toolsets"
+    "read-only+dynamic|--read-only --dynamic-toolsets"
+    "toolsets-repos|--toolsets=repos"
+    "toolsets-issues|--toolsets=issues"
+    "toolsets-pull_requests|--toolsets=pull_requests"
+    "toolsets-repos,issues|--toolsets=repos,issues"
+    "toolsets-all|--toolsets=all"
+    "tools-get_me|--tools=get_me"
+    "tools-get_me,list_issues|--tools=get_me,list_issues"
+    "toolsets-repos+read-only|--toolsets=repos --read-only"
+    "toolsets-all+dynamic|--toolsets=all --dynamic-toolsets"
+    "toolsets-repos+dynamic|--toolsets=repos --dynamic-toolsets"
+    "toolsets-repos,issues+dynamic|--toolsets=repos,issues --dynamic-toolsets"
+)
+
+# Summary arrays
+declare -a TEST_NAMES
+declare -a MAIN_TIMES
+declare -a BRANCH_TIMES
+declare -a DIFF_STATUS
+
+echo -e "${YELLOW}Running conformance tests...${NC}"
+echo ""
+
+for config in "${TEST_CONFIGS[@]}"; do
+    IFS='|' read -r test_name flags <<< "$config"
+    
+    echo -e "${BLUE}Test: ${test_name}${NC}"
+    echo "  Flags: ${flags:-<none>}"
+    
+    # Create output directories
+    mkdir -p "$REPORT_DIR/main/$test_name"
+    mkdir -p "$REPORT_DIR/branch/$test_name"
+    mkdir -p "$REPORT_DIR/diffs/$test_name"
+    
+    # Run main version
+    main_time=$(run_mcp_test "$REPORT_DIR/main/github-mcp-server" "main" "$flags" "$REPORT_DIR/main/$test_name/output")
+    echo "  Main:   ${main_time}s"
+    
+    # Run branch version
+    branch_time=$(run_mcp_test "$REPORT_DIR/branch/github-mcp-server" "branch" "$flags" "$REPORT_DIR/branch/$test_name/output")
+    echo "  Branch: ${branch_time}s"
+    
+    # Calculate time difference
+    time_diff=$(echo "$branch_time - $main_time" | bc)
+    if (( $(echo "$time_diff > 0" | bc -l) )); then
+        echo -e "  Δ Time: ${RED}+${time_diff}s (slower)${NC}"
+    else
+        echo -e "  Δ Time: ${GREEN}${time_diff}s (faster)${NC}"
+    fi
+    
+    # Generate diffs for each endpoint
+    has_diff=false
+    for endpoint in initialize tools resources prompts; do
+        main_file="$REPORT_DIR/main/$test_name/output_${endpoint}.json"
+        branch_file="$REPORT_DIR/branch/$test_name/output_${endpoint}.json"
+        diff_file="$REPORT_DIR/diffs/$test_name/${endpoint}.diff"
+        
+        if ! diff -u "$main_file" "$branch_file" > "$diff_file" 2>/dev/null; then
+            has_diff=true
+            lines=$(wc -l < "$diff_file" | tr -d ' ')
+            echo -e "  ${YELLOW}${endpoint}: DIFF (${lines} lines)${NC}"
+        else
+            rm -f "$diff_file"  # No diff, remove empty file
+            echo -e "  ${GREEN}${endpoint}: OK${NC}"
+        fi
+    done
+    
+    # Store results
+    TEST_NAMES+=("$test_name")
+    MAIN_TIMES+=("$main_time")
+    BRANCH_TIMES+=("$branch_time")
+    if [ "$has_diff" = true ]; then
+        DIFF_STATUS+=("DIFF")
+    else
+        DIFF_STATUS+=("OK")
+    fi
+    
+    echo ""
+done
+
+# Generate summary report
+REPORT_FILE="$REPORT_DIR/CONFORMANCE_REPORT.md"
+
+cat > "$REPORT_FILE" << EOF
+# MCP Server Conformance Report
+
+Generated: $(date)
+Current Branch: $CURRENT_BRANCH
+Compared Against: merge-base ($MERGE_BASE)
+
+## Summary
+
+| Test | Main Time | Branch Time | Δ Time | Status |
+|------|-----------|-------------|--------|--------|
+EOF
+
+total_main=0
+total_branch=0
+diff_count=0
+ok_count=0
+
+for i in "${!TEST_NAMES[@]}"; do
+    name="${TEST_NAMES[$i]}"
+    main_t="${MAIN_TIMES[$i]}"
+    branch_t="${BRANCH_TIMES[$i]}"
+    status="${DIFF_STATUS[$i]}"
+    
+    delta=$(echo "$branch_t - $main_t" | bc)
+    if (( $(echo "$delta > 0" | bc -l) )); then
+        delta_str="+${delta}s"
+    else
+        delta_str="${delta}s"
+    fi
+    
+    if [ "$status" = "DIFF" ]; then
+        status_str="⚠️ DIFF"
+        ((diff_count++)) || true
+    else
+        status_str="✅ OK"
+        ((ok_count++)) || true
+    fi
+    
+    total_main=$(echo "$total_main + $main_t" | bc)
+    total_branch=$(echo "$total_branch + $branch_t" | bc)
+    
+    echo "| $name | ${main_t}s | ${branch_t}s | $delta_str | $status_str |" >> "$REPORT_FILE"
+done
+
+total_delta=$(echo "$total_branch - $total_main" | bc)
+if (( $(echo "$total_delta > 0" | bc -l) )); then
+    total_delta_str="+${total_delta}s"
+else
+    total_delta_str="${total_delta}s"
+fi
+
+cat >> "$REPORT_FILE" << EOF
+| **TOTAL** | **${total_main}s** | **${total_branch}s** | **$total_delta_str** | **$ok_count OK / $diff_count DIFF** |
+
+## Statistics
+
+- **Tests Passed (no diff):** $ok_count
+- **Tests with Differences:** $diff_count
+- **Total Main Time:** ${total_main}s
+- **Total Branch Time:** ${total_branch}s
+- **Overall Time Delta:** $total_delta_str
+
+## Detailed Diffs
+
+EOF
+
+# Add diff details to report
+for i in "${!TEST_NAMES[@]}"; do
+    name="${TEST_NAMES[$i]}"
+    status="${DIFF_STATUS[$i]}"
+    
+    if [ "$status" = "DIFF" ]; then
+        echo "### $name" >> "$REPORT_FILE"
+        echo "" >> "$REPORT_FILE"
+        
+        for endpoint in initialize tools resources prompts; do
+            diff_file="$REPORT_DIR/diffs/$name/${endpoint}.diff"
+            if [ -f "$diff_file" ] && [ -s "$diff_file" ]; then
+                echo "#### ${endpoint}" >> "$REPORT_FILE"
+                echo '```diff' >> "$REPORT_FILE"
+                cat "$diff_file" >> "$REPORT_FILE"
+                echo '```' >> "$REPORT_FILE"
+                echo "" >> "$REPORT_FILE"
+            fi
+        done
+    fi
+done
+
+echo -e "${BLUE}=== Conformance Test Complete ===${NC}"
+echo ""
+echo -e "Report: ${GREEN}$REPORT_FILE${NC}"
+echo ""
+echo "Summary:"
+echo "  Tests passed: $ok_count"
+echo "  Tests with diffs: $diff_count"
+echo "  Total main time: ${total_main}s"
+echo "  Total branch time: ${total_branch}s"
+echo "  Time delta: $total_delta_str"
+
+if [ $diff_count -gt 0 ]; then
+    echo ""
+    echo -e "${YELLOW}⚠️  Some tests have differences. Review the diffs in:${NC}"
+    echo "  $REPORT_DIR/diffs/"
+fi
