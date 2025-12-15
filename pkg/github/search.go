@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/toolsets"
+	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -17,7 +17,7 @@ import (
 )
 
 // SearchRepositories creates a tool to search for GitHub repositories.
-func SearchRepositories(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func SearchRepositories(t translations.TranslationHelperFunc) registry.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -167,7 +167,7 @@ func SearchRepositories(t translations.TranslationHelperFunc) toolsets.ServerToo
 }
 
 // SearchCode creates a tool to search for code across GitHub repositories.
-func SearchCode(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func SearchCode(t translations.TranslationHelperFunc) registry.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -351,7 +351,7 @@ func userOrOrgHandler(accountType string, deps ToolDependencies) mcp.ToolHandler
 }
 
 // SearchUsers creates a tool to search for GitHub users.
-func SearchUsers(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func SearchUsers(t translations.TranslationHelperFunc) registry.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -392,7 +392,7 @@ func SearchUsers(t translations.TranslationHelperFunc) toolsets.ServerTool {
 }
 
 // SearchOrgs creates a tool to search for GitHub organizations.
-func SearchOrgs(t translations.TranslationHelperFunc) toolsets.ServerTool {
+func SearchOrgs(t translations.TranslationHelperFunc) registry.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{

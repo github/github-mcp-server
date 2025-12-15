@@ -88,8 +88,8 @@ func Test_GetCodeScanningAlert(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := toolDef.Handler(deps)
 
@@ -220,8 +220,8 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := toolDef.Handler(deps)
 

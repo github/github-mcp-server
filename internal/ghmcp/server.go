@@ -18,7 +18,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	mcplog "github.com/github/github-mcp-server/pkg/log"
 	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/github/github-mcp-server/pkg/toolsets"
+	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v79/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -69,146 +69,153 @@ type MCPServerConfig struct {
 	RepoAccessTTL *time.Duration
 }
 
+// githubClients holds all the GitHub API clients created for a server instance.
+type githubClients struct {
+	rest       *gogithub.Client
+	gql        *githubv4.Client
+	gqlHTTP    *http.Client // retained for middleware to modify transport
+	raw        *raw.Client
+	repoAccess *lockdown.RepoAccessCache
+}
+
+// createGitHubClients creates all the GitHub API clients needed by the server.
+func createGitHubClients(cfg MCPServerConfig, apiHost apiHost) (*githubClients, error) {
+	// Construct REST client
+	restClient := gogithub.NewClient(nil).WithAuthToken(cfg.Token)
+	restClient.UserAgent = fmt.Sprintf("github-mcp-server/%s", cfg.Version)
+	restClient.BaseURL = apiHost.baseRESTURL
+	restClient.UploadURL = apiHost.uploadURL
+
+	// Construct GraphQL client
+	// We use NewEnterpriseClient unconditionally since we already parsed the API host
+	gqlHTTPClient := &http.Client{
+		Transport: &bearerAuthTransport{
+			transport: http.DefaultTransport,
+			token:     cfg.Token,
+		},
+	}
+	gqlClient := githubv4.NewEnterpriseClient(apiHost.graphqlURL.String(), gqlHTTPClient)
+
+	// Create raw content client (shares REST client's HTTP transport)
+	rawClient := raw.NewClient(restClient, apiHost.rawURL)
+
+	// Set up repo access cache for lockdown mode
+	var repoAccessCache *lockdown.RepoAccessCache
+	if cfg.LockdownMode {
+		opts := []lockdown.RepoAccessOption{
+			lockdown.WithLogger(cfg.Logger.With("component", "lockdown")),
+		}
+		if cfg.RepoAccessTTL != nil {
+			opts = append(opts, lockdown.WithTTL(*cfg.RepoAccessTTL))
+		}
+		repoAccessCache = lockdown.GetInstance(gqlClient, opts...)
+	}
+
+	return &githubClients{
+		rest:       restClient,
+		gql:        gqlClient,
+		gqlHTTP:    gqlHTTPClient,
+		raw:        rawClient,
+		repoAccess: repoAccessCache,
+	}, nil
+}
+
+// resolveEnabledToolsets determines which toolsets should be enabled based on config.
+// Returns nil for "use defaults", empty slice for "none", or explicit list.
+func resolveEnabledToolsets(cfg MCPServerConfig) []string {
+	if cfg.EnabledToolsets != nil {
+		return cfg.EnabledToolsets
+	}
+	if cfg.DynamicToolsets {
+		// Dynamic mode with no toolsets specified: start empty so users enable on demand
+		return []string{}
+	}
+	// nil means "use defaults" in WithToolsets
+	return nil
+}
+
 func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	apiHost, err := parseAPIHost(cfg.Host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
 	}
 
-	// Construct our REST client
-	restClient := gogithub.NewClient(nil).WithAuthToken(cfg.Token)
-	restClient.UserAgent = fmt.Sprintf("github-mcp-server/%s", cfg.Version)
-	restClient.BaseURL = apiHost.baseRESTURL
-	restClient.UploadURL = apiHost.uploadURL
-
-	// Construct our GraphQL client
-	// We're using NewEnterpriseClient here unconditionally as opposed to NewClient because we already
-	// did the necessary API host parsing so that github.com will return the correct URL anyway.
-	gqlHTTPClient := &http.Client{
-		Transport: &bearerAuthTransport{
-			transport: http.DefaultTransport,
-			token:     cfg.Token,
-		},
-	} // We're going to wrap the Transport later in beforeInit
-	gqlClient := githubv4.NewEnterpriseClient(apiHost.graphqlURL.String(), gqlHTTPClient)
-	repoAccessOpts := []lockdown.RepoAccessOption{}
-	if cfg.RepoAccessTTL != nil {
-		repoAccessOpts = append(repoAccessOpts, lockdown.WithTTL(*cfg.RepoAccessTTL))
+	clients, err := createGitHubClients(cfg, apiHost)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GitHub clients: %w", err)
 	}
 
-	repoAccessLogger := cfg.Logger.With("component", "lockdown")
-	repoAccessOpts = append(repoAccessOpts, lockdown.WithLogger(repoAccessLogger))
-	var repoAccessCache *lockdown.RepoAccessCache
-	if cfg.LockdownMode {
-		repoAccessCache = lockdown.GetInstance(gqlClient, repoAccessOpts...)
-	}
+	enabledToolsets := resolveEnabledToolsets(cfg)
 
-	// Determine enabled toolsets based on configuration:
-	// - nil means "use defaults" (unless dynamic mode without explicit toolsets)
-	// - empty slice means "no toolsets" (for dynamic mode to enable on demand)
-	// - explicit list means "use these toolsets"
-	var enabledToolsets []string
-	if cfg.EnabledToolsets != nil {
-		enabledToolsets = cfg.EnabledToolsets
-	} else if cfg.DynamicToolsets {
-		// Dynamic mode with no toolsets specified: start with no toolsets enabled
-		// so users can enable them on demand via the dynamic tools
-		enabledToolsets = []string{}
-	}
-	// else: enabledToolsets stays nil, which means "use defaults" in WithToolsets
-
-	// Generate instructions based on enabled toolsets
-	instructions := github.GenerateInstructions(enabledToolsets)
-
-	getClient := func(_ context.Context) (*gogithub.Client, error) {
-		return restClient, nil // closing over client
-	}
-
-	getGQLClient := func(_ context.Context) (*githubv4.Client, error) {
-		return gqlClient, nil // closing over client
-	}
-
-	getRawClient := func(ctx context.Context) (*raw.Client, error) {
-		client, err := getClient(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-		}
-		return raw.NewClient(client, apiHost.rawURL), nil // closing over client
-	}
-
+	// Create the MCP server
 	ghServer := github.NewServer(cfg.Version, &mcp.ServerOptions{
-		Instructions:      instructions,
-		Logger:            cfg.Logger,
-		CompletionHandler: github.CompletionsHandler(getClient),
+		Instructions: github.GenerateInstructions(enabledToolsets),
+		Logger:       cfg.Logger,
+		CompletionHandler: github.CompletionsHandler(func(_ context.Context) (*gogithub.Client, error) {
+			return clients.rest, nil
+		}),
 	})
 
 	// Add middlewares
 	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
-	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, restClient, gqlHTTPClient))
+	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.rest, clients.gqlHTTP))
 
-	// Create the dependencies struct for tool handlers
-	deps := github.ToolDependencies{
-		GetClient:         getClient,
-		GetGQLClient:      getGQLClient,
-		GetRawClient:      getRawClient,
-		RepoAccessCache:   repoAccessCache,
-		T:                 cfg.Translator,
-		Flags:             github.FeatureFlags{LockdownMode: cfg.LockdownMode},
-		ContentWindowSize: cfg.ContentWindowSize,
-	}
+	// Create dependencies for tool handlers
+	deps := github.NewBaseDeps(
+		clients.rest,
+		clients.gql,
+		clients.raw,
+		clients.repoAccess,
+		cfg.Translator,
+		github.FeatureFlags{LockdownMode: cfg.LockdownMode},
+		cfg.ContentWindowSize,
+	)
 
-	// Create toolset group with all tools, resources, and prompts (stateless)
-	r := github.NewRegistry(cfg.Translator)
-
-	// Clean tool names (WithTools will resolve any deprecated aliases)
-	enabledTools := github.CleanTools(cfg.EnabledTools)
-
-	// Apply filters based on configuration
-	// - WithDeprecatedToolAliases: adds backward compatibility aliases
-	// - WithReadOnly: filters out write tools when true
-	// - WithToolsets: nil=defaults, empty=none, handles "all"/"default" keywords
-	// - WithTools: additional tools that bypass toolset filtering (additive, resolves aliases)
-	// - WithFeatureChecker: filters based on feature flags
-	filteredReg := r.
-		WithDeprecatedToolAliases(github.DeprecatedToolAliases).
+	// Build and register the tool/resource/prompt registry
+	registry := github.NewRegistry(cfg.Translator).
+		WithDeprecatedAliases(github.DeprecatedToolAliases).
 		WithReadOnly(cfg.ReadOnly).
 		WithToolsets(enabledToolsets).
-		WithTools(enabledTools).
-		WithFeatureChecker(createFeatureChecker(cfg.EnabledFeatures))
+		WithTools(github.CleanTools(cfg.EnabledTools)).
+		WithFeatureChecker(createFeatureChecker(cfg.EnabledFeatures)).
+		Build()
 
-	// Warn about unrecognized toolset names (likely typos)
-	if unrecognized := filteredReg.UnrecognizedToolsets(); len(unrecognized) > 0 {
+	if unrecognized := registry.UnrecognizedToolsets(); len(unrecognized) > 0 {
 		fmt.Fprintf(os.Stderr, "Warning: unrecognized toolsets ignored: %s\n", strings.Join(unrecognized, ", "))
 	}
 
-	// Register all mcp functionality with the server
-	// Use background context for local server (no per-request actor context)
-	filteredReg.RegisterAll(context.Background(), ghServer, deps)
+	// Register GitHub tools/resources/prompts from the registry.
+	// In dynamic mode with no explicit toolsets, this is a no-op since enabledToolsets
+	// is empty - users enable toolsets at runtime via the dynamic tools below (but can
+	// enable toolsets or tools explicitly that do need registration).
+	registry.RegisterAll(context.Background(), ghServer, deps)
 
-	// Register dynamic toolset management if configured
-	// Dynamic tools get access to the filtered toolset group which tracks enabled state.
-	// ToolsForToolset() returns all tools for a toolset regardless of enabled status,
-	// so dynamic tools can enable any toolset at runtime.
+	// Register dynamic toolset management tools (enable/disable) - these are separate
+	// meta-tools that control the registry, not part of the registry itself
 	if cfg.DynamicToolsets {
-		dynamicDeps := github.DynamicToolDependencies{
-			Server:   ghServer,
-			Registry: filteredReg,
-			ToolDeps: deps,
-			T:        cfg.Translator,
-		}
-		dynamicTools := github.DynamicTools(filteredReg)
-		for _, tool := range dynamicTools {
-			tool.RegisterFunc(ghServer, dynamicDeps)
-		}
+		registerDynamicTools(ghServer, registry, deps, cfg.Translator)
 	}
 
 	return ghServer, nil
 }
 
+// registerDynamicTools adds the dynamic toolset enable/disable tools to the server.
+func registerDynamicTools(server *mcp.Server, registry *registry.Registry, deps *github.BaseDeps, t translations.TranslationHelperFunc) {
+	dynamicDeps := github.DynamicToolDependencies{
+		Server:   server,
+		Registry: registry,
+		ToolDeps: deps,
+		T:        t,
+	}
+	for _, tool := range github.DynamicTools(registry) {
+		tool.RegisterFunc(server, dynamicDeps)
+	}
+}
+
 // createFeatureChecker returns a FeatureFlagChecker that checks if a flag name
 // is present in the provided list of enabled features. For the local server,
 // this is populated from the --features CLI flag.
-func createFeatureChecker(enabledFeatures []string) toolsets.FeatureFlagChecker {
+func createFeatureChecker(enabledFeatures []string) registry.FeatureFlagChecker {
 	// Build a set for O(1) lookup
 	featureSet := make(map[string]bool, len(enabledFeatures))
 	for _, f := range enabledFeatures {
