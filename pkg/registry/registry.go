@@ -41,6 +41,7 @@ type Registry struct {
 
 	// Pre-computed toolset metadata (set during Build)
 	toolsetIDs          []ToolsetID          // sorted list of all toolset IDs
+	toolsetIDSet        map[ToolsetID]bool   // set for O(1) HasToolset lookup
 	defaultToolsetIDs   []ToolsetID          // sorted list of default toolset IDs
 	toolsetDescriptions map[ToolsetID]string // toolset ID -> description
 
@@ -244,22 +245,7 @@ func (r *Registry) FindToolByName(toolName string) (*ServerTool, ToolsetID, erro
 
 // HasToolset checks if any tool/resource/prompt belongs to the given toolset.
 func (r *Registry) HasToolset(toolsetID ToolsetID) bool {
-	for i := range r.tools {
-		if r.tools[i].Toolset.ID == toolsetID {
-			return true
-		}
-	}
-	for i := range r.resourceTemplates {
-		if r.resourceTemplates[i].Toolset.ID == toolsetID {
-			return true
-		}
-	}
-	for i := range r.prompts {
-		if r.prompts[i].Toolset.ID == toolsetID {
-			return true
-		}
-	}
-	return false
+	return r.toolsetIDSet[toolsetID]
 }
 
 // AllTools returns all tools without any filtering, sorted deterministically.
