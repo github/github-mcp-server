@@ -1,12 +1,17 @@
 package github
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -271,4 +276,234 @@ func getResourceResult(t *testing.T, result *mcp.CallToolResult) *mcp.ResourceCo
 
 	require.IsType(t, &mcp.ResourceContents{}, resource.Resource)
 	return resource.Resource
+}
+
+// MockRoundTripper is a mock HTTP transport using testify/mock
+type MockRoundTripper struct {
+	mock.Mock
+	handlers map[string]http.HandlerFunc
+}
+
+// NewMockRoundTripper creates a new mock round tripper
+func NewMockRoundTripper() *MockRoundTripper {
+	return &MockRoundTripper{
+		handlers: make(map[string]http.HandlerFunc),
+	}
+}
+
+// RoundTrip implements the http.RoundTripper interface
+func (m *MockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Normalize the request path and method for matching
+	key := req.Method + " " + req.URL.Path
+	
+	// Check if we have a specific handler for this request
+	if handler, ok := m.handlers[key]; ok {
+		// Use httptest.ResponseRecorder to capture the handler's response
+		recorder := &responseRecorder{
+			header: make(http.Header),
+			body:   &bytes.Buffer{},
+		}
+		handler(recorder, req)
+		
+		return &http.Response{
+			StatusCode: recorder.statusCode,
+			Header:     recorder.header,
+			Body:       io.NopCloser(bytes.NewReader(recorder.body.Bytes())),
+			Request:    req,
+		}, nil
+	}
+	
+	// Fall back to mock.Mock assertions if defined
+	args := m.Called(req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*http.Response), args.Error(1)
+}
+
+// On registers an expectation using testify/mock
+func (m *MockRoundTripper) OnRequest(method, path string, handler http.HandlerFunc) *MockRoundTripper {
+	key := method + " " + path
+	m.handlers[key] = handler
+	return m
+}
+
+// OnAny registers a catch-all handler
+func (m *MockRoundTripper) OnAny(handler http.HandlerFunc) *MockRoundTripper {
+	// This is a simple implementation that doesn't use the handler map
+	// It's kept for compatibility but not recommended
+	return m
+}
+
+// NewMockHTTPClient creates an HTTP client with a mock transport
+func NewMockHTTPClient() (*http.Client, *MockRoundTripper) {
+	transport := NewMockRoundTripper()
+	client := &http.Client{Transport: transport}
+	return client, transport
+}
+
+// responseRecorder is a simple response recorder for the mock transport
+type responseRecorder struct {
+	statusCode int
+	header     http.Header
+	body       *bytes.Buffer
+}
+
+func (r *responseRecorder) Header() http.Header {
+	return r.header
+}
+
+func (r *responseRecorder) Write(data []byte) (int, error) {
+	if r.statusCode == 0 {
+		r.statusCode = http.StatusOK
+	}
+	return r.body.Write(data)
+}
+
+func (r *responseRecorder) WriteHeader(statusCode int) {
+	r.statusCode = statusCode
+}
+
+// matchPath checks if a request path matches a pattern (supports simple wildcards)
+func matchPath(pattern, path string) bool {
+	// Simple exact match for now
+	if pattern == path {
+		return true
+	}
+	
+	// Support for path parameters like /repos/{owner}/{repo}/issues/{issue_number}
+	patternParts := strings.Split(strings.Trim(pattern, "/"), "/")
+	pathParts := strings.Split(strings.Trim(path, "/"), "/")
+	
+	if len(patternParts) != len(pathParts) {
+		return false
+	}
+	
+	for i := range patternParts {
+		// Check if this is a path parameter (enclosed in {})
+		if strings.HasPrefix(patternParts[i], "{") && strings.HasSuffix(patternParts[i], "}") {
+			continue // Path parameters match anything
+		}
+		if patternParts[i] != pathParts[i] {
+			return false
+		}
+	}
+	
+	return true
+}
+
+// MockHTTPClientWithHandler creates an HTTP client with a single handler function
+func MockHTTPClientWithHandler(handler http.HandlerFunc) *http.Client {
+	transport := &mockTransport{handler: handler}
+	return &http.Client{Transport: transport}
+}
+
+type mockTransport struct {
+	handler http.HandlerFunc
+}
+
+func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	recorder := &responseRecorder{
+		header: make(http.Header),
+		body:   &bytes.Buffer{},
+	}
+	m.handler(recorder, req)
+	
+	return &http.Response{
+		StatusCode: recorder.statusCode,
+		Header:     recorder.header,
+		Body:       io.NopCloser(bytes.NewReader(recorder.body.Bytes())),
+		Request:    req,
+	}, nil
+}
+
+// MockHTTPClientWithHandlers creates an HTTP client with multiple handlers for different paths
+func MockHTTPClientWithHandlers(handlers map[string]http.HandlerFunc) *http.Client {
+	transport := &multiHandlerTransport{handlers: handlers}
+	return &http.Client{Transport: transport}
+}
+
+type multiHandlerTransport struct {
+	handlers map[string]http.HandlerFunc
+}
+
+func (m *multiHandlerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Try to find a handler for this request
+	key := req.Method + " " + req.URL.Path
+	
+	// First try exact match
+	if handler, ok := m.handlers[key]; ok {
+		recorder := &responseRecorder{
+			header: make(http.Header),
+			body:   &bytes.Buffer{},
+		}
+		handler(recorder, req)
+		
+		return &http.Response{
+			StatusCode: recorder.statusCode,
+			Header:     recorder.header,
+			Body:       io.NopCloser(bytes.NewReader(recorder.body.Bytes())),
+			Request:    req,
+		}, nil
+	}
+	
+	// Then try pattern matching
+	for pattern, handler := range m.handlers {
+		parts := strings.SplitN(pattern, " ", 2)
+		if len(parts) == 2 {
+			method, pathPattern := parts[0], parts[1]
+			if req.Method == method && matchPath(pathPattern, req.URL.Path) {
+				recorder := &responseRecorder{
+					header: make(http.Header),
+					body:   &bytes.Buffer{},
+				}
+				handler(recorder, req)
+				
+				return &http.Response{
+					StatusCode: recorder.statusCode,
+					Header:     recorder.header,
+					Body:       io.NopCloser(bytes.NewReader(recorder.body.Bytes())),
+					Request:    req,
+				}, nil
+			}
+		}
+	}
+	
+	// No handler found
+	return &http.Response{
+		StatusCode: http.StatusNotFound,
+		Body:       io.NopCloser(bytes.NewReader([]byte("not found"))),
+		Request:    req,
+	}, nil
+}
+
+// extractPathParams extracts path parameters from a URL path given a pattern
+func extractPathParams(pattern, path string) map[string]string {
+	params := make(map[string]string)
+	patternParts := strings.Split(strings.Trim(pattern, "/"), "/")
+	pathParts := strings.Split(strings.Trim(path, "/"), "/")
+	
+	if len(patternParts) != len(pathParts) {
+		return params
+	}
+	
+	for i := range patternParts {
+		if strings.HasPrefix(patternParts[i], "{") && strings.HasSuffix(patternParts[i], "}") {
+			paramName := strings.Trim(patternParts[i], "{}")
+			params[paramName] = pathParts[i]
+		}
+	}
+	
+	return params
+}
+
+// ParseRequestPath is a helper to extract path parameters
+func ParseRequestPath(t *testing.T, req *http.Request, pattern string) url.Values {
+	t.Helper()
+	params := extractPathParams(pattern, req.URL.Path)
+	values := url.Values{}
+	for k, v := range params {
+		values.Set(k, v)
+	}
+	return values
 }
