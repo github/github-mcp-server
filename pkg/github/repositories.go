@@ -310,8 +310,15 @@ func ListBranches(getClient GetClientFn, t translations.TranslationHelperFunc) (
 // CreateOrUpdateFile creates a tool to create or update a file in a GitHub repository.
 func CreateOrUpdateFile(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 	tool := mcp.Tool{
-		Name:        "create_or_update_file",
-		Description: t("TOOL_CREATE_OR_UPDATE_FILE_DESCRIPTION", "Create or update a single file in a GitHub repository. If updating, you must provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations."),
+		Name: "create_or_update_file",
+		Description: t("TOOL_CREATE_OR_UPDATE_FILE_DESCRIPTION", `Create or update a single file in a GitHub repository. 
+If updating, you should provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.
+
+In order to obtain the SHA of original file version before updating, use the following git command:
+git ls-tree HEAD <path to file>
+
+If the SHA is not provided, the tool will attempt to acquire it by fetching the current file contents from the repository, which may lead to rewriting latest committed changes if the file has changed since last retrieval.
+`),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_CREATE_OR_UPDATE_FILE_USER_TITLE", "Create or update file"),
 			ReadOnlyHint: false,
@@ -345,7 +352,7 @@ func CreateOrUpdateFile(getClient GetClientFn, t translations.TranslationHelperF
 				},
 				"sha": {
 					Type:        "string",
-					Description: "Required if updating an existing file. The blob SHA of the file being replaced.",
+					Description: "The blob SHA of the file being replaced.",
 				},
 			},
 			Required: []string{"owner", "repo", "path", "content", "message", "branch"},
@@ -406,11 +413,32 @@ func CreateOrUpdateFile(getClient GetClientFn, t translations.TranslationHelperF
 		path = strings.TrimPrefix(path, "/")
 		fileContent, resp, err := client.Repositories.CreateFile(ctx, owner, repo, path, opts)
 		if err != nil {
-			return ghErrors.NewGitHubAPIErrorResponse(ctx,
-				"failed to create/update file",
-				resp,
-				err,
-			), nil, nil
+			if strings.Contains(err.Error(), `"sha" wasn't supplied`) && sha == "" {
+				// attempt to get the current file SHA by fetching the file contents
+				getOpts := &github.RepositoryContentGetOptions{
+					Ref: branch,
+				}
+				currentFileContent, _, respContents, err := client.Repositories.GetContents(ctx, owner, repo, path, getOpts)
+				defer func() { _ = respContents.Body.Close() }()
+
+				if err == nil && currentFileContent != nil {
+					opts.SHA = currentFileContent.SHA
+					fileContent, resp, err = client.Repositories.CreateFile(ctx, owner, repo, path, opts)
+					if err != nil {
+						return ghErrors.NewGitHubAPIErrorResponse(ctx,
+							"failed to create/update file after retrieving current SHA",
+							resp,
+							err,
+						), nil, nil
+					}
+				}
+			} else {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to create/update file",
+					resp,
+					err,
+				), nil, nil
+			}
 		}
 		defer func() { _ = resp.Body.Close() }()
 
