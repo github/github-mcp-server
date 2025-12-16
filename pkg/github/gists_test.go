@@ -18,8 +18,8 @@ import (
 
 func Test_ListGists(t *testing.T) {
 	// Verify tool definition
-	mockClient := github.NewClient(nil)
-	tool, _ := ListGists(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ListGists(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
@@ -158,28 +158,27 @@ func Test_ListGists(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListGists(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
+			require.NoError(t, err)
 
 			// Verify results
 			if tc.expectError {
-				if err != nil {
-					assert.Contains(t, err.Error(), tc.expectedErrMsg)
-				} else {
-					// For errors returned as part of the result, not as an error
-					assert.NotNil(t, result)
-					textContent := getTextResult(t, result)
-					assert.Contains(t, textContent.Text, tc.expectedErrMsg)
-				}
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
 				return
 			}
 
-			require.NoError(t, err)
+			require.False(t, result.IsError)
 
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
@@ -202,8 +201,8 @@ func Test_ListGists(t *testing.T) {
 
 func Test_GetGist(t *testing.T) {
 	// Verify tool definition
-	mockClient := github.NewClient(nil)
-	tool, _ := GetGist(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := GetGist(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
@@ -276,28 +275,27 @@ func Test_GetGist(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetGist(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
+			require.NoError(t, err)
 
 			// Verify results
 			if tc.expectError {
-				if err != nil {
-					assert.Contains(t, err.Error(), tc.expectedErrMsg)
-				} else {
-					// For errors returned as part of the result, not as an error
-					assert.NotNil(t, result)
-					textContent := getTextResult(t, result)
-					assert.Contains(t, textContent.Text, tc.expectedErrMsg)
-				}
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
 				return
 			}
 
-			require.NoError(t, err)
+			require.False(t, result.IsError)
 
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
@@ -317,8 +315,8 @@ func Test_GetGist(t *testing.T) {
 
 func Test_CreateGist(t *testing.T) {
 	// Verify tool definition
-	mockClient := github.NewClient(nil)
-	tool, _ := CreateGist(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := CreateGist(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
@@ -423,28 +421,27 @@ func Test_CreateGist(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := CreateGist(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
+			require.NoError(t, err)
 
 			// Verify results
 			if tc.expectError {
-				if err != nil {
-					assert.Contains(t, err.Error(), tc.expectedErrMsg)
-				} else {
-					// For errors returned as part of the result, not as an error
-					assert.NotNil(t, result)
-					textContent := getTextResult(t, result)
-					assert.Contains(t, textContent.Text, tc.expectedErrMsg)
-				}
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
 				return
 			}
 
-			require.NoError(t, err)
+			require.False(t, result.IsError)
 			assert.NotNil(t, result)
 
 			// Parse the result and get the text content
@@ -462,8 +459,8 @@ func Test_CreateGist(t *testing.T) {
 
 func Test_UpdateGist(t *testing.T) {
 	// Verify tool definition
-	mockClient := github.NewClient(nil)
-	tool, _ := UpdateGist(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := UpdateGist(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
@@ -583,28 +580,27 @@ func Test_UpdateGist(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := UpdateGist(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := ToolDependencies{
+				GetClient: stubGetClientFn(client),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
+			require.NoError(t, err)
 
 			// Verify results
 			if tc.expectError {
-				if err != nil {
-					assert.Contains(t, err.Error(), tc.expectedErrMsg)
-				} else {
-					// For errors returned as part of the result, not as an error
-					assert.NotNil(t, result)
-					textContent := getTextResult(t, result)
-					assert.Contains(t, textContent.Text, tc.expectedErrMsg)
-				}
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
 				return
 			}
 
-			require.NoError(t, err)
+			require.False(t, result.IsError)
 			assert.NotNil(t, result)
 
 			// Parse the result and get the text content
