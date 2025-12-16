@@ -53,6 +53,9 @@ type Registry struct {
 	// Takes context and flag name, returns (enabled, error). If error, log and treat as false.
 	// If checker is nil, all flag checks return false.
 	featureChecker FeatureFlagChecker
+	// filters are functions that will be applied to all tools during filtering.
+	// If any filter returns false or an error, the tool is excluded.
+	filters []ToolFilter
 	// unrecognizedToolsets holds toolset IDs that were requested but don't match any registered toolsets
 	unrecognizedToolsets []string
 }
@@ -107,6 +110,7 @@ func (r *Registry) ForMCPRequest(method string, itemName string) *Registry {
 		enabledToolsets:      r.enabledToolsets, // shared, not modified
 		additionalTools:      r.additionalTools, // shared, not modified
 		featureChecker:       r.featureChecker,
+		filters:              r.filters, // shared, not modified
 		unrecognizedToolsets: r.unrecognizedToolsets,
 	}
 
