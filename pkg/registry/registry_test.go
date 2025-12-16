@@ -1174,3 +1174,472 @@ func TestServerToolHandlerPanicOnNil(t *testing.T) {
 
 	tool.Handler(nil)
 }
+
+// Tests for Enabled function on ServerTool
+func TestServerToolEnabled(t *testing.T) {
+	tests := []struct {
+		name           string
+		enabledFunc    func(ctx context.Context) (bool, error)
+		expectedCount  int
+		expectInResult bool
+	}{
+		{
+			name:           "nil Enabled function - tool included",
+			enabledFunc:    nil,
+			expectedCount:  1,
+			expectInResult: true,
+		},
+		{
+			name: "Enabled returns true - tool included",
+			enabledFunc: func(_ context.Context) (bool, error) {
+				return true, nil
+			},
+			expectedCount:  1,
+			expectInResult: true,
+		},
+		{
+			name: "Enabled returns false - tool excluded",
+			enabledFunc: func(_ context.Context) (bool, error) {
+				return false, nil
+			},
+			expectedCount:  0,
+			expectInResult: false,
+		},
+		{
+			name: "Enabled returns error - tool excluded",
+			enabledFunc: func(_ context.Context) (bool, error) {
+				return false, fmt.Errorf("simulated error")
+			},
+			expectedCount:  0,
+			expectInResult: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tool := mockTool("test_tool", "toolset1", true)
+			tool.Enabled = tt.enabledFunc
+
+			reg := NewBuilder().SetTools([]ServerTool{tool}).WithToolsets([]string{"all"}).Build()
+			available := reg.AvailableTools(context.Background())
+
+			if len(available) != tt.expectedCount {
+				t.Errorf("Expected %d tools, got %d", tt.expectedCount, len(available))
+			}
+
+			found := false
+			for _, t := range available {
+				if t.Tool.Name == "test_tool" {
+					found = true
+					break
+				}
+			}
+			if found != tt.expectInResult {
+				t.Errorf("Expected tool in result: %v, got: %v", tt.expectInResult, found)
+			}
+		})
+	}
+}
+
+func TestServerToolEnabledWithContext(t *testing.T) {
+	type contextKey string
+	const userKey contextKey = "user"
+
+	// Tool that checks context for user
+	tool := mockTool("context_aware_tool", "toolset1", true)
+	tool.Enabled = func(ctx context.Context) (bool, error) {
+		user := ctx.Value(userKey)
+		return user != nil && user.(string) == "authorized", nil
+	}
+
+	reg := NewBuilder().SetTools([]ServerTool{tool}).WithToolsets([]string{"all"}).Build()
+
+	// Without user in context - tool should be excluded
+	available := reg.AvailableTools(context.Background())
+	if len(available) != 0 {
+		t.Errorf("Expected 0 tools without user, got %d", len(available))
+	}
+
+	// With authorized user - tool should be included
+	ctxWithUser := context.WithValue(context.Background(), userKey, "authorized")
+	availableWithUser := reg.AvailableTools(ctxWithUser)
+	if len(availableWithUser) != 1 {
+		t.Errorf("Expected 1 tool with authorized user, got %d", len(availableWithUser))
+	}
+
+	// With unauthorized user - tool should be excluded
+	ctxWithBadUser := context.WithValue(context.Background(), userKey, "unauthorized")
+	availableWithBadUser := reg.AvailableTools(ctxWithBadUser)
+	if len(availableWithBadUser) != 0 {
+		t.Errorf("Expected 0 tools with unauthorized user, got %d", len(availableWithBadUser))
+	}
+}
+
+// Tests for WithFilter builder method
+func TestBuilderWithFilter(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("tool1", "toolset1", true),
+		mockTool("tool2", "toolset1", true),
+		mockTool("tool3", "toolset1", true),
+	}
+
+	// Filter that excludes tool2
+	filter := func(_ context.Context, tool *ServerTool) (bool, error) {
+		return tool.Tool.Name != "tool2", nil
+	}
+
+	reg := NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"all"}).
+		WithFilter(filter).
+		Build()
+
+	available := reg.AvailableTools(context.Background())
+	if len(available) != 2 {
+		t.Fatalf("Expected 2 tools after filter, got %d", len(available))
+	}
+
+	for _, tool := range available {
+		if tool.Tool.Name == "tool2" {
+			t.Error("tool2 should have been filtered out")
+		}
+	}
+}
+
+func TestBuilderWithMultipleFilters(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("tool1", "toolset1", true),
+		mockTool("tool2", "toolset1", true),
+		mockTool("tool3", "toolset1", true),
+		mockTool("tool4", "toolset1", true),
+	}
+
+	// First filter excludes tool2
+	filter1 := func(_ context.Context, tool *ServerTool) (bool, error) {
+		return tool.Tool.Name != "tool2", nil
+	}
+
+	// Second filter excludes tool3
+	filter2 := func(_ context.Context, tool *ServerTool) (bool, error) {
+		return tool.Tool.Name != "tool3", nil
+	}
+
+	reg := NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"all"}).
+		WithFilter(filter1).
+		WithFilter(filter2).
+		Build()
+
+	available := reg.AvailableTools(context.Background())
+	if len(available) != 2 {
+		t.Fatalf("Expected 2 tools after multiple filters, got %d", len(available))
+	}
+
+	toolNames := make(map[string]bool)
+	for _, tool := range available {
+		toolNames[tool.Tool.Name] = true
+	}
+
+	if !toolNames["tool1"] || !toolNames["tool4"] {
+		t.Error("Expected tool1 and tool4 to be available")
+	}
+	if toolNames["tool2"] || toolNames["tool3"] {
+		t.Error("tool2 and tool3 should have been filtered out")
+	}
+}
+
+func TestBuilderFilterError(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("tool1", "toolset1", true),
+	}
+
+	// Filter that returns an error
+	filter := func(_ context.Context, _ *ServerTool) (bool, error) {
+		return false, fmt.Errorf("filter error")
+	}
+
+	reg := NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"all"}).
+		WithFilter(filter).
+		Build()
+
+	available := reg.AvailableTools(context.Background())
+	if len(available) != 0 {
+		t.Errorf("Expected 0 tools when filter returns error, got %d", len(available))
+	}
+}
+
+func TestBuilderFilterWithContext(t *testing.T) {
+	type contextKey string
+	const scopeKey contextKey = "scope"
+
+	tools := []ServerTool{
+		mockTool("public_tool", "toolset1", true),
+		mockTool("private_tool", "toolset1", true),
+	}
+
+	// Filter that checks context for scope
+	filter := func(ctx context.Context, tool *ServerTool) (bool, error) {
+		scope := ctx.Value(scopeKey)
+		if scope == "public" && tool.Tool.Name == "private_tool" {
+			return false, nil
+		}
+		return true, nil
+	}
+
+	reg := NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"all"}).
+		WithFilter(filter).
+		Build()
+
+	// With public scope - private_tool should be excluded
+	ctxPublic := context.WithValue(context.Background(), scopeKey, "public")
+	availablePublic := reg.AvailableTools(ctxPublic)
+	if len(availablePublic) != 1 {
+		t.Fatalf("Expected 1 tool with public scope, got %d", len(availablePublic))
+	}
+	if availablePublic[0].Tool.Name != "public_tool" {
+		t.Error("Expected only public_tool to be available")
+	}
+
+	// With private scope - both tools should be available
+	ctxPrivate := context.WithValue(context.Background(), scopeKey, "private")
+	availablePrivate := reg.AvailableTools(ctxPrivate)
+	if len(availablePrivate) != 2 {
+		t.Errorf("Expected 2 tools with private scope, got %d", len(availablePrivate))
+	}
+}
+
+// Tests for interaction between Enabled, feature flags, and filters
+func TestEnabledAndFeatureFlagInteraction(t *testing.T) {
+	// Tool with both Enabled function and feature flag
+	tool := mockToolWithFlags("complex_tool", "toolset1", true, "my_feature", "")
+	tool.Enabled = func(_ context.Context) (bool, error) {
+		return true, nil
+	}
+
+	// Feature flag not enabled - tool should be excluded despite Enabled returning true
+	reg1 := NewBuilder().
+		SetTools([]ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		Build()
+	available1 := reg1.AvailableTools(context.Background())
+	if len(available1) != 0 {
+		t.Error("Tool should be excluded when feature flag is not enabled")
+	}
+
+	// Feature flag enabled - tool should be included
+	checker := func(_ context.Context, flag string) (bool, error) {
+		return flag == "my_feature", nil
+	}
+	reg2 := NewBuilder().
+		SetTools([]ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		WithFeatureChecker(checker).
+		Build()
+	available2 := reg2.AvailableTools(context.Background())
+	if len(available2) != 1 {
+		t.Error("Tool should be included when both Enabled and feature flag pass")
+	}
+
+	// Enabled returns false - tool should be excluded despite feature flag
+	tool.Enabled = func(_ context.Context) (bool, error) {
+		return false, nil
+	}
+	reg3 := NewBuilder().
+		SetTools([]ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		WithFeatureChecker(checker).
+		Build()
+	available3 := reg3.AvailableTools(context.Background())
+	if len(available3) != 0 {
+		t.Error("Tool should be excluded when Enabled returns false")
+	}
+}
+
+func TestEnabledAndBuilderFilterInteraction(t *testing.T) {
+	tool := mockTool("test_tool", "toolset1", true)
+	tool.Enabled = func(_ context.Context) (bool, error) {
+		return true, nil
+	}
+
+	// Filter that excludes the tool
+	filter := func(_ context.Context, _ *ServerTool) (bool, error) {
+		return false, nil
+	}
+
+	reg := NewBuilder().
+		SetTools([]ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		WithFilter(filter).
+		Build()
+
+	available := reg.AvailableTools(context.Background())
+	if len(available) != 0 {
+		t.Error("Tool should be excluded when filter returns false, despite Enabled returning true")
+	}
+}
+
+func TestAllFiltersInteraction(t *testing.T) {
+	// Tool with Enabled, feature flag, and subject to builder filter
+	tool := mockToolWithFlags("complex_tool", "toolset1", true, "my_feature", "")
+	tool.Enabled = func(_ context.Context) (bool, error) {
+		return true, nil
+	}
+
+	filter := func(_ context.Context, _ *ServerTool) (bool, error) {
+		return true, nil
+	}
+
+	checker := func(_ context.Context, flag string) (bool, error) {
+		return flag == "my_feature", nil
+	}
+
+	// All conditions pass - tool should be included
+	reg := NewBuilder().
+		SetTools([]ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		WithFeatureChecker(checker).
+		WithFilter(filter).
+		Build()
+
+	available := reg.AvailableTools(context.Background())
+	if len(available) != 1 {
+		t.Error("Tool should be included when all filters pass")
+	}
+
+	// Change filter to return false - tool should be excluded
+	filterFalse := func(_ context.Context, _ *ServerTool) (bool, error) {
+		return false, nil
+	}
+
+	reg2 := NewBuilder().
+		SetTools([]ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		WithFeatureChecker(checker).
+		WithFilter(filterFalse).
+		Build()
+
+	available2 := reg2.AvailableTools(context.Background())
+	if len(available2) != 0 {
+		t.Error("Tool should be excluded when any filter fails")
+	}
+}
+
+// Test FilteredTools method
+func TestFilteredTools(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("tool1", "toolset1", true),
+		mockTool("tool2", "toolset1", true),
+	}
+
+	filter := func(_ context.Context, tool *ServerTool) (bool, error) {
+		return tool.Tool.Name == "tool1", nil
+	}
+
+	reg := NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"all"}).
+		WithFilter(filter).
+		Build()
+
+	filtered, err := reg.FilteredTools(context.Background())
+	if err != nil {
+		t.Fatalf("FilteredTools returned error: %v", err)
+	}
+
+	if len(filtered) != 1 {
+		t.Fatalf("Expected 1 filtered tool, got %d", len(filtered))
+	}
+
+	if filtered[0].Tool.Name != "tool1" {
+		t.Errorf("Expected tool1, got %s", filtered[0].Tool.Name)
+	}
+}
+
+func TestFilteredToolsMatchesAvailableTools(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("tool1", "toolset1", true),
+		mockTool("tool2", "toolset1", false),
+		mockTool("tool3", "toolset2", true),
+	}
+
+	reg := NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"toolset1"}).
+		WithReadOnly(true).
+		Build()
+
+	ctx := context.Background()
+	filtered, err := reg.FilteredTools(ctx)
+	if err != nil {
+		t.Fatalf("FilteredTools returned error: %v", err)
+	}
+
+	available := reg.AvailableTools(ctx)
+
+	// Both methods should return the same results
+	if len(filtered) != len(available) {
+		t.Errorf("FilteredTools and AvailableTools returned different counts: %d vs %d",
+			len(filtered), len(available))
+	}
+
+	for i := range filtered {
+		if filtered[i].Tool.Name != available[i].Tool.Name {
+			t.Errorf("Tool at index %d differs: FilteredTools=%s, AvailableTools=%s",
+				i, filtered[i].Tool.Name, available[i].Tool.Name)
+		}
+	}
+}
+
+func TestFilteringOrder(t *testing.T) {
+	// Test that filters are applied in the correct order:
+	// 1. Tool.Enabled
+	// 2. Feature flags
+	// 3. Read-only
+	// 4. Builder filters
+	// 5. Toolset/additional tools
+
+	callOrder := []string{}
+
+	tool := mockToolWithFlags("test_tool", "toolset1", false, "my_feature", "")
+	tool.Enabled = func(_ context.Context) (bool, error) {
+		callOrder = append(callOrder, "Enabled")
+		return true, nil
+	}
+
+	filter := func(_ context.Context, _ *ServerTool) (bool, error) {
+		callOrder = append(callOrder, "Filter")
+		return true, nil
+	}
+
+	checker := func(_ context.Context, _ string) (bool, error) {
+		callOrder = append(callOrder, "FeatureFlag")
+		return true, nil
+	}
+
+	reg := NewBuilder().
+		SetTools([]ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		WithReadOnly(true). // This will exclude the tool (it's not read-only)
+		WithFeatureChecker(checker).
+		WithFilter(filter).
+		Build()
+
+	_ = reg.AvailableTools(context.Background())
+
+	// Expected order: Enabled, FeatureFlag, ReadOnly (stops here because it's write tool)
+	expectedOrder := []string{"Enabled", "FeatureFlag"}
+	if len(callOrder) != len(expectedOrder) {
+		t.Errorf("Expected %d checks, got %d: %v", len(expectedOrder), len(callOrder), callOrder)
+	}
+
+	for i, expected := range expectedOrder {
+		if i >= len(callOrder) || callOrder[i] != expected {
+			t.Errorf("At position %d: expected %s, got %v", i, expected, callOrder)
+		}
+	}
+}
