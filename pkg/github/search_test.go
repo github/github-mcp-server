@@ -134,8 +134,8 @@ func Test_SearchRepositories(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -209,8 +209,8 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 
 	client := github.NewClient(mockedClient)
 	serverTool := SearchRepositories(translations.NullTranslationHelper)
-	deps := ToolDependencies{
-		GetClient: stubGetClientFn(client),
+	deps := BaseDeps{
+		Client: client,
 	}
 	handler := serverTool.Handler(deps)
 
@@ -358,8 +358,8 @@ func Test_SearchCode(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -558,8 +558,8 @@ func Test_SearchUsers(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 
@@ -733,8 +733,8 @@ func Test_SearchOrgs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 

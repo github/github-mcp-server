@@ -125,8 +125,8 @@ func Test_ListNotifications(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
@@ -258,8 +258,8 @@ func Test_ManageNotificationSubscription(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
@@ -421,8 +421,8 @@ func Test_ManageRepositoryNotificationSubscription(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
@@ -563,8 +563,8 @@ func Test_DismissNotification(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
@@ -688,8 +688,8 @@ func Test_MarkAllNotificationsRead(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
@@ -772,8 +772,8 @@ func Test_GetNotificationDetails(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			deps := ToolDependencies{
-				GetClient: stubGetClientFn(client),
+			deps := BaseDeps{
+				Client: client,
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)

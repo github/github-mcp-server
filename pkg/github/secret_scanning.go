@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -15,8 +16,10 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func GetSecretScanningAlert(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func GetSecretScanningAlert(t translations.TranslationHelperFunc) registry.ServerTool {
+	return NewTool(
+		ToolsetMetadataSecretProtection,
+		mcp.Tool{
 			Name:        "get_secret_scanning_alert",
 			Description: t("TOOL_GET_SECRET_SCANNING_ALERT_DESCRIPTION", "Get details of a specific secret scanning alert in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
@@ -42,54 +45,59 @@ func GetSecretScanningAlert(getClient GetClientFn, t translations.TranslationHel
 				Required: []string{"owner", "repo", "alertNumber"},
 			},
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			alertNumber, err := RequiredInt(args, "alertNumber")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-
-			alert, resp, err := client.SecretScanning.GetAlert(ctx, owner, repo, int64(alertNumber))
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					fmt.Sprintf("failed to get alert with number '%d'", alertNumber),
-					resp,
-					err,
-				), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
+		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
+			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+				owner, err := RequiredParam[string](args, "owner")
 				if err != nil {
-					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				return utils.NewToolResultError(fmt.Sprintf("failed to get alert: %s", string(body))), nil, nil
-			}
+				repo, err := RequiredParam[string](args, "repo")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				alertNumber, err := RequiredInt(args, "alertNumber")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
 
-			r, err := json.Marshal(alert)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal alert: %w", err)
-			}
+				client, err := deps.GetClient(ctx)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+				}
 
-			return utils.NewToolResultText(string(r)), nil, nil
-		}
+				alert, resp, err := client.SecretScanning.GetAlert(ctx, owner, repo, int64(alertNumber))
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx,
+						fmt.Sprintf("failed to get alert with number '%d'", alertNumber),
+						resp,
+						err,
+					), nil, nil
+				}
+				defer func() { _ = resp.Body.Close() }()
+
+				if resp.StatusCode != http.StatusOK {
+					body, err := io.ReadAll(resp.Body)
+					if err != nil {
+						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+					}
+					return utils.NewToolResultError(fmt.Sprintf("failed to get alert: %s", string(body))), nil, nil
+				}
+
+				r, err := json.Marshal(alert)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to marshal alert: %w", err)
+				}
+
+				return utils.NewToolResultText(string(r)), nil, nil
+			}
+		},
+	)
 }
 
-func ListSecretScanningAlerts(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func ListSecretScanningAlerts(t translations.TranslationHelperFunc) registry.ServerTool {
+	return NewTool(
+		ToolsetMetadataSecretProtection,
+		mcp.Tool{
 			Name:        "list_secret_scanning_alerts",
 			Description: t("TOOL_LIST_SECRET_SCANNING_ALERTS_DESCRIPTION", "List secret scanning alerts in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
@@ -125,55 +133,58 @@ func ListSecretScanningAlerts(getClient GetClientFn, t translations.TranslationH
 				Required: []string{"owner", "repo"},
 			},
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			state, err := OptionalParam[string](args, "state")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			secretType, err := OptionalParam[string](args, "secret_type")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-			resolution, err := OptionalParam[string](args, "resolution")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-			alerts, resp, err := client.SecretScanning.ListAlertsForRepo(ctx, owner, repo, &github.SecretScanningAlertListOptions{State: state, SecretType: secretType, Resolution: resolution})
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					fmt.Sprintf("failed to list alerts for repository '%s/%s'", owner, repo),
-					resp,
-					err,
-				), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
+		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
+			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+				owner, err := RequiredParam[string](args, "owner")
 				if err != nil {
-					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				return utils.NewToolResultError(fmt.Sprintf("failed to list alerts: %s", string(body))), nil, nil
-			}
+				repo, err := RequiredParam[string](args, "repo")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				state, err := OptionalParam[string](args, "state")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				secretType, err := OptionalParam[string](args, "secret_type")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				resolution, err := OptionalParam[string](args, "resolution")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
 
-			r, err := json.Marshal(alerts)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal alerts: %w", err)
-			}
+				client, err := deps.GetClient(ctx)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+				}
+				alerts, resp, err := client.SecretScanning.ListAlertsForRepo(ctx, owner, repo, &github.SecretScanningAlertListOptions{State: state, SecretType: secretType, Resolution: resolution})
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx,
+						fmt.Sprintf("failed to list alerts for repository '%s/%s'", owner, repo),
+						resp,
+						err,
+					), nil, nil
+				}
+				defer func() { _ = resp.Body.Close() }()
 
-			return utils.NewToolResultText(string(r)), nil, nil
-		}
+				if resp.StatusCode != http.StatusOK {
+					body, err := io.ReadAll(resp.Body)
+					if err != nil {
+						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+					}
+					return utils.NewToolResultError(fmt.Sprintf("failed to list alerts: %s", string(body))), nil, nil
+				}
+
+				r, err := json.Marshal(alerts)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to marshal alerts: %w", err)
+				}
+
+				return utils.NewToolResultText(string(r)), nil, nil
+			}
+		},
+	)
 }

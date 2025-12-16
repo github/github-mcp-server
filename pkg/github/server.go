@@ -18,12 +18,7 @@ import (
 
 func NewServer(version string, opts *mcp.ServerOptions) *mcp.Server {
 	if opts == nil {
-		// Add default options
-		opts = &mcp.ServerOptions{
-			HasTools:     true,
-			HasResources: true,
-			HasPrompts:   true,
-		}
+		opts = &mcp.ServerOptions{}
 	}
 
 	// Create a new MCP server

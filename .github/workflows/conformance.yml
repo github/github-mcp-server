@@ -1,0 +1,69 @@
+name: Conformance Test
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+        with:
+          # Fetch full history to access merge-base
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run conformance test
+        id: conformance
+        run: |
+          # Run conformance test, capture stdout for summary
+          script/conformance-test > conformance-summary.txt 2>&1 || true
+          
+          # Output the summary
+          cat conformance-summary.txt
+          
+          # Check result
+          if grep -q "RESULT: ALL TESTS PASSED" conformance-summary.txt; then
+            echo "status=passed" >> $GITHUB_OUTPUT
+          else
+            echo "status=differences" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate Job Summary
+        run: |
+          # Add the full markdown report to the job summary
+          echo "# MCP Server Conformance Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Comparing PR branch against merge-base with \`origin/main\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Extract and append the report content (skip the header since we added our own)
+          tail -n +5 conformance-report/CONFORMANCE_REPORT.md >> $GITHUB_STEP_SUMMARY
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Add interpretation note
+          if [ "${{ steps.conformance.outputs.status }}" = "passed" ]; then
+            echo "✅ **All conformance tests passed** - No behavioral differences detected." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️ **Differences detected** - Review the diffs above to ensure changes are intentional." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Common expected differences:" >> $GITHUB_STEP_SUMMARY
+            echo "- New tools/toolsets added" >> $GITHUB_STEP_SUMMARY
+            echo "- Tool descriptions updated" >> $GITHUB_STEP_SUMMARY
+            echo "- Capability changes (intentional improvements)" >> $GITHUB_STEP_SUMMARY
+          fi
