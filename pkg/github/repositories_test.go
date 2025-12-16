@@ -1246,6 +1246,7 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 						"message": "Update without SHA",
 						"content": "IyBVcGRhdGVkCgpVcGRhdGVkIHdpdGhvdXQgU0hBLg==",
 						"branch":  "main",
+						"sha":     "existing123", // SHA is automatically added from ETag
 					}).andThen(
 						mockResponse(t, http.StatusOK, mockFileResponse),
 					),
