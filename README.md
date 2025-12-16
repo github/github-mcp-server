@@ -384,6 +384,7 @@ You can also configure specific tools using the `--tools` flag. Tools can be use
 - Tools, toolsets, and dynamic toolsets can all be used together
 - Read-only mode takes priority: write tools are skipped if `--read-only` is set, even if explicitly requested via `--tools`
 - Tool names must match exactly (e.g., `get_file_contents`, not `getFileContents`). Invalid tool names will cause the server to fail at startup with an error message
+- When tools are renamed, old names are preserved as aliases for backward compatibility. See [Deprecated Tool Aliases](docs/deprecated-tool-aliases.md) for details.
 
 ### Using Toolsets With Docker
 
@@ -459,7 +460,6 @@ The following sets of tools are available:
 | `code_security` | Code security related tools, such as GitHub Code Scanning |
 | `dependabot` | Dependabot tools |
 | `discussions` | GitHub Discussions related tools |
-| `experiments` | Experimental features that are not considered stable yet |
 | `gists` | GitHub Gist related tools |
 | `git` | GitHub Git API related tools for low-level Git operations |
 | `issues` | GitHub Issues related tools |
