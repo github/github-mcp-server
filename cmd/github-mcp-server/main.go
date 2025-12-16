@@ -54,14 +54,18 @@ var (
 
 			// Parse tools (similar to toolsets)
 			var enabledTools []string
-			if err := viper.UnmarshalKey("tools", &enabledTools); err != nil {
-				return fmt.Errorf("failed to unmarshal tools: %w", err)
+			if viper.IsSet("tools") {
+				if err := viper.UnmarshalKey("tools", &enabledTools); err != nil {
+					return fmt.Errorf("failed to unmarshal tools: %w", err)
+				}
 			}
 
 			// Parse enabled features (similar to toolsets)
 			var enabledFeatures []string
-			if err := viper.UnmarshalKey("features", &enabledFeatures); err != nil {
-				return fmt.Errorf("failed to unmarshal features: %w", err)
+			if viper.IsSet("features") {
+				if err := viper.UnmarshalKey("features", &enabledFeatures); err != nil {
+					return fmt.Errorf("failed to unmarshal features: %w", err)
+				}
 			}
 
 			ttl := viper.GetDuration("repo-access-cache-ttl")

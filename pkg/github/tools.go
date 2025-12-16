@@ -214,6 +214,11 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		RerunFailedJobs(t),
 		CancelWorkflowRun(t),
 		DeleteWorkflowRunLogs(t),
+		// Consolidated Actions tools (enabled via feature flag)
+		ActionsList(t),
+		ActionsGet(t),
+		ActionsRunTrigger(t),
+		ActionsGetJobLogs(t),
 
 		// Security advisories tools
 		ListGlobalSecurityAdvisories(t),
