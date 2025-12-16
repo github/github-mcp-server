@@ -4,7 +4,8 @@ How to safely rename MCP tools without breaking existing user configurations.
 
 ## Overview
 
-When tools are renamed, users who have the old tool name in their MCP configuration (e.g., in `X-MCP-Tools` headers for the remote MCP server or `--tools` flags for the local MCP server) would normally get errors. The deprecation alias system allows us to maintain backward compatibility by silently resolving old tool names to their new canonical names.
+When tools are renamed, users who have the old tool name in their MCP configuration (for example, in `X-MCP-Tools` headers for the remote MCP server or `--tools` flags for the local MCP server) would normally get errors. 
+The deprecation alias system allows us to maintain backward compatibility by silently resolving old tool names to their new canonical names.
 
 This allows us to rename tools safely, without introducing breaking changes for users that have a hard reference to those tools in their server configuration.
 
