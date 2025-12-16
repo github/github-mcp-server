@@ -52,13 +52,35 @@ func (r *Registry) isFeatureFlagAllowed(ctx context.Context, enableFlag, disable
 
 // isToolEnabled checks if a specific tool is enabled based on current filters.
 func (r *Registry) isToolEnabled(ctx context.Context, tool *ServerTool) bool {
-	// Check read-only filter first (applies to all tools)
-	if r.readOnly && !tool.IsReadOnly() {
-		return false
+	// Check tool's own Enabled function first
+	if tool.Enabled != nil {
+		enabled, err := tool.Enabled(ctx)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Tool.Enabled check error for %q: %v\n", tool.Tool.Name, err)
+			return false
+		}
+		if !enabled {
+			return false
+		}
 	}
 	// Check feature flags
 	if !r.isFeatureFlagAllowed(ctx, tool.FeatureFlagEnable, tool.FeatureFlagDisable) {
 		return false
+	}
+	// Check read-only filter (applies to all tools)
+	if r.readOnly && !tool.IsReadOnly() {
+		return false
+	}
+	// Apply builder filters
+	for _, filter := range r.filters {
+		allowed, err := filter(ctx, tool)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Builder filter error for tool %q: %v\n", tool.Tool.Name, err)
+			return false
+		}
+		if !allowed {
+			return false
+		}
 	}
 	// Check if tool is in additionalTools (bypasses toolset filter)
 	if r.additionalTools != nil && r.additionalTools[tool.Tool.Name] {
@@ -244,4 +266,11 @@ func (r *Registry) EnabledToolsetIDs() []ToolsetID {
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 	return ids
+}
+
+// FilteredTools returns tools filtered by the Enabled function and builder filters.
+// This is an alias for AvailableTools for clarity when focusing on filtering behavior.
+// The context is used for Enabled function evaluation and builder filter checks.
+func (r *Registry) FilteredTools(ctx context.Context) ([]ServerTool, error) {
+	return r.AvailableTools(ctx), nil
 }
