@@ -1121,6 +1121,83 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to create/update file",
 		},
+		{
+			name: "file creation fails with missing sha, then succeeds after fetching sha",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PutReposContentsByOwnerByRepoByPath,
+					func() http.HandlerFunc {
+						callCount := 0
+						return func(w http.ResponseWriter, _ *http.Request) {
+							callCount++
+							if callCount == 1 {
+								// First call fails with "sha wasn't supplied" error
+								w.WriteHeader(http.StatusUnprocessableEntity)
+								_, _ = w.Write([]byte(`{"message": "\"sha\" wasn't supplied"}`))
+							} else {
+								// Second call succeeds after SHA is retrieved
+								w.WriteHeader(http.StatusOK)
+								respBytes, _ := json.Marshal(mockFileResponse)
+								_, _ = w.Write(respBytes)
+							}
+						}
+					}(),
+				),
+				mock.WithRequestMatchHandler(
+					mock.GetReposContentsByOwnerByRepoByPath,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						existingFile := &github.RepositoryContent{
+							Name: github.Ptr("example.md"),
+							Path: github.Ptr("docs/example.md"),
+							SHA:  github.Ptr("abc123def456"),
+							Type: github.Ptr("file"),
+						}
+						contentBytes, _ := json.Marshal(existingFile)
+						_, _ = w.Write(contentBytes)
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":   "owner",
+				"repo":    "repo",
+				"path":    "docs/example.md",
+				"content": "# Example\n\nThis is an example file.",
+				"message": "Add example file",
+				"branch":  "main",
+			},
+			expectError:     false,
+			expectedContent: mockFileResponse,
+		},
+		{
+			name: "file creation fails with missing sha and GetContents also fails",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.PutReposContentsByOwnerByRepoByPath,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusUnprocessableEntity)
+						_, _ = w.Write([]byte(`{"message": "\"sha\" wasn't supplied"}`))
+					}),
+				),
+				mock.WithRequestMatchHandler(
+					mock.GetReposContentsByOwnerByRepoByPath,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":   "owner",
+				"repo":    "repo",
+				"path":    "docs/example.md",
+				"content": "# Example\n\nThis is an example file.",
+				"message": "Add example file",
+				"branch":  "main",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to get file SHA for update",
+		},
 	}
 
 	for _, tc := range tests {
