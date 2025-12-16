@@ -1453,8 +1453,10 @@ func Test_GetPullRequestCIFailures(t *testing.T) {
 	assert.Contains(t, inputSchema.Properties, "owner")
 	assert.Contains(t, inputSchema.Properties, "repo")
 	assert.Contains(t, inputSchema.Properties, "pullNumber")
-	assert.Contains(t, inputSchema.Properties, "return_content")
+	assert.Contains(t, inputSchema.Properties, "include_annotations")
+	assert.Contains(t, inputSchema.Properties, "include_logs")
 	assert.Contains(t, inputSchema.Properties, "tail_lines")
+	assert.Contains(t, inputSchema.Properties, "max_failed_jobs")
 	assert.ElementsMatch(t, inputSchema.Required, []string{"owner", "repo", "pullNumber"})
 
 	tests := []struct {
@@ -1557,12 +1559,8 @@ func Test_GetPullRequestCIFailures(t *testing.T) {
 			},
 			expectError: false,
 			checkResponse: func(t *testing.T, response map[string]any) {
-				assert.Contains(t, response["message"], "Found 1 failed workflow run")
 				assert.Equal(t, float64(123), response["pull_number"])
 				assert.Equal(t, "abc123sha", response["head_sha"])
-				assert.Equal(t, "feature-branch", response["head_branch"])
-				assert.Equal(t, float64(2), response["total_runs"])
-				assert.Equal(t, float64(1), response["failed_runs"])
 				assert.Contains(t, response, "workflow_runs")
 			},
 		},
@@ -1609,7 +1607,7 @@ func Test_GetPullRequestCIFailures(t *testing.T) {
 			},
 			expectError: false,
 			checkResponse: func(t *testing.T, response map[string]any) {
-				assert.Equal(t, "No failed workflow runs found for this pull request", response["message"])
+				assert.Equal(t, "No failed workflow runs or check runs found", response["message"])
 				assert.Equal(t, float64(456), response["pull_number"])
 			},
 		},
@@ -1649,7 +1647,7 @@ func Test_GetPullRequestCIFailures(t *testing.T) {
 			},
 			expectError: false,
 			checkResponse: func(t *testing.T, response map[string]any) {
-				assert.Equal(t, "No workflow runs found for this pull request", response["message"])
+				assert.Equal(t, "No failed workflow runs or check runs found", response["message"])
 				assert.Equal(t, float64(789), response["pull_number"])
 			},
 		},
@@ -1822,16 +1820,18 @@ func Test_GetPullRequestCIFailures_WithContentReturn(t *testing.T) {
 	_, handler := GetPullRequestCIFailures(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
 
 	request := createMCPRequest(map[string]any{
-		"owner":          "owner",
-		"repo":           "repo",
-		"pullNumber":     float64(123),
-		"return_content": true,
+		"owner":               "owner",
+		"repo":                "repo",
+		"pullNumber":          float64(123),
+		"include_annotations": false, // Only test logs, not annotations
+		"include_logs":        true,
 	})
 	args := map[string]any{
-		"owner":          "owner",
-		"repo":           "repo",
-		"pullNumber":     float64(123),
-		"return_content": true,
+		"owner":               "owner",
+		"repo":                "repo",
+		"pullNumber":          float64(123),
+		"include_annotations": false,
+		"include_logs":        true,
 	}
 
 	result, _, err := handler(context.Background(), &request, args)
@@ -1843,24 +1843,700 @@ func Test_GetPullRequestCIFailures_WithContentReturn(t *testing.T) {
 	err = json.Unmarshal([]byte(textContent.Text), &response)
 	require.NoError(t, err)
 
-	assert.Contains(t, response["message"], "Found 1 failed workflow run")
 	assert.Equal(t, float64(123), response["pull_number"])
 
 	// Verify that workflow runs are included
 	workflowRuns, ok := response["workflow_runs"].([]any)
-	assert.True(t, ok)
-	assert.Len(t, workflowRuns, 1)
+	require.True(t, ok)
+	require.Len(t, workflowRuns, 1)
 
 	// Verify the first workflow run has jobs with log content
 	firstRun, ok := workflowRuns[0].(map[string]any)
-	assert.True(t, ok)
+	require.True(t, ok)
 	jobs, ok := firstRun["jobs"].([]any)
-	assert.True(t, ok)
-	assert.Len(t, jobs, 1)
+	require.True(t, ok)
+	require.Len(t, jobs, 1)
 
 	// Verify log content is present
 	firstJob, ok := jobs[0].(map[string]any)
+	require.True(t, ok)
+	assert.Contains(t, firstJob, "logs_tail")
+}
+
+func Test_GetPullRequestCIFailures_WithAnnotations(t *testing.T) {
+	// Test the use_annotations functionality (default behavior)
+	mockedClient := mock.NewMockedHTTPClient(
+		mock.WithRequestMatchHandler(
+			mock.GetReposPullsByOwnerByRepoByPullNumber,
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				pr := &github.PullRequest{
+					Number: github.Ptr(123),
+					Head: &github.PullRequestBranch{
+						SHA: github.Ptr("abc123sha"),
+						Ref: github.Ptr("feature-branch"),
+					},
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(pr)
+			}),
+		),
+		mock.WithRequestMatchHandler(
+			mock.GetReposActionsRunsByOwnerByRepo,
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				runs := &github.WorkflowRuns{
+					TotalCount: github.Ptr(1),
+					WorkflowRuns: []*github.WorkflowRun{
+						{
+							ID:         github.Ptr(int64(1001)),
+							Name:       github.Ptr("CI"),
+							WorkflowID: github.Ptr(int64(100)),
+							Status:     github.Ptr("completed"),
+							Conclusion: github.Ptr("failure"),
+							HTMLURL:    github.Ptr("https://github.com/owner/repo/actions/runs/1001"),
+						},
+					},
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(runs)
+			}),
+		),
+		mock.WithRequestMatchHandler(
+			mock.GetReposActionsRunsJobsByOwnerByRepoByRunId,
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				jobs := &github.Jobs{
+					TotalCount: github.Ptr(1),
+					Jobs: []*github.WorkflowJob{
+						{
+							ID:         github.Ptr(int64(2001)),
+							Name:       github.Ptr("test-job"),
+							Status:     github.Ptr("completed"),
+							Conclusion: github.Ptr("failure"),
+							HTMLURL:    github.Ptr("https://github.com/owner/repo/actions/runs/1001/jobs/2001"),
+						},
+					},
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(jobs)
+			}),
+		),
+		mock.WithRequestMatchHandler(
+			mock.EndpointPattern{
+				Pattern: "/repos/owner/repo/check-runs/2001/annotations",
+				Method:  "GET",
+			},
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				annotations := []*github.CheckRunAnnotation{
+					{
+						Path:            github.Ptr("src/test.js"),
+						StartLine:       github.Ptr(42),
+						EndLine:         github.Ptr(42),
+						AnnotationLevel: github.Ptr("failure"),
+						Message:         github.Ptr("Expected true but got false"),
+						Title:           github.Ptr("Test assertion failed"),
+					},
+					{
+						Path:            github.Ptr("src/auth.js"),
+						StartLine:       github.Ptr(100),
+						EndLine:         github.Ptr(105),
+						AnnotationLevel: github.Ptr("failure"),
+						Message:         github.Ptr("TypeError: Cannot read property 'id' of undefined"),
+						Title:           github.Ptr("Runtime error"),
+					},
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(annotations)
+			}),
+		),
+	)
+
+	client := github.NewClient(mockedClient)
+	_, handler := GetPullRequestCIFailures(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
+
+	// Default use_annotations=true
+	request := createMCPRequest(map[string]any{
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(123),
+	})
+	args := map[string]any{
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(123),
+	}
+
+	result, _, err := handler(context.Background(), &request, args)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+	var response map[string]any
+	err = json.Unmarshal([]byte(textContent.Text), &response)
+	require.NoError(t, err)
+
+	assert.Equal(t, float64(123), response["pull_number"])
+
+	// Verify that workflow runs are included
+	workflowRuns, ok := response["workflow_runs"].([]any)
+	require.True(t, ok)
+	require.Len(t, workflowRuns, 1)
+
+	// Verify the first workflow run has jobs with annotations
+	firstRun, ok := workflowRuns[0].(map[string]any)
+	require.True(t, ok)
+	jobs, ok := firstRun["jobs"].([]any)
+	require.True(t, ok)
+	require.Len(t, jobs, 1)
+
+	// Verify annotations are present
+	firstJob, ok := jobs[0].(map[string]any)
+	require.True(t, ok)
+	assert.Contains(t, firstJob, "annotations")
+
+	// Check annotations content
+	annotations, ok := firstJob["annotations"].([]any)
+	require.True(t, ok)
+	assert.Len(t, annotations, 2)
+
+	firstAnnotation, ok := annotations[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "src/test.js", firstAnnotation["path"])
+	assert.Equal(t, float64(42), firstAnnotation["line"])
+	assert.Equal(t, "Expected true but got false", firstAnnotation["message"])
+	assert.Equal(t, "Test assertion failed", firstAnnotation["title"])
+}
+
+func Test_GetPullRequestCIFailures_MergeSHADiscovery(t *testing.T) {
+	// Test that workflows found only via merge commit SHA (not head SHA) are discovered
+	mockedClient := mock.NewMockedHTTPClient(
+		mock.WithRequestMatchHandler(
+			mock.GetReposPullsByOwnerByRepoByPullNumber,
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				pr := &github.PullRequest{
+					Number: github.Ptr(123),
+					Head: &github.PullRequestBranch{
+						SHA: github.Ptr("head-sha-abc"),
+						Ref: github.Ptr("feature-branch"),
+					},
+					MergeCommitSHA: github.Ptr("merge-sha-xyz"),
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(pr)
+			}),
+		),
+		mock.WithRequestMatchHandler(
+			mock.GetReposActionsRunsByOwnerByRepo,
+			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				headSHA := r.URL.Query().Get("head_sha")
+
+				var runs *github.WorkflowRuns
+				if headSHA == "head-sha-abc" {
+					// No runs found for head SHA
+					runs = &github.WorkflowRuns{
+						TotalCount:   github.Ptr(0),
+						WorkflowRuns: []*github.WorkflowRun{},
+					}
+				} else if headSHA == "merge-sha-xyz" {
+					// Failed run found only for merge SHA
+					runs = &github.WorkflowRuns{
+						TotalCount: github.Ptr(1),
+						WorkflowRuns: []*github.WorkflowRun{
+							{
+								ID:         github.Ptr(int64(5001)),
+								Name:       github.Ptr("Merge CI"),
+								WorkflowID: github.Ptr(int64(500)),
+								Status:     github.Ptr("completed"),
+								Conclusion: github.Ptr("failure"),
+								HTMLURL:    github.Ptr("https://github.com/owner/repo/actions/runs/5001"),
+								HeadSHA:    github.Ptr("merge-sha-xyz"),
+							},
+						},
+					}
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(runs)
+			}),
+		),
+		mock.WithRequestMatchHandler(
+			mock.GetReposActionsRunsJobsByOwnerByRepoByRunId,
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				jobs := &github.Jobs{
+					TotalCount: github.Ptr(1),
+					Jobs: []*github.WorkflowJob{
+						{
+							ID:         github.Ptr(int64(6001)),
+							Name:       github.Ptr("merge-test-job"),
+							Status:     github.Ptr("completed"),
+							Conclusion: github.Ptr("failure"),
+						},
+					},
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(jobs)
+			}),
+		),
+		mock.WithRequestMatchHandler(
+			mock.GetReposActionsJobsLogsByOwnerByRepoByJobId,
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Location", "https://github.com/logs/job/6001")
+				w.WriteHeader(http.StatusFound)
+			}),
+		),
+	)
+
+	client := github.NewClient(mockedClient)
+	_, handler := GetPullRequestCIFailures(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
+
+	request := createMCPRequest(map[string]any{
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(123),
+	})
+	args := map[string]any{
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(123),
+	}
+
+	result, _, err := handler(context.Background(), &request, args)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+	var response map[string]any
+	err = json.Unmarshal([]byte(textContent.Text), &response)
+	require.NoError(t, err)
+
+	// Verify that the failed run from merge SHA was discovered
+	assert.Equal(t, float64(123), response["pull_number"])
+	assert.Equal(t, "head-sha-abc", response["head_sha"])
+
+	// Verify the workflow run is from merge SHA
+	workflowRuns, ok := response["workflow_runs"].([]any)
+	require.True(t, ok)
+	require.Len(t, workflowRuns, 1)
+
+	firstRun, ok := workflowRuns[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, float64(5001), firstRun["run_id"])
+	assert.Equal(t, "Merge CI", firstRun["run_name"])
+}
+
+func Test_GetPullRequestCIFailures_PaginatedJobs(t *testing.T) {
+	// Test that failed jobs appearing on page 2+ of ListWorkflowJobs are discovered
+	callCount := 0
+
+	mockedClient := mock.NewMockedHTTPClient(
+		mock.WithRequestMatchHandler(
+			mock.GetReposPullsByOwnerByRepoByPullNumber,
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				pr := &github.PullRequest{
+					Number: github.Ptr(456),
+					Head: &github.PullRequestBranch{
+						SHA: github.Ptr("paginated-sha"),
+						Ref: github.Ptr("feature-branch"),
+					},
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(pr)
+			}),
+		),
+		mock.WithRequestMatchHandler(
+			mock.GetReposActionsRunsByOwnerByRepo,
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				runs := &github.WorkflowRuns{
+					TotalCount: github.Ptr(1),
+					WorkflowRuns: []*github.WorkflowRun{
+						{
+							ID:         github.Ptr(int64(7001)),
+							Name:       github.Ptr("Large CI"),
+							WorkflowID: github.Ptr(int64(700)),
+							Status:     github.Ptr("completed"),
+							Conclusion: github.Ptr("failure"),
+							HTMLURL:    github.Ptr("https://github.com/owner/repo/actions/runs/7001"),
+						},
+					},
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(runs)
+			}),
+		),
+		mock.WithRequestMatchHandler(
+			mock.GetReposActionsRunsJobsByOwnerByRepoByRunId,
+			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				callCount++
+				page := r.URL.Query().Get("page")
+
+				var jobs *github.Jobs
+				if page == "" || page == "1" {
+					// First page: 2 successful jobs
+					jobs = &github.Jobs{
+						TotalCount: github.Ptr(4),
+						Jobs: []*github.WorkflowJob{
+							{
+								ID:         github.Ptr(int64(8001)),
+								Name:       github.Ptr("job-1"),
+								Status:     github.Ptr("completed"),
+								Conclusion: github.Ptr("success"),
+							},
+							{
+								ID:         github.Ptr(int64(8002)),
+								Name:       github.Ptr("job-2"),
+								Status:     github.Ptr("completed"),
+								Conclusion: github.Ptr("success"),
+							},
+						},
+					}
+					// Indicate there's a next page
+					w.Header().Set("Link", `<https://api.github.com/repos/owner/repo/actions/runs/7001/jobs?page=2>; rel="next"`)
+				} else if page == "2" {
+					// Second page: 2 failed jobs - these should be discovered!
+					jobs = &github.Jobs{
+						TotalCount: github.Ptr(4),
+						Jobs: []*github.WorkflowJob{
+							{
+								ID:         github.Ptr(int64(8003)),
+								Name:       github.Ptr("job-3-failed"),
+								Status:     github.Ptr("completed"),
+								Conclusion: github.Ptr("failure"),
+							},
+							{
+								ID:         github.Ptr(int64(8004)),
+								Name:       github.Ptr("job-4-failed"),
+								Status:     github.Ptr("completed"),
+								Conclusion: github.Ptr("failure"),
+							},
+						},
+					}
+					// No more pages
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(jobs)
+			}),
+		),
+		mock.WithRequestMatchHandler(
+			mock.GetReposActionsJobsLogsByOwnerByRepoByJobId,
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Location", "https://github.com/logs/job/123")
+				w.WriteHeader(http.StatusFound)
+			}),
+		),
+	)
+
+	client := github.NewClient(mockedClient)
+	_, handler := GetPullRequestCIFailures(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
+
+	request := createMCPRequest(map[string]any{
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(456),
+	})
+	args := map[string]any{
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(456),
+	}
+
+	result, _, err := handler(context.Background(), &request, args)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+	var response map[string]any
+	err = json.Unmarshal([]byte(textContent.Text), &response)
+	require.NoError(t, err)
+
+	// Verify that both pages were fetched
+	assert.GreaterOrEqual(t, callCount, 2, "Should have fetched at least 2 pages of jobs")
+
+	assert.Equal(t, float64(456), response["pull_number"])
+
+	// Verify workflow run details
+	workflowRuns, ok := response["workflow_runs"].([]any)
+	require.True(t, ok)
+	require.Len(t, workflowRuns, 1)
+
+	firstRun, ok := workflowRuns[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, float64(2), firstRun["failed_jobs"]) // 2 failed jobs from page 2
+
+	// Verify the failed jobs are present
+	jobLogs, ok := firstRun["jobs"].([]any)
+	require.True(t, ok)
+	assert.Len(t, jobLogs, 2)
+
+	// Check job names
+	jobNames := make([]string, 0, 2)
+	for _, job := range jobLogs {
+		jobMap, ok := job.(map[string]any)
+		require.True(t, ok)
+		jobNames = append(jobNames, jobMap["job_name"].(string))
+	}
+	assert.Contains(t, jobNames, "job-3-failed")
+	assert.Contains(t, jobNames, "job-4-failed")
+}
+
+func Test_GetPullRequestCIFailures_ThirdPartyCheckRuns(t *testing.T) {
+	// Test that check runs from third-party tools (like dorny/test-reporter) are discovered
+	mockedClient := mock.NewMockedHTTPClient(
+		mock.WithRequestMatchHandler(
+			mock.GetReposPullsByOwnerByRepoByPullNumber,
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				pr := &github.PullRequest{
+					Number: github.Ptr(123),
+					Head: &github.PullRequestBranch{
+						SHA: github.Ptr("test-sha"),
+						Ref: github.Ptr("feature-branch"),
+					},
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(pr)
+			}),
+		),
+		mock.WithRequestMatchHandler(
+			mock.GetReposActionsRunsByOwnerByRepo,
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				// No workflow runs - only third-party check runs exist
+				runs := &github.WorkflowRuns{
+					TotalCount:   github.Ptr(0),
+					WorkflowRuns: []*github.WorkflowRun{},
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(runs)
+			}),
+		),
+		mock.WithRequestMatchHandler(
+			mock.EndpointPattern{
+				Pattern: "/repos/owner/repo/commits/test-sha/check-runs",
+				Method:  "GET",
+			},
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				checkRuns := &github.ListCheckRunsResults{
+					Total: github.Ptr(2),
+					CheckRuns: []*github.CheckRun{
+						{
+							ID:         github.Ptr(int64(9001)),
+							Name:       github.Ptr("Test Results"),
+							Status:     github.Ptr("completed"),
+							Conclusion: github.Ptr("success"),
+							HTMLURL:    github.Ptr("https://github.com/owner/repo/runs/9001"),
+							App: &github.App{
+								Name: github.Ptr("dorny/test-reporter"),
+							},
+							Output: &github.CheckRunOutput{
+								Title:   github.Ptr("3 tests failed"),
+								Summary: github.Ptr("## Failed Tests\n- test_login\n- test_logout\n- test_register"),
+							},
+						},
+						{
+							ID:         github.Ptr(int64(9002)),
+							Name:       github.Ptr("Coverage Report"),
+							Status:     github.Ptr("completed"),
+							Conclusion: github.Ptr("success"),
+							App: &github.App{
+								Name: github.Ptr("codecov"),
+							},
+						},
+					},
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(checkRuns)
+			}),
+		),
+		mock.WithRequestMatchHandler(
+			mock.EndpointPattern{
+				Pattern: "/repos/owner/repo/check-runs/9001/annotations",
+				Method:  "GET",
+			},
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				annotations := []*github.CheckRunAnnotation{
+					{
+						Path:            github.Ptr("tests/auth/login.test.ts"),
+						StartLine:       github.Ptr(42),
+						EndLine:         github.Ptr(42),
+						AnnotationLevel: github.Ptr("failure"),
+						Message:         github.Ptr("Expected status 200 but received 401"),
+						Title:           github.Ptr("test_login failed"),
+					},
+					{
+						Path:            github.Ptr("tests/auth/logout.test.ts"),
+						StartLine:       github.Ptr(15),
+						EndLine:         github.Ptr(15),
+						AnnotationLevel: github.Ptr("failure"),
+						Message:         github.Ptr("Session not properly cleared"),
+						Title:           github.Ptr("test_logout failed"),
+					},
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(annotations)
+			}),
+		),
+		mock.WithRequestMatchHandler(
+			mock.EndpointPattern{
+				Pattern: "/repos/owner/repo/check-runs/9002/annotations",
+				Method:  "GET",
+			},
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				// Codecov has no annotations
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode([]*github.CheckRunAnnotation{})
+			}),
+		),
+	)
+
+	client := github.NewClient(mockedClient)
+	_, handler := GetPullRequestCIFailures(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
+
+	request := createMCPRequest(map[string]any{
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(123),
+	})
+	args := map[string]any{
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(123),
+	}
+
+	result, _, err := handler(context.Background(), &request, args)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+	var response map[string]any
+	err = json.Unmarshal([]byte(textContent.Text), &response)
+	require.NoError(t, err)
+
+	// Verify third_party_check_runs is present
+	thirdPartyCheckRuns, ok := response["third_party_check_runs"].([]any)
+	require.True(t, ok, "third_party_check_runs should be present")
+	require.Len(t, thirdPartyCheckRuns, 1, "Should have 1 third-party check run (only the one with annotations/output)")
+
+	// Verify the check run details
+	firstCheckRun, ok := thirdPartyCheckRuns[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "Test Results", firstCheckRun["name"])
+	assert.Equal(t, "dorny/test-reporter", firstCheckRun["app"])
+	assert.Contains(t, firstCheckRun["summary"], "Failed Tests")
+
+	// Verify annotations from third-party check run
+	annotations, ok := firstCheckRun["annotations"].([]any)
+	require.True(t, ok)
+	assert.Len(t, annotations, 2)
+
+	firstAnn, ok := annotations[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "tests/auth/login.test.ts", firstAnn["path"])
+	assert.Equal(t, float64(42), firstAnn["line"])
+	assert.Equal(t, "test_login failed", firstAnn["title"])
+	assert.Contains(t, firstAnn["message"], "Expected status 200")
+}
+
+func Test_GetJobLogs_FailedOnly_PaginatedJobs(t *testing.T) {
+	// Test that handleFailedJobLogs also properly paginates
+	callCount := 0
+
+	mockedClient := mock.NewMockedHTTPClient(
+		mock.WithRequestMatchHandler(
+			mock.GetReposActionsRunsJobsByOwnerByRepoByRunId,
+			http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				callCount++
+				page := r.URL.Query().Get("page")
+
+				var jobs *github.Jobs
+				if page == "" || page == "1" {
+					// First page: 1 successful job
+					jobs = &github.Jobs{
+						TotalCount: github.Ptr(3),
+						Jobs: []*github.WorkflowJob{
+							{
+								ID:         github.Ptr(int64(9001)),
+								Name:       github.Ptr("success-job"),
+								Status:     github.Ptr("completed"),
+								Conclusion: github.Ptr("success"),
+							},
+						},
+					}
+					// Indicate there's a next page
+					w.Header().Set("Link", `<https://api.github.com/repos/owner/repo/actions/runs/999/jobs?page=2>; rel="next"`)
+				} else if page == "2" {
+					// Second page: 2 failed jobs
+					jobs = &github.Jobs{
+						TotalCount: github.Ptr(3),
+						Jobs: []*github.WorkflowJob{
+							{
+								ID:         github.Ptr(int64(9002)),
+								Name:       github.Ptr("failed-job-1"),
+								Status:     github.Ptr("completed"),
+								Conclusion: github.Ptr("failure"),
+							},
+							{
+								ID:         github.Ptr(int64(9003)),
+								Name:       github.Ptr("failed-job-2"),
+								Status:     github.Ptr("completed"),
+								Conclusion: github.Ptr("failure"),
+							},
+						},
+					}
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(jobs)
+			}),
+		),
+		mock.WithRequestMatchHandler(
+			mock.GetReposActionsJobsLogsByOwnerByRepoByJobId,
+			http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Location", "https://github.com/logs/job/123")
+				w.WriteHeader(http.StatusFound)
+			}),
+		),
+	)
+
+	client := github.NewClient(mockedClient)
+	_, handler := GetJobLogs(stubGetClientFn(client), translations.NullTranslationHelper, 5000)
+
+	request := createMCPRequest(map[string]any{
+		"owner":       "owner",
+		"repo":        "repo",
+		"run_id":      float64(999),
+		"failed_only": true,
+	})
+	args := map[string]any{
+		"owner":       "owner",
+		"repo":        "repo",
+		"run_id":      float64(999),
+		"failed_only": true,
+	}
+
+	result, _, err := handler(context.Background(), &request, args)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+	var response map[string]any
+	err = json.Unmarshal([]byte(textContent.Text), &response)
+	require.NoError(t, err)
+
+	// Verify pagination occurred
+	assert.GreaterOrEqual(t, callCount, 2, "Should have fetched at least 2 pages")
+
+	// Verify we found both failed jobs from page 2
+	assert.Equal(t, "Retrieved logs for 2 failed jobs", response["message"])
+	assert.Equal(t, float64(999), response["run_id"])
+	assert.Equal(t, float64(3), response["total_jobs"])
+	assert.Equal(t, float64(2), response["failed_jobs"])
+
+	// Verify the logs
+	logs, ok := response["logs"].([]any)
 	assert.True(t, ok)
-	assert.Contains(t, firstJob, "logs_content")
-	assert.Contains(t, firstJob["logs_content"], "Error: test failed")
+	assert.Len(t, logs, 2)
+
+	// Check job names
+	jobNames := make([]string, 0, 2)
+	for _, log := range logs {
+		logMap, ok := log.(map[string]any)
+		assert.True(t, ok)
+		jobNames = append(jobNames, logMap["job_name"].(string))
+	}
+	assert.Contains(t, jobNames, "failed-job-1")
+	assert.Contains(t, jobNames, "failed-job-2")
 }

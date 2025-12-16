@@ -684,18 +684,36 @@ func GetJobLogs(getClient GetClientFn, t translations.TranslationHelperFunc, con
 
 // handleFailedJobLogs gets logs for all failed jobs in a workflow run
 func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo string, runID int64, returnContent bool, tailLines int, contentWindowSize int) (*mcp.CallToolResult, any, error) {
-	// First, get all jobs for the workflow run
-	jobs, resp, err := client.Actions.ListWorkflowJobs(ctx, owner, repo, runID, &github.ListWorkflowJobsOptions{
+	// First, get all jobs for the workflow run with pagination
+	var allJobs []*github.WorkflowJob
+	opts := &github.ListWorkflowJobsOptions{
 		Filter: "latest",
-	})
-	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list workflow jobs", resp, err), nil, nil
+		ListOptions: github.ListOptions{
+			PerPage: 100,
+			Page:    1,
+		},
 	}
-	defer func() { _ = resp.Body.Close() }()
+
+	for {
+		jobs, resp, err := client.Actions.ListWorkflowJobs(ctx, owner, repo, runID, opts)
+		if err != nil {
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list workflow jobs", resp, err), nil, nil
+		}
+
+		allJobs = append(allJobs, jobs.Jobs...)
+
+		// Check if there are more pages
+		if resp.NextPage == 0 {
+			_ = resp.Body.Close()
+			break
+		}
+		_ = resp.Body.Close()
+		opts.Page = resp.NextPage
+	}
 
 	// Filter for failed jobs
 	var failedJobs []*github.WorkflowJob
-	for _, job := range jobs.Jobs {
+	for _, job := range allJobs {
 		if job.GetConclusion() == "failure" {
 			failedJobs = append(failedJobs, job)
 		}
@@ -705,7 +723,7 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 		result := map[string]any{
 			"message":     "No failed jobs found in this workflow run",
 			"run_id":      runID,
-			"total_jobs":  len(jobs.Jobs),
+			"total_jobs":  len(allJobs),
 			"failed_jobs": 0,
 		}
 		r, _ := json.Marshal(result)
@@ -733,7 +751,7 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 	result := map[string]any{
 		"message":       fmt.Sprintf("Retrieved logs for %d failed jobs", len(failedJobs)),
 		"run_id":        runID,
-		"total_jobs":    len(jobs.Jobs),
+		"total_jobs":    len(allJobs),
 		"failed_jobs":   len(failedJobs),
 		"logs":          logResults,
 		"return_format": map[string]bool{"content": returnContent, "urls": !returnContent},
@@ -1353,15 +1371,25 @@ func GetPullRequestCIFailures(getClient GetClientFn, t translations.TranslationH
 						Type:        "number",
 						Description: "Pull request number",
 					},
-					"return_content": {
+					"max_failed_jobs": {
+						Type:        "number",
+						Description: "Maximum number of failed jobs to fetch details for (default: 3). Use 0 for no limit. Reduce if output is too large.",
+						Default:     json.RawMessage(`3`),
+					},
+					"include_annotations": {
 						Type:        "boolean",
-						Description: "Returns actual log content instead of URLs (default: true)",
+						Description: "Include GitHub Check Run annotations - structured error messages with file/line info (default: true). Set to false to reduce output size.",
+						Default:     json.RawMessage(`true`),
+					},
+					"include_logs": {
+						Type:        "boolean",
+						Description: "Include tail of job logs for context (default: true). Set to false if annotations are sufficient or to reduce output size.",
 						Default:     json.RawMessage(`true`),
 					},
 					"tail_lines": {
 						Type:        "number",
-						Description: "Number of lines to return from the end of each log (default: 500)",
-						Default:     json.RawMessage(`500`),
+						Description: "Number of log lines to include from end of each job (default: 100). Reduce if output is too large.",
+						Default:     json.RawMessage(`100`),
 					},
 				},
 				Required: []string{"owner", "repo", "pullNumber"},
@@ -1382,11 +1410,19 @@ func GetPullRequestCIFailures(getClient GetClientFn, t translations.TranslationH
 			}
 
 			// Get optional parameters with defaults
-			returnContent, err := OptionalBoolParamWithDefault(args, "return_content", true)
+			maxFailedJobs, err := OptionalIntParamWithDefault(args, "max_failed_jobs", 3)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			tailLines, err := OptionalIntParamWithDefault(args, "tail_lines", 500)
+			includeAnnotations, err := OptionalBoolParamWithDefault(args, "include_annotations", true)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			includeLogs, err := OptionalBoolParamWithDefault(args, "include_logs", true)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			tailLines, err := OptionalIntParamWithDefault(args, "tail_lines", 100)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -1396,7 +1432,7 @@ func GetPullRequestCIFailures(getClient GetClientFn, t translations.TranslationH
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 
-			// Step 1: Get the PR to find the head SHA
+			// Step 1: Get the PR to find the head SHA and merge commit SHA
 			pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get pull request", resp, err), nil, nil
@@ -1404,91 +1440,164 @@ func GetPullRequestCIFailures(getClient GetClientFn, t translations.TranslationH
 			defer func() { _ = resp.Body.Close() }()
 
 			headSHA := pr.GetHead().GetSHA()
-			headBranch := pr.GetHead().GetRef()
+			mergeCommitSHA := pr.GetMergeCommitSHA()
 
 			if headSHA == "" {
 				return utils.NewToolResultError("Pull request has no head SHA"), nil, nil
 			}
 
-			// Step 2: List workflow runs for this SHA
-			workflowRuns, resp, err := client.Actions.ListRepositoryWorkflowRuns(ctx, owner, repo, &github.ListWorkflowRunsOptions{
+			// Step 2: List workflow runs for both head SHA and merge commit SHA
+			// Many CI workflows run on the merge commit (refs/pull/<n>/merge), not the head SHA
+			runsMap := make(map[int64]*github.WorkflowRun)
+
+			// Query for head SHA
+			headSHARuns, resp, err := client.Actions.ListRepositoryWorkflowRuns(ctx, owner, repo, &github.ListWorkflowRunsOptions{
 				HeadSHA: headSHA,
 				ListOptions: github.ListOptions{
-					PerPage: 100, // Get a good number of runs
+					PerPage: 100,
 				},
 			})
 			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list workflow runs", resp, err), nil, nil
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list workflow runs for head SHA", resp, err), nil, nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			if workflowRuns.GetTotalCount() == 0 {
-				result := map[string]any{
-					"message":     "No workflow runs found for this pull request",
-					"pull_number": pullNumber,
-					"head_sha":    headSHA,
-					"head_branch": headBranch,
+			for _, run := range headSHARuns.WorkflowRuns {
+				runsMap[run.GetID()] = run
+			}
+
+			// Query for merge commit SHA if available (deduplicate by run ID)
+			if mergeCommitSHA != "" && mergeCommitSHA != headSHA {
+				mergeRuns, resp, err := client.Actions.ListRepositoryWorkflowRuns(ctx, owner, repo, &github.ListWorkflowRunsOptions{
+					HeadSHA: mergeCommitSHA,
+					ListOptions: github.ListOptions{
+						PerPage: 100,
+					},
+				})
+				if err != nil {
+					// Log error but continue - merge SHA runs are supplementary
+					_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to list workflow runs for merge SHA", resp, err)
+				} else {
+					defer func() { _ = resp.Body.Close() }()
+					for _, run := range mergeRuns.WorkflowRuns {
+						runsMap[run.GetID()] = run
+					}
 				}
-				r, _ := json.Marshal(result)
-				return utils.NewToolResultText(string(r)), nil, nil
 			}
 
 			// Step 3: Find failed workflow runs and collect their failed job logs
+			// Process failed workflow runs
 			var failedRunResults []map[string]any
-			totalFailedJobs := 0
+			totalJobsWithDetails := 0
 
-			for _, run := range workflowRuns.WorkflowRuns {
-				// Only process failed or completed runs with failures
-				conclusion := run.GetConclusion()
-				if conclusion != "failure" && conclusion != "timed_out" && conclusion != "cancelled" {
+			for _, run := range runsMap {
+				if !isCIFailure(run.GetConclusion()) {
 					continue
 				}
 
-				// Get failed job logs for this run
-				runResult, resp, err := getFailedJobsForRun(ctx, client, owner, repo, run, returnContent, tailLines, contentWindowSize)
+				budget := -1 // unlimited
+				if maxFailedJobs > 0 {
+					budget = maxFailedJobs - totalJobsWithDetails
+				}
+
+				runResult, resp, err := getFailedJobsForRun(ctx, client, owner, repo, run, includeAnnotations, includeLogs, tailLines, contentWindowSize, budget)
 				if err != nil {
-					// Log error but continue with other runs
-					runResult = map[string]any{
-						"run_id":   run.GetID(),
-						"run_name": run.GetName(),
-						"workflow": run.GetWorkflowID(),
-						"error":    err.Error(),
-					}
-					ctx, err2 := ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get job logs", resp, err)
-					if err2 != nil {
-						fmt.Printf("failed to record GitHub API error in context: %v\n", err2)
-					}
+					runResult = map[string]any{"run_id": run.GetID(), "error": err.Error()}
+					_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get job logs", resp, err)
 				}
 
-				if failedJobCount, ok := runResult["failed_jobs"].(int); ok {
-					totalFailedJobs += failedJobCount
+				if n, ok := runResult["jobs_with_details"].(int); ok {
+					totalJobsWithDetails += n
 				}
-
 				failedRunResults = append(failedRunResults, runResult)
 			}
 
-			if len(failedRunResults) == 0 {
+			// Collect job IDs we already processed to avoid duplicates
+			processedIDs := make(map[int64]bool)
+			for _, runResult := range failedRunResults {
+				// Handle both []map[string]any and []any (Go doesn't auto-convert)
+				switch jobs := runResult["jobs"].(type) {
+				case []map[string]any:
+					for _, job := range jobs {
+						if id, ok := job["job_id"].(int64); ok {
+							processedIDs[id] = true
+						}
+					}
+				case []any:
+					for _, job := range jobs {
+						if jobMap, ok := job.(map[string]any); ok {
+							if id, ok := jobMap["job_id"].(int64); ok {
+								processedIDs[id] = true
+							}
+						}
+					}
+				}
+			}
+
+			// Fetch check runs from the Checks API (e.g., dorny/test-reporter).
+			// IMPORTANT: these may be attached either to the PR head SHA or to the merge commit SHA,
+			// so we query both and de-duplicate by check_run_id.
+			var thirdPartyCheckRuns []map[string]any
+			if includeAnnotations {
+				remaining := -1
+				if maxFailedJobs > 0 {
+					remaining = maxFailedJobs - totalJobsWithDetails
+				}
+
+				thirdPartyCheckRunsByID := map[int64]map[string]any{}
+				addRuns := func(runs []map[string]any) {
+					for _, r := range runs {
+						if id, ok := r["check_run_id"].(int64); ok {
+							thirdPartyCheckRunsByID[id] = r
+						}
+					}
+				}
+
+				// Check runs can be attached to:
+				// - head SHA
+				// - merge commit SHA
+				// - merge ref (refs/pull/<n>/merge)
+				refs := []string{headSHA}
+				if mergeCommitSHA != "" && mergeCommitSHA != headSHA {
+					refs = append(refs, mergeCommitSHA)
+				}
+				refs = append(refs, fmt.Sprintf("refs/pull/%d/merge", pullNumber))
+
+				for _, ref := range refs {
+					addRuns(getThirdPartyCheckRuns(ctx, client, owner, repo, ref, remaining, processedIDs))
+					if remaining > 0 {
+						remaining = remaining - len(thirdPartyCheckRunsByID)
+						if remaining < 0 {
+							remaining = 0
+						}
+					}
+					if remaining == 0 {
+						break
+					}
+				}
+
+				for _, v := range thirdPartyCheckRunsByID {
+					thirdPartyCheckRuns = append(thirdPartyCheckRuns, v)
+				}
+			}
+
+			if len(failedRunResults) == 0 && len(thirdPartyCheckRuns) == 0 {
 				result := map[string]any{
-					"message":     "No failed workflow runs found for this pull request",
+					"message":     "No failed workflow runs or check runs found",
 					"pull_number": pullNumber,
 					"head_sha":    headSHA,
-					"head_branch": headBranch,
-					"total_runs":  workflowRuns.GetTotalCount(),
 				}
 				r, _ := json.Marshal(result)
 				return utils.NewToolResultText(string(r)), nil, nil
 			}
 
 			result := map[string]any{
-				"message":           fmt.Sprintf("Found %d failed workflow run(s) with %d failed job(s)", len(failedRunResults), totalFailedJobs),
-				"pull_number":       pullNumber,
-				"head_sha":          headSHA,
-				"head_branch":       headBranch,
-				"total_runs":        workflowRuns.GetTotalCount(),
-				"failed_runs":       len(failedRunResults),
-				"total_failed_jobs": totalFailedJobs,
-				"workflow_runs":     failedRunResults,
-				"return_format":     map[string]bool{"content": returnContent, "urls": !returnContent},
+				"pull_number":    pullNumber,
+				"head_sha":       headSHA,
+				"workflow_runs":  failedRunResults,
+			}
+			if len(thirdPartyCheckRuns) > 0 {
+				result["third_party_check_runs"] = thirdPartyCheckRuns
 			}
 
 			r, err := json.Marshal(result)
@@ -1500,72 +1609,263 @@ func GetPullRequestCIFailures(getClient GetClientFn, t translations.TranslationH
 		}
 }
 
-// getFailedJobsForRun gets the failed jobs and their logs for a specific workflow run
-func getFailedJobsForRun(ctx context.Context, client *github.Client, owner, repo string, run *github.WorkflowRun, returnContent bool, tailLines int, contentWindowSize int) (map[string]any, *github.Response, error) {
+// isCIFailure returns true if the conclusion indicates a failure
+func isCIFailure(conclusion string) bool {
+	return conclusion == "failure" || conclusion == "timed_out" || conclusion == "cancelled"
+}
+
+func containsFailureMarkers(s string) bool {
+	ls := strings.ToLower(s)
+	return strings.Contains(ls, "failed") ||
+		strings.Contains(ls, "failure") ||
+		strings.Contains(ls, "error") ||
+		strings.Contains(s, "❌") ||
+		strings.Contains(ls, "✗")
+}
+
+// getFailedJobsForRun gets the failed jobs and their logs/annotations for a specific workflow run
+func getFailedJobsForRun(ctx context.Context, client *github.Client, owner, repo string, run *github.WorkflowRun, includeAnnotations, includeLogs bool, tailLines, contentWindowSize, maxJobsWithDetails int) (map[string]any, *github.Response, error) {
 	runID := run.GetID()
 
-	// Get all jobs for this run
-	jobs, resp, err := client.Actions.ListWorkflowJobs(ctx, owner, repo, runID, &github.ListWorkflowJobsOptions{
-		Filter: "latest",
-	})
-	if err != nil {
-		return nil, resp, fmt.Errorf("failed to list workflow jobs for run %d: %w", runID, err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	// Filter for failed jobs
-	var failedJobs []*github.WorkflowJob
-	for _, job := range jobs.Jobs {
-		jobConclusion := job.GetConclusion()
-		if jobConclusion == "failure" || jobConclusion == "timed_out" || jobConclusion == "cancelled" {
-			failedJobs = append(failedJobs, job)
-		}
+	// Get all jobs for this run with pagination
+	var allJobs []*github.WorkflowJob
+	var lastResp *github.Response
+	opts := &github.ListWorkflowJobsOptions{
+		Filter:      "latest",
+		ListOptions: github.ListOptions{PerPage: 100},
 	}
 
-	// Collect logs for failed jobs
-	var jobLogs []map[string]any
-	for _, job := range failedJobs {
-		jobResult, _, err := getJobLogData(ctx, client, owner, repo, job.GetID(), job.GetName(), returnContent, tailLines, contentWindowSize)
+	for {
+		jobs, resp, err := client.Actions.ListWorkflowJobs(ctx, owner, repo, runID, opts)
 		if err != nil {
-			// Include error info but continue
-			jobResult = map[string]any{
-				"job_id":     job.GetID(),
-				"job_name":   job.GetName(),
-				"conclusion": job.GetConclusion(),
-				"error":      err.Error(),
-			}
-		} else {
-			// Add conclusion to result
-			jobResult["conclusion"] = job.GetConclusion()
-			// Add failed step information if available
-			var failedSteps []map[string]any
-			for _, step := range job.Steps {
-				if step.GetConclusion() == "failure" {
-					failedSteps = append(failedSteps, map[string]any{
-						"name":       step.GetName(),
-						"number":     step.GetNumber(),
-						"conclusion": step.GetConclusion(),
-					})
+			return nil, resp, fmt.Errorf("failed to list workflow jobs for run %d: %w", runID, err)
+		}
+		lastResp = resp
+		allJobs = append(allJobs, jobs.Jobs...)
+		if resp.NextPage == 0 {
+			_ = resp.Body.Close()
+			break
+		}
+		_ = resp.Body.Close()
+		opts.Page = resp.NextPage
+	}
+
+	// Process failed jobs
+	var jobResults []map[string]any
+	jobsWithDetails, jobsSkipped := 0, 0
+
+	for _, job := range allJobs {
+		if !isCIFailure(job.GetConclusion()) {
+			continue
+		}
+
+		shouldFetchDetails := maxJobsWithDetails == -1 || jobsWithDetails < maxJobsWithDetails
+		jobResult := map[string]any{
+			"job_id":     job.GetID(),
+			"job_name":   job.GetName(),
+			"conclusion": job.GetConclusion(),
+			"html_url":   job.GetHTMLURL(),
+		}
+
+		// Add failed steps
+		for _, step := range job.Steps {
+			if step.GetConclusion() == "failure" {
+				if jobResult["failed_steps"] == nil {
+					jobResult["failed_steps"] = []map[string]any{}
 				}
-			}
-			if len(failedSteps) > 0 {
-				jobResult["failed_steps"] = failedSteps
+				jobResult["failed_steps"] = append(jobResult["failed_steps"].([]map[string]any), map[string]any{
+					"name":   step.GetName(),
+					"number": step.GetNumber(),
+				})
 			}
 		}
-		jobLogs = append(jobLogs, jobResult)
+
+		if shouldFetchDetails {
+			addJobDetails(ctx, client, owner, repo, job.GetID(), jobResult, includeAnnotations, includeLogs, tailLines, contentWindowSize)
+			jobsWithDetails++
+		} else {
+			jobResult["details_skipped"] = true
+			jobsSkipped++
+		}
+		jobResults = append(jobResults, jobResult)
 	}
 
-	result := map[string]any{
-		"run_id":      runID,
-		"run_name":    run.GetName(),
-		"workflow_id": run.GetWorkflowID(),
-		"html_url":    run.GetHTMLURL(),
-		"conclusion":  run.GetConclusion(),
-		"status":      run.GetStatus(),
-		"total_jobs":  len(jobs.Jobs),
-		"failed_jobs": len(failedJobs),
-		"jobs":        jobLogs,
-	}
-
-	return result, resp, nil
+	return map[string]any{
+		"run_id":       runID,
+		"run_name":     run.GetName(),
+		"html_url":     run.GetHTMLURL(),
+		"conclusion":   run.GetConclusion(),
+		"failed_jobs":  len(jobResults),
+		"jobs_with_details": jobsWithDetails,
+		"jobs":         jobResults,
+	}, lastResp, nil
 }
+
+// addJobDetails adds annotations and/or logs to the job result map
+func addJobDetails(ctx context.Context, client *github.Client, owner, repo string, jobID int64, result map[string]any, includeAnnotations, includeLogs bool, tailLines, contentWindowSize int) {
+	if includeAnnotations {
+		const maxJobAnnotations = 50
+		if annotations, _ := fetchAnnotations(ctx, client, owner, repo, jobID, maxJobAnnotations); len(annotations) > 0 {
+			result["annotations"] = annotations
+		}
+	}
+	if includeLogs {
+		logData, _, err := getJobLogData(ctx, client, owner, repo, jobID, "", true, tailLines, contentWindowSize)
+		if err != nil {
+			result["logs_error"] = err.Error()
+		} else if content, ok := logData["logs_content"]; ok {
+			result["logs_tail"] = content
+		}
+	}
+}
+
+// fetchAnnotations fetches check run annotations for a job/check run
+func fetchAnnotations(ctx context.Context, client *github.Client, owner, repo string, checkRunID int64, limit int) ([]map[string]any, bool) {
+	var result []map[string]any
+	opts := &github.ListOptions{PerPage: 100}
+	if limit == 0 {
+		return nil, false
+	}
+
+	for {
+		annotations, resp, err := client.Checks.ListCheckRunAnnotations(ctx, owner, repo, checkRunID, opts)
+		if err != nil {
+			return nil, false
+		}
+		for _, ann := range annotations {
+			a := map[string]any{"message": ann.GetMessage()}
+			if p := ann.GetPath(); p != "" {
+				a["path"] = p
+			}
+			if l := ann.GetStartLine(); l > 0 {
+				a["line"] = l
+			}
+			if t := ann.GetTitle(); t != "" {
+				a["title"] = t
+			}
+			result = append(result, a)
+			if limit > 0 && len(result) >= limit {
+				// We intentionally stop early to avoid large payloads.
+				_ = resp.Body.Close()
+				return result, true
+			}
+		}
+		if resp.NextPage == 0 {
+			_ = resp.Body.Close()
+			break
+		}
+		_ = resp.Body.Close()
+		opts.Page = resp.NextPage
+	}
+	return result, false
+}
+
+// getThirdPartyCheckRuns fetches check runs from third-party tools (e.g., dorny/test-reporter)
+// These tools create separate check runs with their own annotations (not attached to workflow jobs)
+// excludeIDs contains workflow job IDs to skip (since workflow jobs are also check runs)
+func getThirdPartyCheckRuns(ctx context.Context, client *github.Client, owner, repo, ref string, budget int, excludeIDs map[int64]bool) []map[string]any {
+	if budget <= 0 && budget != -1 {
+		return nil
+	}
+
+	// Fetch all check runs with pagination
+	var allCheckRuns []*github.CheckRun
+	opts := &github.ListCheckRunsOptions{
+		// "all" is important: some tools emit multiple runs and the "latest" view can hide the report we want.
+		Filter:      github.Ptr("all"),
+		ListOptions: github.ListOptions{PerPage: 100},
+	}
+	for {
+		checkRuns, resp, err := client.Checks.ListCheckRunsForRef(ctx, owner, repo, ref, opts)
+		if err != nil {
+			return nil
+		}
+		allCheckRuns = append(allCheckRuns, checkRuns.CheckRuns...)
+		if resp.NextPage == 0 {
+			_ = resp.Body.Close()
+			break
+		}
+		_ = resp.Body.Close()
+		opts.Page = resp.NextPage
+	}
+
+	var result []map[string]any
+	processed := 0
+
+	for _, cr := range allCheckRuns {
+		// Skip workflow jobs we already processed (by ID)
+		if excludeIDs[cr.GetID()] {
+			continue
+		}
+
+		appName := ""
+		if app := cr.GetApp(); app != nil {
+			appName = app.GetName()
+		}
+
+		// Candidate selection (cheap): consider only check runs that either failed or have output content.
+		// Then decide whether to return them based on:
+		// - failure conclusion, OR
+		// - failure markers in output, OR
+		// - presence of annotations (detected via a tiny probe), which is common for test reporters.
+		hasOutput := false
+		title := ""
+		summary := ""
+		if output := cr.GetOutput(); output != nil {
+			title = output.GetTitle()
+			summary = output.GetSummary()
+			hasOutput = title != "" || summary != ""
+		}
+		conc := cr.GetConclusion()
+		if !isCIFailure(conc) && !hasOutput {
+			continue
+		}
+
+		r := map[string]any{
+			"check_run_id": cr.GetID(),
+			"name":       cr.GetName(),
+			"conclusion": cr.GetConclusion(),
+			"html_url":   cr.GetHTMLURL(),
+		}
+		if appName != "" {
+			r["app"] = appName
+		}
+		if budget == -1 || processed < budget {
+			// Always include (truncated) output summary/title when present; it's small and high-signal.
+			if title != "" {
+				r["title"] = title
+			}
+			if summary != "" {
+				if len(summary) > 4000 {
+					summary = summary[:4000] + "..."
+				}
+				r["summary"] = summary
+			}
+
+			shouldReturn := isCIFailure(conc) || (hasOutput && containsFailureMarkers(title+"\n"+summary))
+			if !shouldReturn && hasOutput {
+				probe, _ := fetchAnnotations(ctx, client, owner, repo, cr.GetID(), 1)
+				shouldReturn = len(probe) > 0
+			}
+			if !shouldReturn {
+				continue
+			}
+
+			// Fetch only a small tail of annotations to keep payload bounded.
+			const maxAnnotations = 50
+			annotations, truncated := fetchAnnotations(ctx, client, owner, repo, cr.GetID(), maxAnnotations)
+			if len(annotations) > 0 {
+				r["annotations"] = annotations
+			}
+			if truncated {
+				r["annotations_truncated"] = true
+			}
+			processed++
+		} else {
+			r["details_skipped"] = true
+		}
+		result = append(result, r)
+	}
+	return result
+}
+

@@ -12,6 +12,21 @@
       "pullNumber"
     ],
     "properties": {
+      "include_annotations": {
+        "type": "boolean",
+        "description": "Include GitHub Check Run annotations - structured error messages with file/line info (default: true). Set to false to reduce output size.",
+        "default": true
+      },
+      "include_logs": {
+        "type": "boolean",
+        "description": "Include tail of job logs for context (default: true). Set to false if annotations are sufficient or to reduce output size.",
+        "default": true
+      },
+      "max_failed_jobs": {
+        "type": "number",
+        "description": "Maximum number of failed jobs to fetch details for (default: 3). Use 0 for no limit. Reduce if output is too large.",
+        "default": 3
+      },
       "owner": {
         "type": "string",
         "description": "Repository owner"
@@ -24,15 +39,10 @@
         "type": "string",
         "description": "Repository name"
       },
-      "return_content": {
-        "type": "boolean",
-        "description": "Returns actual log content instead of URLs (default: true)",
-        "default": true
-      },
       "tail_lines": {
         "type": "number",
-        "description": "Number of lines to return from the end of each log (default: 500)",
-        "default": 500
+        "description": "Number of log lines to include from end of each job (default: 100). Reduce if output is too large.",
+        "default": 100
       }
     }
   },
