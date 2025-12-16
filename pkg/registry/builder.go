@@ -1,9 +1,14 @@
 package registry
 
 import (
+	"context"
 	"sort"
 	"strings"
 )
+
+// ToolFilter is a function that determines if a tool should be included.
+// Returns true if the tool should be included, false to exclude it.
+type ToolFilter func(ctx context.Context, tool *ServerTool) (bool, error)
 
 // Builder builds a Registry with the specified configuration.
 // Use NewBuilder to create a builder, chain configuration methods,
@@ -19,6 +24,7 @@ import (
 //	    WithReadOnly(true).
 //	    WithToolsets([]string{"repos", "issues"}).
 //	    WithFeatureChecker(checker).
+//	    WithFilter(myFilter).
 //	    Build()
 type Builder struct {
 	tools             []ServerTool
@@ -32,6 +38,7 @@ type Builder struct {
 	toolsetIDsIsNil bool     // tracks if nil was passed (nil = defaults)
 	additionalTools []string // raw input, processed at Build()
 	featureChecker  FeatureFlagChecker
+	filters         []ToolFilter // filters to apply to all tools
 }
 
 // NewBuilder creates a new Builder.
@@ -111,6 +118,15 @@ func (b *Builder) WithFeatureChecker(checker FeatureFlagChecker) *Builder {
 	return b
 }
 
+// WithFilter adds a filter function that will be applied to all tools.
+// Multiple filters can be added and are evaluated in order.
+// If any filter returns false or an error, the tool is excluded.
+// Returns self for chaining.
+func (b *Builder) WithFilter(filter ToolFilter) *Builder {
+	b.filters = append(b.filters, filter)
+	return b
+}
+
 // Build creates the final Registry with all configuration applied.
 // This processes toolset filtering, tool name resolution, and sets up
 // the registry for use. The returned Registry is ready for use with
@@ -123,6 +139,7 @@ func (b *Builder) Build() *Registry {
 		deprecatedAliases: b.deprecatedAliases,
 		readOnly:          b.readOnly,
 		featureChecker:    b.featureChecker,
+		filters:           b.filters,
 	}
 
 	// Process toolsets and pre-compute metadata in a single pass
