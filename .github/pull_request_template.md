@@ -21,6 +21,12 @@ Fixes #
 - [ ] Tool schema or behavior changed
 - [ ] New tool added
 
+## Prompts tested (tool changes only)
+<!-- If you changed or added tools, list example prompts you tested. -->
+<!-- Include prompts that trigger the tool and describe the use case. -->
+<!-- Example: "List all open issues in the repo assigned to me" -->
+- 
+
 ## Security / limits
 <!-- Select if relevant. Add a short note if checked. -->
 - [ ] No security or limits impact
