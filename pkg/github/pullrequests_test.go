@@ -9,6 +9,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -22,7 +23,7 @@ import (
 func Test_GetPullRequest(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := PullRequestRead(stubGetClientFn(mockClient), stubRepoAccessCache(githubv4.NewClient(githubv4mock.NewMockedHTTPClient()), 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+	tool, _ := PullRequestRead(stubGetClientFn(mockClient), stubGetGQLClientFn(nil), stubRepoAccessCache(githubv4.NewClient(githubv4mock.NewMockedHTTPClient()), 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "pull_request_read", tool.Name)
@@ -104,7 +105,7 @@ func Test_GetPullRequest(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := PullRequestRead(stubGetClientFn(client), stubRepoAccessCache(githubv4.NewClient(githubv4mock.NewMockedHTTPClient()), 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+			_, handler := PullRequestRead(stubGetClientFn(client), stubGetGQLClientFn(nil), stubRepoAccessCache(githubv4.NewClient(githubv4mock.NewMockedHTTPClient()), 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1142,7 +1143,7 @@ func Test_SearchPullRequests(t *testing.T) {
 func Test_GetPullRequestFiles(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := PullRequestRead(stubGetClientFn(mockClient), stubRepoAccessCache(githubv4.NewClient(githubv4mock.NewMockedHTTPClient()), 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+	tool, _ := PullRequestRead(stubGetClientFn(mockClient), stubGetGQLClientFn(nil), stubRepoAccessCache(githubv4.NewClient(githubv4mock.NewMockedHTTPClient()), 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "pull_request_read", tool.Name)
@@ -1246,7 +1247,7 @@ func Test_GetPullRequestFiles(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := PullRequestRead(stubGetClientFn(client), stubRepoAccessCache(githubv4.NewClient(githubv4mock.NewMockedHTTPClient()), 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+			_, handler := PullRequestRead(stubGetClientFn(client), stubGetGQLClientFn(nil), stubRepoAccessCache(githubv4.NewClient(githubv4mock.NewMockedHTTPClient()), 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1287,7 +1288,7 @@ func Test_GetPullRequestFiles(t *testing.T) {
 func Test_GetPullRequestStatus(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := PullRequestRead(stubGetClientFn(mockClient), stubRepoAccessCache(githubv4.NewClient(githubv4mock.NewMockedHTTPClient()), 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+	tool, _ := PullRequestRead(stubGetClientFn(mockClient), stubGetGQLClientFn(nil), stubRepoAccessCache(githubv4.NewClient(githubv4mock.NewMockedHTTPClient()), 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "pull_request_read", tool.Name)
@@ -1415,7 +1416,7 @@ func Test_GetPullRequestStatus(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := PullRequestRead(stubGetClientFn(client), stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+			_, handler := PullRequestRead(stubGetClientFn(client), stubGetGQLClientFn(nil), stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1578,7 +1579,7 @@ func Test_UpdatePullRequestBranch(t *testing.T) {
 func Test_GetPullRequestComments(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := PullRequestRead(stubGetClientFn(mockClient), stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+	tool, _ := PullRequestRead(stubGetClientFn(mockClient), stubGetGQLClientFn(nil), stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "pull_request_read", tool.Name)
@@ -1590,52 +1591,80 @@ func Test_GetPullRequestComments(t *testing.T) {
 	assert.Contains(t, schema.Properties, "pullNumber")
 	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
 
-	// Setup mock PR comments for success case
-	mockComments := []*github.PullRequestComment{
-		{
-			ID:      github.Ptr(int64(101)),
-			Body:    github.Ptr("This looks good"),
-			HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42#discussion_r101"),
-			User: &github.User{
-				Login: github.Ptr("reviewer1"),
-			},
-			Path:      github.Ptr("file1.go"),
-			Position:  github.Ptr(5),
-			CommitID:  github.Ptr("abcdef123456"),
-			CreatedAt: &github.Timestamp{Time: time.Now().Add(-24 * time.Hour)},
-			UpdatedAt: &github.Timestamp{Time: time.Now().Add(-24 * time.Hour)},
-		},
-		{
-			ID:      github.Ptr(int64(102)),
-			Body:    github.Ptr("Please fix this"),
-			HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42#discussion_r102"),
-			User: &github.User{
-				Login: github.Ptr("reviewer2"),
-			},
-			Path:      github.Ptr("file2.go"),
-			Position:  github.Ptr(10),
-			CommitID:  github.Ptr("abcdef123456"),
-			CreatedAt: &github.Timestamp{Time: time.Now().Add(-12 * time.Hour)},
-			UpdatedAt: &github.Timestamp{Time: time.Now().Add(-12 * time.Hour)},
-		},
-	}
-
 	tests := []struct {
-		name             string
-		mockedClient     *http.Client
-		gqlHTTPClient    *http.Client
-		requestArgs      map[string]interface{}
-		expectError      bool
-		expectedComments []*github.PullRequestComment
-		expectedErrMsg   string
-		lockdownEnabled  bool
+		name            string
+		gqlHTTPClient   *http.Client
+		requestArgs     map[string]interface{}
+		expectError     bool
+		expectedErrMsg  string
+		lockdownEnabled bool
+		validateResult  func(t *testing.T, textContent string)
 	}{
 		{
-			name: "successful comments fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposPullsCommentsByOwnerByRepoByPullNumber,
-					mockComments,
+			name: "successful review threads fetch",
+			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					reviewThreadsQuery{},
+					map[string]interface{}{
+						"owner":             githubv4.String("owner"),
+						"repo":              githubv4.String("repo"),
+						"prNum":             githubv4.Int(42),
+						"first":             githubv4.Int(30),
+						"commentsPerThread": githubv4.Int(100),
+						"after":             (*githubv4.String)(nil),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"pullRequest": map[string]any{
+								"reviewThreads": map[string]any{
+									"nodes": []map[string]any{
+										{
+											"id":          "RT_kwDOA0xdyM4AX1Yz",
+											"isResolved":  false,
+											"isOutdated":  false,
+											"isCollapsed": false,
+											"comments": map[string]any{
+												"totalCount": 2,
+												"nodes": []map[string]any{
+													{
+														"id":   "PRRC_kwDOA0xdyM4AX1Y0",
+														"body": "This looks good",
+														"path": "file1.go",
+														"line": 5,
+														"author": map[string]any{
+															"login": "reviewer1",
+														},
+														"createdAt": "2024-01-01T12:00:00Z",
+														"updatedAt": "2024-01-01T12:00:00Z",
+														"url":       "https://github.com/owner/repo/pull/42#discussion_r101",
+													},
+													{
+														"id":   "PRRC_kwDOA0xdyM4AX1Y1",
+														"body": "Please fix this",
+														"path": "file1.go",
+														"line": 10,
+														"author": map[string]any{
+															"login": "reviewer2",
+														},
+														"createdAt": "2024-01-01T13:00:00Z",
+														"updatedAt": "2024-01-01T13:00:00Z",
+														"url":       "https://github.com/owner/repo/pull/42#discussion_r102",
+													},
+												},
+											},
+										},
+									},
+									"pageInfo": map[string]any{
+										"hasNextPage":     false,
+										"hasPreviousPage": false,
+										"startCursor":     "cursor1",
+										"endCursor":       "cursor2",
+									},
+									"totalCount": 1,
+								},
+							},
+						},
+					}),
 				),
 			),
 			requestArgs: map[string]interface{}{
@@ -1644,18 +1673,63 @@ func Test_GetPullRequestComments(t *testing.T) {
 				"repo":       "repo",
 				"pullNumber": float64(42),
 			},
-			expectError:      false,
-			expectedComments: mockComments,
+			expectError: false,
+			validateResult: func(t *testing.T, textContent string) {
+				var result map[string]interface{}
+				err := json.Unmarshal([]byte(textContent), &result)
+				require.NoError(t, err)
+
+				// Validate response structure
+				assert.Contains(t, result, "reviewThreads")
+				assert.Contains(t, result, "pageInfo")
+				assert.Contains(t, result, "totalCount")
+
+				// Validate review threads
+				threads := result["reviewThreads"].([]interface{})
+				assert.Len(t, threads, 1)
+
+				thread := threads[0].(map[string]interface{})
+				assert.Equal(t, "RT_kwDOA0xdyM4AX1Yz", thread["ID"])
+				assert.Equal(t, false, thread["IsResolved"])
+				assert.Equal(t, false, thread["IsOutdated"])
+				assert.Equal(t, false, thread["IsCollapsed"])
+
+				// Validate comments within thread
+				comments := thread["Comments"].(map[string]interface{})
+				commentNodes := comments["Nodes"].([]interface{})
+				assert.Len(t, commentNodes, 2)
+
+				// Validate first comment
+				comment1 := commentNodes[0].(map[string]interface{})
+				assert.Equal(t, "PRRC_kwDOA0xdyM4AX1Y0", comment1["ID"])
+				assert.Equal(t, "This looks good", comment1["Body"])
+				assert.Equal(t, "file1.go", comment1["Path"])
+
+				// Validate pagination info
+				pageInfo := result["pageInfo"].(map[string]interface{})
+				assert.Equal(t, false, pageInfo["hasNextPage"])
+				assert.Equal(t, false, pageInfo["hasPreviousPage"])
+				assert.Equal(t, "cursor1", pageInfo["startCursor"])
+				assert.Equal(t, "cursor2", pageInfo["endCursor"])
+
+				// Validate total count
+				assert.Equal(t, float64(1), result["totalCount"])
+			},
 		},
 		{
-			name: "comments fetch fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposPullsCommentsByOwnerByRepoByPullNumber,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
-					}),
+			name: "review threads fetch fails",
+			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					reviewThreadsQuery{},
+					map[string]interface{}{
+						"owner":             githubv4.String("owner"),
+						"repo":              githubv4.String("repo"),
+						"prNum":             githubv4.Int(999),
+						"first":             githubv4.Int(30),
+						"commentsPerThread": githubv4.Int(100),
+						"after":             (*githubv4.String)(nil),
+					},
+					githubv4mock.ErrorResponse("Could not resolve to a PullRequest with the number of 999."),
 				),
 			),
 			requestArgs: map[string]interface{}{
@@ -1665,59 +1739,129 @@ func Test_GetPullRequestComments(t *testing.T) {
 				"pullNumber": float64(999),
 			},
 			expectError:    true,
-			expectedErrMsg: "failed to get pull request review comments",
+			expectedErrMsg: "failed to get pull request review threads",
 		},
 		{
 			name: "lockdown enabled filters review comments without push access",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposPullsCommentsByOwnerByRepoByPullNumber,
-					[]*github.PullRequestComment{
-						{
-							ID:   github.Ptr(int64(2010)),
-							Body: github.Ptr("Maintainer review comment"),
-							User: &github.User{Login: github.Ptr("maintainer")},
-						},
-						{
-							ID:   github.Ptr(int64(2011)),
-							Body: github.Ptr("External review comment"),
-							User: &github.User{Login: github.Ptr("testuser")},
-						},
+			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					reviewThreadsQuery{},
+					map[string]interface{}{
+						"owner":             githubv4.String("owner"),
+						"repo":              githubv4.String("repo"),
+						"prNum":             githubv4.Int(42),
+						"first":             githubv4.Int(30),
+						"commentsPerThread": githubv4.Int(100),
+						"after":             (*githubv4.String)(nil),
 					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"pullRequest": map[string]any{
+								"reviewThreads": map[string]any{
+									"nodes": []map[string]any{
+										{
+											"id":          "RT_kwDOA0xdyM4AX1Yz",
+											"isResolved":  false,
+											"isOutdated":  false,
+											"isCollapsed": false,
+											"comments": map[string]any{
+												"totalCount": 2,
+												"nodes": []map[string]any{
+													{
+														"id":   "PRRC_kwDOA0xdyM4AX1Y0",
+														"body": "Maintainer review comment",
+														"path": "file1.go",
+														"line": 5,
+														"author": map[string]any{
+															"login": "maintainer",
+														},
+														"createdAt": "2024-01-01T12:00:00Z",
+														"updatedAt": "2024-01-01T12:00:00Z",
+														"url":       "https://github.com/owner/repo/pull/42#discussion_r2010",
+													},
+													{
+														"id":   "PRRC_kwDOA0xdyM4AX1Y1",
+														"body": "External review comment",
+														"path": "file1.go",
+														"line": 10,
+														"author": map[string]any{
+															"login": "testuser",
+														},
+														"createdAt": "2024-01-01T13:00:00Z",
+														"updatedAt": "2024-01-01T13:00:00Z",
+														"url":       "https://github.com/owner/repo/pull/42#discussion_r2011",
+													},
+												},
+											},
+										},
+									},
+									"pageInfo": map[string]any{
+										"hasNextPage":     false,
+										"hasPreviousPage": false,
+										"startCursor":     "cursor1",
+										"endCursor":       "cursor2",
+									},
+									"totalCount": 1,
+								},
+							},
+						},
+					}),
 				),
 			),
-			gqlHTTPClient: newRepoAccessHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"method":     "get_review_comments",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
 			},
-			expectError: false,
-			expectedComments: []*github.PullRequestComment{
-				{
-					ID:   github.Ptr(int64(2010)),
-					Body: github.Ptr("Maintainer review comment"),
-					User: &github.User{Login: github.Ptr("maintainer")},
-				},
-			},
+			expectError:     false,
 			lockdownEnabled: true,
+			validateResult: func(t *testing.T, textContent string) {
+				var result map[string]interface{}
+				err := json.Unmarshal([]byte(textContent), &result)
+				require.NoError(t, err)
+
+				// Validate that only maintainer comment is returned
+				threads := result["reviewThreads"].([]interface{})
+				assert.Len(t, threads, 1)
+
+				thread := threads[0].(map[string]interface{})
+				comments := thread["Comments"].(map[string]interface{})
+
+				// Should only have 1 comment (maintainer) after filtering
+				assert.Equal(t, float64(1), comments["TotalCount"])
+
+				commentNodes := comments["Nodes"].([]interface{})
+				assert.Len(t, commentNodes, 1)
+
+				comment := commentNodes[0].(map[string]interface{})
+				author := comment["Author"].(map[string]interface{})
+				assert.Equal(t, "maintainer", author["Login"])
+				assert.Equal(t, "Maintainer review comment", comment["Body"])
+			},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
+			// Setup GraphQL client with mock
 			var gqlClient *githubv4.Client
 			if tc.gqlHTTPClient != nil {
 				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
 			} else {
 				gqlClient = githubv4.NewClient(nil)
 			}
-			cache := stubRepoAccessCache(gqlClient, 5*time.Minute)
+
+			// Setup cache for lockdown mode
+			var cache *lockdown.RepoAccessCache
+			if tc.lockdownEnabled {
+				cache = stubRepoAccessCache(githubv4.NewClient(newRepoAccessHTTPClient()), 5*time.Minute)
+			} else {
+				cache = stubRepoAccessCache(gqlClient, 5*time.Minute)
+			}
+
 			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
-			_, handler := PullRequestRead(stubGetClientFn(client), cache, translations.NullTranslationHelper, flags)
+			_, handler := PullRequestRead(stubGetClientFn(github.NewClient(nil)), stubGetGQLClientFn(gqlClient), cache, translations.NullTranslationHelper, flags)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -1740,19 +1884,9 @@ func Test_GetPullRequestComments(t *testing.T) {
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
-			var returnedComments []*github.PullRequestComment
-			err = json.Unmarshal([]byte(textContent.Text), &returnedComments)
-			require.NoError(t, err)
-			assert.Len(t, returnedComments, len(tc.expectedComments))
-			for i, comment := range returnedComments {
-				require.NotNil(t, tc.expectedComments[i].User)
-				require.NotNil(t, comment.User)
-				assert.Equal(t, tc.expectedComments[i].GetID(), comment.GetID())
-				assert.Equal(t, tc.expectedComments[i].GetBody(), comment.GetBody())
-				assert.Equal(t, tc.expectedComments[i].GetUser().GetLogin(), comment.GetUser().GetLogin())
-				assert.Equal(t, tc.expectedComments[i].GetPath(), comment.GetPath())
-				assert.Equal(t, tc.expectedComments[i].GetHTMLURL(), comment.GetHTMLURL())
+			// Use custom validation if provided
+			if tc.validateResult != nil {
+				tc.validateResult(t, textContent.Text)
 			}
 		})
 	}
@@ -1761,7 +1895,7 @@ func Test_GetPullRequestComments(t *testing.T) {
 func Test_GetPullRequestReviews(t *testing.T) {
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := PullRequestRead(stubGetClientFn(mockClient), stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+	tool, _ := PullRequestRead(stubGetClientFn(mockClient), stubGetGQLClientFn(nil), stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "pull_request_read", tool.Name)
@@ -1899,7 +2033,7 @@ func Test_GetPullRequestReviews(t *testing.T) {
 			}
 			cache := stubRepoAccessCache(gqlClient, 5*time.Minute)
 			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
-			_, handler := PullRequestRead(stubGetClientFn(client), cache, translations.NullTranslationHelper, flags)
+			_, handler := PullRequestRead(stubGetClientFn(client), stubGetGQLClientFn(nil), cache, translations.NullTranslationHelper, flags)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
@@ -2974,7 +3108,7 @@ func TestGetPullRequestDiff(t *testing.T) {
 
 	// Verify tool definition once
 	mockClient := github.NewClient(nil)
-	tool, _ := PullRequestRead(stubGetClientFn(mockClient), stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+	tool, _ := PullRequestRead(stubGetClientFn(mockClient), stubGetGQLClientFn(nil), stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "pull_request_read", tool.Name)
@@ -3033,7 +3167,7 @@ index 5d6e7b2..8a4f5c3 100644
 
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := PullRequestRead(stubGetClientFn(client), stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+			_, handler := PullRequestRead(stubGetClientFn(client), stubGetGQLClientFn(nil), stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)

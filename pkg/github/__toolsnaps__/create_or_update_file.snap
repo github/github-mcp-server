@@ -2,7 +2,7 @@
   "annotations": {
     "title": "Create or update file"
   },
-  "description": "Create or update a single file in a GitHub repository. If updating, you must provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.",
+  "description": "Create or update a single file in a GitHub repository. \nIf updating, you should provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.\n\nIn order to obtain the SHA of original file version before updating, use the following git command:\ngit ls-tree HEAD \u003cpath to file\u003e\n\nIf the SHA is not provided, the tool will attempt to acquire it by fetching the current file contents from the repository, which may lead to rewriting latest committed changes if the file has changed since last retrieval.\n",
   "inputSchema": {
     "type": "object",
     "required": [
@@ -40,7 +40,7 @@
       },
       "sha": {
         "type": "string",
-        "description": "Required if updating an existing file. The blob SHA of the file being replaced."
+        "description": "The blob SHA of the file being replaced."
       }
     }
   },

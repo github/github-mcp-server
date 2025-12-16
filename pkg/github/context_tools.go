@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
@@ -43,9 +44,9 @@ func GetMe(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Too
 				Title:        t("TOOL_GET_ME_USER_TITLE", "Get my user profile"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-			},
+			// Use json.RawMessage to ensure "properties" is included even when empty.
+			// OpenAI strict mode requires the properties field to be present.
+			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
 		},
 		mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := getClient(ctx)

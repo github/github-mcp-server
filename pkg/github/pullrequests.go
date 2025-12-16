@@ -21,7 +21,7 @@ import (
 )
 
 // PullRequestRead creates a tool to get details of a specific pull request.
-func PullRequestRead(getClient GetClientFn, cache *lockdown.RepoAccessCache, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+func PullRequestRead(getClient GetClientFn, getGQLClient GetGQLClientFn, cache *lockdown.RepoAccessCache, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -33,7 +33,7 @@ Possible options:
  2. get_diff - Get the diff of a pull request.
  3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
  4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
- 5. get_review_comments - Get the review comments on a pull request. They are comments made on a portion of the unified diff during a pull request review. Use with pagination parameters to control the number of results returned.
+ 5. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Use cursor-based pagination (perPage, after) to control results.
  6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
  7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
 `,
@@ -107,7 +107,15 @@ Possible options:
 				result, err := GetPullRequestFiles(ctx, client, owner, repo, pullNumber, pagination)
 				return result, nil, err
 			case "get_review_comments":
-				result, err := GetPullRequestReviewComments(ctx, client, cache, owner, repo, pullNumber, pagination, flags)
+				gqlClient, err := getGQLClient(ctx)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
+				}
+				cursorPagination, err := OptionalCursorPaginationParams(args)
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				result, err := GetPullRequestReviewComments(ctx, gqlClient, cache, owner, repo, pullNumber, cursorPagination, flags)
 				return result, nil, err
 			case "get_reviews":
 				result, err := GetPullRequestReviews(ctx, client, cache, owner, repo, pullNumber, flags)
@@ -282,54 +290,124 @@ func GetPullRequestFiles(ctx context.Context, client *github.Client, owner, repo
 	return utils.NewToolResultText(string(r)), nil
 }
 
-func GetPullRequestReviewComments(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner, repo string, pullNumber int, pagination PaginationParams, ff FeatureFlags) (*mcp.CallToolResult, error) {
-	opts := &github.PullRequestListCommentsOptions{
-		ListOptions: github.ListOptions{
-			PerPage: pagination.PerPage,
-			Page:    pagination.Page,
-		},
+// GraphQL types for review threads query
+type reviewThreadsQuery struct {
+	Repository struct {
+		PullRequest struct {
+			ReviewThreads struct {
+				Nodes      []reviewThreadNode
+				PageInfo   pageInfoFragment
+				TotalCount githubv4.Int
+			} `graphql:"reviewThreads(first: $first, after: $after)"`
+		} `graphql:"pullRequest(number: $prNum)"`
+	} `graphql:"repository(owner: $owner, name: $repo)"`
+}
+
+type reviewThreadNode struct {
+	ID          githubv4.ID
+	IsResolved  githubv4.Boolean
+	IsOutdated  githubv4.Boolean
+	IsCollapsed githubv4.Boolean
+	Comments    struct {
+		Nodes      []reviewCommentNode
+		TotalCount githubv4.Int
+	} `graphql:"comments(first: $commentsPerThread)"`
+}
+
+type reviewCommentNode struct {
+	ID     githubv4.ID
+	Body   githubv4.String
+	Path   githubv4.String
+	Line   *githubv4.Int
+	Author struct {
+		Login githubv4.String
+	}
+	CreatedAt githubv4.DateTime
+	UpdatedAt githubv4.DateTime
+	URL       githubv4.URI
+}
+
+type pageInfoFragment struct {
+	HasNextPage     githubv4.Boolean
+	HasPreviousPage githubv4.Boolean
+	StartCursor     githubv4.String
+	EndCursor       githubv4.String
+}
+
+func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Client, cache *lockdown.RepoAccessCache, owner, repo string, pullNumber int, pagination CursorPaginationParams, ff FeatureFlags) (*mcp.CallToolResult, error) {
+	// Convert pagination parameters to GraphQL format
+	gqlParams, err := pagination.ToGraphQLParams()
+	if err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("invalid pagination parameters: %v", err)), nil
 	}
 
-	comments, resp, err := client.PullRequests.ListComments(ctx, owner, repo, pullNumber, opts)
-	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx,
-			"failed to get pull request review comments",
-			resp,
+	// Build variables for GraphQL query
+	vars := map[string]any{
+		"owner":             githubv4.String(owner),
+		"repo":              githubv4.String(repo),
+		"prNum":             githubv4.Int(int32(pullNumber)), //nolint:gosec // pullNumber is controlled by user input validation
+		"first":             githubv4.Int(*gqlParams.First),
+		"commentsPerThread": githubv4.Int(100),
+	}
+
+	// Add cursor if provided
+	if gqlParams.After != nil {
+		vars["after"] = githubv4.String(*gqlParams.After)
+	} else {
+		vars["after"] = (*githubv4.String)(nil)
+	}
+
+	// Execute GraphQL query
+	var query reviewThreadsQuery
+	if err := gqlClient.Query(ctx, &query, vars); err != nil {
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+			"failed to get pull request review threads",
 			err,
 		), nil
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
-		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to get pull request review comments: %s", string(body))), nil
-	}
-
+	// Lockdown mode filtering
 	if ff.LockdownMode {
 		if cache == nil {
 			return nil, fmt.Errorf("lockdown cache is not configured")
 		}
-		filteredComments := make([]*github.PullRequestComment, 0, len(comments))
-		for _, comment := range comments {
-			user := comment.GetUser()
-			if user == nil {
-				continue
+
+		// Iterate through threads and filter comments
+		for i := range query.Repository.PullRequest.ReviewThreads.Nodes {
+			thread := &query.Repository.PullRequest.ReviewThreads.Nodes[i]
+			filteredComments := make([]reviewCommentNode, 0, len(thread.Comments.Nodes))
+
+			for _, comment := range thread.Comments.Nodes {
+				login := string(comment.Author.Login)
+				if login != "" {
+					isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
+					if err != nil {
+						return nil, fmt.Errorf("failed to check lockdown mode: %w", err)
+					}
+					if isSafeContent {
+						filteredComments = append(filteredComments, comment)
+					}
+				}
 			}
-			isSafeContent, err := cache.IsSafeContent(ctx, user.GetLogin(), owner, repo)
-			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
-			}
-			if isSafeContent {
-				filteredComments = append(filteredComments, comment)
-			}
+
+			thread.Comments.Nodes = filteredComments
+			thread.Comments.TotalCount = githubv4.Int(int32(len(filteredComments))) //nolint:gosec // comment count is bounded by API limits
 		}
-		comments = filteredComments
 	}
 
-	r, err := json.Marshal(comments)
+	// Build response with review threads and pagination info
+	response := map[string]any{
+		"reviewThreads": query.Repository.PullRequest.ReviewThreads.Nodes,
+		"pageInfo": map[string]any{
+			"hasNextPage":     query.Repository.PullRequest.ReviewThreads.PageInfo.HasNextPage,
+			"hasPreviousPage": query.Repository.PullRequest.ReviewThreads.PageInfo.HasPreviousPage,
+			"startCursor":     string(query.Repository.PullRequest.ReviewThreads.PageInfo.StartCursor),
+			"endCursor":       string(query.Repository.PullRequest.ReviewThreads.PageInfo.EndCursor),
+		},
+		"totalCount": int(query.Repository.PullRequest.ReviewThreads.TotalCount),
+	}
+
+	r, err := json.Marshal(response)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
@@ -697,7 +775,7 @@ func UpdatePullRequest(getClient GetClientFn, getGQLClient GetGQLClientFn, t tra
 					} `graphql:"repository(owner: $owner, name: $repo)"`
 				}
 
-				err = gqlClient.Query(ctx, &prQuery, map[string]interface{}{
+				err = gqlClient.Query(ctx, &prQuery, map[string]any{
 					"owner": githubv4.String(owner),
 					"repo":  githubv4.String(repo),
 					"prNum": githubv4.Int(pullNumber), // #nosec G115 - pull request numbers are always small positive integers
