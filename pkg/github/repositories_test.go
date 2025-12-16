@@ -1122,68 +1122,60 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 			expectedErrMsg: "failed to create/update file",
 		},
 		{
-			name: "file creation fails with missing sha, then succeeds after fetching sha",
+			name: "sha validation - current sha matches (304 Not Modified)",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
-					mock.PutReposContentsByOwnerByRepoByPath,
-					func() http.HandlerFunc {
-						callCount := 0
-						return func(w http.ResponseWriter, _ *http.Request) {
-							callCount++
-							if callCount == 1 {
-								// First call fails with "sha wasn't supplied" error
-								w.WriteHeader(http.StatusUnprocessableEntity)
-								_, _ = w.Write([]byte(`{"message": "\"sha\" wasn't supplied"}`))
-							} else {
-								// Second call succeeds after SHA is retrieved
-								w.WriteHeader(http.StatusOK)
-								respBytes, _ := json.Marshal(mockFileResponse)
-								_, _ = w.Write(respBytes)
-							}
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/contents/docs/example.md",
+						Method:  "HEAD",
+					},
+					http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+						// Verify If-None-Match header is set correctly
+						ifNoneMatch := req.Header.Get("If-None-Match")
+						if ifNoneMatch == `"abc123def456"` {
+							w.WriteHeader(http.StatusNotModified)
+						} else {
+							w.WriteHeader(http.StatusOK)
+							w.Header().Set("ETag", `"abc123def456"`)
 						}
-					}(),
+					}),
 				),
 				mock.WithRequestMatchHandler(
-					mock.GetReposContentsByOwnerByRepoByPath,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusOK)
-						existingFile := &github.RepositoryContent{
-							Name: github.Ptr("example.md"),
-							Path: github.Ptr("docs/example.md"),
-							SHA:  github.Ptr("abc123def456"),
-							Type: github.Ptr("file"),
-						}
-						contentBytes, _ := json.Marshal(existingFile)
-						_, _ = w.Write(contentBytes)
-					}),
+					mock.PutReposContentsByOwnerByRepoByPath,
+					expectRequestBody(t, map[string]interface{}{
+						"message": "Update example file",
+						"content": "IyBVcGRhdGVkIEV4YW1wbGUKClRoaXMgZmlsZSBoYXMgYmVlbiB1cGRhdGVkLg==",
+						"branch":  "main",
+						"sha":     "abc123def456",
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockFileResponse),
+					),
 				),
 			),
 			requestArgs: map[string]interface{}{
 				"owner":   "owner",
 				"repo":    "repo",
 				"path":    "docs/example.md",
-				"content": "# Example\n\nThis is an example file.",
-				"message": "Add example file",
+				"content": "# Updated Example\n\nThis file has been updated.",
+				"message": "Update example file",
 				"branch":  "main",
+				"sha":     "abc123def456",
 			},
 			expectError:     false,
 			expectedContent: mockFileResponse,
 		},
 		{
-			name: "file creation fails with missing sha and GetContents also fails",
+			name: "sha validation - stale sha detected (200 OK with different ETag)",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
-					mock.PutReposContentsByOwnerByRepoByPath,
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/contents/docs/example.md",
+						Method:  "HEAD",
+					},
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusUnprocessableEntity)
-						_, _ = w.Write([]byte(`{"message": "\"sha\" wasn't supplied"}`))
-					}),
-				),
-				mock.WithRequestMatchHandler(
-					mock.GetReposContentsByOwnerByRepoByPath,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+						// SHA doesn't match - return 200 with current ETag
+						w.Header().Set("ETag", `"newsha999888"`)
+						w.WriteHeader(http.StatusOK)
 					}),
 				),
 			),
@@ -1191,12 +1183,118 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 				"owner":   "owner",
 				"repo":    "repo",
 				"path":    "docs/example.md",
-				"content": "# Example\n\nThis is an example file.",
-				"message": "Add example file",
+				"content": "# Updated Example\n\nThis file has been updated.",
+				"message": "Update example file",
 				"branch":  "main",
+				"sha":     "oldsha123456",
 			},
 			expectError:    true,
-			expectedErrMsg: "failed to get file SHA for update",
+			expectedErrMsg: "SHA mismatch: provided SHA oldsha123456 is stale. Current file SHA is newsha999888",
+		},
+		{
+			name: "sha validation - file doesn't exist (404), proceed with create",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/contents/docs/example.md",
+						Method:  "HEAD",
+					},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+					}),
+				),
+				mock.WithRequestMatchHandler(
+					mock.PutReposContentsByOwnerByRepoByPath,
+					expectRequestBody(t, map[string]interface{}{
+						"message": "Create new file",
+						"content": "IyBOZXcgRmlsZQoKVGhpcyBpcyBhIG5ldyBmaWxlLg==",
+						"branch":  "main",
+						"sha":     "ignoredsha", // SHA is sent but GitHub API ignores it for new files
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockFileResponse),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":   "owner",
+				"repo":    "repo",
+				"path":    "docs/example.md",
+				"content": "# New File\n\nThis is a new file.",
+				"message": "Create new file",
+				"branch":  "main",
+				"sha":     "ignoredsha",
+			},
+			expectError:     false,
+			expectedContent: mockFileResponse,
+		},
+		{
+			name: "no sha provided - file exists, returns warning",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/contents/docs/example.md",
+						Method:  "HEAD",
+					},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.Header().Set("ETag", `"existing123"`)
+						w.WriteHeader(http.StatusOK)
+					}),
+				),
+				mock.WithRequestMatchHandler(
+					mock.PutReposContentsByOwnerByRepoByPath,
+					expectRequestBody(t, map[string]interface{}{
+						"message": "Update without SHA",
+						"content": "IyBVcGRhdGVkCgpVcGRhdGVkIHdpdGhvdXQgU0hBLg==",
+						"branch":  "main",
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockFileResponse),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":   "owner",
+				"repo":    "repo",
+				"path":    "docs/example.md",
+				"content": "# Updated\n\nUpdated without SHA.",
+				"message": "Update without SHA",
+				"branch":  "main",
+			},
+			expectError:    false,
+			expectedErrMsg: "Warning: File updated without SHA validation. Previous file SHA was existing123",
+		},
+		{
+			name: "no sha provided - file doesn't exist, no warning",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/owner/repo/contents/docs/example.md",
+						Method:  "HEAD",
+					},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+					}),
+				),
+				mock.WithRequestMatchHandler(
+					mock.PutReposContentsByOwnerByRepoByPath,
+					expectRequestBody(t, map[string]interface{}{
+						"message": "Create new file",
+						"content": "IyBOZXcgRmlsZQoKQ3JlYXRlZCB3aXRob3V0IFNIQQ==",
+						"branch":  "main",
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockFileResponse),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":   "owner",
+				"repo":    "repo",
+				"path":    "docs/example.md",
+				"content": "# New File\n\nCreated without SHA",
+				"message": "Create new file",
+				"branch":  "main",
+			},
+			expectError:     false,
+			expectedContent: mockFileResponse,
 		},
 	}
 
@@ -1226,6 +1324,12 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
+
+			// If expectedErrMsg is set (but expectError is false), this is a warning case
+			if tc.expectedErrMsg != "" {
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				return
+			}
 
 			// Unmarshal and verify the result
 			var returnedContent github.RepositoryContentResponse

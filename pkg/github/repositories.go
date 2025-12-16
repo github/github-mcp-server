@@ -411,59 +411,65 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 		}
 
 		path = strings.TrimPrefix(path, "/")
+
+		// SHA validation using conditional HEAD request (efficient - no body transfer)
+		var previousSHA string
+		contentURL := fmt.Sprintf("repos/%s/%s/contents/%s", owner, repo, url.PathEscape(path))
+		if branch != "" {
+			contentURL += "?ref=" + url.QueryEscape(branch)
+		}
+
+		if sha != "" {
+			// User provided SHA - validate it's still current
+			req, err := client.NewRequest("HEAD", contentURL, nil)
+			if err == nil {
+				req.Header.Set("If-None-Match", fmt.Sprintf(`"%s"`, sha))
+				resp, _ := client.Do(ctx, req, nil)
+				if resp != nil {
+					defer resp.Body.Close()
+
+					switch resp.StatusCode {
+					case http.StatusNotModified:
+						// SHA matches current - proceed
+						opts.SHA = github.Ptr(sha)
+					case http.StatusOK:
+						// SHA is stale - reject with current SHA so user can check diff
+						currentSHA := strings.Trim(resp.Header.Get("ETag"), `"`)
+						return utils.NewToolResultError(fmt.Sprintf(
+							"SHA mismatch: provided SHA %s is stale. Current file SHA is %s. "+
+								"Use get_file_contents or compare commits to review changes before updating.",
+							sha, currentSHA)), nil, nil
+					case http.StatusNotFound:
+						// File doesn't exist - this is a create, ignore provided SHA
+					}
+				}
+			}
+		} else {
+			// No SHA provided - check if file exists to warn about blind update
+			req, err := client.NewRequest("HEAD", contentURL, nil)
+			if err == nil {
+				resp, _ := client.Do(ctx, req, nil)
+				if resp != nil {
+					defer resp.Body.Close()
+					if resp.StatusCode == http.StatusOK {
+						previousSHA = strings.Trim(resp.Header.Get("ETag"), `"`)
+					}
+					// 404 = new file, no previous SHA needed
+				}
+			}
+		}
+
+		if previousSHA != "" {
+			opts.SHA = github.Ptr(previousSHA)
+		}
+
 		fileContent, resp, err := client.Repositories.CreateFile(ctx, owner, repo, path, opts)
 		if err != nil {
-			if strings.Contains(err.Error(), `"sha" wasn't supplied`) && sha == "" {
-				// Close the response from the initial failed CreateFile call
-				if resp != nil {
-					_ = resp.Body.Close()
-				}
-
-				// attempt to get the current file SHA by fetching the file contents
-				getOpts := &github.RepositoryContentGetOptions{
-					Ref: branch,
-				}
-				currentFileContent, _, respContents, err := client.Repositories.GetContents(ctx, owner, repo, path, getOpts)
-
-				if err == nil {
-					// Close the GetContents response before making the retry call
-					if respContents != nil {
-						_ = respContents.Body.Close()
-					}
-
-					if currentFileContent != nil && currentFileContent.SHA != nil {
-						opts.SHA = currentFileContent.SHA
-						fileContent, resp, err = client.Repositories.CreateFile(ctx, owner, repo, path, opts)
-						defer func() { _ = resp.Body.Close() }()
-
-						if err != nil {
-							return ghErrors.NewGitHubAPIErrorResponse(ctx,
-								"failed to create/update file after retrieving current SHA",
-								resp,
-								err,
-							), nil, nil
-						}
-					} else {
-						return utils.NewToolResultError("file content SHA is nil, cannot update the file"), nil, nil
-					}
-				} else {
-					// Close the GetContents response before returning error
-					if respContents != nil {
-						_ = respContents.Body.Close()
-					}
-					return ghErrors.NewGitHubAPIErrorResponse(ctx,
-						"failed to get file SHA for update",
-						respContents,
-						err,
-					), nil, nil
-				}
-			} else {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to create/update file",
-					resp,
-					err,
-				), nil, nil
-			}
+			return ghErrors.NewGitHubAPIErrorResponse(ctx,
+				"failed to create/update file",
+				resp,
+				err,
+			), nil, nil
 		}
 		defer func() { _ = resp.Body.Close() }()
 
@@ -478,6 +484,19 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 		r, err := json.Marshal(fileContent)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+		}
+
+		// Warn if file was updated without SHA validation (blind update)
+		if sha == "" && previousSHA != "" {
+			return utils.NewToolResultText(fmt.Sprintf(
+				"Warning: File updated without SHA validation. Previous file SHA was %s. "+
+					`Verify no unintended changes were overwritten: 
+1. Extract the SHA of the local version using git ls-tree HEAD %s.
+2. Compare with the previous SHA above.
+3. Revert changes if shas do not match.
+
+%s`,
+				previousSHA, path, string(r))), nil, nil
 		}
 
 		return utils.NewToolResultText(string(r)), nil, nil
