@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 
+	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -80,7 +81,7 @@ func ListGists(t translations.TranslationHelperFunc) registry.ServerTool {
 
 				gists, resp, err := client.Gists.List(ctx, username, opts)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to list gists", err), nil, nil
+					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list gists", resp, err), nil, nil
 				}
 				defer func() { _ = resp.Body.Close() }()
 
@@ -139,7 +140,7 @@ func GetGist(t translations.TranslationHelperFunc) registry.ServerTool {
 
 				gist, resp, err := client.Gists.Get(ctx, gistID)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get gist", err), nil, nil
+					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get gist", resp, err), nil, nil
 				}
 				defer func() { _ = resp.Body.Close() }()
 
@@ -238,7 +239,7 @@ func CreateGist(t translations.TranslationHelperFunc) registry.ServerTool {
 
 				createdGist, resp, err := client.Gists.Create(ctx, gist)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to create gist", err), nil, nil
+					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to create gist", resp, err), nil, nil
 				}
 				defer func() { _ = resp.Body.Close() }()
 
@@ -340,7 +341,7 @@ func UpdateGist(t translations.TranslationHelperFunc) registry.ServerTool {
 
 				updatedGist, resp, err := client.Gists.Edit(ctx, gistID, gist)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to update gist", err), nil, nil
+					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update gist", resp, err), nil, nil
 				}
 				defer func() { _ = resp.Body.Close() }()
 
