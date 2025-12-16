@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/github/github-mcp-server/pkg/raw"
+	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -28,58 +29,81 @@ var (
 	repositoryResourcePrContentURITemplate     = uritemplate.MustNew("repo://{owner}/{repo}/refs/pull/{prNumber}/head/contents{/path*}")
 )
 
-// GetRepositoryResourceContent defines the resource template and handler for getting repository content.
-func GetRepositoryResourceContent(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) (mcp.ResourceTemplate, mcp.ResourceHandler) {
-	return mcp.ResourceTemplate{
+// GetRepositoryResourceContent defines the resource template for getting repository content.
+func GetRepositoryResourceContent(t translations.TranslationHelperFunc) registry.ServerResourceTemplate {
+	return registry.NewServerResourceTemplate(
+		ToolsetMetadataRepos,
+		mcp.ResourceTemplate{
 			Name:        "repository_content",
-			URITemplate: repositoryResourceContentURITemplate.Raw(), // Resource template
+			URITemplate: repositoryResourceContentURITemplate.Raw(),
 			Description: t("RESOURCE_REPOSITORY_CONTENT_DESCRIPTION", "Repository Content"),
 		},
-		RepositoryResourceContentsHandler(getClient, getRawClient, repositoryResourceContentURITemplate)
+		repositoryResourceContentsHandlerFunc(repositoryResourceContentURITemplate),
+	)
 }
 
-// GetRepositoryResourceBranchContent defines the resource template and handler for getting repository content for a branch.
-func GetRepositoryResourceBranchContent(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) (mcp.ResourceTemplate, mcp.ResourceHandler) {
-	return mcp.ResourceTemplate{
+// GetRepositoryResourceBranchContent defines the resource template for getting repository content for a branch.
+func GetRepositoryResourceBranchContent(t translations.TranslationHelperFunc) registry.ServerResourceTemplate {
+	return registry.NewServerResourceTemplate(
+		ToolsetMetadataRepos,
+		mcp.ResourceTemplate{
 			Name:        "repository_content_branch",
-			URITemplate: repositoryResourceBranchContentURITemplate.Raw(), // Resource template
+			URITemplate: repositoryResourceBranchContentURITemplate.Raw(),
 			Description: t("RESOURCE_REPOSITORY_CONTENT_BRANCH_DESCRIPTION", "Repository Content for specific branch"),
 		},
-		RepositoryResourceContentsHandler(getClient, getRawClient, repositoryResourceBranchContentURITemplate)
+		repositoryResourceContentsHandlerFunc(repositoryResourceBranchContentURITemplate),
+	)
 }
 
-// GetRepositoryResourceCommitContent defines the resource template and handler for getting repository content for a commit.
-func GetRepositoryResourceCommitContent(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) (mcp.ResourceTemplate, mcp.ResourceHandler) {
-	return mcp.ResourceTemplate{
+// GetRepositoryResourceCommitContent defines the resource template for getting repository content for a commit.
+func GetRepositoryResourceCommitContent(t translations.TranslationHelperFunc) registry.ServerResourceTemplate {
+	return registry.NewServerResourceTemplate(
+		ToolsetMetadataRepos,
+		mcp.ResourceTemplate{
 			Name:        "repository_content_commit",
-			URITemplate: repositoryResourceCommitContentURITemplate.Raw(), // Resource template
+			URITemplate: repositoryResourceCommitContentURITemplate.Raw(),
 			Description: t("RESOURCE_REPOSITORY_CONTENT_COMMIT_DESCRIPTION", "Repository Content for specific commit"),
 		},
-		RepositoryResourceContentsHandler(getClient, getRawClient, repositoryResourceCommitContentURITemplate)
+		repositoryResourceContentsHandlerFunc(repositoryResourceCommitContentURITemplate),
+	)
 }
 
-// GetRepositoryResourceTagContent defines the resource template and handler for getting repository content for a tag.
-func GetRepositoryResourceTagContent(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) (mcp.ResourceTemplate, mcp.ResourceHandler) {
-	return mcp.ResourceTemplate{
+// GetRepositoryResourceTagContent defines the resource template for getting repository content for a tag.
+func GetRepositoryResourceTagContent(t translations.TranslationHelperFunc) registry.ServerResourceTemplate {
+	return registry.NewServerResourceTemplate(
+		ToolsetMetadataRepos,
+		mcp.ResourceTemplate{
 			Name:        "repository_content_tag",
-			URITemplate: repositoryResourceTagContentURITemplate.Raw(), // Resource template
+			URITemplate: repositoryResourceTagContentURITemplate.Raw(),
 			Description: t("RESOURCE_REPOSITORY_CONTENT_TAG_DESCRIPTION", "Repository Content for specific tag"),
 		},
-		RepositoryResourceContentsHandler(getClient, getRawClient, repositoryResourceTagContentURITemplate)
+		repositoryResourceContentsHandlerFunc(repositoryResourceTagContentURITemplate),
+	)
 }
 
-// GetRepositoryResourcePrContent defines the resource template and handler for getting repository content for a pull request.
-func GetRepositoryResourcePrContent(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) (mcp.ResourceTemplate, mcp.ResourceHandler) {
-	return mcp.ResourceTemplate{
+// GetRepositoryResourcePrContent defines the resource template for getting repository content for a pull request.
+func GetRepositoryResourcePrContent(t translations.TranslationHelperFunc) registry.ServerResourceTemplate {
+	return registry.NewServerResourceTemplate(
+		ToolsetMetadataRepos,
+		mcp.ResourceTemplate{
 			Name:        "repository_content_pr",
-			URITemplate: repositoryResourcePrContentURITemplate.Raw(), // Resource template
+			URITemplate: repositoryResourcePrContentURITemplate.Raw(),
 			Description: t("RESOURCE_REPOSITORY_CONTENT_PR_DESCRIPTION", "Repository Content for specific pull request"),
 		},
-		RepositoryResourceContentsHandler(getClient, getRawClient, repositoryResourcePrContentURITemplate)
+		repositoryResourceContentsHandlerFunc(repositoryResourcePrContentURITemplate),
+	)
+}
+
+// repositoryResourceContentsHandlerFunc returns a ResourceHandlerFunc that creates handlers on-demand.
+func repositoryResourceContentsHandlerFunc(resourceURITemplate *uritemplate.Template) registry.ResourceHandlerFunc {
+	return func(deps any) mcp.ResourceHandler {
+		d := deps.(ToolDependencies)
+		return RepositoryResourceContentsHandler(d, resourceURITemplate)
+	}
 }
 
 // RepositoryResourceContentsHandler returns a handler function for repository content requests.
-func RepositoryResourceContentsHandler(getClient GetClientFn, getRawClient raw.GetRawClientFn, resourceURITemplate *uritemplate.Template) mcp.ResourceHandler {
+func RepositoryResourceContentsHandler(deps ToolDependencies, resourceURITemplate *uritemplate.Template) mcp.ResourceHandler {
 	return func(ctx context.Context, request *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 		// Match the URI to extract parameters
 		uriValues := resourceURITemplate.Match(request.Params.URI)
@@ -133,7 +157,7 @@ func RepositoryResourceContentsHandler(getClient GetClientFn, getRawClient raw.G
 		prNumber := uriValues.Get("prNumber").String()
 		if prNumber != "" {
 			// fetch the PR from the API to get the latest commit and use SHA
-			githubClient, err := getClient(ctx)
+			githubClient, err := deps.GetClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
@@ -153,7 +177,7 @@ func RepositoryResourceContentsHandler(getClient GetClientFn, getRawClient raw.G
 		if path == "" || strings.HasSuffix(path, "/") {
 			return nil, fmt.Errorf("directories are not supported: %s", path)
 		}
-		rawClient, err := getRawClient(ctx)
+		rawClient, err := deps.GetRawClient(ctx)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to get GitHub raw content client: %w", err)
