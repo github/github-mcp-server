@@ -51,8 +51,14 @@ func (r *Registry) isFeatureFlagAllowed(ctx context.Context, enableFlag, disable
 }
 
 // isToolEnabled checks if a specific tool is enabled based on current filters.
+// Filter evaluation order:
+//  1. Tool.Enabled (tool self-filtering)
+//  2. FeatureFlagEnable/FeatureFlagDisable
+//  3. Read-only filter
+//  4. Builder filters (via WithFilter)
+//  5. Toolset/additional tools
 func (r *Registry) isToolEnabled(ctx context.Context, tool *ServerTool) bool {
-	// Check tool's own Enabled function first
+	// 1. Check tool's own Enabled function first
 	if tool.Enabled != nil {
 		enabled, err := tool.Enabled(ctx)
 		if err != nil {
@@ -63,15 +69,15 @@ func (r *Registry) isToolEnabled(ctx context.Context, tool *ServerTool) bool {
 			return false
 		}
 	}
-	// Check feature flags
+	// 2. Check feature flags
 	if !r.isFeatureFlagAllowed(ctx, tool.FeatureFlagEnable, tool.FeatureFlagDisable) {
 		return false
 	}
-	// Check read-only filter (applies to all tools)
+	// 3. Check read-only filter (applies to all tools)
 	if r.readOnly && !tool.IsReadOnly() {
 		return false
 	}
-	// Apply builder filters
+	// 4. Apply builder filters
 	for _, filter := range r.filters {
 		allowed, err := filter(ctx, tool)
 		if err != nil {
@@ -82,11 +88,11 @@ func (r *Registry) isToolEnabled(ctx context.Context, tool *ServerTool) bool {
 			return false
 		}
 	}
-	// Check if tool is in additionalTools (bypasses toolset filter)
+	// 5. Check if tool is in additionalTools (bypasses toolset filter)
 	if r.additionalTools != nil && r.additionalTools[tool.Tool.Name] {
 		return true
 	}
-	// Check toolset filter
+	// 5. Check toolset filter
 	if !r.isToolsetEnabled(tool.Toolset.ID) {
 		return false
 	}
@@ -269,7 +275,14 @@ func (r *Registry) EnabledToolsetIDs() []ToolsetID {
 }
 
 // FilteredTools returns tools filtered by the Enabled function and builder filters.
-// This is an alias for AvailableTools for clarity when focusing on filtering behavior.
+// This provides an explicit API for accessing filtered tools, currently implemented
+// as an alias for AvailableTools.
+//
+// The error return is currently always nil but is included for future extensibility.
+// Library consumers (e.g., remote server implementations) may need to surface
+// recoverable filter errors rather than silently logging them. Having the error
+// return in the API now avoids breaking changes later.
+//
 // The context is used for Enabled function evaluation and builder filter checks.
 func (r *Registry) FilteredTools(ctx context.Context) ([]ServerTool, error) {
 	return r.AvailableTools(ctx), nil
