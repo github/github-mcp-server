@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/github/github-mcp-server/pkg/registry"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-viper/mapstructure/v2"
@@ -122,7 +122,7 @@ func getQueryType(useOrdering bool, categoryID *githubv4.ID) any {
 	return &BasicNoOrder{}
 }
 
-func ListDiscussions(t translations.TranslationHelperFunc) registry.ServerTool {
+func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataDiscussions,
 		mcp.Tool{
@@ -276,7 +276,7 @@ func ListDiscussions(t translations.TranslationHelperFunc) registry.ServerTool {
 	)
 }
 
-func GetDiscussion(t translations.TranslationHelperFunc) registry.ServerTool {
+func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataDiscussions,
 		mcp.Tool{
@@ -381,7 +381,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) registry.ServerTool {
 	)
 }
 
-func GetDiscussionComments(t translations.TranslationHelperFunc) registry.ServerTool {
+func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataDiscussions,
 		mcp.Tool{
@@ -509,7 +509,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) registry.Server
 	)
 }
 
-func ListDiscussionCategories(t translations.TranslationHelperFunc) registry.ServerTool {
+func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataDiscussions,
 		mcp.Tool{

@@ -15,10 +15,10 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	mcplog "github.com/github/github-mcp-server/pkg/log"
 	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v79/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -161,7 +161,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	enabledToolsets := resolveEnabledToolsets(cfg)
 
 	// For instruction generation, we need actual toolset names (not nil).
-	// nil means "use defaults" in registry, so expand it for instructions.
+	// nil means "use defaults" in inventory, so expand it for instructions.
 	instructionToolsets := enabledToolsets
 	if instructionToolsets == nil {
 		instructionToolsets = github.GetDefaultToolsetIDs()
@@ -201,8 +201,8 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		cfg.ContentWindowSize,
 	)
 
-	// Build and register the tool/resource/prompt registry
-	registry := github.NewRegistry(cfg.Translator).
+	// Build and register the tool/resource/prompt inventory
+	inventory := github.NewInventory(cfg.Translator).
 		WithDeprecatedAliases(github.DeprecatedToolAliases).
 		WithReadOnly(cfg.ReadOnly).
 		WithToolsets(enabledToolsets).
@@ -210,34 +210,34 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		WithFeatureChecker(createFeatureChecker(cfg.EnabledFeatures)).
 		Build()
 
-	if unrecognized := registry.UnrecognizedToolsets(); len(unrecognized) > 0 {
+	if unrecognized := inventory.UnrecognizedToolsets(); len(unrecognized) > 0 {
 		fmt.Fprintf(os.Stderr, "Warning: unrecognized toolsets ignored: %s\n", strings.Join(unrecognized, ", "))
 	}
 
-	// Register GitHub tools/resources/prompts from the registry.
+	// Register GitHub tools/resources/prompts from the inventory.
 	// In dynamic mode with no explicit toolsets, this is a no-op since enabledToolsets
 	// is empty - users enable toolsets at runtime via the dynamic tools below (but can
 	// enable toolsets or tools explicitly that do need registration).
-	registry.RegisterAll(context.Background(), ghServer, deps)
+	inventory.RegisterAll(context.Background(), ghServer, deps)
 
 	// Register dynamic toolset management tools (enable/disable) - these are separate
-	// meta-tools that control the registry, not part of the registry itself
+	// meta-tools that control the inventory, not part of the inventory itself
 	if cfg.DynamicToolsets {
-		registerDynamicTools(ghServer, registry, deps, cfg.Translator)
+		registerDynamicTools(ghServer, inventory, deps, cfg.Translator)
 	}
 
 	return ghServer, nil
 }
 
 // registerDynamicTools adds the dynamic toolset enable/disable tools to the server.
-func registerDynamicTools(server *mcp.Server, registry *registry.Registry, deps *github.BaseDeps, t translations.TranslationHelperFunc) {
+func registerDynamicTools(server *mcp.Server, inventory *inventory.Inventory, deps *github.BaseDeps, t translations.TranslationHelperFunc) {
 	dynamicDeps := github.DynamicToolDependencies{
-		Server:   server,
-		Registry: registry,
-		ToolDeps: deps,
-		T:        t,
+		Server:    server,
+		Inventory: inventory,
+		ToolDeps:  deps,
+		T:         t,
 	}
-	for _, tool := range github.DynamicTools(registry) {
+	for _, tool := range github.DynamicTools(inventory) {
 		tool.RegisterFunc(server, dynamicDeps)
 	}
 }
@@ -245,7 +245,7 @@ func registerDynamicTools(server *mcp.Server, registry *registry.Registry, deps 
 // createFeatureChecker returns a FeatureFlagChecker that checks if a flag name
 // is present in the provided list of enabled features. For the local server,
 // this is populated from the --features CLI flag.
-func createFeatureChecker(enabledFeatures []string) registry.FeatureFlagChecker {
+func createFeatureChecker(enabledFeatures []string) inventory.FeatureFlagChecker {
 	// Build a set for O(1) lookup
 	featureSet := make(map[string]bool, len(enabledFeatures))
 	for _, f := range enabledFeatures {

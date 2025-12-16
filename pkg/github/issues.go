@@ -10,8 +10,8 @@ import (
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
-	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -230,7 +230,7 @@ func fragmentToIssue(fragment IssueFragment) *github.Issue {
 }
 
 // IssueRead creates a tool to get details of a specific issue in a GitHub repository.
-func IssueRead(t translations.TranslationHelperFunc) registry.ServerTool {
+func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -545,7 +545,7 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 }
 
 // ListIssueTypes creates a tool to list defined issue types for an organization. This can be used to understand supported issue type values for creating or updating issues.
-func ListIssueTypes(t translations.TranslationHelperFunc) registry.ServerTool {
+func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
@@ -602,7 +602,7 @@ func ListIssueTypes(t translations.TranslationHelperFunc) registry.ServerTool {
 }
 
 // AddIssueComment creates a tool to add a comment to an issue.
-func AddIssueComment(t translations.TranslationHelperFunc) registry.ServerTool {
+func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
@@ -687,7 +687,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) registry.ServerTool {
 }
 
 // SubIssueWrite creates a tool to add a sub-issue to a parent issue.
-func SubIssueWrite(t translations.TranslationHelperFunc) registry.ServerTool {
+func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
@@ -916,7 +916,7 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 }
 
 // SearchIssues creates a tool to search for issues.
-func SearchIssues(t translations.TranslationHelperFunc) registry.ServerTool {
+func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -979,7 +979,7 @@ func SearchIssues(t translations.TranslationHelperFunc) registry.ServerTool {
 }
 
 // IssueWrite creates a tool to create a new or update an existing issue in a GitHub repository.
-func IssueWrite(t translations.TranslationHelperFunc) registry.ServerTool {
+func IssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
@@ -1338,7 +1338,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 }
 
 // ListIssues creates a tool to list and filter repository issues
-func ListIssues(t translations.TranslationHelperFunc) registry.ServerTool {
+func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -1606,7 +1606,7 @@ func (d *mvpDescription) String() string {
 	return sb.String()
 }
 
-func AssignCopilotToIssue(t translations.TranslationHelperFunc) registry.ServerTool {
+func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.ServerTool {
 	description := mvpDescription{
 		summary: "Assign Copilot to a specific issue in a GitHub repository.",
 		outcomes: []string{
@@ -1805,8 +1805,8 @@ func parseISOTimestamp(timestamp string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("invalid ISO 8601 timestamp: %s (supported formats: YYYY-MM-DDThh:mm:ssZ or YYYY-MM-DD)", timestamp)
 }
 
-func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) registry.ServerPrompt {
-	return registry.NewServerPrompt(
+func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) inventory.ServerPrompt {
+	return inventory.NewServerPrompt(
 		ToolsetMetadataIssues,
 		mcp.Prompt{
 			Name:        "AssignCodingAgent",

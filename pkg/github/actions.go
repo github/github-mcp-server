@@ -11,7 +11,7 @@ import (
 	"github.com/github/github-mcp-server/internal/profiler"
 	buffer "github.com/github/github-mcp-server/pkg/buffer"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/registry"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -25,7 +25,7 @@ const (
 )
 
 // ListWorkflows creates a tool to list workflows in a repository
-func ListWorkflows(t translations.TranslationHelperFunc) registry.ServerTool {
+func ListWorkflows(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
@@ -96,7 +96,7 @@ func ListWorkflows(t translations.TranslationHelperFunc) registry.ServerTool {
 }
 
 // ListWorkflowRuns creates a tool to list workflow runs for a specific workflow
-func ListWorkflowRuns(t translations.TranslationHelperFunc) registry.ServerTool {
+func ListWorkflowRuns(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
@@ -250,7 +250,7 @@ func ListWorkflowRuns(t translations.TranslationHelperFunc) registry.ServerTool 
 }
 
 // RunWorkflow creates a tool to run an Actions workflow
-func RunWorkflow(t translations.TranslationHelperFunc) registry.ServerTool {
+func RunWorkflow(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
@@ -362,7 +362,7 @@ func RunWorkflow(t translations.TranslationHelperFunc) registry.ServerTool {
 }
 
 // GetWorkflowRun creates a tool to get details of a specific workflow run
-func GetWorkflowRun(t translations.TranslationHelperFunc) registry.ServerTool {
+func GetWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
@@ -430,7 +430,7 @@ func GetWorkflowRun(t translations.TranslationHelperFunc) registry.ServerTool {
 }
 
 // GetWorkflowRunLogs creates a tool to download logs for a specific workflow run
-func GetWorkflowRunLogs(t translations.TranslationHelperFunc) registry.ServerTool {
+func GetWorkflowRunLogs(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
@@ -508,7 +508,7 @@ func GetWorkflowRunLogs(t translations.TranslationHelperFunc) registry.ServerToo
 }
 
 // ListWorkflowJobs creates a tool to list jobs for a specific workflow run
-func ListWorkflowJobs(t translations.TranslationHelperFunc) registry.ServerTool {
+func ListWorkflowJobs(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
@@ -608,7 +608,7 @@ func ListWorkflowJobs(t translations.TranslationHelperFunc) registry.ServerTool 
 }
 
 // GetJobLogs creates a tool to download logs for a specific workflow job or efficiently get all failed job logs for a workflow run
-func GetJobLogs(t translations.TranslationHelperFunc) registry.ServerTool {
+func GetJobLogs(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
@@ -873,7 +873,7 @@ func downloadLogContent(ctx context.Context, logURL string, tailLines int, maxLi
 }
 
 // RerunWorkflowRun creates a tool to re-run an entire workflow run
-func RerunWorkflowRun(t translations.TranslationHelperFunc) registry.ServerTool {
+func RerunWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
@@ -948,7 +948,7 @@ func RerunWorkflowRun(t translations.TranslationHelperFunc) registry.ServerTool 
 }
 
 // RerunFailedJobs creates a tool to re-run only the failed jobs in a workflow run
-func RerunFailedJobs(t translations.TranslationHelperFunc) registry.ServerTool {
+func RerunFailedJobs(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
@@ -1023,7 +1023,7 @@ func RerunFailedJobs(t translations.TranslationHelperFunc) registry.ServerTool {
 }
 
 // CancelWorkflowRun creates a tool to cancel a workflow run
-func CancelWorkflowRun(t translations.TranslationHelperFunc) registry.ServerTool {
+func CancelWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
@@ -1100,7 +1100,7 @@ func CancelWorkflowRun(t translations.TranslationHelperFunc) registry.ServerTool
 }
 
 // ListWorkflowRunArtifacts creates a tool to list artifacts for a workflow run
-func ListWorkflowRunArtifacts(t translations.TranslationHelperFunc) registry.ServerTool {
+func ListWorkflowRunArtifacts(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
@@ -1180,7 +1180,7 @@ func ListWorkflowRunArtifacts(t translations.TranslationHelperFunc) registry.Ser
 }
 
 // DownloadWorkflowRunArtifact creates a tool to download a workflow run artifact
-func DownloadWorkflowRunArtifact(t translations.TranslationHelperFunc) registry.ServerTool {
+func DownloadWorkflowRunArtifact(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
@@ -1257,7 +1257,7 @@ func DownloadWorkflowRunArtifact(t translations.TranslationHelperFunc) registry.
 }
 
 // DeleteWorkflowRunLogs creates a tool to delete logs for a workflow run
-func DeleteWorkflowRunLogs(t translations.TranslationHelperFunc) registry.ServerTool {
+func DeleteWorkflowRunLogs(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
@@ -1333,7 +1333,7 @@ func DeleteWorkflowRunLogs(t translations.TranslationHelperFunc) registry.Server
 }
 
 // GetWorkflowRunUsage creates a tool to get usage metrics for a workflow run
-func GetWorkflowRunUsage(t translations.TranslationHelperFunc) registry.ServerTool {
+func GetWorkflowRunUsage(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{

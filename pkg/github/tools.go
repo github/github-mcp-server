@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/github/github-mcp-server/pkg/registry"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
 	"github.com/shurcooL/githubv4"
@@ -16,96 +16,96 @@ type GetGQLClientFn func(context.Context) (*githubv4.Client, error)
 // Toolset metadata constants - these define all available toolsets and their descriptions.
 // Tools use these constants to declare which toolset they belong to.
 var (
-	ToolsetMetadataAll = registry.ToolsetMetadata{
+	ToolsetMetadataAll = inventory.ToolsetMetadata{
 		ID:          "all",
 		Description: "Special toolset that enables all available toolsets",
 	}
-	ToolsetMetadataDefault = registry.ToolsetMetadata{
+	ToolsetMetadataDefault = inventory.ToolsetMetadata{
 		ID:          "default",
 		Description: "Special toolset that enables the default toolset configuration. When no toolsets are specified, this is the set that is enabled",
 	}
-	ToolsetMetadataContext = registry.ToolsetMetadata{
+	ToolsetMetadataContext = inventory.ToolsetMetadata{
 		ID:          "context",
 		Description: "Tools that provide context about the current user and GitHub context you are operating in",
 		Default:     true,
 	}
-	ToolsetMetadataRepos = registry.ToolsetMetadata{
+	ToolsetMetadataRepos = inventory.ToolsetMetadata{
 		ID:          "repos",
 		Description: "GitHub Repository related tools",
 		Default:     true,
 	}
-	ToolsetMetadataGit = registry.ToolsetMetadata{
+	ToolsetMetadataGit = inventory.ToolsetMetadata{
 		ID:          "git",
 		Description: "GitHub Git API related tools for low-level Git operations",
 	}
-	ToolsetMetadataIssues = registry.ToolsetMetadata{
+	ToolsetMetadataIssues = inventory.ToolsetMetadata{
 		ID:          "issues",
 		Description: "GitHub Issues related tools",
 		Default:     true,
 	}
-	ToolsetMetadataPullRequests = registry.ToolsetMetadata{
+	ToolsetMetadataPullRequests = inventory.ToolsetMetadata{
 		ID:          "pull_requests",
 		Description: "GitHub Pull Request related tools",
 		Default:     true,
 	}
-	ToolsetMetadataUsers = registry.ToolsetMetadata{
+	ToolsetMetadataUsers = inventory.ToolsetMetadata{
 		ID:          "users",
 		Description: "GitHub User related tools",
 		Default:     true,
 	}
-	ToolsetMetadataOrgs = registry.ToolsetMetadata{
+	ToolsetMetadataOrgs = inventory.ToolsetMetadata{
 		ID:          "orgs",
 		Description: "GitHub Organization related tools",
 	}
-	ToolsetMetadataActions = registry.ToolsetMetadata{
+	ToolsetMetadataActions = inventory.ToolsetMetadata{
 		ID:          "actions",
 		Description: "GitHub Actions workflows and CI/CD operations",
 	}
-	ToolsetMetadataCodeSecurity = registry.ToolsetMetadata{
+	ToolsetMetadataCodeSecurity = inventory.ToolsetMetadata{
 		ID:          "code_security",
 		Description: "Code security related tools, such as GitHub Code Scanning",
 	}
-	ToolsetMetadataSecretProtection = registry.ToolsetMetadata{
+	ToolsetMetadataSecretProtection = inventory.ToolsetMetadata{
 		ID:          "secret_protection",
 		Description: "Secret protection related tools, such as GitHub Secret Scanning",
 	}
-	ToolsetMetadataDependabot = registry.ToolsetMetadata{
+	ToolsetMetadataDependabot = inventory.ToolsetMetadata{
 		ID:          "dependabot",
 		Description: "Dependabot tools",
 	}
-	ToolsetMetadataNotifications = registry.ToolsetMetadata{
+	ToolsetMetadataNotifications = inventory.ToolsetMetadata{
 		ID:          "notifications",
 		Description: "GitHub Notifications related tools",
 	}
-	ToolsetMetadataExperiments = registry.ToolsetMetadata{
+	ToolsetMetadataExperiments = inventory.ToolsetMetadata{
 		ID:          "experiments",
 		Description: "Experimental features that are not considered stable yet",
 	}
-	ToolsetMetadataDiscussions = registry.ToolsetMetadata{
+	ToolsetMetadataDiscussions = inventory.ToolsetMetadata{
 		ID:          "discussions",
 		Description: "GitHub Discussions related tools",
 	}
-	ToolsetMetadataGists = registry.ToolsetMetadata{
+	ToolsetMetadataGists = inventory.ToolsetMetadata{
 		ID:          "gists",
 		Description: "GitHub Gist related tools",
 	}
-	ToolsetMetadataSecurityAdvisories = registry.ToolsetMetadata{
+	ToolsetMetadataSecurityAdvisories = inventory.ToolsetMetadata{
 		ID:          "security_advisories",
 		Description: "Security advisories related tools",
 	}
-	ToolsetMetadataProjects = registry.ToolsetMetadata{
+	ToolsetMetadataProjects = inventory.ToolsetMetadata{
 		ID:          "projects",
 		Description: "GitHub Projects related tools",
 	}
-	ToolsetMetadataStargazers = registry.ToolsetMetadata{
+	ToolsetMetadataStargazers = inventory.ToolsetMetadata{
 		ID:          "stargazers",
 		Description: "GitHub Stargazers related tools",
 	}
-	ToolsetMetadataDynamic = registry.ToolsetMetadata{
+	ToolsetMetadataDynamic = inventory.ToolsetMetadata{
 		ID:          "dynamic",
 		Description: "Discover GitHub MCP tools that can help achieve tasks by enabling additional sets of tools, you can control the enablement of any toolset to access its tools when this toolset is enabled.",
 	}
-	ToolsetLabels = registry.ToolsetMetadata{
+	ToolsetLabels = inventory.ToolsetMetadata{
 		ID:          "labels",
 		Description: "GitHub Labels related tools",
 	}
@@ -113,8 +113,8 @@ var (
 
 // AllTools returns all tools with their embedded toolset metadata.
 // Tool functions return ServerTool directly with toolset info.
-func AllTools(t translations.TranslationHelperFunc) []registry.ServerTool {
-	return []registry.ServerTool{
+func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
+	return []inventory.ServerTool{
 		// Context tools
 		GetMe(t),
 		GetTeams(t),
@@ -263,7 +263,7 @@ func ToStringPtr(s string) *string {
 // GenerateToolsetsHelp generates the help text for the toolsets flag
 func GenerateToolsetsHelp() string {
 	// Get toolset group to derive defaults and available toolsets
-	r := NewRegistry(stubTranslator).Build()
+	r := NewInventory(stubTranslator).Build()
 
 	// Format default tools from metadata using strings.Builder
 	var defaultBuf strings.Builder
@@ -322,7 +322,7 @@ func GenerateToolsetsHelp() string {
 	return buf.String()
 }
 
-// stubTranslator is a passthrough translator for cases where we need a Registry
+// stubTranslator is a passthrough translator for cases where we need an Inventory
 // but don't need actual translations (e.g., getting toolset IDs for CLI help).
 func stubTranslator(_, fallback string) string { return fallback }
 
@@ -344,8 +344,8 @@ func AddDefaultToolset(result []string) []string {
 
 	result = RemoveToolset(result, string(ToolsetMetadataDefault.ID))
 
-	// Get default toolset IDs from the Registry
-	r := NewRegistry(stubTranslator).Build()
+	// Get default toolset IDs from the Inventory
+	r := NewInventory(stubTranslator).Build()
 	for _, id := range r.DefaultToolsetIDs() {
 		if !seen[string(id)] {
 			result = append(result, string(id))
@@ -395,9 +395,9 @@ func CleanTools(toolNames []string) []string {
 }
 
 // GetDefaultToolsetIDs returns the IDs of toolsets marked as Default.
-// This is a convenience function that builds a registry to determine defaults.
+// This is a convenience function that builds an inventory to determine defaults.
 func GetDefaultToolsetIDs() []string {
-	r := NewRegistry(stubTranslator).Build()
+	r := NewInventory(stubTranslator).Build()
 	ids := r.DefaultToolsetIDs()
 	result := make([]string, len(ids))
 	for i, id := range ids {

@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -19,7 +19,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func GetCommit(t translations.TranslationHelperFunc) registry.ServerTool {
+func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
@@ -118,7 +118,7 @@ func GetCommit(t translations.TranslationHelperFunc) registry.ServerTool {
 }
 
 // ListCommits creates a tool to get commits of a branch in a repository.
-func ListCommits(t translations.TranslationHelperFunc) registry.ServerTool {
+func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
@@ -227,7 +227,7 @@ func ListCommits(t translations.TranslationHelperFunc) registry.ServerTool {
 }
 
 // ListBranches creates a tool to list branches in a GitHub repository.
-func ListBranches(t translations.TranslationHelperFunc) registry.ServerTool {
+func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
@@ -315,7 +315,7 @@ func ListBranches(t translations.TranslationHelperFunc) registry.ServerTool {
 }
 
 // CreateOrUpdateFile creates a tool to create or update a file in a GitHub repository.
-func CreateOrUpdateFile(t translations.TranslationHelperFunc) registry.ServerTool {
+func CreateOrUpdateFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
@@ -515,7 +515,7 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 }
 
 // CreateRepository creates a tool to create a new GitHub repository.
-func CreateRepository(t translations.TranslationHelperFunc) registry.ServerTool {
+func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
@@ -622,7 +622,7 @@ func CreateRepository(t translations.TranslationHelperFunc) registry.ServerTool 
 }
 
 // GetFileContents creates a tool to get the contents of a file or directory from a GitHub repository.
-func GetFileContents(t translations.TranslationHelperFunc) registry.ServerTool {
+func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
@@ -804,7 +804,7 @@ func GetFileContents(t translations.TranslationHelperFunc) registry.ServerTool {
 }
 
 // ForkRepository creates a tool to fork a repository.
-func ForkRepository(t translations.TranslationHelperFunc) registry.ServerTool {
+func ForkRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
@@ -903,7 +903,7 @@ func ForkRepository(t translations.TranslationHelperFunc) registry.ServerTool {
 // unlike how the endpoint backing the create_or_update_files tool does. This appears to be a quirk of the API.
 // The approach implemented here gets automatic commit signing when used with either the github-actions user or as an app,
 // both of which suit an LLM well.
-func DeleteFile(t translations.TranslationHelperFunc) registry.ServerTool {
+func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
@@ -1089,7 +1089,7 @@ func DeleteFile(t translations.TranslationHelperFunc) registry.ServerTool {
 }
 
 // CreateBranch creates a tool to create a new branch.
-func CreateBranch(t translations.TranslationHelperFunc) registry.ServerTool {
+func CreateBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
@@ -1203,7 +1203,7 @@ func CreateBranch(t translations.TranslationHelperFunc) registry.ServerTool {
 }
 
 // PushFiles creates a tool to push multiple files in a single commit to a GitHub repository.
-func PushFiles(t translations.TranslationHelperFunc) registry.ServerTool {
+func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
@@ -1388,7 +1388,7 @@ func PushFiles(t translations.TranslationHelperFunc) registry.ServerTool {
 }
 
 // ListTags creates a tool to list tags in a GitHub repository.
-func ListTags(t translations.TranslationHelperFunc) registry.ServerTool {
+func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
@@ -1468,7 +1468,7 @@ func ListTags(t translations.TranslationHelperFunc) registry.ServerTool {
 }
 
 // GetTag creates a tool to get details about a specific tag in a GitHub repository.
-func GetTag(t translations.TranslationHelperFunc) registry.ServerTool {
+func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
@@ -1567,7 +1567,7 @@ func GetTag(t translations.TranslationHelperFunc) registry.ServerTool {
 }
 
 // ListReleases creates a tool to list releases in a GitHub repository.
-func ListReleases(t translations.TranslationHelperFunc) registry.ServerTool {
+func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
@@ -1643,7 +1643,7 @@ func ListReleases(t translations.TranslationHelperFunc) registry.ServerTool {
 }
 
 // GetLatestRelease creates a tool to get the latest release in a GitHub repository.
-func GetLatestRelease(t translations.TranslationHelperFunc) registry.ServerTool {
+func GetLatestRelease(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
@@ -1709,7 +1709,7 @@ func GetLatestRelease(t translations.TranslationHelperFunc) registry.ServerTool 
 	)
 }
 
-func GetReleaseByTag(t translations.TranslationHelperFunc) registry.ServerTool {
+func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
@@ -1957,7 +1957,7 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 }
 
 // ListStarredRepositories creates a tool to list starred repositories for the authenticated user or a specified user.
-func ListStarredRepositories(t translations.TranslationHelperFunc) registry.ServerTool {
+func ListStarredRepositories(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataStargazers,
 		mcp.Tool{
@@ -2090,7 +2090,7 @@ func ListStarredRepositories(t translations.TranslationHelperFunc) registry.Serv
 }
 
 // StarRepository creates a tool to star a repository.
-func StarRepository(t translations.TranslationHelperFunc) registry.ServerTool {
+func StarRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataStargazers,
 		mcp.Tool{
@@ -2156,7 +2156,7 @@ func StarRepository(t translations.TranslationHelperFunc) registry.ServerTool {
 }
 
 // UnstarRepository creates a tool to unstar a repository.
-func UnstarRepository(t translations.TranslationHelperFunc) registry.ServerTool {
+func UnstarRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataStargazers,
 		mcp.Tool{

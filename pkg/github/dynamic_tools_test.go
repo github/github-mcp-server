@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/github/github-mcp-server/pkg/registry"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -25,7 +25,7 @@ func createDynamicRequest(args map[string]any) *mcp.CallToolRequest {
 
 func TestDynamicTools_ListAvailableToolsets(t *testing.T) {
 	// Build a registry with no toolsets enabled (dynamic mode)
-	reg := NewRegistry(translations.NullTranslationHelper).
+	reg := NewInventory(translations.NullTranslationHelper).
 		WithToolsets([]string{}).
 		Build()
 
@@ -34,10 +34,10 @@ func TestDynamicTools_ListAvailableToolsets(t *testing.T) {
 
 	// Create dynamic tool dependencies
 	deps := DynamicToolDependencies{
-		Server:   server,
-		Registry: reg,
-		ToolDeps: nil,
-		T:        translations.NullTranslationHelper,
+		Server:    server,
+		Inventory: reg,
+		ToolDeps:  nil,
+		T:         translations.NullTranslationHelper,
 	}
 
 	// Get the list_available_toolsets tool
@@ -73,7 +73,7 @@ func TestDynamicTools_ListAvailableToolsets(t *testing.T) {
 
 func TestDynamicTools_GetToolsetTools(t *testing.T) {
 	// Build a registry with no toolsets enabled (dynamic mode)
-	reg := NewRegistry(translations.NullTranslationHelper).
+	reg := NewInventory(translations.NullTranslationHelper).
 		WithToolsets([]string{}).
 		Build()
 
@@ -82,10 +82,10 @@ func TestDynamicTools_GetToolsetTools(t *testing.T) {
 
 	// Create dynamic tool dependencies
 	deps := DynamicToolDependencies{
-		Server:   server,
-		Registry: reg,
-		ToolDeps: nil,
-		T:        translations.NullTranslationHelper,
+		Server:    server,
+		Inventory: reg,
+		ToolDeps:  nil,
+		T:         translations.NullTranslationHelper,
 	}
 
 	// Get the get_toolset_tools tool
@@ -122,7 +122,7 @@ func TestDynamicTools_GetToolsetTools(t *testing.T) {
 
 func TestDynamicTools_EnableToolset(t *testing.T) {
 	// Build a registry with no toolsets enabled (dynamic mode)
-	reg := NewRegistry(translations.NullTranslationHelper).
+	reg := NewInventory(translations.NullTranslationHelper).
 		WithToolsets([]string{}).
 		Build()
 
@@ -131,14 +131,14 @@ func TestDynamicTools_EnableToolset(t *testing.T) {
 
 	// Create dynamic tool dependencies
 	deps := DynamicToolDependencies{
-		Server:   server,
-		Registry: reg,
-		ToolDeps: NewBaseDeps(nil, nil, nil, nil, translations.NullTranslationHelper, FeatureFlags{}, 0),
-		T:        translations.NullTranslationHelper,
+		Server:    server,
+		Inventory: reg,
+		ToolDeps:  NewBaseDeps(nil, nil, nil, nil, translations.NullTranslationHelper, FeatureFlags{}, 0),
+		T:         translations.NullTranslationHelper,
 	}
 
 	// Verify repos is not enabled initially
-	assert.False(t, reg.IsToolsetEnabled(registry.ToolsetID("repos")))
+	assert.False(t, reg.IsToolsetEnabled(inventory.ToolsetID("repos")))
 
 	// Get the enable_toolset tool
 	tool := EnableToolset(reg)
@@ -153,7 +153,7 @@ func TestDynamicTools_EnableToolset(t *testing.T) {
 	require.Len(t, result.Content, 1)
 
 	// Verify the toolset is now enabled
-	assert.True(t, reg.IsToolsetEnabled(registry.ToolsetID("repos")), "repos should be enabled after enable_toolset")
+	assert.True(t, reg.IsToolsetEnabled(inventory.ToolsetID("repos")), "repos should be enabled after enable_toolset")
 
 	// Verify the success message
 	textContent := result.Content[0].(*mcp.TextContent)
@@ -170,7 +170,7 @@ func TestDynamicTools_EnableToolset(t *testing.T) {
 
 func TestDynamicTools_EnableToolset_InvalidToolset(t *testing.T) {
 	// Build a registry with no toolsets enabled (dynamic mode)
-	reg := NewRegistry(translations.NullTranslationHelper).
+	reg := NewInventory(translations.NullTranslationHelper).
 		WithToolsets([]string{}).
 		Build()
 
@@ -179,10 +179,10 @@ func TestDynamicTools_EnableToolset_InvalidToolset(t *testing.T) {
 
 	// Create dynamic tool dependencies
 	deps := DynamicToolDependencies{
-		Server:   server,
-		Registry: reg,
-		ToolDeps: nil,
-		T:        translations.NullTranslationHelper,
+		Server:    server,
+		Inventory: reg,
+		ToolDeps:  nil,
+		T:         translations.NullTranslationHelper,
 	}
 
 	// Get the enable_toolset tool
@@ -203,7 +203,7 @@ func TestDynamicTools_EnableToolset_InvalidToolset(t *testing.T) {
 
 func TestDynamicTools_ToolsetsEnum(t *testing.T) {
 	// Build a registry
-	reg := NewRegistry(translations.NullTranslationHelper).Build()
+	reg := NewInventory(translations.NullTranslationHelper).Build()
 
 	// Get tools to verify they have proper enum values
 	tools := DynamicTools(reg)
@@ -220,7 +220,7 @@ func TestDynamicTools_ToolsetsEnum(t *testing.T) {
 			// Verify repos is in the enum
 			var foundRepos bool
 			for _, v := range toolsetProp.Enum {
-				if v == registry.ToolsetID("repos") {
+				if v == inventory.ToolsetID("repos") {
 					foundRepos = true
 					break
 				}

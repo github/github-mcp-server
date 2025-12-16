@@ -7,7 +7,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/github/github-mcp-server/pkg/registry"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -15,7 +15,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) registry.ServerTool {
+func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataSecurityAdvisories,
 		mcp.Tool{
@@ -207,7 +207,7 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) registry
 	)
 }
 
-func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) registry.ServerTool {
+func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataSecurityAdvisories,
 		mcp.Tool{
@@ -312,7 +312,7 @@ func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) regi
 	)
 }
 
-func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) registry.ServerTool {
+func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataSecurityAdvisories,
 		mcp.Tool{
@@ -370,7 +370,7 @@ func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) registry.Se
 	)
 }
 
-func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) registry.ServerTool {
+func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataSecurityAdvisories,
 		mcp.Tool{

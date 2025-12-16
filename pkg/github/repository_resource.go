@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -30,8 +30,8 @@ var (
 )
 
 // GetRepositoryResourceContent defines the resource template for getting repository content.
-func GetRepositoryResourceContent(t translations.TranslationHelperFunc) registry.ServerResourceTemplate {
-	return registry.NewServerResourceTemplate(
+func GetRepositoryResourceContent(t translations.TranslationHelperFunc) inventory.ServerResourceTemplate {
+	return inventory.NewServerResourceTemplate(
 		ToolsetMetadataRepos,
 		mcp.ResourceTemplate{
 			Name:        "repository_content",
@@ -43,8 +43,8 @@ func GetRepositoryResourceContent(t translations.TranslationHelperFunc) registry
 }
 
 // GetRepositoryResourceBranchContent defines the resource template for getting repository content for a branch.
-func GetRepositoryResourceBranchContent(t translations.TranslationHelperFunc) registry.ServerResourceTemplate {
-	return registry.NewServerResourceTemplate(
+func GetRepositoryResourceBranchContent(t translations.TranslationHelperFunc) inventory.ServerResourceTemplate {
+	return inventory.NewServerResourceTemplate(
 		ToolsetMetadataRepos,
 		mcp.ResourceTemplate{
 			Name:        "repository_content_branch",
@@ -56,8 +56,8 @@ func GetRepositoryResourceBranchContent(t translations.TranslationHelperFunc) re
 }
 
 // GetRepositoryResourceCommitContent defines the resource template for getting repository content for a commit.
-func GetRepositoryResourceCommitContent(t translations.TranslationHelperFunc) registry.ServerResourceTemplate {
-	return registry.NewServerResourceTemplate(
+func GetRepositoryResourceCommitContent(t translations.TranslationHelperFunc) inventory.ServerResourceTemplate {
+	return inventory.NewServerResourceTemplate(
 		ToolsetMetadataRepos,
 		mcp.ResourceTemplate{
 			Name:        "repository_content_commit",
@@ -69,8 +69,8 @@ func GetRepositoryResourceCommitContent(t translations.TranslationHelperFunc) re
 }
 
 // GetRepositoryResourceTagContent defines the resource template for getting repository content for a tag.
-func GetRepositoryResourceTagContent(t translations.TranslationHelperFunc) registry.ServerResourceTemplate {
-	return registry.NewServerResourceTemplate(
+func GetRepositoryResourceTagContent(t translations.TranslationHelperFunc) inventory.ServerResourceTemplate {
+	return inventory.NewServerResourceTemplate(
 		ToolsetMetadataRepos,
 		mcp.ResourceTemplate{
 			Name:        "repository_content_tag",
@@ -82,8 +82,8 @@ func GetRepositoryResourceTagContent(t translations.TranslationHelperFunc) regis
 }
 
 // GetRepositoryResourcePrContent defines the resource template for getting repository content for a pull request.
-func GetRepositoryResourcePrContent(t translations.TranslationHelperFunc) registry.ServerResourceTemplate {
-	return registry.NewServerResourceTemplate(
+func GetRepositoryResourcePrContent(t translations.TranslationHelperFunc) inventory.ServerResourceTemplate {
+	return inventory.NewServerResourceTemplate(
 		ToolsetMetadataRepos,
 		mcp.ResourceTemplate{
 			Name:        "repository_content_pr",
@@ -95,7 +95,7 @@ func GetRepositoryResourcePrContent(t translations.TranslationHelperFunc) regist
 }
 
 // repositoryResourceContentsHandlerFunc returns a ResourceHandlerFunc that creates handlers on-demand.
-func repositoryResourceContentsHandlerFunc(resourceURITemplate *uritemplate.Template) registry.ResourceHandlerFunc {
+func repositoryResourceContentsHandlerFunc(resourceURITemplate *uritemplate.Template) inventory.ResourceHandlerFunc {
 	return func(deps any) mcp.ResourceHandler {
 		d := deps.(ToolDependencies)
 		return RepositoryResourceContentsHandler(d, resourceURITemplate)

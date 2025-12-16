@@ -3,9 +3,9 @@ package github
 import (
 	"context"
 
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/github/github-mcp-server/pkg/registry"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v79/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -108,16 +108,16 @@ func (d BaseDeps) GetContentWindowSize() int { return d.ContentWindowSize }
 // NewTool creates a ServerTool with fully-typed ToolDependencies and toolset metadata.
 // This helper isolates the type assertion from `any` to `ToolDependencies`,
 // so tool implementations remain fully typed without assertions scattered throughout.
-func NewTool[In, Out any](toolset registry.ToolsetMetadata, tool mcp.Tool, handler func(deps ToolDependencies) mcp.ToolHandlerFor[In, Out]) registry.ServerTool {
-	return registry.NewServerTool(tool, toolset, func(d any) mcp.ToolHandlerFor[In, Out] {
+func NewTool[In, Out any](toolset inventory.ToolsetMetadata, tool mcp.Tool, handler func(deps ToolDependencies) mcp.ToolHandlerFor[In, Out]) inventory.ServerTool {
+	return inventory.NewServerTool(tool, toolset, func(d any) mcp.ToolHandlerFor[In, Out] {
 		return handler(d.(ToolDependencies))
 	})
 }
 
 // NewToolFromHandler creates a ServerTool with fully-typed ToolDependencies and toolset metadata
 // for handlers that conform to mcp.ToolHandler directly.
-func NewToolFromHandler(toolset registry.ToolsetMetadata, tool mcp.Tool, handler func(deps ToolDependencies) mcp.ToolHandler) registry.ServerTool {
-	return registry.NewServerToolFromHandler(tool, toolset, func(d any) mcp.ToolHandler {
+func NewToolFromHandler(toolset inventory.ToolsetMetadata, tool mcp.Tool, handler func(deps ToolDependencies) mcp.ToolHandler) inventory.ServerTool {
+	return inventory.NewServerToolFromHandler(tool, toolset, func(d any) mcp.ToolHandler {
 		return handler(d.(ToolDependencies))
 	})
 }
