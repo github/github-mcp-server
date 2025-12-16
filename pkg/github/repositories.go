@@ -414,14 +414,23 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 		fileContent, resp, err := client.Repositories.CreateFile(ctx, owner, repo, path, opts)
 		if err != nil {
 			if strings.Contains(err.Error(), `"sha" wasn't supplied`) && sha == "" {
+				// Close the response from the initial failed CreateFile call
+				if resp != nil {
+					_ = resp.Body.Close()
+				}
+
 				// attempt to get the current file SHA by fetching the file contents
 				getOpts := &github.RepositoryContentGetOptions{
 					Ref: branch,
 				}
 				currentFileContent, _, respContents, err := client.Repositories.GetContents(ctx, owner, repo, path, getOpts)
-				defer func() { _ = respContents.Body.Close() }()
 
 				if err == nil {
+					// Close the GetContents response before making the retry call
+					if respContents != nil {
+						_ = respContents.Body.Close()
+					}
+
 					if currentFileContent != nil && currentFileContent.SHA != nil {
 						opts.SHA = currentFileContent.SHA
 						fileContent, resp, err = client.Repositories.CreateFile(ctx, owner, repo, path, opts)
@@ -438,9 +447,13 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 						return utils.NewToolResultError("file content SHA is nil, cannot update the file"), nil, nil
 					}
 				} else {
+					// Close the GetContents response before returning error
+					if respContents != nil {
+						_ = respContents.Body.Close()
+					}
 					return ghErrors.NewGitHubAPIErrorResponse(ctx,
 						"failed to get file SHA for update",
-						resp,
+						respContents,
 						err,
 					), nil, nil
 				}
