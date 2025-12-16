@@ -310,8 +310,15 @@ func ListBranches(getClient GetClientFn, t translations.TranslationHelperFunc) (
 // CreateOrUpdateFile creates a tool to create or update a file in a GitHub repository.
 func CreateOrUpdateFile(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 	tool := mcp.Tool{
-		Name:        "create_or_update_file",
-		Description: t("TOOL_CREATE_OR_UPDATE_FILE_DESCRIPTION", "Create or update a single file in a GitHub repository. If updating, you must provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations."),
+		Name: "create_or_update_file",
+		Description: t("TOOL_CREATE_OR_UPDATE_FILE_DESCRIPTION", `Create or update a single file in a GitHub repository. 
+If updating, you should provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.
+
+In order to obtain the SHA of original file version before updating, use the following git command:
+git ls-tree HEAD <path to file>
+
+If the SHA is not provided, the tool will attempt to acquire it by fetching the current file contents from the repository, which may lead to rewriting latest committed changes if the file has changed since last retrieval.
+`),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_CREATE_OR_UPDATE_FILE_USER_TITLE", "Create or update file"),
 			ReadOnlyHint: false,
@@ -345,7 +352,7 @@ func CreateOrUpdateFile(getClient GetClientFn, t translations.TranslationHelperF
 				},
 				"sha": {
 					Type:        "string",
-					Description: "Required if updating an existing file. The blob SHA of the file being replaced.",
+					Description: "The blob SHA of the file being replaced.",
 				},
 			},
 			Required: []string{"owner", "repo", "path", "content", "message", "branch"},
@@ -404,6 +411,58 @@ func CreateOrUpdateFile(getClient GetClientFn, t translations.TranslationHelperF
 		}
 
 		path = strings.TrimPrefix(path, "/")
+
+		// SHA validation using conditional HEAD request (efficient - no body transfer)
+		var previousSHA string
+		contentURL := fmt.Sprintf("repos/%s/%s/contents/%s", owner, repo, url.PathEscape(path))
+		if branch != "" {
+			contentURL += "?ref=" + url.QueryEscape(branch)
+		}
+
+		if sha != "" {
+			// User provided SHA - validate it's still current
+			req, err := client.NewRequest("HEAD", contentURL, nil)
+			if err == nil {
+				req.Header.Set("If-None-Match", fmt.Sprintf(`"%s"`, sha))
+				resp, _ := client.Do(ctx, req, nil)
+				if resp != nil {
+					defer resp.Body.Close()
+
+					switch resp.StatusCode {
+					case http.StatusNotModified:
+						// SHA matches current - proceed
+						opts.SHA = github.Ptr(sha)
+					case http.StatusOK:
+						// SHA is stale - reject with current SHA so user can check diff
+						currentSHA := strings.Trim(resp.Header.Get("ETag"), `"`)
+						return utils.NewToolResultError(fmt.Sprintf(
+							"SHA mismatch: provided SHA %s is stale. Current file SHA is %s. "+
+								"Use get_file_contents or compare commits to review changes before updating.",
+							sha, currentSHA)), nil, nil
+					case http.StatusNotFound:
+						// File doesn't exist - this is a create, ignore provided SHA
+					}
+				}
+			}
+		} else {
+			// No SHA provided - check if file exists to warn about blind update
+			req, err := client.NewRequest("HEAD", contentURL, nil)
+			if err == nil {
+				resp, _ := client.Do(ctx, req, nil)
+				if resp != nil {
+					defer resp.Body.Close()
+					if resp.StatusCode == http.StatusOK {
+						previousSHA = strings.Trim(resp.Header.Get("ETag"), `"`)
+					}
+					// 404 = new file, no previous SHA needed
+				}
+			}
+		}
+
+		if previousSHA != "" {
+			opts.SHA = github.Ptr(previousSHA)
+		}
+
 		fileContent, resp, err := client.Repositories.CreateFile(ctx, owner, repo, path, opts)
 		if err != nil {
 			return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -425,6 +484,19 @@ func CreateOrUpdateFile(getClient GetClientFn, t translations.TranslationHelperF
 		r, err := json.Marshal(fileContent)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+		}
+
+		// Warn if file was updated without SHA validation (blind update)
+		if sha == "" && previousSHA != "" {
+			return utils.NewToolResultText(fmt.Sprintf(
+				"Warning: File updated without SHA validation. Previous file SHA was %s. "+
+					`Verify no unintended changes were overwritten: 
+1. Extract the SHA of the local version using git ls-tree HEAD %s.
+2. Compare with the previous SHA above.
+3. Revert changes if shas do not match.
+
+%s`,
+				previousSHA, path, string(r))), nil, nil
 		}
 
 		return utils.NewToolResultText(string(r)), nil, nil
