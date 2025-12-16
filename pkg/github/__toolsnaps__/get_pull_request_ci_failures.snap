@@ -1,0 +1,50 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get PR CI failures"
+  },
+  "description": "Get failed CI workflow job logs for a pull request. This tool finds workflow runs triggered by a PR, identifies failed jobs, and retrieves their logs for debugging CI failures.",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "owner",
+      "repo",
+      "pullNumber"
+    ],
+    "properties": {
+      "include_annotations": {
+        "type": "boolean",
+        "description": "Include GitHub Check Run annotations - structured error messages with file/line info (default: true). Set to false to reduce output size.",
+        "default": true
+      },
+      "include_logs": {
+        "type": "boolean",
+        "description": "Include tail of job logs for context (default: true). Set to false if annotations are sufficient or to reduce output size.",
+        "default": true
+      },
+      "max_failed_jobs": {
+        "type": "number",
+        "description": "Maximum number of failed jobs to fetch details for (default: 3). Use 0 for no limit. Reduce if output is too large.",
+        "default": 3
+      },
+      "owner": {
+        "type": "string",
+        "description": "Repository owner"
+      },
+      "pullNumber": {
+        "type": "number",
+        "description": "Pull request number"
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      },
+      "tail_lines": {
+        "type": "number",
+        "description": "Number of log lines to include from end of each job (default: 100). Reduce if output is too large.",
+        "default": 100
+      }
+    }
+  },
+  "name": "get_pull_request_ci_failures"
+}
