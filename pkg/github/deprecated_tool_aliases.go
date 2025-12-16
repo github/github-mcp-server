@@ -20,6 +20,7 @@ var DeprecatedToolAliases = map[string]string{
 	"get_workflow_job":               "actions_get",
 	"get_workflow_run_usage":         "actions_get",
 	"get_workflow_run_logs":          "actions_get",
+	"get_workflow_job_logs":          "actions_get",
 	"download_workflow_run_artifact": "actions_get",
 	"run_workflow":                   "actions_run_trigger",
 	"rerun_workflow_run":             "actions_run_trigger",
