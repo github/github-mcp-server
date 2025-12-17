@@ -16,8 +16,8 @@ import (
 
 func Test_GetDependabotAlert(t *testing.T) {
 	// Verify tool definition
-	mockClient := github.NewClient(nil)
-	tool, _ := GetDependabotAlert(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	toolDef := GetDependabotAlert(translations.NullTranslationHelper)
+	tool := toolDef.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	// Validate tool schema
@@ -81,13 +81,14 @@ func Test_GetDependabotAlert(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetDependabotAlert(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{Client: client}
+			handler := toolDef.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -117,8 +118,8 @@ func Test_GetDependabotAlert(t *testing.T) {
 
 func Test_ListDependabotAlerts(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := ListDependabotAlerts(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	toolDef := ListDependabotAlerts(translations.NullTranslationHelper)
+	tool := toolDef.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_dependabot_alerts", tool.Name)
@@ -231,11 +232,12 @@ func Test_ListDependabotAlerts(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListDependabotAlerts(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{Client: client}
+			handler := toolDef.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
 
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			if tc.expectError {
 				require.NoError(t, err)

@@ -122,9 +122,8 @@ func toString(v any) string {
 
 func Test_GetIssue(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	defaultGQLClient := githubv4.NewClient(nil)
-	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(defaultGQLClient), repoAccessCache, translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+	serverTool := IssueRead(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "issue_read", tool.Name)
@@ -327,14 +326,20 @@ func Test_GetIssue(t *testing.T) {
 				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
 				cache = stubRepoAccessCache(gqlClient, 15*time.Minute)
 			} else {
-				gqlClient = defaultGQLClient
+				gqlClient = githubv4.NewClient(nil)
 			}
 
 			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
-			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), cache, translations.NullTranslationHelper, flags)
+			deps := BaseDeps{
+				Client:          client,
+				GQLClient:       gqlClient,
+				RepoAccessCache: cache,
+				Flags:           flags,
+			}
+			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			if tc.expectHandlerError {
 				require.Error(t, err)
@@ -368,8 +373,8 @@ func Test_GetIssue(t *testing.T) {
 
 func Test_AddIssueComment(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := AddIssueComment(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := AddIssueComment(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "add_issue_comment", tool.Name)
@@ -442,13 +447,16 @@ func Test_AddIssueComment(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := AddIssueComment(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -483,8 +491,8 @@ func Test_AddIssueComment(t *testing.T) {
 
 func Test_SearchIssues(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := SearchIssues(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := SearchIssues(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "search_issues", tool.Name)
@@ -773,13 +781,16 @@ func Test_SearchIssues(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := SearchIssues(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -817,9 +828,8 @@ func Test_SearchIssues(t *testing.T) {
 
 func Test_CreateIssue(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	mockGQLClient := githubv4.NewClient(nil)
-	tool, _ := IssueWrite(stubGetClientFn(mockClient), stubGetGQLClientFn(mockGQLClient), translations.NullTranslationHelper)
+	serverTool := IssueWrite(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "issue_write", tool.Name)
@@ -942,13 +952,17 @@ func Test_CreateIssue(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
 			gqlClient := githubv4.NewClient(nil)
-			_, handler := IssueWrite(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client:    client,
+				GQLClient: gqlClient,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -979,8 +993,8 @@ func Test_CreateIssue(t *testing.T) {
 
 func Test_ListIssues(t *testing.T) {
 	// Verify tool definition
-	mockClient := githubv4.NewClient(nil)
-	tool, _ := ListIssues(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ListIssues(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_issues", tool.Name)
@@ -1184,6 +1198,16 @@ func Test_ListIssues(t *testing.T) {
 			expectedCount: 2,
 		},
 		{
+			name: "filter by open state - lc",
+			reqParams: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+				"state": "open",
+			},
+			expectError:   false,
+			expectedCount: 2,
+		},
+		{
 			name: "filter by closed state",
 			reqParams: map[string]interface{}{
 				"owner": "owner",
@@ -1229,6 +1253,9 @@ func Test_ListIssues(t *testing.T) {
 			case "filter by open state":
 				matcher := githubv4mock.NewQueryMatcher(qBasicNoLabels, varsOpenOnly, mockResponseOpenOnly)
 				httpClient = githubv4mock.NewMockedHTTPClient(matcher)
+			case "filter by open state - lc":
+				matcher := githubv4mock.NewQueryMatcher(qBasicNoLabels, varsOpenOnly, mockResponseOpenOnly)
+				httpClient = githubv4mock.NewMockedHTTPClient(matcher)
 			case "filter by closed state":
 				matcher := githubv4mock.NewQueryMatcher(qBasicNoLabels, varsClosedOnly, mockResponseClosedOnly)
 				httpClient = githubv4mock.NewMockedHTTPClient(matcher)
@@ -1241,10 +1268,13 @@ func Test_ListIssues(t *testing.T) {
 			}
 
 			gqlClient := githubv4.NewClient(httpClient)
-			_, handler := ListIssues(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				GQLClient: gqlClient,
+			}
+			handler := serverTool.Handler(deps)
 
 			req := createMCPRequest(tc.reqParams)
-			res, _, err := handler(context.Background(), &req, tc.reqParams)
+			res, err := handler(context.Background(), &req)
 			text := getTextResult(t, res).Text
 
 			if tc.expectError {
@@ -1287,9 +1317,8 @@ func Test_ListIssues(t *testing.T) {
 
 func Test_UpdateIssue(t *testing.T) {
 	// Verify tool definition
-	mockClient := github.NewClient(nil)
-	mockGQLClient := githubv4.NewClient(nil)
-	tool, _ := IssueWrite(stubGetClientFn(mockClient), stubGetGQLClientFn(mockGQLClient), translations.NullTranslationHelper)
+	serverTool := IssueWrite(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "issue_write", tool.Name)
@@ -1740,13 +1769,17 @@ func Test_UpdateIssue(t *testing.T) {
 			// Setup clients with mocks
 			restClient := github.NewClient(tc.mockedRESTClient)
 			gqlClient := githubv4.NewClient(tc.mockedGQLClient)
-			_, handler := IssueWrite(stubGetClientFn(restClient), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client:    restClient,
+				GQLClient: gqlClient,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError || tc.expectedErrMsg != "" {
@@ -1831,9 +1864,8 @@ func Test_ParseISOTimestamp(t *testing.T) {
 
 func Test_GetIssueComments(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	gqlClient := githubv4.NewClient(nil)
-	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+	serverTool := IssueRead(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "issue_read", tool.Name)
@@ -1984,13 +2016,19 @@ func Test_GetIssueComments(t *testing.T) {
 			}
 			cache := stubRepoAccessCache(gqlClient, 15*time.Minute)
 			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
-			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), cache, translations.NullTranslationHelper, flags)
+			deps := BaseDeps{
+				Client:          client,
+				GQLClient:       gqlClient,
+				RepoAccessCache: cache,
+				Flags:           flags,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -2022,9 +2060,8 @@ func Test_GetIssueLabels(t *testing.T) {
 	t.Parallel()
 
 	// Verify tool definition
-	mockGQClient := githubv4.NewClient(nil)
-	mockClient := github.NewClient(nil)
-	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(mockGQClient), stubRepoAccessCache(mockGQClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+	serverTool := IssueRead(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "issue_read", tool.Name)
@@ -2099,10 +2136,16 @@ func Test_GetIssueLabels(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			gqlClient := githubv4.NewClient(tc.mockedClient)
 			client := github.NewClient(nil)
-			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+			deps := BaseDeps{
+				Client:          client,
+				GQLClient:       gqlClient,
+				RepoAccessCache: stubRepoAccessCache(gqlClient, 15*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+			}
+			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			require.NoError(t, err)
 			assert.NotNil(t, result)
@@ -2124,8 +2167,8 @@ func TestAssignCopilotToIssue(t *testing.T) {
 	t.Parallel()
 
 	// Verify tool definition
-	mockClient := githubv4.NewClient(nil)
-	tool, _ := AssignCopilotToIssue(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := AssignCopilotToIssue(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "assign_copilot_to_issue", tool.Name)
@@ -2517,13 +2560,16 @@ func TestAssignCopilotToIssue(t *testing.T) {
 			t.Parallel()
 			// Setup client with mock
 			client := githubv4.NewClient(tc.mockedClient)
-			_, handler := AssignCopilotToIssue(stubGetGQLClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				GQLClient: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 			require.NoError(t, err)
 
 			textContent := getTextResult(t, result)
@@ -2542,8 +2588,8 @@ func TestAssignCopilotToIssue(t *testing.T) {
 
 func Test_AddSubIssue(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := SubIssueWrite(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := SubIssueWrite(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "sub_issue_write", tool.Name)
@@ -2745,13 +2791,16 @@ func Test_AddSubIssue(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := SubIssueWrite(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -2788,9 +2837,8 @@ func Test_AddSubIssue(t *testing.T) {
 
 func Test_GetSubIssues(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	gqlClient := githubv4.NewClient(nil)
-	tool, _ := IssueRead(stubGetClientFn(mockClient), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+	serverTool := IssueRead(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "issue_read", tool.Name)
@@ -2987,13 +3035,19 @@ func Test_GetSubIssues(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
 			gqlClient := githubv4.NewClient(nil)
-			_, handler := IssueRead(stubGetClientFn(client), stubGetGQLClientFn(gqlClient), stubRepoAccessCache(gqlClient, 15*time.Minute), translations.NullTranslationHelper, stubFeatureFlags(map[string]bool{"lockdown-mode": false}))
+			deps := BaseDeps{
+				Client:          client,
+				GQLClient:       gqlClient,
+				RepoAccessCache: stubRepoAccessCache(gqlClient, 15*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -3039,8 +3093,8 @@ func Test_GetSubIssues(t *testing.T) {
 
 func Test_RemoveSubIssue(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := SubIssueWrite(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := SubIssueWrite(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "sub_issue_write", tool.Name)
@@ -3221,13 +3275,16 @@ func Test_RemoveSubIssue(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := SubIssueWrite(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -3264,8 +3321,8 @@ func Test_RemoveSubIssue(t *testing.T) {
 
 func Test_ReprioritizeSubIssue(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := SubIssueWrite(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := SubIssueWrite(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "sub_issue_write", tool.Name)
@@ -3507,13 +3564,16 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := SubIssueWrite(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -3550,8 +3610,8 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 
 func Test_ListIssueTypes(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := ListIssueTypes(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ListIssueTypes(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_issue_types", tool.Name)
@@ -3638,13 +3698,16 @@ func Test_ListIssueTypes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListIssueTypes(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
