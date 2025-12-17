@@ -158,7 +158,7 @@ func Test_RunWorkflow(t *testing.T) {
 		{
 			name: "successful workflow run",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				PostReposActionsWorkflowsDispatchesByOwnerByRepoByWorkflowId: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				PostReposActionsWorkflowsDispatchesByOwnerByRepoByWorkflowID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusNoContent)
 				}),
 			}),
@@ -233,7 +233,7 @@ func Test_RunWorkflow_WithFilename(t *testing.T) {
 		{
 			name: "successful workflow run by filename",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				PostReposActionsWorkflowsDispatchesByOwnerByRepoByWorkflowId: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				PostReposActionsWorkflowsDispatchesByOwnerByRepoByWorkflowID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusNoContent)
 				}),
 			}),
@@ -248,7 +248,7 @@ func Test_RunWorkflow_WithFilename(t *testing.T) {
 		{
 			name: "successful workflow run by numeric ID as string",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				PostReposActionsWorkflowsDispatchesByOwnerByRepoByWorkflowId: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				PostReposActionsWorkflowsDispatchesByOwnerByRepoByWorkflowID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusNoContent)
 				}),
 			}),
@@ -429,7 +429,7 @@ func Test_ListWorkflowRunArtifacts(t *testing.T) {
 		{
 			name: "successful artifacts listing",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposActionsRunsArtifactsByOwnerByRepoByRunId: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				GetReposActionsRunsArtifactsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					artifacts := &github.ArtifactList{
 						TotalCount: github.Ptr(int64(2)),
 						Artifacts: []*github.Artifact{
@@ -640,7 +640,7 @@ func Test_DeleteWorkflowRunLogs(t *testing.T) {
 		{
 			name: "successful logs deletion",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				DeleteReposActionsRunsLogsByOwnerByRepoByRunId: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				DeleteReposActionsRunsLogsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusNoContent)
 				}),
 			}),
@@ -721,7 +721,7 @@ func Test_GetWorkflowRunUsage(t *testing.T) {
 		{
 			name: "successful workflow run usage",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposActionsRunsTimingByOwnerByRepoByRunId: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				GetReposActionsRunsTimingByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					usage := &github.WorkflowRunUsage{
 						Billable: &github.WorkflowRunBillMap{
 							"UBUNTU": &github.WorkflowRunBill{
@@ -826,7 +826,7 @@ func Test_GetJobLogs(t *testing.T) {
 		{
 			name: "successful single job logs with URL",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposActionsJobsLogsByOwnerByRepoByJobId: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				GetReposActionsJobsLogsByOwnerByRepoByJobID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.Header().Set("Location", "https://github.com/logs/job/123")
 					w.WriteHeader(http.StatusFound)
 				}),
@@ -847,7 +847,7 @@ func Test_GetJobLogs(t *testing.T) {
 		{
 			name: "successful failed jobs logs",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposActionsRunsJobsByOwnerByRepoByRunId: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				GetReposActionsRunsJobsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					jobs := &github.Jobs{
 						TotalCount: github.Ptr(3),
 						Jobs: []*github.WorkflowJob{
@@ -871,7 +871,7 @@ func Test_GetJobLogs(t *testing.T) {
 					w.WriteHeader(http.StatusOK)
 					_ = json.NewEncoder(w).Encode(jobs)
 				}),
-				GetReposActionsJobsLogsByOwnerByRepoByJobId: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				GetReposActionsJobsLogsByOwnerByRepoByJobID: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.Header().Set("Location", "https://github.com/logs/job/"+r.URL.Path[len(r.URL.Path)-1:])
 					w.WriteHeader(http.StatusFound)
 				}),
@@ -898,7 +898,7 @@ func Test_GetJobLogs(t *testing.T) {
 		{
 			name: "no failed jobs found",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposActionsRunsJobsByOwnerByRepoByRunId: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				GetReposActionsRunsJobsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					jobs := &github.Jobs{
 						TotalCount: github.Ptr(2),
 						Jobs: []*github.WorkflowJob{
@@ -976,7 +976,7 @@ func Test_GetJobLogs(t *testing.T) {
 		{
 			name: "API error when getting single job logs",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposActionsJobsLogsByOwnerByRepoByJobId: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				GetReposActionsJobsLogsByOwnerByRepoByJobID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusNotFound)
 					_ = json.NewEncoder(w).Encode(map[string]string{
 						"message": "Not Found",
@@ -993,7 +993,7 @@ func Test_GetJobLogs(t *testing.T) {
 		{
 			name: "API error when listing workflow jobs for failed_only",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposActionsRunsJobsByOwnerByRepoByRunId: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				GetReposActionsRunsJobsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusNotFound)
 					_ = json.NewEncoder(w).Encode(map[string]string{
 						"message": "Not Found",
@@ -1067,7 +1067,7 @@ func Test_GetJobLogs_WithContentReturn(t *testing.T) {
 	defer testServer.Close()
 
 	mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-		GetReposActionsJobsLogsByOwnerByRepoByJobId: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		GetReposActionsJobsLogsByOwnerByRepoByJobID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Location", testServer.URL)
 			w.WriteHeader(http.StatusFound)
 		}),
@@ -1116,7 +1116,7 @@ func Test_GetJobLogs_WithContentReturnAndTailLines(t *testing.T) {
 	defer testServer.Close()
 
 	mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-		GetReposActionsJobsLogsByOwnerByRepoByJobId: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		GetReposActionsJobsLogsByOwnerByRepoByJobID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Location", testServer.URL)
 			w.WriteHeader(http.StatusFound)
 		}),
@@ -1165,7 +1165,7 @@ func Test_GetJobLogs_WithContentReturnAndLargeTailLines(t *testing.T) {
 	defer testServer.Close()
 
 	mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-		GetReposActionsJobsLogsByOwnerByRepoByJobId: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		GetReposActionsJobsLogsByOwnerByRepoByJobID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Location", testServer.URL)
 			w.WriteHeader(http.StatusFound)
 		}),

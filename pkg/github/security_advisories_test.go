@@ -163,7 +163,7 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 		{
 			name: "successful advisory fetch",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetAdvisoriesByGhsaId: mockResponse(t, http.StatusOK, mockAdvisory),
+				GetAdvisoriesByGhsaID: mockResponse(t, http.StatusOK, mockAdvisory),
 			}),
 			requestArgs: map[string]interface{}{
 				"ghsaId": "GHSA-xxxx-xxxx-xxxx",
@@ -174,7 +174,7 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 		{
 			name: "invalid ghsaId format",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetAdvisoriesByGhsaId: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				GetAdvisoriesByGhsaID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusBadRequest)
 					_, _ = w.Write([]byte(`{"message": "Bad Request"}`))
 				}),
@@ -188,7 +188,7 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 		{
 			name: "advisory not found",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetAdvisoriesByGhsaId: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				GetAdvisoriesByGhsaID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusNotFound)
 					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
 				}),
