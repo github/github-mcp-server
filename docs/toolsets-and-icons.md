@@ -32,22 +32,42 @@ Icons help users quickly identify toolsets in MCP-compatible clients. We use [Pr
 
 Browse the [Octicon gallery](https://primer.style/foundations/icons) and select an appropriate icon. Use the base name without size suffix (e.g., `repo` not `repo-16`).
 
-### Step 2: Add the Icon Files
+### Step 2: Add Icon to Required Icons List
 
-Icons are stored as PNG files in `pkg/octicons/icons/` with light and dark theme variants:
+Icons are defined in `pkg/octicons/required_icons.txt`, which is the single source of truth for which icons should be embedded:
 
 ```
-pkg/octicons/icons/
-├── repo-light.png    # For light theme
-├── repo-dark.png     # For dark theme
-├── issue-opened-light.png
-├── issue-opened-dark.png
-└── ...
+# Required icons for the GitHub MCP Server
+# Add new icons below (one per line)
+repo
+issue-opened
+git-pull-request
+your-new-icon  # Add your icon here
 ```
 
-Icon files should be 20x20 pixels in size.
+### Step 3: Fetch the Icon Files
 
-### Step 3: Update the Toolset Metadata
+Run the fetch-icons script to download and convert the icon:
+
+```bash
+# Fetch a specific icon
+script/fetch-icons your-new-icon
+
+# Or fetch all required icons
+script/fetch-icons
+```
+
+This script:
+- Downloads the 24px SVG from [Primer Octicons](https://github.com/primer/octicons)
+- Converts to PNG with light theme (dark icons for light backgrounds)
+- Converts to PNG with dark theme (white icons for dark backgrounds)
+- Saves both variants to `pkg/octicons/icons/`
+
+**Requirements:** The script requires `rsvg-convert`:
+- Ubuntu/Debian: `sudo apt-get install librsvg2-bin`
+- macOS: `brew install librsvg`
+
+### Step 4: Update the Toolset Metadata
 
 Add or update the `Icon` field in the toolset definition:
 
@@ -61,7 +81,7 @@ ToolsetMetadataRepos = inventory.ToolsetMetadata{
 }
 ```
 
-### Step 4: Regenerate Documentation
+### Step 5: Regenerate Documentation
 
 Run the documentation generator to update all markdown files:
 
@@ -158,3 +178,24 @@ icons := octicons.Icons("repo")
 1. Verify the client supports MCP tool icons
 2. Check that the octicons package is properly generating base64 data URIs
 3. Ensure the icon name matches a file in `pkg/octicons/icons/`
+
+## CI Validation
+
+The following tests run in CI to catch icon issues early:
+
+### `pkg/octicons.TestEmbeddedIconsExist`
+
+Verifies that all icons listed in `pkg/octicons/required_icons.txt` have corresponding PNG files embedded.
+
+### `pkg/github.TestAllToolsetIconsExist`
+
+Verifies that all toolset `Icon` fields reference icons that are properly embedded.
+
+### `pkg/github.TestToolsetMetadataHasIcons`
+
+Ensures all toolsets have an `Icon` field set.
+
+If any of these tests fail:
+1. Add the missing icon to `pkg/octicons/required_icons.txt`
+2. Run `script/fetch-icons` to download the icon
+3. Commit the new icon files

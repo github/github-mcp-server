@@ -3,15 +3,36 @@
 package octicons
 
 import (
+	"bufio"
 	"embed"
 	"encoding/base64"
 	"fmt"
+	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 //go:embed icons/*.png
 var iconsFS embed.FS
+
+//go:embed required_icons.txt
+var requiredIconsTxt string
+
+// RequiredIcons returns the list of icon names from required_icons.txt.
+// This is the single source of truth for which icons should be embedded.
+func RequiredIcons() []string {
+	var icons []string
+	scanner := bufio.NewScanner(strings.NewReader(requiredIconsTxt))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		icons = append(icons, line)
+	}
+	return icons
+}
 
 // Theme represents the color theme of an icon.
 type Theme string

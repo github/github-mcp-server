@@ -5,46 +5,16 @@
 # Requires: rsvg-convert (from librsvg2-bin on Ubuntu/Debian)
 #
 # Usage:
-#   script/fetch-icons              # Fetch all default icons
+#   script/fetch-icons              # Fetch all required icons
 #   script/fetch-icons icon1 icon2  # Fetch specific icons
 
 set -e
 
-ICONS_DIR="pkg/octicons/icons"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+ICONS_DIR="$REPO_ROOT/pkg/octicons/icons"
+REQUIRED_ICONS_FILE="$REPO_ROOT/pkg/octicons/required_icons.txt"
 OCTICONS_BASE="https://raw.githubusercontent.com/primer/octicons/main/icons"
-
-# Default icons used by toolsets - add new icons here as needed
-DEFAULT_ICONS=(
-    apps
-    beaker
-    bell
-    check-circle
-    codescan
-    comment-discussion
-    copilot
-    dependabot
-    file
-    git-branch
-    git-commit
-    git-merge
-    git-pull-request
-    issue-opened
-    logo-gist
-    mark-github
-    organization
-    people
-    person
-    project
-    repo
-    repo-forked
-    shield
-    shield-lock
-    star
-    star-fill
-    tag
-    tools
-    workflow
-)
 
 # Check for rsvg-convert
 if ! command -v rsvg-convert &> /dev/null; then
@@ -54,11 +24,16 @@ if ! command -v rsvg-convert &> /dev/null; then
     exit 1
 fi
 
-# Use provided icons or defaults
+# Load icons from required_icons.txt or use command-line arguments
 if [ $# -gt 0 ]; then
     ICONS=("$@")
 else
-    ICONS=("${DEFAULT_ICONS[@]}")
+    if [ ! -f "$REQUIRED_ICONS_FILE" ]; then
+        echo "Error: Required icons file not found: $REQUIRED_ICONS_FILE"
+        exit 1
+    fi
+    # Read icons from file, skipping comments and empty lines
+    mapfile -t ICONS < <(grep -v '^#' "$REQUIRED_ICONS_FILE" | grep -v '^$')
 fi
 
 # Ensure icons directory exists
@@ -91,6 +66,7 @@ done
 
 echo "Done. Icons saved to $ICONS_DIR"
 echo ""
-echo "Remember to:"
-echo "  1. Update pkg/octicons/octicons_test.go if adding new icons"
-echo "  2. Run 'UPDATE_TOOLSNAPS=true go test ./...' to update snapshots"
+echo "Next steps:"
+echo "  1. Run 'go test ./pkg/octicons/...' to verify icons are embedded"
+echo "  2. Run 'go test ./pkg/github/...' to verify toolset icons are valid"
+echo "  3. Commit the new icon files"

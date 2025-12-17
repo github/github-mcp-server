@@ -104,15 +104,9 @@ func TestThemeConstants(t *testing.T) {
 }
 
 func TestEmbeddedIconsExist(t *testing.T) {
-	// Test that all icons used by toolsets are properly embedded
-	expectedIcons := []string{
-		"apps", "beaker", "bell", "check-circle", "codescan",
-		"comment-discussion", "copilot", "dependabot", "file", "git-branch",
-		"git-commit", "git-merge", "git-pull-request", "issue-opened", "logo-gist", "mark-github",
-		"organization", "people", "person", "project", "repo", "repo-forked",
-		"shield", "shield-lock", "star", "star-fill", "tag", "tools", "workflow",
-	}
-
+        // Test that all required icons from required_icons.txt are properly embedded
+        // This is the single source of truth for which icons should be available
+        expectedIcons := RequiredIcons()
 	for _, icon := range expectedIcons {
 		t.Run(icon, func(t *testing.T) {
 			lightURI := DataURI(icon, ThemeLight)
