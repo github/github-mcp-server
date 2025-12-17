@@ -104,9 +104,9 @@ func TestThemeConstants(t *testing.T) {
 }
 
 func TestEmbeddedIconsExist(t *testing.T) {
-        // Test that all required icons from required_icons.txt are properly embedded
-        // This is the single source of truth for which icons should be available
-        expectedIcons := RequiredIcons()
+	// Test that all required icons from required_icons.txt are properly embedded
+	// This is the single source of truth for which icons should be available
+	expectedIcons := RequiredIcons()
 	for _, icon := range expectedIcons {
 		t.Run(icon, func(t *testing.T) {
 			lightURI := DataURI(icon, ThemeLight)

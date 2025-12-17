@@ -190,7 +190,7 @@ func generateToolsDoc(r *inventory.Inventory) string {
 			currentToolsetID = tool.Toolset.ID
 			currentToolsetIcon = tool.Toolset.Icon
 		}
-		writeToolDoc(&toolBuf, tool.Tool, tool.Toolset.Icon)
+		writeToolDoc(&toolBuf, tool.Tool)
 		toolBuf.WriteString("\n\n")
 	}
 
@@ -224,7 +224,7 @@ func formatToolsetName(name string) string {
 	}
 }
 
-func writeToolDoc(buf *strings.Builder, tool mcp.Tool, icon string) {
+func writeToolDoc(buf *strings.Builder, tool mcp.Tool) {
 	// Tool name (no icon - section header already has the toolset icon)
 	fmt.Fprintf(buf, "- **%s** - %s\n", tool.Name, tool.Annotations.Title)
 
