@@ -34,12 +34,11 @@ func Test_repositoryResourceContents(t *testing.T) {
 		{
 			name: "missing owner",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-					GetRawReposContentsByOwnerByRepoByPath: 
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.Header().Set("Content-Type", "text/markdown")
-						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
-						require.NoError(t, err)
-					}),
+				GetRawReposContentsByOwnerByRepoByPath: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "text/markdown")
+					_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
+					require.NoError(t, err)
+				}),
 			}),
 			uri: "repo:///repo/contents/README.md",
 			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
@@ -51,12 +50,11 @@ func Test_repositoryResourceContents(t *testing.T) {
 		{
 			name: "missing repo",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-					GetRawReposContentsByOwnerByRepoByBranchByPath: 
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.Header().Set("Content-Type", "text/markdown")
-						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
-						require.NoError(t, err)
-					}),
+				GetRawReposContentsByOwnerByRepoByBranchByPath: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "text/markdown")
+					_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
+					require.NoError(t, err)
+				}),
 			}),
 			uri: "repo://owner//refs/heads/main/contents/README.md",
 			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
@@ -68,12 +66,11 @@ func Test_repositoryResourceContents(t *testing.T) {
 		{
 			name: "successful blob content fetch",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-					GetRawReposContentsByOwnerByRepoByPath: 
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.Header().Set("Content-Type", "image/png")
-						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
-						require.NoError(t, err)
-					}),
+				GetRawReposContentsByOwnerByRepoByPath: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "image/png")
+					_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
+					require.NoError(t, err)
+				}),
 			}),
 			uri: "repo://owner/repo/contents/data.png",
 			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
@@ -90,12 +87,11 @@ func Test_repositoryResourceContents(t *testing.T) {
 		{
 			name: "successful text content fetch (HEAD)",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-					GetRawReposContentsByOwnerByRepoByPath: 
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.Header().Set("Content-Type", "text/markdown")
-						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
-						require.NoError(t, err)
-					}),
+				GetRawReposContentsByOwnerByRepoByPath: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "text/markdown")
+					_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
+					require.NoError(t, err)
+				}),
 			}),
 			uri: "repo://owner/repo/contents/README.md",
 			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
@@ -112,14 +108,13 @@ func Test_repositoryResourceContents(t *testing.T) {
 		{
 			name: "successful text content fetch (HEAD)",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-					GetRawReposContentsByOwnerByRepoByPath: 
-					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-						w.Header().Set("Content-Type", "text/plain")
+				GetRawReposContentsByOwnerByRepoByPath: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Content-Type", "text/plain")
 
-						require.Contains(t, r.URL.Path, "pkg/github/actions.go")
-						_, err := w.Write([]byte("package actions\n\nfunc main() {\n    // Sample Go file content\n}\n"))
-						require.NoError(t, err)
-					}),
+					require.Contains(t, r.URL.Path, "pkg/github/actions.go")
+					_, err := w.Write([]byte("package actions\n\nfunc main() {\n    // Sample Go file content\n}\n"))
+					require.NoError(t, err)
+				}),
 			}),
 			uri: "repo://owner/repo/contents/pkg/github/actions.go",
 			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
@@ -136,12 +131,11 @@ func Test_repositoryResourceContents(t *testing.T) {
 		{
 			name: "successful text content fetch (branch)",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-					GetRawReposContentsByOwnerByRepoByBranchByPath: 
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.Header().Set("Content-Type", "text/markdown")
-						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
-						require.NoError(t, err)
-					}),
+				GetRawReposContentsByOwnerByRepoByBranchByPath: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "text/markdown")
+					_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
+					require.NoError(t, err)
+				}),
 			}),
 			uri: "repo://owner/repo/refs/heads/main/contents/README.md",
 			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
@@ -158,12 +152,11 @@ func Test_repositoryResourceContents(t *testing.T) {
 		{
 			name: "successful text content fetch (tag)",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-					GetRawReposContentsByOwnerByRepoByTagByPath: 
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.Header().Set("Content-Type", "text/markdown")
-						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
-						require.NoError(t, err)
-					}),
+				GetRawReposContentsByOwnerByRepoByTagByPath: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "text/markdown")
+					_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
+					require.NoError(t, err)
+				}),
 			}),
 			uri: "repo://owner/repo/refs/tags/v1.0.0/contents/README.md",
 			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
@@ -180,12 +173,11 @@ func Test_repositoryResourceContents(t *testing.T) {
 		{
 			name: "successful text content fetch (sha)",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-					GetRawReposContentsByOwnerByRepoBySHAByPath: 
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.Header().Set("Content-Type", "text/markdown")
-						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
-						require.NoError(t, err)
-					}),
+				GetRawReposContentsByOwnerByRepoBySHAByPath: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "text/markdown")
+					_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
+					require.NoError(t, err)
+				}),
 			}),
 			uri: "repo://owner/repo/sha/abc123/contents/README.md",
 			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
@@ -269,11 +261,11 @@ func Test_repositoryResourceContents(t *testing.T) {
 
 			content := resp.Contents[0]
 			switch tc.expectedResponseType {
-			case resourceResponseTypeBlob: 
+			case resourceResponseTypeBlob:
 				require.Equal(t, tc.expectedResult.Contents[0].Blob, content.Blob)
-			case resourceResponseTypeText: 
+			case resourceResponseTypeText:
 				require.Equal(t, tc.expectedResult.Contents[0].Text, content.Text)
-			default: 
+			default:
 				t.Fatalf("unknown expectedResponseType %v", tc.expectedResponseType)
 			}
 		})
