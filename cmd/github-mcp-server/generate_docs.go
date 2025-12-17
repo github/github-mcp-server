@@ -337,13 +337,13 @@ func generateRemoteToolsetsDoc() string {
 	// Build inventory - stateless
 	r := github.NewInventory(t).Build()
 
-	// Generate table header (with icon column)
-	buf.WriteString("|     | Name | Description | API URL | 1-Click Install (VS Code) | Read-only Link | 1-Click Read-only Install (VS Code) |\n")
-	buf.WriteString("| --- | ---- | ----------- | ------- | ------------------------- | -------------- | ----------------------------------- |\n")
+	// Generate table header (icon is combined with Name column)
+	buf.WriteString("| Name | Description | API URL | 1-Click Install (VS Code) | Read-only Link | 1-Click Read-only Install (VS Code) |\n")
+	buf.WriteString("| ---- | ----------- | ------- | ------------------------- | -------------- | ----------------------------------- |\n")
 
 	// Add "all" toolset first (special case)
 	allIcon := octiconImg("apps", "../")
-	fmt.Fprintf(&buf, "| %s | all | All available GitHub MCP tools | https://api.githubcopilot.com/mcp/ | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2F%%22%%7D) | [read-only](https://api.githubcopilot.com/mcp/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2Freadonly%%22%%7D) |\n", allIcon)
+	fmt.Fprintf(&buf, "| %s<br>all | All available GitHub MCP tools | https://api.githubcopilot.com/mcp/ | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2F%%22%%7D) | [read-only](https://api.githubcopilot.com/mcp/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2Freadonly%%22%%7D) |\n", allIcon)
 
 	// AvailableToolsets() returns toolsets that have tools, sorted by ID
 	// Exclude context (handled separately) and dynamic (internal only)
@@ -366,7 +366,7 @@ func generateRemoteToolsetsDoc() string {
 		readonlyInstallLink := fmt.Sprintf("[Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, readonlyConfig)
 
 		icon := octiconImg(ts.Icon, "../")
-		fmt.Fprintf(&buf, "| %s | %s | %s | %s | %s | [read-only](%s) | %s |\n",
+		fmt.Fprintf(&buf, "| %s<br>%s | %s | %s | %s | [read-only](%s) | %s |\n",
 			icon,
 			formattedName,
 			ts.Description,
@@ -383,9 +383,9 @@ func generateRemoteToolsetsDoc() string {
 func generateRemoteOnlyToolsetsDoc() string {
 	var buf strings.Builder
 
-	// Generate table header (with icon column)
-	buf.WriteString("|     | Name | Description | API URL | 1-Click Install (VS Code) | Read-only Link | 1-Click Read-only Install (VS Code) |\n")
-	buf.WriteString("| --- | ---- | ----------- | ------- | ------------------------- | -------------- | ----------------------------------- |\n")
+	// Generate table header (icon is combined with Name column)
+	buf.WriteString("| Name | Description | API URL | 1-Click Install (VS Code) | Read-only Link | 1-Click Read-only Install (VS Code) |\n")
+	buf.WriteString("| ---- | ----------- | ------- | ------------------------- | -------------- | ----------------------------------- |\n")
 
 	// Use RemoteOnlyToolsets from github package
 	for _, ts := range github.RemoteOnlyToolsets() {
@@ -407,7 +407,7 @@ func generateRemoteOnlyToolsetsDoc() string {
 		readonlyInstallLink := fmt.Sprintf("[Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, readonlyConfig)
 
 		icon := octiconImg(ts.Icon, "../")
-		fmt.Fprintf(&buf, "| %s | %s | %s | %s | %s | [read-only](%s) | %s |\n",
+		fmt.Fprintf(&buf, "| %s<br>%s | %s | %s | %s | [read-only](%s) | %s |\n",
 			icon,
 			formattedName,
 			ts.Description,
