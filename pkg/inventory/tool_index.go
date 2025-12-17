@@ -280,3 +280,84 @@ func (idx *ToolIndex) ToolsetIDs() []ToolsetID {
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 	return ids
 }
+
+// UniqueFeatureFlags returns all unique feature flags referenced by tools in the index.
+// This allows callers to check only the flags that matter, once per request.
+func (idx *ToolIndex) UniqueFeatureFlags() []string {
+	seen := make(map[string]bool)
+	for flag := range idx.requiresFeature {
+		seen[flag] = true
+	}
+	for flag := range idx.disabledByFeature {
+		seen[flag] = true
+	}
+
+	flags := make([]string, 0, len(seen))
+	for flag := range seen {
+		flags = append(flags, flag)
+	}
+	sort.Strings(flags)
+	return flags
+}
+
+// QueryWithFeatureChecker performs a query, automatically checking feature flags.
+// Each unique flag is checked exactly once via the checker function.
+// This minimizes feature flag service calls from O(tools) to O(unique flags).
+func (idx *ToolIndex) QueryWithFeatureChecker(ctx context.Context, cfg QueryConfigWithChecker) QueryResult {
+	// Check each unique feature flag exactly once
+	var enabledFeatures, disabledFeatures []string
+
+	for flag := range idx.requiresFeature {
+		enabled, err := cfg.FeatureChecker(ctx, flag)
+		if err != nil || !enabled {
+			disabledFeatures = append(disabledFeatures, flag)
+		} else {
+			enabledFeatures = append(enabledFeatures, flag)
+		}
+	}
+
+	for flag := range idx.disabledByFeature {
+		// Only check if we haven't already
+		alreadyChecked := false
+		for _, f := range enabledFeatures {
+			if f == flag {
+				alreadyChecked = true
+				break
+			}
+		}
+		for _, f := range disabledFeatures {
+			if f == flag {
+				alreadyChecked = true
+				break
+			}
+		}
+		if !alreadyChecked {
+			enabled, err := cfg.FeatureChecker(ctx, flag)
+			if err != nil || !enabled {
+				disabledFeatures = append(disabledFeatures, flag)
+			} else {
+				enabledFeatures = append(enabledFeatures, flag)
+			}
+		}
+	}
+
+	// Delegate to the standard Query with resolved flags
+	return idx.Query(QueryConfig{
+		AllToolsets:      cfg.AllToolsets,
+		EnabledToolsets:  cfg.EnabledToolsets,
+		AdditionalTools:  cfg.AdditionalTools,
+		ReadOnly:         cfg.ReadOnly,
+		EnabledFeatures:  enabledFeatures,
+		DisabledFeatures: disabledFeatures,
+	})
+}
+
+// QueryConfigWithChecker is like QueryConfig but uses a checker function
+// instead of pre-resolved feature flag lists.
+type QueryConfigWithChecker struct {
+	AllToolsets     bool
+	EnabledToolsets []ToolsetID
+	AdditionalTools []string
+	ReadOnly        bool
+	FeatureChecker  FeatureFlagChecker // Reuses the existing FeatureFlagChecker type from filters.go
+}

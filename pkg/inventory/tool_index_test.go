@@ -491,6 +491,122 @@ func TestToolIndex_ToolsetBitmap(t *testing.T) {
 	assert.True(t, bmX.IsEmpty())
 }
 
+func TestToolIndex_UniqueFeatureFlags(t *testing.T) {
+	t.Parallel()
+
+	testTools := []ServerTool{
+		mockServerToolInToolset("basic_tool", "tools", true),
+		mockServerToolWithFeatureFlag("advanced_tool", "tools", "feature_a", ""),
+		mockServerToolWithFeatureFlag("experimental_tool", "tools", "feature_b", ""),
+		mockServerToolWithFeatureFlag("legacy_tool", "tools", "", "feature_c"),
+		mockServerToolWithFeatureFlag("complex_tool", "tools", "feature_a", "feature_d"), // reuses feature_a
+	}
+
+	index := BuildToolIndex(testTools)
+
+	flags := index.UniqueFeatureFlags()
+
+	// Should have 4 unique flags: feature_a, feature_b, feature_c, feature_d
+	assert.Len(t, flags, 4)
+	assert.Contains(t, flags, "feature_a")
+	assert.Contains(t, flags, "feature_b")
+	assert.Contains(t, flags, "feature_c")
+	assert.Contains(t, flags, "feature_d")
+}
+
+func TestToolIndex_QueryWithFeatureChecker(t *testing.T) {
+	t.Parallel()
+
+	testTools := []ServerTool{
+		mockServerToolInToolset("basic_tool", "tools", true),
+		mockServerToolWithFeatureFlag("needs_feature_a", "tools", "feature_a", ""),
+		mockServerToolWithFeatureFlag("needs_feature_b", "tools", "feature_b", ""),
+		mockServerToolWithFeatureFlag("disabled_by_feature_c", "tools", "", "feature_c"),
+	}
+
+	index := BuildToolIndex(testTools)
+
+	// Track which flags were checked
+	checkedFlags := make(map[string]int)
+
+	checker := func(_ context.Context, flag string) (bool, error) {
+		checkedFlags[flag]++
+		// Enable feature_a, disable feature_b, enable feature_c
+		switch flag {
+		case "feature_a":
+			return true, nil
+		case "feature_b":
+			return false, nil
+		case "feature_c":
+			return true, nil // This will disable "disabled_by_feature_c"
+		default:
+			return false, nil
+		}
+	}
+
+	ctx := context.Background()
+	result := index.QueryWithFeatureChecker(ctx, QueryConfigWithChecker{
+		EnabledToolsets: []ToolsetID{"tools"},
+		ReadOnly:        false,
+		FeatureChecker:  checker,
+	})
+
+	// Each flag should be checked exactly once
+	assert.Equal(t, 1, checkedFlags["feature_a"], "feature_a should be checked once")
+	assert.Equal(t, 1, checkedFlags["feature_b"], "feature_b should be checked once")
+	assert.Equal(t, 1, checkedFlags["feature_c"], "feature_c should be checked once")
+
+	// Materialize and verify results
+	tools := index.Materialize(ctx, result)
+	names := make([]string, len(tools))
+	for i, tool := range tools {
+		names[i] = tool.Tool.Name
+	}
+
+	// basic_tool: no flags, included
+	// needs_feature_a: feature_a enabled, included
+	// needs_feature_b: feature_b disabled, excluded
+	// disabled_by_feature_c: feature_c enabled, excluded
+	assert.Len(t, tools, 2)
+	assert.Contains(t, names, "basic_tool")
+	assert.Contains(t, names, "needs_feature_a")
+	assert.NotContains(t, names, "needs_feature_b")
+	assert.NotContains(t, names, "disabled_by_feature_c")
+}
+
+func TestToolIndex_QueryWithFeatureChecker_MinimizesChecks(t *testing.T) {
+	t.Parallel()
+
+	// Create 50 tools that all use the same 3 feature flags
+	testTools := make([]ServerTool, 50)
+	for i := 0; i < 50; i++ {
+		flag := []string{"flag_a", "flag_b", "flag_c"}[i%3]
+		testTools[i] = mockServerToolWithFeatureFlag(
+			"tool_"+string(rune('a'+i%26)),
+			"tools",
+			flag, // All tools require one of 3 flags
+			"",
+		)
+	}
+
+	index := BuildToolIndex(testTools)
+
+	checkCount := 0
+	checker := func(_ context.Context, _ string) (bool, error) {
+		checkCount++
+		return true, nil
+	}
+
+	ctx := context.Background()
+	_ = index.QueryWithFeatureChecker(ctx, QueryConfigWithChecker{
+		EnabledToolsets: []ToolsetID{"tools"},
+		FeatureChecker:  checker,
+	})
+
+	// Should only check 3 unique flags, not 50 tools
+	assert.Equal(t, 3, checkCount, "Should check each unique flag exactly once")
+}
+
 func BenchmarkBuildToolIndex_130Tools(b *testing.B) {
 	// Create realistic toolset distribution
 	toolsets := []ToolsetID{"repos", "issues", "pull_requests", "users", "actions", "code_security", "projects", "notifications", "discussions", "experiments"}
