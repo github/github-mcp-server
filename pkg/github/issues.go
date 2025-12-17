@@ -263,7 +263,7 @@ Options are:
 
 	return mcp.Tool{
 			Name:        "issue_read",
-			Description: t("TOOL_ISSUE_READ_DESCRIPTION", "Get information about a specific issue in a GitHub repository."),
+			Description: t("TOOL_ISSUE_READ_DESCRIPTION", "Get detailed information about a single issue in a GitHub repository, including body, comments, sub-issues, or labels."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_ISSUE_READ_USER_TITLE", "Get issue details"),
 				ReadOnlyHint: true,
