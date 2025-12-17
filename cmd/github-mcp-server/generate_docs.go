@@ -213,12 +213,8 @@ func formatToolsetName(name string) string {
 }
 
 func writeToolDoc(buf *strings.Builder, tool mcp.Tool, icon string) {
-	// Tool name with icon (using annotation name instead of verbose description)
-	iconImg := octiconImg(icon)
-	if iconImg != "" {
-		iconImg += " "
-	}
-	fmt.Fprintf(buf, "- %s**%s** - %s\n", iconImg, tool.Name, tool.Annotations.Title)
+	// Tool name (no icon - section header already has the toolset icon)
+	fmt.Fprintf(buf, "- **%s** - %s\n", tool.Name, tool.Annotations.Title)
 
 	// Parameters
 	if tool.InputSchema == nil {
