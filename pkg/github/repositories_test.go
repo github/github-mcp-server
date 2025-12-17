@@ -95,7 +95,7 @@ func Test_GetFileContents(t *testing.T) {
 					}),
 				),
 				mock.WithRequestMatchHandler(
-					GetRawReposContentsByOwnerByRepoByBranchByPath,
+					raw.GetRawReposContentsByOwnerByRepoByBranchByPath,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.Header().Set("Content-Type", "text/markdown")
 						_, _ = w.Write(mockRawContent)
@@ -140,7 +140,7 @@ func Test_GetFileContents(t *testing.T) {
 					}),
 				),
 				mock.WithRequestMatchHandler(
-					GetRawReposContentsByOwnerByRepoByBranchByPath,
+					raw.GetRawReposContentsByOwnerByRepoByBranchByPath,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.Header().Set("Content-Type", "image/png")
 						_, _ = w.Write(mockRawContent)
@@ -185,7 +185,7 @@ func Test_GetFileContents(t *testing.T) {
 					}),
 				),
 				mock.WithRequestMatchHandler(
-					GetRawReposContentsByOwnerByRepoByBranchByPath,
+					raw.GetRawReposContentsByOwnerByRepoByBranchByPath,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.Header().Set("Content-Type", "application/pdf")
 						_, _ = w.Write(mockRawContent)
@@ -229,7 +229,7 @@ func Test_GetFileContents(t *testing.T) {
 					),
 				),
 				mock.WithRequestMatchHandler(
-					GetRawReposContentsByOwnerByRepoByPath,
+					raw.GetRawReposContentsByOwnerByRepoByPath,
 					expectQueryParams(t, map[string]string{
 						"branch": "main",
 					}).andThen(
@@ -263,7 +263,7 @@ func Test_GetFileContents(t *testing.T) {
 					}),
 				),
 				mock.WithRequestMatchHandler(
-					GetRawReposContentsByOwnerByRepoByPath,
+					raw.GetRawReposContentsByOwnerByRepoByPath,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusNotFound)
 						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
