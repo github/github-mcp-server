@@ -105,13 +105,17 @@ func generateRemoteServerDocs(docsPath string) error {
 }
 
 // octiconImg returns an img tag for an Octicon that works with GitHub's light/dark theme.
-// Uses the official Primer Octicons CDN.
+// Uses picture element with prefers-color-scheme for automatic theme switching.
+// References icons from the repo's pkg/octicons/icons directory.
 func octiconImg(name string) string {
 	if name == "" {
 		return ""
 	}
-	// Use GitHub's Octicon CDN with 16px size
-	return fmt.Sprintf(`<img src="https://unpkg.com/@primer/octicons@latest/build/svg/%s-16.svg" width="16" height="16" alt="%s">`, name, name)
+	// Use picture element with media queries for light/dark mode support
+	// GitHub renders these correctly in markdown
+	lightIcon := fmt.Sprintf("pkg/octicons/icons/%s-light.png", name)
+	darkIcon := fmt.Sprintf("pkg/octicons/icons/%s-dark.png", name)
+	return fmt.Sprintf(`<picture><source media="(prefers-color-scheme: dark)" srcset="%s"><source media="(prefers-color-scheme: light)" srcset="%s"><img src="%s" width="20" height="20" alt="%s"></picture>`, darkIcon, lightIcon, lightIcon, name)
 }
 
 func generateToolsetsDoc(i *inventory.Inventory) string {
