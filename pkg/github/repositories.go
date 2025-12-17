@@ -310,8 +310,15 @@ func ListBranches(getClient GetClientFn, t translations.TranslationHelperFunc) (
 // CreateOrUpdateFile creates a tool to create or update a file in a GitHub repository.
 func CreateOrUpdateFile(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
 	tool := mcp.Tool{
-		Name:        "create_or_update_file",
-		Description: t("TOOL_CREATE_OR_UPDATE_FILE_DESCRIPTION", "Create or update a single file in a GitHub repository. If updating, you must provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations."),
+		Name: "create_or_update_file",
+		Description: t("TOOL_CREATE_OR_UPDATE_FILE_DESCRIPTION", `Create or update a single file in a GitHub repository. 
+If updating, you should provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.
+
+In order to obtain the SHA of original file version before updating, use the following git command:
+git ls-tree HEAD <path to file>
+
+If the SHA is not provided, the tool will attempt to acquire it by fetching the current file contents from the repository, which may lead to rewriting latest committed changes if the file has changed since last retrieval.
+`),
 		Annotations: &mcp.ToolAnnotations{
 			Title:        t("TOOL_CREATE_OR_UPDATE_FILE_USER_TITLE", "Create or update file"),
 			ReadOnlyHint: false,
@@ -345,7 +352,7 @@ func CreateOrUpdateFile(getClient GetClientFn, t translations.TranslationHelperF
 				},
 				"sha": {
 					Type:        "string",
-					Description: "Required if updating an existing file. The blob SHA of the file being replaced.",
+					Description: "The blob SHA of the file being replaced.",
 				},
 			},
 			Required: []string{"owner", "repo", "path", "content", "message", "branch"},
@@ -402,6 +409,60 @@ func CreateOrUpdateFile(getClient GetClientFn, t translations.TranslationHelperF
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 		}
+
+		path = strings.TrimPrefix(path, "/")
+
+		// SHA validation using conditional HEAD request (efficient - no body transfer)
+		var previousSHA string
+		contentURL := fmt.Sprintf("repos/%s/%s/contents/%s", owner, repo, url.PathEscape(path))
+		if branch != "" {
+			contentURL += "?ref=" + url.QueryEscape(branch)
+		}
+
+		if sha != "" {
+			// User provided SHA - validate it's still current
+			req, err := client.NewRequest("HEAD", contentURL, nil)
+			if err == nil {
+				req.Header.Set("If-None-Match", fmt.Sprintf(`"%s"`, sha))
+				resp, _ := client.Do(ctx, req, nil)
+				if resp != nil {
+					defer resp.Body.Close()
+
+					switch resp.StatusCode {
+					case http.StatusNotModified:
+						// SHA matches current - proceed
+						opts.SHA = github.Ptr(sha)
+					case http.StatusOK:
+						// SHA is stale - reject with current SHA so user can check diff
+						currentSHA := strings.Trim(resp.Header.Get("ETag"), `"`)
+						return utils.NewToolResultError(fmt.Sprintf(
+							"SHA mismatch: provided SHA %s is stale. Current file SHA is %s. "+
+								"Use get_file_contents or compare commits to review changes before updating.",
+							sha, currentSHA)), nil, nil
+					case http.StatusNotFound:
+						// File doesn't exist - this is a create, ignore provided SHA
+					}
+				}
+			}
+		} else {
+			// No SHA provided - check if file exists to warn about blind update
+			req, err := client.NewRequest("HEAD", contentURL, nil)
+			if err == nil {
+				resp, _ := client.Do(ctx, req, nil)
+				if resp != nil {
+					defer resp.Body.Close()
+					if resp.StatusCode == http.StatusOK {
+						previousSHA = strings.Trim(resp.Header.Get("ETag"), `"`)
+					}
+					// 404 = new file, no previous SHA needed
+				}
+			}
+		}
+
+		if previousSHA != "" {
+			opts.SHA = github.Ptr(previousSHA)
+		}
+
 		fileContent, resp, err := client.Repositories.CreateFile(ctx, owner, repo, path, opts)
 		if err != nil {
 			return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -423,6 +484,19 @@ func CreateOrUpdateFile(getClient GetClientFn, t translations.TranslationHelperF
 		r, err := json.Marshal(fileContent)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+		}
+
+		// Warn if file was updated without SHA validation (blind update)
+		if sha == "" && previousSHA != "" {
+			return utils.NewToolResultText(fmt.Sprintf(
+				"Warning: File updated without SHA validation. Previous file SHA was %s. "+
+					`Verify no unintended changes were overwritten: 
+1. Extract the SHA of the local version using git ls-tree HEAD %s.
+2. Compare with the previous SHA above.
+3. Revert changes if shas do not match.
+
+%s`,
+				previousSHA, path, string(r))), nil, nil
 		}
 
 		return utils.NewToolResultText(string(r)), nil, nil
@@ -558,7 +632,7 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 				},
 				"path": {
 					Type:        "string",
-					Description: "Path to file/directory (directories must end with a slash '/')",
+					Description: "Path to file/directory",
 					Default:     json.RawMessage(`"/"`),
 				},
 				"ref": {
@@ -606,28 +680,26 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 			return utils.NewToolResultError(fmt.Sprintf("failed to resolve git reference: %s", err)), nil, nil
 		}
 
-		// If the path is (most likely) not to be a directory, we will
-		// first try to get the raw content from the GitHub raw content API.
+		if rawOpts.SHA != "" {
+			ref = rawOpts.SHA
+		}
 
-		var rawAPIResponseCode int
-		if path != "" && !strings.HasSuffix(path, "/") {
-			// First, get file info from Contents API to retrieve SHA
-			var fileSHA string
-			opts := &github.RepositoryContentGetOptions{Ref: ref}
-			fileContent, _, respContents, err := client.Repositories.GetContents(ctx, owner, repo, path, opts)
-			if respContents != nil {
-				defer func() { _ = respContents.Body.Close() }()
-			}
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get file SHA",
-					respContents,
-					err,
-				), nil, nil
-			}
-			if fileContent == nil || fileContent.SHA == nil {
-				return utils.NewToolResultError("file content SHA is nil, if a directory was requested, path parameters should end with a trailing slash '/'"), nil, nil
-			}
+		var fileSHA string
+		opts := &github.RepositoryContentGetOptions{Ref: ref}
+
+		// Always call GitHub Contents API first to get metadata including SHA and determine if it's a file or directory
+		fileContent, dirContent, respContents, err := client.Repositories.GetContents(ctx, owner, repo, path, opts)
+		if respContents != nil {
+			defer func() { _ = respContents.Body.Close() }()
+		}
+
+		// The path does not point to a file or directory.
+		// Instead let's try to find it in the Git Tree by matching the end of the path.
+		if err != nil || (fileContent == nil && dirContent == nil) {
+			return matchFiles(ctx, client, owner, repo, ref, path, rawOpts, 0)
+		}
+
+		if fileContent != nil && fileContent.SHA != nil {
 			fileSHA = *fileContent.SHA
 
 			rawClient, err := getRawClient(ctx)
@@ -700,55 +772,19 @@ func GetFileContents(getClient GetClientFn, getRawClient raw.GetRawClientFn, t t
 				}
 				return utils.NewToolResultResource("successfully downloaded binary file", result), nil, nil
 			}
-			rawAPIResponseCode = resp.StatusCode
-		}
 
-		if rawOpts.SHA != "" {
-			ref = rawOpts.SHA
-		}
-		if strings.HasSuffix(path, "/") {
-			opts := &github.RepositoryContentGetOptions{Ref: ref}
-			_, dirContent, resp, err := client.Repositories.GetContents(ctx, owner, repo, path, opts)
-			if err == nil && resp.StatusCode == http.StatusOK {
-				defer func() { _ = resp.Body.Close() }()
-				r, err := json.Marshal(dirContent)
-				if err != nil {
-					return utils.NewToolResultError("failed to marshal response"), nil, nil
-				}
-				return utils.NewToolResultText(string(r)), nil, nil
-			}
-		}
-
-		// The path does not point to a file or directory.
-		// Instead let's try to find it in the Git Tree by matching the end of the path.
-
-		// Step 1: Get Git Tree recursively
-		tree, resp, err := client.Git.GetTree(ctx, owner, repo, ref, true)
-		if err != nil {
-			return ghErrors.NewGitHubAPIErrorResponse(ctx,
-				"failed to get git tree",
-				resp,
-				err,
-			), nil, nil
-		}
-		defer func() { _ = resp.Body.Close() }()
-
-		// Step 2: Filter tree for matching paths
-		const maxMatchingFiles = 3
-		matchingFiles := filterPaths(tree.Entries, path, maxMatchingFiles)
-		if len(matchingFiles) > 0 {
-			matchingFilesJSON, err := json.Marshal(matchingFiles)
+			// Raw API call failed
+			return matchFiles(ctx, client, owner, repo, ref, path, rawOpts, resp.StatusCode)
+		} else if dirContent != nil {
+			// file content or file SHA is nil which means it's a directory
+			r, err := json.Marshal(dirContent)
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to marshal matching files: %s", err)), nil, nil
+				return utils.NewToolResultError("failed to marshal response"), nil, nil
 			}
-			resolvedRefs, err := json.Marshal(rawOpts)
-			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to marshal resolved refs: %s", err)), nil, nil
-			}
-			return utils.NewToolResultError(fmt.Sprintf("Resolved potential matches in the repository tree (resolved refs: %s, matching files: %s), but the raw content API returned an unexpected status code %d.", string(resolvedRefs), string(matchingFilesJSON), rawAPIResponseCode)), nil, nil
+			return utils.NewToolResultText(string(r)), nil, nil
 		}
 
-		return utils.NewToolResultError("Failed to get file contents. The path does not point to a file or directory, or the file does not exist in the repository."), nil, nil
+		return utils.NewToolResultError("failed to get file contents"), nil, nil
 	})
 
 	return tool, handler
@@ -2112,4 +2148,36 @@ func UnstarRepository(getClient GetClientFn, t translations.TranslationHelperFun
 	})
 
 	return tool, handler
+}
+
+func matchFiles(ctx context.Context, client *github.Client, owner, repo, ref, path string, rawOpts *raw.ContentOpts, rawAPIResponseCode int) (*mcp.CallToolResult, any, error) {
+	// Step 1: Get Git Tree recursively
+	tree, response, err := client.Git.GetTree(ctx, owner, repo, ref, true)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to get git tree",
+			response,
+			err,
+		), nil, nil
+	}
+	defer func() { _ = response.Body.Close() }()
+
+	// Step 2: Filter tree for matching paths
+	const maxMatchingFiles = 3
+	matchingFiles := filterPaths(tree.Entries, path, maxMatchingFiles)
+	if len(matchingFiles) > 0 {
+		matchingFilesJSON, err := json.Marshal(matchingFiles)
+		if err != nil {
+			return utils.NewToolResultError(fmt.Sprintf("failed to marshal matching files: %s", err)), nil, nil
+		}
+		resolvedRefs, err := json.Marshal(rawOpts)
+		if err != nil {
+			return utils.NewToolResultError(fmt.Sprintf("failed to marshal resolved refs: %s", err)), nil, nil
+		}
+		if rawAPIResponseCode > 0 {
+			return utils.NewToolResultText(fmt.Sprintf("Resolved potential matches in the repository tree (resolved refs: %s, matching files: %s), but the content API returned an unexpected status code %d.", string(resolvedRefs), string(matchingFilesJSON), rawAPIResponseCode)), nil, nil
+		}
+		return utils.NewToolResultText(fmt.Sprintf("Resolved potential matches in the repository tree (resolved refs: %s, matching files: %s).", string(resolvedRefs), string(matchingFilesJSON))), nil, nil
+	}
+	return utils.NewToolResultError("Failed to get file contents. The path does not point to a file or directory, or the file does not exist in the repository."), nil, nil
 }
