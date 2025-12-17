@@ -108,8 +108,10 @@ const (
 	GetReposDependabotAlertsByOwnerByRepoByAlertNumber = "GET /repos/{owner}/{repo}/dependabot/alerts/{alert_number}"
 
 	// Security advisories endpoints
-	GetAdvisories       = "GET /advisories"
-	GetAdvisoriesByGhsaId = "GET /advisories/{ghsa_id}"
+	GetAdvisories                           = "GET /advisories"
+	GetAdvisoriesByGhsaId                   = "GET /advisories/{ghsa_id}"
+	GetReposSecurityAdvisoriesByOwnerByRepo = "GET /repos/{owner}/{repo}/security-advisories"
+	GetOrgsSecurityAdvisoriesByOrg          = "GET /orgs/{org}/security-advisories"
 
 	// Actions endpoints
 	GetReposActionsWorkflowsByOwnerByRepo                     = "GET /repos/{owner}/{repo}/actions/workflows"

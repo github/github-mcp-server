@@ -36,7 +36,7 @@ func Test_repositoryResourceContents(t *testing.T) {
 			name: "missing owner",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoByPath,
+					GetRawReposContentsByOwnerByRepoByPath,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.Header().Set("Content-Type", "text/markdown")
 						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
@@ -55,7 +55,7 @@ func Test_repositoryResourceContents(t *testing.T) {
 			name: "missing repo",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoByBranchByPath,
+					GetRawReposContentsByOwnerByRepoByBranchByPath,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.Header().Set("Content-Type", "text/markdown")
 						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
@@ -74,7 +74,7 @@ func Test_repositoryResourceContents(t *testing.T) {
 			name: "successful blob content fetch",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoByPath,
+					GetRawReposContentsByOwnerByRepoByPath,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.Header().Set("Content-Type", "image/png")
 						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
@@ -98,7 +98,7 @@ func Test_repositoryResourceContents(t *testing.T) {
 			name: "successful text content fetch (HEAD)",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoByPath,
+					GetRawReposContentsByOwnerByRepoByPath,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.Header().Set("Content-Type", "text/markdown")
 						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
@@ -122,7 +122,7 @@ func Test_repositoryResourceContents(t *testing.T) {
 			name: "successful text content fetch (HEAD)",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoByPath,
+					GetRawReposContentsByOwnerByRepoByPath,
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						w.Header().Set("Content-Type", "text/plain")
 
@@ -148,7 +148,7 @@ func Test_repositoryResourceContents(t *testing.T) {
 			name: "successful text content fetch (branch)",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoByBranchByPath,
+					GetRawReposContentsByOwnerByRepoByBranchByPath,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.Header().Set("Content-Type", "text/markdown")
 						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
@@ -172,7 +172,7 @@ func Test_repositoryResourceContents(t *testing.T) {
 			name: "successful text content fetch (tag)",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoByTagByPath,
+					GetRawReposContentsByOwnerByRepoByTagByPath,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.Header().Set("Content-Type", "text/markdown")
 						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
@@ -196,7 +196,7 @@ func Test_repositoryResourceContents(t *testing.T) {
 			name: "successful text content fetch (sha)",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoBySHAByPath,
+					GetRawReposContentsByOwnerByRepoBySHAByPath,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.Header().Set("Content-Type", "text/markdown")
 						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
@@ -228,7 +228,7 @@ func Test_repositoryResourceContents(t *testing.T) {
 					}),
 				),
 				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoBySHAByPath,
+					GetRawReposContentsByOwnerByRepoBySHAByPath,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.Header().Set("Content-Type", "text/markdown")
 						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
