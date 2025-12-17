@@ -90,7 +90,7 @@ func ListGists(t translations.TranslationHelperFunc) inventory.ServerTool {
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to list gists: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list gists", resp, body), nil, nil
 				}
 
 				r, err := json.Marshal(gists)
@@ -149,7 +149,7 @@ func GetGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to get gist: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get gist", resp, body), nil, nil
 				}
 
 				r, err := json.Marshal(gist)
@@ -248,7 +248,7 @@ func CreateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to create gist: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create gist", resp, body), nil, nil
 				}
 
 				minimalResponse := MinimalResponse{
@@ -350,7 +350,7 @@ func UpdateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to update gist: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update gist", resp, body), nil, nil
 				}
 
 				minimalResponse := MinimalResponse{

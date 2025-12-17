@@ -341,7 +341,7 @@ func GetIssue(ctx context.Context, client *github.Client, cache *lockdown.RepoAc
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to get issue: %s", string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get issue", resp, body), nil
 	}
 
 	if flags.LockdownMode {
@@ -397,7 +397,7 @@ func GetIssueComments(ctx context.Context, client *github.Client, cache *lockdow
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to get issue comments: %s", string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get issue comments", resp, body), nil
 	}
 	if flags.LockdownMode {
 		if cache == nil {
@@ -456,7 +456,7 @@ func GetSubIssues(ctx context.Context, client *github.Client, cache *lockdown.Re
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to list sub-issues: %s", string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list sub-issues", resp, body), nil
 	}
 
 	if featureFlags.LockdownMode {
@@ -589,7 +589,7 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to list issue types: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list issue types", resp, body), nil, nil
 				}
 
 				r, err := json.Marshal(issueTypes)
@@ -674,7 +674,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to create comment: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create comment", resp, body), nil, nil
 				}
 
 				r, err := json.Marshal(createdComment)
@@ -824,7 +824,7 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to add sub-issue: %s", string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add sub-issue", resp, body), nil
 	}
 
 	r, err := json.Marshal(subIssue)
@@ -856,7 +856,7 @@ func RemoveSubIssue(ctx context.Context, client *github.Client, owner string, re
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to remove sub-issue: %s", string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to remove sub-issue", resp, body), nil
 	}
 
 	r, err := json.Marshal(subIssue)
@@ -905,7 +905,7 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to reprioritize sub-issue: %s", string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to reprioritize sub-issue", resp, body), nil
 	}
 
 	r, err := json.Marshal(subIssue)
@@ -1196,7 +1196,7 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 		if err != nil {
 			return utils.NewToolResultErrorFromErr("failed to read response body", err), nil
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to create issue: %s", string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create issue", resp, body), nil
 	}
 
 	// Return minimal response with just essential information
@@ -1257,7 +1257,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to update issue: %s", string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update issue", resp, body), nil
 	}
 
 	// Use GraphQL API for state updates

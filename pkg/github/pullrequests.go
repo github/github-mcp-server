@@ -151,7 +151,7 @@ func GetPullRequest(ctx context.Context, client *github.Client, cache *lockdown.
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to get pull request: %s", string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request", resp, body), nil
 	}
 
 	// sanitize title/body on response
@@ -210,7 +210,7 @@ func GetPullRequestDiff(ctx context.Context, client *github.Client, owner, repo 
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to get pull request diff: %s", string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request diff", resp, body), nil
 	}
 
 	defer func() { _ = resp.Body.Close() }()
@@ -235,7 +235,7 @@ func GetPullRequestStatus(ctx context.Context, client *github.Client, owner, rep
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to get pull request: %s", string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request", resp, body), nil
 	}
 
 	// Get combined status for the head SHA
@@ -254,7 +254,7 @@ func GetPullRequestStatus(ctx context.Context, client *github.Client, owner, rep
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to get combined status: %s", string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get combined status", resp, body), nil
 	}
 
 	r, err := json.Marshal(status)
@@ -285,7 +285,7 @@ func GetPullRequestFiles(ctx context.Context, client *github.Client, owner, repo
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to get pull request files: %s", string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request files", resp, body), nil
 	}
 
 	r, err := json.Marshal(files)
@@ -437,7 +437,7 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, cache *lo
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to get pull request reviews: %s", string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request reviews", resp, body), nil
 	}
 
 	if ff.LockdownMode {
@@ -590,7 +590,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to create pull request: %s", string(bodyBytes))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create pull request", resp, bodyBytes), nil, nil
 				}
 
 				// Return minimal response with just essential information
@@ -768,7 +768,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 						if err != nil {
 							return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 						}
-						return utils.NewToolResultError(fmt.Sprintf("failed to update pull request: %s", string(bodyBytes))), nil, nil
+						return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update pull request", resp, bodyBytes), nil, nil
 					}
 				}
 
@@ -868,7 +868,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 						if err != nil {
 							return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 						}
-						return utils.NewToolResultError(fmt.Sprintf("failed to request reviewers: %s", string(bodyBytes))), nil, nil
+						return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to request reviewers", resp, bodyBytes), nil, nil
 					}
 				}
 
@@ -1022,7 +1022,7 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to list pull requests: %s", string(bodyBytes))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list pull requests", resp, bodyBytes), nil, nil
 				}
 
 				// sanitize title/body on each PR
@@ -1145,7 +1145,7 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to merge pull request: %s", string(bodyBytes))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to merge pull request", resp, bodyBytes), nil, nil
 				}
 
 				r, err := json.Marshal(result)
@@ -1304,7 +1304,7 @@ func UpdatePullRequestBranch(t translations.TranslationHelperFunc) inventory.Ser
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to update pull request branch: %s", string(bodyBytes))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update pull request branch", resp, bodyBytes), nil, nil
 				}
 
 				r, err := json.Marshal(result)
@@ -1910,7 +1910,7 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to request copilot review: %s", string(bodyBytes))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to request copilot review", resp, bodyBytes), nil, nil
 				}
 
 				// Return nothing on success, as there's not much value in returning the Pull Request itself

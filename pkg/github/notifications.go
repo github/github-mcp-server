@@ -147,7 +147,7 @@ func ListNotifications(t translations.TranslationHelperFunc) inventory.ServerToo
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to get notifications: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get notifications", resp, body), nil, nil
 				}
 
 				// Marshal response to JSON
@@ -236,7 +236,7 @@ func DismissNotification(t translations.TranslationHelperFunc) inventory.ServerT
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to mark notification as %s: %s", state, string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, fmt.Sprintf("failed to mark notification as %s", state), resp, body), nil, nil
 				}
 
 				return utils.NewToolResultText(fmt.Sprintf("Notification marked as %s", state)), nil, nil
@@ -329,7 +329,7 @@ func MarkAllNotificationsRead(t translations.TranslationHelperFunc) inventory.Se
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to mark all notifications as read: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to mark all notifications as read", resp, body), nil, nil
 				}
 
 				return utils.NewToolResultText("All notifications marked as read"), nil, nil
@@ -387,7 +387,7 @@ func GetNotificationDetails(t translations.TranslationHelperFunc) inventory.Serv
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to get notification details: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get notification details", resp, body), nil, nil
 				}
 
 				r, err := json.Marshal(thread)
@@ -481,7 +481,7 @@ func ManageNotificationSubscription(t translations.TranslationHelperFunc) invent
 
 				if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 					body, _ := io.ReadAll(resp.Body)
-					return utils.NewToolResultError(fmt.Sprintf("failed to %s notification subscription: %s", action, string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, fmt.Sprintf("failed to %s notification subscription", action), resp, body), nil, nil
 				}
 
 				if action == NotificationActionDelete {
@@ -589,7 +589,7 @@ func ManageRepositoryNotificationSubscription(t translations.TranslationHelperFu
 				// Handle non-2xx status codes
 				if resp != nil && (resp.StatusCode < 200 || resp.StatusCode >= 300) {
 					body, _ := io.ReadAll(resp.Body)
-					return utils.NewToolResultError(fmt.Sprintf("failed to %s repository subscription: %s", action, string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, fmt.Sprintf("failed to %s repository subscription", action), resp, body), nil, nil
 				}
 
 				if action == RepositorySubscriptionActionDelete {

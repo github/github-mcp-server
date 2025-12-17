@@ -106,7 +106,7 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to search repositories: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to search repositories", resp, body), nil, nil
 				}
 
 				// Return either minimal or full response based on parameter
@@ -248,7 +248,7 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to search code: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to search code", resp, body), nil, nil
 				}
 
 				r, err := json.Marshal(result)
@@ -314,7 +314,7 @@ func userOrOrgHandler(accountType string, deps ToolDependencies) mcp.ToolHandler
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 			}
-			return utils.NewToolResultError(fmt.Sprintf("failed to search %ss: %s", accountType, string(body))), nil, nil
+			return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, fmt.Sprintf("failed to search %ss", accountType), resp, body), nil, nil
 		}
 
 		minimalUsers := make([]MinimalUser, 0, len(result.Users))
