@@ -670,10 +670,13 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				path, err := RequiredParam[string](args, "path")
+
+				path, err := OptionalParam[string](args, "path")
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
+				path = strings.TrimPrefix(path, "/")
+
 				ref, err := OptionalParam[string](args, "ref")
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
