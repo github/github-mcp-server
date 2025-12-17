@@ -40,14 +40,14 @@ const (
 	DeleteReposSubscriptionByOwnerByRepo = "DELETE /repos/{owner}/{repo}/subscription"
 
 	// Git endpoints
-	GetReposGitTreesByOwnerByRepoByTree        = "GET /repos/{owner}/{repo}/git/trees/{tree}"
-	GetReposGitRefByOwnerByRepoByRef           = "GET /repos/{owner}/{repo}/git/ref/{ref}"
-	PostReposGitRefsByOwnerByRepo              = "POST /repos/{owner}/{repo}/git/refs"
-	PatchReposGitRefsByOwnerByRepoByRef        = "PATCH /repos/{owner}/{repo}/git/refs/{ref}"
-	GetReposGitCommitsByOwnerByRepoByCommitSha = "GET /repos/{owner}/{repo}/git/commits/{commit_sha}"
-	PostReposGitCommitsByOwnerByRepo           = "POST /repos/{owner}/{repo}/git/commits"
-	GetReposGitTagsByOwnerByRepoByTagSha       = "GET /repos/{owner}/{repo}/git/tags/{tag_sha}"
-	PostReposGitTreesByOwnerByRepo             = "POST /repos/{owner}/{repo}/git/trees"
+	GetReposGitTreesByOwnerByRepoByTree         = "GET /repos/{owner}/{repo}/git/trees/{tree}"
+	GetReposGitRefByOwnerByRepoByRef            = "GET /repos/{owner}/{repo}/git/ref/{ref}"
+	PostReposGitRefsByOwnerByRepo               = "POST /repos/{owner}/{repo}/git/refs"
+	PatchReposGitRefsByOwnerByRepoByRef         = "PATCH /repos/{owner}/{repo}/git/refs/{ref}"
+	GetReposGitCommitsByOwnerByRepoByCommitSHA  = "GET /repos/{owner}/{repo}/git/commits/{commit_sha}"
+	PostReposGitCommitsByOwnerByRepo            = "POST /repos/{owner}/{repo}/git/commits"
+	GetReposGitTagsByOwnerByRepoByTagSHA        = "GET /repos/{owner}/{repo}/git/tags/{tag_sha}"
+	PostReposGitTreesByOwnerByRepo              = "POST /repos/{owner}/{repo}/git/trees"
 	GetReposCommitsStatusByOwnerByRepoByRef    = "GET /repos/{owner}/{repo}/commits/{ref}/status"
 	GetReposCommitsStatusesByOwnerByRepoByRef  = "GET /repos/{owner}/{repo}/commits/{ref}/statuses"
 
