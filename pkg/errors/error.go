@@ -62,6 +62,7 @@ func newGitHubRawAPIError(message string, resp *http.Response, err error) *GitHu
 func (e *GitHubRawAPIError) Error() string {
 	return fmt.Errorf("%s: %w", e.Message, e.Err).Error()
 }
+
 type GitHubErrorKey struct{}
 type GitHubCtxErrors struct {
 	api     []*GitHubAPIError
