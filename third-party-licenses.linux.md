@@ -29,7 +29,7 @@ The following packages are included for the 386, amd64, arm64 architectures.
  - [github.com/mailru/easyjson](https://pkg.go.dev/github.com/mailru/easyjson) ([MIT](https://github.com/mailru/easyjson/blob/v0.7.7/LICENSE))
  - [github.com/microcosm-cc/bluemonday](https://pkg.go.dev/github.com/microcosm-cc/bluemonday) ([BSD-3-Clause](https://github.com/microcosm-cc/bluemonday/blob/v1.0.27/LICENSE.md))
  - [github.com/migueleliasweb/go-github-mock/src/mock](https://pkg.go.dev/github.com/migueleliasweb/go-github-mock/src/mock) ([MIT](https://github.com/migueleliasweb/go-github-mock/blob/v1.3.0/LICENSE))
- - [github.com/modelcontextprotocol/go-sdk](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk) ([MIT](https://github.com/modelcontextprotocol/go-sdk/blob/v1.1.0/LICENSE))
+ - [github.com/modelcontextprotocol/go-sdk](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk) ([MIT](https://github.com/modelcontextprotocol/go-sdk/blob/v1.2.0-pre.1/LICENSE))
  - [github.com/muesli/cache2go](https://pkg.go.dev/github.com/muesli/cache2go) ([BSD-3-Clause](https://github.com/muesli/cache2go/blob/518229cd8021/LICENSE.txt))
  - [github.com/pelletier/go-toml/v2](https://pkg.go.dev/github.com/pelletier/go-toml/v2) ([MIT](https://github.com/pelletier/go-toml/blob/v2.2.4/LICENSE))
  - [github.com/sagikazarmark/locafero](https://pkg.go.dev/github.com/sagikazarmark/locafero) ([MIT](https://github.com/sagikazarmark/locafero/blob/v0.11.0/LICENSE))

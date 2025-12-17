@@ -11,6 +11,7 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -813,6 +814,7 @@ func ForkRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 		mcp.Tool{
 			Name:        "fork_repository",
 			Description: t("TOOL_FORK_REPOSITORY_DESCRIPTION", "Fork a GitHub repository to your account or specified organization"),
+			Icons:       octicons.Icons("repo-forked"),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_FORK_REPOSITORY_USER_TITLE", "Fork repository"),
 				ReadOnlyHint: false,
@@ -2099,6 +2101,7 @@ func StarRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 		mcp.Tool{
 			Name:        "star_repository",
 			Description: t("TOOL_STAR_REPOSITORY_DESCRIPTION", "Star a GitHub repository"),
+			Icons:       octicons.Icons("star-fill"),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_STAR_REPOSITORY_USER_TITLE", "Star repository"),
 				ReadOnlyHint: false,

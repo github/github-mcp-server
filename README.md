@@ -453,26 +453,26 @@ GITHUB_TOOLSETS="default,stargazers" ./github-mcp-server
 The following sets of tools are available:
 
 <!-- START AUTOMATED TOOLSETS -->
-| Toolset                 | Description                                                   |
-| ----------------------- | ------------------------------------------------------------- |
-| `context`               | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |
-| `actions` | GitHub Actions workflows and CI/CD operations |
-| `code_security` | Code security related tools, such as GitHub Code Scanning |
-| `dependabot` | Dependabot tools |
-| `discussions` | GitHub Discussions related tools |
-| `gists` | GitHub Gist related tools |
-| `git` | GitHub Git API related tools for low-level Git operations |
-| `issues` | GitHub Issues related tools |
-| `labels` | GitHub Labels related tools |
-| `notifications` | GitHub Notifications related tools |
-| `orgs` | GitHub Organization related tools |
-| `projects` | GitHub Projects related tools |
-| `pull_requests` | GitHub Pull Request related tools |
-| `repos` | GitHub Repository related tools |
-| `secret_protection` | Secret protection related tools, such as GitHub Secret Scanning |
-| `security_advisories` | Security advisories related tools |
-| `stargazers` | GitHub Stargazers related tools |
-| `users` | GitHub User related tools |
+|     | Toolset                 | Description                                                   |
+| --- | ----------------------- | ------------------------------------------------------------- |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/person-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/person-light.png"><img src="pkg/octicons/icons/person-light.png" width="20" height="20" alt="person"></picture> | `context`               | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/workflow-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/workflow-light.png"><img src="pkg/octicons/icons/workflow-light.png" width="20" height="20" alt="workflow"></picture> | `actions` | GitHub Actions workflows and CI/CD operations |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/codescan-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/codescan-light.png"><img src="pkg/octicons/icons/codescan-light.png" width="20" height="20" alt="codescan"></picture> | `code_security` | Code security related tools, such as GitHub Code Scanning |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/dependabot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/dependabot-light.png"><img src="pkg/octicons/icons/dependabot-light.png" width="20" height="20" alt="dependabot"></picture> | `dependabot` | Dependabot tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/comment-discussion-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/comment-discussion-light.png"><img src="pkg/octicons/icons/comment-discussion-light.png" width="20" height="20" alt="comment-discussion"></picture> | `discussions` | GitHub Discussions related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/logo-gist-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/logo-gist-light.png"><img src="pkg/octicons/icons/logo-gist-light.png" width="20" height="20" alt="logo-gist"></picture> | `gists` | GitHub Gist related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/git-branch-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/git-branch-light.png"><img src="pkg/octicons/icons/git-branch-light.png" width="20" height="20" alt="git-branch"></picture> | `git` | GitHub Git API related tools for low-level Git operations |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/issue-opened-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/issue-opened-light.png"><img src="pkg/octicons/icons/issue-opened-light.png" width="20" height="20" alt="issue-opened"></picture> | `issues` | GitHub Issues related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/tag-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/tag-light.png"><img src="pkg/octicons/icons/tag-light.png" width="20" height="20" alt="tag"></picture> | `labels` | GitHub Labels related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/bell-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/bell-light.png"><img src="pkg/octicons/icons/bell-light.png" width="20" height="20" alt="bell"></picture> | `notifications` | GitHub Notifications related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/organization-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/organization-light.png"><img src="pkg/octicons/icons/organization-light.png" width="20" height="20" alt="organization"></picture> | `orgs` | GitHub Organization related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/project-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/project-light.png"><img src="pkg/octicons/icons/project-light.png" width="20" height="20" alt="project"></picture> | `projects` | GitHub Projects related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/git-pull-request-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/git-pull-request-light.png"><img src="pkg/octicons/icons/git-pull-request-light.png" width="20" height="20" alt="git-pull-request"></picture> | `pull_requests` | GitHub Pull Request related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/repo-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/repo-light.png"><img src="pkg/octicons/icons/repo-light.png" width="20" height="20" alt="repo"></picture> | `repos` | GitHub Repository related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/shield-lock-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/shield-lock-light.png"><img src="pkg/octicons/icons/shield-lock-light.png" width="20" height="20" alt="shield-lock"></picture> | `secret_protection` | Secret protection related tools, such as GitHub Secret Scanning |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/shield-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/shield-light.png"><img src="pkg/octicons/icons/shield-light.png" width="20" height="20" alt="shield"></picture> | `security_advisories` | Security advisories related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/star-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/star-light.png"><img src="pkg/octicons/icons/star-light.png" width="20" height="20" alt="star"></picture> | `stargazers` | GitHub Stargazers related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/people-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/people-light.png"><img src="pkg/octicons/icons/people-light.png" width="20" height="20" alt="people"></picture> | `users` | GitHub User related tools |
 <!-- END AUTOMATED TOOLSETS -->
 
 ### Additional Toolsets in Remote GitHub MCP Server
@@ -488,7 +488,7 @@ The following sets of tools are available:
 <!-- START AUTOMATED TOOLS -->
 <details>
 
-<summary>Actions</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/workflow-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/workflow-light.png"><img src="pkg/octicons/icons/workflow-light.png" width="20" height="20" alt="workflow"></picture> Actions</summary>
 
 - **cancel_workflow_run** - Cancel workflow run
   - `owner`: Repository owner (string, required)
@@ -582,7 +582,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Code Security</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/codescan-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/codescan-light.png"><img src="pkg/octicons/icons/codescan-light.png" width="20" height="20" alt="codescan"></picture> Code Security</summary>
 
 - **get_code_scanning_alert** - Get code scanning alert
   - `alertNumber`: The number of the alert. (number, required)
@@ -601,7 +601,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Context</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/person-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/person-light.png"><img src="pkg/octicons/icons/person-light.png" width="20" height="20" alt="person"></picture> Context</summary>
 
 - **get_me** - Get my user profile
   - No parameters required
@@ -617,7 +617,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Dependabot</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/dependabot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/dependabot-light.png"><img src="pkg/octicons/icons/dependabot-light.png" width="20" height="20" alt="dependabot"></picture> Dependabot</summary>
 
 - **get_dependabot_alert** - Get dependabot alert
   - `alertNumber`: The number of the alert. (number, required)
@@ -634,7 +634,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Discussions</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/comment-discussion-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/comment-discussion-light.png"><img src="pkg/octicons/icons/comment-discussion-light.png" width="20" height="20" alt="comment-discussion"></picture> Discussions</summary>
 
 - **get_discussion** - Get discussion
   - `discussionNumber`: Discussion Number (number, required)
@@ -665,7 +665,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Gists</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/logo-gist-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/logo-gist-light.png"><img src="pkg/octicons/icons/logo-gist-light.png" width="20" height="20" alt="logo-gist"></picture> Gists</summary>
 
 - **create_gist** - Create Gist
   - `content`: Content for simple single-file gist creation (string, required)
@@ -692,7 +692,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Git</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/git-branch-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/git-branch-light.png"><img src="pkg/octicons/icons/git-branch-light.png" width="20" height="20" alt="git-branch"></picture> Git</summary>
 
 - **get_repository_tree** - Get repository tree
   - `owner`: Repository owner (username or organization) (string, required)
@@ -705,7 +705,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Issues</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/issue-opened-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/issue-opened-light.png"><img src="pkg/octicons/icons/issue-opened-light.png" width="20" height="20" alt="issue-opened"></picture> Issues</summary>
 
 - **add_issue_comment** - Add comment to issue
   - `body`: Comment content (string, required)
@@ -798,7 +798,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Labels</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/tag-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/tag-light.png"><img src="pkg/octicons/icons/tag-light.png" width="20" height="20" alt="tag"></picture> Labels</summary>
 
 - **get_label** - Get a specific label from a repository.
   - `name`: Label name. (string, required)
@@ -822,7 +822,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Notifications</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/bell-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/bell-light.png"><img src="pkg/octicons/icons/bell-light.png" width="20" height="20" alt="bell"></picture> Notifications</summary>
 
 - **dismiss_notification** - Dismiss notification
   - `state`: The new state of the notification (read/done) (string, required)
@@ -858,7 +858,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Organizations</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/organization-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/organization-light.png"><img src="pkg/octicons/icons/organization-light.png" width="20" height="20" alt="organization"></picture> Organizations</summary>
 
 - **search_orgs** - Search organizations
   - `order`: Sort order (string, optional)
@@ -871,7 +871,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Projects</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/project-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/project-light.png"><img src="pkg/octicons/icons/project-light.png" width="20" height="20" alt="project"></picture> Projects</summary>
 
 - **add_project_item** - Add project item
   - `item_id`: The numeric ID of the issue or pull request to add to the project. (number, required)
@@ -941,7 +941,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Pull Requests</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/git-pull-request-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/git-pull-request-light.png"><img src="pkg/octicons/icons/git-pull-request-light.png" width="20" height="20" alt="git-pull-request"></picture> Pull Requests</summary>
 
 - **add_comment_to_pending_review** - Add review comment to the requester's latest pending pull request review
   - `body`: The text of the review comment (string, required)
@@ -1046,7 +1046,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Repositories</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/repo-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/repo-light.png"><img src="pkg/octicons/icons/repo-light.png" width="20" height="20" alt="repo"></picture> Repositories</summary>
 
 - **create_branch** - Create branch
   - `branch`: Name for new branch (string, required)
@@ -1163,7 +1163,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Secret Protection</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/shield-lock-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/shield-lock-light.png"><img src="pkg/octicons/icons/shield-lock-light.png" width="20" height="20" alt="shield-lock"></picture> Secret Protection</summary>
 
 - **get_secret_scanning_alert** - Get secret scanning alert
   - `alertNumber`: The number of the alert. (number, required)
@@ -1181,7 +1181,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Security Advisories</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/shield-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/shield-light.png"><img src="pkg/octicons/icons/shield-light.png" width="20" height="20" alt="shield"></picture> Security Advisories</summary>
 
 - **get_global_security_advisory** - Get a global security advisory
   - `ghsaId`: GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx). (string, required)
@@ -1216,7 +1216,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Stargazers</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/star-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/star-light.png"><img src="pkg/octicons/icons/star-light.png" width="20" height="20" alt="star"></picture> Stargazers</summary>
 
 - **list_starred_repositories** - List starred repositories
   - `direction`: The direction to sort the results by. (string, optional)
@@ -1237,7 +1237,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Users</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/people-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/people-light.png"><img src="pkg/octicons/icons/people-light.png" width="20" height="20" alt="people"></picture> Users</summary>
 
 - **search_users** - Search users
   - `order`: Sort order (string, optional)
