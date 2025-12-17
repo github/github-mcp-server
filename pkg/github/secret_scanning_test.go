@@ -16,16 +16,15 @@ import (
 )
 
 func Test_GetSecretScanningAlert(t *testing.T) {
-	mockClient := github.NewClient(nil)
-	tool, _ := GetSecretScanningAlert(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	toolDef := GetSecretScanningAlert(translations.NullTranslationHelper)
 
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
 
-	assert.Equal(t, "get_secret_scanning_alert", tool.Name)
-	assert.NotEmpty(t, tool.Description)
+	assert.Equal(t, "get_secret_scanning_alert", toolDef.Tool.Name)
+	assert.NotEmpty(t, toolDef.Tool.Description)
 
 	// Verify InputSchema structure
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	schema, ok := toolDef.Tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
@@ -88,13 +87,16 @@ func Test_GetSecretScanningAlert(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetSecretScanningAlert(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := toolDef.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -125,16 +127,15 @@ func Test_GetSecretScanningAlert(t *testing.T) {
 
 func Test_ListSecretScanningAlerts(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := ListSecretScanningAlerts(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	toolDef := ListSecretScanningAlerts(translations.NullTranslationHelper)
 
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
 
-	assert.Equal(t, "list_secret_scanning_alerts", tool.Name)
-	assert.NotEmpty(t, tool.Description)
+	assert.Equal(t, "list_secret_scanning_alerts", toolDef.Tool.Name)
+	assert.NotEmpty(t, toolDef.Tool.Description)
 
 	// Verify InputSchema structure
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	schema, ok := toolDef.Tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
@@ -227,11 +228,14 @@ func Test_ListSecretScanningAlerts(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListSecretScanningAlerts(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := toolDef.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
 
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(context.Background(), &request)
 
 			if tc.expectError {
 				require.NoError(t, err)

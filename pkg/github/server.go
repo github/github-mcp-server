@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -18,12 +19,7 @@ import (
 
 func NewServer(version string, opts *mcp.ServerOptions) *mcp.Server {
 	if opts == nil {
-		// Add default options
-		opts = &mcp.ServerOptions{
-			HasTools:     true,
-			HasResources: true,
-			HasPrompts:   true,
-		}
+		opts = &mcp.ServerOptions{}
 	}
 
 	// Create a new MCP server
@@ -31,6 +27,7 @@ func NewServer(version string, opts *mcp.ServerOptions) *mcp.Server {
 		Name:    "github-mcp-server",
 		Title:   "GitHub MCP Server",
 		Version: version,
+		Icons:   octicons.Icons("mark-github"),
 	}, opts)
 
 	return s

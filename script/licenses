@@ -16,7 +16,6 @@
 #
 #       Normally these warnings are packages containing non go code, which may or may not require explicit attribution,
 #       depending on the license.
-
 set -e
 
 # Pinned version for CI reproducibility, latest for local development
@@ -25,6 +24,14 @@ if [ "$CI" = "true" ]; then
     go install github.com/google/go-licenses@5348b744d0983d85713295ea08a20cca1654a45e # v2.0.1
 else
     go install github.com/google/go-licenses@latest
+fi
+
+# actions/setup-go does not setup the installed toolchain to be preferred over the system install,
+# which causes go-licenses to raise "Package ... does not have module info" errors in CI.
+# For more information, https://github.com/google/go-licenses/issues/244#issuecomment-1885098633
+if [ "$CI" = "true" ]; then
+    export GOROOT=$(go env GOROOT)
+    export PATH=${GOROOT}/bin:$PATH
 fi
 
 # actions/setup-go does not setup the installed toolchain to be preferred over the system install,
