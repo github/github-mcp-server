@@ -219,7 +219,7 @@ func GetProject(t translations.TranslationHelperFunc) inventory.ServerTool {
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to get project: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get project", resp, body), nil, nil
 				}
 
 				minimalProject := convertToMinimalProject(project)
@@ -423,7 +423,7 @@ func GetProjectField(t translations.TranslationHelperFunc) inventory.ServerTool 
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to get project field: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get project field", resp, body), nil, nil
 				}
 				r, err := json.Marshal(projectField)
 				if err != nil {
@@ -782,7 +782,7 @@ func AddProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("%s: %s", ProjectAddFailedError, string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, ProjectAddFailedError, resp, body), nil, nil
 				}
 				r, err := json.Marshal(addedItem)
 				if err != nil {
@@ -896,7 +896,7 @@ func UpdateProjectItem(t translations.TranslationHelperFunc) inventory.ServerToo
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("%s: %s", ProjectUpdateFailedError, string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, ProjectUpdateFailedError, resp, body), nil, nil
 				}
 				r, err := json.Marshal(updatedItem)
 				if err != nil {
@@ -988,7 +988,7 @@ func DeleteProjectItem(t translations.TranslationHelperFunc) inventory.ServerToo
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("%s: %s", ProjectDeleteFailedError, string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, ProjectDeleteFailedError, resp, body), nil, nil
 				}
 				return utils.NewToolResultText("project item successfully deleted"), nil, nil
 			}

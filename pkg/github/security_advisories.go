@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 
+	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -193,7 +194,7 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventor
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to list advisories: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list advisories", resp, body), nil, nil
 				}
 
 				r, err := json.Marshal(advisories)
@@ -298,7 +299,7 @@ func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inve
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to list repository advisories: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list repository advisories", resp, body), nil, nil
 				}
 
 				r, err := json.Marshal(advisories)
@@ -356,7 +357,7 @@ func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.S
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to get advisory: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get advisory", resp, body), nil, nil
 				}
 
 				r, err := json.Marshal(advisory)
@@ -452,7 +453,7 @@ func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) i
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to list organization repository advisories: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list organization repository advisories", resp, body), nil, nil
 				}
 
 				r, err := json.Marshal(advisories)
