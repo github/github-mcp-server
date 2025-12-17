@@ -286,6 +286,10 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(ListWorkflowRunArtifacts(getClient, t)),
 			toolsets.NewServerTool(DownloadWorkflowRunArtifact(getClient, t)),
 			toolsets.NewServerTool(GetWorkflowRunUsage(getClient, t)),
+			// Consolidated actions tools
+			toolsets.NewServerTool(ActionsList(getClient, t)),
+			toolsets.NewServerTool(ActionsGet(getClient, t)),
+			toolsets.NewServerTool(ActionsGetJobLogs(getClient, t, contentWindowSize)),
 		).
 		AddWriteTools(
 			toolsets.NewServerTool(RunWorkflow(getClient, t)),
@@ -293,6 +297,8 @@ func DefaultToolsetGroup(readOnly bool, getClient GetClientFn, getGQLClient GetG
 			toolsets.NewServerTool(RerunFailedJobs(getClient, t)),
 			toolsets.NewServerTool(CancelWorkflowRun(getClient, t)),
 			toolsets.NewServerTool(DeleteWorkflowRunLogs(getClient, t)),
+			// Consolidated actions tool for write operations
+			toolsets.NewServerTool(ActionsRunTrigger(getClient, t)),
 		)
 
 	securityAdvisories := toolsets.NewToolset(ToolsetMetadataSecurityAdvisories.ID, ToolsetMetadataSecurityAdvisories.Description).
