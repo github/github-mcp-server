@@ -287,6 +287,33 @@ func TestGitHubErrorContext(t *testing.T) {
 		assert.Equal(t, originalErr, gqlError.Err)
 	})
 
+	t.Run("NewGitHubAPIStatusErrorResponse creates MCP error result from status code", func(t *testing.T) {
+		// Given a context with GitHub error tracking enabled
+		ctx := ContextWithGitHubErrors(context.Background())
+
+		resp := &github.Response{Response: &http.Response{StatusCode: 422}}
+		body := []byte(`{"message": "Validation Failed"}`)
+
+		// When we create a status error response
+		result := NewGitHubAPIStatusErrorResponse(ctx, "failed to create issue", resp, body)
+
+		// Then it should return an MCP error result
+		require.NotNil(t, result)
+		assert.True(t, result.IsError)
+
+		// And the error should be stored in the context
+		apiErrors, err := GetGitHubAPIErrors(ctx)
+		require.NoError(t, err)
+		require.Len(t, apiErrors, 1)
+
+		apiError := apiErrors[0]
+		assert.Equal(t, "failed to create issue", apiError.Message)
+		assert.Equal(t, resp, apiError.Response)
+		// The synthetic error should contain the status code and body
+		assert.Contains(t, apiError.Err.Error(), "unexpected status 422")
+		assert.Contains(t, apiError.Err.Error(), "Validation Failed")
+	})
+
 	t.Run("NewGitHubAPIErrorToCtx with uninitialized context does not error", func(t *testing.T) {
 		// Given a regular context without GitHub error tracking initialized
 		ctx := context.Background()

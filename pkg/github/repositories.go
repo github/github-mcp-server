@@ -100,7 +100,7 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to get commit: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get commit", resp, body), nil, nil
 				}
 
 				// Convert to minimal commit
@@ -206,7 +206,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to list commits: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list commits", resp, body), nil, nil
 				}
 
 				// Convert to minimal commits
@@ -294,7 +294,7 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to list branches: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list branches", resp, body), nil, nil
 				}
 
 				// Convert to minimal branches
@@ -487,7 +487,7 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to create/update file: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create/update file", resp, body), nil, nil
 				}
 
 				r, err := json.Marshal(fileContent)
@@ -601,7 +601,7 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to create repository: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create repository", resp, body), nil, nil
 				}
 
 				// Return minimal response with just essential information
@@ -670,10 +670,13 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				path, err := RequiredParam[string](args, "path")
+
+				path, err := OptionalParam[string](args, "path")
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
+				path = strings.TrimPrefix(path, "/")
+
 				ref, err := OptionalParam[string](args, "ref")
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
@@ -877,7 +880,7 @@ func ForkRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to fork repository: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to fork repository", resp, body), nil, nil
 				}
 
 				// Return minimal response with just essential information
@@ -992,7 +995,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to get commit: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get commit", resp, body), nil, nil
 				}
 
 				// Create a tree entry for the file deletion by setting SHA to nil
@@ -1021,7 +1024,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to create tree: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create tree", resp, body), nil, nil
 				}
 
 				// Create a new commit with the new tree
@@ -1045,7 +1048,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to create commit: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create commit", resp, body), nil, nil
 				}
 
 				// Update the branch reference to point to the new commit
@@ -1068,7 +1071,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to update reference: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update reference", resp, body), nil, nil
 				}
 
 				// Create a response similar to what the DeleteFile API would return
@@ -1453,7 +1456,7 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to list tags: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list tags", resp, body), nil, nil
 				}
 
 				r, err := json.Marshal(tags)
@@ -1533,7 +1536,7 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to get tag reference: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get tag reference", resp, body), nil, nil
 				}
 
 				// Then get the tag object
@@ -1552,7 +1555,7 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to get tag object: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get tag object", resp, body), nil, nil
 				}
 
 				r, err := json.Marshal(tagObj)
@@ -1628,7 +1631,7 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to list releases: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list releases", resp, body), nil, nil
 				}
 
 				r, err := json.Marshal(releases)
@@ -1695,7 +1698,7 @@ func GetLatestRelease(t translations.TranslationHelperFunc) inventory.ServerTool
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to get latest release: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get latest release", resp, body), nil, nil
 				}
 
 				r, err := json.Marshal(release)
@@ -1773,7 +1776,7 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to get release by tag: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get release by tag", resp, body), nil, nil
 				}
 
 				r, err := json.Marshal(release)
@@ -2048,7 +2051,7 @@ func ListStarredRepositories(t translations.TranslationHelperFunc) inventory.Ser
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to list starred repositories: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list starred repositories", resp, body), nil, nil
 				}
 
 				// Convert to minimal format
@@ -2146,7 +2149,7 @@ func StarRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to star repository: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to star repository", resp, body), nil, nil
 				}
 
 				return utils.NewToolResultText(fmt.Sprintf("Successfully starred repository %s/%s", owner, repo)), nil, nil
@@ -2212,7 +2215,7 @@ func UnstarRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to unstar repository: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to unstar repository", resp, body), nil, nil
 				}
 
 				return utils.NewToolResultText(fmt.Sprintf("Successfully unstarred repository %s/%s", owner, repo)), nil, nil

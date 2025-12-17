@@ -163,10 +163,10 @@ func NewGitHubGraphQLErrorResponse(ctx context.Context, message string, err erro
 	return utils.NewToolResultErrorFromErr(message, err)
 }
 
-func NewGitHubRawAPIErrorResponse(ctx context.Context, message string, resp *http.Response, err error) *mcp.CallToolResult {
-	rawAPIErr := newGitHubRawAPIError(message, resp, err)
-	if ctx != nil {
-		_, _ = addRawAPIErrorToContext(ctx, rawAPIErr) // Explicitly ignore error for graceful handling
-	}
-	return utils.NewToolResultErrorFromErr(message, err)
+// NewGitHubAPIStatusErrorResponse handles cases where the API call succeeds (err == nil)
+// but returns an unexpected HTTP status code. It creates a synthetic error from the
+// status code and response body, then records it in context for observability tracking.
+func NewGitHubAPIStatusErrorResponse(ctx context.Context, message string, resp *github.Response, body []byte) *mcp.CallToolResult {
+	err := fmt.Errorf("unexpected status %d: %s", resp.StatusCode, string(body))
+	return NewGitHubAPIErrorResponse(ctx, message, resp, err)
 }

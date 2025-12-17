@@ -80,7 +80,7 @@ func GetSecretScanningAlert(t translations.TranslationHelperFunc) inventory.Serv
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to get alert: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get alert", resp, body), nil, nil
 				}
 
 				r, err := json.Marshal(alert)
@@ -175,7 +175,7 @@ func ListSecretScanningAlerts(t translations.TranslationHelperFunc) inventory.Se
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to list alerts: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list alerts", resp, body), nil, nil
 				}
 
 				r, err := json.Marshal(alerts)
