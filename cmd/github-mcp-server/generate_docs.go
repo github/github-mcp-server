@@ -107,14 +107,19 @@ func generateRemoteServerDocs(docsPath string) error {
 // octiconImg returns an img tag for an Octicon that works with GitHub's light/dark theme.
 // Uses picture element with prefers-color-scheme for automatic theme switching.
 // References icons from the repo's pkg/octicons/icons directory.
-func octiconImg(name string) string {
+// Optional pathPrefix for files in subdirectories (e.g., "../" for docs/).
+func octiconImg(name string, pathPrefix ...string) string {
 	if name == "" {
 		return ""
 	}
+	prefix := ""
+	if len(pathPrefix) > 0 {
+		prefix = pathPrefix[0]
+	}
 	// Use picture element with media queries for light/dark mode support
 	// GitHub renders these correctly in markdown
-	lightIcon := fmt.Sprintf("pkg/octicons/icons/%s-light.png", name)
-	darkIcon := fmt.Sprintf("pkg/octicons/icons/%s-dark.png", name)
+	lightIcon := fmt.Sprintf("%spkg/octicons/icons/%s-light.png", prefix, name)
+	darkIcon := fmt.Sprintf("%spkg/octicons/icons/%s-dark.png", prefix, name)
 	return fmt.Sprintf(`<picture><source media="(prefers-color-scheme: dark)" srcset="%s"><source media="(prefers-color-scheme: light)" srcset="%s"><img src="%s" width="20" height="20" alt="%s"></picture>`, darkIcon, lightIcon, lightIcon, name)
 }
 
@@ -330,7 +335,7 @@ func generateRemoteToolsetsDoc() string {
 	buf.WriteString("| --- | ---- | ----------- | ------- | ------------------------- | -------------- | ----------------------------------- |\n")
 
 	// Add "all" toolset first (special case)
-	allIcon := octiconImg("apps")
+	allIcon := octiconImg("apps", "../")
 	fmt.Fprintf(&buf, "| %s | all | All available GitHub MCP tools | https://api.githubcopilot.com/mcp/ | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2F%%22%%7D) | [read-only](https://api.githubcopilot.com/mcp/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2Freadonly%%22%%7D) |\n", allIcon)
 
 	// AvailableToolsets() returns toolsets that have tools, sorted by ID
@@ -353,7 +358,7 @@ func generateRemoteToolsetsDoc() string {
 		installLink := fmt.Sprintf("[Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, installConfig)
 		readonlyInstallLink := fmt.Sprintf("[Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, readonlyConfig)
 
-		icon := octiconImg(ts.Icon)
+		icon := octiconImg(ts.Icon, "../")
 		fmt.Fprintf(&buf, "| %s | %s | %s | %s | %s | [read-only](%s) | %s |\n",
 			icon,
 			formattedName,
