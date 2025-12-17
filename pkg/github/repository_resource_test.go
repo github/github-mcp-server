@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -28,7 +27,7 @@ func Test_repositoryResourceContents(t *testing.T) {
 		name                 string
 		mockedClient         *http.Client
 		uri                  string
-		handlerFn            func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler
+		handlerFn            func(deps ToolDependencies) mcp.ResourceHandler
 		expectedResponseType resourceResponseType
 		expectError          string
 		expectedResult       *mcp.ReadResourceResult
@@ -46,9 +45,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 				),
 			),
 			uri: "repo:///repo/contents/README.md",
-			handlerFn: func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler {
-				_, handler := GetRepositoryResourceContent(getClient, getRawClient, t)
-				return handler
+			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(deps, repositoryResourceContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText, // Ignored as error is expected
 			expectError:          "owner is required",
@@ -66,9 +64,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 				),
 			),
 			uri: "repo://owner//refs/heads/main/contents/README.md",
-			handlerFn: func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler {
-				_, handler := GetRepositoryResourceBranchContent(getClient, getRawClient, t)
-				return handler
+			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(deps, repositoryResourceBranchContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText, // Ignored as error is expected
 			expectError:          "repo is required",
@@ -86,9 +83,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 				),
 			),
 			uri: "repo://owner/repo/contents/data.png",
-			handlerFn: func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler {
-				_, handler := GetRepositoryResourceContent(getClient, getRawClient, t)
-				return handler
+			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(deps, repositoryResourceContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeBlob,
 			expectedResult: &mcp.ReadResourceResult{
@@ -111,9 +107,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 				),
 			),
 			uri: "repo://owner/repo/contents/README.md",
-			handlerFn: func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler {
-				_, handler := GetRepositoryResourceContent(getClient, getRawClient, t)
-				return handler
+			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(deps, repositoryResourceContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText,
 			expectedResult: &mcp.ReadResourceResult{
@@ -138,9 +133,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 				),
 			),
 			uri: "repo://owner/repo/contents/pkg/github/actions.go",
-			handlerFn: func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler {
-				_, handler := GetRepositoryResourceContent(getClient, getRawClient, t)
-				return handler
+			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(deps, repositoryResourceContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText,
 			expectedResult: &mcp.ReadResourceResult{
@@ -163,9 +157,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 				),
 			),
 			uri: "repo://owner/repo/refs/heads/main/contents/README.md",
-			handlerFn: func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler {
-				_, handler := GetRepositoryResourceBranchContent(getClient, getRawClient, t)
-				return handler
+			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(deps, repositoryResourceBranchContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText,
 			expectedResult: &mcp.ReadResourceResult{
@@ -188,9 +181,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 				),
 			),
 			uri: "repo://owner/repo/refs/tags/v1.0.0/contents/README.md",
-			handlerFn: func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler {
-				_, handler := GetRepositoryResourceTagContent(getClient, getRawClient, t)
-				return handler
+			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(deps, repositoryResourceTagContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText,
 			expectedResult: &mcp.ReadResourceResult{
@@ -213,9 +205,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 				),
 			),
 			uri: "repo://owner/repo/sha/abc123/contents/README.md",
-			handlerFn: func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler {
-				_, handler := GetRepositoryResourceCommitContent(getClient, getRawClient, t)
-				return handler
+			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(deps, repositoryResourceCommitContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText,
 			expectedResult: &mcp.ReadResourceResult{
@@ -246,9 +237,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 				),
 			),
 			uri: "repo://owner/repo/refs/pull/42/head/contents/README.md",
-			handlerFn: func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler {
-				_, handler := GetRepositoryResourcePrContent(getClient, getRawClient, t)
-				return handler
+			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(deps, repositoryResourcePrContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText,
 			expectedResult: &mcp.ReadResourceResult{
@@ -270,9 +260,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 				),
 			),
 			uri: "repo://owner/repo/contents/nonexistent.md",
-			handlerFn: func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler {
-				_, handler := GetRepositoryResourceContent(getClient, getRawClient, t)
-				return handler
+			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(deps, repositoryResourceContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText, // Ignored as error is expected
 			expectError:          "404 Not Found",
@@ -283,7 +272,11 @@ func Test_repositoryResourceContents(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 			mockRawClient := raw.NewClient(client, base)
-			handler := tc.handlerFn(stubGetClientFn(client), stubGetRawClientFn(mockRawClient), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client:    client,
+				RawClient: mockRawClient,
+			}
+			handler := tc.handlerFn(deps)
 
 			request := &mcp.ReadResourceRequest{
 				Params: &mcp.ReadResourceParams{

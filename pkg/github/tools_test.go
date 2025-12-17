@@ -7,135 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCleanToolsets(t *testing.T) {
-	tests := []struct {
-		name            string
-		input           []string
-		expected        []string
-		expectedInvalid []string
-	}{
-		{
-			name:     "empty slice",
-			input:    []string{},
-			expected: []string{},
-		},
-		{
-			name:     "nil input slice",
-			input:    nil,
-			expected: []string{},
-		},
-		// CleanToolsets only cleans - it does NOT filter out special keywords
-		{
-			name:     "default keyword preserved",
-			input:    []string{"default"},
-			expected: []string{"default"},
-		},
-		{
-			name:     "default with additional toolsets",
-			input:    []string{"default", "actions", "gists"},
-			expected: []string{"default", "actions", "gists"},
-		},
-		{
-			name:     "all keyword preserved",
-			input:    []string{"all", "actions"},
-			expected: []string{"all", "actions"},
-		},
-		{
-			name:     "no special keywords",
-			input:    []string{"actions", "gists", "notifications"},
-			expected: []string{"actions", "gists", "notifications"},
-		},
-		{
-			name:     "duplicate toolsets without special keywords",
-			input:    []string{"actions", "gists", "actions"},
-			expected: []string{"actions", "gists"},
-		},
-		{
-			name:     "duplicate toolsets with default",
-			input:    []string{"context", "repos", "issues", "pull_requests", "users", "default"},
-			expected: []string{"context", "repos", "issues", "pull_requests", "users", "default"},
-		},
-		{
-			name:     "default appears multiple times - duplicates removed",
-			input:    []string{"default", "actions", "default", "gists", "default"},
-			expected: []string{"default", "actions", "gists"},
-		},
-		// Whitespace test cases
-		{
-			name:     "whitespace check - leading and trailing whitespace on regular toolsets",
-			input:    []string{" actions ", "  gists  ", "notifications"},
-			expected: []string{"actions", "gists", "notifications"},
-		},
-		{
-			name:     "whitespace check - default toolset with whitespace",
-			input:    []string{" actions ", "  default  ", "notifications"},
-			expected: []string{"actions", "default", "notifications"},
-		},
-		{
-			name:     "whitespace check - all toolset with whitespace",
-			input:    []string{" all ", "  actions  "},
-			expected: []string{"all", "actions"},
-		},
-		// Invalid toolset test cases
-		{
-			name:            "mix of valid and invalid toolsets",
-			input:           []string{"actions", "invalid_toolset", "gists", "typo_repo"},
-			expected:        []string{"actions", "invalid_toolset", "gists", "typo_repo"},
-			expectedInvalid: []string{"invalid_toolset", "typo_repo"},
-		},
-		{
-			name:            "invalid with whitespace",
-			input:           []string{" invalid_tool ", "  actions  ", " typo_gist "},
-			expected:        []string{"invalid_tool", "actions", "typo_gist"},
-			expectedInvalid: []string{"invalid_tool", "typo_gist"},
-		},
-		{
-			name:            "empty string in toolsets",
-			input:           []string{"", "actions", "  ", "gists"},
-			expected:        []string{"actions", "gists"},
-			expectedInvalid: []string{},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, invalid := CleanToolsets(tt.input)
-
-			require.Len(t, result, len(tt.expected), "result length should match expected length")
-
-			if tt.expectedInvalid == nil {
-				tt.expectedInvalid = []string{}
-			}
-			require.Len(t, invalid, len(tt.expectedInvalid), "invalid length should match expected invalid length")
-
-			resultMap := make(map[string]bool)
-			for _, toolset := range result {
-				resultMap[toolset] = true
-			}
-
-			expectedMap := make(map[string]bool)
-			for _, toolset := range tt.expected {
-				expectedMap[toolset] = true
-			}
-
-			invalidMap := make(map[string]bool)
-			for _, toolset := range invalid {
-				invalidMap[toolset] = true
-			}
-
-			expectedInvalidMap := make(map[string]bool)
-			for _, toolset := range tt.expectedInvalid {
-				expectedInvalidMap[toolset] = true
-			}
-
-			assert.Equal(t, expectedMap, resultMap, "result should contain all expected toolsets without duplicates")
-			assert.Equal(t, expectedInvalidMap, invalidMap, "invalid should contain all expected invalid toolsets")
-
-			assert.Len(t, resultMap, len(result), "result should not contain duplicates")
-		})
-	}
-}
-
 func TestAddDefaultToolset(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -279,4 +150,35 @@ func TestContainsToolset(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestGenerateToolsetsHelp(t *testing.T) {
+	// Generate the help text
+	helpText := GenerateToolsetsHelp()
+
+	// Verify help text is not empty
+	require.NotEmpty(t, helpText)
+
+	// Verify it contains expected sections
+	assert.Contains(t, helpText, "Comma-separated list of tool groups to enable")
+	assert.Contains(t, helpText, "Available:")
+	assert.Contains(t, helpText, "Special toolset keywords:")
+	assert.Contains(t, helpText, "all: Enables all available toolsets")
+	assert.Contains(t, helpText, "default: Enables the default toolset configuration")
+	assert.Contains(t, helpText, "Examples:")
+	assert.Contains(t, helpText, "--toolsets=actions,gists,notifications")
+	assert.Contains(t, helpText, "--toolsets=default,actions,gists")
+	assert.Contains(t, helpText, "--toolsets=all")
+
+	// Verify it contains some expected default toolsets
+	assert.Contains(t, helpText, "context")
+	assert.Contains(t, helpText, "repos")
+	assert.Contains(t, helpText, "issues")
+	assert.Contains(t, helpText, "pull_requests")
+	assert.Contains(t, helpText, "users")
+
+	// Verify it contains some expected available toolsets
+	assert.Contains(t, helpText, "actions")
+	assert.Contains(t, helpText, "gists")
+	assert.Contains(t, helpText, "notifications")
 }
