@@ -132,6 +132,24 @@ var (
 		Description: "GitHub Labels related tools",
 		Icon:        "tag",
 	}
+
+	// Remote-only toolsets - these are only available in the remote MCP server
+	// but are documented here for consistency and to enable automated documentation.
+	ToolsetMetadataCopilot = inventory.ToolsetMetadata{
+		ID:          "copilot",
+		Description: "Copilot related tools",
+		Icon:        "copilot",
+	}
+	ToolsetMetadataCopilotSpaces = inventory.ToolsetMetadata{
+		ID:          "copilot_spaces",
+		Description: "Copilot Spaces tools",
+		Icon:        "copilot",
+	}
+	ToolsetMetadataSupportSearch = inventory.ToolsetMetadata{
+		ID:          "github_support_docs_search",
+		Description: "Retrieve documentation to answer GitHub product and support questions. Topics include: GitHub Actions Workflows, Authentication, ...",
+		Icon:        "book",
+	}
 )
 
 // AllTools returns all tools with their embedded toolset metadata.
@@ -427,4 +445,15 @@ func GetDefaultToolsetIDs() []string {
 		result[i] = string(id)
 	}
 	return result
+}
+
+// RemoteOnlyToolsets returns toolset metadata for toolsets that are only
+// available in the remote MCP server. These are documented but not registered
+// in the local server.
+func RemoteOnlyToolsets() []inventory.ToolsetMetadata {
+	return []inventory.ToolsetMetadata{
+		ToolsetMetadataCopilot,
+		ToolsetMetadataCopilotSpaces,
+		ToolsetMetadataSupportSearch,
+	}
 }

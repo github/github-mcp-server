@@ -101,6 +101,13 @@ func generateRemoteServerDocs(docsPath string) error {
 		return err
 	}
 
+	// Also generate remote-only toolsets section
+	remoteOnlyDoc := generateRemoteOnlyToolsetsDoc()
+	updatedContent, err = replaceSection(updatedContent, "START AUTOMATED REMOTE TOOLSETS", "END AUTOMATED REMOTE TOOLSETS", remoteOnlyDoc)
+	if err != nil {
+		return err
+	}
+
 	return os.WriteFile(docsPath, []byte(updatedContent), 0600) //#nosec G306
 }
 
@@ -373,6 +380,46 @@ func generateRemoteToolsetsDoc() string {
 	return strings.TrimSuffix(buf.String(), "\n")
 }
 
+func generateRemoteOnlyToolsetsDoc() string {
+	var buf strings.Builder
+
+	// Generate table header (with icon column)
+	buf.WriteString("|     | Name | Description | API URL | 1-Click Install (VS Code) | Read-only Link | 1-Click Read-only Install (VS Code) |\n")
+	buf.WriteString("| --- | ---- | ----------- | ------- | ------------------------- | -------------- | ----------------------------------- |\n")
+
+	// Use RemoteOnlyToolsets from github package
+	for _, ts := range github.RemoteOnlyToolsets() {
+		idStr := string(ts.ID)
+
+		formattedName := formatToolsetName(idStr)
+		apiURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s", idStr)
+		readonlyURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s/readonly", idStr)
+
+		// Create install config JSON (URL encoded)
+		installConfig := url.QueryEscape(fmt.Sprintf(`{"type": "http","url": "%s"}`, apiURL))
+		readonlyConfig := url.QueryEscape(fmt.Sprintf(`{"type": "http","url": "%s"}`, readonlyURL))
+
+		// Fix URL encoding to use %20 instead of + for spaces
+		installConfig = strings.ReplaceAll(installConfig, "+", "%20")
+		readonlyConfig = strings.ReplaceAll(readonlyConfig, "+", "%20")
+
+		installLink := fmt.Sprintf("[Install](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, installConfig)
+		readonlyInstallLink := fmt.Sprintf("[Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, readonlyConfig)
+
+		icon := octiconImg(ts.Icon, "../")
+		fmt.Fprintf(&buf, "| %s | %s | %s | %s | %s | [read-only](%s) | %s |\n",
+			icon,
+			formattedName,
+			ts.Description,
+			apiURL,
+			installLink,
+			readonlyURL,
+			readonlyInstallLink,
+		)
+	}
+
+	return strings.TrimSuffix(buf.String(), "\n")
+}
 func generateDeprecatedAliasesDocs(docsPath string) error {
 	// Read the current file
 	content, err := os.ReadFile(docsPath) //#nosec G304
