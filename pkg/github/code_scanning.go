@@ -3,7 +3,6 @@ package github
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 
@@ -80,7 +79,7 @@ func GetCodeScanningAlert(t translations.TranslationHelperFunc) inventory.Server
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to get alert: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get alert", resp, body), nil, nil
 				}
 
 				r, err := json.Marshal(alert)
@@ -184,7 +183,7 @@ func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.Serv
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to list alerts: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list alerts", resp, body), nil, nil
 				}
 
 				r, err := json.Marshal(alerts)

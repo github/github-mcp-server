@@ -179,9 +179,11 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	// In dynamic mode, explicitly advertise capabilities since tools/resources/prompts
 	// may be enabled at runtime even if none are registered initially.
 	if cfg.DynamicToolsets {
-		serverOpts.HasTools = true
-		serverOpts.HasResources = true
-		serverOpts.HasPrompts = true
+		serverOpts.Capabilities = &mcp.ServerCapabilities{
+			Tools:     &mcp.ToolCapabilities{},
+			Resources: &mcp.ResourceCapabilities{},
+			Prompts:   &mcp.PromptCapabilities{},
+		}
 	}
 
 	ghServer := github.NewServer(cfg.Version, serverOpts)

@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
@@ -37,6 +38,7 @@ func GetRepositoryResourceContent(t translations.TranslationHelperFunc) inventor
 			Name:        "repository_content",
 			URITemplate: repositoryResourceContentURITemplate.Raw(),
 			Description: t("RESOURCE_REPOSITORY_CONTENT_DESCRIPTION", "Repository Content"),
+			Icons:       octicons.Icons("repo"),
 		},
 		repositoryResourceContentsHandlerFunc(repositoryResourceContentURITemplate),
 	)
@@ -50,6 +52,7 @@ func GetRepositoryResourceBranchContent(t translations.TranslationHelperFunc) in
 			Name:        "repository_content_branch",
 			URITemplate: repositoryResourceBranchContentURITemplate.Raw(),
 			Description: t("RESOURCE_REPOSITORY_CONTENT_BRANCH_DESCRIPTION", "Repository Content for specific branch"),
+			Icons:       octicons.Icons("git-branch"),
 		},
 		repositoryResourceContentsHandlerFunc(repositoryResourceBranchContentURITemplate),
 	)
@@ -63,6 +66,7 @@ func GetRepositoryResourceCommitContent(t translations.TranslationHelperFunc) in
 			Name:        "repository_content_commit",
 			URITemplate: repositoryResourceCommitContentURITemplate.Raw(),
 			Description: t("RESOURCE_REPOSITORY_CONTENT_COMMIT_DESCRIPTION", "Repository Content for specific commit"),
+			Icons:       octicons.Icons("git-commit"),
 		},
 		repositoryResourceContentsHandlerFunc(repositoryResourceCommitContentURITemplate),
 	)
@@ -76,6 +80,7 @@ func GetRepositoryResourceTagContent(t translations.TranslationHelperFunc) inven
 			Name:        "repository_content_tag",
 			URITemplate: repositoryResourceTagContentURITemplate.Raw(),
 			Description: t("RESOURCE_REPOSITORY_CONTENT_TAG_DESCRIPTION", "Repository Content for specific tag"),
+			Icons:       octicons.Icons("tag"),
 		},
 		repositoryResourceContentsHandlerFunc(repositoryResourceTagContentURITemplate),
 	)
@@ -89,6 +94,7 @@ func GetRepositoryResourcePrContent(t translations.TranslationHelperFunc) invent
 			Name:        "repository_content_pr",
 			URITemplate: repositoryResourcePrContentURITemplate.Raw(),
 			Description: t("RESOURCE_REPOSITORY_CONTENT_PR_DESCRIPTION", "Repository Content for specific pull request"),
+			Icons:       octicons.Icons("git-pull-request"),
 		},
 		repositoryResourceContentsHandlerFunc(repositoryResourcePrContentURITemplate),
 	)

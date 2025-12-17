@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -26,6 +27,16 @@ type ToolsetMetadata struct {
 	Description string
 	// Default indicates this toolset should be enabled by default
 	Default bool
+	// Icon is the name of the Octicon to use for tools in this toolset.
+	// Use the base name without size suffix, e.g., "repo" not "repo-16".
+	// See https://primer.style/foundations/icons for available icons.
+	Icon string
+}
+
+// Icons returns MCP Icon objects for this toolset, or nil if no icon is set.
+// Icons are provided in both 16x16 and 24x24 sizes.
+func (tm ToolsetMetadata) Icons() []mcp.Icon {
+	return octicons.Icons(tm.Icon)
 }
 
 // ServerTool represents an MCP tool with metadata and a handler generator function.
@@ -81,10 +92,18 @@ func (st *ServerTool) Handler(deps any) mcp.ToolHandler {
 }
 
 // RegisterFunc registers the tool with the server using the provided dependencies.
+// Icons are automatically applied from the toolset metadata if not already set.
+// A shallow copy of the tool is made to avoid mutating the original ServerTool.
 // Panics if the tool has no handler - all tools should have handlers.
 func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any) {
 	handler := st.Handler(deps) // This will panic if HandlerFunc is nil
-	s.AddTool(&st.Tool, handler)
+	// Make a shallow copy of the tool to avoid mutating the original
+	toolCopy := st.Tool
+	// Apply icons from toolset metadata if tool doesn't have icons set
+	if len(toolCopy.Icons) == 0 {
+		toolCopy.Icons = st.Toolset.Icons()
+	}
+	s.AddTool(&toolCopy, handler)
 }
 
 // NewServerTool creates a ServerTool from a tool definition, toolset metadata, and a typed handler function.

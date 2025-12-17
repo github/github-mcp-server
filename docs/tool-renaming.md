@@ -40,3 +40,11 @@ A user with this configuration:
 ```
 
 Will get `issue_read` and `get_file_contents` tools registered, with no errors.
+
+## Current Deprecations
+
+<!-- START AUTOMATED ALIASES -->
+| Old Name | New Name |
+|----------|----------|
+| *(none currently)* | |
+<!-- END AUTOMATED ALIASES -->
