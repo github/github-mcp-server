@@ -216,14 +216,15 @@ func (idx *ToolIndex) GetToolByName(name string) (*ServerTool, int, bool) {
 
 // Materialize converts a QueryResult into actual tools, running dynamic checks as needed.
 // Only tools in NeedsDynamicCheck have their Enabled() function called.
-func (idx *ToolIndex) Materialize(ctx context.Context, qr QueryResult) []ServerTool {
+// Returns pointers to the cached tools - callers should NOT modify them.
+func (idx *ToolIndex) Materialize(ctx context.Context, qr QueryResult) []*ServerTool {
 	// Pre-allocate with capacity = guaranteed + potential dynamic
 	capacity := qr.Guaranteed.PopCount() + qr.NeedsDynamicCheck.PopCount()
-	result := make([]ServerTool, 0, capacity)
+	result := make([]*ServerTool, 0, capacity)
 
 	// Add all guaranteed tools (no dynamic check needed)
 	qr.Guaranteed.Iterate(func(pos int) bool {
-		result = append(result, idx.tools[pos])
+		result = append(result, &idx.tools[pos])
 		return true
 	})
 
@@ -236,7 +237,7 @@ func (idx *ToolIndex) Materialize(ctx context.Context, qr QueryResult) []ServerT
 				return true // skip this tool, continue iteration
 			}
 		}
-		result = append(result, *tool)
+		result = append(result, tool)
 		return true
 	})
 
