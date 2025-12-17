@@ -5,6 +5,31 @@ import "context"
 // ToolOverride allows replacing a tool's definition based on runtime conditions.
 // Use this for the small number of tools that have different schemas/handlers
 // depending on features, capabilities, or environment.
+//
+// Example usage:
+//
+//	// Define overrides for tools that have enterprise-specific variants
+//	overrides := ToolOverrides{
+//		"create_issue": {
+//			ToolName: "create_issue",
+//			Condition: func(ctx context.Context) (bool, error) {
+//				// Check if enterprise features are enabled for this request
+//				return isEnterpriseEnabled(ctx), nil
+//			},
+//			Override: ServerTool{
+//				Tool: mcp.Tool{
+//					Name:        "create_issue",
+//					Description: "Create an issue (Enterprise)",
+//					InputSchema: enterpriseCreateIssueSchema, // has extra fields
+//				},
+//				Handler: enterpriseCreateIssueHandler, // different handler
+//			},
+//		},
+//	}
+//
+//	// Apply overrides after building the base tool list
+//	tools := index.Materialize(ctx, queryResult)
+//	tools = overrides.ApplyToTools(ctx, tools)
 type ToolOverride struct {
 	// ToolName is the canonical tool name to override
 	ToolName string
