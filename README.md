@@ -1101,6 +1101,11 @@ The following sets of tools are available:
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
+- **get_milestone** - Get repository milestone.
+  - `milestone_number`: Milestone number to fetch (number, required)
+  - `owner`: Repository owner (username or organization name) (string, required)
+  - `repo`: Repository name (string, required)
+
 - **get_release_by_tag** - Get a release by tag name
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
@@ -1125,6 +1130,15 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
   - `sha`: Commit SHA, branch or tag name to list commits of. If not provided, uses the default branch of the repository. If a commit SHA is provided, will list commits up to that SHA. (string, optional)
 
+- **list_milestones** - List repository milestones.
+  - `direction`: Sort direction: asc or desc (string, optional)
+  - `owner`: Repository owner (username or organization name) (string, required)
+  - `page`: Page number (1-indexed) (number, optional)
+  - `per_page`: Results per page (max 100) (number, optional)
+  - `repo`: Repository name (string, required)
+  - `sort`: Sort field: due_on or completeness (string, optional)
+  - `state`: Filter by state: open, closed, or all (string, optional)
+
 - **list_releases** - List releases
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -1136,6 +1150,16 @@ The following sets of tools are available:
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
+
+- **milestone_write** - Write operations on repository milestones.
+  - `description`: Milestone description (string, optional)
+  - `due_on`: Due date in ISO-8601 date (YYYY-MM-DD) or RFC3339 timestamp (string, optional)
+  - `method`: Operation to perform: 'create', 'update', or 'delete' (string, required)
+  - `milestone_number`: Milestone number to update or delete (number, optional)
+  - `owner`: Repository owner (username or organization name) (string, required)
+  - `repo`: Repository name (string, required)
+  - `state`: Milestone state: 'open' or 'closed' (string, optional)
+  - `title`: Milestone title (required for create) (string, optional)
 
 - **push_files** - Push files to repository
   - `branch`: Branch to push to (string, required)
@@ -1150,6 +1174,14 @@ The following sets of tools are available:
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `query`: Search query using GitHub's powerful code search syntax. Examples: 'content:Skill language:Java org:github', 'NOT is:archived language:Python OR language:go', 'repo:github/github-mcp-server'. Supports exact matching, language filters, path filters, and more. (string, required)
   - `sort`: Sort field ('indexed' only) (string, optional)
+
+- **search_milestones** - Search repository milestones.
+  - `owner`: Repository owner (username or organization name) (string, required)
+  - `page`: Page number (1-indexed) (number, optional)
+  - `per_page`: Results per page (max 100) (number, optional)
+  - `query`: Text to search for in milestone title or description (string, required)
+  - `repo`: Repository name (string, required)
+  - `state`: Filter by state: open, closed, or all (default: open) (string, optional)
 
 - **search_repositories** - Search repositories
   - `minimal_output`: Return minimal repository information (default: true). When false, returns full GitHub API repository objects. (boolean, optional)

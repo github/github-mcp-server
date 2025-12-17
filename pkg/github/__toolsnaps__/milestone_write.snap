@@ -1,0 +1,58 @@
+{
+  "annotations": {
+    "title": "Write operations on repository milestones."
+  },
+  "description": "Create, update, or delete milestones in a repository.",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "method",
+      "owner",
+      "repo"
+    ],
+    "properties": {
+      "description": {
+        "type": "string",
+        "description": "Milestone description"
+      },
+      "due_on": {
+        "type": "string",
+        "description": "Due date in ISO-8601 date (YYYY-MM-DD) or RFC3339 timestamp"
+      },
+      "method": {
+        "type": "string",
+        "description": "Operation to perform: 'create', 'update', or 'delete'",
+        "enum": [
+          "create",
+          "update",
+          "delete"
+        ]
+      },
+      "milestone_number": {
+        "type": "number",
+        "description": "Milestone number to update or delete"
+      },
+      "owner": {
+        "type": "string",
+        "description": "Repository owner (username or organization name)"
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      },
+      "state": {
+        "type": "string",
+        "description": "Milestone state: 'open' or 'closed'",
+        "enum": [
+          "open",
+          "closed"
+        ]
+      },
+      "title": {
+        "type": "string",
+        "description": "Milestone title (required for create)"
+      }
+    }
+  },
+  "name": "milestone_write"
+}

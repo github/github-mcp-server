@@ -1,0 +1,58 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "List repository milestones."
+  },
+  "description": "List milestones for a repository.",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "properties": {
+      "direction": {
+        "type": "string",
+        "description": "Sort direction: asc or desc",
+        "enum": [
+          "asc",
+          "desc"
+        ]
+      },
+      "owner": {
+        "type": "string",
+        "description": "Repository owner (username or organization name)"
+      },
+      "page": {
+        "type": "number",
+        "description": "Page number (1-indexed)"
+      },
+      "per_page": {
+        "type": "number",
+        "description": "Results per page (max 100)"
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      },
+      "sort": {
+        "type": "string",
+        "description": "Sort field: due_on or completeness",
+        "enum": [
+          "due_on",
+          "completeness"
+        ]
+      },
+      "state": {
+        "type": "string",
+        "description": "Filter by state: open, closed, or all",
+        "enum": [
+          "open",
+          "closed",
+          "all"
+        ]
+      }
+    }
+  },
+  "name": "list_milestones"
+}
