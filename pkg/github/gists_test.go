@@ -128,9 +128,9 @@ func Test_ListGists(t *testing.T) {
 			name: "list gists fails with error",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetGists: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusUnauthorized)
-						_, _ = w.Write([]byte(`{"message": "Requires authentication"}`))
-					}),
+					w.WriteHeader(http.StatusUnauthorized)
+					_, _ = w.Write([]byte(`{"message": "Requires authentication"}`))
+				}),
 			}),
 			requestArgs:    map[string]interface{}{},
 			expectError:    true,
@@ -239,9 +239,9 @@ func Test_GetGist(t *testing.T) {
 			name: "gist_id parameter missing",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetGistsByGistID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusUnprocessableEntity)
-						_, _ = w.Write([]byte(`{"message": "Invalid Request"}`))
-					}),
+					w.WriteHeader(http.StatusUnprocessableEntity)
+					_, _ = w.Write([]byte(`{"message": "Invalid Request"}`))
+				}),
 			}),
 			requestArgs:    map[string]interface{}{},
 			expectError:    true,
@@ -375,9 +375,9 @@ func Test_CreateGist(t *testing.T) {
 			name: "api returns error",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PostGists: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusUnauthorized)
-						_, _ = w.Write([]byte(`{"message": "Requires authentication"}`))
-					}),
+					w.WriteHeader(http.StatusUnauthorized)
+					_, _ = w.Write([]byte(`{"message": "Requires authentication"}`))
+				}),
 			}),
 			requestArgs: map[string]interface{}{
 				"filename":    "test.go",
@@ -527,9 +527,9 @@ func Test_UpdateGist(t *testing.T) {
 			name: "api returns error",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				PatchGistsByGistID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
-					}),
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				}),
 			}),
 			requestArgs: map[string]interface{}{
 				"gist_id":     "nonexistent-gist-id",

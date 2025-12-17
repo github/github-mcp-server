@@ -4,6 +4,14 @@
 
 **Completed: 8/14 files (57%)**
 
+**Next Priority Files:**
+1. notifications_test.go (801 lines) - **Easiest** - only 4 simple WithRequestMatch patterns
+2. search_test.go (776 lines) - 16 WithRequestMatchHandler (all with expectQueryParams)
+3. projects_test.go (1,711 lines) - 31 WithRequestMatchHandler  
+4. pullrequests_test.go (3,355 lines) - Mixed patterns
+5. repositories_test.go (3,532 lines) - Mixed patterns
+6. issues_test.go (3,755 lines) - **Largest** - mixed patterns
+
 ### ✅ Migrated Files
 1. pkg/raw/raw_test.go 
 2. pkg/github/actions_test.go (1,428 lines)
@@ -109,6 +117,40 @@ Replace old mock constants with new ones (note ID vs Id):
 - `mock.PatchGistsByGistId` → `PatchGistsByGistID`
 
 All endpoint constants are defined in `pkg/github/helper_test.go`.
+
+## Special Cases
+
+### Case 1: With expectQueryParams and andThen
+
+When the handler uses `expectQueryParams(...).andThen(...)`, the structure must be carefully closed:
+
+```go
+// CORRECT:
+MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+    GetSearchRepositories: expectQueryParams(t, map[string]string{
+        "q": "test",
+    }).andThen(
+        mockResponse(t, http.StatusOK, data),
+    ),  // <- Close andThen with ),
+}),  // <- Close map with }),
+
+// INCORRECT (missing map close):
+MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+    GetSearchRepositories: expectQueryParams(t, map[string]string{
+        "q": "test",
+    }).andThen(
+        mockResponse(t, http.StatusOK, data),
+    ),  // <- Only closes andThen, missing }),
+```
+
+### Case 2: Multiple Endpoints in One Mock
+
+```go
+MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+    GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+    GetRawReposContentsByOwnerByRepoBySHAByPath: mockResponse(t, http.StatusOK, mockContent),
+}),
+```
 
 ## Common Issues and Solutions
 
