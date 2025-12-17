@@ -1,5 +1,11 @@
 package github
 
+// NOTE: Tests in this file intentionally do NOT use t.Parallel().
+// They mutate the global inventory cache state via ResetInventoryCache,
+// InitInventoryCache, and CachedInventoryBuilder. Running them in parallel
+// would cause test flakiness and data races. Keep these tests serial even
+// though most other tests in this package use t.Parallel().
+
 import (
 	"context"
 	"testing"

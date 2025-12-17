@@ -8,7 +8,7 @@ import (
 )
 
 // CachedInventory provides a cached inventory builder that builds tool definitions
-// only once, regardless of how many times NewInventoryBuilder is called.
+// only once, regardless of how many times CachedInventoryBuilder is called.
 //
 // This is particularly useful for stateless server patterns (like the remote server)
 // where a new server instance is created per request. Without caching, every request
@@ -33,10 +33,11 @@ import (
 // Per-request configuration (read-only, toolsets, feature flags, filters) is still
 // applied when building the Inventory from the cached data.
 type CachedInventory struct {
-	once      sync.Once
-	tools     []inventory.ServerTool
-	resources []inventory.ServerResourceTemplate
-	prompts   []inventory.ServerPrompt
+	once        sync.Once
+	initialized bool // set to true after init completes
+	tools       []inventory.ServerTool
+	resources   []inventory.ServerResourceTemplate
+	prompts     []inventory.ServerPrompt
 }
 
 // global singleton for caching
@@ -111,14 +112,17 @@ func (c *CachedInventory) init(
 		if len(extraPrompts) > 0 {
 			c.prompts = append(c.prompts, extraPrompts...)
 		}
+
+		c.initialized = true
 	})
 }
 
 // CachedInventoryBuilder returns an inventory.Builder pre-populated with cached
 // tool/resource/prompt definitions.
 //
-// The cache must be initialized via InitInventoryCache before calling this function.
-// If the cache is not initialized, this will initialize it with NullTranslationHelper.
+// The cache should typically be initialized via InitInventoryCache at startup.
+// If not already initialized when this function is called, it will automatically
+// initialize with NullTranslationHelper as a fallback.
 //
 // Per-request configuration can still be applied via the builder methods:
 //   - WithReadOnly(bool) - filter to read-only tools
@@ -147,14 +151,15 @@ func CachedInventoryBuilder() *inventory.Builder {
 // IsCacheInitialized returns true if the inventory cache has been initialized.
 // This is primarily useful for testing.
 func IsCacheInitialized() bool {
-	// We can't directly check sync.Once state, but we can check if tools are populated
-	return len(globalInventoryCache.tools) > 0
+	return globalInventoryCache.initialized
 }
 
 // ResetInventoryCache resets the global inventory cache, allowing it to be
-// reinitialized with a different translator. This should only be used in tests.
+// reinitialized with a different translator.
 //
-// WARNING: This is not thread-safe and should never be called in production code.
+// WARNING: This function is for testing only. It is NOT thread-safe and must only
+// be called when no other goroutines are accessing the cache. Tests using this
+// function must not use t.Parallel().
 func ResetInventoryCache() {
 	globalInventoryCache = &CachedInventory{}
 }
