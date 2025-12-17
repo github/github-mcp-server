@@ -163,6 +163,15 @@ func NewGitHubGraphQLErrorResponse(ctx context.Context, message string, err erro
 	return utils.NewToolResultErrorFromErr(message, err)
 }
 
+// NewGitHubRawAPIErrorResponse returns an mcp.NewToolResultError and retains the error in the context for access via middleware
+func NewGitHubRawAPIErrorResponse(ctx context.Context, message string, resp *http.Response, err error) *mcp.CallToolResult {
+	rawErr := newGitHubRawAPIError(message, resp, err)
+	if ctx != nil {
+		_, _ = addRawAPIErrorToContext(ctx, rawErr) // Explicitly ignore error for graceful handling
+	}
+	return utils.NewToolResultErrorFromErr(message, err)
+}
+
 // NewGitHubAPIStatusErrorResponse handles cases where the API call succeeds (err == nil)
 // but returns an unexpected HTTP status code. It creates a synthetic error from the
 // status code and response body, then records it in context for observability tracking.
