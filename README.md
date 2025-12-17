@@ -453,26 +453,26 @@ GITHUB_TOOLSETS="default,stargazers" ./github-mcp-server
 The following sets of tools are available:
 
 <!-- START AUTOMATED TOOLSETS -->
-| Toolset                 | Description                                                   |
-| ----------------------- | ------------------------------------------------------------- |
-| `context`               | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |
-| `actions` | GitHub Actions workflows and CI/CD operations |
-| `code_security` | Code security related tools, such as GitHub Code Scanning |
-| `dependabot` | Dependabot tools |
-| `discussions` | GitHub Discussions related tools |
-| `gists` | GitHub Gist related tools |
-| `git` | GitHub Git API related tools for low-level Git operations |
-| `issues` | GitHub Issues related tools |
-| `labels` | GitHub Labels related tools |
-| `notifications` | GitHub Notifications related tools |
-| `orgs` | GitHub Organization related tools |
-| `projects` | GitHub Projects related tools |
-| `pull_requests` | GitHub Pull Request related tools |
-| `repos` | GitHub Repository related tools |
-| `secret_protection` | Secret protection related tools, such as GitHub Secret Scanning |
-| `security_advisories` | Security advisories related tools |
-| `stargazers` | GitHub Stargazers related tools |
-| `users` | GitHub User related tools |
+|     | Toolset                 | Description                                                   |
+| --- | ----------------------- | ------------------------------------------------------------- |
+| <img src="https://unpkg.com/@primer/octicons@latest/build/svg/person-16.svg" width="16" height="16" alt="person"> | `context`               | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |
+| <img src="https://unpkg.com/@primer/octicons@latest/build/svg/workflow-16.svg" width="16" height="16" alt="workflow"> | `actions` | GitHub Actions workflows and CI/CD operations |
+| <img src="https://unpkg.com/@primer/octicons@latest/build/svg/codescan-16.svg" width="16" height="16" alt="codescan"> | `code_security` | Code security related tools, such as GitHub Code Scanning |
+| <img src="https://unpkg.com/@primer/octicons@latest/build/svg/dependabot-16.svg" width="16" height="16" alt="dependabot"> | `dependabot` | Dependabot tools |
+| <img src="https://unpkg.com/@primer/octicons@latest/build/svg/comment-discussion-16.svg" width="16" height="16" alt="comment-discussion"> | `discussions` | GitHub Discussions related tools |
+| <img src="https://unpkg.com/@primer/octicons@latest/build/svg/logo-gist-16.svg" width="16" height="16" alt="logo-gist"> | `gists` | GitHub Gist related tools |
+| <img src="https://unpkg.com/@primer/octicons@latest/build/svg/git-branch-16.svg" width="16" height="16" alt="git-branch"> | `git` | GitHub Git API related tools for low-level Git operations |
+| <img src="https://unpkg.com/@primer/octicons@latest/build/svg/issue-opened-16.svg" width="16" height="16" alt="issue-opened"> | `issues` | GitHub Issues related tools |
+| <img src="https://unpkg.com/@primer/octicons@latest/build/svg/tag-16.svg" width="16" height="16" alt="tag"> | `labels` | GitHub Labels related tools |
+| <img src="https://unpkg.com/@primer/octicons@latest/build/svg/bell-16.svg" width="16" height="16" alt="bell"> | `notifications` | GitHub Notifications related tools |
+| <img src="https://unpkg.com/@primer/octicons@latest/build/svg/organization-16.svg" width="16" height="16" alt="organization"> | `orgs` | GitHub Organization related tools |
+| <img src="https://unpkg.com/@primer/octicons@latest/build/svg/project-16.svg" width="16" height="16" alt="project"> | `projects` | GitHub Projects related tools |
+| <img src="https://unpkg.com/@primer/octicons@latest/build/svg/git-pull-request-16.svg" width="16" height="16" alt="git-pull-request"> | `pull_requests` | GitHub Pull Request related tools |
+| <img src="https://unpkg.com/@primer/octicons@latest/build/svg/repo-16.svg" width="16" height="16" alt="repo"> | `repos` | GitHub Repository related tools |
+| <img src="https://unpkg.com/@primer/octicons@latest/build/svg/shield-lock-16.svg" width="16" height="16" alt="shield-lock"> | `secret_protection` | Secret protection related tools, such as GitHub Secret Scanning |
+| <img src="https://unpkg.com/@primer/octicons@latest/build/svg/shield-16.svg" width="16" height="16" alt="shield"> | `security_advisories` | Security advisories related tools |
+| <img src="https://unpkg.com/@primer/octicons@latest/build/svg/star-16.svg" width="16" height="16" alt="star"> | `stargazers` | GitHub Stargazers related tools |
+| <img src="https://unpkg.com/@primer/octicons@latest/build/svg/people-16.svg" width="16" height="16" alt="people"> | `users` | GitHub User related tools |
 <!-- END AUTOMATED TOOLSETS -->
 
 ### Additional Toolsets in Remote GitHub MCP Server
@@ -488,7 +488,7 @@ The following sets of tools are available:
 <!-- START AUTOMATED TOOLS -->
 <details>
 
-<summary>Actions</summary>
+<summary><img src="https://unpkg.com/@primer/octicons@latest/build/svg/workflow-16.svg" width="16" height="16" alt="workflow"> Actions</summary>
 
 - **cancel_workflow_run** - Cancel workflow run
   - `owner`: Repository owner (string, required)
@@ -582,7 +582,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Code Security</summary>
+<summary><img src="https://unpkg.com/@primer/octicons@latest/build/svg/codescan-16.svg" width="16" height="16" alt="codescan"> Code Security</summary>
 
 - **get_code_scanning_alert** - Get code scanning alert
   - `alertNumber`: The number of the alert. (number, required)
@@ -601,7 +601,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Context</summary>
+<summary><img src="https://unpkg.com/@primer/octicons@latest/build/svg/person-16.svg" width="16" height="16" alt="person"> Context</summary>
 
 - **get_me** - Get my user profile
   - No parameters required
@@ -617,7 +617,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Dependabot</summary>
+<summary><img src="https://unpkg.com/@primer/octicons@latest/build/svg/dependabot-16.svg" width="16" height="16" alt="dependabot"> Dependabot</summary>
 
 - **get_dependabot_alert** - Get dependabot alert
   - `alertNumber`: The number of the alert. (number, required)
@@ -634,7 +634,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Discussions</summary>
+<summary><img src="https://unpkg.com/@primer/octicons@latest/build/svg/comment-discussion-16.svg" width="16" height="16" alt="comment-discussion"> Discussions</summary>
 
 - **get_discussion** - Get discussion
   - `discussionNumber`: Discussion Number (number, required)
@@ -665,7 +665,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Gists</summary>
+<summary><img src="https://unpkg.com/@primer/octicons@latest/build/svg/logo-gist-16.svg" width="16" height="16" alt="logo-gist"> Gists</summary>
 
 - **create_gist** - Create Gist
   - `content`: Content for simple single-file gist creation (string, required)
@@ -692,7 +692,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Git</summary>
+<summary><img src="https://unpkg.com/@primer/octicons@latest/build/svg/git-branch-16.svg" width="16" height="16" alt="git-branch"> Git</summary>
 
 - **get_repository_tree** - Get repository tree
   - `owner`: Repository owner (username or organization) (string, required)
@@ -705,7 +705,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Issues</summary>
+<summary><img src="https://unpkg.com/@primer/octicons@latest/build/svg/issue-opened-16.svg" width="16" height="16" alt="issue-opened"> Issues</summary>
 
 - **add_issue_comment** - Add comment to issue
   - `body`: Comment content (string, required)
@@ -798,7 +798,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Labels</summary>
+<summary><img src="https://unpkg.com/@primer/octicons@latest/build/svg/tag-16.svg" width="16" height="16" alt="tag"> Labels</summary>
 
 - **get_label** - Get a specific label from a repository.
   - `name`: Label name. (string, required)
@@ -822,7 +822,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Notifications</summary>
+<summary><img src="https://unpkg.com/@primer/octicons@latest/build/svg/bell-16.svg" width="16" height="16" alt="bell"> Notifications</summary>
 
 - **dismiss_notification** - Dismiss notification
   - `state`: The new state of the notification (read/done) (string, required)
@@ -858,7 +858,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Organizations</summary>
+<summary><img src="https://unpkg.com/@primer/octicons@latest/build/svg/organization-16.svg" width="16" height="16" alt="organization"> Organizations</summary>
 
 - **search_orgs** - Search organizations
   - `order`: Sort order (string, optional)
@@ -871,7 +871,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Projects</summary>
+<summary><img src="https://unpkg.com/@primer/octicons@latest/build/svg/project-16.svg" width="16" height="16" alt="project"> Projects</summary>
 
 - **add_project_item** - Add project item
   - `item_id`: The numeric ID of the issue or pull request to add to the project. (number, required)
@@ -941,7 +941,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Pull Requests</summary>
+<summary><img src="https://unpkg.com/@primer/octicons@latest/build/svg/git-pull-request-16.svg" width="16" height="16" alt="git-pull-request"> Pull Requests</summary>
 
 - **add_comment_to_pending_review** - Add review comment to the requester's latest pending pull request review
   - `body`: The text of the review comment (string, required)
@@ -1046,7 +1046,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Repositories</summary>
+<summary><img src="https://unpkg.com/@primer/octicons@latest/build/svg/repo-16.svg" width="16" height="16" alt="repo"> Repositories</summary>
 
 - **create_branch** - Create branch
   - `branch`: Name for new branch (string, required)
@@ -1163,7 +1163,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Secret Protection</summary>
+<summary><img src="https://unpkg.com/@primer/octicons@latest/build/svg/shield-lock-16.svg" width="16" height="16" alt="shield-lock"> Secret Protection</summary>
 
 - **get_secret_scanning_alert** - Get secret scanning alert
   - `alertNumber`: The number of the alert. (number, required)
@@ -1181,7 +1181,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Security Advisories</summary>
+<summary><img src="https://unpkg.com/@primer/octicons@latest/build/svg/shield-16.svg" width="16" height="16" alt="shield"> Security Advisories</summary>
 
 - **get_global_security_advisory** - Get a global security advisory
   - `ghsaId`: GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx). (string, required)
@@ -1216,7 +1216,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Stargazers</summary>
+<summary><img src="https://unpkg.com/@primer/octicons@latest/build/svg/star-16.svg" width="16" height="16" alt="star"> Stargazers</summary>
 
 - **list_starred_repositories** - List starred repositories
   - `direction`: The direction to sort the results by. (string, optional)
@@ -1237,7 +1237,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Users</summary>
+<summary><img src="https://unpkg.com/@primer/octicons@latest/build/svg/people-16.svg" width="16" height="16" alt="people"> Users</summary>
 
 - **search_users** - Search users
   - `order`: Sort order (string, optional)

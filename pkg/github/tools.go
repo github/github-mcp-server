@@ -15,99 +15,122 @@ type GetGQLClientFn func(context.Context) (*githubv4.Client, error)
 
 // Toolset metadata constants - these define all available toolsets and their descriptions.
 // Tools use these constants to declare which toolset they belong to.
+// Icons are Octicon names from https://primer.style/foundations/icons
 var (
 	ToolsetMetadataAll = inventory.ToolsetMetadata{
 		ID:          "all",
 		Description: "Special toolset that enables all available toolsets",
+		Icon:        "apps",
 	}
 	ToolsetMetadataDefault = inventory.ToolsetMetadata{
 		ID:          "default",
 		Description: "Special toolset that enables the default toolset configuration. When no toolsets are specified, this is the set that is enabled",
+		Icon:        "check-circle",
 	}
 	ToolsetMetadataContext = inventory.ToolsetMetadata{
 		ID:          "context",
 		Description: "Tools that provide context about the current user and GitHub context you are operating in",
 		Default:     true,
+		Icon:        "person",
 	}
 	ToolsetMetadataRepos = inventory.ToolsetMetadata{
 		ID:          "repos",
 		Description: "GitHub Repository related tools",
 		Default:     true,
+		Icon:        "repo",
 	}
 	ToolsetMetadataGit = inventory.ToolsetMetadata{
 		ID:          "git",
 		Description: "GitHub Git API related tools for low-level Git operations",
+		Icon:        "git-branch",
 	}
 	ToolsetMetadataIssues = inventory.ToolsetMetadata{
 		ID:          "issues",
 		Description: "GitHub Issues related tools",
 		Default:     true,
+		Icon:        "issue-opened",
 	}
 	ToolsetMetadataPullRequests = inventory.ToolsetMetadata{
 		ID:          "pull_requests",
 		Description: "GitHub Pull Request related tools",
 		Default:     true,
+		Icon:        "git-pull-request",
 	}
 	ToolsetMetadataUsers = inventory.ToolsetMetadata{
 		ID:          "users",
 		Description: "GitHub User related tools",
 		Default:     true,
+		Icon:        "people",
 	}
 	ToolsetMetadataOrgs = inventory.ToolsetMetadata{
 		ID:          "orgs",
 		Description: "GitHub Organization related tools",
+		Icon:        "organization",
 	}
 	ToolsetMetadataActions = inventory.ToolsetMetadata{
 		ID:          "actions",
 		Description: "GitHub Actions workflows and CI/CD operations",
+		Icon:        "workflow",
 	}
 	ToolsetMetadataCodeSecurity = inventory.ToolsetMetadata{
 		ID:          "code_security",
 		Description: "Code security related tools, such as GitHub Code Scanning",
+		Icon:        "codescan",
 	}
 	ToolsetMetadataSecretProtection = inventory.ToolsetMetadata{
 		ID:          "secret_protection",
 		Description: "Secret protection related tools, such as GitHub Secret Scanning",
+		Icon:        "shield-lock",
 	}
 	ToolsetMetadataDependabot = inventory.ToolsetMetadata{
 		ID:          "dependabot",
 		Description: "Dependabot tools",
+		Icon:        "dependabot",
 	}
 	ToolsetMetadataNotifications = inventory.ToolsetMetadata{
 		ID:          "notifications",
 		Description: "GitHub Notifications related tools",
+		Icon:        "bell",
 	}
 	ToolsetMetadataExperiments = inventory.ToolsetMetadata{
 		ID:          "experiments",
 		Description: "Experimental features that are not considered stable yet",
+		Icon:        "beaker",
 	}
 	ToolsetMetadataDiscussions = inventory.ToolsetMetadata{
 		ID:          "discussions",
 		Description: "GitHub Discussions related tools",
+		Icon:        "comment-discussion",
 	}
 	ToolsetMetadataGists = inventory.ToolsetMetadata{
 		ID:          "gists",
 		Description: "GitHub Gist related tools",
+		Icon:        "logo-gist",
 	}
 	ToolsetMetadataSecurityAdvisories = inventory.ToolsetMetadata{
 		ID:          "security_advisories",
 		Description: "Security advisories related tools",
+		Icon:        "shield",
 	}
 	ToolsetMetadataProjects = inventory.ToolsetMetadata{
 		ID:          "projects",
 		Description: "GitHub Projects related tools",
+		Icon:        "project",
 	}
 	ToolsetMetadataStargazers = inventory.ToolsetMetadata{
 		ID:          "stargazers",
 		Description: "GitHub Stargazers related tools",
+		Icon:        "star",
 	}
 	ToolsetMetadataDynamic = inventory.ToolsetMetadata{
 		ID:          "dynamic",
 		Description: "Discover GitHub MCP tools that can help achieve tasks by enabling additional sets of tools, you can control the enablement of any toolset to access its tools when this toolset is enabled.",
+		Icon:        "tools",
 	}
 	ToolsetLabels = inventory.ToolsetMetadata{
 		ID:          "labels",
 		Description: "GitHub Labels related tools",
+		Icon:        "tag",
 	}
 )
 

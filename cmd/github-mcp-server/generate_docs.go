@@ -104,20 +104,33 @@ func generateRemoteServerDocs(docsPath string) error {
 	return os.WriteFile(docsPath, []byte(updatedContent), 0600) //#nosec G306
 }
 
+// octiconImg returns an img tag for an Octicon that works with GitHub's light/dark theme.
+// Uses the official Primer Octicons CDN.
+func octiconImg(name string) string {
+	if name == "" {
+		return ""
+	}
+	// Use GitHub's Octicon CDN with 16px size
+	return fmt.Sprintf(`<img src="https://unpkg.com/@primer/octicons@latest/build/svg/%s-16.svg" width="16" height="16" alt="%s">`, name, name)
+}
+
 func generateToolsetsDoc(i *inventory.Inventory) string {
 	var buf strings.Builder
 
-	// Add table header and separator
-	buf.WriteString("| Toolset                 | Description                                                   |\n")
-	buf.WriteString("| ----------------------- | ------------------------------------------------------------- |\n")
+	// Add table header and separator (with icon column)
+	buf.WriteString("|     | Toolset                 | Description                                                   |\n")
+	buf.WriteString("| --- | ----------------------- | ------------------------------------------------------------- |\n")
 
 	// Add the context toolset row with custom description (strongly recommended)
-	buf.WriteString("| `context`               | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |\n")
+	// Get context toolset for its icon
+	contextIcon := octiconImg("person")
+	fmt.Fprintf(&buf, "| %s | `context`               | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |\n", contextIcon)
 
 	// AvailableToolsets() returns toolsets that have tools, sorted by ID
 	// Exclude context (custom description above) and dynamic (internal only)
 	for _, ts := range i.AvailableToolsets("context", "dynamic") {
-		fmt.Fprintf(&buf, "| `%s` | %s |\n", ts.ID, ts.Description)
+		icon := octiconImg(ts.Icon)
+		fmt.Fprintf(&buf, "| %s | `%s` | %s |\n", icon, ts.ID, ts.Description)
 	}
 
 	return strings.TrimSuffix(buf.String(), "\n")
@@ -134,6 +147,7 @@ func generateToolsDoc(r *inventory.Inventory) string {
 	var buf strings.Builder
 	var toolBuf strings.Builder
 	var currentToolsetID inventory.ToolsetID
+	var currentToolsetIcon string
 	firstSection := true
 
 	writeSection := func() {
@@ -145,7 +159,11 @@ func generateToolsDoc(r *inventory.Inventory) string {
 		}
 		firstSection = false
 		sectionName := formatToolsetName(string(currentToolsetID))
-		fmt.Fprintf(&buf, "<details>\n\n<summary>%s</summary>\n\n%s\n\n</details>", sectionName, strings.TrimSuffix(toolBuf.String(), "\n\n"))
+		icon := octiconImg(currentToolsetIcon)
+		if icon != "" {
+			icon += " "
+		}
+		fmt.Fprintf(&buf, "<details>\n\n<summary>%s%s</summary>\n\n%s\n\n</details>", icon, sectionName, strings.TrimSuffix(toolBuf.String(), "\n\n"))
 		toolBuf.Reset()
 	}
 
@@ -154,6 +172,7 @@ func generateToolsDoc(r *inventory.Inventory) string {
 		if tool.Toolset.ID != currentToolsetID {
 			writeSection()
 			currentToolsetID = tool.Toolset.ID
+			currentToolsetIcon = tool.Toolset.Icon
 		}
 		writeToolDoc(&toolBuf, tool.Tool)
 		toolBuf.WriteString("\n\n")
