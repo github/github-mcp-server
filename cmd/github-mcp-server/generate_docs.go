@@ -36,7 +36,7 @@ func generateAllDocs() error {
 		// File to edit, function to generate its docs
 		{"README.md", generateReadmeDocs},
 		{"docs/remote-server.md", generateRemoteServerDocs},
-		{"docs/deprecated-tool-aliases.md", generateDeprecatedAliasesDocs},
+		{"docs/tool-renaming.md", generateDeprecatedAliasesDocs},
 	} {
 		if err := doc.fn(doc.path); err != nil {
 			return fmt.Errorf("failed to generate docs for %s: %w", doc.path, err)
