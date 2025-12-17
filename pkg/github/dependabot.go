@@ -80,7 +80,7 @@ func GetDependabotAlert(t translations.TranslationHelperFunc) inventory.ServerTo
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, err
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to get alert: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get alert", resp, body), nil, nil
 				}
 
 				r, err := json.Marshal(alert)
@@ -172,7 +172,7 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 					if err != nil {
 						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, err
 					}
-					return utils.NewToolResultError(fmt.Sprintf("failed to list alerts: %s", string(body))), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list alerts", resp, body), nil, nil
 				}
 
 				r, err := json.Marshal(alerts)
