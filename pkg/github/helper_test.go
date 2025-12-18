@@ -18,15 +18,122 @@ import (
 // GitHub API endpoint patterns for testing
 // These constants define the URL patterns used in HTTP mocking for tests
 const (
+	// User endpoints
+	GetUser                        = "GET /user"
+	GetUserStarred                 = "GET /user/starred"
+	GetUsersGistsByUsername        = "GET /users/{username}/gists"
+	GetUsersStarredByUsername      = "GET /users/{username}/starred"
+	PutUserStarredByOwnerByRepo    = "PUT /user/starred/{owner}/{repo}"
+	DeleteUserStarredByOwnerByRepo = "DELETE /user/starred/{owner}/{repo}"
+
 	// Repository endpoints
-	GetReposByOwnerByRepo = "GET /repos/{owner}/{repo}"
+	GetReposByOwnerByRepo                = "GET /repos/{owner}/{repo}"
+	GetReposBranchesByOwnerByRepo        = "GET /repos/{owner}/{repo}/branches"
+	GetReposTagsByOwnerByRepo            = "GET /repos/{owner}/{repo}/tags"
+	GetReposCommitsByOwnerByRepo         = "GET /repos/{owner}/{repo}/commits"
+	GetReposCommitsByOwnerByRepoByRef    = "GET /repos/{owner}/{repo}/commits/{ref}"
+	GetReposContentsByOwnerByRepoByPath  = "GET /repos/{owner}/{repo}/contents/{path}"
+	PutReposContentsByOwnerByRepoByPath  = "PUT /repos/{owner}/{repo}/contents/{path}"
+	PostReposForksByOwnerByRepo          = "POST /repos/{owner}/{repo}/forks"
+	GetReposSubscriptionByOwnerByRepo    = "GET /repos/{owner}/{repo}/subscription"
+	PutReposSubscriptionByOwnerByRepo    = "PUT /repos/{owner}/{repo}/subscription"
+	DeleteReposSubscriptionByOwnerByRepo = "DELETE /repos/{owner}/{repo}/subscription"
 
 	// Git endpoints
-	GetReposGitTreesByOwnerByRepoByTree = "GET /repos/{owner}/{repo}/git/trees/{tree}"
+	GetReposGitTreesByOwnerByRepoByTree         = "GET /repos/{owner}/{repo}/git/trees/{tree}"
+	GetReposGitRefByOwnerByRepoByRef            = "GET /repos/{owner}/{repo}/git/ref/{ref}"
+	PostReposGitRefsByOwnerByRepo               = "POST /repos/{owner}/{repo}/git/refs"
+	PatchReposGitRefsByOwnerByRepoByRef         = "PATCH /repos/{owner}/{repo}/git/refs/{ref}"
+	GetReposGitCommitsByOwnerByRepoByCommitSHA  = "GET /repos/{owner}/{repo}/git/commits/{commit_sha}"
+	PostReposGitCommitsByOwnerByRepo            = "POST /repos/{owner}/{repo}/git/commits"
+	GetReposGitTagsByOwnerByRepoByTagSHA        = "GET /repos/{owner}/{repo}/git/tags/{tag_sha}"
+	PostReposGitTreesByOwnerByRepo              = "POST /repos/{owner}/{repo}/git/trees"
+	GetReposCommitsStatusByOwnerByRepoByRef    = "GET /repos/{owner}/{repo}/commits/{ref}/status"
+	GetReposCommitsStatusesByOwnerByRepoByRef  = "GET /repos/{owner}/{repo}/commits/{ref}/statuses"
+
+	// Issues endpoints
+	GetReposIssuesByOwnerByRepoByIssueNumber                    = "GET /repos/{owner}/{repo}/issues/{issue_number}"
+	GetReposIssuesCommentsByOwnerByRepoByIssueNumber            = "GET /repos/{owner}/{repo}/issues/{issue_number}/comments"
+	PostReposIssuesByOwnerByRepo                                = "POST /repos/{owner}/{repo}/issues"
+	PostReposIssuesCommentsByOwnerByRepoByIssueNumber           = "POST /repos/{owner}/{repo}/issues/{issue_number}/comments"
+	PatchReposIssuesByOwnerByRepoByIssueNumber                  = "PATCH /repos/{owner}/{repo}/issues/{issue_number}"
+	GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber           = "GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues"
+	PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber          = "POST /repos/{owner}/{repo}/issues/{issue_number}/sub_issues"
+	DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber         = "DELETE /repos/{owner}/{repo}/issues/{issue_number}/sub_issues"
+	PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber = "PATCH /repos/{owner}/{repo}/issues/{issue_number}/sub_issues/priority"
+
+	// Pull request endpoints
+	GetReposPullsByOwnerByRepo                                = "GET /repos/{owner}/{repo}/pulls"
+	GetReposPullsByOwnerByRepoByPullNumber                    = "GET /repos/{owner}/{repo}/pulls/{pull_number}"
+	GetReposPullsFilesByOwnerByRepoByPullNumber               = "GET /repos/{owner}/{repo}/pulls/{pull_number}/files"
+	GetReposPullsReviewsByOwnerByRepoByPullNumber             = "GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews"
+	PostReposPullsByOwnerByRepo                               = "POST /repos/{owner}/{repo}/pulls"
+	PatchReposPullsByOwnerByRepoByPullNumber                  = "PATCH /repos/{owner}/{repo}/pulls/{pull_number}"
+	PutReposPullsMergeByOwnerByRepoByPullNumber               = "PUT /repos/{owner}/{repo}/pulls/{pull_number}/merge"
+	PutReposPullsUpdateBranchByOwnerByRepoByPullNumber        = "PUT /repos/{owner}/{repo}/pulls/{pull_number}/update-branch"
+	PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber = "POST /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers"
+
+	// Notifications endpoints
+	GetNotifications                                 = "GET /notifications"
+	PutNotifications                                 = "PUT /notifications"
+	GetReposNotificationsByOwnerByRepo               = "GET /repos/{owner}/{repo}/notifications"
+	PutReposNotificationsByOwnerByRepo               = "PUT /repos/{owner}/{repo}/notifications"
+	GetNotificationsThreadsByThreadID                = "GET /notifications/threads/{thread_id}"
+	PatchNotificationsThreadsByThreadID              = "PATCH /notifications/threads/{thread_id}"
+	DeleteNotificationsThreadsByThreadID             = "DELETE /notifications/threads/{thread_id}"
+	PutNotificationsThreadsSubscriptionByThreadID    = "PUT /notifications/threads/{thread_id}/subscription"
+	DeleteNotificationsThreadsSubscriptionByThreadID = "DELETE /notifications/threads/{thread_id}/subscription"
+
+	// Gists endpoints
+	GetGists           = "GET /gists"
+	GetGistsByGistID   = "GET /gists/{gist_id}"
+	PostGists          = "POST /gists"
+	PatchGistsByGistID = "PATCH /gists/{gist_id}"
+
+	// Releases endpoints
+	GetReposReleasesByOwnerByRepo          = "GET /repos/{owner}/{repo}/releases"
+	GetReposReleasesLatestByOwnerByRepo    = "GET /repos/{owner}/{repo}/releases/latest"
+	GetReposReleasesTagsByOwnerByRepoByTag = "GET /repos/{owner}/{repo}/releases/tags/{tag}"
 
 	// Code scanning endpoints
 	GetReposCodeScanningAlertsByOwnerByRepo              = "GET /repos/{owner}/{repo}/code-scanning/alerts"
 	GetReposCodeScanningAlertsByOwnerByRepoByAlertNumber = "GET /repos/{owner}/{repo}/code-scanning/alerts/{alert_number}"
+
+	// Secret scanning endpoints
+	GetReposSecretScanningAlertsByOwnerByRepo              = "GET /repos/{owner}/{repo}/secret-scanning/alerts"                //nolint:gosec // False positive - this is an API endpoint pattern, not a credential
+	GetReposSecretScanningAlertsByOwnerByRepoByAlertNumber = "GET /repos/{owner}/{repo}/secret-scanning/alerts/{alert_number}" //nolint:gosec // False positive - this is an API endpoint pattern, not a credential
+
+	// Dependabot endpoints
+	GetReposDependabotAlertsByOwnerByRepo              = "GET /repos/{owner}/{repo}/dependabot/alerts"
+	GetReposDependabotAlertsByOwnerByRepoByAlertNumber = "GET /repos/{owner}/{repo}/dependabot/alerts/{alert_number}"
+
+	// Security advisories endpoints
+	GetAdvisories                           = "GET /advisories"
+	GetAdvisoriesByGhsaID                   = "GET /advisories/{ghsa_id}"
+	GetReposSecurityAdvisoriesByOwnerByRepo = "GET /repos/{owner}/{repo}/security-advisories"
+	GetOrgsSecurityAdvisoriesByOrg          = "GET /orgs/{org}/security-advisories"
+
+	// Actions endpoints
+	GetReposActionsWorkflowsByOwnerByRepo                        = "GET /repos/{owner}/{repo}/actions/workflows"
+	PostReposActionsWorkflowsDispatchesByOwnerByRepoByWorkflowID = "POST /repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches"
+	GetReposActionsRunsJobsByOwnerByRepoByRunID                  = "GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs"
+	GetReposActionsRunsArtifactsByOwnerByRepoByRunID             = "GET /repos/{owner}/{repo}/actions/runs/{run_id}/artifacts"
+	GetReposActionsRunsTimingByOwnerByRepoByRunID                = "GET /repos/{owner}/{repo}/actions/runs/{run_id}/timing"
+	GetReposActionsJobsLogsByOwnerByRepoByJobID                  = "GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs"
+	DeleteReposActionsRunsLogsByOwnerByRepoByRunID               = "DELETE /repos/{owner}/{repo}/actions/runs/{run_id}/logs"
+
+	// Search endpoints
+	GetSearchCode         = "GET /search/code"
+	GetSearchIssues       = "GET /search/issues"
+	GetSearchRepositories = "GET /search/repositories"
+	GetSearchUsers        = "GET /search/users"
+
+	// Raw content endpoints (used for GitHub raw content API, not standard API)
+	// These are used with the raw content client that interacts with raw.githubusercontent.com
+	GetRawReposContentsByOwnerByRepoByPath         = "GET /{owner}/{repo}/HEAD/{path:.*}"
+	GetRawReposContentsByOwnerByRepoByBranchByPath = "GET /{owner}/{repo}/refs/heads/{branch}/{path:.*}"
+	GetRawReposContentsByOwnerByRepoByTagByPath    = "GET /{owner}/{repo}/refs/tags/{tag}/{path:.*}"
+	GetRawReposContentsByOwnerByRepoBySHAByPath    = "GET /{owner}/{repo}/{sha}/{path:.*}"
 )
 
 type expectations struct {
@@ -381,6 +488,27 @@ func matchPath(pattern, path string) bool {
 	// Support for path parameters like /repos/{owner}/{repo}/issues/{issue_number}
 	patternParts := strings.Split(strings.Trim(pattern, "/"), "/")
 	pathParts := strings.Split(strings.Trim(path, "/"), "/")
+
+	// Handle patterns with wildcard path like {path:.*}
+	if len(patternParts) > 0 {
+		lastPart := patternParts[len(patternParts)-1]
+		if strings.HasPrefix(lastPart, "{") && strings.Contains(lastPart, ":") && strings.HasSuffix(lastPart, "}") {
+			// This is a wildcard pattern like {path:.*}
+			// Check if all parts before the wildcard match
+			if len(pathParts) < len(patternParts)-1 {
+				return false
+			}
+			for i := 0; i < len(patternParts)-1; i++ {
+				if strings.HasPrefix(patternParts[i], "{") && strings.HasSuffix(patternParts[i], "}") {
+					continue // Path parameter matches anything
+				}
+				if patternParts[i] != pathParts[i] {
+					return false
+				}
+			}
+			return true
+		}
+	}
 
 	if len(patternParts) != len(pathParts) {
 		return false
