@@ -1904,7 +1904,6 @@ func TestCompiledConditionsIntegration(t *testing.T) {
 
 	// Verify compiler was created
 	assert.NotNil(t, reg.conditionCompiler, "Condition compiler should be created")
-	assert.NotNil(t, reg.compiledConditions, "Compiled conditions should be created")
 
 	// Test without context bools - only flag-based tools should pass
 	ctx := context.Background()
@@ -1954,9 +1953,9 @@ func TestCompiledConditionsANDBitmask(t *testing.T) {
 		WithToolsets([]string{"all"}).
 		Build()
 
-	// Verify it was compiled to bitmask AND
-	assert.NotNil(t, reg.compiledConditions[0])
-	compiled := reg.compiledConditions[0]
+	// Verify it was compiled to bitmask AND (condition embedded in tool)
+	assert.NotNil(t, reg.tools[0].compiledCondition)
+	compiled := reg.tools[0].compiledCondition
 	assert.Equal(t, evalBitmaskAnd, compiled.evalType, "AND of flags should compile to bitmaskAnd")
 
 	// Test evaluation
@@ -1985,9 +1984,9 @@ func TestCompiledConditionsORBitmask(t *testing.T) {
 		WithToolsets([]string{"all"}).
 		Build()
 
-	// Verify it was compiled to bitmask OR
-	assert.NotNil(t, reg.compiledConditions[0])
-	compiled := reg.compiledConditions[0]
+	// Verify it was compiled to bitmask OR (condition embedded in tool)
+	assert.NotNil(t, reg.tools[0].compiledCondition)
+	compiled := reg.tools[0].compiledCondition
 	assert.Equal(t, evalBitmaskOr, compiled.evalType, "OR of flags should compile to bitmaskOr")
 
 	// Test evaluation - should pass because flag_a is enabled

@@ -97,6 +97,12 @@ type ServerTool struct {
 	// If both Enabled and EnableCondition are set, Enabled takes precedence for
 	// backward compatibility. Migrate to EnableCondition for new tools.
 	Enabled func(ctx context.Context) (bool, error)
+
+	// compiledCondition is the pre-compiled bitmask evaluator for EnableCondition.
+	// Set at build time by compileConditions(). nil means always enabled.
+	// This is embedded in the tool so it travels with the tool during filtering,
+	// eliminating index alignment issues when filtering to single tools.
+	compiledCondition *CompiledCondition
 }
 
 // IsReadOnly returns true if this tool is marked as read-only via annotations.

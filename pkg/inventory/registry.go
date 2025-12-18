@@ -41,10 +41,8 @@ type Inventory struct {
 	defaultToolsetIDs   []ToolsetID          // sorted list of default toolset IDs
 	toolsetDescriptions map[ToolsetID]string // toolset ID -> description
 
-	// Compiled conditions for O(1) EnableCondition evaluation (set during Build)
-	// Maps tool index → compiled condition (nil means always enabled)
-	compiledConditions []*CompiledCondition
-	// conditionCompiler used to compile conditions (shared across inventory)
+	// conditionCompiler used to compile conditions and build request masks.
+	// The compiled conditions themselves are embedded in each ServerTool.
 	conditionCompiler *ConditionCompiler
 
 	// Filters - these control what's returned by Available* methods
@@ -107,7 +105,9 @@ const (
 func (r *Inventory) ForMCPRequest(method string, itemName string) *Inventory {
 	// Create a shallow copy with shared filter settings
 	// Note: lazy-init maps (toolsByName, etc.) are NOT copied - the new Registry
-	// will initialize its own maps on first use if needed
+	// will initialize its own maps on first use if needed.
+	// Compiled conditions are embedded in each ServerTool, so they travel with the tool
+	// during filtering - no index alignment issues.
 	result := &Inventory{
 		tools:                r.tools,
 		resourceTemplates:    r.resourceTemplates,
@@ -117,9 +117,8 @@ func (r *Inventory) ForMCPRequest(method string, itemName string) *Inventory {
 		enabledToolsets:      r.enabledToolsets, // shared, not modified
 		additionalTools:      r.additionalTools, // shared, not modified
 		featureChecker:       r.featureChecker,
-		filters:              r.filters,            // shared, not modified
-		compiledConditions:   r.compiledConditions, // shared, not modified
-		conditionCompiler:    r.conditionCompiler,  // shared, not modified
+		filters:              r.filters, // shared, not modified
+		conditionCompiler:    r.conditionCompiler,
 		unrecognizedToolsets: r.unrecognizedToolsets,
 	}
 

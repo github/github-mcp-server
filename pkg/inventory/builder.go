@@ -166,9 +166,9 @@ func (b *Builder) Build() *Inventory {
 		}
 	}
 
-	// Compile EnableConditions for O(1) bitmask evaluation
-	// Note: compileConditions uses r.tools which is now sortedTools
-	r.conditionCompiler, r.compiledConditions = b.compileConditions(sortedTools)
+	// Compile EnableConditions for O(1) bitmask evaluation.
+	// This modifies sortedTools in place, embedding compiled conditions in each tool.
+	r.conditionCompiler = b.compileConditions(sortedTools)
 
 	return r
 }
@@ -223,21 +223,20 @@ func (b *Builder) preSortPrompts() []ServerPrompt {
 }
 
 // compileConditions compiles all EnableConditions into bitmask-based evaluators.
-// Returns the compiler (for building request masks) and compiled conditions slice.
-// Takes the sorted tools slice to ensure compiled conditions align with sorted order.
-func (b *Builder) compileConditions(sortedTools []ServerTool) (*ConditionCompiler, []*CompiledCondition) {
+// Modifies sortedTools in place, embedding compiled conditions in each tool.
+// Returns the compiler (for building request masks at runtime).
+func (b *Builder) compileConditions(sortedTools []ServerTool) *ConditionCompiler {
 	compiler := NewConditionCompiler()
-	compiled := make([]*CompiledCondition, len(sortedTools))
 
 	for i := range sortedTools {
 		if sortedTools[i].EnableCondition != nil {
-			compiled[i] = compiler.Compile(sortedTools[i].EnableCondition)
+			sortedTools[i].compiledCondition = compiler.Compile(sortedTools[i].EnableCondition)
 		}
 		// nil means no condition (always enabled from condition perspective)
 	}
 
 	compiler.Freeze()
-	return compiler, compiled
+	return compiler
 }
 
 // processToolsets processes the toolsetIDs configuration and returns:

@@ -103,7 +103,7 @@ func (r *Inventory) buildRequestMask(ctx context.Context) *RequestMask {
 //  4. Read-only filter
 //  5. Builder filters (via WithFilter)
 //  6. Toolset/additional tools
-func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool, toolIndex int, rm *RequestMask) bool {
+func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool, rm *RequestMask) bool {
 	// 1. Check tool's legacy Enabled function first (for backward compatibility)
 	if tool.Enabled != nil {
 		enabled, err := tool.Enabled(ctx)
@@ -116,9 +116,10 @@ func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool, toolInd
 		}
 	}
 	// 2. Check tool's EnableCondition via compiled bitmask (O(1) evaluation)
-	if toolIndex >= 0 && toolIndex < len(r.compiledConditions) && r.compiledConditions[toolIndex] != nil {
+	// The compiled condition is embedded in the tool, so it travels with filtering.
+	if tool.compiledCondition != nil {
 		if rm != nil {
-			enabled, err := r.compiledConditions[toolIndex].Evaluate(rm)
+			enabled, err := tool.compiledCondition.Evaluate(rm)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Tool.EnableCondition check error for %q: %v\n", tool.Tool.Name, err)
 				return false
@@ -126,7 +127,7 @@ func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool, toolInd
 			if !enabled {
 				return false
 			}
-		} else if tool.EnableCondition != nil {
+		} else {
 			// Fallback to tree-based evaluation if no request mask
 			enabled, err := tool.EnableCondition.Evaluate(ctx)
 			if err != nil {
@@ -191,7 +192,7 @@ func (r *Inventory) AvailableTools(ctx context.Context) []ServerTool {
 	var result []ServerTool
 	for i := range r.tools {
 		tool := &r.tools[i]
-		if r.isToolEnabled(ctx, tool, i, rm) {
+		if r.isToolEnabled(ctx, tool, rm) {
 			result = append(result, *tool)
 		}
 	}
