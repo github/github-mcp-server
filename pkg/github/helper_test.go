@@ -582,18 +582,43 @@ func (m *multiHandlerTransport) RoundTrip(req *http.Request) (*http.Response, er
 		return executeHandler(handler, req), nil
 	}
 
-	// Then try pattern matching
+	// Then try pattern matching, prioritizing patterns without wildcards
+	// This is important because wildcard patterns like /{owner}/{repo}/{sha}/{path:.*}
+	// can incorrectly match API paths like /repos/owner/repo/pulls/42
+	var wildcardPattern string
+	var wildcardHandler http.HandlerFunc
+
 	for pattern, handler := range m.handlers {
 		if pattern == "" {
 			continue // Skip catch-all
 		}
 		parts := strings.SplitN(pattern, " ", 2)
-		if len(parts) == 2 {
-			method, pathPattern := parts[0], parts[1]
-			if req.Method == method && matchPath(pathPattern, req.URL.Path) {
+		if len(parts) != 2 {
+			continue
+		}
+		method, pathPattern := parts[0], parts[1]
+		if req.Method != method {
+			continue
+		}
+
+		// Check if this pattern contains a wildcard like {path:.*}
+		isWildcard := strings.Contains(pathPattern, ":.*}")
+
+		if matchPath(pathPattern, req.URL.Path) {
+			if isWildcard {
+				// Save wildcard match for later, prefer non-wildcard patterns
+				wildcardPattern = pattern
+				wildcardHandler = handler
+			} else {
+				// Non-wildcard pattern takes priority
 				return executeHandler(handler, req), nil
 			}
 		}
+	}
+
+	// If we found a wildcard match but no specific match, use it
+	if wildcardPattern != "" && wildcardHandler != nil {
+		return executeHandler(wildcardHandler, req), nil
 	}
 
 	// No handler found
