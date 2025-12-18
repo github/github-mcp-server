@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"errors"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
@@ -11,6 +12,42 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 )
+
+// depsContextKey is the context key for ToolDependencies.
+// Using a private type prevents collisions with other packages.
+type depsContextKey struct{}
+
+// ErrDepsNotInContext is returned when ToolDependencies is not found in context.
+var ErrDepsNotInContext = errors.New("ToolDependencies not found in context; use ContextWithDeps to inject")
+
+// ContextWithDeps returns a new context with the ToolDependencies stored in it.
+// This is used to inject dependencies at request time rather than at registration time,
+// avoiding expensive closure creation during server initialization.
+//
+// For the local server, this is called once at startup since deps don't change.
+// For the remote server, this is called per-request with request-specific deps.
+func ContextWithDeps(ctx context.Context, deps ToolDependencies) context.Context {
+	return context.WithValue(ctx, depsContextKey{}, deps)
+}
+
+// DepsFromContext retrieves ToolDependencies from the context.
+// Returns the deps and true if found, or nil and false if not present.
+// Use MustDepsFromContext if you want to panic on missing deps (for handlers
+// that require deps to function).
+func DepsFromContext(ctx context.Context) (ToolDependencies, bool) {
+	deps, ok := ctx.Value(depsContextKey{}).(ToolDependencies)
+	return deps, ok
+}
+
+// MustDepsFromContext retrieves ToolDependencies from the context.
+// Panics if deps are not found - use this in handlers where deps are required.
+func MustDepsFromContext(ctx context.Context) ToolDependencies {
+	deps, ok := DepsFromContext(ctx)
+	if !ok {
+		panic(ErrDepsNotInContext)
+	}
+	return deps
+}
 
 // ToolDependencies defines the interface for dependencies that tool handlers need.
 // This is an interface to allow different implementations:
@@ -105,19 +142,27 @@ func (d BaseDeps) GetFlags() FeatureFlags { return d.Flags }
 // GetContentWindowSize implements ToolDependencies.
 func (d BaseDeps) GetContentWindowSize() int { return d.ContentWindowSize }
 
-// NewTool creates a ServerTool with fully-typed ToolDependencies and toolset metadata.
-// This helper isolates the type assertion from `any` to `ToolDependencies`,
-// so tool implementations remain fully typed without assertions scattered throughout.
-func NewTool[In, Out any](toolset inventory.ToolsetMetadata, tool mcp.Tool, handler func(deps ToolDependencies) mcp.ToolHandlerFor[In, Out]) inventory.ServerTool {
-	return inventory.NewServerTool(tool, toolset, func(d any) mcp.ToolHandlerFor[In, Out] {
-		return handler(d.(ToolDependencies))
+// NewTool creates a ServerTool that retrieves ToolDependencies from context at call time.
+// This avoids creating closures at registration time, which is important for performance
+// in servers that create a new server instance per request (like the remote server).
+//
+// The handler function receives deps extracted from context via MustDepsFromContext.
+// Ensure ContextWithDeps is called to inject deps before any tool handlers are invoked.
+func NewTool[In, Out any](toolset inventory.ToolsetMetadata, tool mcp.Tool, handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error)) inventory.ServerTool {
+	return inventory.NewServerToolWithContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error) {
+		deps := MustDepsFromContext(ctx)
+		return handler(ctx, deps, req, args)
 	})
 }
 
-// NewToolFromHandler creates a ServerTool with fully-typed ToolDependencies and toolset metadata
-// for handlers that conform to mcp.ToolHandler directly.
-func NewToolFromHandler(toolset inventory.ToolsetMetadata, tool mcp.Tool, handler func(deps ToolDependencies) mcp.ToolHandler) inventory.ServerTool {
-	return inventory.NewServerToolFromHandler(tool, toolset, func(d any) mcp.ToolHandler {
-		return handler(d.(ToolDependencies))
+// NewToolFromHandler creates a ServerTool that retrieves ToolDependencies from context at call time.
+// Use this when you have a handler that conforms to mcp.ToolHandler directly.
+//
+// The handler function receives deps extracted from context via MustDepsFromContext.
+// Ensure ContextWithDeps is called to inject deps before any tool handlers are invoked.
+func NewToolFromHandler(toolset inventory.ToolsetMetadata, tool mcp.Tool, handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest) (*mcp.CallToolResult, error)) inventory.ServerTool {
+	return inventory.NewServerToolWithRawContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		deps := MustDepsFromContext(ctx)
+		return handler(ctx, deps, req)
 	})
 }

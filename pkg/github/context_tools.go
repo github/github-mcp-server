@@ -51,51 +51,49 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// OpenAI strict mode requires the properties field to be present.
 			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
-				client, err := deps.GetClient(ctx)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
-				}
-
-				user, res, err := client.Users.Get(ctx, "")
-				if err != nil {
-					return ghErrors.NewGitHubAPIErrorResponse(ctx,
-						"failed to get user",
-						res,
-						err,
-					), nil, nil
-				}
-
-				// Create minimal user representation instead of returning full user object
-				minimalUser := MinimalUser{
-					Login:      user.GetLogin(),
-					ID:         user.GetID(),
-					ProfileURL: user.GetHTMLURL(),
-					AvatarURL:  user.GetAvatarURL(),
-					Details: &UserDetails{
-						Name:              user.GetName(),
-						Company:           user.GetCompany(),
-						Blog:              user.GetBlog(),
-						Location:          user.GetLocation(),
-						Email:             user.GetEmail(),
-						Hireable:          user.GetHireable(),
-						Bio:               user.GetBio(),
-						TwitterUsername:   user.GetTwitterUsername(),
-						PublicRepos:       user.GetPublicRepos(),
-						PublicGists:       user.GetPublicGists(),
-						Followers:         user.GetFollowers(),
-						Following:         user.GetFollowing(),
-						CreatedAt:         user.GetCreatedAt().Time,
-						UpdatedAt:         user.GetUpdatedAt().Time,
-						PrivateGists:      user.GetPrivateGists(),
-						TotalPrivateRepos: user.GetTotalPrivateRepos(),
-						OwnedPrivateRepos: user.GetOwnedPrivateRepos(),
-					},
-				}
-
-				return MarshalledTextResult(minimalUser), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
+
+			user, res, err := client.Users.Get(ctx, "")
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to get user",
+					res,
+					err,
+				), nil, nil
+			}
+
+			// Create minimal user representation instead of returning full user object
+			minimalUser := MinimalUser{
+				Login:      user.GetLogin(),
+				ID:         user.GetID(),
+				ProfileURL: user.GetHTMLURL(),
+				AvatarURL:  user.GetAvatarURL(),
+				Details: &UserDetails{
+					Name:              user.GetName(),
+					Company:           user.GetCompany(),
+					Blog:              user.GetBlog(),
+					Location:          user.GetLocation(),
+					Email:             user.GetEmail(),
+					Hireable:          user.GetHireable(),
+					Bio:               user.GetBio(),
+					TwitterUsername:   user.GetTwitterUsername(),
+					PublicRepos:       user.GetPublicRepos(),
+					PublicGists:       user.GetPublicGists(),
+					Followers:         user.GetFollowers(),
+					Following:         user.GetFollowing(),
+					CreatedAt:         user.GetCreatedAt().Time,
+					UpdatedAt:         user.GetUpdatedAt().Time,
+					PrivateGists:      user.GetPrivateGists(),
+					TotalPrivateRepos: user.GetTotalPrivateRepos(),
+					OwnedPrivateRepos: user.GetOwnedPrivateRepos(),
+				},
+			}
+
+			return MarshalledTextResult(minimalUser), nil, nil
 		},
 	)
 }
@@ -131,81 +129,79 @@ func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
 				},
 			},
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				user, err := OptionalParam[string](args, "user")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				var username string
-				if user != "" {
-					username = user
-				} else {
-					client, err := deps.GetClient(ctx)
-					if err != nil {
-						return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
-					}
-
-					userResp, res, err := client.Users.Get(ctx, "")
-					if err != nil {
-						return ghErrors.NewGitHubAPIErrorResponse(ctx,
-							"failed to get user",
-							res,
-							err,
-						), nil, nil
-					}
-					username = userResp.GetLogin()
-				}
-
-				gqlClient, err := deps.GetGQLClient(ctx)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
-				}
-
-				var q struct {
-					User struct {
-						Organizations struct {
-							Nodes []struct {
-								Login githubv4.String
-								Teams struct {
-									Nodes []struct {
-										Name        githubv4.String
-										Slug        githubv4.String
-										Description githubv4.String
-									}
-								} `graphql:"teams(first: 100, userLogins: [$login])"`
-							}
-						} `graphql:"organizations(first: 100)"`
-					} `graphql:"user(login: $login)"`
-				}
-				vars := map[string]interface{}{
-					"login": githubv4.String(username),
-				}
-				if err := gqlClient.Query(ctx, &q, vars); err != nil {
-					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to find teams", err), nil, nil
-				}
-
-				var organizations []OrganizationTeams
-				for _, org := range q.User.Organizations.Nodes {
-					orgTeams := OrganizationTeams{
-						Org:   string(org.Login),
-						Teams: make([]TeamInfo, 0, len(org.Teams.Nodes)),
-					}
-
-					for _, team := range org.Teams.Nodes {
-						orgTeams.Teams = append(orgTeams.Teams, TeamInfo{
-							Name:        string(team.Name),
-							Slug:        string(team.Slug),
-							Description: string(team.Description),
-						})
-					}
-
-					organizations = append(organizations, orgTeams)
-				}
-
-				return MarshalledTextResult(organizations), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			user, err := OptionalParam[string](args, "user")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+
+			var username string
+			if user != "" {
+				username = user
+			} else {
+				client, err := deps.GetClient(ctx)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				}
+
+				userResp, res, err := client.Users.Get(ctx, "")
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx,
+						"failed to get user",
+						res,
+						err,
+					), nil, nil
+				}
+				username = userResp.GetLogin()
+			}
+
+			gqlClient, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
+			}
+
+			var q struct {
+				User struct {
+					Organizations struct {
+						Nodes []struct {
+							Login githubv4.String
+							Teams struct {
+								Nodes []struct {
+									Name        githubv4.String
+									Slug        githubv4.String
+									Description githubv4.String
+								}
+							} `graphql:"teams(first: 100, userLogins: [$login])"`
+						}
+					} `graphql:"organizations(first: 100)"`
+				} `graphql:"user(login: $login)"`
+			}
+			vars := map[string]interface{}{
+				"login": githubv4.String(username),
+			}
+			if err := gqlClient.Query(ctx, &q, vars); err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to find teams", err), nil, nil
+			}
+
+			var organizations []OrganizationTeams
+			for _, org := range q.User.Organizations.Nodes {
+				orgTeams := OrganizationTeams{
+					Org:   string(org.Login),
+					Teams: make([]TeamInfo, 0, len(org.Teams.Nodes)),
+				}
+
+				for _, team := range org.Teams.Nodes {
+					orgTeams.Teams = append(orgTeams.Teams, TeamInfo{
+						Name:        string(team.Name),
+						Slug:        string(team.Slug),
+						Description: string(team.Description),
+					})
+				}
+
+				organizations = append(organizations, orgTeams)
+			}
+
+			return MarshalledTextResult(organizations), nil, nil
 		},
 	)
 }
@@ -235,49 +231,47 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"org", "team_slug"},
 			},
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				org, err := RequiredParam[string](args, "org")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				teamSlug, err := RequiredParam[string](args, "team_slug")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				gqlClient, err := deps.GetGQLClient(ctx)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
-				}
-
-				var q struct {
-					Organization struct {
-						Team struct {
-							Members struct {
-								Nodes []struct {
-									Login githubv4.String
-								}
-							} `graphql:"members(first: 100)"`
-						} `graphql:"team(slug: $teamSlug)"`
-					} `graphql:"organization(login: $org)"`
-				}
-				vars := map[string]interface{}{
-					"org":      githubv4.String(org),
-					"teamSlug": githubv4.String(teamSlug),
-				}
-				if err := gqlClient.Query(ctx, &q, vars); err != nil {
-					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to get team members", err), nil, nil
-				}
-
-				var members []string
-				for _, member := range q.Organization.Team.Members.Nodes {
-					members = append(members, string(member.Login))
-				}
-
-				return MarshalledTextResult(members), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			org, err := RequiredParam[string](args, "org")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+
+			teamSlug, err := RequiredParam[string](args, "team_slug")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			gqlClient, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
+			}
+
+			var q struct {
+				Organization struct {
+					Team struct {
+						Members struct {
+							Nodes []struct {
+								Login githubv4.String
+							}
+						} `graphql:"members(first: 100)"`
+					} `graphql:"team(slug: $teamSlug)"`
+				} `graphql:"organization(login: $org)"`
+			}
+			vars := map[string]interface{}{
+				"org":      githubv4.String(org),
+				"teamSlug": githubv4.String(teamSlug),
+			}
+			if err := gqlClient.Query(ctx, &q, vars); err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to get team members", err), nil, nil
+			}
+
+			var members []string
+			for _, member := range q.Organization.Team.Members.Nodes {
+				members = append(members, string(member.Login))
+			}
+
+			return MarshalledTextResult(members), nil, nil
 		},
 	)
 }

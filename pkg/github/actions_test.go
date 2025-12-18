@@ -114,7 +114,7 @@ func Test_ListWorkflows(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expectError, result.IsError)
@@ -203,7 +203,7 @@ func Test_RunWorkflow(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expectError, result.IsError)
@@ -299,7 +299,7 @@ func Test_RunWorkflow_WithFilename(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expectError, result.IsError)
@@ -407,7 +407,7 @@ func Test_CancelWorkflowRun(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expectError, result.IsError)
@@ -537,7 +537,7 @@ func Test_ListWorkflowRunArtifacts(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expectError, result.IsError)
@@ -627,7 +627,7 @@ func Test_DownloadWorkflowRunArtifact(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expectError, result.IsError)
@@ -713,7 +713,7 @@ func Test_DeleteWorkflowRunLogs(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expectError, result.IsError)
@@ -817,7 +817,7 @@ func Test_GetWorkflowRunUsage(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expectError, result.IsError)
@@ -1082,7 +1082,7 @@ func Test_GetJobLogs(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expectError, result.IsError)
@@ -1149,7 +1149,7 @@ func Test_GetJobLogs_WithContentReturn(t *testing.T) {
 		"return_content": true,
 	})
 
-	result, err := handler(context.Background(), &request)
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 	require.NoError(t, err)
 	require.False(t, result.IsError)
 
@@ -1202,7 +1202,7 @@ func Test_GetJobLogs_WithContentReturnAndTailLines(t *testing.T) {
 		"tail_lines":     float64(1), // Requesting last 1 line
 	})
 
-	result, err := handler(context.Background(), &request)
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 	require.NoError(t, err)
 	require.False(t, result.IsError)
 
@@ -1254,7 +1254,7 @@ func Test_GetJobLogs_WithContentReturnAndLargeTailLines(t *testing.T) {
 		"tail_lines":     float64(100),
 	})
 
-	result, err := handler(context.Background(), &request)
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 	require.NoError(t, err)
 	require.False(t, result.IsError)
 
