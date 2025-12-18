@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/stretchr/testify/assert"
 )
 
 // testToolsetMetadata returns a ToolsetMetadata for testing
@@ -1598,10 +1599,11 @@ func TestFilteredToolsMatchesAvailableTools(t *testing.T) {
 func TestFilteringOrder(t *testing.T) {
 	// Test that filters are applied in the correct order:
 	// 1. Tool.Enabled
-	// 2. Feature flags
-	// 3. Read-only
-	// 4. Builder filters
-	// 5. Toolset/additional tools
+	// 2. EnableCondition
+	// 3. Feature flags
+	// 4. Read-only
+	// 5. Builder filters
+	// 6. Toolset/additional tools
 
 	callOrder := []string{}
 
@@ -1642,4 +1644,356 @@ func TestFilteringOrder(t *testing.T) {
 			t.Errorf("At position %d: expected %s, got %v", i, expected, callOrder)
 		}
 	}
+}
+
+// Tests for EnableCondition integration
+func TestEnableConditionSimple(t *testing.T) {
+	// Tool with EnableCondition that returns true
+	tool := mockTool("test_tool", "toolset1", true)
+	tool.EnableCondition = Always()
+
+	reg := NewBuilder().
+		SetTools([]ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		Build()
+
+	available := reg.AvailableTools(context.Background())
+	if len(available) != 1 {
+		t.Error("Tool should be included when EnableCondition returns true")
+	}
+
+	// Tool with EnableCondition that returns false
+	tool2 := mockTool("test_tool2", "toolset1", true)
+	tool2.EnableCondition = Never()
+
+	reg2 := NewBuilder().
+		SetTools([]ServerTool{tool2}).
+		WithToolsets([]string{"all"}).
+		Build()
+
+	available2 := reg2.AvailableTools(context.Background())
+	if len(available2) != 0 {
+		t.Error("Tool should be excluded when EnableCondition returns false")
+	}
+}
+
+func TestEnableConditionWithFeatureFlag(t *testing.T) {
+	// Tool with EnableCondition using FeatureFlag condition
+	tool := mockTool("test_tool", "toolset1", true)
+	tool.EnableCondition = FeatureFlag("my_feature")
+
+	// Without feature checker - should be excluded
+	reg1 := NewBuilder().
+		SetTools([]ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		Build()
+
+	available1 := reg1.AvailableTools(context.Background())
+	if len(available1) != 0 {
+		t.Error("Tool should be excluded when no feature checker is available")
+	}
+
+	// With feature checker that returns true
+	ctx := ContextWithFeatureChecker(context.Background(), func(_ context.Context, flag string) (bool, error) {
+		return flag == "my_feature", nil
+	})
+
+	reg2 := NewBuilder().
+		SetTools([]ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		Build()
+
+	available2 := reg2.AvailableTools(ctx)
+	if len(available2) != 1 {
+		t.Error("Tool should be included when feature flag is enabled via context")
+	}
+}
+
+func TestEnableConditionWithContextBool(t *testing.T) {
+	// Tool with EnableCondition using ContextBool
+	tool := mockTool("cca_tool", "toolset1", true)
+	tool.EnableCondition = ContextBool("is_cca")
+
+	reg := NewBuilder().
+		SetTools([]ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		Build()
+
+	// Without context bool - should be excluded
+	available1 := reg.AvailableTools(context.Background())
+	if len(available1) != 0 {
+		t.Error("Tool should be excluded when context bool is not set")
+	}
+
+	// With context bool = true
+	ctx := ContextWithBools(context.Background(), ContextBools{"is_cca": true})
+	available2 := reg.AvailableTools(ctx)
+	if len(available2) != 1 {
+		t.Error("Tool should be included when context bool is true")
+	}
+
+	// With context bool = false
+	ctx3 := ContextWithBools(context.Background(), ContextBools{"is_cca": false})
+	available3 := reg.AvailableTools(ctx3)
+	if len(available3) != 0 {
+		t.Error("Tool should be excluded when context bool is false")
+	}
+}
+
+func TestEnableConditionComplexPattern(t *testing.T) {
+	// CCA bypass pattern: tool is available if CCA OR feature flag is enabled
+	tool := mockTool("agent_tool", "toolset1", true)
+	tool.EnableCondition = Or(
+		ContextBool("is_cca"),
+		FeatureFlag("agent_search"),
+	)
+
+	reg := NewBuilder().
+		SetTools([]ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		Build()
+
+	// CCA request - should be enabled without feature flag
+	ctxCCA := ContextWithBools(context.Background(), ContextBools{"is_cca": true})
+	availableCCA := reg.AvailableTools(ctxCCA)
+	if len(availableCCA) != 1 {
+		t.Error("Tool should be enabled for CCA requests")
+	}
+
+	// Non-CCA with feature flag - should be enabled
+	ctxFF := ContextWithBools(context.Background(), ContextBools{"is_cca": false})
+	ctxFF = ContextWithFeatureChecker(ctxFF, func(_ context.Context, flag string) (bool, error) {
+		return flag == "agent_search", nil
+	})
+	availableFF := reg.AvailableTools(ctxFF)
+	if len(availableFF) != 1 {
+		t.Error("Tool should be enabled with feature flag for non-CCA")
+	}
+
+	// Non-CCA without feature flag - should be excluded
+	ctxNone := ContextWithBools(context.Background(), ContextBools{"is_cca": false})
+	availableNone := reg.AvailableTools(ctxNone)
+	if len(availableNone) != 0 {
+		t.Error("Tool should be excluded for non-CCA without feature flag")
+	}
+}
+
+func TestEnableConditionAndLegacyEnabledInteraction(t *testing.T) {
+	// When both Enabled and EnableCondition are set, both must pass
+	tool := mockTool("test_tool", "toolset1", true)
+	tool.Enabled = func(_ context.Context) (bool, error) {
+		return true, nil // Legacy Enabled passes
+	}
+	tool.EnableCondition = Never() // But EnableCondition fails
+
+	reg := NewBuilder().
+		SetTools([]ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		Build()
+
+	available := reg.AvailableTools(context.Background())
+	if len(available) != 0 {
+		t.Error("Tool should be excluded when EnableCondition returns false, even if Enabled returns true")
+	}
+
+	// Both pass
+	tool2 := mockTool("test_tool2", "toolset1", true)
+	tool2.Enabled = func(_ context.Context) (bool, error) {
+		return true, nil
+	}
+	tool2.EnableCondition = Always()
+
+	reg2 := NewBuilder().
+		SetTools([]ServerTool{tool2}).
+		WithToolsets([]string{"all"}).
+		Build()
+
+	available2 := reg2.AvailableTools(context.Background())
+	if len(available2) != 1 {
+		t.Error("Tool should be included when both Enabled and EnableCondition pass")
+	}
+}
+
+func TestEnableConditionFilteringOrder(t *testing.T) {
+	// Test that EnableCondition is checked after legacy Enabled but before feature flags
+	callOrder := []string{}
+
+	tool := mockToolWithFlags("test_tool", "toolset1", true, "my_feature", "")
+	tool.Enabled = func(_ context.Context) (bool, error) {
+		callOrder = append(callOrder, "LegacyEnabled")
+		return true, nil
+	}
+	tool.EnableCondition = ConditionFunc(func(_ context.Context) (bool, error) {
+		callOrder = append(callOrder, "EnableCondition")
+		return false, nil // Return false to stop early
+	})
+
+	checker := func(_ context.Context, _ string) (bool, error) {
+		callOrder = append(callOrder, "FeatureFlag")
+		return true, nil
+	}
+
+	reg := NewBuilder().
+		SetTools([]ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		WithFeatureChecker(checker).
+		Build()
+
+	_ = reg.AvailableTools(context.Background())
+
+	// Should stop at EnableCondition since it returns false
+	expectedOrder := []string{"LegacyEnabled", "EnableCondition"}
+	if len(callOrder) != len(expectedOrder) {
+		t.Errorf("Expected %d checks, got %d: %v", len(expectedOrder), len(callOrder), callOrder)
+	}
+
+	for i, expected := range expectedOrder {
+		if i >= len(callOrder) || callOrder[i] != expected {
+			t.Errorf("At position %d: expected %s, got %v", i, expected, callOrder)
+		}
+	}
+}
+
+func TestCompiledConditionsIntegration(t *testing.T) {
+	// Test that conditions are compiled at build time and evaluated with bitmask
+	// at request time (via AvailableTools)
+
+	checker := func(_ context.Context, flagName string) (bool, error) {
+		switch flagName {
+		case "enabled_flag":
+			return true, nil
+		case "disabled_flag":
+			return false, nil
+		default:
+			return false, nil
+		}
+	}
+
+	toolAlwaysEnabled := mockTool("always_on", "test", true)
+	toolAlwaysEnabled.EnableCondition = Always()
+
+	toolNeverEnabled := mockTool("never_on", "test", true)
+	toolNeverEnabled.EnableCondition = Never()
+
+	toolFlagEnabled := mockTool("flag_on", "test", true)
+	toolFlagEnabled.EnableCondition = FeatureFlag("enabled_flag")
+
+	toolFlagDisabled := mockTool("flag_off", "test", true)
+	toolFlagDisabled.EnableCondition = FeatureFlag("disabled_flag")
+
+	toolContextBool := mockTool("ctx_bool", "test", true)
+	toolContextBool.EnableCondition = ContextBool("my_bool")
+
+	toolComplex := mockTool("complex", "test", true)
+	toolComplex.EnableCondition = Or(
+		ContextBool("my_bool"),
+		FeatureFlag("enabled_flag"),
+	)
+
+	reg := NewBuilder().
+		SetTools([]ServerTool{
+			toolAlwaysEnabled,
+			toolNeverEnabled,
+			toolFlagEnabled,
+			toolFlagDisabled,
+			toolContextBool,
+			toolComplex,
+		}).
+		WithToolsets([]string{"all"}).
+		Build()
+
+	// Verify compiler was created
+	assert.NotNil(t, reg.conditionCompiler, "Condition compiler should be created")
+	assert.NotNil(t, reg.compiledConditions, "Compiled conditions should be created")
+
+	// Test without context bools - only flag-based tools should pass
+	ctx := context.Background()
+	ctx = ContextWithFeatureChecker(ctx, checker)
+
+	tools := reg.AvailableTools(ctx)
+	toolNames := make([]string, len(tools))
+	for i, tool := range tools {
+		toolNames[i] = tool.Tool.Name
+	}
+
+	assert.Contains(t, toolNames, "always_on", "Always enabled tool should be available")
+	assert.Contains(t, toolNames, "flag_on", "Flag enabled tool should be available")
+	assert.Contains(t, toolNames, "complex", "Complex (OR flag) tool should be available")
+	assert.NotContains(t, toolNames, "never_on", "Never enabled tool should not be available")
+	assert.NotContains(t, toolNames, "flag_off", "Disabled flag tool should not be available")
+	assert.NotContains(t, toolNames, "ctx_bool", "Context bool tool should not be available without bool set")
+
+	// Test with context bool set
+	ctx = ContextWithBools(ctx, ContextBools{"my_bool": true})
+
+	tools = reg.AvailableTools(ctx)
+	toolNames = make([]string, len(tools))
+	for i, tool := range tools {
+		toolNames[i] = tool.Tool.Name
+	}
+
+	assert.Contains(t, toolNames, "ctx_bool", "Context bool tool should be available when bool is set")
+	assert.Contains(t, toolNames, "complex", "Complex tool should still be available")
+}
+
+func TestCompiledConditionsANDBitmask(t *testing.T) {
+	// Test that AND conditions are compiled to bitmask AND operations
+	checker := func(_ context.Context, flagName string) (bool, error) {
+		return flagName == "flag_a" || flagName == "flag_b", nil
+	}
+
+	// Tool requires both flags
+	tool := mockTool("both_flags", "test", true)
+	tool.EnableCondition = And(
+		FeatureFlag("flag_a"),
+		FeatureFlag("flag_b"),
+	)
+
+	reg := NewBuilder().
+		SetTools([]ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		Build()
+
+	// Verify it was compiled to bitmask AND
+	assert.NotNil(t, reg.compiledConditions[0])
+	compiled := reg.compiledConditions[0]
+	assert.Equal(t, evalBitmaskAnd, compiled.evalType, "AND of flags should compile to bitmaskAnd")
+
+	// Test evaluation
+	ctx := context.Background()
+	ctx = ContextWithFeatureChecker(ctx, checker)
+
+	tools := reg.AvailableTools(ctx)
+	assert.Len(t, tools, 1, "Tool with both flags enabled should be available")
+}
+
+func TestCompiledConditionsORBitmask(t *testing.T) {
+	// Test that OR conditions are compiled to bitmask OR operations
+	checker := func(_ context.Context, flagName string) (bool, error) {
+		return flagName == "flag_a", nil // Only flag_a is enabled
+	}
+
+	// Tool requires either flag
+	tool := mockTool("either_flag", "test", true)
+	tool.EnableCondition = Or(
+		FeatureFlag("flag_a"),
+		FeatureFlag("flag_b"),
+	)
+
+	reg := NewBuilder().
+		SetTools([]ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		Build()
+
+	// Verify it was compiled to bitmask OR
+	assert.NotNil(t, reg.compiledConditions[0])
+	compiled := reg.compiledConditions[0]
+	assert.Equal(t, evalBitmaskOr, compiled.evalType, "OR of flags should compile to bitmaskOr")
+
+	// Test evaluation - should pass because flag_a is enabled
+	ctx := context.Background()
+	ctx = ContextWithFeatureChecker(ctx, checker)
+
+	tools := reg.AvailableTools(ctx)
+	assert.Len(t, tools, 1, "Tool with one flag enabled should be available")
 }

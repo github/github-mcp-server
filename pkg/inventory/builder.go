@@ -128,14 +128,22 @@ func (b *Builder) WithFilter(filter ToolFilter) *Builder {
 }
 
 // Build creates the final Inventory with all configuration applied.
-// This processes toolset filtering, tool name resolution, and sets up
+// This processes toolset filtering, tool name resolution, compiles EnableConditions
+// for O(1) evaluation, pre-sorts all items for deterministic output, and sets up
 // the inventory for use. The returned Inventory is ready for use with
 // AvailableTools(), RegisterAll(), etc.
 func (b *Builder) Build() *Inventory {
+	// Pre-sort tools, resources, and prompts at build time.
+	// This eliminates sorting overhead on every Available*() call.
+	// Filtering preserves order, so if input is sorted, output is sorted.
+	sortedTools := b.preSortTools()
+	sortedResources := b.preSortResources()
+	sortedPrompts := b.preSortPrompts()
+
 	r := &Inventory{
-		tools:             b.tools,
-		resourceTemplates: b.resourceTemplates,
-		prompts:           b.prompts,
+		tools:             sortedTools,
+		resourceTemplates: sortedResources,
+		prompts:           sortedPrompts,
 		deprecatedAliases: b.deprecatedAliases,
 		readOnly:          b.readOnly,
 		featureChecker:    b.featureChecker,
@@ -158,7 +166,78 @@ func (b *Builder) Build() *Inventory {
 		}
 	}
 
+	// Compile EnableConditions for O(1) bitmask evaluation
+	// Note: compileConditions uses r.tools which is now sortedTools
+	r.conditionCompiler, r.compiledConditions = b.compileConditions(sortedTools)
+
 	return r
+}
+
+// preSortTools returns a copy of tools sorted by toolset ID, then tool name.
+// This allows filtering to preserve order without re-sorting.
+func (b *Builder) preSortTools() []ServerTool {
+	if len(b.tools) == 0 {
+		return b.tools
+	}
+	sorted := make([]ServerTool, len(b.tools))
+	copy(sorted, b.tools)
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].Toolset.ID != sorted[j].Toolset.ID {
+			return sorted[i].Toolset.ID < sorted[j].Toolset.ID
+		}
+		return sorted[i].Tool.Name < sorted[j].Tool.Name
+	})
+	return sorted
+}
+
+// preSortResources returns a copy of resources sorted by toolset ID, then template name.
+func (b *Builder) preSortResources() []ServerResourceTemplate {
+	if len(b.resourceTemplates) == 0 {
+		return b.resourceTemplates
+	}
+	sorted := make([]ServerResourceTemplate, len(b.resourceTemplates))
+	copy(sorted, b.resourceTemplates)
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].Toolset.ID != sorted[j].Toolset.ID {
+			return sorted[i].Toolset.ID < sorted[j].Toolset.ID
+		}
+		return sorted[i].Template.Name < sorted[j].Template.Name
+	})
+	return sorted
+}
+
+// preSortPrompts returns a copy of prompts sorted by toolset ID, then prompt name.
+func (b *Builder) preSortPrompts() []ServerPrompt {
+	if len(b.prompts) == 0 {
+		return b.prompts
+	}
+	sorted := make([]ServerPrompt, len(b.prompts))
+	copy(sorted, b.prompts)
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].Toolset.ID != sorted[j].Toolset.ID {
+			return sorted[i].Toolset.ID < sorted[j].Toolset.ID
+		}
+		return sorted[i].Prompt.Name < sorted[j].Prompt.Name
+	})
+	return sorted
+}
+
+// compileConditions compiles all EnableConditions into bitmask-based evaluators.
+// Returns the compiler (for building request masks) and compiled conditions slice.
+// Takes the sorted tools slice to ensure compiled conditions align with sorted order.
+func (b *Builder) compileConditions(sortedTools []ServerTool) (*ConditionCompiler, []*CompiledCondition) {
+	compiler := NewConditionCompiler()
+	compiled := make([]*CompiledCondition, len(sortedTools))
+
+	for i := range sortedTools {
+		if sortedTools[i].EnableCondition != nil {
+			compiled[i] = compiler.Compile(sortedTools[i].EnableCondition)
+		}
+		// nil means no condition (always enabled from condition perspective)
+	}
+
+	compiler.Freeze()
+	return compiler, compiled
 }
 
 // processToolsets processes the toolsetIDs configuration and returns:

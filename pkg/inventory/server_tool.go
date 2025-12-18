@@ -58,17 +58,44 @@ type ServerTool struct {
 
 	// FeatureFlagEnable specifies a feature flag that must be enabled for this tool
 	// to be available. If set and the flag is not enabled, the tool is omitted.
+	//
+	// Deprecated: Use EnableCondition with FeatureFlag() instead for composable conditions.
+	// This field is checked before EnableCondition for backward compatibility.
 	FeatureFlagEnable string
 
 	// FeatureFlagDisable specifies a feature flag that, when enabled, causes this tool
 	// to be omitted. Used to disable tools when a feature flag is on.
+	//
+	// Deprecated: Use EnableCondition with Not(FeatureFlag()) instead for composable conditions.
+	// This field is checked before EnableCondition for backward compatibility.
 	FeatureFlagDisable string
+
+	// EnableCondition is the composable condition for tool availability.
+	// Use the condition combinators (FeatureFlag, ContextBool, And, Or, Not)
+	// to build complex enable logic declaratively.
+	//
+	// Examples:
+	//   // Feature flag only
+	//   EnableCondition: FeatureFlag("web_search")
+	//
+	//   // Feature flag AND user policy
+	//   EnableCondition: And(FeatureFlag("web_search"), ContextBool("user_has_paid_access"))
+	//
+	//   // CCA bypass (CCA OR feature flag)
+	//   EnableCondition: Or(ContextBool("is_cca"), FeatureFlag("agent_search"))
+	//
+	// If nil, the tool is enabled (subject to other filters like toolset, read-only).
+	EnableCondition EnableCondition
 
 	// Enabled is an optional function called at build/filter time to determine
 	// if this tool should be available. If nil, the tool is considered enabled
 	// (subject to FeatureFlagEnable/FeatureFlagDisable checks).
 	// The context carries request-scoped information for the consumer to use.
 	// Returns (enabled, error). On error, the tool should be treated as disabled.
+	//
+	// Deprecated: Use EnableCondition instead for composable, declarative conditions.
+	// If both Enabled and EnableCondition are set, Enabled takes precedence for
+	// backward compatibility. Migrate to EnableCondition for new tools.
 	Enabled func(ctx context.Context) (bool, error)
 }
 

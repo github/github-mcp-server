@@ -50,15 +50,61 @@ func (r *Inventory) isFeatureFlagAllowed(ctx context.Context, enableFlag, disabl
 	return true
 }
 
+// buildRequestMask creates a RequestMask for the current request context.
+// This computes all condition values once for O(1) evaluation of each tool.
+func (r *Inventory) buildRequestMask(ctx context.Context) *RequestMask {
+	if r.conditionCompiler == nil {
+		return nil
+	}
+
+	var bits uint64
+	bools := contextBoolsFromContext(ctx)
+	checker := FeatureCheckerFromContext(ctx)
+
+	r.conditionCompiler.mu.RLock()
+	defer r.conditionCompiler.mu.RUnlock()
+
+	for key, bit := range r.conditionCompiler.keyToBit {
+		// Keys are formatted as "ctx:key_name" or "ff:flag_name"
+		if len(key) < 4 { // Minimum: "ff:x" or "ctx:" prefix + 1 char
+			continue
+		}
+
+		switch {
+		case len(key) > 4 && key[:4] == "ctx:":
+			// Context bool: "ctx:key_name"
+			name := key[4:]
+			if bools != nil && bools[name] {
+				bits |= 1 << bit
+			}
+		case len(key) > 3 && key[:3] == "ff:":
+			// Feature flag: "ff:flag_name"
+			name := key[3:]
+			if checker != nil {
+				enabled, err := checker(ctx, name)
+				if err == nil && enabled {
+					bits |= 1 << bit
+				}
+			}
+		}
+	}
+
+	return &RequestMask{
+		bits: bits,
+		ctx:  ctx,
+	}
+}
+
 // isToolEnabled checks if a specific tool is enabled based on current filters.
 // Filter evaluation order:
-//  1. Tool.Enabled (tool self-filtering)
-//  2. FeatureFlagEnable/FeatureFlagDisable
-//  3. Read-only filter
-//  4. Builder filters (via WithFilter)
-//  5. Toolset/additional tools
-func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool) bool {
-	// 1. Check tool's own Enabled function first
+//  1. Tool.Enabled (legacy tool self-filtering - deprecated)
+//  2. Tool.EnableCondition via compiled bitmask (O(1) evaluation)
+//  3. FeatureFlagEnable/FeatureFlagDisable (legacy - deprecated)
+//  4. Read-only filter
+//  5. Builder filters (via WithFilter)
+//  6. Toolset/additional tools
+func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool, toolIndex int, rm *RequestMask) bool {
+	// 1. Check tool's legacy Enabled function first (for backward compatibility)
 	if tool.Enabled != nil {
 		enabled, err := tool.Enabled(ctx)
 		if err != nil {
@@ -69,15 +115,48 @@ func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool) bool {
 			return false
 		}
 	}
-	// 2. Check feature flags
+	// 2. Check tool's EnableCondition via compiled bitmask (O(1) evaluation)
+	if toolIndex >= 0 && toolIndex < len(r.compiledConditions) && r.compiledConditions[toolIndex] != nil {
+		if rm != nil {
+			enabled, err := r.compiledConditions[toolIndex].Evaluate(rm)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Tool.EnableCondition check error for %q: %v\n", tool.Tool.Name, err)
+				return false
+			}
+			if !enabled {
+				return false
+			}
+		} else if tool.EnableCondition != nil {
+			// Fallback to tree-based evaluation if no request mask
+			enabled, err := tool.EnableCondition.Evaluate(ctx)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Tool.EnableCondition check error for %q: %v\n", tool.Tool.Name, err)
+				return false
+			}
+			if !enabled {
+				return false
+			}
+		}
+	} else if tool.EnableCondition != nil {
+		// Fallback to tree-based evaluation if no compiled condition
+		enabled, err := tool.EnableCondition.Evaluate(ctx)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Tool.EnableCondition check error for %q: %v\n", tool.Tool.Name, err)
+			return false
+		}
+		if !enabled {
+			return false
+		}
+	}
+	// 3. Check legacy feature flags (for backward compatibility)
 	if !r.isFeatureFlagAllowed(ctx, tool.FeatureFlagEnable, tool.FeatureFlagDisable) {
 		return false
 	}
-	// 3. Check read-only filter (applies to all tools)
+	// 4. Check read-only filter (applies to all tools)
 	if r.readOnly && !tool.IsReadOnly() {
 		return false
 	}
-	// 4. Apply builder filters
+	// 5. Apply builder filters
 	for _, filter := range r.filters {
 		allowed, err := filter(ctx, tool)
 		if err != nil {
@@ -88,11 +167,11 @@ func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool) bool {
 			return false
 		}
 	}
-	// 5. Check if tool is in additionalTools (bypasses toolset filter)
+	// 6. Check if tool is in additionalTools (bypasses toolset filter)
 	if r.additionalTools != nil && r.additionalTools[tool.Tool.Name] {
 		return true
 	}
-	// 5. Check toolset filter
+	// 6. Check toolset filter
 	if !r.isToolsetEnabled(tool.Toolset.ID) {
 		return false
 	}
@@ -102,22 +181,20 @@ func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool) bool {
 // AvailableTools returns the tools that pass all current filters,
 // sorted deterministically by toolset ID, then tool name.
 // The context is used for feature flag evaluation.
+// Uses O(1) bitmask evaluation for EnableConditions when possible.
+// Note: Tools are pre-sorted at build time, so filtering preserves order.
 func (r *Inventory) AvailableTools(ctx context.Context) []ServerTool {
+	// Build request mask once for O(1) condition evaluation
+	rm := r.buildRequestMask(ctx)
+
+	// Tools are pre-sorted at build time; filtering preserves order
 	var result []ServerTool
 	for i := range r.tools {
 		tool := &r.tools[i]
-		if r.isToolEnabled(ctx, tool) {
+		if r.isToolEnabled(ctx, tool, i, rm) {
 			result = append(result, *tool)
 		}
 	}
-
-	// Sort deterministically: by toolset ID, then by tool name
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].Toolset.ID != result[j].Toolset.ID {
-			return result[i].Toolset.ID < result[j].Toolset.ID
-		}
-		return result[i].Tool.Name < result[j].Tool.Name
-	})
 
 	return result
 }
@@ -125,7 +202,9 @@ func (r *Inventory) AvailableTools(ctx context.Context) []ServerTool {
 // AvailableResourceTemplates returns resource templates that pass all current filters,
 // sorted deterministically by toolset ID, then template name.
 // The context is used for feature flag evaluation.
+// Note: Resources are pre-sorted at build time, so filtering preserves order.
 func (r *Inventory) AvailableResourceTemplates(ctx context.Context) []ServerResourceTemplate {
+	// Resources are pre-sorted at build time; filtering preserves order
 	var result []ServerResourceTemplate
 	for i := range r.resourceTemplates {
 		res := &r.resourceTemplates[i]
@@ -138,21 +217,15 @@ func (r *Inventory) AvailableResourceTemplates(ctx context.Context) []ServerReso
 		}
 	}
 
-	// Sort deterministically: by toolset ID, then by template name
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].Toolset.ID != result[j].Toolset.ID {
-			return result[i].Toolset.ID < result[j].Toolset.ID
-		}
-		return result[i].Template.Name < result[j].Template.Name
-	})
-
 	return result
 }
 
 // AvailablePrompts returns prompts that pass all current filters,
 // sorted deterministically by toolset ID, then prompt name.
 // The context is used for feature flag evaluation.
+// Note: Prompts are pre-sorted at build time, so filtering preserves order.
 func (r *Inventory) AvailablePrompts(ctx context.Context) []ServerPrompt {
+	// Prompts are pre-sorted at build time; filtering preserves order
 	var result []ServerPrompt
 	for i := range r.prompts {
 		prompt := &r.prompts[i]
@@ -164,14 +237,6 @@ func (r *Inventory) AvailablePrompts(ctx context.Context) []ServerPrompt {
 			result = append(result, *prompt)
 		}
 	}
-
-	// Sort deterministically: by toolset ID, then by prompt name
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].Toolset.ID != result[j].Toolset.ID {
-			return result[i].Toolset.ID < result[j].Toolset.ID
-		}
-		return result[i].Prompt.Name < result[j].Prompt.Name
-	})
 
 	return result
 }
@@ -221,7 +286,9 @@ func (r *Inventory) filterPromptsByName(name string) []ServerPrompt {
 // ToolsForToolset returns all tools belonging to a specific toolset.
 // This method bypasses the toolset enabled filter (for dynamic toolset registration),
 // but still respects the read-only filter.
+// Note: Tools are pre-sorted at build time, so filtering preserves order.
 func (r *Inventory) ToolsForToolset(toolsetID ToolsetID) []ServerTool {
+	// Tools are pre-sorted at build time; filtering preserves order
 	var result []ServerTool
 	for i := range r.tools {
 		tool := &r.tools[i]
@@ -233,11 +300,6 @@ func (r *Inventory) ToolsForToolset(toolsetID ToolsetID) []ServerTool {
 			result = append(result, *tool)
 		}
 	}
-
-	// Sort by tool name for deterministic order
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Tool.Name < result[j].Tool.Name
-	})
 
 	return result
 }

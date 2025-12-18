@@ -24,6 +24,7 @@ import (
 //   - Deterministic ordering for documentation generation
 //   - Lazy dependency injection during registration via RegisterAll()
 //   - Runtime toolset enabling for dynamic toolsets mode
+//   - O(1) EnableCondition evaluation via pre-compiled bitmasks
 type Inventory struct {
 	// tools holds all tools in this group (ordered for iteration)
 	tools []ServerTool
@@ -39,6 +40,12 @@ type Inventory struct {
 	toolsetIDSet        map[ToolsetID]bool   // set for O(1) HasToolset lookup
 	defaultToolsetIDs   []ToolsetID          // sorted list of default toolset IDs
 	toolsetDescriptions map[ToolsetID]string // toolset ID -> description
+
+	// Compiled conditions for O(1) EnableCondition evaluation (set during Build)
+	// Maps tool index → compiled condition (nil means always enabled)
+	compiledConditions []*CompiledCondition
+	// conditionCompiler used to compile conditions (shared across inventory)
+	conditionCompiler *ConditionCompiler
 
 	// Filters - these control what's returned by Available* methods
 	// readOnly when true filters out write tools
@@ -110,7 +117,9 @@ func (r *Inventory) ForMCPRequest(method string, itemName string) *Inventory {
 		enabledToolsets:      r.enabledToolsets, // shared, not modified
 		additionalTools:      r.additionalTools, // shared, not modified
 		featureChecker:       r.featureChecker,
-		filters:              r.filters, // shared, not modified
+		filters:              r.filters,            // shared, not modified
+		compiledConditions:   r.compiledConditions, // shared, not modified
+		conditionCompiler:    r.conditionCompiler,  // shared, not modified
 		unrecognizedToolsets: r.unrecognizedToolsets,
 	}
 
