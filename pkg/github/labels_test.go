@@ -17,8 +17,8 @@ func TestGetLabel(t *testing.T) {
 	t.Parallel()
 
 	// Verify tool definition
-	mockClient := githubv4.NewClient(nil)
-	tool, _ := GetLabel(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := GetLabel(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "get_label", tool.Name)
@@ -114,10 +114,13 @@ func TestGetLabel(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := githubv4.NewClient(tc.mockedClient)
-			_, handler := GetLabel(stubGetGQLClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				GQLClient: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			assert.NotNil(t, result)
@@ -139,8 +142,8 @@ func TestListLabels(t *testing.T) {
 	t.Parallel()
 
 	// Verify tool definition
-	mockClient := githubv4.NewClient(nil)
-	tool, _ := ListLabels(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ListLabels(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_label", tool.Name)
@@ -209,10 +212,13 @@ func TestListLabels(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := githubv4.NewClient(tc.mockedClient)
-			_, handler := ListLabels(stubGetGQLClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				GQLClient: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			assert.NotNil(t, result)
@@ -234,8 +240,8 @@ func TestWriteLabel(t *testing.T) {
 	t.Parallel()
 
 	// Verify tool definition
-	mockClient := githubv4.NewClient(nil)
-	tool, _ := LabelWrite(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := LabelWrite(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "label_write", tool.Name)
@@ -457,10 +463,13 @@ func TestWriteLabel(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := githubv4.NewClient(tc.mockedClient)
-			_, handler := LabelWrite(stubGetGQLClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				GQLClient: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			assert.NotNil(t, result)

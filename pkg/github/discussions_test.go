@@ -213,13 +213,13 @@ var (
 )
 
 func Test_ListDiscussions(t *testing.T) {
-	mockClient := githubv4.NewClient(nil)
-	toolDef, _ := ListDiscussions(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
-	require.NoError(t, toolsnaps.Test(toolDef.Name, toolDef))
+	toolDef := ListDiscussions(translations.NullTranslationHelper)
+	tool := toolDef.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "list_discussions", toolDef.Name)
-	assert.NotEmpty(t, toolDef.Description)
-	schema, ok := toolDef.InputSchema.(*jsonschema.Schema)
+	assert.Equal(t, "list_discussions", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
@@ -447,10 +447,11 @@ func Test_ListDiscussions(t *testing.T) {
 			}
 
 			gqlClient := githubv4.NewClient(httpClient)
-			_, handler := ListDiscussions(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+			deps := BaseDeps{GQLClient: gqlClient}
+			handler := toolDef.Handler(deps)
 
 			req := createMCPRequest(tc.reqParams)
-			res, _, err := handler(context.Background(), &req, tc.reqParams)
+			res, err := handler(ContextWithDeps(context.Background(), deps), &req)
 			text := getTextResult(t, res).Text
 
 			if tc.expectError {
@@ -494,12 +495,13 @@ func Test_ListDiscussions(t *testing.T) {
 
 func Test_GetDiscussion(t *testing.T) {
 	// Verify tool definition and schema
-	toolDef, _ := GetDiscussion(nil, translations.NullTranslationHelper)
-	require.NoError(t, toolsnaps.Test(toolDef.Name, toolDef))
+	toolDef := GetDiscussion(translations.NullTranslationHelper)
+	tool := toolDef.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "get_discussion", toolDef.Name)
-	assert.NotEmpty(t, toolDef.Description)
-	schema, ok := toolDef.InputSchema.(*jsonschema.Schema)
+	assert.Equal(t, "get_discussion", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
@@ -557,11 +559,12 @@ func Test_GetDiscussion(t *testing.T) {
 			matcher := githubv4mock.NewQueryMatcher(qGetDiscussion, vars, tc.response)
 			httpClient := githubv4mock.NewMockedHTTPClient(matcher)
 			gqlClient := githubv4.NewClient(httpClient)
-			_, handler := GetDiscussion(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+			deps := BaseDeps{GQLClient: gqlClient}
+			handler := toolDef.Handler(deps)
 
 			reqParams := map[string]interface{}{"owner": "owner", "repo": "repo", "discussionNumber": int32(1)}
 			req := createMCPRequest(reqParams)
-			res, _, err := handler(context.Background(), &req, reqParams)
+			res, err := handler(ContextWithDeps(context.Background(), deps), &req)
 			text := getTextResult(t, res).Text
 
 			if tc.expectError {
@@ -589,12 +592,13 @@ func Test_GetDiscussion(t *testing.T) {
 
 func Test_GetDiscussionComments(t *testing.T) {
 	// Verify tool definition and schema
-	toolDef, _ := GetDiscussionComments(nil, translations.NullTranslationHelper)
-	require.NoError(t, toolsnaps.Test(toolDef.Name, toolDef))
+	toolDef := GetDiscussionComments(translations.NullTranslationHelper)
+	tool := toolDef.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "get_discussion_comments", toolDef.Name)
-	assert.NotEmpty(t, toolDef.Description)
-	schema, ok := toolDef.InputSchema.(*jsonschema.Schema)
+	assert.Equal(t, "get_discussion_comments", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
@@ -635,7 +639,8 @@ func Test_GetDiscussionComments(t *testing.T) {
 	matcher := githubv4mock.NewQueryMatcher(qGetComments, vars, mockResponse)
 	httpClient := githubv4mock.NewMockedHTTPClient(matcher)
 	gqlClient := githubv4.NewClient(httpClient)
-	_, handler := GetDiscussionComments(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+	deps := BaseDeps{GQLClient: gqlClient}
+	handler := toolDef.Handler(deps)
 
 	reqParams := map[string]interface{}{
 		"owner":            "owner",
@@ -644,7 +649,7 @@ func Test_GetDiscussionComments(t *testing.T) {
 	}
 	request := createMCPRequest(reqParams)
 
-	result, _, err := handler(context.Background(), &request, reqParams)
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 	require.NoError(t, err)
 
 	textContent := getTextResult(t, result)
@@ -671,14 +676,14 @@ func Test_GetDiscussionComments(t *testing.T) {
 }
 
 func Test_ListDiscussionCategories(t *testing.T) {
-	mockClient := githubv4.NewClient(nil)
-	toolDef, _ := ListDiscussionCategories(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
-	require.NoError(t, toolsnaps.Test(toolDef.Name, toolDef))
+	toolDef := ListDiscussionCategories(translations.NullTranslationHelper)
+	tool := toolDef.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "list_discussion_categories", toolDef.Name)
-	assert.NotEmpty(t, toolDef.Description)
-	assert.Contains(t, toolDef.Description, "or organisation")
-	schema, ok := toolDef.InputSchema.(*jsonschema.Schema)
+	assert.Equal(t, "list_discussion_categories", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.Description, "or organisation")
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
@@ -786,10 +791,11 @@ func Test_ListDiscussionCategories(t *testing.T) {
 			httpClient := githubv4mock.NewMockedHTTPClient(matcher)
 			gqlClient := githubv4.NewClient(httpClient)
 
-			_, handler := ListDiscussionCategories(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+			deps := BaseDeps{GQLClient: gqlClient}
+			handler := toolDef.Handler(deps)
 
 			req := createMCPRequest(tc.reqParams)
-			res, _, err := handler(context.Background(), &req, tc.reqParams)
+			res, err := handler(ContextWithDeps(context.Background(), deps), &req)
 			text := getTextResult(t, res).Text
 
 			if tc.expectError {

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -24,8 +25,10 @@ const (
 	MaxProjectsPerPage       = 50
 )
 
-func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func ListProjects(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataProjects,
+		mcp.Tool{
 			Name:        "list_projects",
 			Description: t("TOOL_LIST_PROJECTS_DESCRIPTION", `List Projects for a user or organization`),
 			Annotations: &mcp.ToolAnnotations{
@@ -63,7 +66,9 @@ func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (
 				},
 				Required: []string{"owner_type", "owner"},
 			},
-		}, func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -84,7 +89,7 @@ func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			client, err := getClient(ctx)
+			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -133,11 +138,14 @@ func ListProjects(getClient GetClientFn, t translations.TranslationHelperFunc) (
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
-		}
+		},
+	)
 }
 
-func GetProject(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func GetProject(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataProjects,
+		mcp.Tool{
 			Name:        "get_project",
 			Description: t("TOOL_GET_PROJECT_DESCRIPTION", "Get Project for a user or org"),
 			Annotations: &mcp.ToolAnnotations{
@@ -163,7 +171,8 @@ func GetProject(getClient GetClientFn, t translations.TranslationHelperFunc) (mc
 				},
 				Required: []string{"project_number", "owner_type", "owner"},
 			},
-		}, func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			projectNumber, err := RequiredInt(args, "project_number")
 			if err != nil {
@@ -180,7 +189,7 @@ func GetProject(getClient GetClientFn, t translations.TranslationHelperFunc) (mc
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			client, err := getClient(ctx)
+			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -207,7 +216,7 @@ func GetProject(getClient GetClientFn, t translations.TranslationHelperFunc) (mc
 				if err != nil {
 					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 				}
-				return utils.NewToolResultError(fmt.Sprintf("failed to get project: %s", string(body))), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get project", resp, body), nil, nil
 			}
 
 			minimalProject := convertToMinimalProject(project)
@@ -217,11 +226,14 @@ func GetProject(getClient GetClientFn, t translations.TranslationHelperFunc) (mc
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
-		}
+		},
+	)
 }
 
-func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func ListProjectFields(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataProjects,
+		mcp.Tool{
 			Name:        "list_project_fields",
 			Description: t("TOOL_LIST_PROJECT_FIELDS_DESCRIPTION", "List Project fields for a user or org"),
 			Annotations: &mcp.ToolAnnotations{
@@ -259,7 +271,9 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 				},
 				Required: []string{"owner_type", "owner", "project_number"},
 			},
-		}, func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -280,7 +294,7 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			client, err := getClient(ctx)
+			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -318,11 +332,14 @@ func ListProjectFields(getClient GetClientFn, t translations.TranslationHelperFu
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
-		}
+		},
+	)
 }
 
-func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func GetProjectField(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataProjects,
+		mcp.Tool{
 			Name:        "get_project_field",
 			Description: t("TOOL_GET_PROJECT_FIELD_DESCRIPTION", "Get Project field for a user or org"),
 			Annotations: &mcp.ToolAnnotations{
@@ -352,7 +369,9 @@ func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc
 				},
 				Required: []string{"owner_type", "owner", "project_number", "field_id"},
 			},
-		}, func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -369,7 +388,7 @@ func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			client, err := getClient(ctx)
+			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -397,7 +416,7 @@ func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc
 				if err != nil {
 					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 				}
-				return utils.NewToolResultError(fmt.Sprintf("failed to get project field: %s", string(body))), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get project field", resp, body), nil, nil
 			}
 			r, err := json.Marshal(projectField)
 			if err != nil {
@@ -405,11 +424,14 @@ func GetProjectField(getClient GetClientFn, t translations.TranslationHelperFunc
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
-		}
+		},
+	)
 }
 
-func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func ListProjectItems(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataProjects,
+		mcp.Tool{
 			Name:        "list_project_items",
 			Description: t("TOOL_LIST_PROJECT_ITEMS_DESCRIPTION", `Search project items with advanced filtering`),
 			Annotations: &mcp.ToolAnnotations{
@@ -458,7 +480,9 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 				},
 				Required: []string{"owner_type", "owner", "project_number"},
 			},
-		}, func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -489,7 +513,7 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			client, err := getClient(ctx)
+			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -536,11 +560,14 @@ func ListProjectItems(getClient GetClientFn, t translations.TranslationHelperFun
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
-		}
+		},
+	)
 }
 
-func GetProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func GetProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataProjects,
+		mcp.Tool{
 			Name:        "get_project_item",
 			Description: t("TOOL_GET_PROJECT_ITEM_DESCRIPTION", "Get a specific Project item for a user or org"),
 			Annotations: &mcp.ToolAnnotations{
@@ -577,7 +604,9 @@ func GetProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 				},
 				Required: []string{"owner_type", "owner", "project_number", "item_id"},
 			},
-		}, func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -601,7 +630,7 @@ func GetProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			client, err := getClient(ctx)
+			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -637,11 +666,14 @@ func GetProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
-		}
+		},
+	)
 }
 
-func AddProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func AddProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataProjects,
+		mcp.Tool{
 			Name:        "add_project_item",
 			Description: t("TOOL_ADD_PROJECT_ITEM_DESCRIPTION", "Add a specific Project item for a user or org"),
 			Annotations: &mcp.ToolAnnotations{
@@ -676,7 +708,9 @@ func AddProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 				},
 				Required: []string{"owner_type", "owner", "project_number", "item_type", "item_id"},
 			},
-		}, func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -702,7 +736,7 @@ func AddProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 				return utils.NewToolResultError("item_type must be either 'issue' or 'pull_request'"), nil, nil
 			}
 
-			client, err := getClient(ctx)
+			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -735,7 +769,7 @@ func AddProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 				if err != nil {
 					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 				}
-				return utils.NewToolResultError(fmt.Sprintf("%s: %s", ProjectAddFailedError, string(body))), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, ProjectAddFailedError, resp, body), nil, nil
 			}
 			r, err := json.Marshal(addedItem)
 			if err != nil {
@@ -743,11 +777,14 @@ func AddProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc)
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
-		}
+		},
+	)
 }
 
-func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func UpdateProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataProjects,
+		mcp.Tool{
 			Name:        "update_project_item",
 			Description: t("TOOL_UPDATE_PROJECT_ITEM_DESCRIPTION", "Update a specific Project item for a user or org"),
 			Annotations: &mcp.ToolAnnotations{
@@ -781,7 +818,9 @@ func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 				},
 				Required: []string{"owner_type", "owner", "project_number", "item_id", "updated_field"},
 			},
-		}, func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -814,7 +853,7 @@ func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			client, err := getClient(ctx)
+			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -842,7 +881,7 @@ func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 				if err != nil {
 					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 				}
-				return utils.NewToolResultError(fmt.Sprintf("%s: %s", ProjectUpdateFailedError, string(body))), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, ProjectUpdateFailedError, resp, body), nil, nil
 			}
 			r, err := json.Marshal(updatedItem)
 			if err != nil {
@@ -850,11 +889,14 @@ func UpdateProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
-		}
+		},
+	)
 }
 
-func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func DeleteProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataProjects,
+		mcp.Tool{
 			Name:        "delete_project_item",
 			Description: t("TOOL_DELETE_PROJECT_ITEM_DESCRIPTION", "Delete a specific Project item for a user or org"),
 			Annotations: &mcp.ToolAnnotations{
@@ -884,7 +926,9 @@ func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 				},
 				Required: []string{"owner_type", "owner", "project_number", "item_id"},
 			},
-		}, func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -901,7 +945,7 @@ func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			client, err := getClient(ctx)
+			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -927,10 +971,11 @@ func DeleteProjectItem(getClient GetClientFn, t translations.TranslationHelperFu
 				if err != nil {
 					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 				}
-				return utils.NewToolResultError(fmt.Sprintf("%s: %s", ProjectDeleteFailedError, string(body))), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, ProjectDeleteFailedError, resp, body), nil, nil
 			}
 			return utils.NewToolResultText("project item successfully deleted"), nil, nil
-		}
+		},
+	)
 }
 
 type pageInfo struct {

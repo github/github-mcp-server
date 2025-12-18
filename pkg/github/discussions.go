@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-viper/mapstructure/v2"
@@ -121,8 +122,10 @@ func getQueryType(useOrdering bool, categoryID *githubv4.ID) any {
 	return &BasicNoOrder{}
 }
 
-func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataDiscussions,
+		mcp.Tool{
 			Name:        "list_discussions",
 			Description: t("TOOL_LIST_DISCUSSIONS_DESCRIPTION", "List discussions for a repository or organisation."),
 			Annotations: &mcp.ToolAnnotations{
@@ -158,7 +161,7 @@ func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelp
 				Required: []string{"owner"},
 			}),
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -198,7 +201,7 @@ func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelp
 				return nil, nil, err
 			}
 
-			client, err := getGQLClient(ctx)
+			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
@@ -267,11 +270,14 @@ func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelp
 				return nil, nil, fmt.Errorf("failed to marshal discussions: %w", err)
 			}
 			return utils.NewToolResultText(string(out)), nil, nil
-		}
+		},
+	)
 }
 
-func GetDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataDiscussions,
+		mcp.Tool{
 			Name:        "get_discussion",
 			Description: t("TOOL_GET_DISCUSSION_DESCRIPTION", "Get a specific discussion by ID"),
 			Annotations: &mcp.ToolAnnotations{
@@ -297,7 +303,7 @@ func GetDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelper
 				Required: []string{"owner", "repo", "discussionNumber"},
 			},
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			// Decode params
 			var params struct {
 				Owner            string
@@ -307,7 +313,7 @@ func GetDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelper
 			if err := mapstructure.Decode(args, &params); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			client, err := getGQLClient(ctx)
+			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
@@ -367,11 +373,14 @@ func GetDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelper
 			}
 
 			return utils.NewToolResultText(string(out)), nil, nil
-		}
+		},
+	)
 }
 
-func GetDiscussionComments(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataDiscussions,
+		mcp.Tool{
 			Name:        "get_discussion_comments",
 			Description: t("TOOL_GET_DISCUSSION_COMMENTS_DESCRIPTION", "Get comments from a discussion"),
 			Annotations: &mcp.ToolAnnotations{
@@ -397,7 +406,7 @@ func GetDiscussionComments(getGQLClient GetGQLClientFn, t translations.Translati
 				Required: []string{"owner", "repo", "discussionNumber"},
 			}),
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			// Decode params
 			var params struct {
 				Owner            string
@@ -429,7 +438,7 @@ func GetDiscussionComments(getGQLClient GetGQLClientFn, t translations.Translati
 				paginationParams.First = &defaultFirst
 			}
 
-			client, err := getGQLClient(ctx)
+			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
@@ -490,11 +499,14 @@ func GetDiscussionComments(getGQLClient GetGQLClientFn, t translations.Translati
 			}
 
 			return utils.NewToolResultText(string(out)), nil, nil
-		}
+		},
+	)
 }
 
-func ListDiscussionCategories(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataDiscussions,
+		mcp.Tool{
 			Name:        "list_discussion_categories",
 			Description: t("TOOL_LIST_DISCUSSION_CATEGORIES_DESCRIPTION", "List discussion categories with their id and name, for a repository or organisation."),
 			Annotations: &mcp.ToolAnnotations{
@@ -516,7 +528,7 @@ func ListDiscussionCategories(getGQLClient GetGQLClientFn, t translations.Transl
 				Required: []string{"owner"},
 			},
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -531,7 +543,7 @@ func ListDiscussionCategories(getGQLClient GetGQLClientFn, t translations.Transl
 				repo = ".github"
 			}
 
-			client, err := getGQLClient(ctx)
+			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
@@ -587,5 +599,6 @@ func ListDiscussionCategories(getGQLClient GetGQLClientFn, t translations.Transl
 				return nil, nil, fmt.Errorf("failed to marshal discussion categories: %w", err)
 			}
 			return utils.NewToolResultText(string(out)), nil, nil
-		}
+		},
+	)
 }
