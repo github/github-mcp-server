@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -37,45 +38,45 @@ type TreeResponse struct {
 }
 
 // GetRepositoryTree creates a tool to get the tree structure of a GitHub repository.
-func GetRepositoryTree(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	tool := mcp.Tool{
-		Name:        "get_repository_tree",
-		Description: t("TOOL_GET_REPOSITORY_TREE_DESCRIPTION", "Get the tree structure (files and directories) of a GitHub repository at a specific ref or SHA"),
-		Annotations: &mcp.ToolAnnotations{
-			Title:        t("TOOL_GET_REPOSITORY_TREE_USER_TITLE", "Get repository tree"),
-			ReadOnlyHint: true,
-		},
-		InputSchema: &jsonschema.Schema{
-			Type: "object",
-			Properties: map[string]*jsonschema.Schema{
-				"owner": {
-					Type:        "string",
-					Description: "Repository owner (username or organization)",
-				},
-				"repo": {
-					Type:        "string",
-					Description: "Repository name",
-				},
-				"tree_sha": {
-					Type:        "string",
-					Description: "The SHA1 value or ref (branch or tag) name of the tree. Defaults to the repository's default branch",
-				},
-				"recursive": {
-					Type:        "boolean",
-					Description: "Setting this parameter to true returns the objects or subtrees referenced by the tree. Default is false",
-					Default:     json.RawMessage(`false`),
-				},
-				"path_filter": {
-					Type:        "string",
-					Description: "Optional path prefix to filter the tree results (e.g., 'src/' to only show files in the src directory)",
-				},
+func GetRepositoryTree(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataGit,
+		mcp.Tool{
+			Name:        "get_repository_tree",
+			Description: t("TOOL_GET_REPOSITORY_TREE_DESCRIPTION", "Get the tree structure (files and directories) of a GitHub repository at a specific ref or SHA"),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_GET_REPOSITORY_TREE_USER_TITLE", "Get repository tree"),
+				ReadOnlyHint: true,
 			},
-			Required: []string{"owner", "repo"},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"tree_sha": {
+						Type:        "string",
+						Description: "The SHA1 value or ref (branch or tag) name of the tree. Defaults to the repository's default branch",
+					},
+					"recursive": {
+						Type:        "boolean",
+						Description: "Setting this parameter to true returns the objects or subtrees referenced by the tree. Default is false",
+						Default:     json.RawMessage(`false`),
+					},
+					"path_filter": {
+						Type:        "string",
+						Description: "Optional path prefix to filter the tree results (e.g., 'src/' to only show files in the src directory)",
+					},
+				},
+				Required: []string{"owner", "repo"},
+			},
 		},
-	}
-
-	handler := mcp.ToolHandlerFor[map[string]any, any](
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -97,7 +98,7 @@ func GetRepositoryTree(getClient GetClientFn, t translations.TranslationHelperFu
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			client, err := getClient(ctx)
+			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError("failed to get GitHub client"), nil, nil
 			}
@@ -171,6 +172,4 @@ func GetRepositoryTree(getClient GetClientFn, t translations.TranslationHelperFu
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-
-	return tool, handler
 }

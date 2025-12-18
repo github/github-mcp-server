@@ -1,13 +1,146 @@
 package github
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+)
+
+// GitHub API endpoint patterns for testing
+// These constants define the URL patterns used in HTTP mocking for tests
+const (
+	// User endpoints
+	GetUser                        = "GET /user"
+	GetUserStarred                 = "GET /user/starred"
+	GetUsersGistsByUsername        = "GET /users/{username}/gists"
+	GetUsersStarredByUsername      = "GET /users/{username}/starred"
+	PutUserStarredByOwnerByRepo    = "PUT /user/starred/{owner}/{repo}"
+	DeleteUserStarredByOwnerByRepo = "DELETE /user/starred/{owner}/{repo}"
+
+	// Repository endpoints
+	GetReposByOwnerByRepo                = "GET /repos/{owner}/{repo}"
+	GetReposBranchesByOwnerByRepo        = "GET /repos/{owner}/{repo}/branches"
+	GetReposTagsByOwnerByRepo            = "GET /repos/{owner}/{repo}/tags"
+	GetReposCommitsByOwnerByRepo         = "GET /repos/{owner}/{repo}/commits"
+	GetReposCommitsByOwnerByRepoByRef    = "GET /repos/{owner}/{repo}/commits/{ref}"
+	GetReposContentsByOwnerByRepoByPath  = "GET /repos/{owner}/{repo}/contents/{path}"
+	PutReposContentsByOwnerByRepoByPath  = "PUT /repos/{owner}/{repo}/contents/{path}"
+	PostReposForksByOwnerByRepo          = "POST /repos/{owner}/{repo}/forks"
+	GetReposSubscriptionByOwnerByRepo    = "GET /repos/{owner}/{repo}/subscription"
+	PutReposSubscriptionByOwnerByRepo    = "PUT /repos/{owner}/{repo}/subscription"
+	DeleteReposSubscriptionByOwnerByRepo = "DELETE /repos/{owner}/{repo}/subscription"
+
+	// Git endpoints
+	GetReposGitTreesByOwnerByRepoByTree        = "GET /repos/{owner}/{repo}/git/trees/{tree}"
+	GetReposGitRefByOwnerByRepoByRef           = "GET /repos/{owner}/{repo}/git/ref/{ref}"
+	PostReposGitRefsByOwnerByRepo              = "POST /repos/{owner}/{repo}/git/refs"
+	PatchReposGitRefsByOwnerByRepoByRef        = "PATCH /repos/{owner}/{repo}/git/refs/{ref}"
+	GetReposGitCommitsByOwnerByRepoByCommitSHA = "GET /repos/{owner}/{repo}/git/commits/{commit_sha}"
+	PostReposGitCommitsByOwnerByRepo           = "POST /repos/{owner}/{repo}/git/commits"
+	GetReposGitTagsByOwnerByRepoByTagSHA       = "GET /repos/{owner}/{repo}/git/tags/{tag_sha}"
+	PostReposGitTreesByOwnerByRepo             = "POST /repos/{owner}/{repo}/git/trees"
+	GetReposCommitsStatusByOwnerByRepoByRef    = "GET /repos/{owner}/{repo}/commits/{ref}/status"
+	GetReposCommitsStatusesByOwnerByRepoByRef  = "GET /repos/{owner}/{repo}/commits/{ref}/statuses"
+
+	// Issues endpoints
+	GetReposIssuesByOwnerByRepoByIssueNumber                    = "GET /repos/{owner}/{repo}/issues/{issue_number}"
+	GetReposIssuesCommentsByOwnerByRepoByIssueNumber            = "GET /repos/{owner}/{repo}/issues/{issue_number}/comments"
+	PostReposIssuesByOwnerByRepo                                = "POST /repos/{owner}/{repo}/issues"
+	PostReposIssuesCommentsByOwnerByRepoByIssueNumber           = "POST /repos/{owner}/{repo}/issues/{issue_number}/comments"
+	PatchReposIssuesByOwnerByRepoByIssueNumber                  = "PATCH /repos/{owner}/{repo}/issues/{issue_number}"
+	GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber           = "GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues"
+	PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber          = "POST /repos/{owner}/{repo}/issues/{issue_number}/sub_issues"
+	DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber         = "DELETE /repos/{owner}/{repo}/issues/{issue_number}/sub_issues"
+	PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber = "PATCH /repos/{owner}/{repo}/issues/{issue_number}/sub_issues/priority"
+
+	// Pull request endpoints
+	GetReposPullsByOwnerByRepo                                = "GET /repos/{owner}/{repo}/pulls"
+	GetReposPullsByOwnerByRepoByPullNumber                    = "GET /repos/{owner}/{repo}/pulls/{pull_number}"
+	GetReposPullsFilesByOwnerByRepoByPullNumber               = "GET /repos/{owner}/{repo}/pulls/{pull_number}/files"
+	GetReposPullsReviewsByOwnerByRepoByPullNumber             = "GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews"
+	PostReposPullsByOwnerByRepo                               = "POST /repos/{owner}/{repo}/pulls"
+	PatchReposPullsByOwnerByRepoByPullNumber                  = "PATCH /repos/{owner}/{repo}/pulls/{pull_number}"
+	PutReposPullsMergeByOwnerByRepoByPullNumber               = "PUT /repos/{owner}/{repo}/pulls/{pull_number}/merge"
+	PutReposPullsUpdateBranchByOwnerByRepoByPullNumber        = "PUT /repos/{owner}/{repo}/pulls/{pull_number}/update-branch"
+	PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber = "POST /repos/{owner}/{repo}/pulls/{pull_number}/requested_reviewers"
+
+	// Notifications endpoints
+	GetNotifications                                 = "GET /notifications"
+	PutNotifications                                 = "PUT /notifications"
+	GetReposNotificationsByOwnerByRepo               = "GET /repos/{owner}/{repo}/notifications"
+	PutReposNotificationsByOwnerByRepo               = "PUT /repos/{owner}/{repo}/notifications"
+	GetNotificationsThreadsByThreadID                = "GET /notifications/threads/{thread_id}"
+	PatchNotificationsThreadsByThreadID              = "PATCH /notifications/threads/{thread_id}"
+	DeleteNotificationsThreadsByThreadID             = "DELETE /notifications/threads/{thread_id}"
+	PutNotificationsThreadsSubscriptionByThreadID    = "PUT /notifications/threads/{thread_id}/subscription"
+	DeleteNotificationsThreadsSubscriptionByThreadID = "DELETE /notifications/threads/{thread_id}/subscription"
+
+	// Gists endpoints
+	GetGists           = "GET /gists"
+	GetGistsByGistID   = "GET /gists/{gist_id}"
+	PostGists          = "POST /gists"
+	PatchGistsByGistID = "PATCH /gists/{gist_id}"
+
+	// Releases endpoints
+	GetReposReleasesByOwnerByRepo          = "GET /repos/{owner}/{repo}/releases"
+	GetReposReleasesLatestByOwnerByRepo    = "GET /repos/{owner}/{repo}/releases/latest"
+	GetReposReleasesTagsByOwnerByRepoByTag = "GET /repos/{owner}/{repo}/releases/tags/{tag}"
+
+	// Code scanning endpoints
+	GetReposCodeScanningAlertsByOwnerByRepo              = "GET /repos/{owner}/{repo}/code-scanning/alerts"
+	GetReposCodeScanningAlertsByOwnerByRepoByAlertNumber = "GET /repos/{owner}/{repo}/code-scanning/alerts/{alert_number}"
+
+	// Secret scanning endpoints
+	GetReposSecretScanningAlertsByOwnerByRepo              = "GET /repos/{owner}/{repo}/secret-scanning/alerts"                //nolint:gosec // False positive - this is an API endpoint pattern, not a credential
+	GetReposSecretScanningAlertsByOwnerByRepoByAlertNumber = "GET /repos/{owner}/{repo}/secret-scanning/alerts/{alert_number}" //nolint:gosec // False positive - this is an API endpoint pattern, not a credential
+
+	// Dependabot endpoints
+	GetReposDependabotAlertsByOwnerByRepo              = "GET /repos/{owner}/{repo}/dependabot/alerts"
+	GetReposDependabotAlertsByOwnerByRepoByAlertNumber = "GET /repos/{owner}/{repo}/dependabot/alerts/{alert_number}"
+
+	// Security advisories endpoints
+	GetAdvisories                           = "GET /advisories"
+	GetAdvisoriesByGhsaID                   = "GET /advisories/{ghsa_id}"
+	GetReposSecurityAdvisoriesByOwnerByRepo = "GET /repos/{owner}/{repo}/security-advisories"
+	GetOrgsSecurityAdvisoriesByOrg          = "GET /orgs/{org}/security-advisories"
+
+	// Actions endpoints
+	GetReposActionsWorkflowsByOwnerByRepo                        = "GET /repos/{owner}/{repo}/actions/workflows"
+	GetReposActionsWorkflowsByOwnerByRepoByWorkflowID            = "GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}"
+	PostReposActionsWorkflowsDispatchesByOwnerByRepoByWorkflowID = "POST /repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches"
+	GetReposActionsWorkflowsRunsByOwnerByRepoByWorkflowID        = "GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs"
+	GetReposActionsRunsByOwnerByRepoByRunID                      = "GET /repos/{owner}/{repo}/actions/runs/{run_id}"
+	GetReposActionsRunsLogsByOwnerByRepoByRunID                  = "GET /repos/{owner}/{repo}/actions/runs/{run_id}/logs"
+	GetReposActionsRunsJobsByOwnerByRepoByRunID                  = "GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs"
+	GetReposActionsRunsArtifactsByOwnerByRepoByRunID             = "GET /repos/{owner}/{repo}/actions/runs/{run_id}/artifacts"
+	GetReposActionsRunsTimingByOwnerByRepoByRunID                = "GET /repos/{owner}/{repo}/actions/runs/{run_id}/timing"
+	PostReposActionsRunsRerunByOwnerByRepoByRunID                = "POST /repos/{owner}/{repo}/actions/runs/{run_id}/rerun"
+	PostReposActionsRunsRerunFailedJobsByOwnerByRepoByRunID      = "POST /repos/{owner}/{repo}/actions/runs/{run_id}/rerun-failed-jobs"
+	PostReposActionsRunsCancelByOwnerByRepoByRunID               = "POST /repos/{owner}/{repo}/actions/runs/{run_id}/cancel"
+	GetReposActionsJobsLogsByOwnerByRepoByJobID                  = "GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs"
+	DeleteReposActionsRunsLogsByOwnerByRepoByRunID               = "DELETE /repos/{owner}/{repo}/actions/runs/{run_id}/logs"
+
+	// Search endpoints
+	GetSearchCode         = "GET /search/code"
+	GetSearchIssues       = "GET /search/issues"
+	GetSearchRepositories = "GET /search/repositories"
+	GetSearchUsers        = "GET /search/users"
+
+	// Raw content endpoints (used for GitHub raw content API, not standard API)
+	// These are used with the raw content client that interacts with raw.githubusercontent.com
+	GetRawReposContentsByOwnerByRepoByPath         = "GET /{owner}/{repo}/HEAD/{path:.*}"
+	GetRawReposContentsByOwnerByRepoByBranchByPath = "GET /{owner}/{repo}/refs/heads/{branch}/{path:.*}"
+	GetRawReposContentsByOwnerByRepoByTagByPath    = "GET /{owner}/{repo}/refs/tags/{tag}/{path:.*}"
+	GetRawReposContentsByOwnerByRepoBySHAByPath    = "GET /{owner}/{repo}/{sha}/{path:.*}"
 )
 
 type expectations struct {
@@ -216,7 +349,7 @@ func TestOptionalParamOK(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Test with string type assertion
 			if _, isString := tc.expectedVal.(string); isString || tc.errorMsg == "parameter myParam is not of type string, is bool" {
-				val, ok, err := OptionalParamOK[string, map[string]any](tc.args, tc.paramName)
+				val, ok, err := OptionalParamOK[string](tc.args, tc.paramName)
 				if tc.expectError {
 					require.Error(t, err)
 					assert.Contains(t, err.Error(), tc.errorMsg)
@@ -231,7 +364,7 @@ func TestOptionalParamOK(t *testing.T) {
 
 			// Test with bool type assertion
 			if _, isBool := tc.expectedVal.(bool); isBool || tc.errorMsg == "parameter myParam is not of type bool, is string" {
-				val, ok, err := OptionalParamOK[bool, map[string]any](tc.args, tc.paramName)
+				val, ok, err := OptionalParamOK[bool](tc.args, tc.paramName)
 				if tc.expectError {
 					require.Error(t, err)
 					assert.Contains(t, err.Error(), tc.errorMsg)
@@ -246,7 +379,7 @@ func TestOptionalParamOK(t *testing.T) {
 
 			// Test with float64 type assertion (for number case)
 			if _, isFloat := tc.expectedVal.(float64); isFloat {
-				val, ok, err := OptionalParamOK[float64, map[string]any](tc.args, tc.paramName)
+				val, ok, err := OptionalParamOK[float64](tc.args, tc.paramName)
 				if tc.expectError {
 					// This case shouldn't happen for float64 in the defined tests
 					require.Fail(t, "Unexpected error case for float64")
@@ -271,4 +404,258 @@ func getResourceResult(t *testing.T, result *mcp.CallToolResult) *mcp.ResourceCo
 
 	require.IsType(t, &mcp.ResourceContents{}, resource.Resource)
 	return resource.Resource
+}
+
+// MockRoundTripper is a mock HTTP transport using testify/mock
+type MockRoundTripper struct {
+	mock.Mock
+	handlers map[string]http.HandlerFunc
+}
+
+// NewMockRoundTripper creates a new mock round tripper
+func NewMockRoundTripper() *MockRoundTripper {
+	return &MockRoundTripper{
+		handlers: make(map[string]http.HandlerFunc),
+	}
+}
+
+// RoundTrip implements the http.RoundTripper interface
+func (m *MockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Normalize the request path and method for matching
+	key := req.Method + " " + req.URL.Path
+
+	// Check if we have a specific handler for this request
+	if handler, ok := m.handlers[key]; ok {
+		// Use httptest.ResponseRecorder to capture the handler's response
+		recorder := &responseRecorder{
+			header: make(http.Header),
+			body:   &bytes.Buffer{},
+		}
+		handler(recorder, req)
+
+		return &http.Response{
+			StatusCode: recorder.statusCode,
+			Header:     recorder.header,
+			Body:       io.NopCloser(bytes.NewReader(recorder.body.Bytes())),
+			Request:    req,
+		}, nil
+	}
+
+	// Fall back to mock.Mock assertions if defined
+	args := m.Called(req)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*http.Response), args.Error(1)
+}
+
+// On registers an expectation using testify/mock
+func (m *MockRoundTripper) OnRequest(method, path string, handler http.HandlerFunc) *MockRoundTripper {
+	key := method + " " + path
+	m.handlers[key] = handler
+	return m
+}
+
+// NewMockHTTPClient creates an HTTP client with a mock transport
+func NewMockHTTPClient() (*http.Client, *MockRoundTripper) {
+	transport := NewMockRoundTripper()
+	client := &http.Client{Transport: transport}
+	return client, transport
+}
+
+// responseRecorder is a simple response recorder for the mock transport
+type responseRecorder struct {
+	statusCode int
+	header     http.Header
+	body       *bytes.Buffer
+}
+
+func (r *responseRecorder) Header() http.Header {
+	return r.header
+}
+
+func (r *responseRecorder) Write(data []byte) (int, error) {
+	if r.statusCode == 0 {
+		r.statusCode = http.StatusOK
+	}
+	return r.body.Write(data)
+}
+
+func (r *responseRecorder) WriteHeader(statusCode int) {
+	r.statusCode = statusCode
+}
+
+// matchPath checks if a request path matches a pattern (supports simple wildcards)
+func matchPath(pattern, path string) bool {
+	// Simple exact match for now
+	if pattern == path {
+		return true
+	}
+
+	// Support for path parameters like /repos/{owner}/{repo}/issues/{issue_number}
+	patternParts := strings.Split(strings.Trim(pattern, "/"), "/")
+	pathParts := strings.Split(strings.Trim(path, "/"), "/")
+
+	// Handle patterns with wildcard path like {path:.*}
+	if len(patternParts) > 0 {
+		lastPart := patternParts[len(patternParts)-1]
+		if strings.HasPrefix(lastPart, "{") && strings.Contains(lastPart, ":") && strings.HasSuffix(lastPart, "}") {
+			// This is a wildcard pattern like {path:.*}
+			// Check if all parts before the wildcard match
+			if len(pathParts) < len(patternParts)-1 {
+				return false
+			}
+			for i := 0; i < len(patternParts)-1; i++ {
+				if strings.HasPrefix(patternParts[i], "{") && strings.HasSuffix(patternParts[i], "}") {
+					continue // Path parameter matches anything
+				}
+				if patternParts[i] != pathParts[i] {
+					return false
+				}
+			}
+			return true
+		}
+	}
+
+	if len(patternParts) != len(pathParts) {
+		return false
+	}
+
+	for i := range patternParts {
+		// Check if this is a path parameter (enclosed in {})
+		if strings.HasPrefix(patternParts[i], "{") && strings.HasSuffix(patternParts[i], "}") {
+			continue // Path parameters match anything
+		}
+		if patternParts[i] != pathParts[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
+// executeHandler executes an HTTP handler and returns the response
+func executeHandler(handler http.HandlerFunc, req *http.Request) *http.Response {
+	recorder := &responseRecorder{
+		header: make(http.Header),
+		body:   &bytes.Buffer{},
+	}
+	handler(recorder, req)
+
+	return &http.Response{
+		StatusCode: recorder.statusCode,
+		Header:     recorder.header,
+		Body:       io.NopCloser(bytes.NewReader(recorder.body.Bytes())),
+		Request:    req,
+	}
+}
+
+// MockHTTPClientWithHandler creates an HTTP client with a single handler function
+func MockHTTPClientWithHandler(handler http.HandlerFunc) *http.Client {
+	handlers := map[string]http.HandlerFunc{
+		"": handler, // Empty key acts as catch-all
+	}
+	return MockHTTPClientWithHandlers(handlers)
+}
+
+// MockHTTPClientWithHandlers creates an HTTP client with multiple handlers for different paths
+func MockHTTPClientWithHandlers(handlers map[string]http.HandlerFunc) *http.Client {
+	transport := &multiHandlerTransport{handlers: handlers}
+	return &http.Client{Transport: transport}
+}
+
+type multiHandlerTransport struct {
+	handlers map[string]http.HandlerFunc
+}
+
+func (m *multiHandlerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Check for catch-all handler
+	if handler, ok := m.handlers[""]; ok {
+		return executeHandler(handler, req), nil
+	}
+
+	// Try to find a handler for this request
+	key := req.Method + " " + req.URL.Path
+
+	// First try exact match
+	if handler, ok := m.handlers[key]; ok {
+		return executeHandler(handler, req), nil
+	}
+
+	// Then try pattern matching, prioritizing patterns without wildcards
+	// This is important because wildcard patterns like /{owner}/{repo}/{sha}/{path:.*}
+	// can incorrectly match API paths like /repos/owner/repo/pulls/42
+	var wildcardPattern string
+	var wildcardHandler http.HandlerFunc
+
+	for pattern, handler := range m.handlers {
+		if pattern == "" {
+			continue // Skip catch-all
+		}
+		parts := strings.SplitN(pattern, " ", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		method, pathPattern := parts[0], parts[1]
+		if req.Method != method {
+			continue
+		}
+
+		// Check if this pattern contains a wildcard like {path:.*}
+		isWildcard := strings.Contains(pathPattern, ":.*}")
+
+		if matchPath(pathPattern, req.URL.Path) {
+			if isWildcard {
+				// Save wildcard match for later, prefer non-wildcard patterns
+				wildcardPattern = pattern
+				wildcardHandler = handler
+			} else {
+				// Non-wildcard pattern takes priority
+				return executeHandler(handler, req), nil
+			}
+		}
+	}
+
+	// If we found a wildcard match but no specific match, use it
+	if wildcardPattern != "" && wildcardHandler != nil {
+		return executeHandler(wildcardHandler, req), nil
+	}
+
+	// No handler found
+	return &http.Response{
+		StatusCode: http.StatusNotFound,
+		Body:       io.NopCloser(bytes.NewReader([]byte("not found"))),
+		Request:    req,
+	}, nil
+}
+
+// extractPathParams extracts path parameters from a URL path given a pattern
+func extractPathParams(pattern, path string) map[string]string {
+	params := make(map[string]string)
+	patternParts := strings.Split(strings.Trim(pattern, "/"), "/")
+	pathParts := strings.Split(strings.Trim(path, "/"), "/")
+
+	if len(patternParts) != len(pathParts) {
+		return params
+	}
+
+	for i := range patternParts {
+		if strings.HasPrefix(patternParts[i], "{") && strings.HasSuffix(patternParts[i], "}") {
+			paramName := strings.Trim(patternParts[i], "{}")
+			params[paramName] = pathParts[i]
+		}
+	}
+
+	return params
+}
+
+// ParseRequestPath is a helper to extract path parameters
+func ParseRequestPath(t *testing.T, req *http.Request, pattern string) url.Values {
+	t.Helper()
+	params := extractPathParams(pattern, req.URL.Path)
+	values := url.Values{}
+	for k, v := range params {
+		values.Set(k, v)
+	}
+	return values
 }

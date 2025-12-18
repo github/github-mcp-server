@@ -384,6 +384,7 @@ You can also configure specific tools using the `--tools` flag. Tools can be use
 - Tools, toolsets, and dynamic toolsets can all be used together
 - Read-only mode takes priority: write tools are skipped if `--read-only` is set, even if explicitly requested via `--tools`
 - Tool names must match exactly (e.g., `get_file_contents`, not `getFileContents`). Invalid tool names will cause the server to fail at startup with an error message
+- When tools are renamed, old names are preserved as aliases for backward compatibility. See [Deprecated Tool Aliases](docs/deprecated-tool-aliases.md) for details.
 
 ### Using Toolsets With Docker
 
@@ -452,27 +453,26 @@ GITHUB_TOOLSETS="default,stargazers" ./github-mcp-server
 The following sets of tools are available:
 
 <!-- START AUTOMATED TOOLSETS -->
-| Toolset                 | Description                                                   |
-| ----------------------- | ------------------------------------------------------------- |
-| `context`               | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |
-| `actions` | GitHub Actions workflows and CI/CD operations |
-| `code_security` | Code security related tools, such as GitHub Code Scanning |
-| `dependabot` | Dependabot tools |
-| `discussions` | GitHub Discussions related tools |
-| `experiments` | Experimental features that are not considered stable yet |
-| `gists` | GitHub Gist related tools |
-| `git` | GitHub Git API related tools for low-level Git operations |
-| `issues` | GitHub Issues related tools |
-| `labels` | GitHub Labels related tools |
-| `notifications` | GitHub Notifications related tools |
-| `orgs` | GitHub Organization related tools |
-| `projects` | GitHub Projects related tools |
-| `pull_requests` | GitHub Pull Request related tools |
-| `repos` | GitHub Repository related tools |
-| `secret_protection` | Secret protection related tools, such as GitHub Secret Scanning |
-| `security_advisories` | Security advisories related tools |
-| `stargazers` | GitHub Stargazers related tools |
-| `users` | GitHub User related tools |
+|     | Toolset                 | Description                                                   |
+| --- | ----------------------- | ------------------------------------------------------------- |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/person-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/person-light.png"><img src="pkg/octicons/icons/person-light.png" width="20" height="20" alt="person"></picture> | `context`               | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/workflow-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/workflow-light.png"><img src="pkg/octicons/icons/workflow-light.png" width="20" height="20" alt="workflow"></picture> | `actions` | GitHub Actions workflows and CI/CD operations |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/codescan-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/codescan-light.png"><img src="pkg/octicons/icons/codescan-light.png" width="20" height="20" alt="codescan"></picture> | `code_security` | Code security related tools, such as GitHub Code Scanning |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/dependabot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/dependabot-light.png"><img src="pkg/octicons/icons/dependabot-light.png" width="20" height="20" alt="dependabot"></picture> | `dependabot` | Dependabot tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/comment-discussion-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/comment-discussion-light.png"><img src="pkg/octicons/icons/comment-discussion-light.png" width="20" height="20" alt="comment-discussion"></picture> | `discussions` | GitHub Discussions related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/logo-gist-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/logo-gist-light.png"><img src="pkg/octicons/icons/logo-gist-light.png" width="20" height="20" alt="logo-gist"></picture> | `gists` | GitHub Gist related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/git-branch-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/git-branch-light.png"><img src="pkg/octicons/icons/git-branch-light.png" width="20" height="20" alt="git-branch"></picture> | `git` | GitHub Git API related tools for low-level Git operations |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/issue-opened-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/issue-opened-light.png"><img src="pkg/octicons/icons/issue-opened-light.png" width="20" height="20" alt="issue-opened"></picture> | `issues` | GitHub Issues related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/tag-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/tag-light.png"><img src="pkg/octicons/icons/tag-light.png" width="20" height="20" alt="tag"></picture> | `labels` | GitHub Labels related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/bell-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/bell-light.png"><img src="pkg/octicons/icons/bell-light.png" width="20" height="20" alt="bell"></picture> | `notifications` | GitHub Notifications related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/organization-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/organization-light.png"><img src="pkg/octicons/icons/organization-light.png" width="20" height="20" alt="organization"></picture> | `orgs` | GitHub Organization related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/project-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/project-light.png"><img src="pkg/octicons/icons/project-light.png" width="20" height="20" alt="project"></picture> | `projects` | GitHub Projects related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/git-pull-request-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/git-pull-request-light.png"><img src="pkg/octicons/icons/git-pull-request-light.png" width="20" height="20" alt="git-pull-request"></picture> | `pull_requests` | GitHub Pull Request related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/repo-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/repo-light.png"><img src="pkg/octicons/icons/repo-light.png" width="20" height="20" alt="repo"></picture> | `repos` | GitHub Repository related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/shield-lock-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/shield-lock-light.png"><img src="pkg/octicons/icons/shield-lock-light.png" width="20" height="20" alt="shield-lock"></picture> | `secret_protection` | Secret protection related tools, such as GitHub Secret Scanning |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/shield-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/shield-light.png"><img src="pkg/octicons/icons/shield-light.png" width="20" height="20" alt="shield"></picture> | `security_advisories` | Security advisories related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/star-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/star-light.png"><img src="pkg/octicons/icons/star-light.png" width="20" height="20" alt="star"></picture> | `stargazers` | GitHub Stargazers related tools |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/people-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/people-light.png"><img src="pkg/octicons/icons/people-light.png" width="20" height="20" alt="people"></picture> | `users` | GitHub User related tools |
 <!-- END AUTOMATED TOOLSETS -->
 
 ### Additional Toolsets in Remote GitHub MCP Server
@@ -488,7 +488,41 @@ The following sets of tools are available:
 <!-- START AUTOMATED TOOLS -->
 <details>
 
-<summary>Actions</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/workflow-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/workflow-light.png"><img src="pkg/octicons/icons/workflow-light.png" width="20" height="20" alt="workflow"></picture> Actions</summary>
+
+- **actions_get** - Get details of GitHub Actions resources (workflows, workflow runs, jobs, and artifacts)
+  - `method`: The method to execute (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `resource_id`: The unique identifier of the resource. This will vary based on the "method" provided, so ensure you provide the correct ID:
+    - Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'get_workflow' method.
+    - Provide a workflow run ID for 'get_workflow_run', 'get_workflow_run_usage', and 'get_workflow_run_logs_url' methods.
+    - Provide an artifact ID for 'download_workflow_run_artifact' method.
+    - Provide a job ID for 'get_workflow_job' method.
+     (string, required)
+
+- **actions_list** - List GitHub Actions workflows in a repository
+  - `method`: The action to perform (string, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (default: 1) (number, optional)
+  - `per_page`: Results per page for pagination (default: 30, max: 100) (number, optional)
+  - `repo`: Repository name (string, required)
+  - `resource_id`: The unique identifier of the resource. This will vary based on the "method" provided, so ensure you provide the correct ID:
+    - Do not provide any resource ID for 'list_workflows' method.
+    - Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'list_workflow_runs' method.
+    - Provide a workflow run ID for 'list_workflow_jobs' and 'list_workflow_run_artifacts' methods.
+     (string, optional)
+  - `workflow_jobs_filter`: Filters for workflow jobs. **ONLY** used when method is 'list_workflow_jobs' (object, optional)
+  - `workflow_runs_filter`: Filters for workflow runs. **ONLY** used when method is 'list_workflow_runs' (object, optional)
+
+- **actions_run_trigger** - Trigger GitHub Actions workflow actions
+  - `inputs`: Inputs the workflow accepts. Only used for 'run_workflow' method. (object, optional)
+  - `method`: The method to execute (string, required)
+  - `owner`: Repository owner (string, required)
+  - `ref`: The git reference for the workflow. The reference can be a branch or tag name. Required for 'run_workflow' method. (string, optional)
+  - `repo`: Repository name (string, required)
+  - `run_id`: The ID of the workflow run. Required for all methods except 'run_workflow'. (number, optional)
+  - `workflow_id`: The workflow ID (numeric) or workflow file name (e.g., main.yml, ci.yaml). Required for 'run_workflow' method. (string, optional)
 
 - **cancel_workflow_run** - Cancel workflow run
   - `owner`: Repository owner (string, required)
@@ -512,6 +546,15 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
   - `return_content`: Returns actual log content instead of URLs (boolean, optional)
   - `run_id`: Workflow run ID (required when using failed_only) (number, optional)
+  - `tail_lines`: Number of lines to return from the end of the log (number, optional)
+
+- **get_job_logs** - Get GitHub Actions workflow job logs
+  - `failed_only`: When true, gets logs for all failed jobs in the workflow run specified by run_id. Requires run_id to be provided. (boolean, optional)
+  - `job_id`: The unique identifier of the workflow job. Required when getting logs for a single job. (number, optional)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `return_content`: Returns actual log content instead of URLs (boolean, optional)
+  - `run_id`: The unique identifier of the workflow run. Required when failed_only is true to get logs for all failed jobs in the run. (number, optional)
   - `tail_lines`: Number of lines to return from the end of the log (number, optional)
 
 - **get_workflow_run** - Get workflow run
@@ -582,7 +625,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Code Security</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/codescan-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/codescan-light.png"><img src="pkg/octicons/icons/codescan-light.png" width="20" height="20" alt="codescan"></picture> Code Security</summary>
 
 - **get_code_scanning_alert** - Get code scanning alert
   - `alertNumber`: The number of the alert. (number, required)
@@ -601,7 +644,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Context</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/person-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/person-light.png"><img src="pkg/octicons/icons/person-light.png" width="20" height="20" alt="person"></picture> Context</summary>
 
 - **get_me** - Get my user profile
   - No parameters required
@@ -617,7 +660,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Dependabot</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/dependabot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/dependabot-light.png"><img src="pkg/octicons/icons/dependabot-light.png" width="20" height="20" alt="dependabot"></picture> Dependabot</summary>
 
 - **get_dependabot_alert** - Get dependabot alert
   - `alertNumber`: The number of the alert. (number, required)
@@ -634,7 +677,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Discussions</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/comment-discussion-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/comment-discussion-light.png"><img src="pkg/octicons/icons/comment-discussion-light.png" width="20" height="20" alt="comment-discussion"></picture> Discussions</summary>
 
 - **get_discussion** - Get discussion
   - `discussionNumber`: Discussion Number (number, required)
@@ -665,7 +708,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Gists</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/logo-gist-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/logo-gist-light.png"><img src="pkg/octicons/icons/logo-gist-light.png" width="20" height="20" alt="logo-gist"></picture> Gists</summary>
 
 - **create_gist** - Create Gist
   - `content`: Content for simple single-file gist creation (string, required)
@@ -692,7 +735,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Git</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/git-branch-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/git-branch-light.png"><img src="pkg/octicons/icons/git-branch-light.png" width="20" height="20" alt="git-branch"></picture> Git</summary>
 
 - **get_repository_tree** - Get repository tree
   - `owner`: Repository owner (username or organization) (string, required)
@@ -705,7 +748,7 @@ The following sets of tools are available:
 
 <details>
 
-<summary>Issues</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/issue-opened-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/issue-opened-light.png"><img src="pkg/octicons/icons/issue-opened-light.png" width="20" height="20" alt="issue-opened"></picture> Issues</summary>
 
 - **add_issue_comment** - Add comment to issue
   - `body`: Comment content (string, required)
@@ -726,12 +769,12 @@ The following sets of tools are available:
 - **issue_read** - Get issue details
   - `issue_number`: The number of the issue (number, required)
   - `method`: The read operation to perform on a single issue.
-Options are:
-1. get - Get details of a specific issue.
-2. get_comments - Get issue comments.
-3. get_sub_issues - Get sub-issues of the issue.
-4. get_labels - Get labels assigned to the issue.
- (string, required)
+    Options are:
+    1. get - Get details of a specific issue.
+    2. get_comments - Get issue comments.
+    3. get_sub_issues - Get sub-issues of the issue.
+    4. get_labels - Get labels assigned to the issue.
+     (string, required)
   - `owner`: The owner of the repository (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -744,10 +787,10 @@ Options are:
   - `issue_number`: Issue number to update (number, optional)
   - `labels`: Labels to apply to this issue (string[], optional)
   - `method`: Write operation to perform on a single issue.
-Options are:
-- 'create' - creates a new issue.
-- 'update' - updates an existing issue.
- (string, required)
+    Options are:
+    - 'create' - creates a new issue.
+    - 'update' - updates an existing issue.
+     (string, required)
   - `milestone`: Milestone number (number, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
@@ -784,11 +827,11 @@ Options are:
   - `before_id`: The ID of the sub-issue to be prioritized before (either after_id OR before_id should be specified) (number, optional)
   - `issue_number`: The number of the parent issue (number, required)
   - `method`: The action to perform on a single sub-issue
-Options are:
-- 'add' - add a sub-issue to a parent issue in a GitHub repository.
-- 'remove' - remove a sub-issue from a parent issue in a GitHub repository.
-- 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.
-				 (string, required)
+    Options are:
+    - 'add' - add a sub-issue to a parent issue in a GitHub repository.
+    - 'remove' - remove a sub-issue from a parent issue in a GitHub repository.
+    - 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.
+    				 (string, required)
   - `owner`: Repository owner (string, required)
   - `replace_parent`: When true, replaces the sub-issue's current parent issue. Use with 'add' method only. (boolean, optional)
   - `repo`: Repository name (string, required)
@@ -798,7 +841,7 @@ Options are:
 
 <details>
 
-<summary>Labels</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/tag-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/tag-light.png"><img src="pkg/octicons/icons/tag-light.png" width="20" height="20" alt="tag"></picture> Labels</summary>
 
 - **get_label** - Get a specific label from a repository.
   - `name`: Label name. (string, required)
@@ -822,7 +865,7 @@ Options are:
 
 <details>
 
-<summary>Notifications</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/bell-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/bell-light.png"><img src="pkg/octicons/icons/bell-light.png" width="20" height="20" alt="bell"></picture> Notifications</summary>
 
 - **dismiss_notification** - Dismiss notification
   - `state`: The new state of the notification (read/done) (string, required)
@@ -858,7 +901,7 @@ Options are:
 
 <details>
 
-<summary>Organizations</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/organization-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/organization-light.png"><img src="pkg/octicons/icons/organization-light.png" width="20" height="20" alt="organization"></picture> Organizations</summary>
 
 - **search_orgs** - Search organizations
   - `order`: Sort order (string, optional)
@@ -871,7 +914,7 @@ Options are:
 
 <details>
 
-<summary>Projects</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/project-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/project-light.png"><img src="pkg/octicons/icons/project-light.png" width="20" height="20" alt="project"></picture> Projects</summary>
 
 - **add_project_item** - Add project item
   - `item_id`: The numeric ID of the issue or pull request to add to the project. (number, required)
@@ -941,7 +984,7 @@ Options are:
 
 <details>
 
-<summary>Pull Requests</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/git-pull-request-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/git-pull-request-light.png"><img src="pkg/octicons/icons/git-pull-request-light.png" width="20" height="20" alt="git-pull-request"></picture> Pull Requests</summary>
 
 - **add_comment_to_pending_review** - Add review comment to the requester's latest pending pull request review
   - `body`: The text of the review comment (string, required)
@@ -986,15 +1029,15 @@ Options are:
 
 - **pull_request_read** - Get details for a single pull request
   - `method`: Action to specify what pull request data needs to be retrieved from GitHub. 
-Possible options: 
- 1. get - Get details of a specific pull request.
- 2. get_diff - Get the diff of a pull request.
- 3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
- 4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
- 5. get_review_comments - Get the review comments on a pull request. They are comments made on a portion of the unified diff during a pull request review. Use with pagination parameters to control the number of results returned.
- 6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
- 7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
- (string, required)
+    Possible options: 
+     1. get - Get details of a specific pull request.
+     2. get_diff - Get the diff of a pull request.
+     3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
+     4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
+     5. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Use cursor-based pagination (perPage, after) to control results.
+     6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
+     7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
+     (string, required)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -1046,7 +1089,7 @@ Possible options:
 
 <details>
 
-<summary>Repositories</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/repo-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/repo-light.png"><img src="pkg/octicons/icons/repo-light.png" width="20" height="20" alt="repo"></picture> Repositories</summary>
 
 - **create_branch** - Create branch
   - `branch`: Name for new branch (string, required)
@@ -1061,7 +1104,7 @@ Possible options:
   - `owner`: Repository owner (username or organization) (string, required)
   - `path`: Path where to create/update the file (string, required)
   - `repo`: Repository name (string, required)
-  - `sha`: Required if updating an existing file. The blob SHA of the file being replaced. (string, optional)
+  - `sha`: The blob SHA of the file being replaced. (string, optional)
 
 - **create_repository** - Create repository
   - `autoInit`: Initialize with README (boolean, optional)
@@ -1092,7 +1135,7 @@ Possible options:
 
 - **get_file_contents** - Get file or directory contents
   - `owner`: Repository owner (username or organization) (string, required)
-  - `path`: Path to file/directory (directories must end with a slash '/') (string, optional)
+  - `path`: Path to file/directory (string, optional)
   - `ref`: Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head` (string, optional)
   - `repo`: Repository name (string, required)
   - `sha`: Accepts optional commit SHA. If specified, it will be used instead of ref (string, optional)
@@ -1163,7 +1206,7 @@ Possible options:
 
 <details>
 
-<summary>Secret Protection</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/shield-lock-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/shield-lock-light.png"><img src="pkg/octicons/icons/shield-lock-light.png" width="20" height="20" alt="shield-lock"></picture> Secret Protection</summary>
 
 - **get_secret_scanning_alert** - Get secret scanning alert
   - `alertNumber`: The number of the alert. (number, required)
@@ -1181,7 +1224,7 @@ Possible options:
 
 <details>
 
-<summary>Security Advisories</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/shield-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/shield-light.png"><img src="pkg/octicons/icons/shield-light.png" width="20" height="20" alt="shield"></picture> Security Advisories</summary>
 
 - **get_global_security_advisory** - Get a global security advisory
   - `ghsaId`: GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx). (string, required)
@@ -1216,7 +1259,7 @@ Possible options:
 
 <details>
 
-<summary>Stargazers</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/star-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/star-light.png"><img src="pkg/octicons/icons/star-light.png" width="20" height="20" alt="star"></picture> Stargazers</summary>
 
 - **list_starred_repositories** - List starred repositories
   - `direction`: The direction to sort the results by. (string, optional)
@@ -1237,7 +1280,7 @@ Possible options:
 
 <details>
 
-<summary>Users</summary>
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/people-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/people-light.png"><img src="pkg/octicons/icons/people-light.png" width="20" height="20" alt="people"></picture> Users</summary>
 
 - **search_users** - Search users
   - `order`: Sort order (string, optional)

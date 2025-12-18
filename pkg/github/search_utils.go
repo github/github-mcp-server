@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"regexp"
 
+	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -104,7 +105,7 @@ func searchHandler(
 		if err != nil {
 			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to read response body", err), nil
 		}
-		return utils.NewToolResultError(fmt.Sprintf("%s: %s", errorPrefix, string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, errorPrefix, resp, body), nil
 	}
 
 	r, err := json.Marshal(result)
