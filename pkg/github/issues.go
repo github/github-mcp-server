@@ -274,57 +274,55 @@ Options are:
 			},
 			InputSchema: schema,
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				method, err := RequiredParam[string](args, "method")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			method, err := RequiredParam[string](args, "method")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
-				owner, err := RequiredParam[string](args, "owner")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				repo, err := RequiredParam[string](args, "repo")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				issueNumber, err := RequiredInt(args, "issue_number")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			issueNumber, err := RequiredInt(args, "issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
-				pagination, err := OptionalPaginationParams(args)
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
+			pagination, err := OptionalPaginationParams(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
-				client, err := deps.GetClient(ctx)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
-				}
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
 
-				gqlClient, err := deps.GetGQLClient(ctx)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub graphql client", err), nil, nil
-				}
+			gqlClient, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub graphql client", err), nil, nil
+			}
 
-				switch method {
-				case "get":
-					result, err := GetIssue(ctx, client, deps.GetRepoAccessCache(), owner, repo, issueNumber, deps.GetFlags())
-					return result, nil, err
-				case "get_comments":
-					result, err := GetIssueComments(ctx, client, deps.GetRepoAccessCache(), owner, repo, issueNumber, pagination, deps.GetFlags())
-					return result, nil, err
-				case "get_sub_issues":
-					result, err := GetSubIssues(ctx, client, deps.GetRepoAccessCache(), owner, repo, issueNumber, pagination, deps.GetFlags())
-					return result, nil, err
-				case "get_labels":
-					result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
-					return result, nil, err
-				default:
-					return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
-				}
+			switch method {
+			case "get":
+				result, err := GetIssue(ctx, client, deps.GetRepoAccessCache(), owner, repo, issueNumber, deps.GetFlags())
+				return result, nil, err
+			case "get_comments":
+				result, err := GetIssueComments(ctx, client, deps.GetRepoAccessCache(), owner, repo, issueNumber, pagination, deps.GetFlags())
+				return result, nil, err
+			case "get_sub_issues":
+				result, err := GetSubIssues(ctx, client, deps.GetRepoAccessCache(), owner, repo, issueNumber, pagination, deps.GetFlags())
+				return result, nil, err
+			case "get_labels":
+				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
+				return result, nil, err
+			default:
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		})
 }
@@ -567,38 +565,36 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner"},
 			},
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				owner, err := RequiredParam[string](args, "owner")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				client, err := deps.GetClient(ctx)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
-				}
-				issueTypes, resp, err := client.Organizations.ListIssueTypes(ctx, owner)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to list issue types", err), nil, nil
-				}
-				defer func() { _ = resp.Body.Close() }()
-
-				if resp.StatusCode != http.StatusOK {
-					body, err := io.ReadAll(resp.Body)
-					if err != nil {
-						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
-					}
-					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list issue types", resp, body), nil, nil
-				}
-
-				r, err := json.Marshal(issueTypes)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to marshal issue types", err), nil, nil
-				}
-
-				return utils.NewToolResultText(string(r)), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+			issueTypes, resp, err := client.Organizations.ListIssueTypes(ctx, owner)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to list issue types", err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list issue types", resp, body), nil, nil
+			}
+
+			r, err := json.Marshal(issueTypes)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal issue types", err), nil, nil
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
 		})
 }
 
@@ -636,54 +632,52 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Required: []string{"owner", "repo", "issue_number", "body"},
 			},
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				owner, err := RequiredParam[string](args, "owner")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				repo, err := RequiredParam[string](args, "repo")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				issueNumber, err := RequiredInt(args, "issue_number")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				body, err := RequiredParam[string](args, "body")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				comment := &github.IssueComment{
-					Body: github.Ptr(body),
-				}
-
-				client, err := deps.GetClient(ctx)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
-				}
-				createdComment, resp, err := client.Issues.CreateComment(ctx, owner, repo, issueNumber, comment)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to create comment", err), nil, nil
-				}
-				defer func() { _ = resp.Body.Close() }()
-
-				if resp.StatusCode != http.StatusCreated {
-					body, err := io.ReadAll(resp.Body)
-					if err != nil {
-						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
-					}
-					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create comment", resp, body), nil, nil
-				}
-
-				r, err := json.Marshal(createdComment)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
-				}
-
-				return utils.NewToolResultText(string(r)), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			issueNumber, err := RequiredInt(args, "issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			body, err := RequiredParam[string](args, "body")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			comment := &github.IssueComment{
+				Body: github.Ptr(body),
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+			createdComment, resp, err := client.Issues.CreateComment(ctx, owner, repo, issueNumber, comment)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to create comment", err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusCreated {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create comment", resp, body), nil, nil
+			}
+
+			r, err := json.Marshal(createdComment)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
 		})
 }
 
@@ -742,62 +736,60 @@ Options are:
 				Required: []string{"method", "owner", "repo", "issue_number", "sub_issue_id"},
 			},
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				method, err := RequiredParam[string](args, "method")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			method, err := RequiredParam[string](args, "method")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
-				owner, err := RequiredParam[string](args, "owner")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				repo, err := RequiredParam[string](args, "repo")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				issueNumber, err := RequiredInt(args, "issue_number")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				subIssueID, err := RequiredInt(args, "sub_issue_id")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				replaceParent, err := OptionalParam[bool](args, "replace_parent")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				afterID, err := OptionalIntParam(args, "after_id")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				beforeID, err := OptionalIntParam(args, "before_id")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			issueNumber, err := RequiredInt(args, "issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			subIssueID, err := RequiredInt(args, "sub_issue_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			replaceParent, err := OptionalParam[bool](args, "replace_parent")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			afterID, err := OptionalIntParam(args, "after_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			beforeID, err := OptionalIntParam(args, "before_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
-				client, err := deps.GetClient(ctx)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
-				}
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
 
-				switch strings.ToLower(method) {
-				case "add":
-					result, err := AddSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, replaceParent)
-					return result, nil, err
-				case "remove":
-					// Call the remove sub-issue function
-					result, err := RemoveSubIssue(ctx, client, owner, repo, issueNumber, subIssueID)
-					return result, nil, err
-				case "reprioritize":
-					// Call the reprioritize sub-issue function
-					result, err := ReprioritizeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, afterID, beforeID)
-					return result, nil, err
-				default:
-					return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
-				}
+			switch strings.ToLower(method) {
+			case "add":
+				result, err := AddSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, replaceParent)
+				return result, nil, err
+			case "remove":
+				// Call the remove sub-issue function
+				result, err := RemoveSubIssue(ctx, client, owner, repo, issueNumber, subIssueID)
+				return result, nil, err
+			case "reprioritize":
+				// Call the reprioritize sub-issue function
+				result, err := ReprioritizeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, afterID, beforeID)
+				return result, nil, err
+			default:
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		})
 }
@@ -971,11 +963,9 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 			InputSchema: schema,
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				result, err := searchHandler(ctx, deps.GetClient, args, "issue", "failed to search issues")
-				return result, nil, err
-			}
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			result, err := searchHandler(ctx, deps.GetClient, args, "issue", "failed to search issues")
+			return result, nil, err
 		})
 }
 
@@ -1062,104 +1052,102 @@ Options are:
 				Required: []string{"method", "owner", "repo"},
 			},
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				method, err := RequiredParam[string](args, "method")
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			method, err := RequiredParam[string](args, "method")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			title, err := OptionalParam[string](args, "title")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// Optional parameters
+			body, err := OptionalParam[string](args, "body")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// Get assignees
+			assignees, err := OptionalStringArrayParam(args, "assignees")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// Get labels
+			labels, err := OptionalStringArrayParam(args, "labels")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// Get optional milestone
+			milestone, err := OptionalIntParam(args, "milestone")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			var milestoneNum int
+			if milestone != 0 {
+				milestoneNum = milestone
+			}
+
+			// Get optional type
+			issueType, err := OptionalParam[string](args, "type")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// Handle state, state_reason and duplicateOf parameters
+			state, err := OptionalParam[string](args, "state")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			stateReason, err := OptionalParam[string](args, "state_reason")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			duplicateOf, err := OptionalIntParam(args, "duplicate_of")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if duplicateOf != 0 && stateReason != "duplicate" {
+				return utils.NewToolResultError("duplicate_of can only be used when state_reason is 'duplicate'"), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			gqlClient, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GraphQL client", err), nil, nil
+			}
+
+			switch method {
+			case "create":
+				result, err := CreateIssue(ctx, client, owner, repo, title, body, assignees, labels, milestoneNum, issueType)
+				return result, nil, err
+			case "update":
+				issueNumber, err := RequiredInt(args, "issue_number")
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-
-				owner, err := RequiredParam[string](args, "owner")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				repo, err := RequiredParam[string](args, "repo")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				title, err := OptionalParam[string](args, "title")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				// Optional parameters
-				body, err := OptionalParam[string](args, "body")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				// Get assignees
-				assignees, err := OptionalStringArrayParam(args, "assignees")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				// Get labels
-				labels, err := OptionalStringArrayParam(args, "labels")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				// Get optional milestone
-				milestone, err := OptionalIntParam(args, "milestone")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				var milestoneNum int
-				if milestone != 0 {
-					milestoneNum = milestone
-				}
-
-				// Get optional type
-				issueType, err := OptionalParam[string](args, "type")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				// Handle state, state_reason and duplicateOf parameters
-				state, err := OptionalParam[string](args, "state")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				stateReason, err := OptionalParam[string](args, "state_reason")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				duplicateOf, err := OptionalIntParam(args, "duplicate_of")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				if duplicateOf != 0 && stateReason != "duplicate" {
-					return utils.NewToolResultError("duplicate_of can only be used when state_reason is 'duplicate'"), nil, nil
-				}
-
-				client, err := deps.GetClient(ctx)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
-				}
-
-				gqlClient, err := deps.GetGQLClient(ctx)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GraphQL client", err), nil, nil
-				}
-
-				switch method {
-				case "create":
-					result, err := CreateIssue(ctx, client, owner, repo, title, body, assignees, labels, milestoneNum, issueType)
-					return result, nil, err
-				case "update":
-					issueNumber, err := RequiredInt(args, "issue_number")
-					if err != nil {
-						return utils.NewToolResultError(err.Error()), nil, nil
-					}
-					result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, state, stateReason, duplicateOf)
-					return result, nil, err
-				default:
-					return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
-				}
+				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, state, stateReason, duplicateOf)
+				return result, nil, err
+			default:
+				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
 			}
 		})
 }
@@ -1393,187 +1381,185 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 			InputSchema: schema,
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				owner, err := RequiredParam[string](args, "owner")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				repo, err := RequiredParam[string](args, "repo")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				// Set optional parameters if provided
-				state, err := OptionalParam[string](args, "state")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				// Normalize and filter by state
-				state = strings.ToUpper(state)
-				var states []githubv4.IssueState
-
-				switch state {
-				case "OPEN", "CLOSED":
-					states = []githubv4.IssueState{githubv4.IssueState(state)}
-				default:
-					states = []githubv4.IssueState{githubv4.IssueStateOpen, githubv4.IssueStateClosed}
-				}
-
-				// Get labels
-				labels, err := OptionalStringArrayParam(args, "labels")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				orderBy, err := OptionalParam[string](args, "orderBy")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				direction, err := OptionalParam[string](args, "direction")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				// Normalize and validate orderBy
-				orderBy = strings.ToUpper(orderBy)
-				switch orderBy {
-				case "CREATED_AT", "UPDATED_AT", "COMMENTS":
-					// Valid, keep as is
-				default:
-					orderBy = "CREATED_AT"
-				}
-
-				// Normalize and validate direction
-				direction = strings.ToUpper(direction)
-				switch direction {
-				case "ASC", "DESC":
-					// Valid, keep as is
-				default:
-					direction = "DESC"
-				}
-
-				since, err := OptionalParam[string](args, "since")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				// There are two optional parameters: since and labels.
-				var sinceTime time.Time
-				var hasSince bool
-				if since != "" {
-					sinceTime, err = parseISOTimestamp(since)
-					if err != nil {
-						return utils.NewToolResultError(fmt.Sprintf("failed to list issues: %s", err.Error())), nil, nil
-					}
-					hasSince = true
-				}
-				hasLabels := len(labels) > 0
-
-				// Get pagination parameters and convert to GraphQL format
-				pagination, err := OptionalCursorPaginationParams(args)
-				if err != nil {
-					return nil, nil, err
-				}
-
-				// Check if someone tried to use page-based pagination instead of cursor-based
-				if _, pageProvided := args["page"]; pageProvided {
-					return utils.NewToolResultError("This tool uses cursor-based pagination. Use the 'after' parameter with the 'endCursor' value from the previous response instead of 'page'."), nil, nil
-				}
-
-				// Check if pagination parameters were explicitly provided
-				_, perPageProvided := args["perPage"]
-				paginationExplicit := perPageProvided
-
-				paginationParams, err := pagination.ToGraphQLParams()
-				if err != nil {
-					return nil, nil, err
-				}
-
-				// Use default of 30 if pagination was not explicitly provided
-				if !paginationExplicit {
-					defaultFirst := int32(DefaultGraphQLPageSize)
-					paginationParams.First = &defaultFirst
-				}
-
-				client, err := deps.GetGQLClient(ctx)
-				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
-				}
-
-				vars := map[string]interface{}{
-					"owner":     githubv4.String(owner),
-					"repo":      githubv4.String(repo),
-					"states":    states,
-					"orderBy":   githubv4.IssueOrderField(orderBy),
-					"direction": githubv4.OrderDirection(direction),
-					"first":     githubv4.Int(*paginationParams.First),
-				}
-
-				if paginationParams.After != nil {
-					vars["after"] = githubv4.String(*paginationParams.After)
-				} else {
-					// Used within query, therefore must be set to nil and provided as $after
-					vars["after"] = (*githubv4.String)(nil)
-				}
-
-				// Ensure optional parameters are set
-				if hasLabels {
-					// Use query with labels filtering - convert string labels to githubv4.String slice
-					labelStrings := make([]githubv4.String, len(labels))
-					for i, label := range labels {
-						labelStrings[i] = githubv4.String(label)
-					}
-					vars["labels"] = labelStrings
-				}
-
-				if hasSince {
-					vars["since"] = githubv4.DateTime{Time: sinceTime}
-				}
-
-				issueQuery := getIssueQueryType(hasLabels, hasSince)
-				if err := client.Query(ctx, issueQuery, vars); err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				// Extract and convert all issue nodes using the common interface
-				var issues []*github.Issue
-				var pageInfo struct {
-					HasNextPage     githubv4.Boolean
-					HasPreviousPage githubv4.Boolean
-					StartCursor     githubv4.String
-					EndCursor       githubv4.String
-				}
-				var totalCount int
-
-				if queryResult, ok := issueQuery.(IssueQueryResult); ok {
-					fragment := queryResult.GetIssueFragment()
-					for _, issue := range fragment.Nodes {
-						issues = append(issues, fragmentToIssue(issue))
-					}
-					pageInfo = fragment.PageInfo
-					totalCount = fragment.TotalCount
-				}
-
-				// Create response with issues
-				response := map[string]interface{}{
-					"issues": issues,
-					"pageInfo": map[string]interface{}{
-						"hasNextPage":     pageInfo.HasNextPage,
-						"hasPreviousPage": pageInfo.HasPreviousPage,
-						"startCursor":     string(pageInfo.StartCursor),
-						"endCursor":       string(pageInfo.EndCursor),
-					},
-					"totalCount": totalCount,
-				}
-				out, err := json.Marshal(response)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to marshal issues: %w", err)
-				}
-				return utils.NewToolResultText(string(out)), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// Set optional parameters if provided
+			state, err := OptionalParam[string](args, "state")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// Normalize and filter by state
+			state = strings.ToUpper(state)
+			var states []githubv4.IssueState
+
+			switch state {
+			case "OPEN", "CLOSED":
+				states = []githubv4.IssueState{githubv4.IssueState(state)}
+			default:
+				states = []githubv4.IssueState{githubv4.IssueStateOpen, githubv4.IssueStateClosed}
+			}
+
+			// Get labels
+			labels, err := OptionalStringArrayParam(args, "labels")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			orderBy, err := OptionalParam[string](args, "orderBy")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			direction, err := OptionalParam[string](args, "direction")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// Normalize and validate orderBy
+			orderBy = strings.ToUpper(orderBy)
+			switch orderBy {
+			case "CREATED_AT", "UPDATED_AT", "COMMENTS":
+				// Valid, keep as is
+			default:
+				orderBy = "CREATED_AT"
+			}
+
+			// Normalize and validate direction
+			direction = strings.ToUpper(direction)
+			switch direction {
+			case "ASC", "DESC":
+				// Valid, keep as is
+			default:
+				direction = "DESC"
+			}
+
+			since, err := OptionalParam[string](args, "since")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// There are two optional parameters: since and labels.
+			var sinceTime time.Time
+			var hasSince bool
+			if since != "" {
+				sinceTime, err = parseISOTimestamp(since)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("failed to list issues: %s", err.Error())), nil, nil
+				}
+				hasSince = true
+			}
+			hasLabels := len(labels) > 0
+
+			// Get pagination parameters and convert to GraphQL format
+			pagination, err := OptionalCursorPaginationParams(args)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			// Check if someone tried to use page-based pagination instead of cursor-based
+			if _, pageProvided := args["page"]; pageProvided {
+				return utils.NewToolResultError("This tool uses cursor-based pagination. Use the 'after' parameter with the 'endCursor' value from the previous response instead of 'page'."), nil, nil
+			}
+
+			// Check if pagination parameters were explicitly provided
+			_, perPageProvided := args["perPage"]
+			paginationExplicit := perPageProvided
+
+			paginationParams, err := pagination.ToGraphQLParams()
+			if err != nil {
+				return nil, nil, err
+			}
+
+			// Use default of 30 if pagination was not explicitly provided
+			if !paginationExplicit {
+				defaultFirst := int32(DefaultGraphQLPageSize)
+				paginationParams.First = &defaultFirst
+			}
+
+			client, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
+			}
+
+			vars := map[string]interface{}{
+				"owner":     githubv4.String(owner),
+				"repo":      githubv4.String(repo),
+				"states":    states,
+				"orderBy":   githubv4.IssueOrderField(orderBy),
+				"direction": githubv4.OrderDirection(direction),
+				"first":     githubv4.Int(*paginationParams.First),
+			}
+
+			if paginationParams.After != nil {
+				vars["after"] = githubv4.String(*paginationParams.After)
+			} else {
+				// Used within query, therefore must be set to nil and provided as $after
+				vars["after"] = (*githubv4.String)(nil)
+			}
+
+			// Ensure optional parameters are set
+			if hasLabels {
+				// Use query with labels filtering - convert string labels to githubv4.String slice
+				labelStrings := make([]githubv4.String, len(labels))
+				for i, label := range labels {
+					labelStrings[i] = githubv4.String(label)
+				}
+				vars["labels"] = labelStrings
+			}
+
+			if hasSince {
+				vars["since"] = githubv4.DateTime{Time: sinceTime}
+			}
+
+			issueQuery := getIssueQueryType(hasLabels, hasSince)
+			if err := client.Query(ctx, issueQuery, vars); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// Extract and convert all issue nodes using the common interface
+			var issues []*github.Issue
+			var pageInfo struct {
+				HasNextPage     githubv4.Boolean
+				HasPreviousPage githubv4.Boolean
+				StartCursor     githubv4.String
+				EndCursor       githubv4.String
+			}
+			var totalCount int
+
+			if queryResult, ok := issueQuery.(IssueQueryResult); ok {
+				fragment := queryResult.GetIssueFragment()
+				for _, issue := range fragment.Nodes {
+					issues = append(issues, fragmentToIssue(issue))
+				}
+				pageInfo = fragment.PageInfo
+				totalCount = fragment.TotalCount
+			}
+
+			// Create response with issues
+			response := map[string]interface{}{
+				"issues": issues,
+				"pageInfo": map[string]interface{}{
+					"hasNextPage":     pageInfo.HasNextPage,
+					"hasPreviousPage": pageInfo.HasPreviousPage,
+					"startCursor":     string(pageInfo.StartCursor),
+					"endCursor":       string(pageInfo.EndCursor),
+				},
+				"totalCount": totalCount,
+			}
+			out, err := json.Marshal(response)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal issues: %w", err)
+			}
+			return utils.NewToolResultText(string(out)), nil, nil
 		})
 }
 
@@ -1648,133 +1634,131 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				Required: []string{"owner", "repo", "issueNumber"},
 			},
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				var params struct {
-					Owner       string
-					Repo        string
-					IssueNumber int32
-				}
-				if err := mapstructure.Decode(args, &params); err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			var params struct {
+				Owner       string
+				Repo        string
+				IssueNumber int32
+			}
+			if err := mapstructure.Decode(args, &params); err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
-				client, err := deps.GetGQLClient(ctx)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
-				}
+			client, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
 
-				// Firstly, we try to find the copilot bot in the suggested actors for the repository.
-				// Although as I write this, we would expect copilot to be at the top of the list, in future, maybe
-				// it will not be on the first page of responses, thus we will keep paginating until we find it.
-				type botAssignee struct {
-					ID       githubv4.ID
-					Login    string
-					TypeName string `graphql:"__typename"`
-				}
+			// Firstly, we try to find the copilot bot in the suggested actors for the repository.
+			// Although as I write this, we would expect copilot to be at the top of the list, in future, maybe
+			// it will not be on the first page of responses, thus we will keep paginating until we find it.
+			type botAssignee struct {
+				ID       githubv4.ID
+				Login    string
+				TypeName string `graphql:"__typename"`
+			}
 
-				type suggestedActorsQuery struct {
-					Repository struct {
-						SuggestedActors struct {
-							Nodes []struct {
-								Bot botAssignee `graphql:"... on Bot"`
-							}
-							PageInfo struct {
-								HasNextPage bool
-								EndCursor   string
-							}
-						} `graphql:"suggestedActors(first: 100, after: $endCursor, capabilities: CAN_BE_ASSIGNED)"`
-					} `graphql:"repository(owner: $owner, name: $name)"`
-				}
-
-				variables := map[string]any{
-					"owner":     githubv4.String(params.Owner),
-					"name":      githubv4.String(params.Repo),
-					"endCursor": (*githubv4.String)(nil),
-				}
-
-				var copilotAssignee *botAssignee
-				for {
-					var query suggestedActorsQuery
-					err := client.Query(ctx, &query, variables)
-					if err != nil {
-						return nil, nil, err
-					}
-
-					// Iterate all the returned nodes looking for the copilot bot, which is supposed to have the
-					// same name on each host. We need this in order to get the ID for later assignment.
-					for _, node := range query.Repository.SuggestedActors.Nodes {
-						if node.Bot.Login == "copilot-swe-agent" {
-							copilotAssignee = &node.Bot
-							break
+			type suggestedActorsQuery struct {
+				Repository struct {
+					SuggestedActors struct {
+						Nodes []struct {
+							Bot botAssignee `graphql:"... on Bot"`
 						}
-					}
+						PageInfo struct {
+							HasNextPage bool
+							EndCursor   string
+						}
+					} `graphql:"suggestedActors(first: 100, after: $endCursor, capabilities: CAN_BE_ASSIGNED)"`
+				} `graphql:"repository(owner: $owner, name: $name)"`
+			}
 
-					if !query.Repository.SuggestedActors.PageInfo.HasNextPage {
+			variables := map[string]any{
+				"owner":     githubv4.String(params.Owner),
+				"name":      githubv4.String(params.Repo),
+				"endCursor": (*githubv4.String)(nil),
+			}
+
+			var copilotAssignee *botAssignee
+			for {
+				var query suggestedActorsQuery
+				err := client.Query(ctx, &query, variables)
+				if err != nil {
+					return nil, nil, err
+				}
+
+				// Iterate all the returned nodes looking for the copilot bot, which is supposed to have the
+				// same name on each host. We need this in order to get the ID for later assignment.
+				for _, node := range query.Repository.SuggestedActors.Nodes {
+					if node.Bot.Login == "copilot-swe-agent" {
+						copilotAssignee = &node.Bot
 						break
 					}
-					variables["endCursor"] = githubv4.String(query.Repository.SuggestedActors.PageInfo.EndCursor)
 				}
 
-				// If we didn't find the copilot bot, we can't proceed any further.
-				if copilotAssignee == nil {
-					// The e2e tests depend upon this specific message to skip the test.
-					return utils.NewToolResultError("copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot for more information."), nil, nil
+				if !query.Repository.SuggestedActors.PageInfo.HasNextPage {
+					break
 				}
-
-				// Next let's get the GQL Node ID and current assignees for this issue because the only way to
-				// assign copilot is to use replaceActorsForAssignable which requires the full list.
-				var getIssueQuery struct {
-					Repository struct {
-						Issue struct {
-							ID        githubv4.ID
-							Assignees struct {
-								Nodes []struct {
-									ID githubv4.ID
-								}
-							} `graphql:"assignees(first: 100)"`
-						} `graphql:"issue(number: $number)"`
-					} `graphql:"repository(owner: $owner, name: $name)"`
-				}
-
-				variables = map[string]any{
-					"owner":  githubv4.String(params.Owner),
-					"name":   githubv4.String(params.Repo),
-					"number": githubv4.Int(params.IssueNumber),
-				}
-
-				if err := client.Query(ctx, &getIssueQuery, variables); err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("failed to get issue ID: %v", err)), nil, nil
-				}
-
-				// Finally, do the assignment. Just for reference, assigning copilot to an issue that it is already
-				// assigned to seems to have no impact (which is a good thing).
-				var assignCopilotMutation struct {
-					ReplaceActorsForAssignable struct {
-						Typename string `graphql:"__typename"` // Not required but we need a selector or GQL errors
-					} `graphql:"replaceActorsForAssignable(input: $input)"`
-				}
-
-				actorIDs := make([]githubv4.ID, len(getIssueQuery.Repository.Issue.Assignees.Nodes)+1)
-				for i, node := range getIssueQuery.Repository.Issue.Assignees.Nodes {
-					actorIDs[i] = node.ID
-				}
-				actorIDs[len(getIssueQuery.Repository.Issue.Assignees.Nodes)] = copilotAssignee.ID
-
-				if err := client.Mutate(
-					ctx,
-					&assignCopilotMutation,
-					ReplaceActorsForAssignableInput{
-						AssignableID: getIssueQuery.Repository.Issue.ID,
-						ActorIDs:     actorIDs,
-					},
-					nil,
-				); err != nil {
-					return nil, nil, fmt.Errorf("failed to replace actors for assignable: %w", err)
-				}
-
-				return utils.NewToolResultText("successfully assigned copilot to issue"), nil, nil
+				variables["endCursor"] = githubv4.String(query.Repository.SuggestedActors.PageInfo.EndCursor)
 			}
+
+			// If we didn't find the copilot bot, we can't proceed any further.
+			if copilotAssignee == nil {
+				// The e2e tests depend upon this specific message to skip the test.
+				return utils.NewToolResultError("copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot for more information."), nil, nil
+			}
+
+			// Next let's get the GQL Node ID and current assignees for this issue because the only way to
+			// assign copilot is to use replaceActorsForAssignable which requires the full list.
+			var getIssueQuery struct {
+				Repository struct {
+					Issue struct {
+						ID        githubv4.ID
+						Assignees struct {
+							Nodes []struct {
+								ID githubv4.ID
+							}
+						} `graphql:"assignees(first: 100)"`
+					} `graphql:"issue(number: $number)"`
+				} `graphql:"repository(owner: $owner, name: $name)"`
+			}
+
+			variables = map[string]any{
+				"owner":  githubv4.String(params.Owner),
+				"name":   githubv4.String(params.Repo),
+				"number": githubv4.Int(params.IssueNumber),
+			}
+
+			if err := client.Query(ctx, &getIssueQuery, variables); err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to get issue ID: %v", err)), nil, nil
+			}
+
+			// Finally, do the assignment. Just for reference, assigning copilot to an issue that it is already
+			// assigned to seems to have no impact (which is a good thing).
+			var assignCopilotMutation struct {
+				ReplaceActorsForAssignable struct {
+					Typename string `graphql:"__typename"` // Not required but we need a selector or GQL errors
+				} `graphql:"replaceActorsForAssignable(input: $input)"`
+			}
+
+			actorIDs := make([]githubv4.ID, len(getIssueQuery.Repository.Issue.Assignees.Nodes)+1)
+			for i, node := range getIssueQuery.Repository.Issue.Assignees.Nodes {
+				actorIDs[i] = node.ID
+			}
+			actorIDs[len(getIssueQuery.Repository.Issue.Assignees.Nodes)] = copilotAssignee.ID
+
+			if err := client.Mutate(
+				ctx,
+				&assignCopilotMutation,
+				ReplaceActorsForAssignableInput{
+					AssignableID: getIssueQuery.Repository.Issue.ID,
+					ActorIDs:     actorIDs,
+				},
+				nil,
+			); err != nil {
+				return nil, nil, fmt.Errorf("failed to replace actors for assignable: %w", err)
+			}
+
+			return utils.NewToolResultText("successfully assigned copilot to issue"), nil, nil
 		})
 }
 
