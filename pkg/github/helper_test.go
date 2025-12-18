@@ -40,14 +40,14 @@ const (
 	DeleteReposSubscriptionByOwnerByRepo = "DELETE /repos/{owner}/{repo}/subscription"
 
 	// Git endpoints
-	GetReposGitTreesByOwnerByRepoByTree         = "GET /repos/{owner}/{repo}/git/trees/{tree}"
-	GetReposGitRefByOwnerByRepoByRef            = "GET /repos/{owner}/{repo}/git/ref/{ref}"
-	PostReposGitRefsByOwnerByRepo               = "POST /repos/{owner}/{repo}/git/refs"
-	PatchReposGitRefsByOwnerByRepoByRef         = "PATCH /repos/{owner}/{repo}/git/refs/{ref}"
-	GetReposGitCommitsByOwnerByRepoByCommitSHA  = "GET /repos/{owner}/{repo}/git/commits/{commit_sha}"
-	PostReposGitCommitsByOwnerByRepo            = "POST /repos/{owner}/{repo}/git/commits"
-	GetReposGitTagsByOwnerByRepoByTagSHA        = "GET /repos/{owner}/{repo}/git/tags/{tag_sha}"
-	PostReposGitTreesByOwnerByRepo              = "POST /repos/{owner}/{repo}/git/trees"
+	GetReposGitTreesByOwnerByRepoByTree        = "GET /repos/{owner}/{repo}/git/trees/{tree}"
+	GetReposGitRefByOwnerByRepoByRef           = "GET /repos/{owner}/{repo}/git/ref/{ref}"
+	PostReposGitRefsByOwnerByRepo              = "POST /repos/{owner}/{repo}/git/refs"
+	PatchReposGitRefsByOwnerByRepoByRef        = "PATCH /repos/{owner}/{repo}/git/refs/{ref}"
+	GetReposGitCommitsByOwnerByRepoByCommitSHA = "GET /repos/{owner}/{repo}/git/commits/{commit_sha}"
+	PostReposGitCommitsByOwnerByRepo           = "POST /repos/{owner}/{repo}/git/commits"
+	GetReposGitTagsByOwnerByRepoByTagSHA       = "GET /repos/{owner}/{repo}/git/tags/{tag_sha}"
+	PostReposGitTreesByOwnerByRepo             = "POST /repos/{owner}/{repo}/git/trees"
 	GetReposCommitsStatusByOwnerByRepoByRef    = "GET /repos/{owner}/{repo}/commits/{ref}/status"
 	GetReposCommitsStatusesByOwnerByRepoByRef  = "GET /repos/{owner}/{repo}/commits/{ref}/statuses"
 
@@ -115,10 +115,17 @@ const (
 
 	// Actions endpoints
 	GetReposActionsWorkflowsByOwnerByRepo                        = "GET /repos/{owner}/{repo}/actions/workflows"
+	GetReposActionsWorkflowsByOwnerByRepoByWorkflowID            = "GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}"
 	PostReposActionsWorkflowsDispatchesByOwnerByRepoByWorkflowID = "POST /repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches"
+	GetReposActionsWorkflowsRunsByOwnerByRepoByWorkflowID        = "GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs"
+	GetReposActionsRunsByOwnerByRepoByRunID                      = "GET /repos/{owner}/{repo}/actions/runs/{run_id}"
+	GetReposActionsRunsLogsByOwnerByRepoByRunID                  = "GET /repos/{owner}/{repo}/actions/runs/{run_id}/logs"
 	GetReposActionsRunsJobsByOwnerByRepoByRunID                  = "GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs"
 	GetReposActionsRunsArtifactsByOwnerByRepoByRunID             = "GET /repos/{owner}/{repo}/actions/runs/{run_id}/artifacts"
 	GetReposActionsRunsTimingByOwnerByRepoByRunID                = "GET /repos/{owner}/{repo}/actions/runs/{run_id}/timing"
+	PostReposActionsRunsRerunByOwnerByRepoByRunID                = "POST /repos/{owner}/{repo}/actions/runs/{run_id}/rerun"
+	PostReposActionsRunsRerunFailedJobsByOwnerByRepoByRunID      = "POST /repos/{owner}/{repo}/actions/runs/{run_id}/rerun-failed-jobs"
+	PostReposActionsRunsCancelByOwnerByRepoByRunID               = "POST /repos/{owner}/{repo}/actions/runs/{run_id}/cancel"
 	GetReposActionsJobsLogsByOwnerByRepoByJobID                  = "GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs"
 	DeleteReposActionsRunsLogsByOwnerByRepoByRunID               = "DELETE /repos/{owner}/{repo}/actions/runs/{run_id}/logs"
 
