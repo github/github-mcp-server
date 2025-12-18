@@ -1499,7 +1499,7 @@ func Test_RerunFailedJobs(t *testing.T) {
 			handler := toolDef.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expectError, result.IsError)
@@ -1571,7 +1571,7 @@ func Test_RerunWorkflowRun_Behavioral(t *testing.T) {
 			handler := toolDef.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expectError, result.IsError)
@@ -1658,7 +1658,7 @@ func Test_ListWorkflowRuns_Behavioral(t *testing.T) {
 			handler := toolDef.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expectError, result.IsError)
@@ -1734,7 +1734,7 @@ func Test_GetWorkflowRun_Behavioral(t *testing.T) {
 			handler := toolDef.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expectError, result.IsError)
@@ -1804,7 +1804,7 @@ func Test_GetWorkflowRunLogs_Behavioral(t *testing.T) {
 			handler := toolDef.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expectError, result.IsError)
@@ -1891,7 +1891,7 @@ func Test_ListWorkflowJobs_Behavioral(t *testing.T) {
 			handler := toolDef.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expectError, result.IsError)
@@ -1993,7 +1993,7 @@ func Test_ActionsList_ListWorkflows(t *testing.T) {
 			handler := toolDef.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expectError, result.IsError)
@@ -2051,7 +2051,7 @@ func Test_ActionsList_ListWorkflowRuns(t *testing.T) {
 			"repo":        "repo",
 			"resource_id": "ci.yml",
 		})
-		result, err := handler(context.Background(), &request)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 		require.NoError(t, err)
 		require.False(t, result.IsError)
@@ -2077,7 +2077,7 @@ func Test_ActionsList_ListWorkflowRuns(t *testing.T) {
 			"owner":  "owner",
 			"repo":   "repo",
 		})
-		result, err := handler(context.Background(), &request)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 		require.NoError(t, err)
 		require.True(t, result.IsError)
@@ -2134,7 +2134,7 @@ func Test_ActionsGet_GetWorkflow(t *testing.T) {
 			"repo":        "repo",
 			"resource_id": "ci.yml",
 		})
-		result, err := handler(context.Background(), &request)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 		require.NoError(t, err)
 		require.False(t, result.IsError)
@@ -2180,7 +2180,7 @@ func Test_ActionsGet_GetWorkflowRun(t *testing.T) {
 			"repo":        "repo",
 			"resource_id": "12345",
 		})
-		result, err := handler(context.Background(), &request)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 		require.NoError(t, err)
 		require.False(t, result.IsError)
@@ -2275,7 +2275,7 @@ func Test_ActionsRunTrigger_RunWorkflow(t *testing.T) {
 			handler := toolDef.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expectError, result.IsError)
@@ -2323,7 +2323,7 @@ func Test_ActionsRunTrigger_CancelWorkflowRun(t *testing.T) {
 			"repo":   "repo",
 			"run_id": float64(12345),
 		})
-		result, err := handler(context.Background(), &request)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 		require.NoError(t, err)
 		require.False(t, result.IsError)
@@ -2360,7 +2360,7 @@ func Test_ActionsRunTrigger_CancelWorkflowRun(t *testing.T) {
 			"repo":   "repo",
 			"run_id": float64(12345),
 		})
-		result, err := handler(context.Background(), &request)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 		require.NoError(t, err)
 		require.True(t, result.IsError)
@@ -2383,7 +2383,7 @@ func Test_ActionsRunTrigger_CancelWorkflowRun(t *testing.T) {
 			"owner":  "owner",
 			"repo":   "repo",
 		})
-		result, err := handler(context.Background(), &request)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 		require.NoError(t, err)
 		require.True(t, result.IsError)
@@ -2439,7 +2439,7 @@ func Test_ActionsGetJobLogs_SingleJob(t *testing.T) {
 			"repo":   "repo",
 			"job_id": float64(123),
 		})
-		result, err := handler(context.Background(), &request)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 		require.NoError(t, err)
 		require.False(t, result.IsError)
@@ -2508,7 +2508,7 @@ func Test_ActionsGetJobLogs_FailedJobs(t *testing.T) {
 			"run_id":      float64(456),
 			"failed_only": true,
 		})
-		result, err := handler(context.Background(), &request)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 		require.NoError(t, err)
 		require.False(t, result.IsError)
@@ -2561,7 +2561,7 @@ func Test_ActionsGetJobLogs_FailedJobs(t *testing.T) {
 			"run_id":      float64(456),
 			"failed_only": true,
 		})
-		result, err := handler(context.Background(), &request)
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 		require.NoError(t, err)
 		require.False(t, result.IsError)

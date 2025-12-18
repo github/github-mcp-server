@@ -1550,70 +1550,68 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 				Required: []string{"method", "owner", "repo"},
 			},
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				owner, err := RequiredParam[string](args, "owner")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			method, err := RequiredParam[string](args, "method")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			resourceID, err := OptionalParam[string](args, "resource_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			pagination, err := OptionalPaginationParams(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			var resourceIDInt int64
+			var parseErr error
+			switch method {
+			case actionsMethodListWorkflows:
+				// Do nothing, no resource ID needed
+			default:
+				if resourceID == "" {
+					return utils.NewToolResultError(fmt.Sprintf("missing required parameter for method %s: resource_id", method)), nil, nil
 				}
 
-				repo, err := RequiredParam[string](args, "repo")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				method, err := RequiredParam[string](args, "method")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				resourceID, err := OptionalParam[string](args, "resource_id")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				pagination, err := OptionalPaginationParams(args)
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				client, err := deps.GetClient(ctx)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
-				}
-
-				var resourceIDInt int64
-				var parseErr error
-				switch method {
-				case actionsMethodListWorkflows:
-					// Do nothing, no resource ID needed
-				default:
-					if resourceID == "" {
-						return utils.NewToolResultError(fmt.Sprintf("missing required parameter for method %s: resource_id", method)), nil, nil
-					}
-
-					// For list_workflow_runs, resource_id could be a filename or numeric ID
-					// For other actions, resource ID must be an integer
-					if method != actionsMethodListWorkflowRuns {
-						resourceIDInt, parseErr = strconv.ParseInt(resourceID, 10, 64)
-						if parseErr != nil {
-							return utils.NewToolResultError(fmt.Sprintf("invalid resource_id, must be an integer for method %s: %v", method, parseErr)), nil, nil
-						}
+				// For list_workflow_runs, resource_id could be a filename or numeric ID
+				// For other actions, resource ID must be an integer
+				if method != actionsMethodListWorkflowRuns {
+					resourceIDInt, parseErr = strconv.ParseInt(resourceID, 10, 64)
+					if parseErr != nil {
+						return utils.NewToolResultError(fmt.Sprintf("invalid resource_id, must be an integer for method %s: %v", method, parseErr)), nil, nil
 					}
 				}
+			}
 
-				switch method {
-				case actionsMethodListWorkflows:
-					return listWorkflows(ctx, client, owner, repo, pagination)
-				case actionsMethodListWorkflowRuns:
-					return listWorkflowRuns(ctx, client, args, owner, repo, resourceID, pagination)
-				case actionsMethodListWorkflowJobs:
-					return listWorkflowJobs(ctx, client, args, owner, repo, resourceIDInt, pagination)
-				case actionsMethodListWorkflowArtifacts:
-					return listWorkflowArtifacts(ctx, client, owner, repo, resourceIDInt, pagination)
-				default:
-					return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
-				}
+			switch method {
+			case actionsMethodListWorkflows:
+				return listWorkflows(ctx, client, owner, repo, pagination)
+			case actionsMethodListWorkflowRuns:
+				return listWorkflowRuns(ctx, client, args, owner, repo, resourceID, pagination)
+			case actionsMethodListWorkflowJobs:
+				return listWorkflowJobs(ctx, client, args, owner, repo, resourceIDInt, pagination)
+			case actionsMethodListWorkflowArtifacts:
+				return listWorkflowArtifacts(ctx, client, owner, repo, resourceIDInt, pagination)
+			default:
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		},
 	)
@@ -1670,60 +1668,58 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 				Required: []string{"method", "owner", "repo", "resource_id"},
 			},
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				owner, err := RequiredParam[string](args, "owner")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				repo, err := RequiredParam[string](args, "repo")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				method, err := RequiredParam[string](args, "method")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			method, err := RequiredParam[string](args, "method")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
-				resourceID, err := RequiredParam[string](args, "resource_id")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
+			resourceID, err := RequiredParam[string](args, "resource_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
-				client, err := deps.GetClient(ctx)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
-				}
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
 
-				var resourceIDInt int64
-				var parseErr error
-				switch method {
-				case actionsMethodGetWorkflow:
-					// Do nothing, we accept both a string workflow ID or filename
-				default:
-					// For other methods, resource ID must be an integer
-					resourceIDInt, parseErr = strconv.ParseInt(resourceID, 10, 64)
-					if parseErr != nil {
-						return utils.NewToolResultError(fmt.Sprintf("invalid resource_id, must be an integer for method %s: %v", method, parseErr)), nil, nil
-					}
+			var resourceIDInt int64
+			var parseErr error
+			switch method {
+			case actionsMethodGetWorkflow:
+				// Do nothing, we accept both a string workflow ID or filename
+			default:
+				// For other methods, resource ID must be an integer
+				resourceIDInt, parseErr = strconv.ParseInt(resourceID, 10, 64)
+				if parseErr != nil {
+					return utils.NewToolResultError(fmt.Sprintf("invalid resource_id, must be an integer for method %s: %v", method, parseErr)), nil, nil
 				}
+			}
 
-				switch method {
-				case actionsMethodGetWorkflow:
-					return getWorkflow(ctx, client, owner, repo, resourceID)
-				case actionsMethodGetWorkflowRun:
-					return getWorkflowRun(ctx, client, owner, repo, resourceIDInt)
-				case actionsMethodGetWorkflowJob:
-					return getWorkflowJob(ctx, client, owner, repo, resourceIDInt)
-				case actionsMethodDownloadWorkflowArtifact:
-					return downloadWorkflowArtifact(ctx, client, owner, repo, resourceIDInt)
-				case actionsMethodGetWorkflowRunUsage:
-					return getWorkflowRunUsage(ctx, client, owner, repo, resourceIDInt)
-				case actionsMethodGetWorkflowRunLogsURL:
-					return getWorkflowRunLogsURL(ctx, client, owner, repo, resourceIDInt)
-				default:
-					return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
-				}
+			switch method {
+			case actionsMethodGetWorkflow:
+				return getWorkflow(ctx, client, owner, repo, resourceID)
+			case actionsMethodGetWorkflowRun:
+				return getWorkflowRun(ctx, client, owner, repo, resourceIDInt)
+			case actionsMethodGetWorkflowJob:
+				return getWorkflowJob(ctx, client, owner, repo, resourceIDInt)
+			case actionsMethodDownloadWorkflowArtifact:
+				return downloadWorkflowArtifact(ctx, client, owner, repo, resourceIDInt)
+			case actionsMethodGetWorkflowRunUsage:
+				return getWorkflowRunUsage(ctx, client, owner, repo, resourceIDInt)
+			case actionsMethodGetWorkflowRunLogsURL:
+				return getWorkflowRunLogsURL(ctx, client, owner, repo, resourceIDInt)
+			default:
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		},
 	)
@@ -1785,65 +1781,63 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 				Required: []string{"method", "owner", "repo"},
 			},
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				owner, err := RequiredParam[string](args, "owner")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				repo, err := RequiredParam[string](args, "repo")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				method, err := RequiredParam[string](args, "method")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			method, err := RequiredParam[string](args, "method")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
-				// Get optional parameters
-				workflowID, _ := OptionalParam[string](args, "workflow_id")
-				ref, _ := OptionalParam[string](args, "ref")
-				runID, _ := OptionalIntParam(args, "run_id")
+			// Get optional parameters
+			workflowID, _ := OptionalParam[string](args, "workflow_id")
+			ref, _ := OptionalParam[string](args, "ref")
+			runID, _ := OptionalIntParam(args, "run_id")
 
-				// Get optional inputs parameter
-				var inputs map[string]interface{}
-				if requestInputs, ok := args["inputs"]; ok {
-					if inputsMap, ok := requestInputs.(map[string]interface{}); ok {
-						inputs = inputsMap
-					}
+			// Get optional inputs parameter
+			var inputs map[string]interface{}
+			if requestInputs, ok := args["inputs"]; ok {
+				if inputsMap, ok := requestInputs.(map[string]interface{}); ok {
+					inputs = inputsMap
 				}
+			}
 
-				// Validate required parameters based on action type
-				if method == actionsMethodRunWorkflow {
-					if workflowID == "" {
-						return utils.NewToolResultError("workflow_id is required for run_workflow action"), nil, nil
-					}
-					if ref == "" {
-						return utils.NewToolResultError("ref is required for run_workflow action"), nil, nil
-					}
-				} else if runID == 0 {
-					return utils.NewToolResultError("missing required parameter: run_id"), nil, nil
+			// Validate required parameters based on action type
+			if method == actionsMethodRunWorkflow {
+				if workflowID == "" {
+					return utils.NewToolResultError("workflow_id is required for run_workflow action"), nil, nil
 				}
+				if ref == "" {
+					return utils.NewToolResultError("ref is required for run_workflow action"), nil, nil
+				}
+			} else if runID == 0 {
+				return utils.NewToolResultError("missing required parameter: run_id"), nil, nil
+			}
 
-				client, err := deps.GetClient(ctx)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
-				}
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
 
-				switch method {
-				case actionsMethodRunWorkflow:
-					return runWorkflow(ctx, client, owner, repo, workflowID, ref, inputs)
-				case actionsMethodRerunWorkflowRun:
-					return rerunWorkflowRun(ctx, client, owner, repo, int64(runID))
-				case actionsMethodRerunFailedJobs:
-					return rerunFailedJobs(ctx, client, owner, repo, int64(runID))
-				case actionsMethodCancelWorkflowRun:
-					return cancelWorkflowRun(ctx, client, owner, repo, int64(runID))
-				case actionsMethodDeleteWorkflowRunLogs:
-					return deleteWorkflowRunLogs(ctx, client, owner, repo, int64(runID))
-				default:
-					return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
-				}
+			switch method {
+			case actionsMethodRunWorkflow:
+				return runWorkflow(ctx, client, owner, repo, workflowID, ref, inputs)
+			case actionsMethodRerunWorkflowRun:
+				return rerunWorkflowRun(ctx, client, owner, repo, int64(runID))
+			case actionsMethodRerunFailedJobs:
+				return rerunFailedJobs(ctx, client, owner, repo, int64(runID))
+			case actionsMethodCancelWorkflowRun:
+				return cancelWorkflowRun(ctx, client, owner, repo, int64(runID))
+			case actionsMethodDeleteWorkflowRunLogs:
+				return deleteWorkflowRunLogs(ctx, client, owner, repo, int64(runID))
+			default:
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		},
 	)
@@ -1901,69 +1895,67 @@ For single job logs, provide job_id. For all failed jobs in a run, provide run_i
 				Required: []string{"owner", "repo"},
 			},
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				owner, err := RequiredParam[string](args, "owner")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				repo, err := RequiredParam[string](args, "repo")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				jobID, err := OptionalIntParam(args, "job_id")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				runID, err := OptionalIntParam(args, "run_id")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				failedOnly, err := OptionalParam[bool](args, "failed_only")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				returnContent, err := OptionalParam[bool](args, "return_content")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				tailLines, err := OptionalIntParam(args, "tail_lines")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				// Default to 500 lines if not specified
-				if tailLines == 0 {
-					tailLines = 500
-				}
-
-				client, err := deps.GetClient(ctx)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
-				}
-
-				// Validate parameters
-				if failedOnly && runID == 0 {
-					return utils.NewToolResultError("run_id is required when failed_only is true"), nil, nil
-				}
-				if !failedOnly && jobID == 0 {
-					return utils.NewToolResultError("job_id is required when failed_only is false"), nil, nil
-				}
-
-				if failedOnly && runID > 0 {
-					// Handle failed-only mode: get logs for all failed jobs in the workflow run
-					return handleFailedJobLogs(ctx, client, owner, repo, int64(runID), returnContent, tailLines, deps.GetContentWindowSize())
-				} else if jobID > 0 {
-					// Handle single job mode
-					return handleSingleJobLogs(ctx, client, owner, repo, int64(jobID), returnContent, tailLines, deps.GetContentWindowSize())
-				}
-
-				return utils.NewToolResultError("Either job_id must be provided for single job logs, or run_id with failed_only=true for failed job logs"), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			jobID, err := OptionalIntParam(args, "job_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			runID, err := OptionalIntParam(args, "run_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			failedOnly, err := OptionalParam[bool](args, "failed_only")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			returnContent, err := OptionalParam[bool](args, "return_content")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			tailLines, err := OptionalIntParam(args, "tail_lines")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			// Default to 500 lines if not specified
+			if tailLines == 0 {
+				tailLines = 500
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			// Validate parameters
+			if failedOnly && runID == 0 {
+				return utils.NewToolResultError("run_id is required when failed_only is true"), nil, nil
+			}
+			if !failedOnly && jobID == 0 {
+				return utils.NewToolResultError("job_id is required when failed_only is false"), nil, nil
+			}
+
+			if failedOnly && runID > 0 {
+				// Handle failed-only mode: get logs for all failed jobs in the workflow run
+				return handleFailedJobLogs(ctx, client, owner, repo, int64(runID), returnContent, tailLines, deps.GetContentWindowSize())
+			} else if jobID > 0 {
+				// Handle single job mode
+				return handleSingleJobLogs(ctx, client, owner, repo, int64(jobID), returnContent, tailLines, deps.GetContentWindowSize())
+			}
+
+			return utils.NewToolResultError("Either job_id must be provided for single job logs, or run_id with failed_only=true for failed job logs"), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagConsolidatedActions
