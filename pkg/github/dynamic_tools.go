@@ -27,7 +27,10 @@ type DynamicToolDependencies struct {
 }
 
 // NewDynamicTool creates a ServerTool with fully-typed DynamicToolDependencies.
+// Dynamic tools use a different dependency structure (DynamicToolDependencies) than regular
+// tools (ToolDependencies), so they intentionally use the closure pattern.
 func NewDynamicTool(toolset inventory.ToolsetMetadata, tool mcp.Tool, handler func(deps DynamicToolDependencies) mcp.ToolHandlerFor[map[string]any, any]) inventory.ServerTool {
+	//nolint:staticcheck // SA1019: Dynamic tools use a different deps structure, closure pattern is intentional
 	return inventory.NewServerTool(tool, toolset, func(d any) mcp.ToolHandlerFor[map[string]any, any] {
 		return handler(d.(DynamicToolDependencies))
 	})

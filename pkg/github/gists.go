@@ -41,65 +41,63 @@ func ListGists(t translations.TranslationHelperFunc) inventory.ServerTool {
 				},
 			}),
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				username, err := OptionalParam[string](args, "username")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				since, err := OptionalParam[string](args, "since")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				pagination, err := OptionalPaginationParams(args)
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				opts := &github.GistListOptions{
-					ListOptions: github.ListOptions{
-						Page:    pagination.Page,
-						PerPage: pagination.PerPage,
-					},
-				}
-
-				// Parse since timestamp if provided
-				if since != "" {
-					sinceTime, err := parseISOTimestamp(since)
-					if err != nil {
-						return utils.NewToolResultError(fmt.Sprintf("invalid since timestamp: %v", err)), nil, nil
-					}
-					opts.Since = sinceTime
-				}
-
-				client, err := deps.GetClient(ctx)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
-				}
-
-				gists, resp, err := client.Gists.List(ctx, username, opts)
-				if err != nil {
-					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list gists", resp, err), nil, nil
-				}
-				defer func() { _ = resp.Body.Close() }()
-
-				if resp.StatusCode != http.StatusOK {
-					body, err := io.ReadAll(resp.Body)
-					if err != nil {
-						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
-					}
-					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list gists", resp, body), nil, nil
-				}
-
-				r, err := json.Marshal(gists)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
-				}
-
-				return utils.NewToolResultText(string(r)), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			username, err := OptionalParam[string](args, "username")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+
+			since, err := OptionalParam[string](args, "since")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			pagination, err := OptionalPaginationParams(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			opts := &github.GistListOptions{
+				ListOptions: github.ListOptions{
+					Page:    pagination.Page,
+					PerPage: pagination.PerPage,
+				},
+			}
+
+			// Parse since timestamp if provided
+			if since != "" {
+				sinceTime, err := parseISOTimestamp(since)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("invalid since timestamp: %v", err)), nil, nil
+				}
+				opts.Since = sinceTime
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			gists, resp, err := client.Gists.List(ctx, username, opts)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list gists", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list gists", resp, body), nil, nil
+			}
+
+			r, err := json.Marshal(gists)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
 }
@@ -126,39 +124,37 @@ func GetGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"gist_id"},
 			},
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				gistID, err := RequiredParam[string](args, "gist_id")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				client, err := deps.GetClient(ctx)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
-				}
-
-				gist, resp, err := client.Gists.Get(ctx, gistID)
-				if err != nil {
-					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get gist", resp, err), nil, nil
-				}
-				defer func() { _ = resp.Body.Close() }()
-
-				if resp.StatusCode != http.StatusOK {
-					body, err := io.ReadAll(resp.Body)
-					if err != nil {
-						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
-					}
-					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get gist", resp, body), nil, nil
-				}
-
-				r, err := json.Marshal(gist)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
-				}
-
-				return utils.NewToolResultText(string(r)), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			gistID, err := RequiredParam[string](args, "gist_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			gist, resp, err := client.Gists.Get(ctx, gistID)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get gist", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get gist", resp, body), nil, nil
+			}
+
+			r, err := json.Marshal(gist)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
 }
@@ -198,71 +194,69 @@ func CreateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"filename", "content"},
 			},
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				description, err := OptionalParam[string](args, "description")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				filename, err := RequiredParam[string](args, "filename")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				content, err := RequiredParam[string](args, "content")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				public, err := OptionalParam[bool](args, "public")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				files := make(map[github.GistFilename]github.GistFile)
-				files[github.GistFilename(filename)] = github.GistFile{
-					Filename: github.Ptr(filename),
-					Content:  github.Ptr(content),
-				}
-
-				gist := &github.Gist{
-					Files:       files,
-					Public:      github.Ptr(public),
-					Description: github.Ptr(description),
-				}
-
-				client, err := deps.GetClient(ctx)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
-				}
-
-				createdGist, resp, err := client.Gists.Create(ctx, gist)
-				if err != nil {
-					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to create gist", resp, err), nil, nil
-				}
-				defer func() { _ = resp.Body.Close() }()
-
-				if resp.StatusCode != http.StatusCreated {
-					body, err := io.ReadAll(resp.Body)
-					if err != nil {
-						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
-					}
-					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create gist", resp, body), nil, nil
-				}
-
-				minimalResponse := MinimalResponse{
-					ID:  createdGist.GetID(),
-					URL: createdGist.GetHTMLURL(),
-				}
-
-				r, err := json.Marshal(minimalResponse)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
-				}
-
-				return utils.NewToolResultText(string(r)), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			description, err := OptionalParam[string](args, "description")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+
+			filename, err := RequiredParam[string](args, "filename")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			content, err := RequiredParam[string](args, "content")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			public, err := OptionalParam[bool](args, "public")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			files := make(map[github.GistFilename]github.GistFile)
+			files[github.GistFilename(filename)] = github.GistFile{
+				Filename: github.Ptr(filename),
+				Content:  github.Ptr(content),
+			}
+
+			gist := &github.Gist{
+				Files:       files,
+				Public:      github.Ptr(public),
+				Description: github.Ptr(description),
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			createdGist, resp, err := client.Gists.Create(ctx, gist)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to create gist", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusCreated {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create gist", resp, body), nil, nil
+			}
+
+			minimalResponse := MinimalResponse{
+				ID:  createdGist.GetID(),
+				URL: createdGist.GetHTMLURL(),
+			}
+
+			r, err := json.Marshal(minimalResponse)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
 }
@@ -301,70 +295,68 @@ func UpdateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"gist_id", "filename", "content"},
 			},
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				gistID, err := RequiredParam[string](args, "gist_id")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				description, err := OptionalParam[string](args, "description")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				filename, err := RequiredParam[string](args, "filename")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				content, err := RequiredParam[string](args, "content")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				files := make(map[github.GistFilename]github.GistFile)
-				files[github.GistFilename(filename)] = github.GistFile{
-					Filename: github.Ptr(filename),
-					Content:  github.Ptr(content),
-				}
-
-				gist := &github.Gist{
-					Files:       files,
-					Description: github.Ptr(description),
-				}
-
-				client, err := deps.GetClient(ctx)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
-				}
-
-				updatedGist, resp, err := client.Gists.Edit(ctx, gistID, gist)
-				if err != nil {
-					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update gist", resp, err), nil, nil
-				}
-				defer func() { _ = resp.Body.Close() }()
-
-				if resp.StatusCode != http.StatusOK {
-					body, err := io.ReadAll(resp.Body)
-					if err != nil {
-						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
-					}
-					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update gist", resp, body), nil, nil
-				}
-
-				minimalResponse := MinimalResponse{
-					ID:  updatedGist.GetID(),
-					URL: updatedGist.GetHTMLURL(),
-				}
-
-				r, err := json.Marshal(minimalResponse)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
-				}
-
-				return utils.NewToolResultText(string(r)), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			gistID, err := RequiredParam[string](args, "gist_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+
+			description, err := OptionalParam[string](args, "description")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			filename, err := RequiredParam[string](args, "filename")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			content, err := RequiredParam[string](args, "content")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			files := make(map[github.GistFilename]github.GistFile)
+			files[github.GistFilename(filename)] = github.GistFile{
+				Filename: github.Ptr(filename),
+				Content:  github.Ptr(content),
+			}
+
+			gist := &github.Gist{
+				Files:       files,
+				Description: github.Ptr(description),
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			updatedGist, resp, err := client.Gists.Edit(ctx, gistID, gist)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to update gist", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update gist", resp, body), nil, nil
+			}
+
+			minimalResponse := MinimalResponse{
+				ID:  updatedGist.GetID(),
+				URL: updatedGist.GetHTMLURL(),
+			}
+
+			r, err := json.Marshal(minimalResponse)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
 }

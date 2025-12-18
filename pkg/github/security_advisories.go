@@ -83,127 +83,125 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventor
 				},
 			},
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				client, err := deps.GetClient(ctx)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
-				}
-
-				ghsaID, err := OptionalParam[string](args, "ghsaId")
-				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("invalid ghsaId: %v", err)), nil, nil
-				}
-
-				typ, err := OptionalParam[string](args, "type")
-				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("invalid type: %v", err)), nil, nil
-				}
-
-				cveID, err := OptionalParam[string](args, "cveId")
-				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("invalid cveId: %v", err)), nil, nil
-				}
-
-				eco, err := OptionalParam[string](args, "ecosystem")
-				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("invalid ecosystem: %v", err)), nil, nil
-				}
-
-				sev, err := OptionalParam[string](args, "severity")
-				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("invalid severity: %v", err)), nil, nil
-				}
-
-				cwes, err := OptionalStringArrayParam(args, "cwes")
-				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("invalid cwes: %v", err)), nil, nil
-				}
-
-				isWithdrawn, err := OptionalParam[bool](args, "isWithdrawn")
-				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("invalid isWithdrawn: %v", err)), nil, nil
-				}
-
-				affects, err := OptionalParam[string](args, "affects")
-				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("invalid affects: %v", err)), nil, nil
-				}
-
-				published, err := OptionalParam[string](args, "published")
-				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("invalid published: %v", err)), nil, nil
-				}
-
-				updated, err := OptionalParam[string](args, "updated")
-				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("invalid updated: %v", err)), nil, nil
-				}
-
-				modified, err := OptionalParam[string](args, "modified")
-				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("invalid modified: %v", err)), nil, nil
-				}
-
-				opts := &github.ListGlobalSecurityAdvisoriesOptions{}
-
-				if ghsaID != "" {
-					opts.GHSAID = &ghsaID
-				}
-				if typ != "" {
-					opts.Type = &typ
-				}
-				if cveID != "" {
-					opts.CVEID = &cveID
-				}
-				if eco != "" {
-					opts.Ecosystem = &eco
-				}
-				if sev != "" {
-					opts.Severity = &sev
-				}
-				if len(cwes) > 0 {
-					opts.CWEs = cwes
-				}
-
-				if isWithdrawn {
-					opts.IsWithdrawn = &isWithdrawn
-				}
-
-				if affects != "" {
-					opts.Affects = &affects
-				}
-				if published != "" {
-					opts.Published = &published
-				}
-				if updated != "" {
-					opts.Updated = &updated
-				}
-				if modified != "" {
-					opts.Modified = &modified
-				}
-
-				advisories, resp, err := client.SecurityAdvisories.ListGlobalSecurityAdvisories(ctx, opts)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to list global security advisories: %w", err)
-				}
-				defer func() { _ = resp.Body.Close() }()
-
-				if resp.StatusCode != http.StatusOK {
-					body, err := io.ReadAll(resp.Body)
-					if err != nil {
-						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
-					}
-					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list advisories", resp, body), nil, nil
-				}
-
-				r, err := json.Marshal(advisories)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to marshal advisories: %w", err)
-				}
-
-				return utils.NewToolResultText(string(r)), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
+
+			ghsaID, err := OptionalParam[string](args, "ghsaId")
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("invalid ghsaId: %v", err)), nil, nil
+			}
+
+			typ, err := OptionalParam[string](args, "type")
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("invalid type: %v", err)), nil, nil
+			}
+
+			cveID, err := OptionalParam[string](args, "cveId")
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("invalid cveId: %v", err)), nil, nil
+			}
+
+			eco, err := OptionalParam[string](args, "ecosystem")
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("invalid ecosystem: %v", err)), nil, nil
+			}
+
+			sev, err := OptionalParam[string](args, "severity")
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("invalid severity: %v", err)), nil, nil
+			}
+
+			cwes, err := OptionalStringArrayParam(args, "cwes")
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("invalid cwes: %v", err)), nil, nil
+			}
+
+			isWithdrawn, err := OptionalParam[bool](args, "isWithdrawn")
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("invalid isWithdrawn: %v", err)), nil, nil
+			}
+
+			affects, err := OptionalParam[string](args, "affects")
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("invalid affects: %v", err)), nil, nil
+			}
+
+			published, err := OptionalParam[string](args, "published")
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("invalid published: %v", err)), nil, nil
+			}
+
+			updated, err := OptionalParam[string](args, "updated")
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("invalid updated: %v", err)), nil, nil
+			}
+
+			modified, err := OptionalParam[string](args, "modified")
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("invalid modified: %v", err)), nil, nil
+			}
+
+			opts := &github.ListGlobalSecurityAdvisoriesOptions{}
+
+			if ghsaID != "" {
+				opts.GHSAID = &ghsaID
+			}
+			if typ != "" {
+				opts.Type = &typ
+			}
+			if cveID != "" {
+				opts.CVEID = &cveID
+			}
+			if eco != "" {
+				opts.Ecosystem = &eco
+			}
+			if sev != "" {
+				opts.Severity = &sev
+			}
+			if len(cwes) > 0 {
+				opts.CWEs = cwes
+			}
+
+			if isWithdrawn {
+				opts.IsWithdrawn = &isWithdrawn
+			}
+
+			if affects != "" {
+				opts.Affects = &affects
+			}
+			if published != "" {
+				opts.Published = &published
+			}
+			if updated != "" {
+				opts.Updated = &updated
+			}
+			if modified != "" {
+				opts.Modified = &modified
+			}
+
+			advisories, resp, err := client.SecurityAdvisories.ListGlobalSecurityAdvisories(ctx, opts)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to list global security advisories: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list advisories", resp, body), nil, nil
+			}
+
+			r, err := json.Marshal(advisories)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal advisories: %w", err)
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
 }
@@ -248,67 +246,65 @@ func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inve
 				Required: []string{"owner", "repo"},
 			},
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				owner, err := RequiredParam[string](args, "owner")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				repo, err := RequiredParam[string](args, "repo")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				direction, err := OptionalParam[string](args, "direction")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				sortField, err := OptionalParam[string](args, "sort")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				state, err := OptionalParam[string](args, "state")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				client, err := deps.GetClient(ctx)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
-				}
-
-				opts := &github.ListRepositorySecurityAdvisoriesOptions{}
-				if direction != "" {
-					opts.Direction = direction
-				}
-				if sortField != "" {
-					opts.Sort = sortField
-				}
-				if state != "" {
-					opts.State = state
-				}
-
-				advisories, resp, err := client.SecurityAdvisories.ListRepositorySecurityAdvisories(ctx, owner, repo, opts)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to list repository security advisories: %w", err)
-				}
-				defer func() { _ = resp.Body.Close() }()
-
-				if resp.StatusCode != http.StatusOK {
-					body, err := io.ReadAll(resp.Body)
-					if err != nil {
-						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
-					}
-					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list repository advisories", resp, body), nil, nil
-				}
-
-				r, err := json.Marshal(advisories)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to marshal advisories: %w", err)
-				}
-
-				return utils.NewToolResultText(string(r)), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			direction, err := OptionalParam[string](args, "direction")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			sortField, err := OptionalParam[string](args, "sort")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			state, err := OptionalParam[string](args, "state")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			opts := &github.ListRepositorySecurityAdvisoriesOptions{}
+			if direction != "" {
+				opts.Direction = direction
+			}
+			if sortField != "" {
+				opts.Sort = sortField
+			}
+			if state != "" {
+				opts.State = state
+			}
+
+			advisories, resp, err := client.SecurityAdvisories.ListRepositorySecurityAdvisories(ctx, owner, repo, opts)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to list repository security advisories: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list repository advisories", resp, body), nil, nil
+			}
+
+			r, err := json.Marshal(advisories)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal advisories: %w", err)
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
 }
@@ -334,39 +330,37 @@ func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.S
 				Required: []string{"ghsaId"},
 			},
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				client, err := deps.GetClient(ctx)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
-				}
-
-				ghsaID, err := RequiredParam[string](args, "ghsaId")
-				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("invalid ghsaId: %v", err)), nil, nil
-				}
-
-				advisory, resp, err := client.SecurityAdvisories.GetGlobalSecurityAdvisories(ctx, ghsaID)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to get advisory: %w", err)
-				}
-				defer func() { _ = resp.Body.Close() }()
-
-				if resp.StatusCode != http.StatusOK {
-					body, err := io.ReadAll(resp.Body)
-					if err != nil {
-						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
-					}
-					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get advisory", resp, body), nil, nil
-				}
-
-				r, err := json.Marshal(advisory)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to marshal advisory: %w", err)
-				}
-
-				return utils.NewToolResultText(string(r)), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
+
+			ghsaID, err := RequiredParam[string](args, "ghsaId")
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("invalid ghsaId: %v", err)), nil, nil
+			}
+
+			advisory, resp, err := client.SecurityAdvisories.GetGlobalSecurityAdvisories(ctx, ghsaID)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get advisory: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get advisory", resp, body), nil, nil
+			}
+
+			r, err := json.Marshal(advisory)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal advisory: %w", err)
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
 }
@@ -407,62 +401,60 @@ func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) i
 				Required: []string{"org"},
 			},
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				org, err := RequiredParam[string](args, "org")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				direction, err := OptionalParam[string](args, "direction")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				sortField, err := OptionalParam[string](args, "sort")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				state, err := OptionalParam[string](args, "state")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				client, err := deps.GetClient(ctx)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
-				}
-
-				opts := &github.ListRepositorySecurityAdvisoriesOptions{}
-				if direction != "" {
-					opts.Direction = direction
-				}
-				if sortField != "" {
-					opts.Sort = sortField
-				}
-				if state != "" {
-					opts.State = state
-				}
-
-				advisories, resp, err := client.SecurityAdvisories.ListRepositorySecurityAdvisoriesForOrg(ctx, org, opts)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to list organization repository security advisories: %w", err)
-				}
-				defer func() { _ = resp.Body.Close() }()
-
-				if resp.StatusCode != http.StatusOK {
-					body, err := io.ReadAll(resp.Body)
-					if err != nil {
-						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
-					}
-					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list organization repository advisories", resp, body), nil, nil
-				}
-
-				r, err := json.Marshal(advisories)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to marshal advisories: %w", err)
-				}
-
-				return utils.NewToolResultText(string(r)), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			org, err := RequiredParam[string](args, "org")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			direction, err := OptionalParam[string](args, "direction")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			sortField, err := OptionalParam[string](args, "sort")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			state, err := OptionalParam[string](args, "state")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			opts := &github.ListRepositorySecurityAdvisoriesOptions{}
+			if direction != "" {
+				opts.Direction = direction
+			}
+			if sortField != "" {
+				opts.Sort = sortField
+			}
+			if state != "" {
+				opts.State = state
+			}
+
+			advisories, resp, err := client.SecurityAdvisories.ListRepositorySecurityAdvisoriesForOrg(ctx, org, opts)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to list organization repository security advisories: %w", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list organization repository advisories", resp, body), nil, nil
+			}
+
+			r, err := json.Marshal(advisories)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal advisories: %w", err)
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
 }

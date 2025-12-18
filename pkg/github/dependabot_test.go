@@ -81,7 +81,7 @@ func Test_GetDependabotAlert(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -218,7 +218,7 @@ func Test_ListDependabotAlerts(t *testing.T) {
 
 			request := createMCPRequest(tc.requestArgs)
 
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			if tc.expectError {
 				require.NoError(t, err)

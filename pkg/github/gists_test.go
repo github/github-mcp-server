@@ -151,7 +151,7 @@ func Test_ListGists(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
 			// Verify results
@@ -262,7 +262,7 @@ func Test_GetGist(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
 			// Verify results
@@ -402,7 +402,7 @@ func Test_CreateGist(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
 			// Verify results
@@ -555,7 +555,7 @@ func Test_UpdateGist(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
 			// Verify results

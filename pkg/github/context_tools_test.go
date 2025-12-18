@@ -103,7 +103,7 @@ func Test_GetMe(t *testing.T) {
 			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
 			if tc.expectToolError {
@@ -337,10 +337,11 @@ func Test_GetTeams(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			handler := serverTool.Handler(tc.makeDeps())
+			deps := tc.makeDeps()
+			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
 			if tc.expectToolError {
@@ -483,7 +484,7 @@ func Test_GetTeamMembers(t *testing.T) {
 			handler := serverTool.Handler(tc.deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), tc.deps), &request)
 			require.NoError(t, err)
 
 			if tc.expectToolError {
