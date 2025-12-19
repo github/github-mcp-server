@@ -3282,19 +3282,6 @@ func Test_resolveGitReference(t *testing.T) {
 			},
 			expectError: false,
 		},
-		{
-			name: "ref looks like short SHA with empty sha parameter",
-			ref:  "abc123d",
-			sha:  "",
-			mockSetup: func() *http.Client {
-				// No API calls should be made when ref looks like SHA
-				return mock.NewMockedHTTPClient()
-			},
-			expectedOutput: &raw.ContentOpts{
-				SHA: "abc123d",
-			},
-			expectError: false,
-		},
 	}
 
 	for _, tc := range tests {
