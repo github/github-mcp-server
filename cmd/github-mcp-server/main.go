@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -32,10 +31,8 @@ var (
 		Short: "Start stdio server",
 		Long:  `Start a server that communicates via standard input/output streams using JSON-RPC messages.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
+			// Token is optional - if not provided, server starts in auth mode
 			token := viper.GetString("personal_access_token")
-			if token == "" {
-				return errors.New("GITHUB_PERSONAL_ACCESS_TOKEN not set")
-			}
 
 			// If you're wondering why we're not using viper.GetStringSlice("toolsets"),
 			// it's because viper doesn't handle comma-separated values correctly for env
@@ -84,6 +81,8 @@ var (
 				ContentWindowSize:    viper.GetInt("content-window-size"),
 				LockdownMode:         viper.GetBool("lockdown-mode"),
 				RepoAccessCacheTTL:   &ttl,
+				OAuthClientID:        viper.GetString("oauth-client-id"),
+				OAuthClientSecret:    viper.GetString("oauth-client-secret"),
 			}
 			return ghmcp.RunStdioServer(stdioServerConfig)
 		},
@@ -109,6 +108,8 @@ func init() {
 	rootCmd.PersistentFlags().Int("content-window-size", 5000, "Specify the content window size")
 	rootCmd.PersistentFlags().Bool("lockdown-mode", false, "Enable lockdown mode")
 	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "Override the repo access cache TTL (e.g. 1m, 0s to disable)")
+	rootCmd.PersistentFlags().String("oauth-client-id", "", "OAuth App client ID for device flow authentication (optional, uses default if not provided)")
+	rootCmd.PersistentFlags().String("oauth-client-secret", "", "OAuth App client secret for device flow authentication (optional, for confidential clients)")
 
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
@@ -123,6 +124,8 @@ func init() {
 	_ = viper.BindPFlag("content-window-size", rootCmd.PersistentFlags().Lookup("content-window-size"))
 	_ = viper.BindPFlag("lockdown-mode", rootCmd.PersistentFlags().Lookup("lockdown-mode"))
 	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
+	_ = viper.BindPFlag("oauth-client-id", rootCmd.PersistentFlags().Lookup("oauth-client-id"))
+	_ = viper.BindPFlag("oauth-client-secret", rootCmd.PersistentFlags().Lookup("oauth-client-secret"))
 
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)

@@ -67,6 +67,13 @@ type MCPServerConfig struct {
 	Logger *slog.Logger
 	// RepoAccessTTL overrides the default TTL for repository access cache entries.
 	RepoAccessTTL *time.Duration
+
+	// OAuthClientID is the OAuth App client ID for device flow authentication.
+	// If empty, the default GitHub MCP Server OAuth App is used.
+	OAuthClientID string
+
+	// OAuthClientSecret is the OAuth App client secret (optional, for confidential clients).
+	OAuthClientSecret string
 }
 
 // githubClients holds all the GitHub API clients created for a server instance.
@@ -265,6 +272,136 @@ func createFeatureChecker(enabledFeatures []string) inventory.FeatureFlagChecker
 	}
 }
 
+// UnauthenticatedServerResult contains the server and components needed to complete
+// authentication after the server is running.
+type UnauthenticatedServerResult struct {
+	Server      *mcp.Server
+	AuthManager *github.AuthManager
+}
+
+// NewUnauthenticatedMCPServer creates an MCP server with only authentication tools available.
+// After successful authentication via the auth tools, call OnAuthenticated to initialize
+// GitHub clients and register all other tools.
+func NewUnauthenticatedMCPServer(cfg MCPServerConfig) (*UnauthenticatedServerResult, error) {
+	// Create OAuth host from the configured GitHub host
+	oauthHost := github.NewOAuthHostFromAPIHost(cfg.Host)
+
+	// Create auth manager
+	authManager := github.NewAuthManager(oauthHost, cfg.OAuthClientID, cfg.OAuthClientSecret, nil)
+
+	// Create the MCP server with capabilities advertised for dynamic tool registration
+	serverOpts := &mcp.ServerOptions{
+		Instructions: "GitHub MCP Server - Authentication Required\n\nYou are not currently authenticated with GitHub. Use the auth_login tool to start the authentication process, then auth_verify to complete it.",
+		Logger:       cfg.Logger,
+		// Advertise capabilities since tools will be added after auth
+		Capabilities: &mcp.ServerCapabilities{
+			Tools:     &mcp.ToolCapabilities{ListChanged: true},
+			Resources: &mcp.ResourceCapabilities{ListChanged: true},
+			Prompts:   &mcp.PromptCapabilities{ListChanged: true},
+		},
+	}
+
+	ghServer := github.NewServer(cfg.Version, serverOpts)
+
+	// Add error context middleware
+	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
+
+	// Create auth tool dependencies with a callback for when auth completes
+	authDeps := github.AuthToolDependencies{
+		AuthManager: authManager,
+		T:           cfg.Translator,
+		Server:      ghServer,
+		Logger:      cfg.Logger,
+		OnAuthenticated: func(ctx context.Context, token string) error {
+			// Create API host for GitHub clients
+			apiHost, err := parseAPIHost(cfg.Host)
+			if err != nil {
+				return fmt.Errorf("failed to parse API host: %w", err)
+			}
+
+			// Create a new config with the token
+			authenticatedCfg := cfg
+			authenticatedCfg.Token = token
+
+			// Create GitHub clients
+			clients, err := createGitHubClients(authenticatedCfg, apiHost)
+			if err != nil {
+				return fmt.Errorf("failed to create GitHub clients: %w", err)
+			}
+
+			// Add user agent middleware
+			ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(authenticatedCfg, clients.rest, clients.gqlHTTP))
+
+			// Create dependencies for tool handlers
+			deps := github.NewBaseDeps(
+				clients.rest,
+				clients.gql,
+				clients.raw,
+				clients.repoAccess,
+				cfg.Translator,
+				github.FeatureFlags{LockdownMode: cfg.LockdownMode},
+				cfg.ContentWindowSize,
+			)
+
+			// Inject dependencies into context for all tool handlers
+			ghServer.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+				return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+					return next(github.ContextWithDeps(ctx, deps), method, req)
+				}
+			})
+
+			// Resolve enabled toolsets
+			enabledToolsets := resolveEnabledToolsets(authenticatedCfg)
+
+			// Build and register the tool/resource/prompt inventory
+			inv := github.NewInventory(cfg.Translator).
+				WithDeprecatedAliases(github.DeprecatedToolAliases).
+				WithReadOnly(cfg.ReadOnly).
+				WithToolsets(enabledToolsets).
+				WithTools(github.CleanTools(cfg.EnabledTools)).
+				WithFeatureChecker(createFeatureChecker(cfg.EnabledFeatures)).
+				Build()
+
+			// Log how many tools we're about to register
+			availableTools := inv.AvailableTools(ctx)
+			if cfg.Logger != nil {
+				cfg.Logger.Info("registering tools after authentication", "count", len(availableTools))
+			}
+
+			// Register all GitHub tools/resources/prompts
+			inv.RegisterAll(ctx, ghServer, deps)
+
+			// Register dynamic toolset management tools if enabled
+			if cfg.DynamicToolsets {
+				registerDynamicTools(ghServer, inv, deps, cfg.Translator)
+			}
+
+			if cfg.Logger != nil {
+				cfg.Logger.Info("authentication complete, tools registered", "toolCount", len(availableTools))
+			}
+
+			return nil
+		},
+		OnAuthComplete: func() {
+			// Remove auth_login tool now that authentication is complete
+			ghServer.RemoveTools("auth_login")
+			if cfg.Logger != nil {
+				cfg.Logger.Info("auth tools removed after successful authentication")
+			}
+		},
+	}
+
+	// Register only auth tools
+	for _, tool := range github.AuthTools(cfg.Translator) {
+		tool.RegisterFunc(ghServer, authDeps)
+	}
+
+	return &UnauthenticatedServerResult{
+		Server:      ghServer,
+		AuthManager: authManager,
+	}, nil
+}
+
 type StdioServerConfig struct {
 	// Version of the server
 	Version string
@@ -312,6 +449,13 @@ type StdioServerConfig struct {
 
 	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
 	RepoAccessCacheTTL *time.Duration
+
+	// OAuthClientID is the OAuth App client ID for device flow authentication.
+	// If empty, the default GitHub MCP Server OAuth App is used.
+	OAuthClientID string
+
+	// OAuthClientSecret is the OAuth App client secret (optional, for confidential clients).
+	OAuthClientSecret string
 }
 
 // RunStdioServer is not concurrent safe.
@@ -338,23 +482,52 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	logger := slog.New(slogHandler)
 	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "dynamicToolsets", cfg.DynamicToolsets, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode)
 
-	ghServer, err := NewMCPServer(MCPServerConfig{
-		Version:           cfg.Version,
-		Host:              cfg.Host,
-		Token:             cfg.Token,
-		EnabledToolsets:   cfg.EnabledToolsets,
-		EnabledTools:      cfg.EnabledTools,
-		EnabledFeatures:   cfg.EnabledFeatures,
-		DynamicToolsets:   cfg.DynamicToolsets,
-		ReadOnly:          cfg.ReadOnly,
-		Translator:        t,
-		ContentWindowSize: cfg.ContentWindowSize,
-		LockdownMode:      cfg.LockdownMode,
-		Logger:            logger,
-		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create MCP server: %w", err)
+	var ghServer *mcp.Server
+
+	// If no token is provided, start in unauthenticated mode with only auth tools
+	if cfg.Token == "" {
+		logger.Info("no token provided, starting in unauthenticated mode with auth tools")
+		result, err := NewUnauthenticatedMCPServer(MCPServerConfig{
+			Version:           cfg.Version,
+			Host:              cfg.Host,
+			Translator:        t,
+			Logger:            logger,
+			OAuthClientID:     cfg.OAuthClientID,
+			OAuthClientSecret: cfg.OAuthClientSecret,
+			// Pass config for use after authentication
+			EnabledToolsets:   cfg.EnabledToolsets,
+			EnabledTools:      cfg.EnabledTools,
+			EnabledFeatures:   cfg.EnabledFeatures,
+			DynamicToolsets:   cfg.DynamicToolsets,
+			ReadOnly:          cfg.ReadOnly,
+			ContentWindowSize: cfg.ContentWindowSize,
+			LockdownMode:      cfg.LockdownMode,
+			RepoAccessTTL:     cfg.RepoAccessCacheTTL,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create unauthenticated MCP server: %w", err)
+		}
+		ghServer = result.Server
+	} else {
+		var err error
+		ghServer, err = NewMCPServer(MCPServerConfig{
+			Version:           cfg.Version,
+			Host:              cfg.Host,
+			Token:             cfg.Token,
+			EnabledToolsets:   cfg.EnabledToolsets,
+			EnabledTools:      cfg.EnabledTools,
+			EnabledFeatures:   cfg.EnabledFeatures,
+			DynamicToolsets:   cfg.DynamicToolsets,
+			ReadOnly:          cfg.ReadOnly,
+			Translator:        t,
+			ContentWindowSize: cfg.ContentWindowSize,
+			LockdownMode:      cfg.LockdownMode,
+			Logger:            logger,
+			RepoAccessTTL:     cfg.RepoAccessCacheTTL,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create MCP server: %w", err)
+		}
 	}
 
 	if cfg.ExportTranslations {

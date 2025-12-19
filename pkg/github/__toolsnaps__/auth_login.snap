@@ -1,0 +1,11 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Login to GitHub"
+  },
+  "description": "Initiate GitHub authentication using OAuth device flow. This will provide a URL and code that you can use to authenticate with GitHub. After visiting the URL and entering the code, authentication will complete automatically.",
+  "inputSchema": {
+    "type": "object"
+  },
+  "name": "auth_login"
+}
