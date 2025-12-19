@@ -1883,7 +1883,7 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 	}
 
 	// 1a) If sha is empty but ref looks like a SHA, return it without changes
-	if sha == "" && looksLikeSHA(ref) {
+	if looksLikeSHA(ref) {
 		return &raw.ContentOpts{Ref: "", SHA: ref}, nil
 	}
 
