@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -636,6 +637,8 @@ func normalizeEndpointKey(endpoint any) string {
 		if v == nil {
 			panic("nil EndpointPattern")
 		}
+		return v.Method + " " + v.Pattern
+	case raw.EndpointPattern:
 		return v.Method + " " + v.Pattern
 	default:
 		panic("unsupported endpoint type")
