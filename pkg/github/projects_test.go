@@ -11,7 +11,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	gh "github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -45,12 +44,12 @@ func Test_ListProjects(t *testing.T) {
 	}{
 		{
 			name: "success organization",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2", Method: http.MethodGet},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/orgs/{org}/projectsV2", Method: http.MethodGet},
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write(mock.MustMarshal(orgProjects))
+						_, _ = w.Write(MustMarshal(orgProjects))
 					}),
 				),
 			),
@@ -63,12 +62,12 @@ func Test_ListProjects(t *testing.T) {
 		},
 		{
 			name: "success user",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/users/{username}/projectsV2", Method: http.MethodGet},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/users/{username}/projectsV2", Method: http.MethodGet},
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write(mock.MustMarshal(userProjects))
+						_, _ = w.Write(MustMarshal(userProjects))
 					}),
 				),
 			),
@@ -81,14 +80,14 @@ func Test_ListProjects(t *testing.T) {
 		},
 		{
 			name: "success organization with pagination & query",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2", Method: http.MethodGet},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/orgs/{org}/projectsV2", Method: http.MethodGet},
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						q := r.URL.Query()
 						if q.Get("per_page") == "50" && q.Get("q") == "roadmap" {
 							w.WriteHeader(http.StatusOK)
-							_, _ = w.Write(mock.MustMarshal(orgProjects))
+							_, _ = w.Write(MustMarshal(orgProjects))
 							return
 						}
 						w.WriteHeader(http.StatusBadRequest)
@@ -107,9 +106,9 @@ func Test_ListProjects(t *testing.T) {
 		},
 		{
 			name: "api error",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2", Method: http.MethodGet},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/orgs/{org}/projectsV2", Method: http.MethodGet},
 					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
 				),
 			),
@@ -122,7 +121,7 @@ func Test_ListProjects(t *testing.T) {
 		},
 		{
 			name:         "missing owner",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"owner_type": "org",
 			},
@@ -130,7 +129,7 @@ func Test_ListProjects(t *testing.T) {
 		},
 		{
 			name:         "missing owner_type",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"owner": "octo-org",
 			},
@@ -204,9 +203,9 @@ func Test_GetProject(t *testing.T) {
 	}{
 		{
 			name: "success organization project fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/123", Method: http.MethodGet},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/orgs/{org}/projectsV2/123", Method: http.MethodGet},
 					mockResponse(t, http.StatusOK, project),
 				),
 			),
@@ -219,9 +218,9 @@ func Test_GetProject(t *testing.T) {
 		},
 		{
 			name: "success user project fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/users/{username}/projectsV2/456", Method: http.MethodGet},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/users/{username}/projectsV2/456", Method: http.MethodGet},
 					mockResponse(t, http.StatusOK, project),
 				),
 			),
@@ -234,9 +233,9 @@ func Test_GetProject(t *testing.T) {
 		},
 		{
 			name: "api error",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/999", Method: http.MethodGet},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/orgs/{org}/projectsV2/999", Method: http.MethodGet},
 					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
 				),
 			),
@@ -250,7 +249,7 @@ func Test_GetProject(t *testing.T) {
 		},
 		{
 			name:         "missing project_number",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"owner":      "octo-org",
 				"owner_type": "org",
@@ -259,7 +258,7 @@ func Test_GetProject(t *testing.T) {
 		},
 		{
 			name:         "missing owner",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"project_number": float64(123),
 				"owner_type":     "org",
@@ -268,7 +267,7 @@ func Test_GetProject(t *testing.T) {
 		},
 		{
 			name:         "missing owner_type",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"project_number": float64(123),
 				"owner":          "octo-org",
@@ -343,12 +342,12 @@ func Test_ListProjectFields(t *testing.T) {
 	}{
 		{
 			name: "success organization fields",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/fields", Method: http.MethodGet},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/fields", Method: http.MethodGet},
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write(mock.MustMarshal(orgFields))
+						_, _ = w.Write(MustMarshal(orgFields))
 					}),
 				),
 			),
@@ -361,14 +360,14 @@ func Test_ListProjectFields(t *testing.T) {
 		},
 		{
 			name: "success user fields with per_page override",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/fields", Method: http.MethodGet},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/fields", Method: http.MethodGet},
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						q := r.URL.Query()
 						if q.Get("per_page") == "50" {
 							w.WriteHeader(http.StatusOK)
-							_, _ = w.Write(mock.MustMarshal(userFields))
+							_, _ = w.Write(MustMarshal(userFields))
 							return
 						}
 						w.WriteHeader(http.StatusBadRequest)
@@ -386,9 +385,9 @@ func Test_ListProjectFields(t *testing.T) {
 		},
 		{
 			name: "api error",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/fields", Method: http.MethodGet},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/fields", Method: http.MethodGet},
 					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
 				),
 			),
@@ -402,7 +401,7 @@ func Test_ListProjectFields(t *testing.T) {
 		},
 		{
 			name:         "missing owner",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"owner_type":     "org",
 				"project_number": 10,
@@ -411,7 +410,7 @@ func Test_ListProjectFields(t *testing.T) {
 		},
 		{
 			name:         "missing owner_type",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"owner":          "octo-org",
 				"project_number": 10,
@@ -420,7 +419,7 @@ func Test_ListProjectFields(t *testing.T) {
 		},
 		{
 			name:         "missing project_number",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"owner":      "octo-org",
 				"owner_type": "org",
@@ -500,9 +499,9 @@ func Test_GetProjectField(t *testing.T) {
 	}{
 		{
 			name: "success organization field",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/fields/{field_id}", Method: http.MethodGet},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/fields/{field_id}", Method: http.MethodGet},
 					mockResponse(t, http.StatusOK, orgField),
 				),
 			),
@@ -516,9 +515,9 @@ func Test_GetProjectField(t *testing.T) {
 		},
 		{
 			name: "success user field",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/fields/{field_id}", Method: http.MethodGet},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/fields/{field_id}", Method: http.MethodGet},
 					mockResponse(t, http.StatusOK, userField),
 				),
 			),
@@ -532,9 +531,9 @@ func Test_GetProjectField(t *testing.T) {
 		},
 		{
 			name: "api error",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/fields/{field_id}", Method: http.MethodGet},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/fields/{field_id}", Method: http.MethodGet},
 					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
 				),
 			),
@@ -549,7 +548,7 @@ func Test_GetProjectField(t *testing.T) {
 		},
 		{
 			name:         "missing owner",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner_type":     "org",
 				"project_number": float64(10),
@@ -559,7 +558,7 @@ func Test_GetProjectField(t *testing.T) {
 		},
 		{
 			name:         "missing owner_type",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"project_number": float64(10),
@@ -569,7 +568,7 @@ func Test_GetProjectField(t *testing.T) {
 		},
 		{
 			name:         "missing project_number",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":      "octo-org",
 				"owner_type": "org",
@@ -579,7 +578,7 @@ func Test_GetProjectField(t *testing.T) {
 		},
 		{
 			name:         "missing field_id",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -671,9 +670,9 @@ func Test_ListProjectItems(t *testing.T) {
 	}{
 		{
 			name: "success organization items",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodGet},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodGet},
 					mockResponse(t, http.StatusOK, orgItems),
 				),
 			),
@@ -686,14 +685,14 @@ func Test_ListProjectItems(t *testing.T) {
 		},
 		{
 			name: "success organization items with fields",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodGet},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodGet},
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						q := r.URL.Query()
 						if q.Get("fields") == "123,456,789" {
 							w.WriteHeader(http.StatusOK)
-							_, _ = w.Write(mock.MustMarshal(orgItems))
+							_, _ = w.Write(MustMarshal(orgItems))
 							return
 						}
 						w.WriteHeader(http.StatusBadRequest)
@@ -711,9 +710,9 @@ func Test_ListProjectItems(t *testing.T) {
 		},
 		{
 			name: "success user items",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/items", Method: http.MethodGet},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/items", Method: http.MethodGet},
 					mockResponse(t, http.StatusOK, userItems),
 				),
 			),
@@ -726,14 +725,14 @@ func Test_ListProjectItems(t *testing.T) {
 		},
 		{
 			name: "success with pagination and query",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodGet},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodGet},
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						q := r.URL.Query()
 						if q.Get("per_page") == "50" && q.Get("q") == "bug" {
 							w.WriteHeader(http.StatusOK)
-							_, _ = w.Write(mock.MustMarshal(orgItems))
+							_, _ = w.Write(MustMarshal(orgItems))
 							return
 						}
 						w.WriteHeader(http.StatusBadRequest)
@@ -752,9 +751,9 @@ func Test_ListProjectItems(t *testing.T) {
 		},
 		{
 			name: "api error",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodGet},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodGet},
 					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
 				),
 			),
@@ -768,7 +767,7 @@ func Test_ListProjectItems(t *testing.T) {
 		},
 		{
 			name:         "missing owner",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"owner_type":     "org",
 				"project_number": float64(10),
@@ -777,7 +776,7 @@ func Test_ListProjectItems(t *testing.T) {
 		},
 		{
 			name:         "missing owner_type",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"owner":          "octo-org",
 				"project_number": float64(10),
@@ -786,7 +785,7 @@ func Test_ListProjectItems(t *testing.T) {
 		},
 		{
 			name:         "missing project_number",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"owner":      "octo-org",
 				"owner_type": "org",
@@ -877,9 +876,9 @@ func Test_GetProjectItem(t *testing.T) {
 	}{
 		{
 			name: "success organization item",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodGet},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodGet},
 					mockResponse(t, http.StatusOK, orgItem),
 				),
 			),
@@ -893,14 +892,14 @@ func Test_GetProjectItem(t *testing.T) {
 		},
 		{
 			name: "success organization item with fields",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodGet},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodGet},
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						q := r.URL.Query()
 						if q.Get("fields") == "123,456" {
 							w.WriteHeader(http.StatusOK)
-							_, _ = w.Write(mock.MustMarshal(orgItem))
+							_, _ = w.Write(MustMarshal(orgItem))
 							return
 						}
 						w.WriteHeader(http.StatusBadRequest)
@@ -919,9 +918,9 @@ func Test_GetProjectItem(t *testing.T) {
 		},
 		{
 			name: "success user item",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/items/{item_id}", Method: http.MethodGet},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/items/{item_id}", Method: http.MethodGet},
 					mockResponse(t, http.StatusOK, userItem),
 				),
 			),
@@ -935,9 +934,9 @@ func Test_GetProjectItem(t *testing.T) {
 		},
 		{
 			name: "api error",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodGet},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodGet},
 					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
 				),
 			),
@@ -952,7 +951,7 @@ func Test_GetProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing owner",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner_type":     "org",
 				"project_number": float64(10),
@@ -962,7 +961,7 @@ func Test_GetProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing owner_type",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"project_number": float64(10),
@@ -972,7 +971,7 @@ func Test_GetProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing project_number",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":      "octo-org",
 				"owner_type": "org",
@@ -982,7 +981,7 @@ func Test_GetProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing item_id",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -1086,9 +1085,9 @@ func Test_AddProjectItem(t *testing.T) {
 	}{
 		{
 			name: "success organization issue",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodPost},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodPost},
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						body, err := io.ReadAll(r.Body)
 						assert.NoError(t, err)
@@ -1100,7 +1099,7 @@ func Test_AddProjectItem(t *testing.T) {
 						assert.Equal(t, "Issue", payload.Type)
 						assert.Equal(t, 9876, payload.ID)
 						w.WriteHeader(http.StatusCreated)
-						_, _ = w.Write(mock.MustMarshal(orgItem))
+						_, _ = w.Write(MustMarshal(orgItem))
 					}),
 				),
 			),
@@ -1117,9 +1116,9 @@ func Test_AddProjectItem(t *testing.T) {
 		},
 		{
 			name: "success user pull request",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/items", Method: http.MethodPost},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/items", Method: http.MethodPost},
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						body, err := io.ReadAll(r.Body)
 						assert.NoError(t, err)
@@ -1131,7 +1130,7 @@ func Test_AddProjectItem(t *testing.T) {
 						assert.Equal(t, "PullRequest", payload.Type)
 						assert.Equal(t, 7654, payload.ID)
 						w.WriteHeader(http.StatusCreated)
-						_, _ = w.Write(mock.MustMarshal(userItem))
+						_, _ = w.Write(MustMarshal(userItem))
 					}),
 				),
 			),
@@ -1148,9 +1147,9 @@ func Test_AddProjectItem(t *testing.T) {
 		},
 		{
 			name: "api error",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodPost},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodPost},
 					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
 				),
 			),
@@ -1166,7 +1165,7 @@ func Test_AddProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing owner",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner_type":     "org",
 				"project_number": float64(1),
@@ -1177,7 +1176,7 @@ func Test_AddProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing owner_type",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"project_number": float64(1),
@@ -1188,7 +1187,7 @@ func Test_AddProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing project_number",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":      "octo-org",
 				"owner_type": "org",
@@ -1199,7 +1198,7 @@ func Test_AddProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing item_type",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -1210,7 +1209,7 @@ func Test_AddProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing item_id",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -1310,9 +1309,9 @@ func Test_UpdateProjectItem(t *testing.T) {
 	}{
 		{
 			name: "success organization update",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodPatch},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodPatch},
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						body, err := io.ReadAll(r.Body)
 						assert.NoError(t, err)
@@ -1327,7 +1326,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 						assert.Equal(t, 101, payload.Fields[0].ID)
 						assert.Equal(t, "Done", payload.Fields[0].Value)
 						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write(mock.MustMarshal(orgUpdatedItem))
+						_, _ = w.Write(MustMarshal(orgUpdatedItem))
 					}),
 				),
 			),
@@ -1345,9 +1344,9 @@ func Test_UpdateProjectItem(t *testing.T) {
 		},
 		{
 			name: "success user update",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/items/{item_id}", Method: http.MethodPatch},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/items/{item_id}", Method: http.MethodPatch},
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						body, err := io.ReadAll(r.Body)
 						assert.NoError(t, err)
@@ -1362,7 +1361,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 						assert.Equal(t, 202, payload.Fields[0].ID)
 						assert.Equal(t, 42.0, payload.Fields[0].Value)
 						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write(mock.MustMarshal(userUpdatedItem))
+						_, _ = w.Write(MustMarshal(userUpdatedItem))
 					}),
 				),
 			),
@@ -1380,9 +1379,9 @@ func Test_UpdateProjectItem(t *testing.T) {
 		},
 		{
 			name: "api error",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodPatch},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodPatch},
 					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
 				),
 			),
@@ -1401,7 +1400,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing owner",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner_type":     "org",
 				"project_number": float64(1),
@@ -1415,7 +1414,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing owner_type",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"project_number": float64(1),
@@ -1429,7 +1428,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing project_number",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":      "octo-org",
 				"owner_type": "org",
@@ -1443,7 +1442,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing item_id",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -1457,7 +1456,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing updated_field",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -1468,7 +1467,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 		},
 		{
 			name:         "updated_field not object",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -1480,7 +1479,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 		},
 		{
 			name:         "updated_field missing id",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -1492,7 +1491,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 		},
 		{
 			name:         "updated_field missing value",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -1580,9 +1579,9 @@ func Test_DeleteProjectItem(t *testing.T) {
 	}{
 		{
 			name: "success organization delete",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodDelete},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodDelete},
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusNoContent)
 					}),
@@ -1598,9 +1597,9 @@ func Test_DeleteProjectItem(t *testing.T) {
 		},
 		{
 			name: "success user delete",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/items/{item_id}", Method: http.MethodDelete},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/items/{item_id}", Method: http.MethodDelete},
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusNoContent)
 					}),
@@ -1616,9 +1615,9 @@ func Test_DeleteProjectItem(t *testing.T) {
 		},
 		{
 			name: "api error",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodDelete},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodDelete},
 					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
 				),
 			),
@@ -1633,7 +1632,7 @@ func Test_DeleteProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing owner",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner_type":     "org",
 				"project_number": float64(1),
@@ -1643,7 +1642,7 @@ func Test_DeleteProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing owner_type",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"project_number": float64(1),
@@ -1653,7 +1652,7 @@ func Test_DeleteProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing project_number",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":      "octo-org",
 				"owner_type": "org",
@@ -1663,7 +1662,7 @@ func Test_DeleteProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing item_id",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",

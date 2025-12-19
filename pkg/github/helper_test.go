@@ -41,7 +41,7 @@ const (
 
 	// Git endpoints
 	GetReposGitTreesByOwnerByRepoByTree        = "GET /repos/{owner}/{repo}/git/trees/{tree}"
-	GetReposGitRefByOwnerByRepoByRef           = "GET /repos/{owner}/{repo}/git/ref/{ref}"
+	GetReposGitRefByOwnerByRepoByRef           = "GET /repos/{owner}/{repo}/git/ref/{ref:.*}"
 	PostReposGitRefsByOwnerByRepo              = "POST /repos/{owner}/{repo}/git/refs"
 	PatchReposGitRefsByOwnerByRepoByRef        = "PATCH /repos/{owner}/{repo}/git/refs/{ref}"
 	GetReposGitCommitsByOwnerByRepoByCommitSHA = "GET /repos/{owner}/{repo}/git/commits/{commit_sha}"
@@ -564,8 +564,181 @@ func MockHTTPClientWithHandlers(handlers map[string]http.HandlerFunc) *http.Clie
 	return &http.Client{Transport: transport}
 }
 
+// mockHTTPClientOption configures a mocked HTTP client.
+//
+// This intentionally mirrors the go-github-mock API shape used across tests
+// (NewMockedHTTPClient + WithRequestMatch/WithRequestMatchHandler) so we can
+// remove that dependency while keeping test diffs minimal.
+type mockHTTPClientOption func(*sequencedMultiHandlerTransport)
+
+// MockBackendOption mirrors the go-github-mock option type used throughout tests.
+// It's an alias so existing call sites can keep the same shape after removing
+// the external dependency.
+type MockBackendOption = mockHTTPClientOption
+
+// EndpointPattern mirrors go-github-mock's EndpointPattern.
+// It allows registering handlers for an exact method + path.
+type EndpointPattern struct {
+	Pattern string
+	Method  string
+}
+
+// NewMockedHTTPClient creates an HTTP client that dispatches requests to the
+// provided handlers based on method + path matching.
+//
+// Handlers can be registered multiple times per endpoint; they will be consumed
+// in the order they were added.
+func NewMockedHTTPClient(opts ...MockBackendOption) *http.Client {
+	transport := &sequencedMultiHandlerTransport{handlers: map[string][]http.HandlerFunc{}}
+	for _, opt := range opts {
+		opt(transport)
+	}
+	return &http.Client{Transport: transport}
+}
+
+// WithRequestMatchHandler registers a handler for the given endpoint key.
+//
+// Endpoint keys are of the form: "METHOD /path/pattern".
+func WithRequestMatchHandler(endpoint any, handler http.HandlerFunc) MockBackendOption {
+	endpointKey := normalizeEndpointKey(endpoint)
+	return func(t *sequencedMultiHandlerTransport) {
+		t.handlers[endpointKey] = append(t.handlers[endpointKey], handler)
+	}
+}
+
+// WithRequestMatch registers a default JSON response (HTTP 200) for the given endpoint.
+func WithRequestMatch(endpoint any, body any) MockBackendOption {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		if body == nil {
+			return
+		}
+		if s, ok := body.(string); ok {
+			_, _ = w.Write([]byte(s))
+			return
+		}
+		b, err := json.Marshal(body)
+		if err != nil {
+			panic(err)
+		}
+		_, _ = w.Write(b)
+	})
+	return WithRequestMatchHandler(endpoint, handler)
+}
+
+func normalizeEndpointKey(endpoint any) string {
+	switch v := endpoint.(type) {
+	case string:
+		return v
+	case EndpointPattern:
+		return v.Method + " " + v.Pattern
+	case *EndpointPattern:
+		if v == nil {
+			panic("nil EndpointPattern")
+		}
+		return v.Method + " " + v.Pattern
+	default:
+		panic("unsupported endpoint type")
+	}
+}
+
+// MustMarshal marshals v to JSON and panics on error.
+func MustMarshal(v any) []byte {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return b
+}
+
 type multiHandlerTransport struct {
 	handlers map[string]http.HandlerFunc
+}
+
+type sequencedMultiHandlerTransport struct {
+	handlers map[string][]http.HandlerFunc
+}
+
+func (m *sequencedMultiHandlerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Check for catch-all handler.
+	if handler := m.popHandler(""); handler != nil {
+		return executeHandler(handler, req), nil
+	}
+
+	key := req.Method + " " + req.URL.Path
+	if handler := m.popHandler(key); handler != nil {
+		return executeHandler(handler, req), nil
+	}
+
+	// Pattern matching, prioritizing patterns without wildcards.
+	var wildcardPattern string
+	var wildcardHandler http.HandlerFunc
+
+	for pattern := range m.handlers {
+		if pattern == "" {
+			continue
+		}
+		parts := strings.SplitN(pattern, " ", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		method, pathPattern := parts[0], parts[1]
+		if req.Method != method {
+			continue
+		}
+
+		isWildcard := strings.Contains(pathPattern, ":.*}")
+		if !matchPath(pathPattern, req.URL.Path) {
+			continue
+		}
+
+		if isWildcard {
+			if handler := m.peekHandler(pattern); handler != nil {
+				wildcardPattern = pattern
+				wildcardHandler = handler
+			}
+			continue
+		}
+
+		if handler := m.popHandler(pattern); handler != nil {
+			return executeHandler(handler, req), nil
+		}
+	}
+
+	if wildcardPattern != "" && wildcardHandler != nil {
+		if handler := m.popHandler(wildcardPattern); handler != nil {
+			return executeHandler(handler, req), nil
+		}
+	}
+
+	return &http.Response{
+		StatusCode: http.StatusNotFound,
+		Body:       io.NopCloser(bytes.NewReader([]byte("not found"))),
+		Request:    req,
+	}, nil
+}
+
+func (m *sequencedMultiHandlerTransport) peekHandler(key string) http.HandlerFunc {
+	queue, ok := m.handlers[key]
+	if !ok || len(queue) == 0 {
+		return nil
+	}
+	return queue[0]
+}
+
+func (m *sequencedMultiHandlerTransport) popHandler(key string) http.HandlerFunc {
+	queue, ok := m.handlers[key]
+	if !ok || len(queue) == 0 {
+		return nil
+	}
+	h := queue[0]
+	queue = queue[1:]
+	if len(queue) == 0 {
+		delete(m.handlers, key)
+		return h
+	}
+	m.handlers[key] = queue
+	return h
 }
 
 func (m *multiHandlerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
