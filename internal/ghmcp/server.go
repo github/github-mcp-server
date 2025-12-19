@@ -332,8 +332,7 @@ func NewUnauthenticatedMCPServer(cfg MCPServerConfig) (*UnauthenticatedServerRes
 
 	// Create the MCP server with capabilities advertised for dynamic tool registration
 	serverOpts := &mcp.ServerOptions{
-		Instructions: "GitHub MCP Server - Authentication Required\n\nYou are not currently authenticated with GitHub. Use the auth_login tool to complete authentication. This is a single, blocking call that will guide you through the entire device authorization flow and return once authentication has finished.",
-		Logger:       cfg.Logger,
+		Logger: cfg.Logger,
 		// Advertise capabilities since tools will be added after auth
 		Capabilities: &mcp.ServerCapabilities{
 			Tools:     &mcp.ToolCapabilities{ListChanged: true},
