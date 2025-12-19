@@ -216,6 +216,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	// Add middlewares
 	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
 	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.rest, clients.gqlHTTP))
+	ghServer.AddReceivingMiddleware(addSessionInfoMiddleware(cfg, clients.rest, enabledToolsets, instructionToolsets))
 
 	// Create dependencies for tool handlers
 	deps := github.NewBaseDeps(
@@ -345,6 +346,14 @@ func NewUnauthenticatedMCPServer(cfg MCPServerConfig) (*UnauthenticatedServerRes
 
 	// Add error context middleware
 	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
+
+	// Add session info middleware for unauthenticated mode
+	// This will show configuration but no user info until authenticated
+	instructionToolsets := enabledToolsets
+	if instructionToolsets == nil {
+		instructionToolsets = github.GetDefaultToolsetIDs()
+	}
+	ghServer.AddReceivingMiddleware(addUnauthenticatedSessionInfoMiddleware(cfg, enabledToolsets, instructionToolsets))
 
 	// Create auth tool dependencies with a callback for when auth completes
 	authDeps := github.AuthToolDependencies{
@@ -838,6 +847,159 @@ func addUserAgentsMiddleware(cfg MCPServerConfig, restClient *gogithub.Client, g
 			}
 
 			return next(ctx, method, request)
+		}
+	}
+}
+
+// addSessionInfoMiddleware enriches the InitializeResult with session information
+// including user details, enabled toolsets, and configuration flags.
+func addSessionInfoMiddleware(cfg MCPServerConfig, restClient *gogithub.Client, enabledToolsets []string, instructionToolsets []string) func(next mcp.MethodHandler) mcp.MethodHandler {
+	return func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, request mcp.Request) (result mcp.Result, err error) {
+			// Only intercept initialize method
+			if method != "initialize" {
+				return next(ctx, method, request)
+			}
+
+			// Call the next handler to get the InitializeResult
+			result, err = next(ctx, method, request)
+			if err != nil {
+				return result, err
+			}
+
+			// Cast to InitializeResult to add metadata
+			initResult, ok := result.(*mcp.InitializeResult)
+			if !ok {
+				// If we can't cast, just return the original result
+				return result, err
+			}
+
+			// Build session info metadata
+			sessionInfo := make(map[string]any)
+
+			// Add configuration information
+			sessionInfo["readOnlyMode"] = cfg.ReadOnly
+			sessionInfo["lockdownMode"] = cfg.LockdownMode
+			sessionInfo["dynamicToolsets"] = cfg.DynamicToolsets
+
+			// Add toolsets information
+			switch {
+			case enabledToolsets == nil:
+				// nil means "use defaults"
+				sessionInfo["enabledToolsets"] = instructionToolsets
+				sessionInfo["toolsetsMode"] = "default"
+			case len(enabledToolsets) == 0:
+				sessionInfo["enabledToolsets"] = []string{}
+				sessionInfo["toolsetsMode"] = "none"
+			default:
+				sessionInfo["enabledToolsets"] = enabledToolsets
+				sessionInfo["toolsetsMode"] = "explicit"
+			}
+
+			// Add enabled tools if specified
+			if len(cfg.EnabledTools) > 0 {
+				sessionInfo["enabledTools"] = cfg.EnabledTools
+			}
+
+			// Try to fetch user information (get_me equivalent)
+			// If it fails, we simply omit it from the session info
+			if user, _, err := restClient.Users.Get(ctx, ""); err == nil && user != nil {
+				userInfo := map[string]any{
+					"login":      user.GetLogin(),
+					"id":         user.GetID(),
+					"profileURL": user.GetHTMLURL(),
+					"avatarURL":  user.GetAvatarURL(),
+				}
+
+				// Add optional fields if they exist
+				if name := user.GetName(); name != "" {
+					userInfo["name"] = name
+				}
+				if email := user.GetEmail(); email != "" {
+					userInfo["email"] = email
+				}
+				if bio := user.GetBio(); bio != "" {
+					userInfo["bio"] = bio
+				}
+				if company := user.GetCompany(); company != "" {
+					userInfo["company"] = company
+				}
+				if location := user.GetLocation(); location != "" {
+					userInfo["location"] = location
+				}
+
+				sessionInfo["user"] = userInfo
+			}
+
+			// Set the metadata on the InitializeResult
+			if initResult.Meta == nil {
+				initResult.Meta = make(mcp.Meta)
+			}
+			initResult.Meta["sessionInfo"] = sessionInfo
+
+			return initResult, nil
+		}
+	}
+}
+
+// addUnauthenticatedSessionInfoMiddleware enriches the InitializeResult with session information
+// for unauthenticated servers. This shows configuration but no user info until authenticated.
+func addUnauthenticatedSessionInfoMiddleware(cfg MCPServerConfig, enabledToolsets []string, instructionToolsets []string) func(next mcp.MethodHandler) mcp.MethodHandler {
+	return func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, request mcp.Request) (result mcp.Result, err error) {
+			// Only intercept initialize method
+			if method != "initialize" {
+				return next(ctx, method, request)
+			}
+
+			// Call the next handler to get the InitializeResult
+			result, err = next(ctx, method, request)
+			if err != nil {
+				return result, err
+			}
+
+			// Cast to InitializeResult to add metadata
+			initResult, ok := result.(*mcp.InitializeResult)
+			if !ok {
+				// If we can't cast, just return the original result
+				return result, err
+			}
+
+			// Build session info metadata (without user info for unauthenticated mode)
+			sessionInfo := make(map[string]any)
+
+			// Add configuration information
+			sessionInfo["readOnlyMode"] = cfg.ReadOnly
+			sessionInfo["lockdownMode"] = cfg.LockdownMode
+			sessionInfo["dynamicToolsets"] = cfg.DynamicToolsets
+			sessionInfo["authenticated"] = false
+
+			// Add toolsets information
+			switch {
+			case enabledToolsets == nil:
+				// nil means "use defaults"
+				sessionInfo["enabledToolsets"] = instructionToolsets
+				sessionInfo["toolsetsMode"] = "default"
+			case len(enabledToolsets) == 0:
+				sessionInfo["enabledToolsets"] = []string{}
+				sessionInfo["toolsetsMode"] = "none"
+			default:
+				sessionInfo["enabledToolsets"] = enabledToolsets
+				sessionInfo["toolsetsMode"] = "explicit"
+			}
+
+			// Add enabled tools if specified
+			if len(cfg.EnabledTools) > 0 {
+				sessionInfo["enabledTools"] = cfg.EnabledTools
+			}
+
+			// Set the metadata on the InitializeResult
+			if initResult.Meta == nil {
+				initResult.Meta = make(mcp.Meta)
+			}
+			initResult.Meta["sessionInfo"] = sessionInfo
+
+			return initResult, nil
 		}
 	}
 }

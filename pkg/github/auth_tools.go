@@ -170,7 +170,5 @@ All GitHub tools are now available. You can now:
 - Create and manage repositories
 - Work with issues and pull requests
 - Access your organizations and teams
-- And much more, depending on your GitHub configuration
-
-Call get_me to see who you're logged in as.`), nil
+- And much more, depending on your GitHub configuration`), nil
 }
