@@ -17,7 +17,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -3647,7 +3646,7 @@ func Test_ListIssueTypes(t *testing.T) {
 			name: "successful issue types retrieval",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{
+					EndpointPattern{
 						Pattern: "/orgs/testorg/issue-types",
 						Method:  "GET",
 					},
@@ -3664,7 +3663,7 @@ func Test_ListIssueTypes(t *testing.T) {
 			name: "organization not found",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{
+					EndpointPattern{
 						Pattern: "/orgs/nonexistent/issue-types",
 						Method:  "GET",
 					},
@@ -3681,7 +3680,7 @@ func Test_ListIssueTypes(t *testing.T) {
 			name: "missing owner parameter",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{
+					EndpointPattern{
 						Pattern: "/orgs/testorg/issue-types",
 						Method:  "GET",
 					},
