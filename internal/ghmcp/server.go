@@ -316,6 +316,20 @@ func NewUnauthenticatedMCPServer(cfg MCPServerConfig) (*UnauthenticatedServerRes
 	// Create auth manager
 	authManager := github.NewAuthManager(oauthHost, cfg.OAuthClientID, cfg.OAuthClientSecret, cfg.OAuthScopes)
 
+	// Build the tool inventory once before forking - this ensures tool filters are applied once
+	enabledToolsets := resolveEnabledToolsets(cfg)
+	inventory := github.NewInventory(cfg.Translator).
+		WithDeprecatedAliases(github.DeprecatedToolAliases).
+		WithReadOnly(cfg.ReadOnly).
+		WithToolsets(enabledToolsets).
+		WithTools(github.CleanTools(cfg.EnabledTools)).
+		WithFeatureChecker(createFeatureChecker(cfg.EnabledFeatures)).
+		Build()
+
+	if unrecognized := inventory.UnrecognizedToolsets(); len(unrecognized) > 0 {
+		fmt.Fprintf(os.Stderr, "Warning: unrecognized toolsets ignored: %s\n", strings.Join(unrecognized, ", "))
+	}
+
 	// Create the MCP server with capabilities advertised for dynamic tool registration
 	serverOpts := &mcp.ServerOptions{
 		Instructions: "GitHub MCP Server - Authentication Required\n\nYou are not currently authenticated with GitHub. Use the auth_login tool to complete authentication. This is a single, blocking call that will guide you through the entire device authorization flow and return once authentication has finished.",
@@ -377,33 +391,16 @@ func NewUnauthenticatedMCPServer(cfg MCPServerConfig) (*UnauthenticatedServerRes
 				}
 			})
 
-			// Resolve enabled toolsets
-			enabledToolsets := resolveEnabledToolsets(authenticatedCfg)
-
-			// Build and register the tool/resource/prompt inventory
-			inv := github.NewInventory(cfg.Translator).
-				WithDeprecatedAliases(github.DeprecatedToolAliases).
-				WithReadOnly(cfg.ReadOnly).
-				WithToolsets(enabledToolsets).
-				WithTools(github.CleanTools(cfg.EnabledTools)).
-				WithFeatureChecker(createFeatureChecker(cfg.EnabledFeatures)).
-				Build()
-
-			// Log how many tools we're about to register
-			availableTools := inv.AvailableTools(ctx)
-			if cfg.Logger != nil {
-				cfg.Logger.Info("registering tools after authentication", "count", len(availableTools))
-			}
-
-			// Register all GitHub tools/resources/prompts
-			inv.RegisterAll(ctx, ghServer, deps)
+			// Register all GitHub tools/resources/prompts using the pre-built inventory
+			inventory.RegisterAll(ctx, ghServer, deps)
 
 			// Register dynamic toolset management tools if enabled
 			if cfg.DynamicToolsets {
-				registerDynamicTools(ghServer, inv, deps, cfg.Translator)
+				registerDynamicTools(ghServer, inventory, deps, cfg.Translator)
 			}
 
 			if cfg.Logger != nil {
+				availableTools := inventory.AvailableTools(ctx)
 				cfg.Logger.Info("authentication complete, tools registered", "toolCount", len(availableTools))
 			}
 
