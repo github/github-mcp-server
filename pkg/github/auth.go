@@ -84,17 +84,20 @@ func NewOAuthHostFromAPIHost(hostname string) OAuthHost {
 
 	// Parse the hostname to extract the base
 	u, err := url.Parse(hostname)
+	var host string
 	if err != nil || u.Hostname() == "" {
-		// Fallback: treat as hostname directly (shouldn't happen with scheme added)
+		// Fallback: strip scheme if it was added, use original hostname
+		host = strings.TrimPrefix(hostname, "https://")
+		host = strings.TrimPrefix(host, "http://")
 		return OAuthHost{
-			DeviceCodeURL: fmt.Sprintf("https://%s/login/device/code", hostname),
-			TokenURL:      fmt.Sprintf("https://%s/login/oauth/access_token", hostname),
-			Hostname:      hostname,
+			DeviceCodeURL: fmt.Sprintf("https://%s/login/device/code", host),
+			TokenURL:      fmt.Sprintf("https://%s/login/oauth/access_token", host),
+			Hostname:      host,
 		}
 	}
 
 	// For GHEC (ghe.com) and GHES, OAuth endpoints are on the main host
-	host := u.Hostname()
+	host = u.Hostname()
 	scheme := u.Scheme
 	if scheme == "" {
 		scheme = "https"
@@ -108,10 +111,9 @@ func NewOAuthHostFromAPIHost(hostname string) OAuthHost {
 }
 
 // DefaultOAuthClientID is the OAuth App client ID for the GitHub MCP Server.
-// This OAuth App is registered by GitHub for use with this server.
+// This OAuth App is registered and managed by GitHub for use with this server.
 // The client ID is safe to embed in source code per OAuth 2.0 spec for public clients.
 // Users can override this with --oauth-client-id for enterprise scenarios.
-// currently a testing app.
 const DefaultOAuthClientID = "Ov23ctTMsnT9LTRdBYYM"
 
 // DefaultOAuthScopes are the standard scopes needed for complete MCP functionality.
@@ -389,12 +391,5 @@ func (a *AuthManager) SetToken(token string) {
 }
 
 func joinScopes(scopes []string) string {
-	result := ""
-	for i, s := range scopes {
-		if i > 0 {
-			result += " "
-		}
-		result += s
-	}
-	return result
+	return strings.Join(scopes, " ")
 }
