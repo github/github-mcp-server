@@ -2889,6 +2889,72 @@ func Test_GetReleaseByTag(t *testing.T) {
 	}
 }
 
+func Test_looksLikeSHA(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{
+			name:     "full 40-character SHA",
+			input:    "abc123def456abc123def456abc123def456abc1",
+			expected: true,
+		},
+		{
+			name:     "too short",
+			input:    "abc123def456abc123def45",
+			expected: false,
+		},
+		{
+			name:     "too long - 41 characters",
+			input:    "abc123def456abc123def456abc123def456abc12",
+			expected: false,
+		},
+		{
+			name:     "contains invalid character - space",
+			input:    "abc123def456abc123def456 bc123def456abc1",
+			expected: false,
+		},
+		{
+			name:     "contains invalid character - dash",
+			input:    "abc123def456abc123d-f456abc123def456abc1",
+			expected: false,
+		},
+		{
+			name:     "contains invalid character - g",
+			input:    "abc123def456gbc123def456abc123def456abc1",
+			expected: false,
+		},
+		{
+			name:     "branch name with slash",
+			input:    "feature/branch",
+			expected: false,
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: false,
+		},
+		{
+			name:     "all zeros SHA",
+			input:    "0000000000000000000000000000000000000000",
+			expected: true,
+		},
+		{
+			name:     "all f's SHA",
+			input:    "ffffffffffffffffffffffffffffffffffffffff",
+			expected: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := looksLikeSHA(tc.input)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
 func Test_filterPaths(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -3200,6 +3266,32 @@ func Test_resolveGitReference(t *testing.T) {
 			expectedOutput: &raw.ContentOpts{
 				Ref: "refs/pull/123/head",
 				SHA: "pr-sha",
+			},
+			expectError: false,
+		},
+		{
+			name: "ref looks like full SHA with empty sha parameter",
+			ref:  "abc123def456abc123def456abc123def456abc1",
+			sha:  "",
+			mockSetup: func() *http.Client {
+				// No API calls should be made when ref looks like SHA
+				return mock.NewMockedHTTPClient()
+			},
+			expectedOutput: &raw.ContentOpts{
+				SHA: "abc123def456abc123def456abc123def456abc1",
+			},
+			expectError: false,
+		},
+		{
+			name: "ref looks like short SHA with empty sha parameter",
+			ref:  "abc123d",
+			sha:  "",
+			mockSetup: func() *http.Client {
+				// No API calls should be made when ref looks like SHA
+				return mock.NewMockedHTTPClient()
+			},
+			expectedOutput: &raw.ContentOpts{
+				SHA: "abc123d",
 			},
 			expectError: false,
 		},
