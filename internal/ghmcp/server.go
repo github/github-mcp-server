@@ -25,6 +25,9 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+// MCPServerConfig contains all configuration needed to create an MCP server.
+// This config struct is used by both NewMCPServer and NewUnauthenticatedMCPServer
+// to ensure consistent configuration across authentication modes.
 type MCPServerConfig struct {
 	// Version of the server
 	Version string
@@ -158,6 +161,17 @@ func resolveEnabledToolsets(cfg MCPServerConfig) []string {
 	return nil
 }
 
+// NewMCPServer creates a fully initialized MCP server with GitHub API access.
+// This constructor is used when a token is available at startup (PAT authentication).
+// For OAuth device flow authentication without a pre-configured token, use NewUnauthenticatedMCPServer instead.
+//
+// The server creation involves several steps:
+// 1. Parse API host configuration and create GitHub clients
+// 2. Resolve which toolsets to enable
+// 3. Create MCP server with appropriate capabilities
+// 4. Add middleware for error handling, user agents, and dependency injection
+// 5. Build and register the tool/resource/prompt inventory
+// 6. Optionally register dynamic toolset management tools
 func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	apiHost, err := parseAPIHost(cfg.Host)
 	if err != nil {
@@ -284,8 +298,17 @@ type UnauthenticatedServerResult struct {
 }
 
 // NewUnauthenticatedMCPServer creates an MCP server with only authentication tools available.
-// After successful authentication via the auth tools, call OnAuthenticated to initialize
-// GitHub clients and register all other tools.
+// This constructor is used for OAuth device flow when no token is available at startup.
+// After successful authentication via the auth tools, the OnAuthenticated callback
+// initializes GitHub clients and registers all other tools dynamically.
+//
+// Architecture note: This shares significant setup logic with NewMCPServer. The duplication
+// exists because the two modes have different initialization timing:
+// - NewMCPServer: All setup happens at construction time (clients + tools)
+// - NewUnauthenticatedMCPServer: Setup happens in two phases (auth tools first, then clients + tools after auth)
+//
+// Future improvement: Consider extracting common setup logic into shared helper functions
+// to reduce duplication while maintaining the two-phase initialization pattern.
 func NewUnauthenticatedMCPServer(cfg MCPServerConfig) (*UnauthenticatedServerResult, error) {
 	// Create OAuth host from the configured GitHub host
 	oauthHost := github.NewOAuthHostFromAPIHost(cfg.Host)
@@ -387,7 +410,11 @@ func NewUnauthenticatedMCPServer(cfg MCPServerConfig) (*UnauthenticatedServerRes
 			return nil
 		},
 		OnAuthComplete: func() {
-			// Remove auth_login tool now that authentication is complete
+			// Remove auth tools after authentication completes.
+			// Note: This manual removal ensures auth tools don't remain available after login.
+			// The auth_login tool is removed by name here to keep the tool list clean.
+			// Future improvement: Consider using toolset-based filtering to automatically
+			// exclude auth toolset after authentication, removing the need for manual cleanup.
 			ghServer.RemoveTools("auth_login")
 			if cfg.Logger != nil {
 				cfg.Logger.Info("auth tools removed after successful authentication")
