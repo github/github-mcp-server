@@ -134,7 +134,7 @@ func Test_GetRepositoryTree(t *testing.T) {
 			// Create the tool request
 			request := createMCPRequest(tc.requestArgs)
 
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			if tc.expectError {
 				require.NoError(t, err)

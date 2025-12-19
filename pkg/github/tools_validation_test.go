@@ -101,6 +101,7 @@ func TestToolReadOnlyHintConsistency(t *testing.T) {
 func TestNoDuplicateToolNames(t *testing.T) {
 	tools := AllTools(stubTranslation)
 	seen := make(map[string]bool)
+	featureFlagged := make(map[string]bool)
 
 	// get_label is intentionally in both issues and labels toolsets for conformance
 	// with original behavior where it was registered in both
@@ -108,9 +109,17 @@ func TestNoDuplicateToolNames(t *testing.T) {
 		"get_label": true,
 	}
 
+	// First pass: identify tools that have feature flags (mutually exclusive at runtime)
+	for _, tool := range tools {
+		if tool.FeatureFlagEnable != "" || tool.FeatureFlagDisable != "" {
+			featureFlagged[tool.Tool.Name] = true
+		}
+	}
+
 	for _, tool := range tools {
 		name := tool.Tool.Name
-		if !allowedDuplicates[name] {
+		// Allow duplicates for explicitly allowed tools and feature-flagged tools
+		if !allowedDuplicates[name] && !featureFlagged[name] {
 			assert.False(t, seen[name],
 				"Duplicate tool name found: %q", name)
 		}

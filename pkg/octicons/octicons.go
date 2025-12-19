@@ -62,6 +62,9 @@ func DataURI(name string, theme Theme) string {
 // Icons are embedded as 24x24 PNG data URIs for offline use and faster loading.
 // The name should be the base octicon name without size suffix (e.g., "repo" not "repo-16").
 // See https://primer.style/foundations/icons for available icons.
+//
+// Note: The Sizes field is omitted for backward compatibility with older MCP clients
+// that expect it to be a string rather than an array per the 2025-11-25 MCP spec.
 func Icons(name string) []mcp.Icon {
 	if name == "" {
 		return nil
@@ -70,13 +73,11 @@ func Icons(name string) []mcp.Icon {
 		{
 			Source:   DataURI(name, ThemeLight),
 			MIMEType: "image/png",
-			Sizes:    []string{"24x24"},
 			Theme:    string(ThemeLight),
 		},
 		{
 			Source:   DataURI(name, ThemeDark),
 			MIMEType: "image/png",
-			Sizes:    []string{"24x24"},
 			Theme:    string(ThemeDark),
 		},
 	}

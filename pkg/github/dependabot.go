@@ -45,51 +45,49 @@ func GetDependabotAlert(t translations.TranslationHelperFunc) inventory.ServerTo
 				Required: []string{"owner", "repo", "alertNumber"},
 			},
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				owner, err := RequiredParam[string](args, "owner")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				repo, err := RequiredParam[string](args, "repo")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				alertNumber, err := RequiredInt(args, "alertNumber")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				client, err := deps.GetClient(ctx)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, err
-				}
-
-				alert, resp, err := client.Dependabot.GetRepoAlert(ctx, owner, repo, alertNumber)
-				if err != nil {
-					return ghErrors.NewGitHubAPIErrorResponse(ctx,
-						fmt.Sprintf("failed to get alert with number '%d'", alertNumber),
-						resp,
-						err,
-					), nil, nil
-				}
-				defer func() { _ = resp.Body.Close() }()
-
-				if resp.StatusCode != http.StatusOK {
-					body, err := io.ReadAll(resp.Body)
-					if err != nil {
-						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, err
-					}
-					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get alert", resp, body), nil, nil
-				}
-
-				r, err := json.Marshal(alert)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to marshal alert", err), nil, err
-				}
-
-				return utils.NewToolResultText(string(r)), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			alertNumber, err := RequiredInt(args, "alertNumber")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, err
+			}
+
+			alert, resp, err := client.Dependabot.GetRepoAlert(ctx, owner, repo, alertNumber)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					fmt.Sprintf("failed to get alert with number '%d'", alertNumber),
+					resp,
+					err,
+				), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, err
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get alert", resp, body), nil, nil
+			}
+
+			r, err := json.Marshal(alert)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal alert", err), nil, err
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
 }
@@ -130,58 +128,56 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 				Required: []string{"owner", "repo"},
 			},
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				owner, err := RequiredParam[string](args, "owner")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				repo, err := RequiredParam[string](args, "repo")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				state, err := OptionalParam[string](args, "state")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				severity, err := OptionalParam[string](args, "severity")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-
-				client, err := deps.GetClient(ctx)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, err
-				}
-
-				alerts, resp, err := client.Dependabot.ListRepoAlerts(ctx, owner, repo, &github.ListAlertsOptions{
-					State:    ToStringPtr(state),
-					Severity: ToStringPtr(severity),
-				})
-				if err != nil {
-					return ghErrors.NewGitHubAPIErrorResponse(ctx,
-						fmt.Sprintf("failed to list alerts for repository '%s/%s'", owner, repo),
-						resp,
-						err,
-					), nil, nil
-				}
-				defer func() { _ = resp.Body.Close() }()
-
-				if resp.StatusCode != http.StatusOK {
-					body, err := io.ReadAll(resp.Body)
-					if err != nil {
-						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, err
-					}
-					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list alerts", resp, body), nil, nil
-				}
-
-				r, err := json.Marshal(alerts)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to marshal alerts", err), nil, err
-				}
-
-				return utils.NewToolResultText(string(r)), nil, nil
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			state, err := OptionalParam[string](args, "state")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			severity, err := OptionalParam[string](args, "severity")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, err
+			}
+
+			alerts, resp, err := client.Dependabot.ListRepoAlerts(ctx, owner, repo, &github.ListAlertsOptions{
+				State:    ToStringPtr(state),
+				Severity: ToStringPtr(severity),
+			})
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					fmt.Sprintf("failed to list alerts for repository '%s/%s'", owner, repo),
+					resp,
+					err,
+				), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, err
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list alerts", resp, body), nil, nil
+			}
+
+			r, err := json.Marshal(alerts)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal alerts", err), nil, err
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
 }

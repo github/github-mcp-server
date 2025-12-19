@@ -146,7 +146,7 @@ func Test_ListProjects(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -285,7 +285,7 @@ func Test_GetProject(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -437,7 +437,7 @@ func Test_ListProjectFields(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -597,7 +597,7 @@ func Test_GetProjectField(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -803,7 +803,7 @@ func Test_ListProjectItems(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -1000,7 +1000,7 @@ func Test_GetProjectItem(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -1230,7 +1230,7 @@ func Test_AddProjectItem(t *testing.T) {
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
 
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
 			if tc.expectError {
@@ -1514,7 +1514,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -1681,7 +1681,7 @@ func Test_DeleteProjectItem(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {

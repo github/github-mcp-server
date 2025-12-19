@@ -203,6 +203,13 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		cfg.ContentWindowSize,
 	)
 
+	// Inject dependencies into context for all tool handlers
+	ghServer.AddReceivingMiddleware(func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			return next(github.ContextWithDeps(ctx, deps), method, req)
+		}
+	})
+
 	// Build and register the tool/resource/prompt inventory
 	inventory := github.NewInventory(cfg.Translator).
 		WithDeprecatedAliases(github.DeprecatedToolAliases).

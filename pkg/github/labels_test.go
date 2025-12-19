@@ -120,7 +120,7 @@ func TestGetLabel(t *testing.T) {
 			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			assert.NotNil(t, result)
@@ -218,7 +218,7 @@ func TestListLabels(t *testing.T) {
 			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			assert.NotNil(t, result)
@@ -469,7 +469,7 @@ func TestWriteLabel(t *testing.T) {
 			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			assert.NotNil(t, result)
