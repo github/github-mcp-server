@@ -74,6 +74,10 @@ type MCPServerConfig struct {
 
 	// OAuthClientSecret is the OAuth App client secret (optional, for confidential clients).
 	OAuthClientSecret string
+
+	// OAuthScopes is a list of OAuth scopes to request during device flow authentication.
+	// If empty, the default scopes defined in DefaultOAuthScopes are used.
+	OAuthScopes []string
 }
 
 // githubClients holds all the GitHub API clients created for a server instance.
@@ -287,7 +291,7 @@ func NewUnauthenticatedMCPServer(cfg MCPServerConfig) (*UnauthenticatedServerRes
 	oauthHost := github.NewOAuthHostFromAPIHost(cfg.Host)
 
 	// Create auth manager
-	authManager := github.NewAuthManager(oauthHost, cfg.OAuthClientID, cfg.OAuthClientSecret, nil)
+	authManager := github.NewAuthManager(oauthHost, cfg.OAuthClientID, cfg.OAuthClientSecret, cfg.OAuthScopes)
 
 	// Create the MCP server with capabilities advertised for dynamic tool registration
 	serverOpts := &mcp.ServerOptions{
@@ -456,6 +460,10 @@ type StdioServerConfig struct {
 
 	// OAuthClientSecret is the OAuth App client secret (optional, for confidential clients).
 	OAuthClientSecret string
+
+	// OAuthScopes is a list of OAuth scopes to request during device flow authentication.
+	// If empty, the default scopes defined in DefaultOAuthScopes are used.
+	OAuthScopes []string
 }
 
 // RunStdioServer is not concurrent safe.
@@ -494,6 +502,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 			Logger:            logger,
 			OAuthClientID:     cfg.OAuthClientID,
 			OAuthClientSecret: cfg.OAuthClientSecret,
+			OAuthScopes:       cfg.OAuthScopes,
 			// Pass config for use after authentication
 			EnabledToolsets:   cfg.EnabledToolsets,
 			EnabledTools:      cfg.EnabledTools,

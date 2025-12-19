@@ -111,7 +111,8 @@ func NewOAuthHostFromAPIHost(hostname string) OAuthHost {
 }
 
 // DefaultOAuthClientID is the OAuth App client ID for the GitHub MCP Server.
-// This OAuth App is registered and managed by GitHub for use with this server.
+// TODO: This is currently a testing OAuth App. An official GitHub-managed OAuth App
+// will be registered before production release.
 // The client ID is safe to embed in source code per OAuth 2.0 spec for public clients.
 // Users can override this with --oauth-client-id for enterprise scenarios.
 const DefaultOAuthClientID = "Ov23ctTMsnT9LTRdBYYM"

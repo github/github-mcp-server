@@ -242,6 +242,7 @@ The GitHub MCP Server provides the following CLI flags for OAuth configuration:
 |------|-------------|---------|---------|
 | `--oauth-client-id` | OAuth App client ID for device flow authentication | Default GitHub MCP OAuth App | `--oauth-client-id Ov23liYourClientID` |
 | `--oauth-client-secret` | OAuth App client secret (optional, for confidential clients) | None | `--oauth-client-secret your_client_secret` |
+| `--oauth-scopes` | Comma-separated list of OAuth scopes to request | Default scopes (see below) | `--oauth-scopes repo,read:org,gist` |
 | `--gh-host` | GitHub hostname for API requests and OAuth endpoints | `github.com` | `--gh-host https://github.yourcompany.com` |
 
 ### Usage Examples
@@ -256,6 +257,11 @@ github-mcp-server stdio
 github-mcp-server stdio --oauth-client-id Ov23liYourClientID
 ```
 
+**Limiting scopes (minimal permissions):**
+```bash
+github-mcp-server stdio --oauth-scopes repo,read:org,gist
+```
+
 **GHES with custom OAuth App:**
 ```bash
 github-mcp-server stdio --gh-host https://github.yourcompany.com --oauth-client-id Ov23liGHESClientID
@@ -266,6 +272,11 @@ github-mcp-server stdio --gh-host https://github.yourcompany.com --oauth-client-
 github-mcp-server stdio --oauth-client-id Ov23liYourClientID --oauth-client-secret your_secret
 ```
 
+**Custom scopes with custom OAuth App:**
+```bash
+github-mcp-server stdio --oauth-client-id Ov23liYourClientID --oauth-scopes repo,read:org,user:email
+```
+
 ## Environment Variables
 
 All CLI flags can also be configured via environment variables with the `GITHUB_` prefix:
@@ -274,6 +285,7 @@ All CLI flags can also be configured via environment variables with the `GITHUB_
 |---------------------|---------------------|---------|
 | `GITHUB_OAUTH_CLIENT_ID` | `--oauth-client-id` | `export GITHUB_OAUTH_CLIENT_ID=Ov23liYourClientID` |
 | `GITHUB_OAUTH_CLIENT_SECRET` | `--oauth-client-secret` | `export GITHUB_OAUTH_CLIENT_SECRET=your_secret` |
+| `GITHUB_OAUTH_SCOPES` | `--oauth-scopes` | `export GITHUB_OAUTH_SCOPES=repo,read:org,gist` |
 | `GITHUB_HOST` | `--gh-host` | `export GITHUB_HOST=https://github.yourcompany.com` |
 | `GITHUB_PERSONAL_ACCESS_TOKEN` | N/A (disables OAuth) | `export GITHUB_PERSONAL_ACCESS_TOKEN=ghp_token` |
 
@@ -309,11 +321,63 @@ These scopes form a superset of the `gh` CLI minimal scopes (`repo`, `read:org`,
 
 ### Customizing Scopes
 
-Currently, scopes are not customizable via CLI flags or environment variables. They are defined in the source code (`pkg/github/auth.go`) as `DefaultOAuthScopes`. To customize scopes, you would need to:
+You can customize the requested scopes using the `--oauth-scopes` CLI flag or `GITHUB_OAUTH_SCOPES` environment variable:
 
-1. Fork the repository
-2. Modify the `DefaultOAuthScopes` variable
-3. Build your custom version
+**CLI Flag:**
+```bash
+github-mcp-server stdio --oauth-scopes repo,read:org,gist
+```
+
+**Environment Variable:**
+```bash
+export GITHUB_OAUTH_SCOPES=repo,read:org,user:email
+github-mcp-server stdio
+```
+
+**Docker with environment variable:**
+```json
+{
+  "github": {
+    "command": "docker",
+    "args": ["run", "-i", "--rm", "-e", "GITHUB_OAUTH_SCOPES", "ghcr.io/github/github-mcp-server"],
+    "env": {
+      "GITHUB_OAUTH_SCOPES": "repo,read:org,gist"
+    }
+  }
+}
+```
+
+#### Minimal Recommended Scopes
+
+For basic functionality, you can use a minimal set of scopes:
+
+```bash
+--oauth-scopes repo,read:org,gist
+```
+
+This provides:
+- `repo`: Access to repositories, issues, and PRs
+- `read:org`: Read organization and team information
+- `gist`: Manage gists
+
+**Note**: Some MCP tools may not function properly with reduced scopes. Review the scopes table above to understand which scopes are required for specific functionality.
+
+#### Common Scope Combinations
+
+**Read-only operations:**
+```bash
+--oauth-scopes repo,read:org,read:user
+```
+
+**Full repository access with notifications:**
+```bash
+--oauth-scopes repo,read:org,notifications,user:email
+```
+
+**Enterprise with minimal scopes:**
+```bash
+--oauth-scopes repo,read:org,read:gpg_key
+```
 
 ## Security Considerations
 
