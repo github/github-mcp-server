@@ -124,15 +124,15 @@ func TestSessionInfoMiddleware_AddsMetadataToInitializeResult(t *testing.T) {
 				mock.WithRequestMatch(
 					mock.GetUser,
 					gogithub.User{
-						Login:     gogithub.String("testuser"),
-						ID:        gogithub.Int64(12345),
-						HTMLURL:   gogithub.String("https://github.com/testuser"),
-						AvatarURL: gogithub.String("https://avatars.githubusercontent.com/u/12345"),
-						Name:      gogithub.String("Test User"),
-						Email:     gogithub.String("test@example.com"),
-						Bio:       gogithub.String("Test bio"),
-						Company:   gogithub.String("Test Company"),
-						Location:  gogithub.String("Test Location"),
+						Login:     gogithub.Ptr("testuser"),
+						ID:        gogithub.Ptr(int64(12345)),
+						HTMLURL:   gogithub.Ptr("https://github.com/testuser"),
+						AvatarURL: gogithub.Ptr("https://avatars.githubusercontent.com/u/12345"),
+						Name:      gogithub.Ptr("Test User"),
+						Email:     gogithub.Ptr("test@example.com"),
+						Bio:       gogithub.Ptr("Test bio"),
+						Company:   gogithub.Ptr("Test Company"),
+						Location:  gogithub.Ptr("Test Location"),
 					},
 				),
 			)
@@ -143,7 +143,7 @@ func TestSessionInfoMiddleware_AddsMetadataToInitializeResult(t *testing.T) {
 			middleware := addSessionInfoMiddleware(tc.cfg, restClient, tc.enabledToolsets, tc.instructionToolsets)
 
 			// Create a mock handler that returns a valid InitializeResult
-			mockHandler := func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			mockHandler := func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
 				return &mcp.InitializeResult{
 					ProtocolVersion: "2024-11-05",
 					Capabilities:    &mcp.ServerCapabilities{},
@@ -234,7 +234,7 @@ func TestSessionInfoMiddleware_OmitsUserOnAPIFailure(t *testing.T) {
 	middleware := addSessionInfoMiddleware(cfg, restClient, []string{"context"}, []string{"context"})
 
 	// Create a mock handler
-	mockHandler := func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+	mockHandler := func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
 		return &mcp.InitializeResult{
 			ProtocolVersion: "2024-11-05",
 			Capabilities:    &mcp.ServerCapabilities{},
@@ -292,7 +292,7 @@ func TestUnauthenticatedSessionInfoMiddleware(t *testing.T) {
 	middleware := addUnauthenticatedSessionInfoMiddleware(cfg, []string{}, []string{})
 
 	// Create a mock handler
-	mockHandler := func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+	mockHandler := func(_ context.Context, _ string, _ mcp.Request) (mcp.Result, error) {
 		return &mcp.InitializeResult{
 			ProtocolVersion: "2024-11-05",
 			Capabilities:    &mcp.ServerCapabilities{},
