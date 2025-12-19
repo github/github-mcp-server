@@ -1855,7 +1855,7 @@ func looksLikeSHA(s string) bool {
 //  1. If a specific commit `sha` is provided, it takes precedence and is used directly,
 //     and all reference resolution is skipped.
 //
-//     1a. If `sha` is empty but `ref` looks like a commit SHA (7-40 hexadecimal characters),
+//     1a. If `sha` is empty but `ref` looks like a commit SHA (40 hexadecimal characters),
 //     it is returned as-is without any API calls or reference resolution.
 //
 //  2. If no `sha` is provided and `ref` does not look like a SHA, the function resolves
@@ -1927,25 +1927,15 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 					// The tag lookup also failed. Check if it was a 404 Not Found error.
 					ghErr2, isGhErr2 := err.(*github.ErrorResponse)
 					if isGhErr2 && ghErr2.Response.StatusCode == http.StatusNotFound {
-						switch originalRef {
-						case "main":
-							// Try "master" next.
-							branchRef = "refs/heads/master"
-							reference, resp, err = githubClient.Git.GetRef(ctx, owner, repo, branchRef)
-							if err == nil {
-								ref = branchRef // It's the "master" branch.
-								break
-							}
-							return nil, fmt.Errorf("attempted to resolve ref %q as 'main' but not found, and 'master' also not found", originalRef)
-						default:
-							return nil, fmt.Errorf("could not resolve ref %q as a branch or a tag", originalRef)
+						if originalRef == "main" {
+							return nil, fmt.Errorf("could not find branch or tag 'main'. Some repositories use 'master' as the default branch name")
 						}
+						return nil, fmt.Errorf("could not resolve ref %q as a branch or a tag", originalRef)
 					}
-					if err != nil {
-						// The tag lookup failed for a different reason.
-						_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get reference (tag)", resp, err)
-						return nil, fmt.Errorf("failed to get reference for tag '%s': %w", originalRef, err)
-					}
+
+					// The tag lookup failed for a different reason.
+					_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get reference (tag)", resp, err)
+					return nil, fmt.Errorf("failed to get reference for tag '%s': %w", originalRef, err)
 				}
 			} else {
 				// The branch lookup failed for a different reason.
@@ -1958,6 +1948,9 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 	if reference == nil {
 		reference, resp, err = githubClient.Git.GetRef(ctx, owner, repo, ref)
 		if err != nil {
+			if ref == "refs/heads/main" {
+				return nil, fmt.Errorf("could not find branch 'main'. Some repositories use 'master' as the default branch name")
+			}
 			_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get final reference", resp, err)
 			return nil, fmt.Errorf("failed to get final reference for %q: %w", ref, err)
 		}
