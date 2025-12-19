@@ -22,6 +22,8 @@ Built for developers who want to connect their AI tools to GitHub context and ca
 
 The remote GitHub MCP Server is hosted by GitHub and provides the easiest method for getting up and running. If your MCP host does not support remote MCP servers, don't worry! You can use the [local version of the GitHub MCP Server](https://github.com/github/github-mcp-server?tab=readme-ov-file#local-github-mcp-server) instead.
 
+> **Note:** The remote server does not support OAuth device flow authentication. For OAuth authentication, use the [local GitHub MCP Server](#local-github-mcp-server) with the [OAuth authentication guide](/docs/oauth-authentication.md).
+
 ### Prerequisites
 
 1. A compatible MCP host with remote server support (VS Code 1.101+, Claude Desktop, Cursor, Windsurf, etc.)
@@ -130,10 +132,57 @@ GitHub Enterprise Server does not support remote server hosting. Please refer to
 
 ### Prerequisites
 
-1. To run the server in a container, you will need to have [Docker](https://www.docker.com/) installed.
-2. Once Docker is installed, you will also need to ensure Docker is running. The image is public; if you get errors on pull, you may have an expired token and need to `docker logout ghcr.io`.
-3. Lastly you will need to [Create a GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new).
-The MCP server can use many of the GitHub APIs, so enable the permissions that you feel comfortable granting your AI tools (to learn more about access tokens, please check out the [documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)).
+**For OAuth Device Flow Authentication (Recommended):**
+1. Docker installed and running (or build from source)
+2. A web browser to complete authentication
+3. Network access to GitHub.com (or your GitHub Enterprise instance)
+
+**For Personal Access Token (PAT) Authentication:**
+1. Docker installed and running (or build from source)
+2. [Create a GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new) with appropriate permissions
+
+> **💡 Tip**: New users should try [OAuth device flow authentication](/docs/oauth-authentication.md) first - it requires no pre-configuration! Simply start the server without a token and authenticate through your browser. See the [authentication guide](/docs/oauth-authentication.md) for detailed instructions.
+
+### Authentication Methods
+
+The local GitHub MCP Server supports two authentication methods:
+
+#### 1. OAuth Device Flow (Recommended for Interactive Use)
+
+No pre-configuration needed! Start the server without a token:
+
+```json
+{
+  "github": {
+    "command": "docker",
+    "args": ["run", "-i", "--rm", "ghcr.io/github/github-mcp-server", "stdio"]
+  }
+}
+```
+
+The server will guide you through browser-based authentication when you first use it. [Learn more in the OAuth authentication guide](/docs/oauth-authentication.md).
+
+#### 2. Personal Access Token (For Automation & Offline Use)
+
+Create a [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new) and configure it:
+
+```json
+{
+  "github": {
+    "command": "docker",
+    "args": ["run", "-i", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "ghcr.io/github/github-mcp-server"],
+    "env": {
+      "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_your_token_here"
+    }
+  }
+}
+```
+
+See the [OAuth vs PAT comparison](/docs/oauth-authentication.md#comparison-with-pat-authentication) to choose the best method for your use case.
+
+### Personal Access Token Configuration
+
+If you choose to use a Personal Access Token, the MCP server can use many of the GitHub APIs, so enable the permissions that you feel comfortable granting your AI tools (to learn more about access tokens, please check out the [documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)).
 
 <details><summary><b>Handling PATs Securely</b></summary>
 

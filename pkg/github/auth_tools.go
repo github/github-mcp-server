@@ -166,11 +166,11 @@ func pollAndComplete(ctx context.Context, session *mcp.ServerSession, authDeps A
 
 	return utils.NewToolResultText(`✅ Successfully authenticated with GitHub!
 
-All GitHub tools are now available. You can now most likely:
+All GitHub tools are now available. You can now:
 - Create and manage repositories
 - Work with issues and pull requests
 - Access your organizations and teams
-- And much more, depending on configuration (mention the success and new tools to the user!
+- And much more, depending on your GitHub configuration
 
 Call get_me to see who you're logged in as.`), nil
 }
