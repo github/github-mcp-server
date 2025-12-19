@@ -10,6 +10,7 @@ The GitHub MCP Server supports OAuth device flow authentication as an alternativ
 - [Configuration](#configuration)
   - [Using Default OAuth App](#using-default-oauth-app)
   - [Using Custom OAuth Apps](#using-custom-oauth-apps)
+  - [Using GitHub Apps](#using-github-apps)
   - [GitHub Enterprise Server (GHES)](#github-enterprise-server-ghes)
   - [GitHub Enterprise Cloud (GHEC)](#github-enterprise-cloud-ghec)
 - [CLI Flags](#cli-flags)
@@ -28,6 +29,8 @@ OAuth device flow authentication allows users to authenticate with GitHub by:
 4. Automatically completing authentication once approved
 
 This method eliminates the need to manually create and configure Personal Access Tokens, making it easier for users to get started with the GitHub MCP Server.
+
+The device flow authentication works with both **OAuth Apps** and **GitHub Apps**. OAuth Apps use scope-based permissions that can be customized via the `--oauth-scopes` flag, while GitHub Apps use fine-grained permissions that are controlled by the app's configuration in GitHub settings.
 
 ## How It Works
 
@@ -162,6 +165,49 @@ Provide the client ID (and optionally client secret) using CLI flags or environm
   }
 }
 ```
+
+### Using GitHub Apps
+
+The GitHub MCP Server also supports authentication via GitHub Apps using the device flow. GitHub Apps provide more granular permissions and better security controls compared to OAuth Apps.
+
+**Key Differences:**
+
+- **Permissions Model**: GitHub Apps use fine-grained permissions instead of OAuth scopes. The `--oauth-scopes` flag does not apply when using GitHub Apps, as permissions are controlled by the GitHub App's configuration in GitHub's settings.
+- **App-Controlled Access**: When authenticating via a GitHub App, the available repositories, organizations, and resources are determined by the app's installation and permissions, not by the scopes requested during authentication.
+- **Installation-Based**: GitHub Apps must be installed on organizations or repositories before users can authenticate through them.
+
+#### Creating a GitHub App
+
+1. **Navigate to GitHub App settings:**
+   - For personal apps: https://github.com/settings/apps
+   - For organization apps: https://github.com/organizations/YOUR_ORG/settings/apps
+
+2. **Create a new GitHub App:**
+   - Click "New GitHub App"
+   - **GitHub App name**: "GitHub MCP Server (Custom)"
+   - **Homepage URL**: https://github.com/github/github-mcp-server
+   - **Callback URL**: Not used for device flow, but required. Use: `http://localhost:8080/callback`
+   - **Request user authorization (OAuth) during installation**: Uncheck this
+   - **Enable Device Flow**: Make sure this is checked
+   - **Webhook**: Can be set to inactive if not needed
+
+3. **Configure permissions**: Set the repository and organization permissions based on your needs (equivalent to the scopes in OAuth Apps).
+
+4. **Get your credentials:**
+   - **Client ID**: Copy the client ID from the app settings
+   - **Client Secret**: Generate a client secret if needed
+
+5. **Install the GitHub App**: Install the app on the organizations or repositories where you want to use it.
+
+#### Using Your GitHub App
+
+Use the same `--oauth-client-id` and `--oauth-client-secret` flags with your GitHub App's credentials:
+
+```bash
+github-mcp-server stdio --oauth-client-id Iv1.your_github_app_client_id
+```
+
+**Note**: When using GitHub Apps, the `--oauth-scopes` flag is ignored. Access and permissions are controlled by the GitHub App's configuration and installation settings.
 
 ### GitHub Enterprise Server (GHES)
 
