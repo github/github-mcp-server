@@ -65,6 +65,14 @@ var (
 				}
 			}
 
+			// Parse OAuth scopes (similar to toolsets)
+			var oauthScopes []string
+			if viper.IsSet("oauth-scopes") {
+				if err := viper.UnmarshalKey("oauth-scopes", &oauthScopes); err != nil {
+					return fmt.Errorf("failed to unmarshal oauth-scopes: %w", err)
+				}
+			}
+
 			ttl := viper.GetDuration("repo-access-cache-ttl")
 			stdioServerConfig := ghmcp.StdioServerConfig{
 				Version:              version,
@@ -83,6 +91,7 @@ var (
 				RepoAccessCacheTTL:   &ttl,
 				OAuthClientID:        viper.GetString("oauth-client-id"),
 				OAuthClientSecret:    viper.GetString("oauth-client-secret"),
+				OAuthScopes:          oauthScopes,
 			}
 			return ghmcp.RunStdioServer(stdioServerConfig)
 		},
@@ -110,6 +119,7 @@ func init() {
 	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "Override the repo access cache TTL (e.g. 1m, 0s to disable)")
 	rootCmd.PersistentFlags().String("oauth-client-id", "", "OAuth App client ID for device flow authentication (optional, uses default if not provided)")
 	rootCmd.PersistentFlags().String("oauth-client-secret", "", "OAuth App client secret for device flow authentication (optional, for confidential clients)")
+	rootCmd.PersistentFlags().StringSlice("oauth-scopes", nil, "Comma-separated list of OAuth scopes to request during device flow authentication (optional, uses default if not provided)")
 
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
@@ -126,6 +136,7 @@ func init() {
 	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
 	_ = viper.BindPFlag("oauth-client-id", rootCmd.PersistentFlags().Lookup("oauth-client-id"))
 	_ = viper.BindPFlag("oauth-client-secret", rootCmd.PersistentFlags().Lookup("oauth-client-secret"))
+	_ = viper.BindPFlag("oauth-scopes", rootCmd.PersistentFlags().Lookup("oauth-scopes"))
 
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)
