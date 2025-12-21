@@ -34,6 +34,9 @@ type AuthToolDependencies struct {
 	// OnAuthComplete is called after authentication flow completes (success or failure).
 	// It can be used to clean up auth tools after they're no longer needed.
 	OnAuthComplete func()
+	// GetSessionInfo is called after authentication to get session context information
+	// to include in the auth_login success response.
+	GetSessionInfo func(ctx context.Context, token string) string
 }
 
 // AuthTools returns the authentication tools.
@@ -164,11 +167,16 @@ func pollAndComplete(ctx context.Context, session *mcp.ServerSession, authDeps A
 		authDeps.OnAuthComplete()
 	}
 
-	return utils.NewToolResultText(`✅ Successfully authenticated with GitHub!
+	// Build the success response with session information
+	successMessage := "✅ Successfully authenticated with GitHub!\n\nAll GitHub tools are now available."
 
-All GitHub tools are now available. You can now:
-- Create and manage repositories
-- Work with issues and pull requests
-- Access your organizations and teams
-- And much more, depending on your GitHub configuration`), nil
+	// Get session info if the callback is provided
+	if authDeps.GetSessionInfo != nil {
+		sessionInfo := authDeps.GetSessionInfo(ctx, authMgr.Token())
+		if sessionInfo != "" {
+			successMessage += "\n\n" + sessionInfo
+		}
+	}
+
+	return utils.NewToolResultText(successMessage), nil
 }
