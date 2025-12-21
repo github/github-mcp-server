@@ -416,6 +416,79 @@ func NewUnauthenticatedMCPServer(cfg MCPServerConfig) (*UnauthenticatedServerRes
 				cfg.Logger.Info("auth tools removed after successful authentication")
 			}
 		},
+		GetSessionInfo: func(ctx context.Context, token string) string {
+			// Create a temporary client to fetch user info
+			apiHost, err := parseAPIHost(cfg.Host)
+			if err != nil {
+				return ""
+			}
+
+			tempClient := gogithub.NewClient(nil).WithAuthToken(token)
+			tempClient.BaseURL = apiHost.baseRESTURL
+
+			// Build session information text
+			var sessionInfo strings.Builder
+
+			// Fetch and include user information
+			if user, _, err := tempClient.Users.Get(ctx, ""); err == nil && user != nil {
+				sessionInfo.WriteString("## Your GitHub Account\n\n")
+				sessionInfo.WriteString(fmt.Sprintf("**Username:** @%s\n", user.GetLogin()))
+				if name := user.GetName(); name != "" {
+					sessionInfo.WriteString(fmt.Sprintf("**Name:** %s\n", name))
+				}
+				if email := user.GetEmail(); email != "" {
+					sessionInfo.WriteString(fmt.Sprintf("**Email:** %s\n", email))
+				}
+				if company := user.GetCompany(); company != "" {
+					sessionInfo.WriteString(fmt.Sprintf("**Company:** %s\n", company))
+				}
+				if location := user.GetLocation(); location != "" {
+					sessionInfo.WriteString(fmt.Sprintf("**Location:** %s\n", location))
+				}
+				sessionInfo.WriteString(fmt.Sprintf("**Profile:** %s\n", user.GetHTMLURL()))
+			}
+
+			// Add server configuration
+			sessionInfo.WriteString("\n## Server Configuration\n\n")
+
+			// Determine effective toolsets
+			var effectiveToolsets []string
+			if enabledToolsets == nil {
+				// nil means defaults - expand them here
+				effectiveToolsets = github.GetDefaultToolsetIDs()
+			} else {
+				effectiveToolsets = enabledToolsets
+			}
+
+			if len(effectiveToolsets) > 0 {
+				sessionInfo.WriteString(fmt.Sprintf("**Enabled Toolsets:** %s\n", strings.Join(effectiveToolsets, ", ")))
+			}
+
+			if len(cfg.EnabledTools) > 0 {
+				sessionInfo.WriteString(fmt.Sprintf("**Enabled Tools:** %s\n", strings.Join(cfg.EnabledTools, ", ")))
+			}
+
+			// Configuration flags
+			var configFlags []string
+			if cfg.ReadOnly {
+				configFlags = append(configFlags, "Read-only mode (write operations disabled)")
+			}
+			if cfg.LockdownMode {
+				configFlags = append(configFlags, "Lockdown mode (repository access restricted)")
+			}
+			if cfg.DynamicToolsets {
+				configFlags = append(configFlags, "Dynamic toolsets (can be enabled at runtime)")
+			}
+
+			if len(configFlags) > 0 {
+				sessionInfo.WriteString("\n**Configuration:**\n")
+				for _, flag := range configFlags {
+					sessionInfo.WriteString(fmt.Sprintf("- %s\n", flag))
+				}
+			}
+
+			return sessionInfo.String()
+		},
 	}
 
 	// Register only auth tools
