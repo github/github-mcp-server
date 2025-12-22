@@ -11,7 +11,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	testifymock "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,8 +32,8 @@ const (
 	GetReposTagsByOwnerByRepo            = "GET /repos/{owner}/{repo}/tags"
 	GetReposCommitsByOwnerByRepo         = "GET /repos/{owner}/{repo}/commits"
 	GetReposCommitsByOwnerByRepoByRef    = "GET /repos/{owner}/{repo}/commits/{ref}"
-	GetReposContentsByOwnerByRepoByPath  = "GET /repos/{owner}/{repo}/contents/{path}"
-	PutReposContentsByOwnerByRepoByPath  = "PUT /repos/{owner}/{repo}/contents/{path}"
+	GetReposContentsByOwnerByRepoByPath  = "GET /repos/{owner}/{repo}/contents/{path:.*}"
+	PutReposContentsByOwnerByRepoByPath  = "PUT /repos/{owner}/{repo}/contents/{path:.*}"
 	PostReposForksByOwnerByRepo          = "POST /repos/{owner}/{repo}/forks"
 	GetReposSubscriptionByOwnerByRepo    = "GET /repos/{owner}/{repo}/subscription"
 	PutReposSubscriptionByOwnerByRepo    = "PUT /repos/{owner}/{repo}/subscription"
@@ -41,9 +41,9 @@ const (
 
 	// Git endpoints
 	GetReposGitTreesByOwnerByRepoByTree        = "GET /repos/{owner}/{repo}/git/trees/{tree}"
-	GetReposGitRefByOwnerByRepoByRef           = "GET /repos/{owner}/{repo}/git/ref/{ref}"
+	GetReposGitRefByOwnerByRepoByRef           = "GET /repos/{owner}/{repo}/git/ref/{ref:.*}"
 	PostReposGitRefsByOwnerByRepo              = "POST /repos/{owner}/{repo}/git/refs"
-	PatchReposGitRefsByOwnerByRepoByRef        = "PATCH /repos/{owner}/{repo}/git/refs/{ref}"
+	PatchReposGitRefsByOwnerByRepoByRef        = "PATCH /repos/{owner}/{repo}/git/refs/{ref:.*}"
 	GetReposGitCommitsByOwnerByRepoByCommitSHA = "GET /repos/{owner}/{repo}/git/commits/{commit_sha}"
 	PostReposGitCommitsByOwnerByRepo           = "POST /repos/{owner}/{repo}/git/commits"
 	GetReposGitTagsByOwnerByRepoByTagSHA       = "GET /repos/{owner}/{repo}/git/tags/{tag_sha}"
@@ -59,7 +59,7 @@ const (
 	PatchReposIssuesByOwnerByRepoByIssueNumber                  = "PATCH /repos/{owner}/{repo}/issues/{issue_number}"
 	GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber           = "GET /repos/{owner}/{repo}/issues/{issue_number}/sub_issues"
 	PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber          = "POST /repos/{owner}/{repo}/issues/{issue_number}/sub_issues"
-	DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber         = "DELETE /repos/{owner}/{repo}/issues/{issue_number}/sub_issues"
+	DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber         = "DELETE /repos/{owner}/{repo}/issues/{issue_number}/sub_issue"
 	PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber = "PATCH /repos/{owner}/{repo}/issues/{issue_number}/sub_issues/priority"
 
 	// Pull request endpoints
@@ -128,6 +128,26 @@ const (
 	PostReposActionsRunsCancelByOwnerByRepoByRunID               = "POST /repos/{owner}/{repo}/actions/runs/{run_id}/cancel"
 	GetReposActionsJobsLogsByOwnerByRepoByJobID                  = "GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs"
 	DeleteReposActionsRunsLogsByOwnerByRepoByRunID               = "DELETE /repos/{owner}/{repo}/actions/runs/{run_id}/logs"
+
+	// Projects V2 endpoints
+	GetOrgsProjectsV2                  = "GET /orgs/{org}/projectsV2"
+	GetUsersProjectsV2                 = "GET /users/{username}/projectsV2"
+	GetOrgsProjectsV2ByProjectID       = "GET /orgs/{org}/projectsV2/{project_id}"
+	GetUsersProjectsV2ByProjectID      = "GET /users/{username}/projectsV2/{project_id}"
+	GetOrgsProjectsV2Fields            = "GET /orgs/{org}/projectsV2/{project_id}/fields"
+	GetUsersProjectsV2Fields           = "GET /users/{username}/projectsV2/{project_id}/fields"
+	GetOrgsProjectsV2FieldsByFieldID   = "GET /orgs/{org}/projectsV2/{project_id}/fields/{field_id}"
+	GetUsersProjectsV2FieldsByFieldID  = "GET /users/{username}/projectsV2/{project_id}/fields/{field_id}"
+	GetOrgsProjectsV2Items             = "GET /orgs/{org}/projectsV2/{project_id}/items"
+	GetUsersProjectsV2Items            = "GET /users/{username}/projectsV2/{project_id}/items"
+	GetOrgsProjectsV2ItemsByItemID     = "GET /orgs/{org}/projectsV2/{project_id}/items/{item_id}"
+	GetUsersProjectsV2ItemsByItemID    = "GET /users/{username}/projectsV2/{project_id}/items/{item_id}"
+	PostOrgsProjectsV2Items            = "POST /orgs/{org}/projectsV2/{project_id}/items"
+	PostUsersProjectsV2Items           = "POST /users/{username}/projectsV2/{project_id}/items"
+	PatchOrgsProjectsV2ItemsByItemID   = "PATCH /orgs/{org}/projectsV2/{project_id}/items/{item_id}"
+	PatchUsersProjectsV2ItemsByItemID  = "PATCH /users/{username}/projectsV2/{project_id}/items/{item_id}"
+	DeleteOrgsProjectsV2ItemsByItemID  = "DELETE /orgs/{org}/projectsV2/{project_id}/items/{item_id}"
+	DeleteUsersProjectsV2ItemsByItemID = "DELETE /users/{username}/projectsV2/{project_id}/items/{item_id}"
 
 	// Search endpoints
 	GetSearchCode         = "GET /search/code"
@@ -408,7 +428,7 @@ func getResourceResult(t *testing.T, result *mcp.CallToolResult) *mcp.ResourceCo
 
 // MockRoundTripper is a mock HTTP transport using testify/mock
 type MockRoundTripper struct {
-	mock.Mock
+	testifymock.Mock
 	handlers map[string]http.HandlerFunc
 }
 

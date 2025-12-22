@@ -131,7 +131,8 @@ All workflows run on push/PR unless noted. Located in `.github/workflows/`:
 
 - Use `testify` for assertions (`require` for critical checks, `assert` for non-blocking)
 - Tests are in `*_test.go` files alongside implementation (internal tests, not `_test` package)
-- Mock GitHub API with `go-github-mock` (REST) or `githubv4mock` (GraphQL)
+- Mock GitHub REST API with the repo's handler-map HTTP helpers (e.g., `MockHTTPClientWithHandlers`)
+- Mock GitHub GraphQL API with `githubv4mock`
 - Test structure for tools:
   1. Test tool snapshot
   2. Verify critical schema properties (e.g., ReadOnly annotation)
