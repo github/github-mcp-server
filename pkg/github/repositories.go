@@ -724,7 +724,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 					// If the raw content is found, return it directly
 					body, err := io.ReadAll(resp.Body)
 					if err != nil {
-						return utils.NewToolResultError("failed to read response body"), nil, nil
+						return ghErrors.NewGitHubRawAPIErrorResponse(ctx, "failed to get raw repository content", resp, err), nil, nil
 					}
 					contentType := resp.Header.Get("Content-Type")
 
