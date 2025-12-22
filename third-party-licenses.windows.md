@@ -21,7 +21,7 @@ The following packages are included for the 386, amd64, arm64 architectures.
  - [github.com/google/go-github/v71/github](https://pkg.go.dev/github.com/google/go-github/v71/github) ([BSD-3-Clause](https://github.com/google/go-github/blob/v71.0.0/LICENSE))
  - [github.com/google/go-github/v79/github](https://pkg.go.dev/github.com/google/go-github/v79/github) ([BSD-3-Clause](https://github.com/google/go-github/blob/v79.0.0/LICENSE))
  - [github.com/google/go-querystring/query](https://pkg.go.dev/github.com/google/go-querystring/query) ([BSD-3-Clause](https://github.com/google/go-querystring/blob/v1.1.0/LICENSE))
- - [github.com/google/jsonschema-go/jsonschema](https://pkg.go.dev/github.com/google/jsonschema-go/jsonschema) ([MIT](https://github.com/google/jsonschema-go/blob/v0.3.0/LICENSE))
+ - [github.com/google/jsonschema-go/jsonschema](https://pkg.go.dev/github.com/google/jsonschema-go/jsonschema) ([MIT](https://github.com/google/jsonschema-go/blob/v0.4.2/LICENSE))
  - [github.com/gorilla/css/scanner](https://pkg.go.dev/github.com/gorilla/css/scanner) ([BSD-3-Clause](https://github.com/gorilla/css/blob/v1.0.1/LICENSE))
  - [github.com/gorilla/mux](https://pkg.go.dev/github.com/gorilla/mux) ([BSD-3-Clause](https://github.com/gorilla/mux/blob/v1.8.0/LICENSE))
  - [github.com/inconshreveable/mousetrap](https://pkg.go.dev/github.com/inconshreveable/mousetrap) ([Apache-2.0](https://github.com/inconshreveable/mousetrap/blob/v1.1.0/LICENSE))
