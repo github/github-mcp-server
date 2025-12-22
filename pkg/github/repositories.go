@@ -1833,6 +1833,20 @@ func filterPaths(entries []*github.TreeEntry, path string, maxResults int) []str
 	return matchedPaths
 }
 
+// looksLikeSHA returns true if the string appears to be a Git commit SHA.
+// A SHA is a 40-character hexadecimal string.
+func looksLikeSHA(s string) bool {
+	if len(s) != 40 {
+		return false
+	}
+	for _, c := range s {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
+			return false
+		}
+	}
+	return true
+}
+
 // resolveGitReference takes a user-provided ref and sha and resolves them into a
 // definitive commit SHA and its corresponding fully-qualified reference.
 //
@@ -1841,8 +1855,11 @@ func filterPaths(entries []*github.TreeEntry, path string, maxResults int) []str
 //  1. If a specific commit `sha` is provided, it takes precedence and is used directly,
 //     and all reference resolution is skipped.
 //
-//  2. If no `sha` is provided, the function resolves the `ref`
-//     string into a fully-qualified format (e.g., "refs/heads/main") by trying
+//     1a. If `sha` is empty but `ref` looks like a commit SHA (40 hexadecimal characters),
+//     it is returned as-is without any API calls or reference resolution.
+//
+//  2. If no `sha` is provided and `ref` does not look like a SHA, the function resolves
+//     the `ref` string into a fully-qualified format (e.g., "refs/heads/main") by trying
 //     the following steps in order:
 //     a). **Empty Ref:** If `ref` is empty, the repository's default branch is used.
 //     b). **Fully-Qualified:** If `ref` already starts with "refs/", it's considered fully
@@ -1863,6 +1880,11 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 	// 1) If SHA explicitly provided, it's the highest priority.
 	if sha != "" {
 		return &raw.ContentOpts{Ref: "", SHA: sha}, nil
+	}
+
+	// 1a) If sha is empty but ref looks like a SHA, return it without changes
+	if looksLikeSHA(ref) {
+		return &raw.ContentOpts{Ref: "", SHA: ref}, nil
 	}
 
 	originalRef := ref // Keep original ref for clearer error messages down the line.
@@ -1905,8 +1927,12 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 					// The tag lookup also failed. Check if it was a 404 Not Found error.
 					ghErr2, isGhErr2 := err.(*github.ErrorResponse)
 					if isGhErr2 && ghErr2.Response.StatusCode == http.StatusNotFound {
+						if originalRef == "main" {
+							return nil, fmt.Errorf("could not find branch or tag 'main'. Some repositories use 'master' as the default branch name")
+						}
 						return nil, fmt.Errorf("could not resolve ref %q as a branch or a tag", originalRef)
 					}
+
 					// The tag lookup failed for a different reason.
 					_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get reference (tag)", resp, err)
 					return nil, fmt.Errorf("failed to get reference for tag '%s': %w", originalRef, err)
@@ -1922,6 +1948,9 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 	if reference == nil {
 		reference, resp, err = githubClient.Git.GetRef(ctx, owner, repo, ref)
 		if err != nil {
+			if ref == "refs/heads/main" {
+				return nil, fmt.Errorf("could not find branch 'main'. Some repositories use 'master' as the default branch name")
+			}
 			_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get final reference", resp, err)
 			return nil, fmt.Errorf("failed to get final reference for %q: %w", ref, err)
 		}
