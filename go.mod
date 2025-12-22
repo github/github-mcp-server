@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	github.com/google/go-github/v79 v79.0.0
-	github.com/google/jsonschema-go v0.3.0
+	github.com/google/jsonschema-go v0.4.2
 	github.com/josephburnett/jd v1.9.2
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/migueleliasweb/go-github-mock v1.3.0
