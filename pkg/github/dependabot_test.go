@@ -9,15 +9,14 @@ import (
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
-	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_GetDependabotAlert(t *testing.T) {
 	// Verify tool definition
-	mockClient := github.NewClient(nil)
-	tool, _ := GetDependabotAlert(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	toolDef := GetDependabotAlert(translations.NullTranslationHelper)
+	tool := toolDef.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	// Validate tool schema
@@ -42,12 +41,9 @@ func Test_GetDependabotAlert(t *testing.T) {
 	}{
 		{
 			name: "successful alert fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposDependabotAlertsByOwnerByRepoByAlertNumber,
-					mockAlert,
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposDependabotAlertsByOwnerByRepoByAlertNumber: mockResponse(t, http.StatusOK, mockAlert),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":       "owner",
 				"repo":        "repo",
@@ -58,15 +54,12 @@ func Test_GetDependabotAlert(t *testing.T) {
 		},
 		{
 			name: "alert fetch fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposDependabotAlertsByOwnerByRepoByAlertNumber,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposDependabotAlertsByOwnerByRepoByAlertNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":       "owner",
 				"repo":        "repo",
@@ -81,13 +74,14 @@ func Test_GetDependabotAlert(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetDependabotAlert(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{Client: client}
+			handler := toolDef.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -117,8 +111,8 @@ func Test_GetDependabotAlert(t *testing.T) {
 
 func Test_ListDependabotAlerts(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := ListDependabotAlerts(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	toolDef := ListDependabotAlerts(translations.NullTranslationHelper)
+	tool := toolDef.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_dependabot_alerts", tool.Name)
@@ -153,16 +147,13 @@ func Test_ListDependabotAlerts(t *testing.T) {
 	}{
 		{
 			name: "successful open alerts listing",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposDependabotAlertsByOwnerByRepo,
-					expectQueryParams(t, map[string]string{
-						"state": "open",
-					}).andThen(
-						mockResponse(t, http.StatusOK, []*github.DependabotAlert{&criticalAlert}),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
+					"state": "open",
+				}).andThen(
+					mockResponse(t, http.StatusOK, []*github.DependabotAlert{&criticalAlert}),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
@@ -173,16 +164,13 @@ func Test_ListDependabotAlerts(t *testing.T) {
 		},
 		{
 			name: "successful severity filtered listing",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposDependabotAlertsByOwnerByRepo,
-					expectQueryParams(t, map[string]string{
-						"severity": "high",
-					}).andThen(
-						mockResponse(t, http.StatusOK, []*github.DependabotAlert{&highSeverityAlert}),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
+					"severity": "high",
+				}).andThen(
+					mockResponse(t, http.StatusOK, []*github.DependabotAlert{&highSeverityAlert}),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":    "owner",
 				"repo":     "repo",
@@ -193,14 +181,11 @@ func Test_ListDependabotAlerts(t *testing.T) {
 		},
 		{
 			name: "successful all alerts listing",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposDependabotAlertsByOwnerByRepo,
-					expectQueryParams(t, map[string]string{}).andThen(
-						mockResponse(t, http.StatusOK, []*github.DependabotAlert{&criticalAlert, &highSeverityAlert}),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposDependabotAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{}).andThen(
+					mockResponse(t, http.StatusOK, []*github.DependabotAlert{&criticalAlert, &highSeverityAlert}),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
@@ -210,15 +195,12 @@ func Test_ListDependabotAlerts(t *testing.T) {
 		},
 		{
 			name: "alerts listing fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposDependabotAlertsByOwnerByRepo,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusUnauthorized)
-						_, _ = w.Write([]byte(`{"message": "Unauthorized access"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposDependabotAlertsByOwnerByRepo: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusUnauthorized)
+					_, _ = w.Write([]byte(`{"message": "Unauthorized access"}`))
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
@@ -231,11 +213,12 @@ func Test_ListDependabotAlerts(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListDependabotAlerts(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{Client: client}
+			handler := toolDef.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
 
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			if tc.expectError {
 				require.NoError(t, err)

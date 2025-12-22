@@ -8,9 +8,7 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
-	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 )
@@ -38,67 +36,55 @@ func Test_repositoryResourceContents(t *testing.T) {
 		name                 string
 		mockedClient         *http.Client
 		uri                  string
-		handlerFn            func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler
+		handlerFn            func(deps ToolDependencies) mcp.ResourceHandler
 		expectedResponseType resourceResponseType
 		expectError          string
 		expectedResult       *mcp.ReadResourceResult
 	}{
 		{
 			name: "missing owner",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoByPath,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.Header().Set("Content-Type", "text/markdown")
-						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
-						require.NoError(t, err)
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetRawReposContentsByOwnerByRepoByPath: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "text/markdown")
+					_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
+					require.NoError(t, err)
+				}),
+			}),
 			uri: "repo:///repo/contents/README.md",
-			handlerFn: func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler {
-				_, handler := GetRepositoryResourceContent(getClient, getRawClient, t)
-				return handler
+			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(deps, repositoryResourceContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText, // Ignored as error is expected
 			expectError:          "owner is required",
 		},
 		{
 			name: "missing repo",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoByBranchByPath,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.Header().Set("Content-Type", "text/markdown")
-						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
-						require.NoError(t, err)
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetRawReposContentsByOwnerByRepoByBranchByPath: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "text/markdown")
+					_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
+					require.NoError(t, err)
+				}),
+			}),
 			uri: "repo://owner//refs/heads/main/contents/README.md",
-			handlerFn: func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler {
-				_, handler := GetRepositoryResourceBranchContent(getClient, getRawClient, t)
-				return handler
+			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(deps, repositoryResourceBranchContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText, // Ignored as error is expected
 			expectError:          "repo is required",
 		},
 		{
 			name: "successful blob content fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoByPath,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.Header().Set("Content-Type", "image/png")
-						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
-						require.NoError(t, err)
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetRawReposContentsByOwnerByRepoByPath: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "image/png")
+					_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
+					require.NoError(t, err)
+				}),
+			}),
 			uri: "repo://owner/repo/contents/data.png",
-			handlerFn: func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler {
-				_, handler := GetRepositoryResourceContent(getClient, getRawClient, t)
-				return handler
+			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(deps, repositoryResourceContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeBlob,
 			expectedResult: &mcp.ReadResourceResult{
@@ -110,20 +96,16 @@ func Test_repositoryResourceContents(t *testing.T) {
 		},
 		{
 			name: "successful text content fetch (HEAD)",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoByPath,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.Header().Set("Content-Type", "text/markdown")
-						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
-						require.NoError(t, err)
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetRawReposContentsByOwnerByRepoByPath: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "text/markdown")
+					_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
+					require.NoError(t, err)
+				}),
+			}),
 			uri: "repo://owner/repo/contents/README.md",
-			handlerFn: func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler {
-				_, handler := GetRepositoryResourceContent(getClient, getRawClient, t)
-				return handler
+			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(deps, repositoryResourceContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText,
 			expectedResult: &mcp.ReadResourceResult{
@@ -135,22 +117,18 @@ func Test_repositoryResourceContents(t *testing.T) {
 		},
 		{
 			name: "successful text content fetch (HEAD)",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoByPath,
-					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-						w.Header().Set("Content-Type", "text/plain")
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetRawReposContentsByOwnerByRepoByPath: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Content-Type", "text/plain")
 
-						require.Contains(t, r.URL.Path, "pkg/github/actions.go")
-						_, err := w.Write([]byte("package actions\n\nfunc main() {\n    // Sample Go file content\n}\n"))
-						require.NoError(t, err)
-					}),
-				),
-			),
+					require.Contains(t, r.URL.Path, "pkg/github/actions.go")
+					_, err := w.Write([]byte("package actions\n\nfunc main() {\n    // Sample Go file content\n}\n"))
+					require.NoError(t, err)
+				}),
+			}),
 			uri: "repo://owner/repo/contents/pkg/github/actions.go",
-			handlerFn: func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler {
-				_, handler := GetRepositoryResourceContent(getClient, getRawClient, t)
-				return handler
+			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(deps, repositoryResourceContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText,
 			expectedResult: &mcp.ReadResourceResult{
@@ -162,20 +140,16 @@ func Test_repositoryResourceContents(t *testing.T) {
 		},
 		{
 			name: "successful text content fetch (branch)",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoByBranchByPath,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.Header().Set("Content-Type", "text/markdown")
-						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
-						require.NoError(t, err)
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetRawReposContentsByOwnerByRepoByBranchByPath: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "text/markdown")
+					_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
+					require.NoError(t, err)
+				}),
+			}),
 			uri: "repo://owner/repo/refs/heads/main/contents/README.md",
-			handlerFn: func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler {
-				_, handler := GetRepositoryResourceBranchContent(getClient, getRawClient, t)
-				return handler
+			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(deps, repositoryResourceBranchContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText,
 			expectedResult: &mcp.ReadResourceResult{
@@ -187,20 +161,16 @@ func Test_repositoryResourceContents(t *testing.T) {
 		},
 		{
 			name: "successful text content fetch (tag)",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoByTagByPath,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.Header().Set("Content-Type", "text/markdown")
-						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
-						require.NoError(t, err)
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetRawReposContentsByOwnerByRepoByTagByPath: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "text/markdown")
+					_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
+					require.NoError(t, err)
+				}),
+			}),
 			uri: "repo://owner/repo/refs/tags/v1.0.0/contents/README.md",
-			handlerFn: func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler {
-				_, handler := GetRepositoryResourceTagContent(getClient, getRawClient, t)
-				return handler
+			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(deps, repositoryResourceTagContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText,
 			expectedResult: &mcp.ReadResourceResult{
@@ -212,20 +182,16 @@ func Test_repositoryResourceContents(t *testing.T) {
 		},
 		{
 			name: "successful text content fetch (sha)",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoBySHAByPath,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.Header().Set("Content-Type", "text/markdown")
-						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
-						require.NoError(t, err)
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetRawReposContentsByOwnerByRepoBySHAByPath: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "text/markdown")
+					_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
+					require.NoError(t, err)
+				}),
+			}),
 			uri: "repo://owner/repo/sha/abc123/contents/README.md",
-			handlerFn: func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler {
-				_, handler := GetRepositoryResourceCommitContent(getClient, getRawClient, t)
-				return handler
+			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(deps, repositoryResourceCommitContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText,
 			expectedResult: &mcp.ReadResourceResult{
@@ -237,28 +203,21 @@ func Test_repositoryResourceContents(t *testing.T) {
 		},
 		{
 			name: "successful text content fetch (pr)",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposPullsByOwnerByRepoByPullNumber,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.Header().Set("Content-Type", "application/json")
-						_, err := w.Write([]byte(`{"head": {"sha": "abc123"}}`))
-						require.NoError(t, err)
-					}),
-				),
-				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoBySHAByPath,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.Header().Set("Content-Type", "text/markdown")
-						_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
-						require.NoError(t, err)
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "application/json")
+					_, err := w.Write([]byte(`{"head": {"sha": "abc123"}}`))
+					require.NoError(t, err)
+				}),
+				GetRawReposContentsByOwnerByRepoBySHAByPath: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "text/markdown")
+					_, err := w.Write([]byte("# Test Repository\n\nThis is a test repository."))
+					require.NoError(t, err)
+				}),
+			}),
 			uri: "repo://owner/repo/refs/pull/42/head/contents/README.md",
-			handlerFn: func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler {
-				_, handler := GetRepositoryResourcePrContent(getClient, getRawClient, t)
-				return handler
+			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(deps, repositoryResourcePrContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText,
 			expectedResult: &mcp.ReadResourceResult{
@@ -270,19 +229,15 @@ func Test_repositoryResourceContents(t *testing.T) {
 		},
 		{
 			name: "content fetch fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposContentsByOwnerByRepoByPath,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposContentsByOwnerByRepoByPath: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				}),
+			}),
 			uri: "repo://owner/repo/contents/nonexistent.md",
-			handlerFn: func(getClient GetClientFn, getRawClient raw.GetRawClientFn, t translations.TranslationHelperFunc) mcp.ResourceHandler {
-				_, handler := GetRepositoryResourceContent(getClient, getRawClient, t)
-				return handler
+			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(deps, repositoryResourceContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText, // Ignored as error is expected
 			expectError:          "404 Not Found",
@@ -293,7 +248,11 @@ func Test_repositoryResourceContents(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
 			mockRawClient := raw.NewClient(client, base)
-			handler := tc.handlerFn(stubGetClientFn(client), stubGetRawClientFn(mockRawClient), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client:    client,
+				RawClient: mockRawClient,
+			}
+			handler := tc.handlerFn(deps)
 
 			request := &mcp.ReadResourceRequest{
 				Params: &mcp.ReadResourceParams{

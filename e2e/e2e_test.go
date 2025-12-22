@@ -33,7 +33,14 @@ var (
 
 	buildOnce  sync.Once
 	buildError error
+
+	// Rate limit management
+	rateLimitMu sync.Mutex
 )
+
+// minRateLimitRemaining is the minimum number of API requests we want to have
+// remaining before we start waiting for the rate limit to reset.
+const minRateLimitRemaining = 50
 
 // getE2EToken ensures the environment variable is checked only once and returns the token
 func getE2EToken(t *testing.T) string {
@@ -72,6 +79,36 @@ func getRESTClient(t *testing.T) *gogithub.Client {
 	return ghClient
 }
 
+// waitForRateLimit checks the current rate limit and waits if necessary.
+// It ensures we have at least minRateLimitRemaining requests available before proceeding.
+func waitForRateLimit(t *testing.T) {
+	rateLimitMu.Lock()
+	defer rateLimitMu.Unlock()
+
+	ghClient := getRESTClient(t)
+	ctx := context.Background()
+
+	rateLimits, _, err := ghClient.RateLimit.Get(ctx)
+	if err != nil {
+		t.Logf("Warning: failed to check rate limit: %v", err)
+		return
+	}
+
+	core := rateLimits.Core
+	if core.Remaining < minRateLimitRemaining {
+		waitDuration := time.Until(core.Reset.Time) + time.Second // Add 1 second buffer
+		if waitDuration > 0 {
+			t.Logf("Rate limit low (%d/%d remaining). Waiting %v until reset...",
+				core.Remaining, core.Limit, waitDuration.Round(time.Second))
+			time.Sleep(waitDuration)
+			t.Log("Rate limit reset, continuing...")
+		}
+	} else {
+		t.Logf("Rate limit OK: %d/%d remaining (reset in %v)",
+			core.Remaining, core.Limit, time.Until(core.Reset.Time).Round(time.Second))
+	}
+}
+
 // ensureDockerImageBuilt makes sure the Docker image is built only once across all tests
 func ensureDockerImageBuilt(t *testing.T) {
 	buildOnce.Do(func() {
@@ -107,6 +144,9 @@ func withToolsets(toolsets []string) clientOption {
 }
 
 func setupMCPClient(t *testing.T, options ...clientOption) *mcp.ClientSession {
+	// Check rate limit before setting up the client
+	waitForRateLimit(t)
+
 	// Get token and ensure Docker image is built
 	token := getE2EToken(t)
 
@@ -219,7 +259,7 @@ func TestGetMe(t *testing.T) {
 	response, err := mcpClient.CallTool(ctx, &mcp.CallToolParams{Name: "get_me"})
 	require.NoError(t, err, "expected to call 'get_me' tool successfully")
 
-	require.False(t, response.IsError, "expected result not to be an error")
+	require.False(t, response.IsError, fmt.Sprintf("expected result not to be an error: %+v", response))
 	require.Len(t, response.Content, 1, "expected content to have one item")
 
 	textContent, ok := response.Content[0].(*mcp.TextContent)
@@ -926,7 +966,16 @@ func TestRequestCopilotReview(t *testing.T) {
 		},
 	})
 	require.NoError(t, err, "expected to call 'request_copilot_review' tool successfully")
-	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+
+	// Check if Copilot is available - skip if not
+	if resp.IsError {
+		if tc, ok := resp.Content[0].(*mcp.TextContent); ok {
+			if strings.Contains(tc.Text, "copilot") || strings.Contains(tc.Text, "Copilot") {
+				t.Skip("skipping because copilot isn't available as a reviewer on this repository")
+			}
+		}
+		require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
+	}
 
 	textContent, ok = resp.Content[0].(*mcp.TextContent)
 	require.True(t, ok, "expected content to be of type TextContent")
@@ -938,6 +987,11 @@ func TestRequestCopilotReview(t *testing.T) {
 	t.Logf("Getting reviews for pull request in %s/%s...", currentOwner, repoName)
 	reviewRequests, _, err := ghClient.PullRequests.ListReviewers(context.Background(), currentOwner, repoName, 1, nil)
 	require.NoError(t, err, "expected to get review requests successfully")
+
+	// Check if Copilot was added as a reviewer - skip if not available
+	if len(reviewRequests.Users) == 0 {
+		t.Skip("skipping because copilot wasn't added as a reviewer (likely not enabled for this account)")
+	}
 
 	// Check that there is one review request from copilot
 	require.Len(t, reviewRequests.Users, 1, "expected to find one review request")
@@ -1278,16 +1332,17 @@ func TestPullRequestReviewCommentSubmit(t *testing.T) {
 	require.NoError(t, err, "expected to call 'create_branch' tool successfully")
 	require.False(t, resp.IsError, fmt.Sprintf("expected result not to be an error: %+v", resp))
 
-	// Create a commit with a new file
+	// Create a commit with a new file (multi-line content to support multi-line review comments)
 
 	t.Logf("Creating commit with new file in %s/%s...", currentOwner, repoName)
+	multiLineContent := fmt.Sprintf("Line 1: Created by e2e test %s\nLine 2: Additional content for multi-line comments\nLine 3: More content", t.Name())
 	resp, err = mcpClient.CallTool(ctx, &mcp.CallToolParams{
 		Name: "create_or_update_file",
 		Arguments: map[string]any{
 			"owner":   currentOwner,
 			"repo":    repoName,
 			"path":    "test-file.txt",
-			"content": fmt.Sprintf("Created by e2e test %s", t.Name()),
+			"content": multiLineContent,
 			"message": "Add test file",
 			"branch":  "test-branch",
 		},

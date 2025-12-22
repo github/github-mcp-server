@@ -10,6 +10,7 @@ import (
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -24,8 +25,10 @@ const (
 )
 
 // ListNotifications creates a tool to list notifications for the current user.
-func ListNotifications(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func ListNotifications(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataNotifications,
+		mcp.Tool{
 			Name:        "list_notifications",
 			Description: t("TOOL_LIST_NOTIFICATIONS_DESCRIPTION", "Lists all GitHub notifications for the authenticated user, including unread notifications, mentions, review requests, assignments, and updates on issues or pull requests. Use this tool whenever the user asks what to work on next, requests a summary of their GitHub activity, wants to see pending reviews, or needs to check for new updates or tasks. This tool is the primary way to discover actionable items, reminders, and outstanding work on GitHub. Always call this tool when asked what to work on next, what is pending, or what needs attention in GitHub."),
 			Annotations: &mcp.ToolAnnotations{
@@ -59,10 +62,10 @@ func ListNotifications(getClient GetClientFn, t translations.TranslationHelperFu
 				},
 			}),
 		},
-		mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			client, err := getClient(ctx)
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, err
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			filter, err := OptionalParam[string](args, "filter")
@@ -141,24 +144,27 @@ func ListNotifications(getClient GetClientFn, t translations.TranslationHelperFu
 			if resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, err
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 				}
-				return utils.NewToolResultError(fmt.Sprintf("failed to get notifications: %s", string(body))), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get notifications", resp, body), nil, nil
 			}
 
 			// Marshal response to JSON
 			r, err := json.Marshal(notifications)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, err
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
-		})
+		},
+	)
 }
 
 // DismissNotification creates a tool to mark a notification as read/done.
-func DismissNotification(getclient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func DismissNotification(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataNotifications,
+		mcp.Tool{
 			Name:        "dismiss_notification",
 			Description: t("TOOL_DISMISS_NOTIFICATION_DESCRIPTION", "Dismiss a notification by marking it as read or done"),
 			Annotations: &mcp.ToolAnnotations{
@@ -181,10 +187,10 @@ func DismissNotification(getclient GetClientFn, t translations.TranslationHelper
 				Required: []string{"threadID", "state"},
 			},
 		},
-		mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			client, err := getclient(ctx)
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, err
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			threadID, err := RequiredParam[string](args, "threadID")
@@ -225,18 +231,21 @@ func DismissNotification(getclient GetClientFn, t translations.TranslationHelper
 			if resp.StatusCode != http.StatusResetContent && resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, err
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 				}
-				return utils.NewToolResultError(fmt.Sprintf("failed to mark notification as %s: %s", state, string(body))), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, fmt.Sprintf("failed to mark notification as %s", state), resp, body), nil, nil
 			}
 
 			return utils.NewToolResultText(fmt.Sprintf("Notification marked as %s", state)), nil, nil
-		})
+		},
+	)
 }
 
 // MarkAllNotificationsRead creates a tool to mark all notifications as read.
-func MarkAllNotificationsRead(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func MarkAllNotificationsRead(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataNotifications,
+		mcp.Tool{
 			Name:        "mark_all_notifications_read",
 			Description: t("TOOL_MARK_ALL_NOTIFICATIONS_READ_DESCRIPTION", "Mark all notifications as read"),
 			Annotations: &mcp.ToolAnnotations{
@@ -261,10 +270,10 @@ func MarkAllNotificationsRead(getClient GetClientFn, t translations.TranslationH
 				},
 			},
 		},
-		mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			client, err := getClient(ctx)
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, err
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			lastReadAt, err := OptionalParam[string](args, "lastReadAt")
@@ -313,18 +322,21 @@ func MarkAllNotificationsRead(getClient GetClientFn, t translations.TranslationH
 			if resp.StatusCode != http.StatusResetContent && resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, err
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 				}
-				return utils.NewToolResultError(fmt.Sprintf("failed to mark all notifications as read: %s", string(body))), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to mark all notifications as read", resp, body), nil, nil
 			}
 
 			return utils.NewToolResultText("All notifications marked as read"), nil, nil
-		})
+		},
+	)
 }
 
 // GetNotificationDetails creates a tool to get details for a specific notification.
-func GetNotificationDetails(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func GetNotificationDetails(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataNotifications,
+		mcp.Tool{
 			Name:        "get_notification_details",
 			Description: t("TOOL_GET_NOTIFICATION_DETAILS_DESCRIPTION", "Get detailed information for a specific GitHub notification, always call this tool when the user asks for details about a specific notification, if you don't know the ID list notifications first."),
 			Annotations: &mcp.ToolAnnotations{
@@ -342,10 +354,10 @@ func GetNotificationDetails(getClient GetClientFn, t translations.TranslationHel
 				Required: []string{"notificationID"},
 			},
 		},
-		mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			client, err := getClient(ctx)
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, err
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			notificationID, err := RequiredParam[string](args, "notificationID")
@@ -366,18 +378,19 @@ func GetNotificationDetails(getClient GetClientFn, t translations.TranslationHel
 			if resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, err
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 				}
-				return utils.NewToolResultError(fmt.Sprintf("failed to get notification details: %s", string(body))), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get notification details", resp, body), nil, nil
 			}
 
 			r, err := json.Marshal(thread)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, err
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
-		})
+		},
+	)
 }
 
 // Enum values for ManageNotificationSubscription action
@@ -388,8 +401,10 @@ const (
 )
 
 // ManageNotificationSubscription creates a tool to manage a notification subscription (ignore, watch, delete)
-func ManageNotificationSubscription(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func ManageNotificationSubscription(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataNotifications,
+		mcp.Tool{
 			Name:        "manage_notification_subscription",
 			Description: t("TOOL_MANAGE_NOTIFICATION_SUBSCRIPTION_DESCRIPTION", "Manage a notification subscription: ignore, watch, or delete a notification thread subscription."),
 			Annotations: &mcp.ToolAnnotations{
@@ -412,10 +427,10 @@ func ManageNotificationSubscription(getClient GetClientFn, t translations.Transl
 				Required: []string{"notificationID", "action"},
 			},
 		},
-		mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			client, err := getClient(ctx)
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, err
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			notificationID, err := RequiredParam[string](args, "notificationID")
@@ -457,7 +472,7 @@ func ManageNotificationSubscription(getClient GetClientFn, t translations.Transl
 
 			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 				body, _ := io.ReadAll(resp.Body)
-				return utils.NewToolResultError(fmt.Sprintf("failed to %s notification subscription: %s", action, string(body))), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, fmt.Sprintf("failed to %s notification subscription", action), resp, body), nil, nil
 			}
 
 			if action == NotificationActionDelete {
@@ -467,10 +482,11 @@ func ManageNotificationSubscription(getClient GetClientFn, t translations.Transl
 
 			r, err := json.Marshal(result)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, err
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 			return utils.NewToolResultText(string(r)), nil, nil
-		})
+		},
+	)
 }
 
 const (
@@ -480,8 +496,10 @@ const (
 )
 
 // ManageRepositoryNotificationSubscription creates a tool to manage a repository notification subscription (ignore, watch, delete)
-func ManageRepositoryNotificationSubscription(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func ManageRepositoryNotificationSubscription(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataNotifications,
+		mcp.Tool{
 			Name:        "manage_repository_notification_subscription",
 			Description: t("TOOL_MANAGE_REPOSITORY_NOTIFICATION_SUBSCRIPTION_DESCRIPTION", "Manage a repository notification subscription: ignore, watch, or delete repository notifications subscription for the provided repository."),
 			Annotations: &mcp.ToolAnnotations{
@@ -508,10 +526,10 @@ func ManageRepositoryNotificationSubscription(getClient GetClientFn, t translati
 				Required: []string{"owner", "repo", "action"},
 			},
 		},
-		mcp.ToolHandlerFor[map[string]any, any](func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			client, err := getClient(ctx)
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, err
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -560,7 +578,7 @@ func ManageRepositoryNotificationSubscription(getClient GetClientFn, t translati
 			// Handle non-2xx status codes
 			if resp != nil && (resp.StatusCode < 200 || resp.StatusCode >= 300) {
 				body, _ := io.ReadAll(resp.Body)
-				return utils.NewToolResultError(fmt.Sprintf("failed to %s repository subscription: %s", action, string(body))), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, fmt.Sprintf("failed to %s repository subscription", action), resp, body), nil, nil
 			}
 
 			if action == RepositorySubscriptionActionDelete {
@@ -570,8 +588,9 @@ func ManageRepositoryNotificationSubscription(getClient GetClientFn, t translati
 
 			r, err := json.Marshal(result)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, err
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 			return utils.NewToolResultText(string(r)), nil, nil
-		})
+		},
+	)
 }
