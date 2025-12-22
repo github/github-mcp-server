@@ -11,7 +11,6 @@ import (
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
-	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -57,24 +56,18 @@ func Test_GetMe(t *testing.T) {
 	}{
 		{
 			name: "successful get user",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetUser,
-					mockUser,
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetUser: mockResponse(t, http.StatusOK, mockUser),
+			}),
 			requestArgs:     map[string]any{},
 			expectToolError: false,
 			expectedUser:    mockUser,
 		},
 		{
 			name: "successful get user with reason",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetUser,
-					mockUser,
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetUser: mockResponse(t, http.StatusOK, mockUser),
+			}),
 			requestArgs: map[string]any{
 				"reason": "Testing API",
 			},
@@ -90,12 +83,9 @@ func Test_GetMe(t *testing.T) {
 		},
 		{
 			name: "get user fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetUser,
-					badRequestHandler("expected test failure"),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetUser: badRequestHandler("expected test failure"),
+			}),
 			requestArgs:        map[string]any{},
 			expectToolError:    true,
 			expectedToolErrMsg: "expected test failure",
@@ -113,7 +103,7 @@ func Test_GetMe(t *testing.T) {
 			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
 			if tc.expectToolError {
@@ -255,21 +245,15 @@ func Test_GetTeams(t *testing.T) {
 
 	// Factory function for mock HTTP clients with user response
 	httpClientWithUser := func() *http.Client {
-		return mock.NewMockedHTTPClient(
-			mock.WithRequestMatch(
-				mock.GetUser,
-				mockUser,
-			),
-		)
+		return MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetUser: mockResponse(t, http.StatusOK, mockUser),
+		})
 	}
 
 	httpClientUserFails := func() *http.Client {
-		return mock.NewMockedHTTPClient(
-			mock.WithRequestMatchHandler(
-				mock.GetUser,
-				badRequestHandler("expected test failure"),
-			),
-		)
+		return MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetUser: badRequestHandler("expected test failure"),
+		})
 	}
 
 	tests := []struct {
@@ -353,10 +337,11 @@ func Test_GetTeams(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			handler := serverTool.Handler(tc.makeDeps())
+			deps := tc.makeDeps()
+			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
 			if tc.expectToolError {
@@ -499,7 +484,7 @@ func Test_GetTeamMembers(t *testing.T) {
 			handler := serverTool.Handler(tc.deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), &request)
+			result, err := handler(ContextWithDeps(context.Background(), tc.deps), &request)
 			require.NoError(t, err)
 
 			if tc.expectToolError {

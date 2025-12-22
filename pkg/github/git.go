@@ -76,102 +76,100 @@ func GetRepositoryTree(t translations.TranslationHelperFunc) inventory.ServerToo
 				Required: []string{"owner", "repo"},
 			},
 		},
-		func(deps ToolDependencies) mcp.ToolHandlerFor[map[string]any, any] {
-			return func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-				owner, err := RequiredParam[string](args, "owner")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				repo, err := RequiredParam[string](args, "repo")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				treeSHA, err := OptionalParam[string](args, "tree_sha")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				recursive, err := OptionalBoolParamWithDefault(args, "recursive", false)
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
-				pathFilter, err := OptionalParam[string](args, "path_filter")
-				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
-				}
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			treeSHA, err := OptionalParam[string](args, "tree_sha")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			recursive, err := OptionalBoolParamWithDefault(args, "recursive", false)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			pathFilter, err := OptionalParam[string](args, "path_filter")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 
-				client, err := deps.GetClient(ctx)
-				if err != nil {
-					return utils.NewToolResultError("failed to get GitHub client"), nil, nil
-				}
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultError("failed to get GitHub client"), nil, nil
+			}
 
-				// If no tree_sha is provided, use the repository's default branch
-				if treeSHA == "" {
-					repoInfo, repoResp, err := client.Repositories.Get(ctx, owner, repo)
-					if err != nil {
-						return ghErrors.NewGitHubAPIErrorResponse(ctx,
-							"failed to get repository info",
-							repoResp,
-							err,
-						), nil, nil
-					}
-					treeSHA = *repoInfo.DefaultBranch
-				}
-
-				// Get the tree using the GitHub Git Tree API
-				tree, resp, err := client.Git.GetTree(ctx, owner, repo, treeSHA, recursive)
+			// If no tree_sha is provided, use the repository's default branch
+			if treeSHA == "" {
+				repoInfo, repoResp, err := client.Repositories.Get(ctx, owner, repo)
 				if err != nil {
 					return ghErrors.NewGitHubAPIErrorResponse(ctx,
-						"failed to get repository tree",
-						resp,
+						"failed to get repository info",
+						repoResp,
 						err,
 					), nil, nil
 				}
-				defer func() { _ = resp.Body.Close() }()
-
-				// Filter tree entries if path_filter is provided
-				var filteredEntries []*github.TreeEntry
-				if pathFilter != "" {
-					for _, entry := range tree.Entries {
-						if strings.HasPrefix(entry.GetPath(), pathFilter) {
-							filteredEntries = append(filteredEntries, entry)
-						}
-					}
-				} else {
-					filteredEntries = tree.Entries
-				}
-
-				treeEntries := make([]TreeEntryResponse, len(filteredEntries))
-				for i, entry := range filteredEntries {
-					treeEntries[i] = TreeEntryResponse{
-						Path: entry.GetPath(),
-						Type: entry.GetType(),
-						Mode: entry.GetMode(),
-						SHA:  entry.GetSHA(),
-						URL:  entry.GetURL(),
-					}
-					if entry.Size != nil {
-						treeEntries[i].Size = entry.Size
-					}
-				}
-
-				response := TreeResponse{
-					SHA:       *tree.SHA,
-					Truncated: *tree.Truncated,
-					Tree:      treeEntries,
-					TreeSHA:   treeSHA,
-					Owner:     owner,
-					Repo:      repo,
-					Recursive: recursive,
-					Count:     len(filteredEntries),
-				}
-
-				r, err := json.Marshal(response)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-				}
-
-				return utils.NewToolResultText(string(r)), nil, nil
+				treeSHA = *repoInfo.DefaultBranch
 			}
+
+			// Get the tree using the GitHub Git Tree API
+			tree, resp, err := client.Git.GetTree(ctx, owner, repo, treeSHA, recursive)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to get repository tree",
+					resp,
+					err,
+				), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			// Filter tree entries if path_filter is provided
+			var filteredEntries []*github.TreeEntry
+			if pathFilter != "" {
+				for _, entry := range tree.Entries {
+					if strings.HasPrefix(entry.GetPath(), pathFilter) {
+						filteredEntries = append(filteredEntries, entry)
+					}
+				}
+			} else {
+				filteredEntries = tree.Entries
+			}
+
+			treeEntries := make([]TreeEntryResponse, len(filteredEntries))
+			for i, entry := range filteredEntries {
+				treeEntries[i] = TreeEntryResponse{
+					Path: entry.GetPath(),
+					Type: entry.GetType(),
+					Mode: entry.GetMode(),
+					SHA:  entry.GetSHA(),
+					URL:  entry.GetURL(),
+				}
+				if entry.Size != nil {
+					treeEntries[i].Size = entry.Size
+				}
+			}
+
+			response := TreeResponse{
+				SHA:       *tree.SHA,
+				Truncated: *tree.Truncated,
+				Tree:      treeEntries,
+				TreeSHA:   treeSHA,
+				Owner:     owner,
+				Repo:      repo,
+				Recursive: recursive,
+				Count:     len(filteredEntries),
+			}
+
+			r, err := json.Marshal(response)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
 }

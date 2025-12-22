@@ -109,6 +109,9 @@ func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any) {
 // NewServerTool creates a ServerTool from a tool definition, toolset metadata, and a typed handler function.
 // The handler function takes dependencies (as any) and returns a typed handler.
 // Callers should type-assert deps to their typed dependencies struct.
+//
+// Deprecated: This creates closures at registration time. For better performance in
+// per-request server scenarios, use NewServerToolWithContextHandler instead.
 func NewServerTool[In any, Out any](tool mcp.Tool, toolset ToolsetMetadata, handlerFn func(deps any) mcp.ToolHandlerFor[In, Out]) ServerTool {
 	return ServerTool{
 		Tool:    tool,
@@ -127,8 +130,52 @@ func NewServerTool[In any, Out any](tool mcp.Tool, toolset ToolsetMetadata, hand
 	}
 }
 
+// NewServerToolWithContextHandler creates a ServerTool with a handler that receives deps via context.
+// This is the preferred approach for tools because it doesn't create closures at registration time,
+// which is critical for performance in servers that create a new instance per request.
+//
+// The handler function is stored directly without wrapping in a deps closure.
+// Dependencies should be injected into context before calling tool handlers.
+func NewServerToolWithContextHandler[In any, Out any](tool mcp.Tool, toolset ToolsetMetadata, handler mcp.ToolHandlerFor[In, Out]) ServerTool {
+	return ServerTool{
+		Tool:    tool,
+		Toolset: toolset,
+		// HandlerFunc ignores deps - deps are retrieved from context at call time
+		HandlerFunc: func(_ any) mcp.ToolHandler {
+			return func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				var arguments In
+				if err := json.Unmarshal(req.Params.Arguments, &arguments); err != nil {
+					return nil, err
+				}
+				resp, _, err := handler(ctx, req, arguments)
+				return resp, err
+			}
+		},
+	}
+}
+
 // NewServerToolFromHandler creates a ServerTool from a tool definition, toolset metadata, and a raw handler function.
 // Use this when you have a handler that already conforms to mcp.ToolHandler.
+//
+// Deprecated: This creates closures at registration time. For better performance in
+// per-request server scenarios, use NewServerToolWithRawContextHandler instead.
 func NewServerToolFromHandler(tool mcp.Tool, toolset ToolsetMetadata, handlerFn func(deps any) mcp.ToolHandler) ServerTool {
 	return ServerTool{Tool: tool, Toolset: toolset, HandlerFunc: handlerFn}
+}
+
+// NewServerToolWithRawContextHandler creates a ServerTool with a raw handler that receives deps via context.
+// This is the preferred approach for tools that use mcp.ToolHandler directly because it doesn't
+// create closures at registration time.
+//
+// The handler function is stored directly without wrapping in a deps closure.
+// Dependencies should be injected into context before calling tool handlers.
+func NewServerToolWithRawContextHandler(tool mcp.Tool, toolset ToolsetMetadata, handler mcp.ToolHandler) ServerTool {
+	return ServerTool{
+		Tool:    tool,
+		Toolset: toolset,
+		// HandlerFunc ignores deps - deps are retrieved from context at call time
+		HandlerFunc: func(_ any) mcp.ToolHandler {
+			return handler
+		},
+	}
 }

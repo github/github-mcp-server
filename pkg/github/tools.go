@@ -92,11 +92,6 @@ var (
 		Description: "GitHub Notifications related tools",
 		Icon:        "bell",
 	}
-	ToolsetMetadataExperiments = inventory.ToolsetMetadata{
-		ID:          "experiments",
-		Description: "Experimental features that are not considered stable yet",
-		Icon:        "beaker",
-	}
 	ToolsetMetadataDiscussions = inventory.ToolsetMetadata{
 		ID:          "discussions",
 		Description: "GitHub Discussions related tools",
@@ -255,6 +250,11 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		RerunFailedJobs(t),
 		CancelWorkflowRun(t),
 		DeleteWorkflowRunLogs(t),
+		// Consolidated Actions tools (enabled via feature flag)
+		ActionsList(t),
+		ActionsGet(t),
+		ActionsRunTrigger(t),
+		ActionsGetJobLogs(t),
 
 		// Security advisories tools
 		ListGlobalSecurityAdvisories(t),
