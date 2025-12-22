@@ -671,6 +671,8 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			originalRef := ref
+
 			sha, err := OptionalParam[string](args, "sha")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -747,6 +749,12 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						}
 					}
 
+					// main branch ref passed in ref parameter but it doesn't exist - default branch was used
+					var successNote string
+					if !strings.HasSuffix(rawOpts.Ref, originalRef) {
+						successNote = fmt.Sprintf(" Note: the provided ref '%s' does not exist, default branch '%s' was used instead.", originalRef, rawOpts.Ref)
+					}
+
 					// Determine if content is text or binary
 					isTextContent := strings.HasPrefix(contentType, "text/") ||
 						contentType == "application/json" ||
@@ -762,9 +770,9 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						}
 						// Include SHA in the result metadata
 						if fileSHA != "" {
-							return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)", fileSHA), result), nil, nil
+							return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)", fileSHA)+successNote, result), nil, nil
 						}
-						return utils.NewToolResultResource("successfully downloaded text file", result), nil, nil
+						return utils.NewToolResultResource("successfully downloaded text file"+successNote, result), nil, nil
 					}
 
 					result := &mcp.ResourceContents{
@@ -774,9 +782,9 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 					}
 					// Include SHA in the result metadata
 					if fileSHA != "" {
-						return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)", fileSHA), result), nil, nil
+						return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)", fileSHA)+successNote, result), nil, nil
 					}
-					return utils.NewToolResultResource("successfully downloaded binary file", result), nil, nil
+					return utils.NewToolResultResource("successfully downloaded binary file"+successNote, result), nil, nil
 				}
 
 				// Raw API call failed
@@ -1897,12 +1905,11 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 	switch {
 	case originalRef == "":
 		// 2a) If ref is empty, determine the default branch.
-		repoInfo, resp, err := githubClient.Repositories.Get(ctx, owner, repo)
+		reference, err = resolveDefaultBranch(ctx, githubClient, owner, repo)
 		if err != nil {
-			_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get repository info", resp, err)
-			return nil, fmt.Errorf("failed to get repository info: %w", err)
+			return nil, err // Error is already wrapped in resolveDefaultBranch.
 		}
-		ref = fmt.Sprintf("refs/heads/%s", repoInfo.GetDefaultBranch())
+		ref = reference.GetRef()
 	case strings.HasPrefix(originalRef, "refs/"):
 		// 2b) Already fully qualified. The reference will be fetched at the end.
 	case strings.HasPrefix(originalRef, "heads/") || strings.HasPrefix(originalRef, "tags/"):
@@ -1928,7 +1935,13 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 					ghErr2, isGhErr2 := err.(*github.ErrorResponse)
 					if isGhErr2 && ghErr2.Response.StatusCode == http.StatusNotFound {
 						if originalRef == "main" {
-							return nil, fmt.Errorf("could not find branch or tag 'main'. Some repositories use 'master' as the default branch name")
+							reference, err = resolveDefaultBranch(ctx, githubClient, owner, repo)
+							if err != nil {
+								return nil, err // Error is already wrapped in resolveDefaultBranch.
+							}
+							// Update ref to the actual default branch ref so the note can be generated
+							ref = reference.GetRef()
+							break
 						}
 						return nil, fmt.Errorf("could not resolve ref %q as a branch or a tag", originalRef)
 					}
@@ -1949,15 +1962,39 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 		reference, resp, err = githubClient.Git.GetRef(ctx, owner, repo, ref)
 		if err != nil {
 			if ref == "refs/heads/main" {
-				return nil, fmt.Errorf("could not find branch 'main'. Some repositories use 'master' as the default branch name")
+				reference, err = resolveDefaultBranch(ctx, githubClient, owner, repo)
+				if err != nil {
+					return nil, err // Error is already wrapped in resolveDefaultBranch.
+				}
+				// Update ref to the actual default branch ref so the note can be generated
+				ref = reference.GetRef()
+			} else {
+				_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get final reference", resp, err)
+				return nil, fmt.Errorf("failed to get final reference for %q: %w", ref, err)
 			}
-			_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get final reference", resp, err)
-			return nil, fmt.Errorf("failed to get final reference for %q: %w", ref, err)
 		}
 	}
 
 	sha = reference.GetObject().GetSHA()
 	return &raw.ContentOpts{Ref: ref, SHA: sha}, nil
+}
+
+func resolveDefaultBranch(ctx context.Context, githubClient *github.Client, owner, repo string) (*github.Reference, error) {
+	repoInfo, resp, err := githubClient.Repositories.Get(ctx, owner, repo)
+	if err != nil {
+		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get repository info", resp, err)
+		return nil, fmt.Errorf("failed to get repository info: %w", err)
+	}
+	defaultBranch := repoInfo.GetDefaultBranch()
+
+	defaultRef, resp, err := githubClient.Git.GetRef(ctx, owner, repo, "heads/"+defaultBranch)
+	defer func() { _ = resp.Body.Close() }()
+	if err != nil {
+		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get default branch reference", resp, err)
+		return nil, fmt.Errorf("failed to get default branch reference: %w", err)
+	}
+
+	return defaultRef, nil
 }
 
 // ListStarredRepositories creates a tool to list starred repositories for the authenticated user or a specified user.
