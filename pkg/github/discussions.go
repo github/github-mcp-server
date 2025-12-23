@@ -124,7 +124,7 @@ func getQueryType(useOrdering bool, categoryID *githubv4.ID) any {
 }
 
 func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataDiscussions,
 		mcp.Tool{
 			Name:        "list_discussions",
@@ -278,7 +278,7 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 }
 
 func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataDiscussions,
 		mcp.Tool{
 			Name:        "get_discussion",
@@ -383,7 +383,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 }
 
 func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataDiscussions,
 		mcp.Tool{
 			Name:        "get_discussion_comments",
@@ -511,7 +511,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 }
 
 func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataDiscussions,
 		mcp.Tool{
 			Name:        "list_discussion_categories",

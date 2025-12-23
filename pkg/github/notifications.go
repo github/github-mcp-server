@@ -27,7 +27,7 @@ const (
 
 // ListNotifications creates a tool to list notifications for the current user.
 func ListNotifications(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataNotifications,
 		mcp.Tool{
 			Name:        "list_notifications",
@@ -165,7 +165,7 @@ func ListNotifications(t translations.TranslationHelperFunc) inventory.ServerToo
 
 // DismissNotification creates a tool to mark a notification as read/done.
 func DismissNotification(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataNotifications,
 		mcp.Tool{
 			Name:        "dismiss_notification",
@@ -248,7 +248,7 @@ func DismissNotification(t translations.TranslationHelperFunc) inventory.ServerT
 
 // MarkAllNotificationsRead creates a tool to mark all notifications as read.
 func MarkAllNotificationsRead(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataNotifications,
 		mcp.Tool{
 			Name:        "mark_all_notifications_read",
@@ -341,7 +341,7 @@ func MarkAllNotificationsRead(t translations.TranslationHelperFunc) inventory.Se
 
 // GetNotificationDetails creates a tool to get details for a specific notification.
 func GetNotificationDetails(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataNotifications,
 		mcp.Tool{
 			Name:        "get_notification_details",
@@ -411,7 +411,7 @@ const (
 
 // ManageNotificationSubscription creates a tool to manage a notification subscription (ignore, watch, delete)
 func ManageNotificationSubscription(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataNotifications,
 		mcp.Tool{
 			Name:        "manage_notification_subscription",
@@ -508,7 +508,7 @@ const (
 
 // ManageRepositoryNotificationSubscription creates a tool to manage a repository notification subscription (ignore, watch, delete)
 func ManageRepositoryNotificationSubscription(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataNotifications,
 		mcp.Tool{
 			Name:        "manage_repository_notification_subscription",

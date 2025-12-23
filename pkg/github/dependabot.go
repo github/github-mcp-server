@@ -18,7 +18,7 @@ import (
 )
 
 func GetDependabotAlert(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataDependabot,
 		mcp.Tool{
 			Name:        "get_dependabot_alert",
@@ -96,7 +96,7 @@ func GetDependabotAlert(t translations.TranslationHelperFunc) inventory.ServerTo
 }
 
 func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataDependabot,
 		mcp.Tool{
 			Name:        "list_dependabot_alerts",

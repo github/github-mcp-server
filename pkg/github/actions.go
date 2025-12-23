@@ -51,7 +51,7 @@ const (
 
 // ListWorkflows creates a tool to list workflows in a repository
 func ListWorkflows(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewToolWithScopes(
+	tool := NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "list_workflows",
@@ -124,7 +124,7 @@ func ListWorkflows(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // ListWorkflowRuns creates a tool to list workflow runs for a specific workflow
 func ListWorkflowRuns(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewToolWithScopes(
+	tool := NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "list_workflow_runs",
@@ -280,7 +280,7 @@ func ListWorkflowRuns(t translations.TranslationHelperFunc) inventory.ServerTool
 
 // RunWorkflow creates a tool to run an Actions workflow
 func RunWorkflow(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewToolWithScopes(
+	tool := NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "run_workflow",
@@ -394,7 +394,7 @@ func RunWorkflow(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // GetWorkflowRun creates a tool to get details of a specific workflow run
 func GetWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewToolWithScopes(
+	tool := NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "get_workflow_run",
@@ -464,7 +464,7 @@ func GetWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // GetWorkflowRunLogs creates a tool to download logs for a specific workflow run
 func GetWorkflowRunLogs(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewToolWithScopes(
+	tool := NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "get_workflow_run_logs",
@@ -544,7 +544,7 @@ func GetWorkflowRunLogs(t translations.TranslationHelperFunc) inventory.ServerTo
 
 // ListWorkflowJobs creates a tool to list jobs for a specific workflow run
 func ListWorkflowJobs(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewToolWithScopes(
+	tool := NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "list_workflow_jobs",
@@ -646,7 +646,7 @@ func ListWorkflowJobs(t translations.TranslationHelperFunc) inventory.ServerTool
 
 // GetJobLogs creates a tool to download logs for a specific workflow job or efficiently get all failed job logs for a workflow run
 func GetJobLogs(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewToolWithScopes(
+	tool := NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "get_job_logs",
@@ -913,7 +913,7 @@ func downloadLogContent(ctx context.Context, logURL string, tailLines int, maxLi
 
 // RerunWorkflowRun creates a tool to re-run an entire workflow run
 func RerunWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewToolWithScopes(
+	tool := NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "rerun_workflow_run",
@@ -990,7 +990,7 @@ func RerunWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerTool
 
 // RerunFailedJobs creates a tool to re-run only the failed jobs in a workflow run
 func RerunFailedJobs(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewToolWithScopes(
+	tool := NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "rerun_failed_jobs",
@@ -1067,7 +1067,7 @@ func RerunFailedJobs(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 // CancelWorkflowRun creates a tool to cancel a workflow run
 func CancelWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewToolWithScopes(
+	tool := NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "cancel_workflow_run",
@@ -1146,7 +1146,7 @@ func CancelWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerToo
 
 // ListWorkflowRunArtifacts creates a tool to list artifacts for a workflow run
 func ListWorkflowRunArtifacts(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewToolWithScopes(
+	tool := NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "list_workflow_run_artifacts",
@@ -1228,7 +1228,7 @@ func ListWorkflowRunArtifacts(t translations.TranslationHelperFunc) inventory.Se
 
 // DownloadWorkflowRunArtifact creates a tool to download a workflow run artifact
 func DownloadWorkflowRunArtifact(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewToolWithScopes(
+	tool := NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "download_workflow_run_artifact",
@@ -1307,7 +1307,7 @@ func DownloadWorkflowRunArtifact(t translations.TranslationHelperFunc) inventory
 
 // DeleteWorkflowRunLogs creates a tool to delete logs for a workflow run
 func DeleteWorkflowRunLogs(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewToolWithScopes(
+	tool := NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "delete_workflow_run_logs",
@@ -1385,7 +1385,7 @@ func DeleteWorkflowRunLogs(t translations.TranslationHelperFunc) inventory.Serve
 
 // GetWorkflowRunUsage creates a tool to get usage metrics for a workflow run
 func GetWorkflowRunUsage(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewToolWithScopes(
+	tool := NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "get_workflow_run_usage",
@@ -1455,7 +1455,7 @@ func GetWorkflowRunUsage(t translations.TranslationHelperFunc) inventory.ServerT
 
 // ActionsList returns the tool and handler for listing GitHub Actions resources.
 func ActionsList(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewToolWithScopes(
+	tool := NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
 			Name: "actions_list",
@@ -1652,7 +1652,7 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 
 // ActionsGet returns the tool and handler for getting GitHub Actions resources.
 func ActionsGet(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewToolWithScopes(
+	tool := NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
 			Name: "actions_get",
@@ -1762,7 +1762,7 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 
 // ActionsRunTrigger returns the tool and handler for triggering GitHub Actions workflows.
 func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewToolWithScopes(
+	tool := NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
 			Name:        "actions_run_trigger",
@@ -1882,7 +1882,7 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 
 // ActionsGetJobLogs returns the tool and handler for getting workflow job logs.
 func ActionsGetJobLogs(t translations.TranslationHelperFunc) inventory.ServerTool {
-	tool := NewToolWithScopes(
+	tool := NewTool(
 		ToolsetMetadataActions,
 		mcp.Tool{
 			Name: "get_job_logs",

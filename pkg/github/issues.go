@@ -264,7 +264,7 @@ Options are:
 	}
 	WithPagination(schema)
 
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "issue_read",
@@ -548,7 +548,7 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 
 // ListIssueTypes creates a tool to list defined issue types for an organization. This can be used to understand supported issue type values for creating or updating issues.
 func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "list_issue_types",
@@ -605,7 +605,7 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // AddIssueComment creates a tool to add a comment to an issue.
 func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "add_issue_comment",
@@ -690,7 +690,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 // SubIssueWrite creates a tool to add a sub-issue to a parent issue.
 func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "sub_issue_write",
@@ -961,7 +961,7 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 	}
 	WithPagination(schema)
 
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "search_issues",
@@ -982,7 +982,7 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // IssueWrite creates a tool to create a new or update an existing issue in a GitHub repository.
 func IssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "issue_write",
@@ -1387,7 +1387,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 	}
 	WithCursorPagination(schema)
 
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "list_issues",
@@ -1627,7 +1627,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 		},
 	}
 
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "assign_copilot_to_issue",

@@ -46,7 +46,7 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 	}
 	WithPagination(schema)
 
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "search_repositories",
@@ -190,7 +190,7 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 	}
 	WithPagination(schema)
 
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "search_code",
@@ -373,7 +373,7 @@ func SearchUsers(t translations.TranslationHelperFunc) inventory.ServerTool {
 	}
 	WithPagination(schema)
 
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataUsers,
 		mcp.Tool{
 			Name:        "search_users",
@@ -416,7 +416,7 @@ func SearchOrgs(t translations.TranslationHelperFunc) inventory.ServerTool {
 	}
 	WithPagination(schema)
 
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataOrgs,
 		mcp.Tool{
 			Name:        "search_orgs",

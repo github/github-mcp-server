@@ -18,7 +18,7 @@ import (
 )
 
 func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataSecurityAdvisories,
 		mcp.Tool{
 			Name:        "list_global_security_advisories",
@@ -210,7 +210,7 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventor
 }
 
 func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataSecurityAdvisories,
 		mcp.Tool{
 			Name:        "list_repository_security_advisories",
@@ -315,7 +315,7 @@ func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inve
 }
 
 func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataSecurityAdvisories,
 		mcp.Tool{
 			Name:        "get_global_security_advisory",
@@ -373,7 +373,7 @@ func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.S
 }
 
 func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataSecurityAdvisories,
 		mcp.Tool{
 			Name:        "list_org_repository_security_advisories",

@@ -227,11 +227,11 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 	fmt.Fprintf(buf, "- **%s** - %s\n", tool.Tool.Name, tool.Tool.Annotations.Title)
 
 	// OAuth scopes if present
-	if len(tool.RequiredScopes) > 0 || len(tool.AcceptedScopes) > 0 {
-		if len(tool.RequiredScopes) > 0 {
-			fmt.Fprintf(buf, "  - **Required OAuth Scopes**: `%s`\n", strings.Join(tool.RequiredScopes, "`, `"))
-		}
-		if len(tool.AcceptedScopes) > 0 {
+	if len(tool.RequiredScopes) > 0 {
+		fmt.Fprintf(buf, "  - **Required OAuth Scopes**: `%s`\n", strings.Join(tool.RequiredScopes, "`, `"))
+
+		// Only show accepted scopes if they differ from required scopes
+		if len(tool.AcceptedScopes) > 0 && !scopesEqual(tool.RequiredScopes, tool.AcceptedScopes) {
 			fmt.Fprintf(buf, "  - **Accepted OAuth Scopes**: `%s`\n", strings.Join(tool.AcceptedScopes, "`, `"))
 		}
 	}
@@ -288,6 +288,28 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 	} else {
 		buf.WriteString("  - No parameters required")
 	}
+}
+
+// scopesEqual checks if two scope slices contain the same elements (order-independent)
+func scopesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	// Create a map for quick lookup
+	aMap := make(map[string]bool, len(a))
+	for _, scope := range a {
+		aMap[scope] = true
+	}
+
+	// Check if all elements in b are in a
+	for _, scope := range b {
+		if !aMap[scope] {
+			return false
+		}
+	}
+
+	return true
 }
 
 func contains(slice []string, item string) bool {

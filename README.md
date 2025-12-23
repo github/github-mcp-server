@@ -496,7 +496,6 @@ The following sets of tools are available:
 =======
 - **actions_get** - Get details of GitHub Actions resources (workflows, workflow runs, jobs, and artifacts)
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `method`: The method to execute (string, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
@@ -509,7 +508,6 @@ The following sets of tools are available:
 
 - **actions_list** - List GitHub Actions workflows in a repository
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `method`: The action to perform (string, required)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (default: 1) (number, optional)
@@ -525,7 +523,6 @@ The following sets of tools are available:
 
 - **actions_run_trigger** - Trigger GitHub Actions workflow actions
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `inputs`: Inputs the workflow accepts. Only used for 'run_workflow' method. (object, optional)
   - `method`: The method to execute (string, required)
   - `owner`: Repository owner (string, required)
@@ -537,28 +534,24 @@ The following sets of tools are available:
 >>>>>>> 4ed0310 (Complete OAuth scope implementation for all tools)
 - **cancel_workflow_run** - Cancel workflow run
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)
 
 - **delete_workflow_run_logs** - Delete workflow logs
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)
 
 - **download_workflow_run_artifact** - Download workflow artifact
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `artifact_id`: The unique identifier of the artifact (number, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
 - **get_job_logs** - Get job logs
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `failed_only`: When true, gets logs for all failed jobs in run_id (boolean, optional)
   - `job_id`: The unique identifier of the workflow job (required for single job logs) (number, optional)
   - `owner`: Repository owner (string, required)
@@ -571,7 +564,6 @@ The following sets of tools are available:
 =======
 - **get_job_logs** - Get GitHub Actions workflow job logs
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `failed_only`: When true, gets logs for all failed jobs in the workflow run specified by run_id. Requires run_id to be provided. (boolean, optional)
   - `job_id`: The unique identifier of the workflow job. Required when getting logs for a single job. (number, optional)
   - `owner`: Repository owner (string, required)
@@ -583,28 +575,24 @@ The following sets of tools are available:
 >>>>>>> 4ed0310 (Complete OAuth scope implementation for all tools)
 - **get_workflow_run** - Get workflow run
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)
 
 - **get_workflow_run_logs** - Get workflow run logs
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)
 
 - **get_workflow_run_usage** - Get workflow usage
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)
 
 - **list_workflow_jobs** - List workflow jobs
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `filter`: Filters jobs by their completed_at timestamp (string, optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -614,7 +602,6 @@ The following sets of tools are available:
 
 - **list_workflow_run_artifacts** - List workflow artifacts
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -623,7 +610,6 @@ The following sets of tools are available:
 
 - **list_workflow_runs** - List workflow runs
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `actor`: Returns someone's workflow runs. Use the login for the user who created the workflow run. (string, optional)
   - `branch`: Returns workflow runs associated with a branch. Use the name of the branch. (string, optional)
   - `event`: Returns workflow runs for a specific event type (string, optional)
@@ -636,7 +622,6 @@ The following sets of tools are available:
 
 - **list_workflows** - List workflows
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -644,21 +629,18 @@ The following sets of tools are available:
 
 - **rerun_failed_jobs** - Rerun failed jobs
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)
 
 - **rerun_workflow_run** - Rerun workflow run
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `run_id`: The unique identifier of the workflow run (number, required)
 
 - **run_workflow** - Run workflow
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `inputs`: Inputs the workflow accepts (object, optional)
   - `owner`: Repository owner (string, required)
   - `ref`: The git reference for the workflow. The reference can be a branch or tag name. (string, required)
@@ -737,14 +719,12 @@ The following sets of tools are available:
 
 - **get_discussion** - Get discussion
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `discussionNumber`: Discussion Number (number, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
 - **get_discussion_comments** - Get discussion comments
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
   - `discussionNumber`: Discussion Number (number, required)
   - `owner`: Repository owner (string, required)
@@ -753,13 +733,11 @@ The following sets of tools are available:
 
 - **list_discussion_categories** - List discussion categories
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name. If not provided, discussion categories will be queried at the organisation level. (string, optional)
 
 - **list_discussions** - List discussions
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
   - `category`: Optional filter by discussion category ID. If provided, only discussions with this category are listed. (string, optional)
   - `direction`: Order direction. (string, optional)
@@ -776,7 +754,6 @@ The following sets of tools are available:
 
 - **create_gist** - Create Gist
   - **Required OAuth Scopes**: `gist`
-  - **Accepted OAuth Scopes**: `gist`
   - `content`: Content for simple single-file gist creation (string, required)
   - `description`: Description of the gist (string, optional)
   - `filename`: Filename for simple single-file gist creation (string, required)
@@ -793,7 +770,6 @@ The following sets of tools are available:
 
 - **update_gist** - Update Gist
   - **Required OAuth Scopes**: `gist`
-  - **Accepted OAuth Scopes**: `gist`
   - `content`: Content for the file (string, required)
   - `description`: Updated description of the gist (string, optional)
   - `filename`: Filename to update or create (string, required)
@@ -807,7 +783,6 @@ The following sets of tools are available:
 
 - **get_repository_tree** - Get repository tree
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `owner`: Repository owner (username or organization) (string, required)
   - `path_filter`: Optional path prefix to filter the tree results (e.g., 'src/' to only show files in the src directory) (string, optional)
   - `recursive`: Setting this parameter to true returns the objects or subtrees referenced by the tree. Default is false (boolean, optional)
@@ -822,7 +797,6 @@ The following sets of tools are available:
 
 - **add_issue_comment** - Add comment to issue
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `body`: Comment content (string, required)
   - `issue_number`: Issue number to comment on (number, required)
   - `owner`: Repository owner (string, required)
@@ -833,7 +807,6 @@ The following sets of tools are available:
   - `issue_number`: Issue number (number, required)
 =======
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `issueNumber`: Issue number (number, required)
 >>>>>>> 4ed0310 (Complete OAuth scope implementation for all tools)
   - `owner`: Repository owner (string, required)
@@ -841,14 +814,12 @@ The following sets of tools are available:
 
 - **get_label** - Get a specific label from a repository.
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `name`: Label name. (string, required)
   - `owner`: Repository owner (username or organization name) (string, required)
   - `repo`: Repository name (string, required)
 
 - **issue_read** - Get issue details
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `issue_number`: The number of the issue (number, required)
   - `method`: The read operation to perform on a single issue.
     Options are:
@@ -864,7 +835,6 @@ The following sets of tools are available:
 
 - **issue_write** - Create or update issue.
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `assignees`: Usernames to assign to this issue (string[], optional)
   - `body`: Issue body content (string, optional)
   - `duplicate_of`: Issue number that this issue is a duplicate of. Only used when state_reason is 'duplicate'. (number, optional)
@@ -890,7 +860,6 @@ The following sets of tools are available:
 
 - **list_issues** - List issues
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
   - `direction`: Order direction. If provided, the 'orderBy' also needs to be provided. (string, optional)
   - `labels`: Filter by labels (string[], optional)
@@ -903,7 +872,6 @@ The following sets of tools are available:
 
 - **search_issues** - Search issues
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `order`: Sort order (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only issues for this repository are listed. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -914,7 +882,6 @@ The following sets of tools are available:
 
 - **sub_issue_write** - Change sub-issue
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `after_id`: The ID of the sub-issue to be prioritized after (either after_id OR before_id should be specified) (number, optional)
   - `before_id`: The ID of the sub-issue to be prioritized before (either after_id OR before_id should be specified) (number, optional)
   - `issue_number`: The number of the parent issue (number, required)
@@ -937,14 +904,12 @@ The following sets of tools are available:
 
 - **get_label** - Get a specific label from a repository.
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `name`: Label name. (string, required)
   - `owner`: Repository owner (username or organization name) (string, required)
   - `repo`: Repository name (string, required)
 
 - **label_write** - Write operations on repository labels.
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `color`: Label color as 6-character hex code without '#' prefix (e.g., 'f29513'). Required for 'create', optional for 'update'. (string, optional)
   - `description`: Label description text. Optional for 'create' and 'update'. (string, optional)
   - `method`: Operation to perform: 'create', 'update', or 'delete' (string, required)
@@ -955,7 +920,6 @@ The following sets of tools are available:
 
 - **list_label** - List labels from a repository
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `owner`: Repository owner (username or organization name) - required for all operations (string, required)
   - `repo`: Repository name - required for all operations (string, required)
 
@@ -967,18 +931,15 @@ The following sets of tools are available:
 
 - **dismiss_notification** - Dismiss notification
   - **Required OAuth Scopes**: `notifications`
-  - **Accepted OAuth Scopes**: `notifications`
   - `state`: The new state of the notification (read/done) (string, required)
   - `threadID`: The ID of the notification thread (string, required)
 
 - **get_notification_details** - Get notification details
   - **Required OAuth Scopes**: `notifications`
-  - **Accepted OAuth Scopes**: `notifications`
   - `notificationID`: The ID of the notification (string, required)
 
 - **list_notifications** - List notifications
   - **Required OAuth Scopes**: `notifications`
-  - **Accepted OAuth Scopes**: `notifications`
   - `before`: Only show notifications updated before the given time (ISO 8601 format) (string, optional)
   - `filter`: Filter notifications to, use default unless specified. Read notifications are ones that have already been acknowledged by the user. Participating notifications are those that the user is directly involved in, such as issues or pull requests they have commented on or created. (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only notifications for this repository are listed. (string, optional)
@@ -989,20 +950,17 @@ The following sets of tools are available:
 
 - **manage_notification_subscription** - Manage notification subscription
   - **Required OAuth Scopes**: `notifications`
-  - **Accepted OAuth Scopes**: `notifications`
   - `action`: Action to perform: ignore, watch, or delete the notification subscription. (string, required)
   - `notificationID`: The ID of the notification thread. (string, required)
 
 - **manage_repository_notification_subscription** - Manage repository notification subscription
   - **Required OAuth Scopes**: `notifications`
-  - **Accepted OAuth Scopes**: `notifications`
   - `action`: Action to perform: ignore, watch, or delete the repository notification subscription. (string, required)
   - `owner`: The account owner of the repository. (string, required)
   - `repo`: The name of the repository. (string, required)
 
 - **mark_all_notifications_read** - Mark all notifications as read
   - **Required OAuth Scopes**: `notifications`
-  - **Accepted OAuth Scopes**: `notifications`
   - `lastReadAt`: Describes the last point that notifications were checked (optional). Default: Now (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only notifications for this repository are marked as read. (string, optional)
   - `repo`: Optional repository name. If provided with owner, only notifications for this repository are marked as read. (string, optional)
@@ -1030,7 +988,6 @@ The following sets of tools are available:
 
 - **add_project_item** - Add project item
   - **Required OAuth Scopes**: `project`
-  - **Accepted OAuth Scopes**: `project`
   - `item_id`: The numeric ID of the issue or pull request to add to the project. (number, required)
   - `item_type`: The item's type, either issue or pull_request. (string, required)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
@@ -1039,7 +996,6 @@ The following sets of tools are available:
 
 - **delete_project_item** - Delete project item
   - **Required OAuth Scopes**: `project`
-  - **Accepted OAuth Scopes**: `project`
   - `item_id`: The internal project item ID to delete from the project (not the issue or pull request ID). (number, required)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
@@ -1103,7 +1059,6 @@ The following sets of tools are available:
 
 - **update_project_item** - Update project item
   - **Required OAuth Scopes**: `project`
-  - **Accepted OAuth Scopes**: `project`
   - `item_id`: The unique identifier of the project item. This is not the issue or pull request ID. (number, required)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
@@ -1118,7 +1073,6 @@ The following sets of tools are available:
 
 - **add_comment_to_pending_review** - Add review comment to the requester's latest pending pull request review
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `body`: The text of the review comment (string, required)
   - `line`: The line of the blob in the pull request diff that the comment applies to. For multi-line comments, the last line of the range (number, optional)
   - `owner`: Repository owner (string, required)
@@ -1132,7 +1086,6 @@ The following sets of tools are available:
 
 - **create_pull_request** - Open new pull request
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `base`: Branch to merge into (string, required)
   - `body`: PR description (string, optional)
   - `draft`: Create as draft PR (boolean, optional)
@@ -1144,7 +1097,6 @@ The following sets of tools are available:
 
 - **list_pull_requests** - List pull requests
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `base`: Filter by base branch (string, optional)
   - `direction`: Sort direction (string, optional)
   - `head`: Filter by head user/org and branch (string, optional)
@@ -1157,7 +1109,6 @@ The following sets of tools are available:
 
 - **merge_pull_request** - Merge pull request
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `commit_message`: Extra detail for merge commit (string, optional)
   - `commit_title`: Title for merge commit (string, optional)
   - `merge_method`: Merge method (string, optional)
@@ -1167,7 +1118,6 @@ The following sets of tools are available:
 
 - **pull_request_read** - Get details for a single pull request
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `method`: Action to specify what pull request data needs to be retrieved from GitHub. 
     Possible options: 
      1. get - Get details of a specific pull request.
@@ -1186,7 +1136,6 @@ The following sets of tools are available:
 
 - **pull_request_review_write** - Write operations (create, submit, delete) on pull request reviews.
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `body`: Review comment text (string, optional)
   - `commitID`: SHA of commit to review (string, optional)
   - `event`: Review action to perform. (string, optional)
@@ -1197,14 +1146,12 @@ The following sets of tools are available:
 
 - **request_copilot_review** - Request Copilot review
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
 
 - **search_pull_requests** - Search pull requests
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `order`: Sort order (string, optional)
   - `owner`: Optional repository owner. If provided with repo, only pull requests for this repository are listed. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -1215,7 +1162,6 @@ The following sets of tools are available:
 
 - **update_pull_request** - Edit pull request
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `base`: New base branch name (string, optional)
   - `body`: New description (string, optional)
   - `draft`: Mark pull request as draft (true) or ready for review (false) (boolean, optional)
@@ -1229,7 +1175,6 @@ The following sets of tools are available:
 
 - **update_pull_request_branch** - Update pull request branch
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `expectedHeadSha`: The expected SHA of the pull request's HEAD ref (string, optional)
   - `owner`: Repository owner (string, required)
   - `pullNumber`: Pull request number (number, required)
@@ -1243,7 +1188,6 @@ The following sets of tools are available:
 
 - **create_branch** - Create branch
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `branch`: Name for new branch (string, required)
   - `from_branch`: Source branch (defaults to repo default) (string, optional)
   - `owner`: Repository owner (string, required)
@@ -1251,7 +1195,6 @@ The following sets of tools are available:
 
 - **create_or_update_file** - Create or update file
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `branch`: Branch to create/update the file in (string, required)
   - `content`: Content of the file (string, required)
   - `message`: Commit message (string, required)
@@ -1262,7 +1205,6 @@ The following sets of tools are available:
 
 - **create_repository** - Create repository
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `autoInit`: Initialize with README (boolean, optional)
   - `description`: Repository description (string, optional)
   - `name`: Repository name (string, required)
@@ -1271,7 +1213,6 @@ The following sets of tools are available:
 
 - **delete_file** - Delete file
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `branch`: Branch to delete the file from (string, required)
   - `message`: Commit message (string, required)
   - `owner`: Repository owner (username or organization) (string, required)
@@ -1280,14 +1221,12 @@ The following sets of tools are available:
 
 - **fork_repository** - Fork repository
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `organization`: Organization to fork to (string, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
 - **get_commit** - Get commit details
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `include_diff`: Whether to include file diffs and stats in the response. Default is true. (boolean, optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -1297,7 +1236,6 @@ The following sets of tools are available:
 
 - **get_file_contents** - Get file or directory contents
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `owner`: Repository owner (username or organization) (string, required)
   - `path`: Path to file/directory (string, optional)
   - `ref`: Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head` (string, optional)
@@ -1306,27 +1244,23 @@ The following sets of tools are available:
 
 - **get_latest_release** - Get latest release
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
 - **get_release_by_tag** - Get a release by tag name
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `tag`: Tag name (e.g., 'v1.0.0') (string, required)
 
 - **get_tag** - Get tag details
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
   - `tag`: Tag name (string, required)
 
 - **list_branches** - List branches
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -1334,7 +1268,6 @@ The following sets of tools are available:
 
 - **list_commits** - List commits
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `author`: Author username or email address to filter commits by (string, optional)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -1344,7 +1277,6 @@ The following sets of tools are available:
 
 - **list_releases** - List releases
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -1352,7 +1284,6 @@ The following sets of tools are available:
 
 - **list_tags** - List tags
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -1360,7 +1291,6 @@ The following sets of tools are available:
 
 - **push_files** - Push files to repository
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `branch`: Branch to push to (string, required)
   - `files`: Array of file objects to push, each object with path (string) and content (string) (object[], required)
   - `message`: Commit message (string, required)
@@ -1369,7 +1299,6 @@ The following sets of tools are available:
 
 - **search_code** - Search code
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `order`: Sort order for results (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -1378,7 +1307,6 @@ The following sets of tools are available:
 
 - **search_repositories** - Search repositories
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `minimal_output`: Return minimal repository information (default: true). When false, returns full GitHub API repository objects. (boolean, optional)
   - `order`: Sort order (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -1459,7 +1387,6 @@ The following sets of tools are available:
 
 - **list_starred_repositories** - List starred repositories
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `direction`: The direction to sort the results by. (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -1486,7 +1413,6 @@ The following sets of tools are available:
 
 - **search_users** - Search users
   - **Required OAuth Scopes**: `repo`
-  - **Accepted OAuth Scopes**: `repo`
   - `order`: Sort order (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)

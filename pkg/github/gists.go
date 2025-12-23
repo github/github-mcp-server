@@ -19,7 +19,7 @@ import (
 
 // ListGists creates a tool to list gists for a user
 func ListGists(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataGists,
 		mcp.Tool{
 			Name:        "list_gists",
@@ -107,7 +107,7 @@ func ListGists(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // GetGist creates a tool to get the content of a gist
 func GetGist(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataGists,
 		mcp.Tool{
 			Name:        "get_gist",
@@ -166,7 +166,7 @@ func GetGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // CreateGist creates a tool to create a new gist
 func CreateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataGists,
 		mcp.Tool{
 			Name:        "create_gist",
@@ -270,7 +270,7 @@ func CreateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // UpdateGist creates a tool to edit an existing gist
 func UpdateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataGists,
 		mcp.Tool{
 			Name:        "update_gist",

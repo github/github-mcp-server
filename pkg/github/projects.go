@@ -27,7 +27,7 @@ const (
 )
 
 func ListProjects(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "list_projects",
@@ -146,7 +146,7 @@ func ListProjects(t translations.TranslationHelperFunc) inventory.ServerTool {
 }
 
 func GetProject(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "get_project",
@@ -236,7 +236,7 @@ func GetProject(t translations.TranslationHelperFunc) inventory.ServerTool {
 }
 
 func ListProjectFields(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "list_project_fields",
@@ -344,7 +344,7 @@ func ListProjectFields(t translations.TranslationHelperFunc) inventory.ServerToo
 }
 
 func GetProjectField(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "get_project_field",
@@ -438,7 +438,7 @@ func GetProjectField(t translations.TranslationHelperFunc) inventory.ServerTool 
 }
 
 func ListProjectItems(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "list_project_items",
@@ -576,7 +576,7 @@ func ListProjectItems(t translations.TranslationHelperFunc) inventory.ServerTool
 }
 
 func GetProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "get_project_item",
@@ -684,7 +684,7 @@ func GetProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
 }
 
 func AddProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "add_project_item",
@@ -797,7 +797,7 @@ func AddProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
 }
 
 func UpdateProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "update_project_item",
@@ -911,7 +911,7 @@ func UpdateProjectItem(t translations.TranslationHelperFunc) inventory.ServerToo
 }
 
 func DeleteProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "delete_project_item",

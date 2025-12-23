@@ -59,7 +59,7 @@ Possible options:
 	}
 	WithPagination(schema)
 
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "pull_request_read",
@@ -510,7 +510,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 		Required: []string{"owner", "repo", "title", "head", "base"},
 	}
 
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "create_pull_request",
@@ -663,7 +663,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 		Required: []string{"owner", "repo", "pullNumber"},
 	}
 
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "update_pull_request",
@@ -946,7 +946,7 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 	}
 	WithPagination(schema)
 
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "list_pull_requests",
@@ -1083,7 +1083,7 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 		Required: []string{"owner", "repo", "pullNumber"},
 	}
 
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "merge_pull_request",
@@ -1203,7 +1203,7 @@ func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTo
 	}
 	WithPagination(schema)
 
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "search_pull_requests",
@@ -1247,7 +1247,7 @@ func UpdatePullRequestBranch(t translations.TranslationHelperFunc) inventory.Ser
 		Required: []string{"owner", "repo", "pullNumber"},
 	}
 
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "update_pull_request_branch",
@@ -1369,7 +1369,7 @@ func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.Serv
 		Required: []string{"method", "owner", "repo", "pullNumber"},
 	}
 
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name: "pull_request_review_write",
@@ -1700,7 +1700,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 		Required: []string{"owner", "repo", "pullNumber", "path", "body", "subjectType"},
 	}
 
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "add_comment_to_pending_review",
@@ -1853,7 +1853,7 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 		Required: []string{"owner", "repo", "pullNumber"},
 	}
 
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "request_copilot_review",

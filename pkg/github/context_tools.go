@@ -39,7 +39,7 @@ type UserDetails struct {
 
 // GetMe creates a tool to get details of the authenticated user.
 func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataContext,
 		mcp.Tool{
 			Name:        "get_me",
@@ -113,7 +113,7 @@ type OrganizationTeams struct {
 }
 
 func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataContext,
 		mcp.Tool{
 			Name:        "get_teams",
@@ -212,7 +212,7 @@ func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
 }
 
 func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataContext,
 		mcp.Tool{
 			Name:        "get_team_members",

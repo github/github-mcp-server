@@ -17,7 +17,7 @@ import (
 )
 
 func GetCodeScanningAlert(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataCodeSecurity,
 		mcp.Tool{
 			Name:        "get_code_scanning_alert",
@@ -95,7 +95,7 @@ func GetCodeScanningAlert(t translations.TranslationHelperFunc) inventory.Server
 }
 
 func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewToolWithScopes(
+	return NewTool(
 		ToolsetMetadataCodeSecurity,
 		mcp.Tool{
 			Name:        "list_code_scanning_alerts",
