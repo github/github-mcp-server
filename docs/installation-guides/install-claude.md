@@ -45,12 +45,12 @@ claude mcp add --transport http github https://api.githubcopilot.com/mcp -H "Aut
 ### With Docker
 1. Run the following command in the Claude Code CLI:
 ```bash
-claude mcp add github -e GITHUB_PERSONAL_ACCESS_TOKEN=YOUR_GITHUB_PAT -- docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server
+claude mcp add github -e GITHUB_ACCESS_TOKEN=YOUR_GITHUB_PAT -- docker run -i --rm -e GITHUB_ACCESS_TOKEN ghcr.io/github/github-mcp-server
 ```
 
 With an environment variable:
 ```bash
-claude mcp add github -e GITHUB_PERSONAL_ACCESS_TOKEN=$(grep GITHUB_PAT .env | cut -d '=' -f2) -- docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server
+claude mcp add github -e GITHUB_ACCESS_TOKEN=$(grep GITHUB_PAT .env | cut -d '=' -f2) -- docker run -i --rm -e GITHUB_ACCESS_TOKEN ghcr.io/github/github-mcp-server
 ```
 2. Restart Claude Code
 3. Run `claude mcp list` to see if the GitHub server is configured
@@ -61,7 +61,7 @@ claude mcp add github -e GITHUB_PERSONAL_ACCESS_TOKEN=$(grep GITHUB_PAT .env | c
 2. Add to your `PATH`
 3. Run:
 ```bash
-claude mcp add-json github '{"command": "github-mcp-server", "args": ["stdio"], "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_PAT"}}'
+claude mcp add-json github '{"command": "github-mcp-server", "args": ["stdio"], "env": {"GITHUB_ACCESS_TOKEN": "YOUR_GITHUB_PAT"}}'
 ```
 2. Restart Claude Code
 3. Run `claude mcp list` to see if the GitHub server is configured
@@ -104,11 +104,11 @@ Add this codeblock to your `claude_desktop_config.json`:
         "-i",
         "--rm",
         "-e",
-        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "GITHUB_ACCESS_TOKEN",
         "ghcr.io/github/github-mcp-server"
       ],
       "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_PAT"
+        "GITHUB_ACCESS_TOKEN": "YOUR_GITHUB_PAT"
       }
     }
   }

@@ -56,11 +56,11 @@ For users who prefer to run the GitHub MCP server locally. Requires Docker insta
       "type": "stdio",
       "command": "docker",
       "args": [
-        "run", "-i", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "run", "-i", "--rm", "-e", "GITHUB_ACCESS_TOKEN",
         "ghcr.io/github/github-mcp-server"
       ],
       "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_pat}"
+        "GITHUB_ACCESS_TOKEN": "${input:github_pat}"
       }
     }
   }
@@ -116,11 +116,11 @@ For users who prefer to run the GitHub MCP server locally. Requires Docker insta
       "command": "docker",
       "args": [
         "run", "-i", "--rm", 
-        "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "-e", "GITHUB_ACCESS_TOKEN",
         "ghcr.io/github/github-mcp-server"
       ],
       "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_PAT"
+        "GITHUB_ACCESS_TOKEN": "YOUR_GITHUB_PAT"
       }
     }
   }
@@ -172,11 +172,11 @@ For users who prefer to run the GitHub MCP server locally. Requires Docker insta
       "command": "docker",
       "args": [
         "run", "-i", "--rm", 
-        "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "-e", "GITHUB_ACCESS_TOKEN",
         "ghcr.io/github/github-mcp-server"
       ],
       "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_PAT"
+        "GITHUB_ACCESS_TOKEN": "YOUR_GITHUB_PAT"
       }
     }
   }
@@ -229,11 +229,11 @@ For users who prefer to run the GitHub MCP server locally. Requires Docker insta
       "command": "docker",
       "args": [
         "run", "-i", "--rm", 
-        "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "-e", "GITHUB_ACCESS_TOKEN",
         "ghcr.io/github/github-mcp-server"
       ],
       "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_PAT"
+        "GITHUB_ACCESS_TOKEN": "YOUR_GITHUB_PAT"
       }
     }
   }

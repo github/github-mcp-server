@@ -124,7 +124,7 @@ run_mcp_test() {
             echo "$LIST_RESOURCES_MSG"
             echo "$LIST_PROMPTS_MSG"
             sleep 0.5
-        ) | GITHUB_PERSONAL_ACCESS_TOKEN=1 $binary stdio $flags 2>/dev/null
+        ) | GITHUB_ACCESS_TOKEN=1 $binary stdio $flags 2>/dev/null
     )
     
     end_time=$(date +%s.%N)
@@ -182,7 +182,7 @@ run_mcp_dynamic_test() {
             sleep 0.1
             echo "$LIST_TOOLSETS_AFTER_MSG"
             sleep 0.3
-        ) | GITHUB_PERSONAL_ACCESS_TOKEN=1 $binary stdio $flags 2>/dev/null
+        ) | GITHUB_ACCESS_TOKEN=1 $binary stdio $flags 2>/dev/null
     )
     
     end_time=$(date +%s.%N)
