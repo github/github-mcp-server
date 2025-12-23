@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/google/go-github/v73/github"
+	"github.com/google/go-github/v79/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -63,6 +63,33 @@ func TestGitHubErrorContext(t *testing.T) {
 		assert.Equal(t, "failed to execute mutation: GraphQL query failed", gqlError.Error())
 	})
 
+	t.Run("Raw API errors can be added to context and retrieved", func(t *testing.T) {
+		// Given a context with GitHub error tracking enabled
+		ctx := ContextWithGitHubErrors(context.Background())
+
+		// Create a mock HTTP response
+		resp := &http.Response{
+			StatusCode: 404,
+			Status:     "404 Not Found",
+		}
+		originalErr := fmt.Errorf("raw content not found")
+
+		// When we add a raw API error to the context
+		rawAPIErr := newGitHubRawAPIError("failed to fetch raw content", resp, originalErr)
+		updatedCtx, err := addRawAPIErrorToContext(ctx, rawAPIErr)
+		require.NoError(t, err)
+
+		// Then we should be able to retrieve the error from the updated context
+		rawErrors, err := GetGitHubRawAPIErrors(updatedCtx)
+		require.NoError(t, err)
+		require.Len(t, rawErrors, 1)
+
+		rawError := rawErrors[0]
+		assert.Equal(t, "failed to fetch raw content", rawError.Message)
+		assert.Equal(t, resp, rawError.Response)
+		assert.Equal(t, originalErr, rawError.Err)
+	})
+
 	t.Run("multiple errors can be accumulated in context", func(t *testing.T) {
 		// Given a context with GitHub error tracking enabled
 		ctx := ContextWithGitHubErrors(context.Background())
@@ -82,6 +109,11 @@ func TestGitHubErrorContext(t *testing.T) {
 		ctx, err = addGitHubGraphQLErrorToContext(ctx, gqlErr)
 		require.NoError(t, err)
 
+		// And add a raw API error
+		rawErr := newGitHubRawAPIError("raw error", &http.Response{StatusCode: 404}, fmt.Errorf("not found"))
+		ctx, err = addRawAPIErrorToContext(ctx, rawErr)
+		require.NoError(t, err)
+
 		// Then we should be able to retrieve all errors
 		apiErrors, err := GetGitHubAPIErrors(ctx)
 		require.NoError(t, err)
@@ -91,10 +123,15 @@ func TestGitHubErrorContext(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, gqlErrors, 1)
 
+		rawErrors, err := GetGitHubRawAPIErrors(ctx)
+		require.NoError(t, err)
+		assert.Len(t, rawErrors, 1)
+
 		// Verify error details
 		assert.Equal(t, "first error", apiErrors[0].Message)
 		assert.Equal(t, "second error", apiErrors[1].Message)
 		assert.Equal(t, "graphql error", gqlErrors[0].Message)
+		assert.Equal(t, "raw error", rawErrors[0].Message)
 	})
 
 	t.Run("context pointer sharing allows middleware to inspect errors without context propagation", func(t *testing.T) {
@@ -160,6 +197,12 @@ func TestGitHubErrorContext(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "context does not contain GitHubCtxErrors")
 		assert.Nil(t, gqlErrors)
+
+		// Same for raw API errors
+		rawErrors, err := GetGitHubRawAPIErrors(ctx)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "context does not contain GitHubCtxErrors")
+		assert.Nil(t, rawErrors)
 	})
 
 	t.Run("ContextWithGitHubErrors resets existing errors", func(t *testing.T) {
@@ -169,18 +212,31 @@ func TestGitHubErrorContext(t *testing.T) {
 		ctx, err := NewGitHubAPIErrorToCtx(ctx, "existing error", resp, fmt.Errorf("error"))
 		require.NoError(t, err)
 
-		// Verify error exists
+		// Add a raw API error too
+		rawErr := newGitHubRawAPIError("existing raw error", &http.Response{StatusCode: 404}, fmt.Errorf("error"))
+		ctx, err = addRawAPIErrorToContext(ctx, rawErr)
+		require.NoError(t, err)
+
+		// Verify errors exist
 		apiErrors, err := GetGitHubAPIErrors(ctx)
 		require.NoError(t, err)
 		assert.Len(t, apiErrors, 1)
 
+		rawErrors, err := GetGitHubRawAPIErrors(ctx)
+		require.NoError(t, err)
+		assert.Len(t, rawErrors, 1)
+
 		// When we call ContextWithGitHubErrors again
 		resetCtx := ContextWithGitHubErrors(ctx)
 
-		// Then the errors should be cleared
+		// Then all errors should be cleared
 		apiErrors, err = GetGitHubAPIErrors(resetCtx)
 		require.NoError(t, err)
-		assert.Len(t, apiErrors, 0, "Errors should be reset")
+		assert.Len(t, apiErrors, 0, "API errors should be reset")
+
+		rawErrors, err = GetGitHubRawAPIErrors(resetCtx)
+		require.NoError(t, err)
+		assert.Len(t, rawErrors, 0, "Raw API errors should be reset")
 	})
 
 	t.Run("NewGitHubAPIErrorResponse creates MCP error result and stores context error", func(t *testing.T) {
@@ -229,6 +285,33 @@ func TestGitHubErrorContext(t *testing.T) {
 		gqlError := gqlErrors[0]
 		assert.Equal(t, "GraphQL call failed", gqlError.Message)
 		assert.Equal(t, originalErr, gqlError.Err)
+	})
+
+	t.Run("NewGitHubAPIStatusErrorResponse creates MCP error result from status code", func(t *testing.T) {
+		// Given a context with GitHub error tracking enabled
+		ctx := ContextWithGitHubErrors(context.Background())
+
+		resp := &github.Response{Response: &http.Response{StatusCode: 422}}
+		body := []byte(`{"message": "Validation Failed"}`)
+
+		// When we create a status error response
+		result := NewGitHubAPIStatusErrorResponse(ctx, "failed to create issue", resp, body)
+
+		// Then it should return an MCP error result
+		require.NotNil(t, result)
+		assert.True(t, result.IsError)
+
+		// And the error should be stored in the context
+		apiErrors, err := GetGitHubAPIErrors(ctx)
+		require.NoError(t, err)
+		require.Len(t, apiErrors, 1)
+
+		apiError := apiErrors[0]
+		assert.Equal(t, "failed to create issue", apiError.Message)
+		assert.Equal(t, resp, apiError.Response)
+		// The synthetic error should contain the status code and body
+		assert.Contains(t, apiError.Err.Error(), "unexpected status 422")
+		assert.Contains(t, apiError.Err.Error(), "Validation Failed")
 	})
 
 	t.Run("NewGitHubAPIErrorToCtx with uninitialized context does not error", func(t *testing.T) {

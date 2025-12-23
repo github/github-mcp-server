@@ -1,22 +1,44 @@
 package raw
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
-	"github.com/google/go-github/v73/github"
-	"github.com/migueleliasweb/go-github-mock/src/mock"
+	"github.com/google/go-github/v79/github"
 	"github.com/stretchr/testify/require"
 )
+
+// mockRawTransport is a custom HTTP transport for testing raw content API
+type mockRawTransport struct {
+	statusCode  int
+	contentType string
+	body        string
+}
+
+func (m *mockRawTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Create a response with the configured status and body
+	resp := &http.Response{
+		StatusCode: m.statusCode,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(bytes.NewBufferString(m.body)),
+		Request:    req,
+	}
+	if m.contentType != "" {
+		resp.Header.Set("Content-Type", m.contentType)
+	}
+	return resp, nil
+}
 
 func TestGetRawContent(t *testing.T) {
 	base, _ := url.Parse("https://raw.example.com/")
 
 	tests := []struct {
 		name              string
-		pattern           mock.EndpointPattern
 		opts              *ContentOpts
 		owner, repo, path string
 		statusCode        int
@@ -25,46 +47,51 @@ func TestGetRawContent(t *testing.T) {
 		expectError       string
 	}{
 		{
-			name:    "HEAD fetch success",
-			pattern: GetRawReposContentsByOwnerByRepoByPath,
-			opts:    nil,
-			owner:   "octocat", repo: "hello", path: "README.md",
+			name:        "HEAD fetch success",
+			opts:        nil,
+			owner:       "octocat",
+			repo:        "hello",
+			path:        "README.md",
 			statusCode:  200,
 			contentType: "text/plain",
 			body:        "# Test file",
 		},
 		{
-			name:    "branch fetch success",
-			pattern: GetRawReposContentsByOwnerByRepoByBranchByPath,
-			opts:    &ContentOpts{Ref: "refs/heads/main"},
-			owner:   "octocat", repo: "hello", path: "README.md",
+			name:        "branch fetch success",
+			opts:        &ContentOpts{Ref: "refs/heads/main"},
+			owner:       "octocat",
+			repo:        "hello",
+			path:        "README.md",
 			statusCode:  200,
 			contentType: "text/plain",
 			body:        "# Test file",
 		},
 		{
-			name:    "tag fetch success",
-			pattern: GetRawReposContentsByOwnerByRepoByTagByPath,
-			opts:    &ContentOpts{Ref: "refs/tags/v1.0.0"},
-			owner:   "octocat", repo: "hello", path: "README.md",
+			name:        "tag fetch success",
+			opts:        &ContentOpts{Ref: "refs/tags/v1.0.0"},
+			owner:       "octocat",
+			repo:        "hello",
+			path:        "README.md",
 			statusCode:  200,
 			contentType: "text/plain",
 			body:        "# Test file",
 		},
 		{
-			name:    "sha fetch success",
-			pattern: GetRawReposContentsByOwnerByRepoBySHAByPath,
-			opts:    &ContentOpts{SHA: "abc123"},
-			owner:   "octocat", repo: "hello", path: "README.md",
+			name:        "sha fetch success",
+			opts:        &ContentOpts{SHA: "abc123"},
+			owner:       "octocat",
+			repo:        "hello",
+			path:        "README.md",
 			statusCode:  200,
 			contentType: "text/plain",
 			body:        "# Test file",
 		},
 		{
-			name:    "not found",
-			pattern: GetRawReposContentsByOwnerByRepoByPath,
-			opts:    nil,
-			owner:   "octocat", repo: "hello", path: "notfound.txt",
+			name:        "not found",
+			opts:        nil,
+			owner:       "octocat",
+			repo:        "hello",
+			path:        "notfound.txt",
 			statusCode:  404,
 			contentType: "application/json",
 			body:        `{"message": "Not Found"}`,
@@ -73,29 +100,33 @@ func TestGetRawContent(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			mockedClient := mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					tc.pattern,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.Header().Set("Content-Type", tc.contentType)
-						w.WriteHeader(tc.statusCode)
-						_, err := w.Write([]byte(tc.body))
-						require.NoError(t, err)
-					}),
-				),
-			)
+			// Create mock HTTP client with custom transport
+			mockedClient := &http.Client{
+				Transport: &mockRawTransport{
+					statusCode:  tc.statusCode,
+					contentType: tc.contentType,
+					body:        tc.body,
+				},
+			}
 			ghClient := github.NewClient(mockedClient)
 			client := NewClient(ghClient, base)
 			resp, err := client.GetRawContent(context.Background(), tc.owner, tc.repo, tc.path, tc.opts)
 			defer func() {
 				_ = resp.Body.Close()
 			}()
+
 			if tc.expectError != "" {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
 			require.Equal(t, tc.statusCode, resp.StatusCode)
+
+			// Verify the URL was constructed correctly
+			actualURL := client.URLFromOpts(tc.opts, tc.owner, tc.repo, tc.path)
+			require.True(t, strings.Contains(actualURL, tc.owner))
+			require.True(t, strings.Contains(actualURL, tc.repo))
+			require.True(t, strings.Contains(actualURL, tc.path))
 		})
 	}
 }

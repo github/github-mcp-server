@@ -1,0 +1,25 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get team members"
+  },
+  "description": "Get member usernames of a specific team in an organization. Limited to organizations accessible with current credentials",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "org",
+      "team_slug"
+    ],
+    "properties": {
+      "org": {
+        "type": "string",
+        "description": "Organization login (owner) that contains the team."
+      },
+      "team_slug": {
+        "type": "string",
+        "description": "Team slug"
+      }
+    }
+  },
+  "name": "get_team_members"
+}

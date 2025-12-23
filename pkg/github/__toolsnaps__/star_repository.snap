@@ -1,0 +1,36 @@
+{
+  "annotations": {
+    "title": "Star repository"
+  },
+  "description": "Star a GitHub repository",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "properties": {
+      "owner": {
+        "type": "string",
+        "description": "Repository owner"
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      }
+    }
+  },
+  "name": "star_repository",
+  "icons": [
+    {
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAACG0lEQVRIidWVMWgTYRiGn+/+a21EClGrERRiTWLShrbiUETErDq7u3QRF0WhoKN06uYgKEVx1lGQLjo4OTUJ2FzSpBrEQiCkGYPm7nMwlZBe2rvaxXf6eb//fd//u/+7O0MIJDJz905MnJpvNRufg2oksHli5iwjUgXExUp9La3Vg+isoAGMyiJwBBi11XsQVBaog0zm8plfdGtApEd1LJdEpVL4sZ82UAc/cRf7zAHGPKMPg2j37eB8NnvauGYTODpQ6hjPulAur23tpTd7FePx+JhtIkvAVZ+yraJj48ciH9rtdneYhwCk03NxV5hWNAWSVLykIEngHPs/Rg/4ruiGYG2AbghSMcoXx8l/k3R6Lt4V3STEyAaE2iqTluPk66Arh2wO6Irj5OsGoNVsvIuejEVFmD8Ua+V5zSneAfTvJW83G6vHJ2LjwJV/tH9Wc4p3AYWBKWo1G6vRiZgRuH4ga3S5Vire7+d2jel2s/HxICEKT2ql4qNB3ncEbU9fhTEHGFF56cf7BrhCNmyAi/pqhr1EoQN0iGZIgEyHDUDw1dghNneB1731bR9tsA5yuZwNZPooBd4YT7PVUmGhWios2CpJEV7w5zu0g0xPO3DWAUymZ1OWUO6V3yP6uLpeWPM7XWJq9hIqS6A3ADzl4qZTqPTv2ZUYMd2tjms/NZa+rawXPvkZ76AXfDM1NXPN9eRWxHT3/Df8n/gNrfGxihYBZk0AAAAASUVORK5CYII=",
+      "mimeType": "image/png",
+      "theme": "light"
+    },
+    {
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAABLElEQVRIidWVTUrDQBiG3ylddNG9+IdRMC7qpgfoWTyCnqFLF/62UMGNWw/gTdwoiMUzaCtoHxeZ4BQn6SQdEV8IZPG9zzMzCYlUIcARcFilUwW+AUyBd2DrNwSXfOciNnwVeHMEE2A9puCMnzmNBV8BXj2CCbC2LLwFDDzwPAOgVcYwFpRI6khKJe0616akxoJ1zCS9SHp0rgdJ98aYZ2PhT7ksYpC005A0lnQdGS7LHGcqMMB5yVlXzQiYP1orOYkAHwLFxw30l4AfBx1eTUk/+OkA2zUEiY9V9I7vB69mQefPBJ0aAm+nWWH4Q9KNvT/wdMN2DTTJ/lx5ZsAtsOfMJMAV8OnMTYGiBc8JUqd0B3RLZrt2Jk8aImiTfTZ6QVvOOj3baYd2/k++AC+3Yx0GcXS0AAAAAElFTkSuQmCC",
+      "mimeType": "image/png",
+      "theme": "dark"
+    }
+  ]
+}

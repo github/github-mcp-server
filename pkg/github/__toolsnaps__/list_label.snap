@@ -1,0 +1,25 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "List labels from a repository."
+  },
+  "description": "List labels from a repository",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "properties": {
+      "owner": {
+        "type": "string",
+        "description": "Repository owner (username or organization name) - required for all operations"
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name - required for all operations"
+      }
+    }
+  },
+  "name": "list_label"
+}

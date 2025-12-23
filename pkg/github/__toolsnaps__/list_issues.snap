@@ -1,73 +1,71 @@
 {
   "annotations": {
-    "title": "List issues",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "List issues"
   },
-  "description": "List issues in a GitHub repository.",
+  "description": "List issues in a GitHub repository. For pagination, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter.",
   "inputSchema": {
-    "properties": {
-      "direction": {
-        "description": "Sort direction",
-        "enum": [
-          "asc",
-          "desc"
-        ],
-        "type": "string"
-      },
-      "labels": {
-        "description": "Filter by labels",
-        "items": {
-          "type": "string"
-        },
-        "type": "array"
-      },
-      "owner": {
-        "description": "Repository owner",
-        "type": "string"
-      },
-      "page": {
-        "description": "Page number for pagination (min 1)",
-        "minimum": 1,
-        "type": "number"
-      },
-      "perPage": {
-        "description": "Results per page for pagination (min 1, max 100)",
-        "maximum": 100,
-        "minimum": 1,
-        "type": "number"
-      },
-      "repo": {
-        "description": "Repository name",
-        "type": "string"
-      },
-      "since": {
-        "description": "Filter by date (ISO 8601 timestamp)",
-        "type": "string"
-      },
-      "sort": {
-        "description": "Sort order",
-        "enum": [
-          "created",
-          "updated",
-          "comments"
-        ],
-        "type": "string"
-      },
-      "state": {
-        "description": "Filter by state",
-        "enum": [
-          "open",
-          "closed",
-          "all"
-        ],
-        "type": "string"
-      }
-    },
+    "type": "object",
     "required": [
       "owner",
       "repo"
     ],
-    "type": "object"
+    "properties": {
+      "after": {
+        "type": "string",
+        "description": "Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs."
+      },
+      "direction": {
+        "type": "string",
+        "description": "Order direction. If provided, the 'orderBy' also needs to be provided.",
+        "enum": [
+          "ASC",
+          "DESC"
+        ]
+      },
+      "labels": {
+        "type": "array",
+        "description": "Filter by labels",
+        "items": {
+          "type": "string"
+        }
+      },
+      "orderBy": {
+        "type": "string",
+        "description": "Order issues by field. If provided, the 'direction' also needs to be provided.",
+        "enum": [
+          "CREATED_AT",
+          "UPDATED_AT",
+          "COMMENTS"
+        ]
+      },
+      "owner": {
+        "type": "string",
+        "description": "Repository owner"
+      },
+      "perPage": {
+        "type": "number",
+        "description": "Results per page for pagination (min 1, max 100)",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      },
+      "since": {
+        "type": "string",
+        "description": "Filter by date (ISO 8601 timestamp)"
+      },
+      "state": {
+        "type": "string",
+        "description": "Filter by state, by default both open and closed issues are returned when not provided",
+        "enum": [
+          "OPEN",
+          "CLOSED"
+        ]
+      }
+    }
   },
   "name": "list_issues"
 }

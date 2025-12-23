@@ -1,0 +1,33 @@
+{
+  "annotations": {
+    "title": "Update Gist"
+  },
+  "description": "Update an existing gist",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "gist_id",
+      "filename",
+      "content"
+    ],
+    "properties": {
+      "content": {
+        "type": "string",
+        "description": "Content for the file"
+      },
+      "description": {
+        "type": "string",
+        "description": "Updated description of the gist"
+      },
+      "filename": {
+        "type": "string",
+        "description": "Filename to update or create"
+      },
+      "gist_id": {
+        "type": "string",
+        "description": "ID of the gist to update"
+      }
+    }
+  },
+  "name": "update_gist"
+}
