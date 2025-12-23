@@ -46,7 +46,7 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 	}
 	WithPagination(schema)
 
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "search_repositories",
@@ -57,6 +57,8 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 			},
 			InputSchema: schema,
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			query, err := RequiredParam[string](args, "query")
 			if err != nil {
@@ -188,7 +190,7 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 	}
 	WithPagination(schema)
 
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name:        "search_code",
@@ -199,6 +201,8 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 			InputSchema: schema,
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			query, err := RequiredParam[string](args, "query")
 			if err != nil {
@@ -369,7 +373,7 @@ func SearchUsers(t translations.TranslationHelperFunc) inventory.ServerTool {
 	}
 	WithPagination(schema)
 
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataUsers,
 		mcp.Tool{
 			Name:        "search_users",
@@ -380,6 +384,8 @@ func SearchUsers(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 			InputSchema: schema,
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			return userOrOrgHandler(ctx, "user", deps, args)
 		},
@@ -410,7 +416,7 @@ func SearchOrgs(t translations.TranslationHelperFunc) inventory.ServerTool {
 	}
 	WithPagination(schema)
 
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataOrgs,
 		mcp.Tool{
 			Name:        "search_orgs",
@@ -421,6 +427,8 @@ func SearchOrgs(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 			InputSchema: schema,
 		},
+		scopes.ToStringSlice(scopes.ReadOrg),
+		scopes.ToStringSlice(scopes.ReadOrg, scopes.WriteOrg, scopes.AdminOrg),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			return userOrOrgHandler(ctx, "org", deps, args)
 		},

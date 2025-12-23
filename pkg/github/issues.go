@@ -11,10 +11,10 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/sanitize"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-viper/mapstructure/v2"
@@ -264,7 +264,7 @@ Options are:
 	}
 	WithPagination(schema)
 
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "issue_read",
@@ -275,6 +275,8 @@ Options are:
 			},
 			InputSchema: schema,
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -959,7 +961,7 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 	}
 	WithPagination(schema)
 
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "search_issues",
@@ -970,6 +972,8 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 			InputSchema: schema,
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			result, err := searchHandler(ctx, deps.GetClient, args, "issue", "failed to search issues")
 			return result, nil, err
@@ -1383,7 +1387,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 	}
 	WithCursorPagination(schema)
 
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "list_issues",
@@ -1394,6 +1398,8 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 			InputSchema: schema,
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1621,7 +1627,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 		},
 	}
 
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "assign_copilot_to_issue",
@@ -1651,6 +1657,8 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				Required: []string{"owner", "repo", "issue_number"},
 			},
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			var params struct {
 				Owner       string `mapstructure:"owner"`

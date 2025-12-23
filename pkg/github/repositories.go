@@ -11,8 +11,9 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/octicons"
+	"github.com/github/github-mcp-server/pkg/raw"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -317,7 +318,7 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // CreateOrUpdateFile creates a tool to create or update a file in a GitHub repository.
 func CreateOrUpdateFile(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataRepos,
 		mcp.Tool{
 			Name: "create_or_update_file",
@@ -368,6 +369,8 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 				Required: []string{"owner", "repo", "path", "content", "message", "branch"},
 			},
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {

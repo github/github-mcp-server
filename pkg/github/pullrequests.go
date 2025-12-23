@@ -15,10 +15,10 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/sanitize"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 )
@@ -59,7 +59,7 @@ Possible options:
 	}
 	WithPagination(schema)
 
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "pull_request_read",
@@ -70,6 +70,8 @@ Possible options:
 			},
 			InputSchema: schema,
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -508,7 +510,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 		Required: []string{"owner", "repo", "title", "head", "base"},
 	}
 
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "create_pull_request",
@@ -519,6 +521,8 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			},
 			InputSchema: schema,
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -659,7 +663,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 		Required: []string{"owner", "repo", "pullNumber"},
 	}
 
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "update_pull_request",
@@ -670,6 +674,8 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			},
 			InputSchema: schema,
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -940,7 +946,7 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 	}
 	WithPagination(schema)
 
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "list_pull_requests",
@@ -951,6 +957,8 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 			},
 			InputSchema: schema,
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1075,7 +1083,7 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 		Required: []string{"owner", "repo", "pullNumber"},
 	}
 
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "merge_pull_request",
@@ -1087,6 +1095,8 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 			},
 			InputSchema: schema,
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1193,7 +1203,7 @@ func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTo
 	}
 	WithPagination(schema)
 
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "search_pull_requests",
@@ -1204,6 +1214,8 @@ func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTo
 			},
 			InputSchema: schema,
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			result, err := searchHandler(ctx, deps.GetClient, args, "pr", "failed to search pull requests")
 			return result, nil, err
@@ -1235,7 +1247,7 @@ func UpdatePullRequestBranch(t translations.TranslationHelperFunc) inventory.Ser
 		Required: []string{"owner", "repo", "pullNumber"},
 	}
 
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "update_pull_request_branch",
@@ -1246,6 +1258,8 @@ func UpdatePullRequestBranch(t translations.TranslationHelperFunc) inventory.Ser
 			},
 			InputSchema: schema,
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1355,7 +1369,7 @@ func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.Serv
 		Required: []string{"method", "owner", "repo", "pullNumber"},
 	}
 
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name: "pull_request_review_write",
@@ -1372,6 +1386,8 @@ Available methods:
 			},
 			InputSchema: schema,
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			var params PullRequestReviewWriteParams
 			if err := mapstructure.Decode(args, &params); err != nil {
@@ -1684,7 +1700,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 		Required: []string{"owner", "repo", "pullNumber", "path", "body", "subjectType"},
 	}
 
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "add_comment_to_pending_review",
@@ -1695,6 +1711,8 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 			},
 			InputSchema: schema,
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			var params struct {
 				Owner       string
@@ -1835,7 +1853,7 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 		Required: []string{"owner", "repo", "pullNumber"},
 	}
 
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "request_copilot_review",
@@ -1847,6 +1865,8 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 			},
 			InputSchema: schema,
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
