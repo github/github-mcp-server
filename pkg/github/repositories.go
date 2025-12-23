@@ -690,10 +690,16 @@ func CreateRepositoryFromTemplate(t translations.TranslationHelperFunc) inventor
 
 			templateReq := &github.TemplateRepoRequest{
 				Name:               github.Ptr(name),
-				Owner:              github.Ptr(owner),
-				Description:        github.Ptr(description),
 				Private:            github.Ptr(private),
 				IncludeAllBranches: github.Ptr(includeAllBranches),
+			}
+			// Only set owner if provided (otherwise GitHub uses authenticated user)
+			if owner != "" {
+				templateReq.Owner = github.Ptr(owner)
+			}
+			// Only set description if provided (otherwise repository has no description)
+			if description != "" {
+				templateReq.Description = github.Ptr(description)
 			}
 
 			client, err := deps.GetClient(ctx)
