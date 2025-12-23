@@ -33,6 +33,13 @@ Fixes #
 - [ ] Auth / permissions considered
 - [ ] Data exposure, filtering, or token/size limits considered
 
+## Tool renaming
+- [ ] I am renaming tools as part of this PR (e.g. a part of a consolidation effort)
+   - [ ] I have added the new tool aliases in `deprecated_tool_aliases.go` 
+- [ ] I am not renaming tools as part of this PR
+
+Note: if you're renaming tools, you *must* add the tool aliases. For more information on how to do so, please refer to the [official docs](https://github.com/github/github-mcp-server/blob/main/docs/tool-renaming.md).
+
 ## Lint & tests
 <!-- Check what you ran. If not run, explain briefly. -->
 - [ ] Linted locally with `./script/lint`
