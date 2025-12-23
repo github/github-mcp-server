@@ -155,6 +155,24 @@ func NewTool[In, Out any](toolset inventory.ToolsetMetadata, tool mcp.Tool, hand
 	})
 }
 
+// NewToolWithScopes creates a ServerTool with OAuth scope requirements.
+// This is like NewTool but also accepts required and accepted scopes.
+func NewToolWithScopes[In, Out any](
+	toolset inventory.ToolsetMetadata,
+	tool mcp.Tool,
+	requiredScopes []string,
+	acceptedScopes []string,
+	handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error),
+) inventory.ServerTool {
+	st := inventory.NewServerToolWithContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error) {
+		deps := MustDepsFromContext(ctx)
+		return handler(ctx, deps, req, args)
+	})
+	st.RequiredScopes = requiredScopes
+	st.AcceptedScopes = acceptedScopes
+	return st
+}
+
 // NewToolFromHandler creates a ServerTool that retrieves ToolDependencies from context at call time.
 // Use this when you have a handler that conforms to mcp.ToolHandler directly.
 //
@@ -165,4 +183,22 @@ func NewToolFromHandler(toolset inventory.ToolsetMetadata, tool mcp.Tool, handle
 		deps := MustDepsFromContext(ctx)
 		return handler(ctx, deps, req)
 	})
+}
+
+// NewToolFromHandlerWithScopes creates a ServerTool with OAuth scope requirements.
+// This is like NewToolFromHandler but also accepts required and accepted scopes.
+func NewToolFromHandlerWithScopes(
+	toolset inventory.ToolsetMetadata,
+	tool mcp.Tool,
+	requiredScopes []string,
+	acceptedScopes []string,
+	handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest) (*mcp.CallToolResult, error),
+) inventory.ServerTool {
+	st := inventory.NewServerToolWithRawContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		deps := MustDepsFromContext(ctx)
+		return handler(ctx, deps, req)
+	})
+	st.RequiredScopes = requiredScopes
+	st.AcceptedScopes = acceptedScopes
+	return st
 }

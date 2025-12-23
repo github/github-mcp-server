@@ -70,6 +70,15 @@ type ServerTool struct {
 	// The context carries request-scoped information for the consumer to use.
 	// Returns (enabled, error). On error, the tool should be treated as disabled.
 	Enabled func(ctx context.Context) (bool, error)
+
+	// RequiredScopes specifies the minimum OAuth scopes required for this tool.
+	// These are the scopes that must be present for the tool to function.
+	RequiredScopes []string
+
+	// AcceptedScopes specifies all OAuth scopes that can be used with this tool.
+	// This includes the required scopes plus any higher-level scopes that provide
+	// the necessary permissions due to scope hierarchy.
+	AcceptedScopes []string
 }
 
 // IsReadOnly returns true if this tool is marked as read-only via annotations.
