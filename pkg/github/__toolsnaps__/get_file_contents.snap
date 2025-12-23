@@ -1,38 +1,38 @@
 {
   "annotations": {
-    "title": "Get file or directory contents",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "Get file or directory contents"
   },
   "description": "Get the contents of a file or directory from a GitHub repository",
   "inputSchema": {
-    "properties": {
-      "owner": {
-        "description": "Repository owner (username or organization)",
-        "type": "string"
-      },
-      "path": {
-        "default": "/",
-        "description": "Path to file/directory (directories must end with a slash '/')",
-        "type": "string"
-      },
-      "ref": {
-        "description": "Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head`",
-        "type": "string"
-      },
-      "repo": {
-        "description": "Repository name",
-        "type": "string"
-      },
-      "sha": {
-        "description": "Accepts optional commit SHA. If specified, it will be used instead of ref",
-        "type": "string"
-      }
-    },
+    "type": "object",
     "required": [
       "owner",
       "repo"
     ],
-    "type": "object"
+    "properties": {
+      "owner": {
+        "type": "string",
+        "description": "Repository owner (username or organization)"
+      },
+      "path": {
+        "type": "string",
+        "description": "Path to file/directory",
+        "default": "/"
+      },
+      "ref": {
+        "type": "string",
+        "description": "Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head`"
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      },
+      "sha": {
+        "type": "string",
+        "description": "Accepts optional commit SHA. If specified, it will be used instead of ref"
+      }
+    }
   },
   "name": "get_file_contents"
 }

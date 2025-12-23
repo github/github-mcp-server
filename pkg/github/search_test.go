@@ -8,7 +8,8 @@ import (
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v74/github"
+	"github.com/google/go-github/v79/github"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,16 +17,21 @@ import (
 
 func Test_SearchRepositories(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := SearchRepositories(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := SearchRepositories(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "search_repositories", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "query")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"query"})
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "query")
+	assert.Contains(t, schema.Properties, "sort")
+	assert.Contains(t, schema.Properties, "order")
+	assert.Contains(t, schema.Properties, "page")
+	assert.Contains(t, schema.Properties, "perPage")
+	assert.ElementsMatch(t, schema.Required, []string{"query"})
 
 	// Setup mock search results
 	mockSearchResult := &github.RepositoriesSearchResult{
@@ -66,6 +72,8 @@ func Test_SearchRepositories(t *testing.T) {
 					mock.GetSearchRepositories,
 					expectQueryParams(t, map[string]string{
 						"q":        "golang test",
+						"sort":     "stars",
+						"order":    "desc",
 						"page":     "2",
 						"per_page": "10",
 					}).andThen(
@@ -75,6 +83,8 @@ func Test_SearchRepositories(t *testing.T) {
 			),
 			requestArgs: map[string]interface{}{
 				"query":   "golang test",
+				"sort":    "stars",
+				"order":   "desc",
 				"page":    float64(2),
 				"perPage": float64(10),
 			},
@@ -124,13 +134,16 @@ func Test_SearchRepositories(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := SearchRepositories(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -148,37 +161,103 @@ func Test_SearchRepositories(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
-			var returnedResult github.RepositoriesSearchResult
+			var returnedResult MinimalSearchRepositoriesResult
 			err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
 			require.NoError(t, err)
-			assert.Equal(t, *tc.expectedResult.Total, *returnedResult.Total)
-			assert.Equal(t, *tc.expectedResult.IncompleteResults, *returnedResult.IncompleteResults)
-			assert.Len(t, returnedResult.Repositories, len(tc.expectedResult.Repositories))
-			for i, repo := range returnedResult.Repositories {
-				assert.Equal(t, *tc.expectedResult.Repositories[i].ID, *repo.ID)
-				assert.Equal(t, *tc.expectedResult.Repositories[i].Name, *repo.Name)
-				assert.Equal(t, *tc.expectedResult.Repositories[i].FullName, *repo.FullName)
-				assert.Equal(t, *tc.expectedResult.Repositories[i].HTMLURL, *repo.HTMLURL)
+			assert.Equal(t, *tc.expectedResult.Total, returnedResult.TotalCount)
+			assert.Equal(t, *tc.expectedResult.IncompleteResults, returnedResult.IncompleteResults)
+			assert.Len(t, returnedResult.Items, len(tc.expectedResult.Repositories))
+			for i, repo := range returnedResult.Items {
+				assert.Equal(t, *tc.expectedResult.Repositories[i].ID, repo.ID)
+				assert.Equal(t, *tc.expectedResult.Repositories[i].Name, repo.Name)
+				assert.Equal(t, *tc.expectedResult.Repositories[i].FullName, repo.FullName)
+				assert.Equal(t, *tc.expectedResult.Repositories[i].HTMLURL, repo.HTMLURL)
 			}
 
 		})
 	}
 }
 
+func Test_SearchRepositories_FullOutput(t *testing.T) {
+	mockSearchResult := &github.RepositoriesSearchResult{
+		Total:             github.Ptr(1),
+		IncompleteResults: github.Ptr(false),
+		Repositories: []*github.Repository{
+			{
+				ID:              github.Ptr(int64(12345)),
+				Name:            github.Ptr("test-repo"),
+				FullName:        github.Ptr("owner/test-repo"),
+				HTMLURL:         github.Ptr("https://github.com/owner/test-repo"),
+				Description:     github.Ptr("Test repository"),
+				StargazersCount: github.Ptr(100),
+			},
+		},
+	}
+
+	mockedClient := mock.NewMockedHTTPClient(
+		mock.WithRequestMatchHandler(
+			mock.GetSearchRepositories,
+			expectQueryParams(t, map[string]string{
+				"q":        "golang test",
+				"page":     "1",
+				"per_page": "30",
+			}).andThen(
+				mockResponse(t, http.StatusOK, mockSearchResult),
+			),
+		),
+	)
+
+	client := github.NewClient(mockedClient)
+	serverTool := SearchRepositories(translations.NullTranslationHelper)
+	deps := BaseDeps{
+		Client: client,
+	}
+	handler := serverTool.Handler(deps)
+
+	args := map[string]interface{}{
+		"query":          "golang test",
+		"minimal_output": false,
+	}
+
+	request := createMCPRequest(args)
+
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+
+	// Unmarshal as full GitHub API response
+	var returnedResult github.RepositoriesSearchResult
+	err = json.Unmarshal([]byte(textContent.Text), &returnedResult)
+	require.NoError(t, err)
+
+	// Verify it's the full API response, not minimal
+	assert.Equal(t, *mockSearchResult.Total, *returnedResult.Total)
+	assert.Equal(t, *mockSearchResult.IncompleteResults, *returnedResult.IncompleteResults)
+	assert.Len(t, returnedResult.Repositories, 1)
+	assert.Equal(t, *mockSearchResult.Repositories[0].ID, *returnedResult.Repositories[0].ID)
+	assert.Equal(t, *mockSearchResult.Repositories[0].Name, *returnedResult.Repositories[0].Name)
+}
+
 func Test_SearchCode(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := SearchCode(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := SearchCode(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "search_code", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "query")
-	assert.Contains(t, tool.InputSchema.Properties, "sort")
-	assert.Contains(t, tool.InputSchema.Properties, "order")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"query"})
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "query")
+	assert.Contains(t, schema.Properties, "sort")
+	assert.Contains(t, schema.Properties, "order")
+	assert.Contains(t, schema.Properties, "perPage")
+	assert.Contains(t, schema.Properties, "page")
+	assert.ElementsMatch(t, schema.Required, []string{"query"})
 
 	// Setup mock search results
 	mockSearchResult := &github.CodeSearchResult{
@@ -279,13 +358,16 @@ func Test_SearchCode(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := SearchCode(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -322,18 +404,21 @@ func Test_SearchCode(t *testing.T) {
 
 func Test_SearchUsers(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := SearchUsers(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := SearchUsers(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "search_users", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "query")
-	assert.Contains(t, tool.InputSchema.Properties, "sort")
-	assert.Contains(t, tool.InputSchema.Properties, "order")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"query"})
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "query")
+	assert.Contains(t, schema.Properties, "sort")
+	assert.Contains(t, schema.Properties, "order")
+	assert.Contains(t, schema.Properties, "perPage")
+	assert.Contains(t, schema.Properties, "page")
+	assert.ElementsMatch(t, schema.Required, []string{"query"})
 
 	// Setup mock search results
 	mockSearchResult := &github.UsersSearchResult{
@@ -473,13 +558,16 @@ func Test_SearchUsers(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := SearchUsers(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -517,17 +605,22 @@ func Test_SearchUsers(t *testing.T) {
 
 func Test_SearchOrgs(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := SearchOrgs(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := SearchOrgs(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "search_orgs", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "query")
-	assert.Contains(t, tool.InputSchema.Properties, "sort")
-	assert.Contains(t, tool.InputSchema.Properties, "order")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"query"})
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "query")
+	assert.Contains(t, schema.Properties, "sort")
+	assert.Contains(t, schema.Properties, "order")
+	assert.Contains(t, schema.Properties, "perPage")
+	assert.Contains(t, schema.Properties, "page")
+	assert.ElementsMatch(t, schema.Required, []string{"query"})
 
 	// Setup mock search results
 	mockSearchResult := &github.UsersSearchResult{
@@ -640,13 +733,16 @@ func Test_SearchOrgs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := SearchOrgs(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {

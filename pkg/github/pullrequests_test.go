@@ -9,8 +9,10 @@ import (
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v74/github"
+	"github.com/google/go-github/v79/github"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 
 	"github.com/migueleliasweb/go-github-mock/src/mock"
@@ -20,16 +22,18 @@ import (
 
 func Test_GetPullRequest(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := GetPullRequest(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "get_pull_request", tool.Name)
+	assert.Equal(t, "pull_request_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber"})
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "method")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "pullNumber")
+	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
 
 	// Setup mock PR for success case
 	mockPR := &github.PullRequest{
@@ -67,6 +71,7 @@ func Test_GetPullRequest(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":     "get",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
@@ -86,6 +91,7 @@ func Test_GetPullRequest(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":     "get",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(999),
@@ -99,13 +105,20 @@ func Test_GetPullRequest(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetPullRequest(stubGetClientFn(client), translations.NullTranslationHelper)
+			gqlClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient())
+			deps := BaseDeps{
+				Client:          client,
+				GQLClient:       gqlClient,
+				RepoAccessCache: stubRepoAccessCache(gqlClient, 5*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -136,23 +149,24 @@ func Test_GetPullRequest(t *testing.T) {
 
 func Test_UpdatePullRequest(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := UpdatePullRequest(stubGetClientFn(mockClient), stubGetGQLClientFn(githubv4.NewClient(nil)), translations.NullTranslationHelper)
+	serverTool := UpdatePullRequest(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "update_pull_request", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
-	assert.Contains(t, tool.InputSchema.Properties, "draft")
-	assert.Contains(t, tool.InputSchema.Properties, "title")
-	assert.Contains(t, tool.InputSchema.Properties, "body")
-	assert.Contains(t, tool.InputSchema.Properties, "state")
-	assert.Contains(t, tool.InputSchema.Properties, "base")
-	assert.Contains(t, tool.InputSchema.Properties, "maintainer_can_modify")
-	assert.Contains(t, tool.InputSchema.Properties, "reviewers")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber"})
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "pullNumber")
+	assert.Contains(t, schema.Properties, "draft")
+	assert.Contains(t, schema.Properties, "title")
+	assert.Contains(t, schema.Properties, "body")
+	assert.Contains(t, schema.Properties, "state")
+	assert.Contains(t, schema.Properties, "base")
+	assert.Contains(t, schema.Properties, "maintainer_can_modify")
+	assert.Contains(t, schema.Properties, "reviewers")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "pullNumber"})
 
 	// Setup mock PR for success case
 	mockUpdatedPR := &github.PullRequest{
@@ -356,13 +370,18 @@ func Test_UpdatePullRequest(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := UpdatePullRequest(stubGetClientFn(client), stubGetGQLClientFn(githubv4.NewClient(nil)), translations.NullTranslationHelper)
+			gqlClient := githubv4.NewClient(nil)
+			deps := BaseDeps{
+				Client:    client,
+				GQLClient: gqlClient,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError || tc.expectedErrMsg != "" {
@@ -381,47 +400,11 @@ func Test_UpdatePullRequest(t *testing.T) {
 			// Parse the result and get the text content
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the successful result
-			var returnedPR github.PullRequest
-			err = json.Unmarshal([]byte(textContent.Text), &returnedPR)
+			// Unmarshal and verify the minimal result
+			var updateResp MinimalResponse
+			err = json.Unmarshal([]byte(textContent.Text), &updateResp)
 			require.NoError(t, err)
-			assert.Equal(t, *tc.expectedPR.Number, *returnedPR.Number)
-			if tc.expectedPR.Title != nil {
-				assert.Equal(t, *tc.expectedPR.Title, *returnedPR.Title)
-			}
-			if tc.expectedPR.Body != nil {
-				assert.Equal(t, *tc.expectedPR.Body, *returnedPR.Body)
-			}
-			if tc.expectedPR.State != nil {
-				assert.Equal(t, *tc.expectedPR.State, *returnedPR.State)
-			}
-			if tc.expectedPR.Base != nil && tc.expectedPR.Base.Ref != nil {
-				assert.NotNil(t, returnedPR.Base)
-				assert.Equal(t, *tc.expectedPR.Base.Ref, *returnedPR.Base.Ref)
-			}
-			if tc.expectedPR.MaintainerCanModify != nil {
-				assert.Equal(t, *tc.expectedPR.MaintainerCanModify, *returnedPR.MaintainerCanModify)
-			}
-
-			// Check reviewers if they exist in the expected PR
-			if len(tc.expectedPR.RequestedReviewers) > 0 {
-				assert.NotNil(t, returnedPR.RequestedReviewers)
-				assert.Equal(t, len(tc.expectedPR.RequestedReviewers), len(returnedPR.RequestedReviewers))
-
-				// Create maps of reviewer logins for easy comparison
-				expectedReviewers := make(map[string]bool)
-				for _, reviewer := range tc.expectedPR.RequestedReviewers {
-					expectedReviewers[*reviewer.Login] = true
-				}
-
-				actualReviewers := make(map[string]bool)
-				for _, reviewer := range returnedPR.RequestedReviewers {
-					actualReviewers[*reviewer.Login] = true
-				}
-
-				// Compare the maps
-				assert.Equal(t, expectedReviewers, actualReviewers)
-			}
+			assert.Equal(t, tc.expectedPR.GetHTMLURL(), updateResp.URL)
 		})
 	}
 }
@@ -578,11 +561,16 @@ func Test_UpdatePullRequest_Draft(t *testing.T) {
 			))
 			gqlClient := githubv4.NewClient(tc.mockedClient)
 
-			_, handler := UpdatePullRequest(stubGetClientFn(restClient), stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+			serverTool := UpdatePullRequest(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client:    restClient,
+				GQLClient: gqlClient,
+			}
+			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
 
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			if tc.expectError || tc.expectedErrMsg != "" {
 				require.NoError(t, err)
@@ -599,33 +587,34 @@ func Test_UpdatePullRequest_Draft(t *testing.T) {
 
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the successful result
-			var returnedPR github.PullRequest
-			err = json.Unmarshal([]byte(textContent.Text), &returnedPR)
+			// Unmarshal and verify the minimal result
+			var updateResp MinimalResponse
+			err = json.Unmarshal([]byte(textContent.Text), &updateResp)
 			require.NoError(t, err)
-			assert.Equal(t, *tc.expectedPR.Number, *returnedPR.Number)
+			assert.Equal(t, tc.expectedPR.GetHTMLURL(), updateResp.URL)
 		})
 	}
 }
 
 func Test_ListPullRequests(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := ListPullRequests(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ListPullRequests(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_pull_requests", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "state")
-	assert.Contains(t, tool.InputSchema.Properties, "head")
-	assert.Contains(t, tool.InputSchema.Properties, "base")
-	assert.Contains(t, tool.InputSchema.Properties, "sort")
-	assert.Contains(t, tool.InputSchema.Properties, "direction")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "state")
+	assert.Contains(t, schema.Properties, "head")
+	assert.Contains(t, schema.Properties, "base")
+	assert.Contains(t, schema.Properties, "sort")
+	assert.Contains(t, schema.Properties, "direction")
+	assert.Contains(t, schema.Properties, "perPage")
+	assert.Contains(t, schema.Properties, "page")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
 	// Setup mock PRs for success case
 	mockPRs := []*github.PullRequest{
@@ -704,13 +693,17 @@ func Test_ListPullRequests(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListPullRequests(stubGetClientFn(client), translations.NullTranslationHelper)
+			serverTool := ListPullRequests(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -744,19 +737,20 @@ func Test_ListPullRequests(t *testing.T) {
 
 func Test_MergePullRequest(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := MergePullRequest(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := MergePullRequest(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "merge_pull_request", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
-	assert.Contains(t, tool.InputSchema.Properties, "commit_title")
-	assert.Contains(t, tool.InputSchema.Properties, "commit_message")
-	assert.Contains(t, tool.InputSchema.Properties, "merge_method")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber"})
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "pullNumber")
+	assert.Contains(t, schema.Properties, "commit_title")
+	assert.Contains(t, schema.Properties, "commit_message")
+	assert.Contains(t, schema.Properties, "merge_method")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "pullNumber"})
 
 	// Setup mock merge result for success case
 	mockMergeResult := &github.PullRequestMergeResult{
@@ -823,13 +817,17 @@ func Test_MergePullRequest(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := MergePullRequest(stubGetClientFn(client), translations.NullTranslationHelper)
+			serverTool := MergePullRequest(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -858,20 +856,21 @@ func Test_MergePullRequest(t *testing.T) {
 }
 
 func Test_SearchPullRequests(t *testing.T) {
-	mockClient := github.NewClient(nil)
-	tool, _ := SearchPullRequests(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := SearchPullRequests(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "search_pull_requests", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "query")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "sort")
-	assert.Contains(t, tool.InputSchema.Properties, "order")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"query"})
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "query")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "sort")
+	assert.Contains(t, schema.Properties, "order")
+	assert.Contains(t, schema.Properties, "perPage")
+	assert.Contains(t, schema.Properties, "page")
+	assert.ElementsMatch(t, schema.Required, []string{"query"})
 
 	mockSearchResult := &github.IssuesSearchResult{
 		Total:             github.Ptr(2),
@@ -1124,18 +1123,25 @@ func Test_SearchPullRequests(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := SearchPullRequests(stubGetClientFn(client), translations.NullTranslationHelper)
+			serverTool := SearchPullRequests(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				require.NoError(t, err)
+				require.NotNil(t, result)
+				require.True(t, result.IsError)
+				textContent := getErrorResult(t, result)
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
 				return
 			}
 
@@ -1165,18 +1171,20 @@ func Test_SearchPullRequests(t *testing.T) {
 
 func Test_GetPullRequestFiles(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := GetPullRequestFiles(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "get_pull_request_files", tool.Name)
+	assert.Equal(t, "pull_request_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
-	assert.Contains(t, tool.InputSchema.Properties, "page")
-	assert.Contains(t, tool.InputSchema.Properties, "perPage")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber"})
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "method")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "pullNumber")
+	assert.Contains(t, schema.Properties, "page")
+	assert.Contains(t, schema.Properties, "perPage")
+	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
 
 	// Setup mock PR files for success case
 	mockFiles := []*github.CommitFile{
@@ -1215,6 +1223,7 @@ func Test_GetPullRequestFiles(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":     "get_files",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
@@ -1231,6 +1240,7 @@ func Test_GetPullRequestFiles(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":     "get_files",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
@@ -1252,6 +1262,7 @@ func Test_GetPullRequestFiles(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":     "get_files",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(999),
@@ -1265,13 +1276,19 @@ func Test_GetPullRequestFiles(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetPullRequestFiles(stubGetClientFn(client), translations.NullTranslationHelper)
+			serverTool := PullRequestRead(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client:          client,
+				RepoAccessCache: stubRepoAccessCache(githubv4.NewClient(githubv4mock.NewMockedHTTPClient()), 5*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -1305,16 +1322,18 @@ func Test_GetPullRequestFiles(t *testing.T) {
 
 func Test_GetPullRequestStatus(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := GetPullRequestStatus(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "get_pull_request_status", tool.Name)
+	assert.Equal(t, "pull_request_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber"})
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "method")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "pullNumber")
+	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
 
 	// Setup mock PR for successful PR fetch
 	mockPR := &github.PullRequest{
@@ -1374,6 +1393,7 @@ func Test_GetPullRequestStatus(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":     "get_status",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
@@ -1393,6 +1413,7 @@ func Test_GetPullRequestStatus(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":     "get_status",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(999),
@@ -1416,6 +1437,7 @@ func Test_GetPullRequestStatus(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":     "get_status",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
@@ -1429,13 +1451,19 @@ func Test_GetPullRequestStatus(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetPullRequestStatus(stubGetClientFn(client), translations.NullTranslationHelper)
+			serverTool := PullRequestRead(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client:          client,
+				RepoAccessCache: stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -1470,17 +1498,18 @@ func Test_GetPullRequestStatus(t *testing.T) {
 
 func Test_UpdatePullRequestBranch(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := UpdatePullRequestBranch(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := UpdatePullRequestBranch(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "update_pull_request_branch", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
-	assert.Contains(t, tool.InputSchema.Properties, "expectedHeadSha")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber"})
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "pullNumber")
+	assert.Contains(t, schema.Properties, "expectedHeadSha")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "pullNumber"})
 
 	// Setup mock update result for success case
 	mockUpdateResult := &github.PullRequestBranchUpdateResponse{
@@ -1560,13 +1589,17 @@ func Test_UpdatePullRequestBranch(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := UpdatePullRequestBranch(stubGetClientFn(client), translations.NullTranslationHelper)
+			serverTool := UpdatePullRequestBranch(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -1590,103 +1623,303 @@ func Test_UpdatePullRequestBranch(t *testing.T) {
 
 func Test_GetPullRequestComments(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := GetPullRequestComments(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "get_pull_request_comments", tool.Name)
+	assert.Equal(t, "pull_request_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber"})
-
-	// Setup mock PR comments for success case
-	mockComments := []*github.PullRequestComment{
-		{
-			ID:      github.Ptr(int64(101)),
-			Body:    github.Ptr("This looks good"),
-			HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42#discussion_r101"),
-			User: &github.User{
-				Login: github.Ptr("reviewer1"),
-			},
-			Path:      github.Ptr("file1.go"),
-			Position:  github.Ptr(5),
-			CommitID:  github.Ptr("abcdef123456"),
-			CreatedAt: &github.Timestamp{Time: time.Now().Add(-24 * time.Hour)},
-			UpdatedAt: &github.Timestamp{Time: time.Now().Add(-24 * time.Hour)},
-		},
-		{
-			ID:      github.Ptr(int64(102)),
-			Body:    github.Ptr("Please fix this"),
-			HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42#discussion_r102"),
-			User: &github.User{
-				Login: github.Ptr("reviewer2"),
-			},
-			Path:      github.Ptr("file2.go"),
-			Position:  github.Ptr(10),
-			CommitID:  github.Ptr("abcdef123456"),
-			CreatedAt: &github.Timestamp{Time: time.Now().Add(-12 * time.Hour)},
-			UpdatedAt: &github.Timestamp{Time: time.Now().Add(-12 * time.Hour)},
-		},
-	}
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "method")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "pullNumber")
+	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
 
 	tests := []struct {
-		name             string
-		mockedClient     *http.Client
-		requestArgs      map[string]interface{}
-		expectError      bool
-		expectedComments []*github.PullRequestComment
-		expectedErrMsg   string
+		name            string
+		gqlHTTPClient   *http.Client
+		requestArgs     map[string]interface{}
+		expectError     bool
+		expectedErrMsg  string
+		lockdownEnabled bool
+		validateResult  func(t *testing.T, textContent string)
 	}{
 		{
-			name: "successful comments fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposPullsCommentsByOwnerByRepoByPullNumber,
-					mockComments,
-				),
-			),
-			requestArgs: map[string]interface{}{
-				"owner":      "owner",
-				"repo":       "repo",
-				"pullNumber": float64(42),
-			},
-			expectError:      false,
-			expectedComments: mockComments,
-		},
-		{
-			name: "comments fetch fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposPullsCommentsByOwnerByRepoByPullNumber,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+			name: "successful review threads fetch",
+			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					reviewThreadsQuery{},
+					map[string]interface{}{
+						"owner":             githubv4.String("owner"),
+						"repo":              githubv4.String("repo"),
+						"prNum":             githubv4.Int(42),
+						"first":             githubv4.Int(30),
+						"commentsPerThread": githubv4.Int(100),
+						"after":             (*githubv4.String)(nil),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"pullRequest": map[string]any{
+								"reviewThreads": map[string]any{
+									"nodes": []map[string]any{
+										{
+											"id":          "RT_kwDOA0xdyM4AX1Yz",
+											"isResolved":  false,
+											"isOutdated":  false,
+											"isCollapsed": false,
+											"comments": map[string]any{
+												"totalCount": 2,
+												"nodes": []map[string]any{
+													{
+														"id":   "PRRC_kwDOA0xdyM4AX1Y0",
+														"body": "This looks good",
+														"path": "file1.go",
+														"line": 5,
+														"author": map[string]any{
+															"login": "reviewer1",
+														},
+														"createdAt": "2024-01-01T12:00:00Z",
+														"updatedAt": "2024-01-01T12:00:00Z",
+														"url":       "https://github.com/owner/repo/pull/42#discussion_r101",
+													},
+													{
+														"id":   "PRRC_kwDOA0xdyM4AX1Y1",
+														"body": "Please fix this",
+														"path": "file1.go",
+														"line": 10,
+														"author": map[string]any{
+															"login": "reviewer2",
+														},
+														"createdAt": "2024-01-01T13:00:00Z",
+														"updatedAt": "2024-01-01T13:00:00Z",
+														"url":       "https://github.com/owner/repo/pull/42#discussion_r102",
+													},
+												},
+											},
+										},
+									},
+									"pageInfo": map[string]any{
+										"hasNextPage":     false,
+										"hasPreviousPage": false,
+										"startCursor":     "cursor1",
+										"endCursor":       "cursor2",
+									},
+									"totalCount": 1,
+								},
+							},
+						},
 					}),
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":     "get_review_comments",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError: false,
+			validateResult: func(t *testing.T, textContent string) {
+				var result map[string]interface{}
+				err := json.Unmarshal([]byte(textContent), &result)
+				require.NoError(t, err)
+
+				// Validate response structure
+				assert.Contains(t, result, "reviewThreads")
+				assert.Contains(t, result, "pageInfo")
+				assert.Contains(t, result, "totalCount")
+
+				// Validate review threads
+				threads := result["reviewThreads"].([]interface{})
+				assert.Len(t, threads, 1)
+
+				thread := threads[0].(map[string]interface{})
+				assert.Equal(t, "RT_kwDOA0xdyM4AX1Yz", thread["ID"])
+				assert.Equal(t, false, thread["IsResolved"])
+				assert.Equal(t, false, thread["IsOutdated"])
+				assert.Equal(t, false, thread["IsCollapsed"])
+
+				// Validate comments within thread
+				comments := thread["Comments"].(map[string]interface{})
+				commentNodes := comments["Nodes"].([]interface{})
+				assert.Len(t, commentNodes, 2)
+
+				// Validate first comment
+				comment1 := commentNodes[0].(map[string]interface{})
+				assert.Equal(t, "PRRC_kwDOA0xdyM4AX1Y0", comment1["ID"])
+				assert.Equal(t, "This looks good", comment1["Body"])
+				assert.Equal(t, "file1.go", comment1["Path"])
+
+				// Validate pagination info
+				pageInfo := result["pageInfo"].(map[string]interface{})
+				assert.Equal(t, false, pageInfo["hasNextPage"])
+				assert.Equal(t, false, pageInfo["hasPreviousPage"])
+				assert.Equal(t, "cursor1", pageInfo["startCursor"])
+				assert.Equal(t, "cursor2", pageInfo["endCursor"])
+
+				// Validate total count
+				assert.Equal(t, float64(1), result["totalCount"])
+			},
+		},
+		{
+			name: "review threads fetch fails",
+			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					reviewThreadsQuery{},
+					map[string]interface{}{
+						"owner":             githubv4.String("owner"),
+						"repo":              githubv4.String("repo"),
+						"prNum":             githubv4.Int(999),
+						"first":             githubv4.Int(30),
+						"commentsPerThread": githubv4.Int(100),
+						"after":             (*githubv4.String)(nil),
+					},
+					githubv4mock.ErrorResponse("Could not resolve to a PullRequest with the number of 999."),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"method":     "get_review_comments",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(999),
 			},
 			expectError:    true,
-			expectedErrMsg: "failed to get pull request comments",
+			expectedErrMsg: "failed to get pull request review threads",
+		},
+		{
+			name: "lockdown enabled filters review comments without push access",
+			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					reviewThreadsQuery{},
+					map[string]interface{}{
+						"owner":             githubv4.String("owner"),
+						"repo":              githubv4.String("repo"),
+						"prNum":             githubv4.Int(42),
+						"first":             githubv4.Int(30),
+						"commentsPerThread": githubv4.Int(100),
+						"after":             (*githubv4.String)(nil),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"pullRequest": map[string]any{
+								"reviewThreads": map[string]any{
+									"nodes": []map[string]any{
+										{
+											"id":          "RT_kwDOA0xdyM4AX1Yz",
+											"isResolved":  false,
+											"isOutdated":  false,
+											"isCollapsed": false,
+											"comments": map[string]any{
+												"totalCount": 2,
+												"nodes": []map[string]any{
+													{
+														"id":   "PRRC_kwDOA0xdyM4AX1Y0",
+														"body": "Maintainer review comment",
+														"path": "file1.go",
+														"line": 5,
+														"author": map[string]any{
+															"login": "maintainer",
+														},
+														"createdAt": "2024-01-01T12:00:00Z",
+														"updatedAt": "2024-01-01T12:00:00Z",
+														"url":       "https://github.com/owner/repo/pull/42#discussion_r2010",
+													},
+													{
+														"id":   "PRRC_kwDOA0xdyM4AX1Y1",
+														"body": "External review comment",
+														"path": "file1.go",
+														"line": 10,
+														"author": map[string]any{
+															"login": "testuser",
+														},
+														"createdAt": "2024-01-01T13:00:00Z",
+														"updatedAt": "2024-01-01T13:00:00Z",
+														"url":       "https://github.com/owner/repo/pull/42#discussion_r2011",
+													},
+												},
+											},
+										},
+									},
+									"pageInfo": map[string]any{
+										"hasNextPage":     false,
+										"hasPreviousPage": false,
+										"startCursor":     "cursor1",
+										"endCursor":       "cursor2",
+									},
+									"totalCount": 1,
+								},
+							},
+						},
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"method":     "get_review_comments",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:     false,
+			lockdownEnabled: true,
+			validateResult: func(t *testing.T, textContent string) {
+				var result map[string]interface{}
+				err := json.Unmarshal([]byte(textContent), &result)
+				require.NoError(t, err)
+
+				// Validate that only maintainer comment is returned
+				threads := result["reviewThreads"].([]interface{})
+				assert.Len(t, threads, 1)
+
+				thread := threads[0].(map[string]interface{})
+				comments := thread["Comments"].(map[string]interface{})
+
+				// Should only have 1 comment (maintainer) after filtering
+				assert.Equal(t, float64(1), comments["TotalCount"])
+
+				commentNodes := comments["Nodes"].([]interface{})
+				assert.Len(t, commentNodes, 1)
+
+				comment := commentNodes[0].(map[string]interface{})
+				author := comment["Author"].(map[string]interface{})
+				assert.Equal(t, "maintainer", author["Login"])
+				assert.Equal(t, "Maintainer review comment", comment["Body"])
+			},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Setup client with mock
-			client := github.NewClient(tc.mockedClient)
-			_, handler := GetPullRequestComments(stubGetClientFn(client), translations.NullTranslationHelper)
+			// Setup GraphQL client with mock
+			var gqlClient *githubv4.Client
+			if tc.gqlHTTPClient != nil {
+				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
+			} else {
+				gqlClient = githubv4.NewClient(nil)
+			}
+
+			// Setup cache for lockdown mode
+			var cache *lockdown.RepoAccessCache
+			if tc.lockdownEnabled {
+				cache = stubRepoAccessCache(githubv4.NewClient(newRepoAccessHTTPClient()), 5*time.Minute)
+			} else {
+				cache = stubRepoAccessCache(gqlClient, 5*time.Minute)
+			}
+
+			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
+			serverTool := PullRequestRead(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client:          github.NewClient(nil),
+				GQLClient:       gqlClient,
+				RepoAccessCache: cache,
+				Flags:           flags,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -1703,17 +1936,9 @@ func Test_GetPullRequestComments(t *testing.T) {
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
-			var returnedComments []*github.PullRequestComment
-			err = json.Unmarshal([]byte(textContent.Text), &returnedComments)
-			require.NoError(t, err)
-			assert.Len(t, returnedComments, len(tc.expectedComments))
-			for i, comment := range returnedComments {
-				assert.Equal(t, *tc.expectedComments[i].ID, *comment.ID)
-				assert.Equal(t, *tc.expectedComments[i].Body, *comment.Body)
-				assert.Equal(t, *tc.expectedComments[i].User.Login, *comment.User.Login)
-				assert.Equal(t, *tc.expectedComments[i].Path, *comment.Path)
-				assert.Equal(t, *tc.expectedComments[i].HTMLURL, *comment.HTMLURL)
+			// Use custom validation if provided
+			if tc.validateResult != nil {
+				tc.validateResult(t, textContent.Text)
 			}
 		})
 	}
@@ -1721,16 +1946,18 @@ func Test_GetPullRequestComments(t *testing.T) {
 
 func Test_GetPullRequestReviews(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := GetPullRequestReviews(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "get_pull_request_reviews", tool.Name)
+	assert.Equal(t, "pull_request_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber"})
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "method")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "pullNumber")
+	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
 
 	// Setup mock PR reviews for success case
 	mockReviews := []*github.PullRequestReview{
@@ -1761,10 +1988,12 @@ func Test_GetPullRequestReviews(t *testing.T) {
 	tests := []struct {
 		name            string
 		mockedClient    *http.Client
+		gqlHTTPClient   *http.Client
 		requestArgs     map[string]interface{}
 		expectError     bool
 		expectedReviews []*github.PullRequestReview
 		expectedErrMsg  string
+		lockdownEnabled bool
 	}{
 		{
 			name: "successful reviews fetch",
@@ -1775,6 +2004,7 @@ func Test_GetPullRequestReviews(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":     "get_reviews",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
@@ -1794,6 +2024,7 @@ func Test_GetPullRequestReviews(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]interface{}{
+				"method":     "get_reviews",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(999),
@@ -1801,19 +2032,72 @@ func Test_GetPullRequestReviews(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to get pull request reviews",
 		},
+		{
+			name: "lockdown enabled filters reviews without push access",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatch(
+					mock.GetReposPullsReviewsByOwnerByRepoByPullNumber,
+					[]*github.PullRequestReview{
+						{
+							ID:    github.Ptr(int64(2030)),
+							State: github.Ptr("APPROVED"),
+							Body:  github.Ptr("Maintainer review"),
+							User:  &github.User{Login: github.Ptr("maintainer")},
+						},
+						{
+							ID:    github.Ptr(int64(2031)),
+							State: github.Ptr("COMMENTED"),
+							Body:  github.Ptr("External reviewer"),
+							User:  &github.User{Login: github.Ptr("testuser")},
+						},
+					},
+				),
+			),
+			gqlHTTPClient: newRepoAccessHTTPClient(),
+			requestArgs: map[string]interface{}{
+				"method":     "get_reviews",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError: false,
+			expectedReviews: []*github.PullRequestReview{
+				{
+					ID:    github.Ptr(int64(2030)),
+					State: github.Ptr("APPROVED"),
+					Body:  github.Ptr("Maintainer review"),
+					User:  &github.User{Login: github.Ptr("maintainer")},
+				},
+			},
+			lockdownEnabled: true,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetPullRequestReviews(stubGetClientFn(client), translations.NullTranslationHelper)
+			var gqlClient *githubv4.Client
+			if tc.gqlHTTPClient != nil {
+				gqlClient = githubv4.NewClient(tc.gqlHTTPClient)
+			} else {
+				gqlClient = githubv4.NewClient(nil)
+			}
+			cache := stubRepoAccessCache(gqlClient, 5*time.Minute)
+			flags := stubFeatureFlags(map[string]bool{"lockdown-mode": tc.lockdownEnabled})
+			serverTool := PullRequestRead(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client:          client,
+				RepoAccessCache: cache,
+				Flags:           flags,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -1836,11 +2120,13 @@ func Test_GetPullRequestReviews(t *testing.T) {
 			require.NoError(t, err)
 			assert.Len(t, returnedReviews, len(tc.expectedReviews))
 			for i, review := range returnedReviews {
-				assert.Equal(t, *tc.expectedReviews[i].ID, *review.ID)
-				assert.Equal(t, *tc.expectedReviews[i].State, *review.State)
-				assert.Equal(t, *tc.expectedReviews[i].Body, *review.Body)
-				assert.Equal(t, *tc.expectedReviews[i].User.Login, *review.User.Login)
-				assert.Equal(t, *tc.expectedReviews[i].HTMLURL, *review.HTMLURL)
+				require.NotNil(t, tc.expectedReviews[i].User)
+				require.NotNil(t, review.User)
+				assert.Equal(t, tc.expectedReviews[i].GetID(), review.GetID())
+				assert.Equal(t, tc.expectedReviews[i].GetState(), review.GetState())
+				assert.Equal(t, tc.expectedReviews[i].GetBody(), review.GetBody())
+				assert.Equal(t, tc.expectedReviews[i].GetUser().GetLogin(), review.GetUser().GetLogin())
+				assert.Equal(t, tc.expectedReviews[i].GetHTMLURL(), review.GetHTMLURL())
 			}
 		})
 	}
@@ -1848,21 +2134,22 @@ func Test_GetPullRequestReviews(t *testing.T) {
 
 func Test_CreatePullRequest(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := CreatePullRequest(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := CreatePullRequest(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "create_pull_request", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "title")
-	assert.Contains(t, tool.InputSchema.Properties, "body")
-	assert.Contains(t, tool.InputSchema.Properties, "head")
-	assert.Contains(t, tool.InputSchema.Properties, "base")
-	assert.Contains(t, tool.InputSchema.Properties, "draft")
-	assert.Contains(t, tool.InputSchema.Properties, "maintainer_can_modify")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "title", "head", "base"})
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "title")
+	assert.Contains(t, schema.Properties, "body")
+	assert.Contains(t, schema.Properties, "head")
+	assert.Contains(t, schema.Properties, "base")
+	assert.Contains(t, schema.Properties, "draft")
+	assert.Contains(t, schema.Properties, "maintainer_can_modify")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "title", "head", "base"})
 
 	// Setup mock PR for success case
 	mockPR := &github.PullRequest{
@@ -1962,13 +2249,17 @@ func Test_CreatePullRequest(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := CreatePullRequest(stubGetClientFn(client), translations.NullTranslationHelper)
+			serverTool := CreatePullRequest(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -1988,18 +2279,11 @@ func Test_CreatePullRequest(t *testing.T) {
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
-			var returnedPR github.PullRequest
+			// Unmarshal and verify the minimal result
+			var returnedPR MinimalResponse
 			err = json.Unmarshal([]byte(textContent.Text), &returnedPR)
 			require.NoError(t, err)
-			assert.Equal(t, *tc.expectedPR.Number, *returnedPR.Number)
-			assert.Equal(t, *tc.expectedPR.Title, *returnedPR.Title)
-			assert.Equal(t, *tc.expectedPR.State, *returnedPR.State)
-			assert.Equal(t, *tc.expectedPR.HTMLURL, *returnedPR.HTMLURL)
-			assert.Equal(t, *tc.expectedPR.Head.SHA, *returnedPR.Head.SHA)
-			assert.Equal(t, *tc.expectedPR.Base.Ref, *returnedPR.Base.Ref)
-			assert.Equal(t, *tc.expectedPR.Body, *returnedPR.Body)
-			assert.Equal(t, *tc.expectedPR.User.Login, *returnedPR.User.Login)
+			assert.Equal(t, tc.expectedPR.GetHTMLURL(), returnedPR.URL)
 		})
 	}
 }
@@ -2008,19 +2292,21 @@ func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 	t.Parallel()
 
 	// Verify tool definition once
-	mockClient := githubv4.NewClient(nil)
-	tool, _ := CreateAndSubmitPullRequestReview(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "create_and_submit_pull_request_review", tool.Name)
+	assert.Equal(t, "pull_request_review_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
-	assert.Contains(t, tool.InputSchema.Properties, "body")
-	assert.Contains(t, tool.InputSchema.Properties, "event")
-	assert.Contains(t, tool.InputSchema.Properties, "commitID")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber", "body", "event"})
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "method")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "pullNumber")
+	assert.Contains(t, schema.Properties, "body")
+	assert.Contains(t, schema.Properties, "event")
+	assert.Contains(t, schema.Properties, "commitID")
+	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
 
 	tests := []struct {
 		name               string
@@ -2074,6 +2360,7 @@ func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
+				"method":     "create",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
@@ -2103,6 +2390,7 @@ func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
+				"method":     "create",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
@@ -2158,6 +2446,7 @@ func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
+				"method":     "create",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
@@ -2176,13 +2465,17 @@ func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 
 			// Setup client with mock
 			client := githubv4.NewClient(tc.mockedClient)
-			_, handler := CreateAndSubmitPullRequestReview(stubGetGQLClientFn(client), translations.NullTranslationHelper)
+			serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				GQLClient: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
 			textContent := getTextResult(t, result)
@@ -2202,16 +2495,17 @@ func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 func Test_RequestCopilotReview(t *testing.T) {
 	t.Parallel()
 
-	mockClient := github.NewClient(nil)
-	tool, _ := RequestCopilotReview(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := RequestCopilotReview(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "request_copilot_review", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber"})
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "pullNumber")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "pullNumber"})
 
 	// Setup mock PR for success case
 	mockPR := &github.PullRequest{
@@ -2287,11 +2581,15 @@ func Test_RequestCopilotReview(t *testing.T) {
 			t.Parallel()
 
 			client := github.NewClient(tc.mockedClient)
-			_, handler := RequestCopilotReview(stubGetClientFn(client), translations.NullTranslationHelper)
+			serverTool := RequestCopilotReview(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
 
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			if tc.expectError {
 				require.NoError(t, err)
@@ -2316,17 +2614,19 @@ func TestCreatePendingPullRequestReview(t *testing.T) {
 	t.Parallel()
 
 	// Verify tool definition once
-	mockClient := githubv4.NewClient(nil)
-	tool, _ := CreatePendingPullRequestReview(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "create_pending_pull_request_review", tool.Name)
+	assert.Equal(t, "pull_request_review_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
-	assert.Contains(t, tool.InputSchema.Properties, "commitID")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber"})
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "method")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "pullNumber")
+	assert.Contains(t, schema.Properties, "commitID")
+	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
 
 	tests := []struct {
 		name               string
@@ -2378,6 +2678,7 @@ func TestCreatePendingPullRequestReview(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
+				"method":     "create",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
@@ -2405,6 +2706,7 @@ func TestCreatePendingPullRequestReview(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
+				"method":     "create",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
@@ -2456,6 +2758,7 @@ func TestCreatePendingPullRequestReview(t *testing.T) {
 				),
 			),
 			requestArgs: map[string]any{
+				"method":     "create",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
@@ -2472,13 +2775,17 @@ func TestCreatePendingPullRequestReview(t *testing.T) {
 
 			// Setup client with mock
 			client := githubv4.NewClient(tc.mockedClient)
-			_, handler := CreatePendingPullRequestReview(stubGetGQLClientFn(client), translations.NullTranslationHelper)
+			serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				GQLClient: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
 			textContent := getTextResult(t, result)
@@ -2490,7 +2797,7 @@ func TestCreatePendingPullRequestReview(t *testing.T) {
 			}
 
 			// Parse the result and get the text content if no error
-			require.Equal(t, textContent.Text, "pending pull request created")
+			require.Equal(t, "pending pull request created", textContent.Text)
 		})
 	}
 }
@@ -2499,23 +2806,24 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 	t.Parallel()
 
 	// Verify tool definition once
-	mockClient := githubv4.NewClient(nil)
-	tool, _ := AddCommentToPendingReview(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := AddCommentToPendingReview(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "add_comment_to_pending_review", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
-	assert.Contains(t, tool.InputSchema.Properties, "path")
-	assert.Contains(t, tool.InputSchema.Properties, "body")
-	assert.Contains(t, tool.InputSchema.Properties, "subjectType")
-	assert.Contains(t, tool.InputSchema.Properties, "line")
-	assert.Contains(t, tool.InputSchema.Properties, "side")
-	assert.Contains(t, tool.InputSchema.Properties, "startLine")
-	assert.Contains(t, tool.InputSchema.Properties, "startSide")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber", "path", "body", "subjectType"})
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "pullNumber")
+	assert.Contains(t, schema.Properties, "path")
+	assert.Contains(t, schema.Properties, "body")
+	assert.Contains(t, schema.Properties, "subjectType")
+	assert.Contains(t, schema.Properties, "line")
+	assert.Contains(t, schema.Properties, "side")
+	assert.Contains(t, schema.Properties, "startLine")
+	assert.Contains(t, schema.Properties, "startSide")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "pullNumber", "path", "body", "subjectType"})
 
 	tests := []struct {
 		name               string
@@ -2573,9 +2881,74 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 						PullRequestReviewID: githubv4.NewID("PR_kwDODKw3uc6WYN1T"),
 					},
 					nil,
-					githubv4mock.DataResponse(map[string]any{}),
+					githubv4mock.DataResponse(map[string]any{
+						"addPullRequestReviewThread": map[string]any{
+							"thread": map[string]any{
+								"id": "MDEyOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMTIzNDU2",
+							},
+						},
+					}),
 				),
 			),
+		},
+		{
+			name: "thread ID is nil - invalid line number",
+			requestArgs: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"pullNumber":  float64(42),
+				"path":        "file.go",
+				"body":        "Comment on non-existent line",
+				"subjectType": "LINE",
+				"line":        float64(999),
+				"side":        "RIGHT",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				viewerQuery("williammartin"),
+				getLatestPendingReviewQuery(getLatestPendingReviewQueryParams{
+					author: "williammartin",
+					owner:  "owner",
+					repo:   "repo",
+					prNum:  42,
+
+					reviews: []getLatestPendingReviewQueryReview{
+						{
+							id:    "PR_kwDODKw3uc6WYN1T",
+							state: "PENDING",
+							url:   "https://github.com/owner/repo/pull/42",
+						},
+					},
+				}),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						AddPullRequestReviewThread struct {
+							Thread struct {
+								ID githubv4.ID
+							}
+						} `graphql:"addPullRequestReviewThread(input: $input)"`
+					}{},
+					githubv4.AddPullRequestReviewThreadInput{
+						Path:                githubv4.String("file.go"),
+						Body:                githubv4.String("Comment on non-existent line"),
+						SubjectType:         githubv4mock.Ptr(githubv4.PullRequestReviewThreadSubjectTypeLine),
+						Line:                githubv4.NewInt(999),
+						Side:                githubv4mock.Ptr(githubv4.DiffSideRight),
+						StartLine:           nil,
+						StartSide:           nil,
+						PullRequestReviewID: githubv4.NewID("PR_kwDODKw3uc6WYN1T"),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"addPullRequestReviewThread": map[string]any{
+							"thread": map[string]any{
+								"id": nil,
+							},
+						},
+					}),
+				),
+			),
+			expectToolError:    true,
+			expectedToolErrMsg: "Failed to add comment to pending review",
 		},
 	}
 
@@ -2585,13 +2958,17 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 
 			// Setup client with mock
 			client := githubv4.NewClient(tc.mockedClient)
-			_, handler := AddCommentToPendingReview(stubGetGQLClientFn(client), translations.NullTranslationHelper)
+			serverTool := AddCommentToPendingReview(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				GQLClient: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
 			textContent := getTextResult(t, result)
@@ -2612,18 +2989,20 @@ func TestSubmitPendingPullRequestReview(t *testing.T) {
 	t.Parallel()
 
 	// Verify tool definition once
-	mockClient := githubv4.NewClient(nil)
-	tool, _ := SubmitPendingPullRequestReview(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "submit_pending_pull_request_review", tool.Name)
+	assert.Equal(t, "pull_request_review_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
-	assert.Contains(t, tool.InputSchema.Properties, "event")
-	assert.Contains(t, tool.InputSchema.Properties, "body")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber", "event"})
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "method")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "pullNumber")
+	assert.Contains(t, schema.Properties, "event")
+	assert.Contains(t, schema.Properties, "body")
+	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
 
 	tests := []struct {
 		name               string
@@ -2635,6 +3014,7 @@ func TestSubmitPendingPullRequestReview(t *testing.T) {
 		{
 			name: "successful review submission",
 			requestArgs: map[string]any{
+				"method":     "submit_pending",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
@@ -2683,13 +3063,17 @@ func TestSubmitPendingPullRequestReview(t *testing.T) {
 
 			// Setup client with mock
 			client := githubv4.NewClient(tc.mockedClient)
-			_, handler := SubmitPendingPullRequestReview(stubGetGQLClientFn(client), translations.NullTranslationHelper)
+			serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				GQLClient: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
 			textContent := getTextResult(t, result)
@@ -2710,16 +3094,18 @@ func TestDeletePendingPullRequestReview(t *testing.T) {
 	t.Parallel()
 
 	// Verify tool definition once
-	mockClient := githubv4.NewClient(nil)
-	tool, _ := DeletePendingPullRequestReview(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "delete_pending_pull_request_review", tool.Name)
+	assert.Equal(t, "pull_request_review_write", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber"})
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "method")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "pullNumber")
+	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
 
 	tests := []struct {
 		name               string
@@ -2731,6 +3117,7 @@ func TestDeletePendingPullRequestReview(t *testing.T) {
 		{
 			name: "successful review deletion",
 			requestArgs: map[string]any{
+				"method":     "delete_pending",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
@@ -2775,13 +3162,17 @@ func TestDeletePendingPullRequestReview(t *testing.T) {
 
 			// Setup client with mock
 			client := githubv4.NewClient(tc.mockedClient)
-			_, handler := DeletePendingPullRequestReview(stubGetGQLClientFn(client), translations.NullTranslationHelper)
+			serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				GQLClient: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
 			textContent := getTextResult(t, result)
@@ -2802,16 +3193,18 @@ func TestGetPullRequestDiff(t *testing.T) {
 	t.Parallel()
 
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := GetPullRequestDiff(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := PullRequestRead(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "get_pull_request_diff", tool.Name)
+	assert.Equal(t, "pull_request_read", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "pullNumber")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo", "pullNumber"})
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "method")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "pullNumber")
+	assert.ElementsMatch(t, schema.Required, []string{"method", "owner", "repo", "pullNumber"})
 
 	stubbedDiff := `diff --git a/README.md b/README.md
 index 5d6e7b2..8a4f5c3 100644
@@ -2836,6 +3229,7 @@ index 5d6e7b2..8a4f5c3 100644
 		{
 			name: "successful diff retrieval",
 			requestArgs: map[string]any{
+				"method":     "get_diff",
 				"owner":      "owner",
 				"repo":       "repo",
 				"pullNumber": float64(42),
@@ -2859,13 +3253,19 @@ index 5d6e7b2..8a4f5c3 100644
 
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetPullRequestDiff(stubGetClientFn(client), translations.NullTranslationHelper)
+			serverTool := PullRequestRead(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client:          client,
+				RepoAccessCache: stubRepoAccessCache(githubv4.NewClient(nil), 5*time.Minute),
+				Flags:           stubFeatureFlags(map[string]bool{"lockdown-mode": false}),
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
 			textContent := getTextResult(t, result)

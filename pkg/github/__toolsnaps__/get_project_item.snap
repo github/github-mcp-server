@@ -1,0 +1,46 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get project item"
+  },
+  "description": "Get a specific Project item for a user or org",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "owner_type",
+      "owner",
+      "project_number",
+      "item_id"
+    ],
+    "properties": {
+      "fields": {
+        "type": "array",
+        "description": "Specific list of field IDs to include in the response (e.g. [\"102589\", \"985201\", \"169875\"]). If not provided, only the title field is included.",
+        "items": {
+          "type": "string"
+        }
+      },
+      "item_id": {
+        "type": "number",
+        "description": "The item's ID."
+      },
+      "owner": {
+        "type": "string",
+        "description": "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive."
+      },
+      "owner_type": {
+        "type": "string",
+        "description": "Owner type",
+        "enum": [
+          "user",
+          "org"
+        ]
+      },
+      "project_number": {
+        "type": "number",
+        "description": "The project's number."
+      }
+    }
+  },
+  "name": "get_project_item"
+}

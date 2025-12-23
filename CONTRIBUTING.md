@@ -16,6 +16,7 @@ We can't guarantee that every tool, feature, or pull request will be approved or
 
 To increase the chances your request is accepted:
 * Include real use cases or examples that demonstrate practical value
+* Please create an issue outlining the scenario and potential impact, so we can triage it promptly and prioritize accordingly.
 * If your request stalls, you can open a Discussion post and link to your issue or PR
 * We actively revisit requests that gain strong community engagement (👍s, comments, or evidence of real-world use)
 
@@ -38,6 +39,8 @@ These are one time installations required to be able to test your changes locall
     - Run linter: `script/lint`
     - Update snapshots and run tests: `UPDATE_TOOLSNAPS=true go test ./...`
     - Update readme documentation: `script/generate-docs`
+    - If renaming a tool, add a deprecation alias (see [Tool Renaming Guide](docs/tool-renaming.md))
+    - For toolset and icon configuration, see [Toolsets and Icons Guide](docs/toolsets-and-icons.md)
 6. Push to your fork and [submit a pull request][pr] targeting the `main` branch
 7. Pat yourself on the back and wait for your pull request to be reviewed and merged.
 

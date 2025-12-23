@@ -1,0 +1,44 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "List starred repositories"
+  },
+  "description": "List starred repositories",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "direction": {
+        "type": "string",
+        "description": "The direction to sort the results by.",
+        "enum": [
+          "asc",
+          "desc"
+        ]
+      },
+      "page": {
+        "type": "number",
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1
+      },
+      "perPage": {
+        "type": "number",
+        "description": "Results per page for pagination (min 1, max 100)",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "sort": {
+        "type": "string",
+        "description": "How to sort the results. Can be either 'created' (when the repository was starred) or 'updated' (when the repository was last pushed to).",
+        "enum": [
+          "created",
+          "updated"
+        ]
+      },
+      "username": {
+        "type": "string",
+        "description": "Username to list starred repositories for. Defaults to the authenticated user."
+      }
+    }
+  },
+  "name": "list_starred_repositories"
+}
