@@ -174,7 +174,7 @@ func setupMCPClient(t *testing.T, options ...clientOption) *mcp.ClientSession {
 			"-i",
 			"--rm",
 			"-e",
-			"GITHUB_PERSONAL_ACCESS_TOKEN", // Personal access token is all required
+			"GITHUB_ACCESS_TOKEN", // GitHub access token (PAT or OAuth)
 		}
 
 		host := getE2EHost()
@@ -193,7 +193,7 @@ func setupMCPClient(t *testing.T, options ...clientOption) *mcp.ClientSession {
 		// Construct the env vars for the MCP Client to execute docker with
 		// We need to include os.Environ() so docker can find its socket and config
 		dockerEnvVars := append(os.Environ(),
-			fmt.Sprintf("GITHUB_PERSONAL_ACCESS_TOKEN=%s", token),
+			fmt.Sprintf("GITHUB_ACCESS_TOKEN=%s", token),
 			fmt.Sprintf("GITHUB_TOOLSETS=%s", strings.Join(opts.enabledToolsets, ",")),
 		)
 
