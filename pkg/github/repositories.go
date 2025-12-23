@@ -683,7 +683,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return utils.NewToolResultError("failed to get GitHub client"), nil, nil
 			}
 
-			rawOpts, err := resolveGitReference(ctx, client, owner, repo, ref, sha)
+			rawOpts, fallbackUsed, err := resolveGitReference(ctx, client, owner, repo, ref, sha)
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("failed to resolve git reference: %s", err)), nil, nil
 			}
@@ -751,7 +751,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 					// main branch ref passed in ref parameter but it doesn't exist - default branch was used
 					var successNote string
-					if !strings.HasSuffix(rawOpts.Ref, originalRef) {
+					if fallbackUsed {
 						successNote = fmt.Sprintf(" Note: the provided ref '%s' does not exist, default branch '%s' was used instead.", originalRef, rawOpts.Ref)
 					}
 
@@ -1884,15 +1884,15 @@ func looksLikeSHA(s string) bool {
 //
 // Any unexpected (non-404) errors during the resolution process are returned
 // immediately. All API errors are logged with rich context to aid diagnostics.
-func resolveGitReference(ctx context.Context, githubClient *github.Client, owner, repo, ref, sha string) (*raw.ContentOpts, error) {
+func resolveGitReference(ctx context.Context, githubClient *github.Client, owner, repo, ref, sha string) (*raw.ContentOpts, bool, error) {
 	// 1) If SHA explicitly provided, it's the highest priority.
 	if sha != "" {
-		return &raw.ContentOpts{Ref: "", SHA: sha}, nil
+		return &raw.ContentOpts{Ref: "", SHA: sha}, false, nil
 	}
 
 	// 1a) If sha is empty but ref looks like a SHA, return it without changes
 	if looksLikeSHA(ref) {
-		return &raw.ContentOpts{Ref: "", SHA: ref}, nil
+		return &raw.ContentOpts{Ref: "", SHA: ref}, false, nil
 	}
 
 	originalRef := ref // Keep original ref for clearer error messages down the line.
@@ -1901,13 +1901,14 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 	var reference *github.Reference
 	var resp *github.Response
 	var err error
+	var fallbackUsed bool
 
 	switch {
 	case originalRef == "":
 		// 2a) If ref is empty, determine the default branch.
 		reference, err = resolveDefaultBranch(ctx, githubClient, owner, repo)
 		if err != nil {
-			return nil, err // Error is already wrapped in resolveDefaultBranch.
+			return nil, false, err // Error is already wrapped in resolveDefaultBranch.
 		}
 		ref = reference.GetRef()
 	case strings.HasPrefix(originalRef, "refs/"):
@@ -1937,23 +1938,24 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 						if originalRef == "main" {
 							reference, err = resolveDefaultBranch(ctx, githubClient, owner, repo)
 							if err != nil {
-								return nil, err // Error is already wrapped in resolveDefaultBranch.
+								return nil, false, err // Error is already wrapped in resolveDefaultBranch.
 							}
 							// Update ref to the actual default branch ref so the note can be generated
 							ref = reference.GetRef()
+							fallbackUsed = true
 							break
 						}
-						return nil, fmt.Errorf("could not resolve ref %q as a branch or a tag", originalRef)
+						return nil, false, fmt.Errorf("could not resolve ref %q as a branch or a tag", originalRef)
 					}
 
 					// The tag lookup failed for a different reason.
 					_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get reference (tag)", resp, err)
-					return nil, fmt.Errorf("failed to get reference for tag '%s': %w", originalRef, err)
+					return nil, false, fmt.Errorf("failed to get reference for tag '%s': %w", originalRef, err)
 				}
 			} else {
 				// The branch lookup failed for a different reason.
 				_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get reference (branch)", resp, err)
-				return nil, fmt.Errorf("failed to get reference for branch '%s': %w", originalRef, err)
+				return nil, false, fmt.Errorf("failed to get reference for branch '%s': %w", originalRef, err)
 			}
 		}
 	}
@@ -1964,19 +1966,20 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 			if ref == "refs/heads/main" {
 				reference, err = resolveDefaultBranch(ctx, githubClient, owner, repo)
 				if err != nil {
-					return nil, err // Error is already wrapped in resolveDefaultBranch.
+					return nil, false, err // Error is already wrapped in resolveDefaultBranch.
 				}
 				// Update ref to the actual default branch ref so the note can be generated
 				ref = reference.GetRef()
+				fallbackUsed = true
 			} else {
 				_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get final reference", resp, err)
-				return nil, fmt.Errorf("failed to get final reference for %q: %w", ref, err)
+				return nil, false, fmt.Errorf("failed to get final reference for %q: %w", ref, err)
 			}
 		}
 	}
 
 	sha = reference.GetObject().GetSHA()
-	return &raw.ContentOpts{Ref: ref, SHA: sha}, nil
+	return &raw.ContentOpts{Ref: ref, SHA: sha}, fallbackUsed, nil
 }
 
 func resolveDefaultBranch(ctx context.Context, githubClient *github.Client, owner, repo string) (*github.Reference, error) {
@@ -1985,13 +1988,21 @@ func resolveDefaultBranch(ctx context.Context, githubClient *github.Client, owne
 		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get repository info", resp, err)
 		return nil, fmt.Errorf("failed to get repository info: %w", err)
 	}
+
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+
 	defaultBranch := repoInfo.GetDefaultBranch()
 
 	defaultRef, resp, err := githubClient.Git.GetRef(ctx, owner, repo, "heads/"+defaultBranch)
-	defer func() { _ = resp.Body.Close() }()
 	if err != nil {
 		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get default branch reference", resp, err)
 		return nil, fmt.Errorf("failed to get default branch reference: %w", err)
+	}
+
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
 	}
 
 	return defaultRef, nil

@@ -3361,7 +3361,7 @@ func Test_resolveGitReference(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockSetup())
-			opts, err := resolveGitReference(ctx, client, owner, repo, tc.ref, tc.sha)
+			opts, _, err := resolveGitReference(ctx, client, owner, repo, tc.ref, tc.sha)
 
 			if tc.expectError {
 				require.Error(t, err)
