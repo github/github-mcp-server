@@ -1290,7 +1290,9 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 					} else if ghErr.Response.StatusCode == http.StatusNotFound {
 						branchNotFound = true
 					}
-				} else {
+				}
+
+				if !repositoryIsEmpty && !branchNotFound {
 					return ghErrors.NewGitHubAPIErrorResponse(ctx,
 						"failed to get branch reference",
 						resp,
@@ -1331,7 +1333,8 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 					return utils.NewToolResultError(fmt.Sprintf("failed to initialize repository: %v", err)), nil, nil
 				}
 
-				if branch != (*defaultRef.Ref)[len("refs/heads/"):] {
+				defaultBranch := strings.TrimPrefix(*defaultRef.Ref, "refs/heads/")
+				if branch != defaultBranch {
 					// Create the requested branch from the default branch
 					ref, err = createReferenceFromDefaultBranch(ctx, client, owner, repo, branch)
 					if err != nil {
@@ -1467,7 +1470,6 @@ func initializeRepository(ctx context.Context, client *github.Client, owner, rep
 		defer func() { _ = resp.Body.Close() }()
 	}
 
-	// Update ref to point to the new commit
 	ref, resp, err = client.Git.GetRef(ctx, owner, repo, "refs/heads/"+defaultBranch)
 	if err != nil {
 		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get final reference", resp, err)
@@ -1489,7 +1491,7 @@ func createReferenceFromDefaultBranch(ctx context.Context, client *github.Client
 
 	// Create the new branch reference
 	createdRef, resp, err := client.Git.CreateRef(ctx, owner, repo, github.CreateRef{
-		Ref: *github.Ptr("refs/heads/" + branch),
+		Ref: "refs/heads/" + branch,
 		SHA: *defaultRef.Object.SHA,
 	})
 	if err != nil {
