@@ -612,6 +612,128 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 	)
 }
 
+// CreateRepositoryFromTemplate creates a tool to create a new GitHub repository from a template.
+func CreateRepositoryFromTemplate(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataRepos,
+		mcp.Tool{
+			Name:        "create_repository_from_template",
+			Description: t("TOOL_CREATE_REPOSITORY_FROM_TEMPLATE_DESCRIPTION", "Create a new GitHub repository from a template repository"),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_CREATE_REPOSITORY_FROM_TEMPLATE_USER_TITLE", "Create repository from template"),
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"template_owner": {
+						Type:        "string",
+						Description: "Owner of the template repository",
+					},
+					"template_repo": {
+						Type:        "string",
+						Description: "Name of the template repository",
+					},
+					"name": {
+						Type:        "string",
+						Description: "Name for the new repository",
+					},
+					"description": {
+						Type:        "string",
+						Description: "Description for the new repository",
+					},
+					"owner": {
+						Type:        "string",
+						Description: "Owner for the new repository (username or organization). Omit to create in your personal account",
+					},
+					"private": {
+						Type:        "boolean",
+						Description: "Whether the new repository should be private",
+					},
+					"include_all_branches": {
+						Type:        "boolean",
+						Description: "Whether to include all branches from template (default: false, only default branch)",
+					},
+				},
+				Required: []string{"template_owner", "template_repo", "name"},
+			},
+		},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			templateOwner, err := RequiredParam[string](args, "template_owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			templateRepo, err := RequiredParam[string](args, "template_repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			name, err := RequiredParam[string](args, "name")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			description, err := OptionalParam[string](args, "description")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			owner, err := OptionalParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			private, err := OptionalParam[bool](args, "private")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			includeAllBranches, err := OptionalParam[bool](args, "include_all_branches")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			templateReq := &github.TemplateRepoRequest{
+				Name:               github.Ptr(name),
+				Owner:              github.Ptr(owner),
+				Description:        github.Ptr(description),
+				Private:            github.Ptr(private),
+				IncludeAllBranches: github.Ptr(includeAllBranches),
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+			createdRepo, resp, err := client.Repositories.CreateFromTemplate(ctx, templateOwner, templateRepo, templateReq)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to create repository from template",
+					resp,
+					err,
+				), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusCreated {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create repository from template", resp, body), nil, nil
+			}
+
+			// Return minimal response with just essential information
+			minimalResponse := MinimalResponse{
+				ID:  fmt.Sprintf("%d", createdRepo.GetID()),
+				URL: createdRepo.GetHTMLURL(),
+			}
+
+			r, err := json.Marshal(minimalResponse)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
+		},
+	)
+}
+
 // GetFileContents creates a tool to get the contents of a file or directory from a GitHub repository.
 func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(

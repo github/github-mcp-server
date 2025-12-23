@@ -1113,6 +1113,15 @@ The following sets of tools are available:
   - `organization`: Organization to create the repository in (omit to create in your personal account) (string, optional)
   - `private`: Whether repo should be private (boolean, optional)
 
+- **create_repository_from_template** - Create repository from template
+  - `description`: Description for the new repository (string, optional)
+  - `include_all_branches`: Whether to include all branches from template (default: false, only default branch) (boolean, optional)
+  - `name`: Name for the new repository (string, required)
+  - `owner`: Owner for the new repository (username or organization). Omit to create in your personal account (string, optional)
+  - `private`: Whether the new repository should be private (boolean, optional)
+  - `template_owner`: Owner of the template repository (string, required)
+  - `template_repo`: Name of the template repository (string, required)
+
 - **delete_file** - Delete file
   - `branch`: Branch to delete the file from (string, required)
   - `message`: Commit message (string, required)

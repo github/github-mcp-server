@@ -1593,6 +1593,210 @@ func Test_CreateRepository(t *testing.T) {
 	}
 }
 
+func Test_CreateRepositoryFromTemplate(t *testing.T) {
+	// Verify tool definition once
+	serverTool := CreateRepositoryFromTemplate(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+
+	assert.Equal(t, "create_repository_from_template", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, schema.Properties, "template_owner")
+	assert.Contains(t, schema.Properties, "template_repo")
+	assert.Contains(t, schema.Properties, "name")
+	assert.Contains(t, schema.Properties, "description")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "private")
+	assert.Contains(t, schema.Properties, "include_all_branches")
+	assert.ElementsMatch(t, schema.Required, []string{"template_owner", "template_repo", "name"})
+
+	// Setup mock repository response
+	mockRepo := &github.Repository{
+		ID:          github.Ptr(int64(123456)),
+		Name:        github.Ptr("new-repo"),
+		Description: github.Ptr("New repository from template"),
+		Private:     github.Ptr(false),
+		HTMLURL:     github.Ptr("https://github.com/testuser/new-repo"),
+		CreatedAt:   &github.Timestamp{Time: time.Now()},
+		Owner: &github.User{
+			Login: github.Ptr("testuser"),
+		},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedRepo   *github.Repository
+		expectedErrMsg string
+	}{
+		{
+			name: "successful repository creation from template",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/template-owner/template-repo/generate",
+						Method:  "POST",
+					},
+					expectRequestBody(t, map[string]interface{}{
+						"name":                 "new-repo",
+						"description":          "New repository from template",
+						"owner":                "testuser",
+						"private":              false,
+						"include_all_branches": false,
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockRepo),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"template_owner":       "template-owner",
+				"template_repo":        "template-repo",
+				"name":                 "new-repo",
+				"description":          "New repository from template",
+				"owner":                "testuser",
+				"private":              false,
+				"include_all_branches": false,
+			},
+			expectError:  false,
+			expectedRepo: mockRepo,
+		},
+		{
+			name: "successful repository creation with minimal parameters",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/template-owner/template-repo/generate",
+						Method:  "POST",
+					},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusCreated)
+						_, _ = w.Write(mock.MustMarshal(mockRepo))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"template_owner": "template-owner",
+				"template_repo":  "template-repo",
+				"name":           "new-repo",
+			},
+			expectError:  false,
+			expectedRepo: mockRepo,
+		},
+		{
+			name: "successful repository creation including all branches",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/template-owner/template-repo/generate",
+						Method:  "POST",
+					},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusCreated)
+						_, _ = w.Write(mock.MustMarshal(mockRepo))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"template_owner":       "template-owner",
+				"template_repo":        "template-repo",
+				"name":                 "new-repo",
+				"include_all_branches": true,
+			},
+			expectError:  false,
+			expectedRepo: mockRepo,
+		},
+		{
+			name: "repository creation fails - template not found",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/invalid-owner/invalid-repo/generate",
+						Method:  "POST",
+					},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"template_owner": "invalid-owner",
+				"template_repo":  "invalid-repo",
+				"name":           "new-repo",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to create repository from template",
+		},
+		{
+			name: "repository creation fails - name already exists",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{
+						Pattern: "/repos/template-owner/template-repo/generate",
+						Method:  "POST",
+					},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusUnprocessableEntity)
+						_, _ = w.Write([]byte(`{"message": "Repository creation failed"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"template_owner": "template-owner",
+				"template_repo":  "template-repo",
+				"name":           "existing-repo",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to create repository from template",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			// Verify results
+			if tc.expectError {
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+
+			// Parse the result and get the text content if no error
+			textContent := getTextResult(t, result)
+
+			// Unmarshal and verify the minimal result
+			var returnedRepo MinimalResponse
+			err = json.Unmarshal([]byte(textContent.Text), &returnedRepo)
+			assert.NoError(t, err)
+
+			// Verify repository details
+			assert.Equal(t, tc.expectedRepo.GetHTMLURL(), returnedRepo.URL)
+		})
+	}
+}
+
 func Test_PushFiles(t *testing.T) {
 	// Verify tool definition once
 	serverTool := PushFiles(translations.NullTranslationHelper)
