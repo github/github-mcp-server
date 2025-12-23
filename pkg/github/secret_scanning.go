@@ -9,6 +9,7 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -17,7 +18,7 @@ import (
 )
 
 func GetSecretScanningAlert(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataSecretProtection,
 		mcp.Tool{
 			Name:        "get_secret_scanning_alert",
@@ -45,6 +46,8 @@ func GetSecretScanningAlert(t translations.TranslationHelperFunc) inventory.Serv
 				Required: []string{"owner", "repo", "alertNumber"},
 			},
 		},
+		scopes.ToStringSlice(scopes.SecurityEvents),
+		scopes.ToStringSlice(scopes.SecurityEvents, scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -93,7 +96,7 @@ func GetSecretScanningAlert(t translations.TranslationHelperFunc) inventory.Serv
 }
 
 func ListSecretScanningAlerts(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataSecretProtection,
 		mcp.Tool{
 			Name:        "list_secret_scanning_alerts",
@@ -131,6 +134,8 @@ func ListSecretScanningAlerts(t translations.TranslationHelperFunc) inventory.Se
 				Required: []string{"owner", "repo"},
 			},
 		},
+		scopes.ToStringSlice(scopes.SecurityEvents),
+		scopes.ToStringSlice(scopes.SecurityEvents, scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {

@@ -8,6 +8,7 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -39,7 +40,7 @@ type TreeResponse struct {
 
 // GetRepositoryTree creates a tool to get the tree structure of a GitHub repository.
 func GetRepositoryTree(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataGit,
 		mcp.Tool{
 			Name:        "get_repository_tree",
@@ -76,6 +77,8 @@ func GetRepositoryTree(t translations.TranslationHelperFunc) inventory.ServerToo
 				Required: []string{"owner", "repo"},
 			},
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {

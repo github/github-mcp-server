@@ -9,6 +9,7 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -17,7 +18,7 @@ import (
 )
 
 func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataSecurityAdvisories,
 		mcp.Tool{
 			Name:        "list_global_security_advisories",
@@ -83,6 +84,8 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventor
 				},
 			},
 		},
+		scopes.ToStringSlice(scopes.SecurityEvents),
+		scopes.ToStringSlice(scopes.SecurityEvents, scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -207,7 +210,7 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventor
 }
 
 func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataSecurityAdvisories,
 		mcp.Tool{
 			Name:        "list_repository_security_advisories",
@@ -246,6 +249,8 @@ func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inve
 				Required: []string{"owner", "repo"},
 			},
 		},
+		scopes.ToStringSlice(scopes.SecurityEvents),
+		scopes.ToStringSlice(scopes.SecurityEvents, scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -310,7 +315,7 @@ func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inve
 }
 
 func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataSecurityAdvisories,
 		mcp.Tool{
 			Name:        "get_global_security_advisory",
@@ -330,6 +335,8 @@ func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.S
 				Required: []string{"ghsaId"},
 			},
 		},
+		scopes.ToStringSlice(scopes.SecurityEvents),
+		scopes.ToStringSlice(scopes.SecurityEvents, scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -366,7 +373,7 @@ func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.S
 }
 
 func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataSecurityAdvisories,
 		mcp.Tool{
 			Name:        "list_org_repository_security_advisories",
@@ -401,6 +408,8 @@ func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) i
 				Required: []string{"org"},
 			},
 		},
+		scopes.ToStringSlice(scopes.SecurityEvents),
+		scopes.ToStringSlice(scopes.SecurityEvents, scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			org, err := RequiredParam[string](args, "org")
 			if err != nil {

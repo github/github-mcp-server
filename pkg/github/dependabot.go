@@ -9,6 +9,7 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -17,7 +18,7 @@ import (
 )
 
 func GetDependabotAlert(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataDependabot,
 		mcp.Tool{
 			Name:        "get_dependabot_alert",
@@ -45,6 +46,8 @@ func GetDependabotAlert(t translations.TranslationHelperFunc) inventory.ServerTo
 				Required: []string{"owner", "repo", "alertNumber"},
 			},
 		},
+		scopes.ToStringSlice(scopes.SecurityEvents),
+		scopes.ToStringSlice(scopes.SecurityEvents, scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -93,7 +96,7 @@ func GetDependabotAlert(t translations.TranslationHelperFunc) inventory.ServerTo
 }
 
 func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataDependabot,
 		mcp.Tool{
 			Name:        "list_dependabot_alerts",
@@ -128,6 +131,8 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 				Required: []string{"owner", "repo"},
 			},
 		},
+		scopes.ToStringSlice(scopes.SecurityEvents),
+		scopes.ToStringSlice(scopes.SecurityEvents, scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {

@@ -11,6 +11,7 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -26,7 +27,7 @@ const (
 
 // ListNotifications creates a tool to list notifications for the current user.
 func ListNotifications(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataNotifications,
 		mcp.Tool{
 			Name:        "list_notifications",
@@ -62,6 +63,8 @@ func ListNotifications(t translations.TranslationHelperFunc) inventory.ServerToo
 				},
 			}),
 		},
+		scopes.ToStringSlice(scopes.Notifications),
+		scopes.ToStringSlice(scopes.Notifications),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -162,7 +165,7 @@ func ListNotifications(t translations.TranslationHelperFunc) inventory.ServerToo
 
 // DismissNotification creates a tool to mark a notification as read/done.
 func DismissNotification(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataNotifications,
 		mcp.Tool{
 			Name:        "dismiss_notification",
@@ -187,6 +190,8 @@ func DismissNotification(t translations.TranslationHelperFunc) inventory.ServerT
 				Required: []string{"threadID", "state"},
 			},
 		},
+		scopes.ToStringSlice(scopes.Notifications),
+		scopes.ToStringSlice(scopes.Notifications),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -243,7 +248,7 @@ func DismissNotification(t translations.TranslationHelperFunc) inventory.ServerT
 
 // MarkAllNotificationsRead creates a tool to mark all notifications as read.
 func MarkAllNotificationsRead(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataNotifications,
 		mcp.Tool{
 			Name:        "mark_all_notifications_read",
@@ -270,6 +275,8 @@ func MarkAllNotificationsRead(t translations.TranslationHelperFunc) inventory.Se
 				},
 			},
 		},
+		scopes.ToStringSlice(scopes.Notifications),
+		scopes.ToStringSlice(scopes.Notifications),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -334,7 +341,7 @@ func MarkAllNotificationsRead(t translations.TranslationHelperFunc) inventory.Se
 
 // GetNotificationDetails creates a tool to get details for a specific notification.
 func GetNotificationDetails(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataNotifications,
 		mcp.Tool{
 			Name:        "get_notification_details",
@@ -354,6 +361,8 @@ func GetNotificationDetails(t translations.TranslationHelperFunc) inventory.Serv
 				Required: []string{"notificationID"},
 			},
 		},
+		scopes.ToStringSlice(scopes.Notifications),
+		scopes.ToStringSlice(scopes.Notifications),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -402,7 +411,7 @@ const (
 
 // ManageNotificationSubscription creates a tool to manage a notification subscription (ignore, watch, delete)
 func ManageNotificationSubscription(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataNotifications,
 		mcp.Tool{
 			Name:        "manage_notification_subscription",
@@ -427,6 +436,8 @@ func ManageNotificationSubscription(t translations.TranslationHelperFunc) invent
 				Required: []string{"notificationID", "action"},
 			},
 		},
+		scopes.ToStringSlice(scopes.Notifications),
+		scopes.ToStringSlice(scopes.Notifications),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -497,7 +508,7 @@ const (
 
 // ManageRepositoryNotificationSubscription creates a tool to manage a repository notification subscription (ignore, watch, delete)
 func ManageRepositoryNotificationSubscription(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataNotifications,
 		mcp.Tool{
 			Name:        "manage_repository_notification_subscription",
@@ -526,6 +537,8 @@ func ManageRepositoryNotificationSubscription(t translations.TranslationHelperFu
 				Required: []string{"owner", "repo", "action"},
 			},
 		},
+		scopes.ToStringSlice(scopes.Notifications),
+		scopes.ToStringSlice(scopes.Notifications),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {

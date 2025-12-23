@@ -9,6 +9,7 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -18,7 +19,7 @@ import (
 
 // ListGists creates a tool to list gists for a user
 func ListGists(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataGists,
 		mcp.Tool{
 			Name:        "list_gists",
@@ -41,6 +42,8 @@ func ListGists(t translations.TranslationHelperFunc) inventory.ServerTool {
 				},
 			}),
 		},
+		nil, // no required scopes
+		nil, // no accepted scopes
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			username, err := OptionalParam[string](args, "username")
 			if err != nil {
@@ -104,7 +107,7 @@ func ListGists(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // GetGist creates a tool to get the content of a gist
 func GetGist(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataGists,
 		mcp.Tool{
 			Name:        "get_gist",
@@ -124,6 +127,8 @@ func GetGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"gist_id"},
 			},
 		},
+		nil, // no required scopes
+		nil, // no accepted scopes
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			gistID, err := RequiredParam[string](args, "gist_id")
 			if err != nil {
@@ -161,7 +166,7 @@ func GetGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // CreateGist creates a tool to create a new gist
 func CreateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataGists,
 		mcp.Tool{
 			Name:        "create_gist",
@@ -194,6 +199,8 @@ func CreateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"filename", "content"},
 			},
 		},
+		scopes.ToStringSlice(scopes.Gist),
+		scopes.ToStringSlice(scopes.Gist),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			description, err := OptionalParam[string](args, "description")
 			if err != nil {
@@ -263,7 +270,7 @@ func CreateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 // UpdateGist creates a tool to edit an existing gist
 func UpdateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataGists,
 		mcp.Tool{
 			Name:        "update_gist",
@@ -295,6 +302,8 @@ func UpdateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"gist_id", "filename", "content"},
 			},
 		},
+		scopes.ToStringSlice(scopes.Gist),
+		scopes.ToStringSlice(scopes.Gist),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			gistID, err := RequiredParam[string](args, "gist_id")
 			if err != nil {

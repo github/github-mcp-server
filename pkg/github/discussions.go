@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-viper/mapstructure/v2"
@@ -123,7 +124,7 @@ func getQueryType(useOrdering bool, categoryID *githubv4.ID) any {
 }
 
 func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataDiscussions,
 		mcp.Tool{
 			Name:        "list_discussions",
@@ -161,6 +162,8 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Required: []string{"owner"},
 			}),
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -275,7 +278,7 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 }
 
 func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataDiscussions,
 		mcp.Tool{
 			Name:        "get_discussion",
@@ -303,6 +306,8 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "discussionNumber"},
 			},
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			// Decode params
 			var params struct {
@@ -378,7 +383,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 }
 
 func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataDiscussions,
 		mcp.Tool{
 			Name:        "get_discussion_comments",
@@ -406,6 +411,8 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 				Required: []string{"owner", "repo", "discussionNumber"},
 			}),
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			// Decode params
 			var params struct {
@@ -504,7 +511,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 }
 
 func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataDiscussions,
 		mcp.Tool{
 			Name:        "list_discussion_categories",
@@ -528,6 +535,8 @@ func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.Se
 				Required: []string{"owner"},
 			},
 		},
+		scopes.ToStringSlice(scopes.Repo),
+		scopes.ToStringSlice(scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {

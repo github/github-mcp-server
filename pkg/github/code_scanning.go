@@ -8,6 +8,7 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -16,7 +17,7 @@ import (
 )
 
 func GetCodeScanningAlert(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataCodeSecurity,
 		mcp.Tool{
 			Name:        "get_code_scanning_alert",
@@ -44,6 +45,8 @@ func GetCodeScanningAlert(t translations.TranslationHelperFunc) inventory.Server
 				Required: []string{"owner", "repo", "alertNumber"},
 			},
 		},
+		scopes.ToStringSlice(scopes.SecurityEvents),
+		scopes.ToStringSlice(scopes.SecurityEvents, scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -92,7 +95,7 @@ func GetCodeScanningAlert(t translations.TranslationHelperFunc) inventory.Server
 }
 
 func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataCodeSecurity,
 		mcp.Tool{
 			Name:        "list_code_scanning_alerts",
@@ -135,6 +138,8 @@ func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.Serv
 				Required: []string{"owner", "repo"},
 			},
 		},
+		scopes.ToStringSlice(scopes.SecurityEvents),
+		scopes.ToStringSlice(scopes.SecurityEvents, scopes.Repo),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {

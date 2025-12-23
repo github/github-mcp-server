@@ -10,6 +10,7 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -26,7 +27,7 @@ const (
 )
 
 func ListProjects(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "list_projects",
@@ -67,6 +68,8 @@ func ListProjects(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner_type", "owner"},
 			},
 		},
+		scopes.ToStringSlice(scopes.ReadProject),
+		scopes.ToStringSlice(scopes.ReadProject, scopes.Project),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -143,7 +146,7 @@ func ListProjects(t translations.TranslationHelperFunc) inventory.ServerTool {
 }
 
 func GetProject(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "get_project",
@@ -172,6 +175,8 @@ func GetProject(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"project_number", "owner_type", "owner"},
 			},
 		},
+		scopes.ToStringSlice(scopes.ReadProject),
+		scopes.ToStringSlice(scopes.ReadProject, scopes.Project),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			projectNumber, err := RequiredInt(args, "project_number")
@@ -231,7 +236,7 @@ func GetProject(t translations.TranslationHelperFunc) inventory.ServerTool {
 }
 
 func ListProjectFields(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "list_project_fields",
@@ -272,6 +277,8 @@ func ListProjectFields(t translations.TranslationHelperFunc) inventory.ServerToo
 				Required: []string{"owner_type", "owner", "project_number"},
 			},
 		},
+		scopes.ToStringSlice(scopes.ReadProject),
+		scopes.ToStringSlice(scopes.ReadProject, scopes.Project),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -337,7 +344,7 @@ func ListProjectFields(t translations.TranslationHelperFunc) inventory.ServerToo
 }
 
 func GetProjectField(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "get_project_field",
@@ -370,6 +377,8 @@ func GetProjectField(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Required: []string{"owner_type", "owner", "project_number", "field_id"},
 			},
 		},
+		scopes.ToStringSlice(scopes.ReadProject),
+		scopes.ToStringSlice(scopes.ReadProject, scopes.Project),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -429,7 +438,7 @@ func GetProjectField(t translations.TranslationHelperFunc) inventory.ServerTool 
 }
 
 func ListProjectItems(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "list_project_items",
@@ -481,6 +490,8 @@ func ListProjectItems(t translations.TranslationHelperFunc) inventory.ServerTool
 				Required: []string{"owner_type", "owner", "project_number"},
 			},
 		},
+		scopes.ToStringSlice(scopes.ReadProject),
+		scopes.ToStringSlice(scopes.ReadProject, scopes.Project),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -565,7 +576,7 @@ func ListProjectItems(t translations.TranslationHelperFunc) inventory.ServerTool
 }
 
 func GetProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "get_project_item",
@@ -605,6 +616,8 @@ func GetProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner_type", "owner", "project_number", "item_id"},
 			},
 		},
+		scopes.ToStringSlice(scopes.ReadProject),
+		scopes.ToStringSlice(scopes.ReadProject, scopes.Project),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -671,7 +684,7 @@ func GetProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
 }
 
 func AddProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "add_project_item",
@@ -709,6 +722,8 @@ func AddProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner_type", "owner", "project_number", "item_type", "item_id"},
 			},
 		},
+		scopes.ToStringSlice(scopes.Project),
+		scopes.ToStringSlice(scopes.Project),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -782,7 +797,7 @@ func AddProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
 }
 
 func UpdateProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "update_project_item",
@@ -819,6 +834,8 @@ func UpdateProjectItem(t translations.TranslationHelperFunc) inventory.ServerToo
 				Required: []string{"owner_type", "owner", "project_number", "item_id", "updated_field"},
 			},
 		},
+		scopes.ToStringSlice(scopes.Project),
+		scopes.ToStringSlice(scopes.Project),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -894,7 +911,7 @@ func UpdateProjectItem(t translations.TranslationHelperFunc) inventory.ServerToo
 }
 
 func DeleteProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	return NewToolWithScopes(
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "delete_project_item",
@@ -928,6 +945,8 @@ func DeleteProjectItem(t translations.TranslationHelperFunc) inventory.ServerToo
 				Required: []string{"owner_type", "owner", "project_number", "item_id"},
 			},
 		},
+		scopes.ToStringSlice(scopes.Project),
+		scopes.ToStringSlice(scopes.Project),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")
