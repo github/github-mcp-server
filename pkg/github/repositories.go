@@ -1279,28 +1279,72 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			// Get the reference for the branch
+			var repositoryIsEmpty bool
+			var branchNotFound bool
 			ref, resp, err := client.Git.GetRef(ctx, owner, repo, "refs/heads/"+branch)
 			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get branch reference",
-					resp,
-					err,
-				), nil, nil
+				ghErr, isGhErr := err.(*github.ErrorResponse)
+				if isGhErr {
+					if ghErr.Response.StatusCode == http.StatusConflict && ghErr.Message == "Git Repository is empty." {
+						repositoryIsEmpty = true
+					} else if ghErr.Response.StatusCode == http.StatusNotFound {
+						branchNotFound = true
+					}
+				} else {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx,
+						"failed to get branch reference",
+						resp,
+						err,
+					), nil, nil
+				}
 			}
-			defer func() { _ = resp.Body.Close() }()
-
-			// Get the commit object that the branch points to
-			baseCommit, resp, err := client.Git.GetCommit(ctx, owner, repo, *ref.Object.SHA)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get base commit",
-					resp,
-					err,
-				), nil, nil
+			// Only close resp if it's not nil and not an error case where resp might be nil
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
 			}
-			defer func() { _ = resp.Body.Close() }()
 
-			// Create tree entries for all files
+			var baseCommit *github.Commit
+			if !repositoryIsEmpty {
+				if branchNotFound {
+					ref, err = createReferenceFromDefaultBranch(ctx, client, owner, repo, branch)
+					if err != nil {
+						return utils.NewToolResultError(fmt.Sprintf("failed to create branch from default: %v", err)), nil, nil
+					}
+				}
+
+				// Get the commit object that the branch points to
+				baseCommit, resp, err = client.Git.GetCommit(ctx, owner, repo, *ref.Object.SHA)
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx,
+						"failed to get base commit",
+						resp,
+						err,
+					), nil, nil
+				}
+				if resp != nil && resp.Body != nil {
+					defer func() { _ = resp.Body.Close() }()
+				}
+			} else {
+				// Repository is empty, need to initialize it first
+				defaultRef, base, err := initializeRepository(ctx, client, owner, repo)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("failed to initialize repository: %v", err)), nil, nil
+				}
+
+				if branch != (*defaultRef.Ref)[len("refs/heads/"):] {
+					// Create the requested branch from the default branch
+					ref, err = createReferenceFromDefaultBranch(ctx, client, owner, repo, branch)
+					if err != nil {
+						return utils.NewToolResultError(fmt.Sprintf("failed to create branch from default: %v", err)), nil, nil
+					}
+				} else {
+					ref = defaultRef
+				}
+
+				baseCommit = base
+			}
+
+			// Create tree entries for all files (or remaining files if empty repo)
 			var entries []*github.TreeEntry
 
 			for _, file := range filesObj {
@@ -1328,7 +1372,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				})
 			}
 
-			// Create a new tree with the file entries
+			// Create a new tree with the file entries (baseCommit is now guaranteed to exist)
 			newTree, resp, err := client.Git.CreateTree(ctx, owner, repo, *baseCommit.Tree.SHA, entries)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -1337,9 +1381,11 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 					err,
 				), nil, nil
 			}
-			defer func() { _ = resp.Body.Close() }()
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
 
-			// Create a new commit
+			// Create a new commit (baseCommit always has a value now)
 			commit := github.Commit{
 				Message: github.Ptr(message),
 				Tree:    newTree,
@@ -1353,7 +1399,9 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 					err,
 				), nil, nil
 			}
-			defer func() { _ = resp.Body.Close() }()
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
 
 			// Update the reference to point to the new commit
 			ref.Object.SHA = newCommit.SHA
@@ -1378,6 +1426,81 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
+}
+
+func initializeRepository(ctx context.Context, client *github.Client, owner, repo string) (ref *github.Reference, baseCommit *github.Commit, err error) {
+	// First, we need to check what's the default branch in this empty repo should be:
+	repository, resp, err := client.Repositories.Get(ctx, owner, repo)
+	if err != nil {
+		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get repository", resp, err)
+		return nil, nil, fmt.Errorf("failed to get repository: %w", err)
+	}
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+
+	defaultBranch := repository.GetDefaultBranch()
+
+	fileOpts := &github.RepositoryContentFileOptions{
+		Message: github.Ptr("Initial commit"),
+		Content: []byte(""),
+		Branch:  github.Ptr(defaultBranch),
+	}
+
+	// Create an initial empty commit to create the default branch
+	createResp, resp, err := client.Repositories.CreateFile(ctx, owner, repo, "README.md", fileOpts)
+	if err != nil {
+		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to create initial file", resp, err)
+		return nil, nil, fmt.Errorf("failed to create initial file: %w", err)
+	}
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+
+	// Get the commit that was just created to use as base for remaining files
+	baseCommit, resp, err = client.Git.GetCommit(ctx, owner, repo, *createResp.Commit.SHA)
+	if err != nil {
+		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get initial commit", resp, err)
+		return nil, nil, fmt.Errorf("failed to get initial commit: %w", err)
+	}
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+
+	// Update ref to point to the new commit
+	ref, resp, err = client.Git.GetRef(ctx, owner, repo, "refs/heads/"+defaultBranch)
+	if err != nil {
+		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get final reference", resp, err)
+		return nil, nil, fmt.Errorf("failed to get branch reference after initial commit: %w", err)
+	}
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+
+	return ref, baseCommit, nil
+}
+
+func createReferenceFromDefaultBranch(ctx context.Context, client *github.Client, owner, repo, branch string) (*github.Reference, error) {
+	defaultRef, err := resolveDefaultBranch(ctx, client, owner, repo)
+	if err != nil {
+		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to resolve default branch", nil, err)
+		return nil, fmt.Errorf("failed to resolve default branch: %w", err)
+	}
+
+	// Create the new branch reference
+	createdRef, resp, err := client.Git.CreateRef(ctx, owner, repo, github.CreateRef{
+		Ref: *github.Ptr("refs/heads/" + branch),
+		SHA: *defaultRef.Object.SHA,
+	})
+	if err != nil {
+		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to create new branch reference", resp, err)
+		return nil, fmt.Errorf("failed to create new branch reference: %w", err)
+	}
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+
+	return createdRef, nil
 }
 
 // ListTags creates a tool to list tags in a GitHub repository.
