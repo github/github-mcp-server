@@ -1997,8 +1997,33 @@ func Test_ActionsList_ListWorkflowRuns(t *testing.T) {
 		assert.NotNil(t, response.TotalCount)
 	})
 
-	t.Run("missing resource_id for list_workflow_runs", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient()
+	t.Run("list all workflow runs without resource_id", func(t *testing.T) {
+		mockedClient := mock.NewMockedHTTPClient(
+			mock.WithRequestMatchHandler(
+				mock.GetReposActionsRunsByOwnerByRepo,
+				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					runs := &github.WorkflowRuns{
+						TotalCount: github.Ptr(2),
+						WorkflowRuns: []*github.WorkflowRun{
+							{
+								ID:         github.Ptr(int64(123)),
+								Name:       github.Ptr("CI"),
+								Status:     github.Ptr("completed"),
+								Conclusion: github.Ptr("success"),
+							},
+							{
+								ID:         github.Ptr(int64(456)),
+								Name:       github.Ptr("Deploy"),
+								Status:     github.Ptr("in_progress"),
+								Conclusion: nil,
+							},
+						},
+					}
+					w.WriteHeader(http.StatusOK)
+					_ = json.NewEncoder(w).Encode(runs)
+				}),
+			),
+		)
 
 		client := github.NewClient(mockedClient)
 		deps := BaseDeps{
@@ -2014,10 +2039,13 @@ func Test_ActionsList_ListWorkflowRuns(t *testing.T) {
 		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 		require.NoError(t, err)
-		require.True(t, result.IsError)
+		require.False(t, result.IsError)
 
 		textContent := getTextResult(t, result)
-		assert.Contains(t, textContent.Text, "missing required parameter")
+		var response github.WorkflowRuns
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+		assert.Equal(t, 2, *response.TotalCount)
 	})
 }
 
