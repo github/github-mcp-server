@@ -92,11 +92,6 @@ var (
 		Description: "GitHub Notifications related tools",
 		Icon:        "bell",
 	}
-	ToolsetMetadataExperiments = inventory.ToolsetMetadata{
-		ID:          "experiments",
-		Description: "Experimental features that are not considered stable yet",
-		Icon:        "beaker",
-	}
 	ToolsetMetadataDiscussions = inventory.ToolsetMetadata{
 		ID:          "discussions",
 		Description: "GitHub Discussions related tools",

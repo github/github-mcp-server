@@ -393,7 +393,7 @@ When using Docker, you can pass the toolsets as environment variables:
 ```bash
 docker run -i --rm \
   -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
-  -e GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security,experiments" \
+  -e GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security" \
   ghcr.io/github/github-mcp-server
 ```
 

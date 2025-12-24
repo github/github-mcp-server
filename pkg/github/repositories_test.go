@@ -69,6 +69,7 @@ func Test_GetFileContents(t *testing.T) {
 		expectedResult interface{}
 		expectedErrMsg string
 		expectStatus   int
+		expectedMsg    string // optional: expected message text to verify in result
 	}{
 		{
 			name: "successful text content fetch",
@@ -291,6 +292,70 @@ func Test_GetFileContents(t *testing.T) {
 			},
 		},
 		{
+			name: "successful text content fetch with note when ref falls back to default branch",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.GetReposByOwnerByRepo,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write([]byte(`{"name": "repo", "default_branch": "develop"}`))
+					}),
+				),
+				mock.WithRequestMatchHandler(
+					mock.GetReposGitRefByOwnerByRepoByRef,
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						// Request for "refs/heads/main" -> 404 (doesn't exist)
+						// Request for "refs/heads/develop" (default branch) -> 200
+						switch {
+						case strings.Contains(r.URL.Path, "heads/main"):
+							w.WriteHeader(http.StatusNotFound)
+							_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+						case strings.Contains(r.URL.Path, "heads/develop"):
+							w.WriteHeader(http.StatusOK)
+							_, _ = w.Write([]byte(`{"ref": "refs/heads/develop", "object": {"sha": "abc123def456"}}`))
+						default:
+							w.WriteHeader(http.StatusNotFound)
+							_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+						}
+					}),
+				),
+				mock.WithRequestMatchHandler(
+					mock.GetReposContentsByOwnerByRepoByPath,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						fileContent := &github.RepositoryContent{
+							Name: github.Ptr("README.md"),
+							Path: github.Ptr("README.md"),
+							SHA:  github.Ptr("abc123"),
+							Type: github.Ptr("file"),
+						}
+						contentBytes, _ := json.Marshal(fileContent)
+						_, _ = w.Write(contentBytes)
+					}),
+				),
+				mock.WithRequestMatchHandler(
+					raw.GetRawReposContentsByOwnerByRepoBySHAByPath,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.Header().Set("Content-Type", "text/markdown")
+						_, _ = w.Write(mockRawContent)
+					}),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+				"path":  "README.md",
+				"ref":   "main",
+			},
+			expectError: false,
+			expectedResult: mcp.ResourceContents{
+				URI:      "repo://owner/repo/abc123def456/contents/README.md",
+				Text:     "# Test Repository\n\nThis is a test repository.",
+				MIMEType: "text/markdown",
+			},
+			expectedMsg: " Note: the provided ref 'main' does not exist, default branch 'refs/heads/develop' was used instead.",
+		},
+		{
 			name: "content fetch fails",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
@@ -358,6 +423,14 @@ func Test_GetFileContents(t *testing.T) {
 				// Handle both text and blob resources
 				resource := getResourceResult(t, result)
 				assert.Equal(t, expected, *resource)
+
+				// If expectedMsg is set, verify the message text
+				if tc.expectedMsg != "" {
+					require.Len(t, result.Content, 2)
+					textContent, ok := result.Content[0].(*mcp.TextContent)
+					require.True(t, ok, "expected Content[0] to be TextContent")
+					assert.Contains(t, textContent.Text, tc.expectedMsg)
+				}
 			case []*github.RepositoryContent:
 				// Directory content fetch returns a text result (JSON array)
 				textContent := getTextResult(t, result)
@@ -2889,6 +2962,72 @@ func Test_GetReleaseByTag(t *testing.T) {
 	}
 }
 
+func Test_looksLikeSHA(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{
+			name:     "full 40-character SHA",
+			input:    "abc123def456abc123def456abc123def456abc1",
+			expected: true,
+		},
+		{
+			name:     "too short",
+			input:    "abc123def456abc123def45",
+			expected: false,
+		},
+		{
+			name:     "too long - 41 characters",
+			input:    "abc123def456abc123def456abc123def456abc12",
+			expected: false,
+		},
+		{
+			name:     "contains invalid character - space",
+			input:    "abc123def456abc123def456 bc123def456abc1",
+			expected: false,
+		},
+		{
+			name:     "contains invalid character - dash",
+			input:    "abc123def456abc123d-f456abc123def456abc1",
+			expected: false,
+		},
+		{
+			name:     "contains invalid character - g",
+			input:    "abc123def456gbc123def456abc123def456abc1",
+			expected: false,
+		},
+		{
+			name:     "branch name with slash",
+			input:    "feature/branch",
+			expected: false,
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: false,
+		},
+		{
+			name:     "all zeros SHA",
+			input:    "0000000000000000000000000000000000000000",
+			expected: true,
+		},
+		{
+			name:     "all f's SHA",
+			input:    "ffffffffffffffffffffffffffffffffffffffff",
+			expected: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := looksLikeSHA(tc.input)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
 func Test_filterPaths(t *testing.T) {
 	tests := []struct {
 		name       string
@@ -3203,13 +3342,26 @@ func Test_resolveGitReference(t *testing.T) {
 			},
 			expectError: false,
 		},
+		{
+			name: "ref looks like full SHA with empty sha parameter",
+			ref:  "abc123def456abc123def456abc123def456abc1",
+			sha:  "",
+			mockSetup: func() *http.Client {
+				// No API calls should be made when ref looks like SHA
+				return mock.NewMockedHTTPClient()
+			},
+			expectedOutput: &raw.ContentOpts{
+				SHA: "abc123def456abc123def456abc123def456abc1",
+			},
+			expectError: false,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockSetup())
-			opts, err := resolveGitReference(ctx, client, owner, repo, tc.ref, tc.sha)
+			opts, _, err := resolveGitReference(ctx, client, owner, repo, tc.ref, tc.sha)
 
 			if tc.expectError {
 				require.Error(t, err)
