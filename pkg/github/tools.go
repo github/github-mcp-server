@@ -241,21 +241,6 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ListDiscussionCategories(t),
 
 		// Actions tools
-		ListWorkflows(t),
-		ListWorkflowRuns(t),
-		GetWorkflowRun(t),
-		GetWorkflowRunLogs(t),
-		ListWorkflowJobs(t),
-		GetJobLogs(t),
-		ListWorkflowRunArtifacts(t),
-		DownloadWorkflowRunArtifact(t),
-		GetWorkflowRunUsage(t),
-		RunWorkflow(t),
-		RerunWorkflowRun(t),
-		RerunFailedJobs(t),
-		CancelWorkflowRun(t),
-		DeleteWorkflowRunLogs(t),
-		// Consolidated Actions tools (enabled via feature flag)
 		ActionsList(t),
 		ActionsGet(t),
 		ActionsRunTrigger(t),
