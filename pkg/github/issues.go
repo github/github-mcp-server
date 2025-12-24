@@ -1175,7 +1175,11 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 
 	issue, resp, err := client.Issues.Create(ctx, owner, repo, issueRequest)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr("failed to create issue", err), nil
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to create issue",
+			resp,
+			err,
+		), nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -1522,7 +1526,11 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			issueQuery := getIssueQueryType(hasLabels, hasSince)
 			if err := client.Query(ctx, issueQuery, vars); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return ghErrors.NewGitHubGraphQLErrorResponse(
+					ctx,
+					"failed to list issues",
+					err,
+				), nil, nil
 			}
 
 			// Extract and convert all issue nodes using the common interface
@@ -1683,7 +1691,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				var query suggestedActorsQuery
 				err := client.Query(ctx, &query, variables)
 				if err != nil {
-					return nil, nil, err
+					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get suggested actors", err), nil, nil
 				}
 
 				// Iterate all the returned nodes looking for the copilot bot, which is supposed to have the
@@ -1729,7 +1737,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 			}
 
 			if err := client.Query(ctx, &getIssueQuery, variables); err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to get issue ID: %v", err)), nil, nil
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get issue ID", err), nil, nil
 			}
 
 			// Finally, do the assignment. Just for reference, assigning copilot to an issue that it is already
