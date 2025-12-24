@@ -64,7 +64,7 @@ The examples below use VS Code configuration format to illustrate the concepts. 
     "--tools=get_file_contents,get_me,pull_request_read"
   ],
   "env": {
-    "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}"
+    "GITHUB_ACCESS_TOKEN": "${input:github_token}"
   }
 }
 ```
@@ -108,7 +108,7 @@ The examples below use VS Code configuration format to illustrate the concepts. 
     "--toolsets=issues,pull_requests"
   ],
   "env": {
-    "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}"
+    "GITHUB_ACCESS_TOKEN": "${input:github_token}"
   }
 }
 ```
@@ -156,7 +156,7 @@ Enable entire toolsets, then add individual tools from toolsets you don't want f
     "--tools=get_gist,pull_request_read"
   ],
   "env": {
-    "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}"
+    "GITHUB_ACCESS_TOKEN": "${input:github_token}"
   }
 }
 ```
@@ -217,7 +217,7 @@ When active, this mode will disable all tools that are not read-only even if the
     "--read-only"
   ],
   "env": {
-    "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}"
+    "GITHUB_ACCESS_TOKEN": "${input:github_token}"
   }
 }
 ```
@@ -252,7 +252,7 @@ Starts with only discovery tools (`enable_toolset`, `list_available_toolsets`, `
     "--dynamic-toolsets"
   ],
   "env": {
-    "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}"
+    "GITHUB_ACCESS_TOKEN": "${input:github_token}"
   }
 }
 ```
@@ -270,7 +270,7 @@ Starts with only discovery tools (`enable_toolset`, `list_available_toolsets`, `
     "--tools=get_me,search_code"
   ],
   "env": {
-    "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}"
+    "GITHUB_ACCESS_TOKEN": "${input:github_token}"
   }
 }
 ```
@@ -319,7 +319,7 @@ Lockdown mode ensures the server only surfaces content in public repositories fr
     "--lockdown-mode"
   ],
   "env": {
-    "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}"
+    "GITHUB_ACCESS_TOKEN": "${input:github_token}"
   }
 }
 ```

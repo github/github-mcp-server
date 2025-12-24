@@ -72,11 +72,11 @@ With docker running, you can run the GitHub MCP server in a container:
                 "-i",
                 "--rm",
                 "-e",
-                "GITHUB_PERSONAL_ACCESS_TOKEN",
+                "GITHUB_ACCESS_TOKEN",
                 "ghcr.io/github/github-mcp-server"
             ],
             "env": {
-                "GITHUB_PERSONAL_ACCESS_TOKEN": "$GITHUB_MCP_PAT"
+                "GITHUB_ACCESS_TOKEN": "$GITHUB_MCP_PAT"
             }
         }
     }
@@ -97,7 +97,7 @@ Then, replacing `/path/to/binary` with the actual path to your binary, configure
             "command": "/path/to/binary",
             "args": ["stdio"],
             "env": {
-                "GITHUB_PERSONAL_ACCESS_TOKEN": "$GITHUB_MCP_PAT"
+                "GITHUB_ACCESS_TOKEN": "$GITHUB_MCP_PAT"
             }
         }
     }

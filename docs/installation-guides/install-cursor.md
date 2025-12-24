@@ -61,11 +61,11 @@ The local GitHub MCP server runs via Docker and requires Docker Desktop to be in
         "-i",
         "--rm",
         "-e",
-        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "GITHUB_ACCESS_TOKEN",
         "ghcr.io/github/github-mcp-server"
       ],
       "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_PAT"
+        "GITHUB_ACCESS_TOKEN": "YOUR_GITHUB_PAT"
       }
     }
   }

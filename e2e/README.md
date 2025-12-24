@@ -16,7 +16,7 @@ Since these tests require a token to interact with real resources on the GitHub 
 GITHUB_MCP_SERVER_E2E_TOKEN=<YOUR TOKEN> go test -v --tags e2e ./e2e
 ```
 
-The `GITHUB_MCP_SERVER_E2E_TOKEN` environment variable is mapped to `GITHUB_PERSONAL_ACCESS_TOKEN` internally, but separated to avoid accidental reuse of credentials.
+The `GITHUB_MCP_SERVER_E2E_TOKEN` environment variable is mapped to `GITHUB_ACCESS_TOKEN` internally, but separated to avoid accidental reuse of credentials.
 
 ## Example
 
