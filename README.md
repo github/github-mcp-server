@@ -509,7 +509,7 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
   - `resource_id`: The unique identifier of the resource. This will vary based on the "method" provided, so ensure you provide the correct ID:
     - Do not provide any resource ID for 'list_workflows' method.
-    - Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'list_workflow_runs' method.
+    - Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'list_workflow_runs' method, or omit to list all workflow runs in the repository.
     - Provide a workflow run ID for 'list_workflow_jobs' and 'list_workflow_run_artifacts' methods.
      (string, optional)
   - `workflow_jobs_filter`: Filters for workflow jobs. **ONLY** used when method is 'list_workflow_jobs' (object, optional)

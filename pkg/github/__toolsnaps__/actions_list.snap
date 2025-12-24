@@ -6,11 +6,6 @@
   "description": "Tools for listing GitHub Actions resources.\nUse this tool to list workflows in a repository, or list workflow runs, jobs, and artifacts for a specific workflow or workflow run.\n",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "method",
-      "owner",
-      "repo"
-    ],
     "properties": {
       "method": {
         "type": "string",
@@ -43,11 +38,10 @@
       },
       "resource_id": {
         "type": "string",
-        "description": "The unique identifier of the resource. This will vary based on the \"method\" provided, so ensure you provide the correct ID:\n- Do not provide any resource ID for 'list_workflows' method.\n- Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'list_workflow_runs' method.\n- Provide a workflow run ID for 'list_workflow_jobs' and 'list_workflow_run_artifacts' methods.\n"
+        "description": "The unique identifier of the resource. This will vary based on the \"method\" provided, so ensure you provide the correct ID:\n- Do not provide any resource ID for 'list_workflows' method.\n- Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'list_workflow_runs' method, or omit to list all workflow runs in the repository.\n- Provide a workflow run ID for 'list_workflow_jobs' and 'list_workflow_run_artifacts' methods.\n"
       },
       "workflow_jobs_filter": {
         "type": "object",
-        "description": "Filters for workflow jobs. **ONLY** used when method is 'list_workflow_jobs'",
         "properties": {
           "filter": {
             "type": "string",
@@ -57,11 +51,11 @@
               "all"
             ]
           }
-        }
+        },
+        "description": "Filters for workflow jobs. **ONLY** used when method is 'list_workflow_jobs'"
       },
       "workflow_runs_filter": {
         "type": "object",
-        "description": "Filters for workflow runs. **ONLY** used when method is 'list_workflow_runs'",
         "properties": {
           "actor": {
             "type": "string",
@@ -120,9 +114,15 @@
               "waiting"
             ]
           }
-        }
+        },
+        "description": "Filters for workflow runs. **ONLY** used when method is 'list_workflow_runs'"
       }
-    }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo"
+    ]
   },
   "name": "actions_list"
 }
