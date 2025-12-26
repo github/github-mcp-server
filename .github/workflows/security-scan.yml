@@ -1,5 +1,8 @@
 name: Security Scan & Auto-Update
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main]
@@ -43,6 +46,9 @@ jobs:
 
   solana-updates:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@v4
 
@@ -79,6 +85,8 @@ jobs:
 
   npm-audit:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
