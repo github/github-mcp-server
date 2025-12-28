@@ -82,6 +82,7 @@ Alternatively, to manually configure VS Code, choose the appropriate JSON block 
 ### Install in other MCP hosts
 - **[GitHub Copilot in other IDEs](/docs/installation-guides/install-other-copilot-ides.md)** - Installation for JetBrains, Visual Studio, Eclipse, and Xcode with GitHub Copilot
 - **[Claude Applications](/docs/installation-guides/install-claude.md)** - Installation guide for Claude Desktop and Claude Code CLI
+- **[Codex](/docs/installation-guides/install-codex.md)** - Installation guide for Open AI Codex
 - **[Cursor](/docs/installation-guides/install-cursor.md)** - Installation guide for Cursor IDE
 - **[Windsurf](/docs/installation-guides/install-windsurf.md)** - Installation guide for Windsurf IDE
 
