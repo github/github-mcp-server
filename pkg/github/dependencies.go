@@ -148,11 +148,22 @@ func (d BaseDeps) GetContentWindowSize() int { return d.ContentWindowSize }
 //
 // The handler function receives deps extracted from context via MustDepsFromContext.
 // Ensure ContextWithDeps is called to inject deps before any tool handlers are invoked.
-func NewTool[In, Out any](toolset inventory.ToolsetMetadata, tool mcp.Tool, handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error)) inventory.ServerTool {
-	return inventory.NewServerToolWithContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error) {
+//
+// All tools must explicitly specify their OAuth scope requirements, even if empty (nil).
+func NewTool[In, Out any](
+	toolset inventory.ToolsetMetadata,
+	tool mcp.Tool,
+	requiredScopes []string,
+	acceptedScopes []string,
+	handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error),
+) inventory.ServerTool {
+	st := inventory.NewServerToolWithContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error) {
 		deps := MustDepsFromContext(ctx)
 		return handler(ctx, deps, req, args)
 	})
+	st.RequiredScopes = requiredScopes
+	st.AcceptedScopes = acceptedScopes
+	return st
 }
 
 // NewToolFromHandler creates a ServerTool that retrieves ToolDependencies from context at call time.
@@ -160,9 +171,20 @@ func NewTool[In, Out any](toolset inventory.ToolsetMetadata, tool mcp.Tool, hand
 //
 // The handler function receives deps extracted from context via MustDepsFromContext.
 // Ensure ContextWithDeps is called to inject deps before any tool handlers are invoked.
-func NewToolFromHandler(toolset inventory.ToolsetMetadata, tool mcp.Tool, handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest) (*mcp.CallToolResult, error)) inventory.ServerTool {
-	return inventory.NewServerToolWithRawContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+//
+// All tools must explicitly specify their OAuth scope requirements, even if empty (nil).
+func NewToolFromHandler(
+	toolset inventory.ToolsetMetadata,
+	tool mcp.Tool,
+	requiredScopes []string,
+	acceptedScopes []string,
+	handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest) (*mcp.CallToolResult, error),
+) inventory.ServerTool {
+	st := inventory.NewServerToolWithRawContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		deps := MustDepsFromContext(ctx)
 		return handler(ctx, deps, req)
 	})
+	st.RequiredScopes = requiredScopes
+	st.AcceptedScopes = acceptedScopes
+	return st
 }

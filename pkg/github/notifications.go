@@ -11,6 +11,7 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -62,6 +63,8 @@ func ListNotifications(t translations.TranslationHelperFunc) inventory.ServerToo
 				},
 			}),
 		},
+		scopes.ToStringSlice(scopes.Notifications),
+		scopes.ToStringSlice(scopes.Notifications),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -187,6 +190,8 @@ func DismissNotification(t translations.TranslationHelperFunc) inventory.ServerT
 				Required: []string{"threadID", "state"},
 			},
 		},
+		scopes.ToStringSlice(scopes.Notifications),
+		scopes.ToStringSlice(scopes.Notifications),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -270,6 +275,8 @@ func MarkAllNotificationsRead(t translations.TranslationHelperFunc) inventory.Se
 				},
 			},
 		},
+		scopes.ToStringSlice(scopes.Notifications),
+		scopes.ToStringSlice(scopes.Notifications),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -354,6 +361,8 @@ func GetNotificationDetails(t translations.TranslationHelperFunc) inventory.Serv
 				Required: []string{"notificationID"},
 			},
 		},
+		scopes.ToStringSlice(scopes.Notifications),
+		scopes.ToStringSlice(scopes.Notifications),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -427,6 +436,8 @@ func ManageNotificationSubscription(t translations.TranslationHelperFunc) invent
 				Required: []string{"notificationID", "action"},
 			},
 		},
+		scopes.ToStringSlice(scopes.Notifications),
+		scopes.ToStringSlice(scopes.Notifications),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -526,6 +537,8 @@ func ManageRepositoryNotificationSubscription(t translations.TranslationHelperFu
 				Required: []string{"owner", "repo", "action"},
 			},
 		},
+		scopes.ToStringSlice(scopes.Notifications),
+		scopes.ToStringSlice(scopes.Notifications),
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
