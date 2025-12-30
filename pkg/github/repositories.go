@@ -27,8 +27,9 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "get_commit",
 			Description: t("TOOL_GET_COMMITS_DESCRIPTION", "Get details for a commit from a GitHub repository"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_COMMITS_USER_TITLE", "Get commit details"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_COMMITS_USER_TITLE", "Get commit details"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: WithPagination(&jsonschema.Schema{
 				Type: "object",
@@ -124,8 +125,9 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "list_commits",
 			Description: t("TOOL_LIST_COMMITS_DESCRIPTION", "Get list of commits of a branch in a GitHub repository. Returns at least 30 results per page by default, but can return more if specified using the perPage parameter (up to 100)."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_COMMITS_USER_TITLE", "List commits"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_LIST_COMMITS_USER_TITLE", "List commits"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: WithPagination(&jsonschema.Schema{
 				Type: "object",
@@ -231,8 +233,9 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "list_branches",
 			Description: t("TOOL_LIST_BRANCHES_DESCRIPTION", "List branches in a GitHub repository"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_BRANCHES_USER_TITLE", "List branches"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_LIST_BRANCHES_USER_TITLE", "List branches"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: WithPagination(&jsonschema.Schema{
 				Type: "object",
@@ -620,8 +623,9 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			Name:        "get_file_contents",
 			Description: t("TOOL_GET_FILE_CONTENTS_DESCRIPTION", "Get the contents of a file or directory from a GitHub repository"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_FILE_CONTENTS_USER_TITLE", "Get file or directory contents"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_FILE_CONTENTS_USER_TITLE", "Get file or directory contents"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -1388,8 +1392,9 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "list_tags",
 			Description: t("TOOL_LIST_TAGS_DESCRIPTION", "List git tags in a GitHub repository"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_TAGS_USER_TITLE", "List tags"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_LIST_TAGS_USER_TITLE", "List tags"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: WithPagination(&jsonschema.Schema{
 				Type: "object",
@@ -1466,8 +1471,9 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "get_tag",
 			Description: t("TOOL_GET_TAG_DESCRIPTION", "Get details about a specific git tag in a GitHub repository"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_TAG_USER_TITLE", "Get tag details"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_TAG_USER_TITLE", "Get tag details"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -1563,8 +1569,9 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "list_releases",
 			Description: t("TOOL_LIST_RELEASES_DESCRIPTION", "List releases in a GitHub repository"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_RELEASES_USER_TITLE", "List releases"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_LIST_RELEASES_USER_TITLE", "List releases"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: WithPagination(&jsonschema.Schema{
 				Type: "object",
@@ -1637,8 +1644,9 @@ func GetLatestRelease(t translations.TranslationHelperFunc) inventory.ServerTool
 			Name:        "get_latest_release",
 			Description: t("TOOL_GET_LATEST_RELEASE_DESCRIPTION", "Get the latest release in a GitHub repository"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_LATEST_RELEASE_USER_TITLE", "Get latest release"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_LATEST_RELEASE_USER_TITLE", "Get latest release"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -1701,8 +1709,9 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 			Name:        "get_release_by_tag",
 			Description: t("TOOL_GET_RELEASE_BY_TAG_DESCRIPTION", "Get a specific release by its tag name in a GitHub repository"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_RELEASE_BY_TAG_USER_TITLE", "Get a release by tag name"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_RELEASE_BY_TAG_USER_TITLE", "Get a release by tag name"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -2016,8 +2025,9 @@ func ListStarredRepositories(t translations.TranslationHelperFunc) inventory.Ser
 			Name:        "list_starred_repositories",
 			Description: t("TOOL_LIST_STARRED_REPOSITORIES_DESCRIPTION", "List starred repositories"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_STARRED_REPOSITORIES_USER_TITLE", "List starred repositories"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_LIST_STARRED_REPOSITORIES_USER_TITLE", "List starred repositories"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: WithPagination(&jsonschema.Schema{
 				Type: "object",

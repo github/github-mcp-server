@@ -1,14 +1,12 @@
 {
   "annotations": {
+    "openWorldHint": true,
     "readOnlyHint": true,
     "title": "Search organizations"
   },
   "description": "Find GitHub organizations by name, location, or other organization metadata. Ideal for discovering companies, open source foundations, or teams.",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "query"
-    ],
     "properties": {
       "order": {
         "type": "string",
@@ -42,7 +40,10 @@
           "joined"
         ]
       }
-    }
+    },
+    "required": [
+      "query"
+    ]
   },
   "name": "search_orgs"
 }

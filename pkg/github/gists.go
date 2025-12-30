@@ -24,8 +24,9 @@ func ListGists(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "list_gists",
 			Description: t("TOOL_LIST_GISTS_DESCRIPTION", "List gists for a user"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_GISTS", "List Gists"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_LIST_GISTS", "List Gists"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: WithPagination(&jsonschema.Schema{
 				Type: "object",
@@ -110,8 +111,9 @@ func GetGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "get_gist",
 			Description: t("TOOL_GET_GIST_DESCRIPTION", "Get gist content of a particular gist, by gist ID"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_GIST", "Get Gist Content"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_GIST", "Get Gist Content"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",

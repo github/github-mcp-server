@@ -5,13 +5,6 @@
   "description": "Update a specific Project item for a user or org",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner_type",
-      "owner",
-      "project_number",
-      "item_id",
-      "updated_field"
-    ],
     "properties": {
       "item_id": {
         "type": "number",
@@ -37,7 +30,14 @@
         "type": "object",
         "description": "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}"
       }
-    }
+    },
+    "required": [
+      "owner_type",
+      "owner",
+      "project_number",
+      "item_id",
+      "updated_field"
+    ]
   },
   "name": "update_project_item"
 }

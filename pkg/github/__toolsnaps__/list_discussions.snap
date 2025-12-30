@@ -1,14 +1,12 @@
 {
   "annotations": {
+    "openWorldHint": true,
     "readOnlyHint": true,
     "title": "List discussions"
   },
   "description": "List discussions for a repository or organisation.",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner"
-    ],
     "properties": {
       "after": {
         "type": "string",
@@ -48,7 +46,10 @@
         "type": "string",
         "description": "Repository name. If not provided, discussions will be queried at the organisation level."
       }
-    }
+    },
+    "required": [
+      "owner"
+    ]
   },
   "name": "list_discussions"
 }

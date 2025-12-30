@@ -23,8 +23,9 @@ func GetLabel(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "get_label",
 			Description: t("TOOL_GET_LABEL_DESCRIPTION", "Get a specific label from a repository."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_LABEL_TITLE", "Get a specific label from a repository."),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_LABEL_TITLE", "Get a specific label from a repository."),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -124,8 +125,9 @@ func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "list_label",
 			Description: t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository."),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_LIST_LABEL_DESCRIPTION", "List labels from a repository."),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",

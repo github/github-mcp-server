@@ -5,13 +5,6 @@
   "description": "Add a specific Project item for a user or org",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner_type",
-      "owner",
-      "project_number",
-      "item_type",
-      "item_id"
-    ],
     "properties": {
       "item_id": {
         "type": "number",
@@ -41,7 +34,14 @@
         "type": "number",
         "description": "The project's number."
       }
-    }
+    },
+    "required": [
+      "owner_type",
+      "owner",
+      "project_number",
+      "item_type",
+      "item_id"
+    ]
   },
   "name": "add_project_item"
 }

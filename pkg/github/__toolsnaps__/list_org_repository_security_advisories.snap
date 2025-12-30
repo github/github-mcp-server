@@ -1,14 +1,12 @@
 {
   "annotations": {
+    "openWorldHint": true,
     "readOnlyHint": true,
     "title": "List org repository security advisories"
   },
   "description": "List repository security advisories for a GitHub organization.",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "org"
-    ],
     "properties": {
       "direction": {
         "type": "string",
@@ -41,7 +39,10 @@
           "closed"
         ]
       }
-    }
+    },
+    "required": [
+      "org"
+    ]
   },
   "name": "list_org_repository_security_advisories"
 }

@@ -5,11 +5,6 @@
   "description": "Update an existing pull request in a GitHub repository.",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo",
-      "pullNumber"
-    ],
     "properties": {
       "base": {
         "type": "string",
@@ -41,10 +36,10 @@
       },
       "reviewers": {
         "type": "array",
-        "description": "GitHub usernames to request reviews from",
         "items": {
           "type": "string"
-        }
+        },
+        "description": "GitHub usernames to request reviews from"
       },
       "state": {
         "type": "string",
@@ -58,7 +53,12 @@
         "type": "string",
         "description": "New title"
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "pullNumber"
+    ]
   },
   "name": "update_pull_request"
 }

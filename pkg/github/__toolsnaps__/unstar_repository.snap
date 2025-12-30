@@ -5,10 +5,6 @@
   "description": "Unstar a GitHub repository",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo"
-    ],
     "properties": {
       "owner": {
         "type": "string",
@@ -18,7 +14,11 @@
         "type": "string",
         "description": "Repository name"
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ]
   },
   "name": "unstar_repository"
 }

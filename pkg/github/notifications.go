@@ -32,8 +32,9 @@ func ListNotifications(t translations.TranslationHelperFunc) inventory.ServerToo
 			Name:        "list_notifications",
 			Description: t("TOOL_LIST_NOTIFICATIONS_DESCRIPTION", "Lists all GitHub notifications for the authenticated user, including unread notifications, mentions, review requests, assignments, and updates on issues or pull requests. Use this tool whenever the user asks what to work on next, requests a summary of their GitHub activity, wants to see pending reviews, or needs to check for new updates or tasks. This tool is the primary way to discover actionable items, reminders, and outstanding work on GitHub. Always call this tool when asked what to work on next, what is pending, or what needs attention in GitHub."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_NOTIFICATIONS_USER_TITLE", "List notifications"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_LIST_NOTIFICATIONS_USER_TITLE", "List notifications"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: WithPagination(&jsonschema.Schema{
 				Type: "object",
@@ -340,8 +341,9 @@ func GetNotificationDetails(t translations.TranslationHelperFunc) inventory.Serv
 			Name:        "get_notification_details",
 			Description: t("TOOL_GET_NOTIFICATION_DETAILS_DESCRIPTION", "Get detailed information for a specific GitHub notification, always call this tool when the user asks for details about a specific notification, if you don't know the ID list notifications first."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_NOTIFICATION_DETAILS_USER_TITLE", "Get notification details"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_NOTIFICATION_DETAILS_USER_TITLE", "Get notification details"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",

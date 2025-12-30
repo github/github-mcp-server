@@ -1,17 +1,12 @@
 {
   "annotations": {
+    "openWorldHint": true,
     "readOnlyHint": true,
     "title": "Get details for a single pull request"
   },
   "description": "Get information on a specific pull request in GitHub repository.",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "method",
-      "owner",
-      "repo",
-      "pullNumber"
-    ],
     "properties": {
       "method": {
         "type": "string",
@@ -49,7 +44,13 @@
         "type": "string",
         "description": "Repository name"
       }
-    }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo",
+      "pullNumber"
+    ]
   },
   "name": "pull_request_read"
 }

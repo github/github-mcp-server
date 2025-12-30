@@ -1,16 +1,12 @@
 {
   "annotations": {
+    "openWorldHint": true,
     "readOnlyHint": true,
     "title": "Get project"
   },
   "description": "Get Project for a user or org",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "project_number",
-      "owner_type",
-      "owner"
-    ],
     "properties": {
       "owner": {
         "type": "string",
@@ -28,7 +24,12 @@
         "type": "number",
         "description": "The project's number"
       }
-    }
+    },
+    "required": [
+      "project_number",
+      "owner_type",
+      "owner"
+    ]
   },
   "name": "get_project"
 }

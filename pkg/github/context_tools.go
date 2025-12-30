@@ -44,8 +44,9 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "get_me",
 			Description: t("TOOL_GET_ME_DESCRIPTION", "Get details of the authenticated GitHub user. Use this when a request is about the user's own profile for GitHub. Or when information is missing to build other tool calls."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_ME_USER_TITLE", "Get my user profile"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_ME_USER_TITLE", "Get my user profile"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			// Use json.RawMessage to ensure "properties" is included even when empty.
 			// OpenAI strict mode requires the properties field to be present.
@@ -116,8 +117,9 @@ func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "get_teams",
 			Description: t("TOOL_GET_TEAMS_DESCRIPTION", "Get details of the teams the user is a member of. Limited to organizations accessible with current credentials"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_TEAMS_TITLE", "Get teams"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_TEAMS_TITLE", "Get teams"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -213,8 +215,9 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "get_team_members",
 			Description: t("TOOL_GET_TEAM_MEMBERS_DESCRIPTION", "Get member usernames of a specific team in an organization. Limited to organizations accessible with current credentials"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_TEAM_MEMBERS_TITLE", "Get team members"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_TEAM_MEMBERS_TITLE", "Get team members"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",

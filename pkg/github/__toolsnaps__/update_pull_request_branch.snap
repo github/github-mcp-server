@@ -5,11 +5,6 @@
   "description": "Update the branch of a pull request with the latest changes from the base branch.",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo",
-      "pullNumber"
-    ],
     "properties": {
       "expectedHeadSha": {
         "type": "string",
@@ -27,7 +22,12 @@
         "type": "string",
         "description": "Repository name"
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "pullNumber"
+    ]
   },
   "name": "update_pull_request_branch"
 }
