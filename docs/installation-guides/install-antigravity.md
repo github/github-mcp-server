@@ -85,11 +85,11 @@ If you prefer running the server locally with Docker:
         "-i",
         "--rm",
         "-e",
-        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "GITHUB_ACCESS_TOKEN",
         "ghcr.io/github/github-mcp-server"
       ],
       "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_PAT"
+        "GITHUB_ACCESS_TOKEN": "YOUR_GITHUB_PAT"
       }
     }
   }

@@ -133,8 +133,10 @@ GitHub Enterprise Server does not support remote server hosting. Please refer to
 
 1. To run the server in a container, you will need to have [Docker](https://www.docker.com/) installed.
 2. Once Docker is installed, you will also need to ensure Docker is running. The image is public; if you get errors on pull, you may have an expired token and need to `docker logout ghcr.io`.
-3. Lastly you will need to [Create a GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new).
+3. Lastly you will need to [Create a GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new) or use an OAuth token from your IDE/toolchain.
 The MCP server can use many of the GitHub APIs, so enable the permissions that you feel comfortable granting your AI tools (to learn more about access tokens, please check out the [documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)).
+
+> **Note**: The server accepts any valid GitHub access token (PAT or OAuth). The `GITHUB_ACCESS_TOKEN` environment variable is preferred over the deprecated `GITHUB_PERSONAL_ACCESS_TOKEN` variable.
 
 <details><summary><b>Handling PATs Securely</b></summary>
 
@@ -159,11 +161,11 @@ To keep your GitHub PAT secure and reusable across different MCP hosts:
 3. **Reference the token in configurations**
    ```bash
    # CLI usage
-   claude mcp update github -e GITHUB_PERSONAL_ACCESS_TOKEN=$GITHUB_PAT
+   claude mcp update github -e GITHUB_ACCESS_TOKEN=$GITHUB_PAT
 
    # In config files (where supported)
    "env": {
-     "GITHUB_PERSONAL_ACCESS_TOKEN": "$GITHUB_PAT"
+     "GITHUB_ACCESS_TOKEN": "$GITHUB_PAT"
    }
    ```
 
@@ -200,13 +202,13 @@ the hostname for GitHub Enterprise Server or GitHub Enterprise Cloud with data r
     "-i",
     "--rm",
     "-e",
-    "GITHUB_PERSONAL_ACCESS_TOKEN",
+    "GITHUB_ACCESS_TOKEN",
     "-e",
     "GITHUB_HOST",
     "ghcr.io/github/github-mcp-server"
     ],
     "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}",
+        "GITHUB_ACCESS_TOKEN": "${input:github_token}",
         "GITHUB_HOST": "https://<your GHES or ghe.com domain name>"
     }
 }
@@ -243,11 +245,11 @@ Add the following JSON block to your IDE's MCP settings.
           "-i",
           "--rm",
           "-e",
-          "GITHUB_PERSONAL_ACCESS_TOKEN",
+          "GITHUB_ACCESS_TOKEN",
           "ghcr.io/github/github-mcp-server"
         ],
         "env": {
-          "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}"
+          "GITHUB_ACCESS_TOKEN": "${input:github_token}"
         }
       }
     }
@@ -279,11 +281,11 @@ Optionally, you can add a similar example (i.e. without the mcp key) to a file c
         "-i",
         "--rm",
         "-e",
-        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "GITHUB_ACCESS_TOKEN",
         "ghcr.io/github/github-mcp-server"
       ],
       "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}"
+        "GITHUB_ACCESS_TOKEN": "${input:github_token}"
       }
     }
   }
@@ -309,7 +311,7 @@ For a complete overview of all installation options, see our **[Installation Gui
 ### Build from source
 
 If you don't have Docker, you can use `go build` to build the binary in the
-`cmd/github-mcp-server` directory, and use the `github-mcp-server stdio` command with the `GITHUB_PERSONAL_ACCESS_TOKEN` environment variable set to your token. To specify the output location of the build, use the `-o` flag. You should configure your server to use the built executable as its `command`. For example:
+`cmd/github-mcp-server` directory, and use the `github-mcp-server stdio` command with the `GITHUB_ACCESS_TOKEN` environment variable set to your token. To specify the output location of the build, use the `-o` flag. You should configure your server to use the built executable as its `command`. For example:
 
 ```JSON
 {
@@ -319,7 +321,7 @@ If you don't have Docker, you can use `go build` to build the binary in the
         "command": "/path/to/github-mcp-server",
         "args": ["stdio"],
         "env": {
-          "GITHUB_PERSONAL_ACCESS_TOKEN": "<YOUR_TOKEN>"
+          "GITHUB_ACCESS_TOKEN": "<YOUR_TOKEN>"
         }
       }
     }
@@ -393,7 +395,7 @@ When using Docker, you can pass the toolsets as environment variables:
 
 ```bash
 docker run -i --rm \
-  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_ACCESS_TOKEN=<your-token> \
   -e GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security" \
   ghcr.io/github/github-mcp-server
 ```
@@ -405,13 +407,13 @@ When using Docker, you can pass specific tools as environment variables. You can
 ```bash
 # Tools only
 docker run -i --rm \
-  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_ACCESS_TOKEN=<your-token> \
   -e GITHUB_TOOLS="get_file_contents,issue_read,create_pull_request" \
   ghcr.io/github/github-mcp-server
 
 # Tools combined with toolsets (additive)
 docker run -i --rm \
-  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_ACCESS_TOKEN=<your-token> \
   -e GITHUB_TOOLSETS="repos,issues" \
   -e GITHUB_TOOLS="get_gist" \
   ghcr.io/github/github-mcp-server
@@ -1345,7 +1347,7 @@ When using Docker, you can pass the toolsets as environment variables:
 
 ```bash
 docker run -i --rm \
-  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_ACCESS_TOKEN=<your-token> \
   -e GITHUB_DYNAMIC_TOOLSETS=1 \
   ghcr.io/github/github-mcp-server
 ```
@@ -1362,7 +1364,7 @@ When using Docker, you can pass the read-only mode as an environment variable:
 
 ```bash
 docker run -i --rm \
-  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_ACCESS_TOKEN=<your-token> \
   -e GITHUB_READ_ONLY=1 \
   ghcr.io/github/github-mcp-server
 ```
@@ -1379,7 +1381,7 @@ When running with Docker, set the corresponding environment variable:
 
 ```bash
 docker run -i --rm \
-  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_ACCESS_TOKEN=<your-token> \
   -e GITHUB_LOCKDOWN_MODE=1 \
   ghcr.io/github/github-mcp-server
 ```
