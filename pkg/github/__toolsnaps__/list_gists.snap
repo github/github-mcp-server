@@ -1,5 +1,6 @@
 {
   "annotations": {
+    "openWorldHint": true,
     "readOnlyHint": true,
     "title": "List Gists"
   },

@@ -1,16 +1,12 @@
 {
   "annotations": {
+    "openWorldHint": true,
     "readOnlyHint": true,
     "title": "Get workflow run logs"
   },
   "description": "Download logs for a specific workflow run (EXPENSIVE: downloads ALL logs as ZIP. Consider using get_job_logs with failed_only=true for debugging failed jobs)",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo",
-      "run_id"
-    ],
     "properties": {
       "owner": {
         "type": "string",
@@ -24,7 +20,12 @@
         "type": "number",
         "description": "The unique identifier of the workflow run"
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "run_id"
+    ]
   },
   "name": "get_workflow_run_logs"
 }

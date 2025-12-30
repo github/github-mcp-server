@@ -129,8 +129,9 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 			Name:        "list_discussions",
 			Description: t("TOOL_LIST_DISCUSSIONS_DESCRIPTION", "List discussions for a repository or organisation."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_DISCUSSIONS_USER_TITLE", "List discussions"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_LIST_DISCUSSIONS_USER_TITLE", "List discussions"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: WithCursorPagination(&jsonschema.Schema{
 				Type: "object",
@@ -281,8 +282,9 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "get_discussion",
 			Description: t("TOOL_GET_DISCUSSION_DESCRIPTION", "Get a specific discussion by ID"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_DISCUSSION_USER_TITLE", "Get discussion"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_DISCUSSION_USER_TITLE", "Get discussion"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -384,8 +386,9 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 			Name:        "get_discussion_comments",
 			Description: t("TOOL_GET_DISCUSSION_COMMENTS_DESCRIPTION", "Get comments from a discussion"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_DISCUSSION_COMMENTS_USER_TITLE", "Get discussion comments"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_DISCUSSION_COMMENTS_USER_TITLE", "Get discussion comments"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: WithCursorPagination(&jsonschema.Schema{
 				Type: "object",
@@ -510,8 +513,9 @@ func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.Se
 			Name:        "list_discussion_categories",
 			Description: t("TOOL_LIST_DISCUSSION_CATEGORIES_DESCRIPTION", "List discussion categories with their id and name, for a repository or organisation."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_DISCUSSION_CATEGORIES_USER_TITLE", "List discussion categories"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_LIST_DISCUSSION_CATEGORIES_USER_TITLE", "List discussion categories"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",

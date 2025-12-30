@@ -1,14 +1,12 @@
 {
   "annotations": {
+    "openWorldHint": true,
     "readOnlyHint": true,
     "title": "Search issues"
   },
   "description": "Search for issues in GitHub repositories using issues search syntax already scoped to is:issue",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "query"
-    ],
     "properties": {
       "order": {
         "type": "string",
@@ -58,7 +56,10 @@
           "updated"
         ]
       }
-    }
+    },
+    "required": [
+      "query"
+    ]
   },
   "name": "search_issues"
 }

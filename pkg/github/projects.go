@@ -32,8 +32,9 @@ func ListProjects(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "list_projects",
 			Description: t("TOOL_LIST_PROJECTS_DESCRIPTION", `List Projects for a user or organization`),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_PROJECTS_USER_TITLE", "List projects"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_LIST_PROJECTS_USER_TITLE", "List projects"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -149,8 +150,9 @@ func GetProject(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "get_project",
 			Description: t("TOOL_GET_PROJECT_DESCRIPTION", "Get Project for a user or org"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_PROJECT_USER_TITLE", "Get project"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_PROJECT_USER_TITLE", "Get project"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -237,8 +239,9 @@ func ListProjectFields(t translations.TranslationHelperFunc) inventory.ServerToo
 			Name:        "list_project_fields",
 			Description: t("TOOL_LIST_PROJECT_FIELDS_DESCRIPTION", "List Project fields for a user or org"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_PROJECT_FIELDS_USER_TITLE", "List project fields"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_LIST_PROJECT_FIELDS_USER_TITLE", "List project fields"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -343,8 +346,9 @@ func GetProjectField(t translations.TranslationHelperFunc) inventory.ServerTool 
 			Name:        "get_project_field",
 			Description: t("TOOL_GET_PROJECT_FIELD_DESCRIPTION", "Get Project field for a user or org"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_PROJECT_FIELD_USER_TITLE", "Get project field"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_PROJECT_FIELD_USER_TITLE", "Get project field"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -435,8 +439,9 @@ func ListProjectItems(t translations.TranslationHelperFunc) inventory.ServerTool
 			Name:        "list_project_items",
 			Description: t("TOOL_LIST_PROJECT_ITEMS_DESCRIPTION", `Search project items with advanced filtering`),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_PROJECT_ITEMS_USER_TITLE", "List project items"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_LIST_PROJECT_ITEMS_USER_TITLE", "List project items"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -571,8 +576,9 @@ func GetProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "get_project_item",
 			Description: t("TOOL_GET_PROJECT_ITEM_DESCRIPTION", "Get a specific Project item for a user or org"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_PROJECT_ITEM_USER_TITLE", "Get project item"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_PROJECT_ITEM_USER_TITLE", "Get project item"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",

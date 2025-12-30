@@ -6,11 +6,6 @@
   "description": "Get download URL for a workflow run artifact",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo",
-      "artifact_id"
-    ],
     "properties": {
       "artifact_id": {
         "type": "number",
@@ -24,7 +19,12 @@
         "type": "string",
         "description": "Repository name"
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "artifact_id"
+    ]
   },
   "name": "download_workflow_run_artifact"
 }

@@ -1,14 +1,12 @@
 {
   "annotations": {
+    "openWorldHint": true,
     "readOnlyHint": true,
     "title": "Search pull requests"
   },
   "description": "Search for pull requests in GitHub repositories using issues search syntax already scoped to is:pr",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "query"
-    ],
     "properties": {
       "order": {
         "type": "string",
@@ -58,7 +56,10 @@
           "updated"
         ]
       }
-    }
+    },
+    "required": [
+      "query"
+    ]
   },
   "name": "search_pull_requests"
 }

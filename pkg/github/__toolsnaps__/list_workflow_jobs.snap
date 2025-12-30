@@ -1,16 +1,12 @@
 {
   "annotations": {
+    "openWorldHint": true,
     "readOnlyHint": true,
     "title": "List workflow jobs"
   },
   "description": "List jobs for a specific workflow run",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo",
-      "run_id"
-    ],
     "properties": {
       "filter": {
         "type": "string",
@@ -43,7 +39,12 @@
         "type": "number",
         "description": "The unique identifier of the workflow run"
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "run_id"
+    ]
   },
   "name": "list_workflow_jobs"
 }

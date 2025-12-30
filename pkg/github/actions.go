@@ -56,8 +56,9 @@ func ListWorkflows(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "list_workflows",
 			Description: t("TOOL_LIST_WORKFLOWS_DESCRIPTION", "List workflows in a repository"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_WORKFLOWS_USER_TITLE", "List workflows"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_LIST_WORKFLOWS_USER_TITLE", "List workflows"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: WithPagination(&jsonschema.Schema{
 				Type: "object",
@@ -127,8 +128,9 @@ func ListWorkflowRuns(t translations.TranslationHelperFunc) inventory.ServerTool
 			Name:        "list_workflow_runs",
 			Description: t("TOOL_LIST_WORKFLOW_RUNS_DESCRIPTION", "List workflow runs for a specific workflow"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_WORKFLOW_RUNS_USER_TITLE", "List workflow runs"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_LIST_WORKFLOW_RUNS_USER_TITLE", "List workflow runs"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: WithPagination(&jsonschema.Schema{
 				Type: "object",
@@ -393,8 +395,9 @@ func GetWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "get_workflow_run",
 			Description: t("TOOL_GET_WORKFLOW_RUN_DESCRIPTION", "Get details of a specific workflow run"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_WORKFLOW_RUN_USER_TITLE", "Get workflow run"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_WORKFLOW_RUN_USER_TITLE", "Get workflow run"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -461,8 +464,9 @@ func GetWorkflowRunLogs(t translations.TranslationHelperFunc) inventory.ServerTo
 			Name:        "get_workflow_run_logs",
 			Description: t("TOOL_GET_WORKFLOW_RUN_LOGS_DESCRIPTION", "Download logs for a specific workflow run (EXPENSIVE: downloads ALL logs as ZIP. Consider using get_job_logs with failed_only=true for debugging failed jobs)"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_WORKFLOW_RUN_LOGS_USER_TITLE", "Get workflow run logs"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_WORKFLOW_RUN_LOGS_USER_TITLE", "Get workflow run logs"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -539,8 +543,9 @@ func ListWorkflowJobs(t translations.TranslationHelperFunc) inventory.ServerTool
 			Name:        "list_workflow_jobs",
 			Description: t("TOOL_LIST_WORKFLOW_JOBS_DESCRIPTION", "List jobs for a specific workflow run"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_WORKFLOW_JOBS_USER_TITLE", "List workflow jobs"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_LIST_WORKFLOW_JOBS_USER_TITLE", "List workflow jobs"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: WithPagination(&jsonschema.Schema{
 				Type: "object",
@@ -639,8 +644,9 @@ func GetJobLogs(t translations.TranslationHelperFunc) inventory.ServerTool {
 			Name:        "get_job_logs",
 			Description: t("TOOL_GET_JOB_LOGS_DESCRIPTION", "Download logs for a specific workflow job or efficiently get all failed job logs for a workflow run"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_JOB_LOGS_USER_TITLE", "Get job logs"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_JOB_LOGS_USER_TITLE", "Get job logs"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -1131,8 +1137,9 @@ func ListWorkflowRunArtifacts(t translations.TranslationHelperFunc) inventory.Se
 			Name:        "list_workflow_run_artifacts",
 			Description: t("TOOL_LIST_WORKFLOW_RUN_ARTIFACTS_DESCRIPTION", "List artifacts for a workflow run"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_WORKFLOW_RUN_ARTIFACTS_USER_TITLE", "List workflow artifacts"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_LIST_WORKFLOW_RUN_ARTIFACTS_USER_TITLE", "List workflow artifacts"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: WithPagination(&jsonschema.Schema{
 				Type: "object",
@@ -1435,8 +1442,9 @@ func ActionsList(t translations.TranslationHelperFunc) inventory.ServerTool {
 Use this tool to list workflows in a repository, or list workflow runs, jobs, and artifacts for a specific workflow or workflow run.
 `),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_ACTIONS_LIST_USER_TITLE", "List GitHub Actions workflows in a repository"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_ACTIONS_LIST_USER_TITLE", "List GitHub Actions workflows in a repository"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -1629,8 +1637,9 @@ func ActionsGet(t translations.TranslationHelperFunc) inventory.ServerTool {
 Use this tool to get details about individual workflows, workflow runs, jobs, and artifacts by their unique IDs.
 `),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_ACTIONS_GET_USER_TITLE", "Get details of GitHub Actions resources (workflows, workflow runs, jobs, and artifacts)"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_ACTIONS_GET_USER_TITLE", "Get details of GitHub Actions resources (workflows, workflow runs, jobs, and artifacts)"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -1856,8 +1865,9 @@ Use this tool to retrieve logs for a specific job or all failed jobs in a workfl
 For single job logs, provide job_id. For all failed jobs in a run, provide run_id with failed_only=true.
 `),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_JOB_LOGS_CONSOLIDATED_USER_TITLE", "Get GitHub Actions workflow job logs"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_JOB_LOGS_CONSOLIDATED_USER_TITLE", "Get GitHub Actions workflow job logs"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",

@@ -5,12 +5,6 @@
   "description": "Perform write operations on repository labels. To set labels on issues, use the 'update_issue' tool.",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "method",
-      "owner",
-      "repo",
-      "name"
-    ],
     "properties": {
       "color": {
         "type": "string",
@@ -45,7 +39,13 @@
         "type": "string",
         "description": "Repository name"
       }
-    }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo",
+      "name"
+    ]
   },
   "name": "label_write"
 }

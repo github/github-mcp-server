@@ -23,8 +23,9 @@ func GetDependabotAlert(t translations.TranslationHelperFunc) inventory.ServerTo
 			Name:        "get_dependabot_alert",
 			Description: t("TOOL_GET_DEPENDABOT_ALERT_DESCRIPTION", "Get details of a specific dependabot alert in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_DEPENDABOT_ALERT_USER_TITLE", "Get dependabot alert"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_DEPENDABOT_ALERT_USER_TITLE", "Get dependabot alert"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -99,8 +100,9 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 			Name:        "list_dependabot_alerts",
 			Description: t("TOOL_LIST_DEPENDABOT_ALERTS_DESCRIPTION", "List dependabot alerts in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_DEPENDABOT_ALERTS_USER_TITLE", "List dependabot alerts"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_LIST_DEPENDABOT_ALERTS_USER_TITLE", "List dependabot alerts"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",

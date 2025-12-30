@@ -5,11 +5,6 @@
   "description": "Merge a pull request in a GitHub repository.",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo",
-      "pullNumber"
-    ],
     "properties": {
       "commit_message": {
         "type": "string",
@@ -40,7 +35,12 @@
         "type": "string",
         "description": "Repository name"
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "pullNumber"
+    ]
   },
   "name": "merge_pull_request",
   "icons": [

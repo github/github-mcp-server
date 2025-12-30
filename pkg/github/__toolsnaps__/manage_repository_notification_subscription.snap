@@ -5,11 +5,6 @@
   "description": "Manage a repository notification subscription: ignore, watch, or delete repository notifications subscription for the provided repository.",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo",
-      "action"
-    ],
     "properties": {
       "action": {
         "type": "string",
@@ -28,7 +23,12 @@
         "type": "string",
         "description": "The name of the repository."
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "action"
+    ]
   },
   "name": "manage_repository_notification_subscription"
 }

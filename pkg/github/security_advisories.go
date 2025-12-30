@@ -23,8 +23,9 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventor
 			Name:        "list_global_security_advisories",
 			Description: t("TOOL_LIST_GLOBAL_SECURITY_ADVISORIES_DESCRIPTION", "List global security advisories from GitHub."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_GLOBAL_SECURITY_ADVISORIES_USER_TITLE", "List global security advisories"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_LIST_GLOBAL_SECURITY_ADVISORIES_USER_TITLE", "List global security advisories"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -213,8 +214,9 @@ func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inve
 			Name:        "list_repository_security_advisories",
 			Description: t("TOOL_LIST_REPOSITORY_SECURITY_ADVISORIES_DESCRIPTION", "List repository security advisories for a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_REPOSITORY_SECURITY_ADVISORIES_USER_TITLE", "List repository security advisories"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_LIST_REPOSITORY_SECURITY_ADVISORIES_USER_TITLE", "List repository security advisories"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -316,8 +318,9 @@ func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.S
 			Name:        "get_global_security_advisory",
 			Description: t("TOOL_GET_GLOBAL_SECURITY_ADVISORY_DESCRIPTION", "Get a global security advisory"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_GLOBAL_SECURITY_ADVISORY_USER_TITLE", "Get a global security advisory"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_GET_GLOBAL_SECURITY_ADVISORY_USER_TITLE", "Get a global security advisory"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
@@ -372,8 +375,9 @@ func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) i
 			Name:        "list_org_repository_security_advisories",
 			Description: t("TOOL_LIST_ORG_REPOSITORY_SECURITY_ADVISORIES_DESCRIPTION", "List repository security advisories for a GitHub organization."),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_LIST_ORG_REPOSITORY_SECURITY_ADVISORIES_USER_TITLE", "List org repository security advisories"),
-				ReadOnlyHint: true,
+				Title:         t("TOOL_LIST_ORG_REPOSITORY_SECURITY_ADVISORIES_USER_TITLE", "List org repository security advisories"),
+				ReadOnlyHint:  true,
+				OpenWorldHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",

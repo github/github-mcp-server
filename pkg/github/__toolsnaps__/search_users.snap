@@ -1,14 +1,12 @@
 {
   "annotations": {
+    "openWorldHint": true,
     "readOnlyHint": true,
     "title": "Search users"
   },
   "description": "Find GitHub users by username, real name, or other profile information. Useful for locating developers, contributors, or team members.",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "query"
-    ],
     "properties": {
       "order": {
         "type": "string",
@@ -42,7 +40,10 @@
           "joined"
         ]
       }
-    }
+    },
+    "required": [
+      "query"
+    ]
   },
   "name": "search_users"
 }
