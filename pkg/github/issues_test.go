@@ -2175,8 +2175,8 @@ func TestAssignCopilotToIssue(t *testing.T) {
 	assert.NotEmpty(t, tool.Description)
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issueNumber")
-	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo", "issueNumber"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo", "issue_number"})
 
 	var pageOfFakeBots = func(n int) []struct{} {
 		// We don't _really_ need real bots here, just objects that count as entries for the page
@@ -2197,9 +2197,9 @@ func TestAssignCopilotToIssue(t *testing.T) {
 		{
 			name: "successful assignment when there are no existing assignees",
 			requestArgs: map[string]any{
-				"owner":       "owner",
-				"repo":        "repo",
-				"issueNumber": float64(123),
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
@@ -2286,9 +2286,9 @@ func TestAssignCopilotToIssue(t *testing.T) {
 		{
 			name: "successful assignment when there are existing assignees",
 			requestArgs: map[string]any{
-				"owner":       "owner",
-				"repo":        "repo",
-				"issueNumber": float64(123),
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
@@ -2386,9 +2386,9 @@ func TestAssignCopilotToIssue(t *testing.T) {
 		{
 			name: "copilot bot not on first page of suggested actors",
 			requestArgs: map[string]any{
-				"owner":       "owner",
-				"repo":        "repo",
-				"issueNumber": float64(123),
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				// First page of suggested actors
@@ -2512,9 +2512,9 @@ func TestAssignCopilotToIssue(t *testing.T) {
 		{
 			name: "copilot not a suggested actor",
 			requestArgs: map[string]any{
-				"owner":       "owner",
-				"repo":        "repo",
-				"issueNumber": float64(123),
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
