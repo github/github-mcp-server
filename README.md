@@ -132,7 +132,7 @@ GitHub Enterprise Server does not support remote server hosting. Please refer to
 ### Prerequisites
 
 1. To run the server in a container, you will need to have [Docker](https://www.docker.com/) installed.
-2. Once Docker is installed, you will also need to ensure Docker is running. The image is public; if you get errors on pull, you may have an expired token and need to `docker logout ghcr.io`.
+2. Once Docker is installed, you will also need to ensure Docker is running. The Docker image is available at `ghcr.io/github/github-mcp-server`. The image is public; if you get errors on pull, you may have an expired token and need to `docker logout ghcr.io`.
 3. Lastly you will need to [Create a GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new).
 The MCP server can use many of the GitHub APIs, so enable the permissions that you feel comfortable granting your AI tools (to learn more about access tokens, please check out the [documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)).
 
