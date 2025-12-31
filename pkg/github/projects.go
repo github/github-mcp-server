@@ -933,8 +933,9 @@ func DeleteProjectItem(t translations.TranslationHelperFunc) inventory.ServerToo
 			Name:        "delete_project_item",
 			Description: t("TOOL_DELETE_PROJECT_ITEM_DESCRIPTION", "Delete a specific Project item for a user or org"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_DELETE_PROJECT_ITEM_USER_TITLE", "Delete project item"),
-				ReadOnlyHint: false,
+				Title:           t("TOOL_DELETE_PROJECT_ITEM_USER_TITLE", "Delete project item"),
+				ReadOnlyHint:    false,
+				DestructiveHint: jsonschema.Ptr(true),
 			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",

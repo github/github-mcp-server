@@ -81,7 +81,8 @@ Alternatively, to manually configure VS Code, choose the appropriate JSON block 
 
 ### Install in other MCP hosts
 - **[GitHub Copilot in other IDEs](/docs/installation-guides/install-other-copilot-ides.md)** - Installation for JetBrains, Visual Studio, Eclipse, and Xcode with GitHub Copilot
-- **[Claude Applications](/docs/installation-guides/install-claude.md)** - Installation guide for Claude Web, Claude Desktop and Claude Code CLI
+- **[Claude Applications](/docs/installation-guides/install-claude.md)** - Installation guide for Claude Desktop and Claude Code CLI
+- **[Codex](/docs/installation-guides/install-codex.md)** - Installation guide for Open AI Codex
 - **[Cursor](/docs/installation-guides/install-cursor.md)** - Installation guide for Cursor IDE
 - **[Windsurf](/docs/installation-guides/install-windsurf.md)** - Installation guide for Windsurf IDE
 
@@ -131,7 +132,7 @@ GitHub Enterprise Server does not support remote server hosting. Please refer to
 ### Prerequisites
 
 1. To run the server in a container, you will need to have [Docker](https://www.docker.com/) installed.
-2. Once Docker is installed, you will also need to ensure Docker is running. The image is public; if you get errors on pull, you may have an expired token and need to `docker logout ghcr.io`.
+2. Once Docker is installed, you will also need to ensure Docker is running. The Docker image is available at `ghcr.io/github/github-mcp-server`. The image is public; if you get errors on pull, you may have an expired token and need to `docker logout ghcr.io`.
 3. Lastly you will need to [Create a GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new).
 The MCP server can use many of the GitHub APIs, so enable the permissions that you feel comfortable granting your AI tools (to learn more about access tokens, please check out the [documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)).
 
@@ -393,7 +394,7 @@ When using Docker, you can pass the toolsets as environment variables:
 ```bash
 docker run -i --rm \
   -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
-  -e GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security,experiments" \
+  -e GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security" \
   ghcr.io/github/github-mcp-server
 ```
 
@@ -509,7 +510,7 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
   - `resource_id`: The unique identifier of the resource. This will vary based on the "method" provided, so ensure you provide the correct ID:
     - Do not provide any resource ID for 'list_workflows' method.
-    - Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'list_workflow_runs' method.
+    - Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'list_workflow_runs' method, or omit to list all workflow runs in the repository.
     - Provide a workflow run ID for 'list_workflow_jobs' and 'list_workflow_run_artifacts' methods.
      (string, optional)
   - `workflow_jobs_filter`: Filters for workflow jobs. **ONLY** used when method is 'list_workflow_jobs' (object, optional)

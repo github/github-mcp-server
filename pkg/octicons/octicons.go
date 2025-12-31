@@ -73,12 +73,12 @@ func Icons(name string) []mcp.Icon {
 		{
 			Source:   DataURI(name, ThemeLight),
 			MIMEType: "image/png",
-			Theme:    string(ThemeLight),
+			Theme:    mcp.IconThemeLight,
 		},
 		{
 			Source:   DataURI(name, ThemeDark),
 			MIMEType: "image/png",
-			Theme:    string(ThemeDark),
+			Theme:    mcp.IconThemeDark,
 		},
 	}
 }
