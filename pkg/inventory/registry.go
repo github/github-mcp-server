@@ -24,6 +24,7 @@ import (
 //   - Deterministic ordering for documentation generation
 //   - Lazy dependency injection during registration via RegisterAll()
 //   - Runtime toolset enabling for dynamic toolsets mode
+//   - O(1) EnableCondition evaluation via pre-compiled bitmasks
 type Inventory struct {
 	// tools holds all tools in this group (ordered for iteration)
 	tools []ServerTool
@@ -39,6 +40,10 @@ type Inventory struct {
 	toolsetIDSet        map[ToolsetID]bool   // set for O(1) HasToolset lookup
 	defaultToolsetIDs   []ToolsetID          // sorted list of default toolset IDs
 	toolsetDescriptions map[ToolsetID]string // toolset ID -> description
+
+	// conditionCompiler used to compile conditions and build request masks.
+	// The compiled conditions themselves are embedded in each ServerTool.
+	conditionCompiler *ConditionCompiler
 
 	// Filters - these control what's returned by Available* methods
 	// readOnly when true filters out write tools
@@ -100,7 +105,9 @@ const (
 func (r *Inventory) ForMCPRequest(method string, itemName string) *Inventory {
 	// Create a shallow copy with shared filter settings
 	// Note: lazy-init maps (toolsByName, etc.) are NOT copied - the new Registry
-	// will initialize its own maps on first use if needed
+	// will initialize its own maps on first use if needed.
+	// Compiled conditions are embedded in each ServerTool, so they travel with the tool
+	// during filtering - no index alignment issues.
 	result := &Inventory{
 		tools:                r.tools,
 		resourceTemplates:    r.resourceTemplates,
@@ -111,6 +118,7 @@ func (r *Inventory) ForMCPRequest(method string, itemName string) *Inventory {
 		additionalTools:      r.additionalTools, // shared, not modified
 		featureChecker:       r.featureChecker,
 		filters:              r.filters, // shared, not modified
+		conditionCompiler:    r.conditionCompiler,
 		unrecognizedToolsets: r.unrecognizedToolsets,
 	}
 
