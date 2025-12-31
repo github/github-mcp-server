@@ -284,6 +284,11 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		DeleteProjectItem(t),
 		UpdateProjectItem(t),
 
+		// Consolidated project tools (enabled via feature flag)
+		ProjectsList(t),
+		ProjectsGet(t),
+		ProjectsWrite(t),
+
 		// Label tools
 		GetLabel(t),
 		GetLabelForLabelsToolset(t),

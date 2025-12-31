@@ -1709,3 +1709,697 @@ func Test_DeleteProjectItem(t *testing.T) {
 		})
 	}
 }
+
+// Tests for consolidated project tools
+
+func Test_ProjectsList(t *testing.T) {
+	// Verify tool definition once
+	toolDef := ProjectsList(translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
+
+	assert.Equal(t, "projects_list", toolDef.Tool.Name)
+	assert.NotEmpty(t, toolDef.Tool.Description)
+	inputSchema := toolDef.Tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, inputSchema.Properties, "method")
+	assert.Contains(t, inputSchema.Properties, "owner")
+	assert.Contains(t, inputSchema.Properties, "owner_type")
+	assert.Contains(t, inputSchema.Properties, "project_number")
+	assert.Contains(t, inputSchema.Properties, "query")
+	assert.Contains(t, inputSchema.Properties, "fields")
+	assert.ElementsMatch(t, inputSchema.Required, []string{"method", "owner_type", "owner"})
+}
+
+func Test_ProjectsList_ListProjects(t *testing.T) {
+	toolDef := ProjectsList(translations.NullTranslationHelper)
+
+	orgProjects := []map[string]any{{"id": 1, "node_id": "NODE1", "title": "Org Project"}}
+	userProjects := []map[string]any{{"id": 2, "node_id": "NODE2", "title": "User Project"}}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]any
+		expectError    bool
+		expectedErrMsg string
+		expectedLength int
+	}{
+		{
+			name: "success organization",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2", Method: http.MethodGet},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write(mock.MustMarshal(orgProjects))
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"method":     "list_projects",
+				"owner":      "octo-org",
+				"owner_type": "org",
+			},
+			expectError:    false,
+			expectedLength: 1,
+		},
+		{
+			name: "success user",
+			mockedClient: mock.NewMockedHTTPClient(
+				mock.WithRequestMatchHandler(
+					mock.EndpointPattern{Pattern: "/users/{username}/projectsV2", Method: http.MethodGet},
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write(mock.MustMarshal(userProjects))
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"method":     "list_projects",
+				"owner":      "octocat",
+				"owner_type": "user",
+			},
+			expectError:    false,
+			expectedLength: 1,
+		},
+		{
+			name:         "missing required parameter method",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"owner":      "octo-org",
+				"owner_type": "org",
+			},
+			expectError:    true,
+			expectedErrMsg: "missing required parameter: method",
+		},
+		{
+			name:         "unknown method",
+			mockedClient: mock.NewMockedHTTPClient(),
+			requestArgs: map[string]any{
+				"method":     "unknown_method",
+				"owner":      "octo-org",
+				"owner_type": "org",
+			},
+			expectError:    true,
+			expectedErrMsg: "unknown method: unknown_method",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := gh.NewClient(tc.mockedClient)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := toolDef.Handler(deps)
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			require.NoError(t, err)
+			require.Equal(t, tc.expectError, result.IsError)
+
+			textContent := getTextResult(t, result)
+
+			if tc.expectError {
+				if tc.expectedErrMsg != "" {
+					assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				}
+				return
+			}
+
+			var response map[string]any
+			err = json.Unmarshal([]byte(textContent.Text), &response)
+			require.NoError(t, err)
+			projects, ok := response["projects"].([]interface{})
+			require.True(t, ok)
+			assert.Equal(t, tc.expectedLength, len(projects))
+		})
+	}
+}
+
+func Test_ProjectsList_ListProjectFields(t *testing.T) {
+	toolDef := ProjectsList(translations.NullTranslationHelper)
+
+	fields := []map[string]any{{"id": 101, "name": "Status", "data_type": "single_select"}}
+
+	t.Run("success organization", func(t *testing.T) {
+		mockedClient := mock.NewMockedHTTPClient(
+			mock.WithRequestMatchHandler(
+				mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/1/fields", Method: http.MethodGet},
+				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					_, _ = w.Write(mock.MustMarshal(fields))
+				}),
+			),
+		)
+
+		client := gh.NewClient(mockedClient)
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "list_project_fields",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		var response map[string]any
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+		fieldsList, ok := response["fields"].([]interface{})
+		require.True(t, ok)
+		assert.Equal(t, 1, len(fieldsList))
+	})
+
+	t.Run("missing project_number", func(t *testing.T) {
+		mockedClient := mock.NewMockedHTTPClient()
+		client := gh.NewClient(mockedClient)
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":     "list_project_fields",
+			"owner":      "octo-org",
+			"owner_type": "org",
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "missing required parameter: project_number")
+	})
+}
+
+func Test_ProjectsList_ListProjectItems(t *testing.T) {
+	toolDef := ProjectsList(translations.NullTranslationHelper)
+
+	items := []map[string]any{{"id": 1001, "archived_at": nil, "content": map[string]any{"title": "Issue 1"}}}
+
+	t.Run("success organization", func(t *testing.T) {
+		mockedClient := mock.NewMockedHTTPClient(
+			mock.WithRequestMatchHandler(
+				mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/1/items", Method: http.MethodGet},
+				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					_, _ = w.Write(mock.MustMarshal(items))
+				}),
+			),
+		)
+
+		client := gh.NewClient(mockedClient)
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "list_project_items",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		var response map[string]any
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+		itemsList, ok := response["items"].([]interface{})
+		require.True(t, ok)
+		assert.Equal(t, 1, len(itemsList))
+	})
+}
+
+func Test_ProjectsGet(t *testing.T) {
+	// Verify tool definition once
+	toolDef := ProjectsGet(translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
+
+	assert.Equal(t, "projects_get", toolDef.Tool.Name)
+	assert.NotEmpty(t, toolDef.Tool.Description)
+	inputSchema := toolDef.Tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, inputSchema.Properties, "method")
+	assert.Contains(t, inputSchema.Properties, "owner")
+	assert.Contains(t, inputSchema.Properties, "owner_type")
+	assert.Contains(t, inputSchema.Properties, "project_number")
+	assert.Contains(t, inputSchema.Properties, "field_id")
+	assert.Contains(t, inputSchema.Properties, "item_id")
+	assert.ElementsMatch(t, inputSchema.Required, []string{"method", "owner_type", "owner", "project_number"})
+}
+
+func Test_ProjectsGet_GetProject(t *testing.T) {
+	toolDef := ProjectsGet(translations.NullTranslationHelper)
+
+	project := map[string]any{"id": 123, "title": "Project Title"}
+
+	t.Run("success organization", func(t *testing.T) {
+		mockedClient := mock.NewMockedHTTPClient(
+			mock.WithRequestMatchHandler(
+				mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/1", Method: http.MethodGet},
+				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					_, _ = w.Write(mock.MustMarshal(project))
+				}),
+			),
+		)
+
+		client := gh.NewClient(mockedClient)
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "get_project",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		var response map[string]any
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+		assert.NotNil(t, response["id"])
+	})
+
+	t.Run("unknown method", func(t *testing.T) {
+		mockedClient := mock.NewMockedHTTPClient()
+		client := gh.NewClient(mockedClient)
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "unknown_method",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "unknown method: unknown_method")
+	})
+}
+
+func Test_ProjectsGet_GetProjectField(t *testing.T) {
+	toolDef := ProjectsGet(translations.NullTranslationHelper)
+
+	field := map[string]any{"id": 101, "name": "Status", "data_type": "single_select"}
+
+	t.Run("success organization", func(t *testing.T) {
+		mockedClient := mock.NewMockedHTTPClient(
+			mock.WithRequestMatchHandler(
+				mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/1/fields/101", Method: http.MethodGet},
+				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					_, _ = w.Write(mock.MustMarshal(field))
+				}),
+			),
+		)
+
+		client := gh.NewClient(mockedClient)
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "get_project_field",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+			"field_id":       float64(101),
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		var response map[string]any
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+		assert.NotNil(t, response["id"])
+	})
+
+	t.Run("missing field_id", func(t *testing.T) {
+		mockedClient := mock.NewMockedHTTPClient()
+		client := gh.NewClient(mockedClient)
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "get_project_field",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "missing required parameter: field_id")
+	})
+}
+
+func Test_ProjectsGet_GetProjectItem(t *testing.T) {
+	toolDef := ProjectsGet(translations.NullTranslationHelper)
+
+	item := map[string]any{"id": 1001, "archived_at": nil, "content": map[string]any{"title": "Issue 1"}}
+
+	t.Run("success organization", func(t *testing.T) {
+		mockedClient := mock.NewMockedHTTPClient(
+			mock.WithRequestMatchHandler(
+				mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/1/items/1001", Method: http.MethodGet},
+				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					_, _ = w.Write(mock.MustMarshal(item))
+				}),
+			),
+		)
+
+		client := gh.NewClient(mockedClient)
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "get_project_item",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+			"item_id":        float64(1001),
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		var response map[string]any
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+		assert.NotNil(t, response["id"])
+	})
+
+	t.Run("missing item_id", func(t *testing.T) {
+		mockedClient := mock.NewMockedHTTPClient()
+		client := gh.NewClient(mockedClient)
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "get_project_item",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "missing required parameter: item_id")
+	})
+}
+
+func Test_ProjectsWrite(t *testing.T) {
+	// Verify tool definition once
+	toolDef := ProjectsWrite(translations.NullTranslationHelper)
+	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
+
+	assert.Equal(t, "projects_write", toolDef.Tool.Name)
+	assert.NotEmpty(t, toolDef.Tool.Description)
+	inputSchema := toolDef.Tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, inputSchema.Properties, "method")
+	assert.Contains(t, inputSchema.Properties, "owner")
+	assert.Contains(t, inputSchema.Properties, "owner_type")
+	assert.Contains(t, inputSchema.Properties, "project_number")
+	assert.Contains(t, inputSchema.Properties, "item_id")
+	assert.Contains(t, inputSchema.Properties, "item_type")
+	assert.Contains(t, inputSchema.Properties, "updated_field")
+	assert.ElementsMatch(t, inputSchema.Required, []string{"method", "owner_type", "owner", "project_number"})
+
+	// Verify DestructiveHint is set
+	assert.NotNil(t, toolDef.Tool.Annotations)
+	assert.NotNil(t, toolDef.Tool.Annotations.DestructiveHint)
+	assert.True(t, *toolDef.Tool.Annotations.DestructiveHint)
+}
+
+func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
+	toolDef := ProjectsWrite(translations.NullTranslationHelper)
+
+	addedItem := map[string]any{"id": 2001, "archived_at": nil}
+
+	t.Run("success organization", func(t *testing.T) {
+		mockedClient := mock.NewMockedHTTPClient(
+			mock.WithRequestMatchHandler(
+				mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/1/items", Method: http.MethodPost},
+				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					body, _ := io.ReadAll(r.Body)
+					var payload map[string]any
+					_ = json.Unmarshal(body, &payload)
+					if payload["id"] == nil || payload["type"] == nil {
+						w.WriteHeader(http.StatusBadRequest)
+						_, _ = w.Write([]byte(`{"message":"bad request"}`))
+						return
+					}
+					w.WriteHeader(http.StatusCreated)
+					_, _ = w.Write(mock.MustMarshal(addedItem))
+				}),
+			),
+		)
+
+		client := gh.NewClient(mockedClient)
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "add_project_item",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+			"item_id":        float64(123),
+			"item_type":      "issue",
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		var response map[string]any
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+		assert.NotNil(t, response["id"])
+	})
+
+	t.Run("missing item_type", func(t *testing.T) {
+		mockedClient := mock.NewMockedHTTPClient()
+		client := gh.NewClient(mockedClient)
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "add_project_item",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+			"item_id":        float64(123),
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "missing required parameter: item_type")
+	})
+
+	t.Run("invalid item_type", func(t *testing.T) {
+		mockedClient := mock.NewMockedHTTPClient()
+		client := gh.NewClient(mockedClient)
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "add_project_item",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+			"item_id":        float64(123),
+			"item_type":      "invalid_type",
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "item_type must be either 'issue' or 'pull_request'")
+	})
+
+	t.Run("unknown method", func(t *testing.T) {
+		mockedClient := mock.NewMockedHTTPClient()
+		client := gh.NewClient(mockedClient)
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "unknown_method",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "unknown method: unknown_method")
+	})
+}
+
+func Test_ProjectsWrite_UpdateProjectItem(t *testing.T) {
+	toolDef := ProjectsWrite(translations.NullTranslationHelper)
+
+	updatedItem := map[string]any{"id": 1001, "archived_at": nil}
+
+	t.Run("success organization", func(t *testing.T) {
+		mockedClient := mock.NewMockedHTTPClient(
+			mock.WithRequestMatchHandler(
+				mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/1/items/1001", Method: http.MethodPatch},
+				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					_, _ = w.Write(mock.MustMarshal(updatedItem))
+				}),
+			),
+		)
+
+		client := gh.NewClient(mockedClient)
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "update_project_item",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+			"item_id":        float64(1001),
+			"updated_field": map[string]any{
+				"id":    float64(101),
+				"value": "In Progress",
+			},
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		var response map[string]any
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+		assert.NotNil(t, response["id"])
+	})
+
+	t.Run("missing updated_field", func(t *testing.T) {
+		mockedClient := mock.NewMockedHTTPClient()
+		client := gh.NewClient(mockedClient)
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "update_project_item",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+			"item_id":        float64(1001),
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "missing required parameter: updated_field")
+	})
+}
+
+func Test_ProjectsWrite_DeleteProjectItem(t *testing.T) {
+	toolDef := ProjectsWrite(translations.NullTranslationHelper)
+
+	t.Run("success organization", func(t *testing.T) {
+		mockedClient := mock.NewMockedHTTPClient(
+			mock.WithRequestMatchHandler(
+				mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/1/items/1001", Method: http.MethodDelete},
+				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNoContent)
+				}),
+			),
+		)
+
+		client := gh.NewClient(mockedClient)
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "delete_project_item",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+			"item_id":        float64(1001),
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "project item successfully deleted")
+	})
+
+	t.Run("missing item_id", func(t *testing.T) {
+		mockedClient := mock.NewMockedHTTPClient()
+		client := gh.NewClient(mockedClient)
+		deps := BaseDeps{
+			Client: client,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "delete_project_item",
+			"owner":          "octo-org",
+			"owner_type":     "org",
+			"project_number": float64(1),
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "missing required parameter: item_id")
+	})
+}
