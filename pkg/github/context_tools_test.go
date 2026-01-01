@@ -3,15 +3,14 @@ package github
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v76/github"
-	"github.com/migueleliasweb/go-github-mock/src/mock"
+	"github.com/google/go-github/v79/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,12 +19,13 @@ import (
 func Test_GetMe(t *testing.T) {
 	t.Parallel()
 
-	tool, _ := GetMe(nil, translations.NullTranslationHelper)
+	serverTool := GetMe(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	// Verify some basic very important properties
 	assert.Equal(t, "get_me", tool.Name)
-	assert.True(t, *tool.Annotations.ReadOnlyHint, "get_me tool should be read-only")
+	assert.True(t, tool.Annotations.ReadOnlyHint, "get_me tool should be read-only")
 
 	// Setup mock user response
 	mockUser := &github.User{
@@ -47,7 +47,8 @@ func Test_GetMe(t *testing.T) {
 
 	tests := []struct {
 		name               string
-		stubbedGetClientFn GetClientFn
+		mockedClient       *http.Client
+		clientErr          string // if set, GetClient returns this error
 		requestArgs        map[string]any
 		expectToolError    bool
 		expectedUser       *github.User
@@ -55,28 +56,18 @@ func Test_GetMe(t *testing.T) {
 	}{
 		{
 			name: "successful get user",
-			stubbedGetClientFn: stubGetClientFromHTTPFn(
-				mock.NewMockedHTTPClient(
-					mock.WithRequestMatch(
-						mock.GetUser,
-						mockUser,
-					),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetUser: mockResponse(t, http.StatusOK, mockUser),
+			}),
 			requestArgs:     map[string]any{},
 			expectToolError: false,
 			expectedUser:    mockUser,
 		},
 		{
 			name: "successful get user with reason",
-			stubbedGetClientFn: stubGetClientFromHTTPFn(
-				mock.NewMockedHTTPClient(
-					mock.WithRequestMatch(
-						mock.GetUser,
-						mockUser,
-					),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetUser: mockResponse(t, http.StatusOK, mockUser),
+			}),
 			requestArgs: map[string]any{
 				"reason": "Testing API",
 			},
@@ -85,21 +76,16 @@ func Test_GetMe(t *testing.T) {
 		},
 		{
 			name:               "getting client fails",
-			stubbedGetClientFn: stubGetClientFnErr("expected test error"),
+			clientErr:          "expected test error",
 			requestArgs:        map[string]any{},
 			expectToolError:    true,
 			expectedToolErrMsg: "failed to get GitHub client: expected test error",
 		},
 		{
 			name: "get user fails",
-			stubbedGetClientFn: stubGetClientFromHTTPFn(
-				mock.NewMockedHTTPClient(
-					mock.WithRequestMatchHandler(
-						mock.GetUser,
-						badRequestHandler("expected test failure"),
-					),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetUser: badRequestHandler("expected test failure"),
+			}),
 			requestArgs:        map[string]any{},
 			expectToolError:    true,
 			expectedToolErrMsg: "expected test failure",
@@ -108,18 +94,27 @@ func Test_GetMe(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, handler := GetMe(tc.stubbedGetClientFn, translations.NullTranslationHelper)
+			var deps ToolDependencies
+			if tc.clientErr != "" {
+				deps = stubDeps{clientFn: stubClientFnErr(tc.clientErr)}
+			} else {
+				deps = BaseDeps{Client: github.NewClient(tc.mockedClient)}
+			}
+			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
-			textContent := getTextResult(t, result)
 
 			if tc.expectToolError {
-				assert.True(t, result.IsError, "expected tool call result to be an error")
-				assert.Contains(t, textContent.Text, tc.expectedToolErrMsg)
+				require.True(t, result.IsError, "expected tool call result to be an error")
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedToolErrMsg)
 				return
 			}
+
+			require.False(t, result.IsError)
+			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
 			var returnedUser MinimalUser
@@ -146,11 +141,12 @@ func Test_GetMe(t *testing.T) {
 func Test_GetTeams(t *testing.T) {
 	t.Parallel()
 
-	tool, _ := GetTeams(nil, nil, translations.NullTranslationHelper)
+	serverTool := GetTeams(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "get_teams", tool.Name)
-	assert.True(t, *tool.Annotations.ReadOnlyHint, "get_teams tool should be read-only")
+	assert.True(t, tool.Annotations.ReadOnlyHint, "get_teams tool should be read-only")
 
 	mockUser := &github.User{
 		Login:           github.Ptr("testuser"),
@@ -215,49 +211,77 @@ func Test_GetTeams(t *testing.T) {
 		},
 	})
 
+	// Create GQL clients for different test scenarios - these are factory functions
+	// to ensure each test gets a fresh client
+	gqlClientForTestuser := func() *githubv4.Client {
+		queryStr := "query($login:String!){user(login: $login){organizations(first: 100){nodes{login,teams(first: 100, userLogins: [$login]){nodes{name,slug,description}}}}}}"
+		vars := map[string]interface{}{
+			"login": "testuser",
+		}
+		matcher := githubv4mock.NewQueryMatcher(queryStr, vars, mockTeamsResponse)
+		httpClient := githubv4mock.NewMockedHTTPClient(matcher)
+		return githubv4.NewClient(httpClient)
+	}
+
+	gqlClientForSpecificuser := func() *githubv4.Client {
+		queryStr := "query($login:String!){user(login: $login){organizations(first: 100){nodes{login,teams(first: 100, userLogins: [$login]){nodes{name,slug,description}}}}}}"
+		vars := map[string]interface{}{
+			"login": "specificuser",
+		}
+		matcher := githubv4mock.NewQueryMatcher(queryStr, vars, mockTeamsResponse)
+		httpClient := githubv4mock.NewMockedHTTPClient(matcher)
+		return githubv4.NewClient(httpClient)
+	}
+
+	gqlClientNoTeams := func() *githubv4.Client {
+		queryStr := "query($login:String!){user(login: $login){organizations(first: 100){nodes{login,teams(first: 100, userLogins: [$login]){nodes{name,slug,description}}}}}}"
+		vars := map[string]interface{}{
+			"login": "testuser",
+		}
+		matcher := githubv4mock.NewQueryMatcher(queryStr, vars, mockNoTeamsResponse)
+		httpClient := githubv4mock.NewMockedHTTPClient(matcher)
+		return githubv4.NewClient(httpClient)
+	}
+
+	// Factory function for mock HTTP clients with user response
+	httpClientWithUser := func() *http.Client {
+		return MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetUser: mockResponse(t, http.StatusOK, mockUser),
+		})
+	}
+
+	httpClientUserFails := func() *http.Client {
+		return MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetUser: badRequestHandler("expected test failure"),
+		})
+	}
+
 	tests := []struct {
-		name                  string
-		stubbedGetClientFn    GetClientFn
-		stubbedGetGQLClientFn GetGQLClientFn
-		requestArgs           map[string]any
-		expectToolError       bool
-		expectedToolErrMsg    string
-		expectedTeamsCount    int
+		name               string
+		makeDeps           func() ToolDependencies
+		requestArgs        map[string]any
+		expectToolError    bool
+		expectedToolErrMsg string
+		expectedTeamsCount int
 	}{
 		{
 			name: "successful get teams",
-			stubbedGetClientFn: stubGetClientFromHTTPFn(
-				mock.NewMockedHTTPClient(
-					mock.WithRequestMatch(
-						mock.GetUser,
-						mockUser,
-					),
-				),
-			),
-			stubbedGetGQLClientFn: func(_ context.Context) (*githubv4.Client, error) {
-				queryStr := "query($login:String!){user(login: $login){organizations(first: 100){nodes{login,teams(first: 100, userLogins: [$login]){nodes{name,slug,description}}}}}}"
-				vars := map[string]interface{}{
-					"login": "testuser",
+			makeDeps: func() ToolDependencies {
+				return BaseDeps{
+					Client:    github.NewClient(httpClientWithUser()),
+					GQLClient: gqlClientForTestuser(),
 				}
-				matcher := githubv4mock.NewQueryMatcher(queryStr, vars, mockTeamsResponse)
-				httpClient := githubv4mock.NewMockedHTTPClient(matcher)
-				return githubv4.NewClient(httpClient), nil
 			},
 			requestArgs:        map[string]any{},
 			expectToolError:    false,
 			expectedTeamsCount: 2,
 		},
 		{
-			name:               "successful get teams for specific user",
-			stubbedGetClientFn: nil,
-			stubbedGetGQLClientFn: func(_ context.Context) (*githubv4.Client, error) {
-				queryStr := "query($login:String!){user(login: $login){organizations(first: 100){nodes{login,teams(first: 100, userLogins: [$login]){nodes{name,slug,description}}}}}}"
-				vars := map[string]interface{}{
-					"login": "specificuser",
+			name: "successful get teams for specific user",
+			makeDeps: func() ToolDependencies {
+				return BaseDeps{
+					GQLClient: gqlClientForSpecificuser(),
 				}
-				matcher := githubv4mock.NewQueryMatcher(queryStr, vars, mockTeamsResponse)
-				httpClient := githubv4mock.NewMockedHTTPClient(matcher)
-				return githubv4.NewClient(httpClient), nil
 			},
 			requestArgs: map[string]any{
 				"user": "specificuser",
@@ -267,62 +291,43 @@ func Test_GetTeams(t *testing.T) {
 		},
 		{
 			name: "no teams found",
-			stubbedGetClientFn: stubGetClientFromHTTPFn(
-				mock.NewMockedHTTPClient(
-					mock.WithRequestMatch(
-						mock.GetUser,
-						mockUser,
-					),
-				),
-			),
-			stubbedGetGQLClientFn: func(_ context.Context) (*githubv4.Client, error) {
-				queryStr := "query($login:String!){user(login: $login){organizations(first: 100){nodes{login,teams(first: 100, userLogins: [$login]){nodes{name,slug,description}}}}}}"
-				vars := map[string]interface{}{
-					"login": "testuser",
+			makeDeps: func() ToolDependencies {
+				return BaseDeps{
+					Client:    github.NewClient(httpClientWithUser()),
+					GQLClient: gqlClientNoTeams(),
 				}
-				matcher := githubv4mock.NewQueryMatcher(queryStr, vars, mockNoTeamsResponse)
-				httpClient := githubv4mock.NewMockedHTTPClient(matcher)
-				return githubv4.NewClient(httpClient), nil
 			},
 			requestArgs:        map[string]any{},
 			expectToolError:    false,
 			expectedTeamsCount: 0,
 		},
 		{
-			name:                  "getting client fails",
-			stubbedGetClientFn:    stubGetClientFnErr("expected test error"),
-			stubbedGetGQLClientFn: nil,
-			requestArgs:           map[string]any{},
-			expectToolError:       true,
-			expectedToolErrMsg:    "failed to get GitHub client: expected test error",
+			name: "getting client fails",
+			makeDeps: func() ToolDependencies {
+				return stubDeps{clientFn: stubClientFnErr("expected test error")}
+			},
+			requestArgs:        map[string]any{},
+			expectToolError:    true,
+			expectedToolErrMsg: "failed to get GitHub client: expected test error",
 		},
 		{
 			name: "get user fails",
-			stubbedGetClientFn: stubGetClientFromHTTPFn(
-				mock.NewMockedHTTPClient(
-					mock.WithRequestMatchHandler(
-						mock.GetUser,
-						badRequestHandler("expected test failure"),
-					),
-				),
-			),
-			stubbedGetGQLClientFn: nil,
-			requestArgs:           map[string]any{},
-			expectToolError:       true,
-			expectedToolErrMsg:    "expected test failure",
+			makeDeps: func() ToolDependencies {
+				return BaseDeps{
+					Client: github.NewClient(httpClientUserFails()),
+				}
+			},
+			requestArgs:        map[string]any{},
+			expectToolError:    true,
+			expectedToolErrMsg: "expected test failure",
 		},
 		{
 			name: "getting GraphQL client fails",
-			stubbedGetClientFn: stubGetClientFromHTTPFn(
-				mock.NewMockedHTTPClient(
-					mock.WithRequestMatch(
-						mock.GetUser,
-						mockUser,
-					),
-				),
-			),
-			stubbedGetGQLClientFn: func(_ context.Context) (*githubv4.Client, error) {
-				return nil, fmt.Errorf("GraphQL client error")
+			makeDeps: func() ToolDependencies {
+				return stubDeps{
+					clientFn:    stubClientFnFromHTTP(httpClientWithUser()),
+					gqlClientFn: stubGQLClientFnErr("GraphQL client error"),
+				}
 			},
 			requestArgs:        map[string]any{},
 			expectToolError:    true,
@@ -332,18 +337,22 @@ func Test_GetTeams(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, handler := GetTeams(tc.stubbedGetClientFn, tc.stubbedGetGQLClientFn, translations.NullTranslationHelper)
+			deps := tc.makeDeps()
+			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
-			textContent := getTextResult(t, result)
 
 			if tc.expectToolError {
-				assert.True(t, result.IsError, "expected tool call result to be an error")
-				assert.Contains(t, textContent.Text, tc.expectedToolErrMsg)
+				require.True(t, result.IsError, "expected tool call result to be an error")
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedToolErrMsg)
 				return
 			}
+
+			require.False(t, result.IsError)
+			textContent := getTextResult(t, result)
 
 			var organizations []OrganizationTeams
 			err = json.Unmarshal([]byte(textContent.Text), &organizations)
@@ -373,11 +382,12 @@ func Test_GetTeams(t *testing.T) {
 func Test_GetTeamMembers(t *testing.T) {
 	t.Parallel()
 
-	tool, _ := GetTeamMembers(nil, translations.NullTranslationHelper)
+	serverTool := GetTeamMembers(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "get_team_members", tool.Name)
-	assert.True(t, *tool.Annotations.ReadOnlyHint, "get_team_members tool should be read-only")
+	assert.True(t, tool.Annotations.ReadOnlyHint, "get_team_members tool should be read-only")
 
 	mockTeamMembersResponse := githubv4mock.DataResponse(map[string]any{
 		"organization": map[string]any{
@@ -406,26 +416,40 @@ func Test_GetTeamMembers(t *testing.T) {
 		},
 	})
 
+	// Create GQL clients for different test scenarios
+	gqlClientWithMembers := func() *githubv4.Client {
+		queryStr := "query($org:String!$teamSlug:String!){organization(login: $org){team(slug: $teamSlug){members(first: 100){nodes{login}}}}}"
+		vars := map[string]interface{}{
+			"org":      "testorg",
+			"teamSlug": "testteam",
+		}
+		matcher := githubv4mock.NewQueryMatcher(queryStr, vars, mockTeamMembersResponse)
+		httpClient := githubv4mock.NewMockedHTTPClient(matcher)
+		return githubv4.NewClient(httpClient)
+	}
+
+	gqlClientNoMembers := func() *githubv4.Client {
+		queryStr := "query($org:String!$teamSlug:String!){organization(login: $org){team(slug: $teamSlug){members(first: 100){nodes{login}}}}}"
+		vars := map[string]interface{}{
+			"org":      "testorg",
+			"teamSlug": "emptyteam",
+		}
+		matcher := githubv4mock.NewQueryMatcher(queryStr, vars, mockNoMembersResponse)
+		httpClient := githubv4mock.NewMockedHTTPClient(matcher)
+		return githubv4.NewClient(httpClient)
+	}
+
 	tests := []struct {
-		name                  string
-		stubbedGetGQLClientFn GetGQLClientFn
-		requestArgs           map[string]any
-		expectToolError       bool
-		expectedToolErrMsg    string
-		expectedMembersCount  int
+		name                 string
+		deps                 ToolDependencies
+		requestArgs          map[string]any
+		expectToolError      bool
+		expectedToolErrMsg   string
+		expectedMembersCount int
 	}{
 		{
 			name: "successful get team members",
-			stubbedGetGQLClientFn: func(_ context.Context) (*githubv4.Client, error) {
-				queryStr := "query($org:String!$teamSlug:String!){organization(login: $org){team(slug: $teamSlug){members(first: 100){nodes{login}}}}}"
-				vars := map[string]interface{}{
-					"org":      "testorg",
-					"teamSlug": "testteam",
-				}
-				matcher := githubv4mock.NewQueryMatcher(queryStr, vars, mockTeamMembersResponse)
-				httpClient := githubv4mock.NewMockedHTTPClient(matcher)
-				return githubv4.NewClient(httpClient), nil
-			},
+			deps: BaseDeps{GQLClient: gqlClientWithMembers()},
 			requestArgs: map[string]any{
 				"org":       "testorg",
 				"team_slug": "testteam",
@@ -435,16 +459,7 @@ func Test_GetTeamMembers(t *testing.T) {
 		},
 		{
 			name: "team with no members",
-			stubbedGetGQLClientFn: func(_ context.Context) (*githubv4.Client, error) {
-				queryStr := "query($org:String!$teamSlug:String!){organization(login: $org){team(slug: $teamSlug){members(first: 100){nodes{login}}}}}"
-				vars := map[string]interface{}{
-					"org":      "testorg",
-					"teamSlug": "emptyteam",
-				}
-				matcher := githubv4mock.NewQueryMatcher(queryStr, vars, mockNoMembersResponse)
-				httpClient := githubv4mock.NewMockedHTTPClient(matcher)
-				return githubv4.NewClient(httpClient), nil
-			},
+			deps: BaseDeps{GQLClient: gqlClientNoMembers()},
 			requestArgs: map[string]any{
 				"org":       "testorg",
 				"team_slug": "emptyteam",
@@ -454,9 +469,7 @@ func Test_GetTeamMembers(t *testing.T) {
 		},
 		{
 			name: "getting GraphQL client fails",
-			stubbedGetGQLClientFn: func(_ context.Context) (*githubv4.Client, error) {
-				return nil, fmt.Errorf("GraphQL client error")
-			},
+			deps: stubDeps{gqlClientFn: stubGQLClientFnErr("GraphQL client error")},
 			requestArgs: map[string]any{
 				"org":       "testorg",
 				"team_slug": "testteam",
@@ -468,18 +481,21 @@ func Test_GetTeamMembers(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			_, handler := GetTeamMembers(tc.stubbedGetGQLClientFn, translations.NullTranslationHelper)
+			handler := serverTool.Handler(tc.deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), tc.deps), &request)
 			require.NoError(t, err)
-			textContent := getTextResult(t, result)
 
 			if tc.expectToolError {
-				assert.True(t, result.IsError, "expected tool call result to be an error")
-				assert.Contains(t, textContent.Text, tc.expectedToolErrMsg)
+				require.True(t, result.IsError, "expected tool call result to be an error")
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedToolErrMsg)
 				return
 			}
+
+			require.False(t, result.IsError)
+			textContent := getTextResult(t, result)
 
 			var members []string
 			err = json.Unmarshal([]byte(textContent.Text), &members)

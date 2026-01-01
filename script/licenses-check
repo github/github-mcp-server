@@ -1,21 +1,34 @@
 #!/bin/bash
+#
+# Check that license files are up to date.
+# This script regenerates the license files and compares them with the committed versions.
+# If there are differences, it exits with an error.
 
-go install github.com/google/go-licenses@latest
+set -e
 
-for goos in linux darwin windows ; do
-    # Note: we ignore warnings because we want the command to succeed, however the output should be checked
-    #       for any new warnings, and potentially we may need to add license information. 
-    #
-    #       Normally these warnings are packages containing non go code, which may or may not require explicit attribution,
-    #       depending on the license.
-    GOOS="${goos}" go-licenses report ./... --template .github/licenses.tmpl > third-party-licenses.${goos}.copy.md || echo "Ignore warnings"
-    if ! diff -s third-party-licenses.${goos}.copy.md third-party-licenses.${goos}.md; then
-        echo "License check failed.\n\nPlease update the license file by running \`.script/licenses\` and committing the output."
-        rm -f third-party-licenses.${goos}.copy.md
-        exit 1
-    fi
-    rm -f third-party-licenses.${goos}.copy.md
+# Store original files for comparison
+TEMPDIR="$(mktemp -d)"
+trap "rm -fr ${TEMPDIR}" EXIT
+
+# Save original license markdown files
+for goos in darwin linux windows; do
+    cp "third-party-licenses.${goos}.md" "${TEMPDIR}/"
 done
 
+# Save the state of third-party directory
+cp -r third-party "${TEMPDIR}/third-party.orig"
 
+# Regenerate using the same script
+./script/licenses
+
+# Check for any differences in workspace
+if ! git diff --exit-code --quiet third-party-licenses.*.md third-party/; then
+    echo "License files are out of date:"
+    git diff third-party-licenses.*.md third-party/
+    echo ""
+    printf "\nLicense check failed.\n\nPlease update the license files by running \`./script/licenses\` and committing the output.\n"
+    exit 1
+fi
+
+echo "License check passed for all platforms."
 

@@ -9,27 +9,31 @@ import (
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	gh "github.com/google/go-github/v76/github"
+	gh "github.com/google/go-github/v79/github"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_ListProjects(t *testing.T) {
-	mockClient := gh.NewClient(nil)
-	tool, _ := ListProjects(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ListProjects(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_projects", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
-	assert.Contains(t, tool.InputSchema.Properties, "query")
-	assert.Contains(t, tool.InputSchema.Properties, "per_page")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "owner_type"})
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be a *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "owner_type")
+	assert.Contains(t, schema.Properties, "query")
+	assert.Contains(t, schema.Properties, "per_page")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "owner_type"})
 
-	orgProjects := []map[string]any{{"id": 1, "title": "Org Project"}}
-	userProjects := []map[string]any{{"id": 2, "title": "User Project"}}
+	// API returns full ProjectV2 objects; we only need minimal fields for decoding.
+	orgProjects := []map[string]any{{"id": 1, "node_id": "NODE1", "title": "Org Project"}}
+	userProjects := []map[string]any{{"id": 2, "node_id": "NODE2", "title": "User Project"}}
 
 	tests := []struct {
 		name           string
@@ -44,7 +48,10 @@ func Test_ListProjects(t *testing.T) {
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
 					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2", Method: http.MethodGet},
-					mockResponse(t, http.StatusOK, orgProjects),
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write(mock.MustMarshal(orgProjects))
+					}),
 				),
 			),
 			requestArgs: map[string]interface{}{
@@ -59,7 +66,10 @@ func Test_ListProjects(t *testing.T) {
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
 					mock.EndpointPattern{Pattern: "/users/{username}/projectsV2", Method: http.MethodGet},
-					mockResponse(t, http.StatusOK, userProjects),
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write(mock.MustMarshal(userProjects))
+					}),
 				),
 			),
 			requestArgs: map[string]interface{}{
@@ -131,9 +141,12 @@ func Test_ListProjects(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			_, handler := ListProjects(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -153,25 +166,32 @@ func Test_ListProjects(t *testing.T) {
 
 			require.False(t, result.IsError)
 			textContent := getTextResult(t, result)
-			var arr []map[string]any
-			err = json.Unmarshal([]byte(textContent.Text), &arr)
+			var response map[string]any
+			err = json.Unmarshal([]byte(textContent.Text), &response)
 			require.NoError(t, err)
-			assert.Equal(t, tc.expectedLength, len(arr))
+			projects, ok := response["projects"].([]interface{})
+			require.True(t, ok)
+			assert.Equal(t, tc.expectedLength, len(projects))
+			// pageInfo should exist
+			_, hasPageInfo := response["pageInfo"].(map[string]interface{})
+			assert.True(t, hasPageInfo)
 		})
 	}
 }
 
 func Test_GetProject(t *testing.T) {
-	mockClient := gh.NewClient(nil)
-	tool, _ := GetProject(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := GetProject(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "get_project", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "project_number")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"project_number", "owner", "owner_type"})
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be a *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "project_number")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "owner_type")
+	assert.ElementsMatch(t, schema.Required, []string{"project_number", "owner", "owner_type"})
 
 	project := map[string]any{"id": 123, "title": "Project Title"}
 
@@ -260,9 +280,12 @@ func Test_GetProject(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			_, handler := GetProject(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -293,24 +316,22 @@ func Test_GetProject(t *testing.T) {
 }
 
 func Test_ListProjectFields(t *testing.T) {
-	mockClient := gh.NewClient(nil)
-	tool, _ := ListProjectFields(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ListProjectFields(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_project_fields", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "project_number")
-	assert.Contains(t, tool.InputSchema.Properties, "per_page")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number"})
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be a *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner_type")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "project_number")
+	assert.Contains(t, schema.Properties, "per_page")
+	assert.ElementsMatch(t, schema.Required, []string{"owner_type", "owner", "project_number"})
 
-	orgFields := []map[string]any{
-		{"id": 101, "name": "Status", "dataType": "single_select"},
-	}
-	userFields := []map[string]any{
-		{"id": 201, "name": "Priority", "dataType": "single_select"},
-	}
+	orgFields := []map[string]any{{"id": 101, "name": "Status", "data_type": "single_select"}}
+	userFields := []map[string]any{{"id": 201, "name": "Priority", "data_type": "single_select"}}
 
 	tests := []struct {
 		name           string
@@ -325,7 +346,10 @@ func Test_ListProjectFields(t *testing.T) {
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
 					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/fields", Method: http.MethodGet},
-					mockResponse(t, http.StatusOK, orgFields),
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write(mock.MustMarshal(orgFields))
+					}),
 				),
 			),
 			requestArgs: map[string]interface{}{
@@ -408,9 +432,12 @@ func Test_ListProjectFields(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			_, handler := ListProjectFields(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -433,26 +460,32 @@ func Test_ListProjectFields(t *testing.T) {
 
 			require.False(t, result.IsError)
 			textContent := getTextResult(t, result)
-			var fields []map[string]any
-			err = json.Unmarshal([]byte(textContent.Text), &fields)
+			var response map[string]any
+			err = json.Unmarshal([]byte(textContent.Text), &response)
 			require.NoError(t, err)
+			fields, ok := response["fields"].([]interface{})
+			require.True(t, ok)
 			assert.Equal(t, tc.expectedLength, len(fields))
+			_, hasPageInfo := response["pageInfo"].(map[string]interface{})
+			assert.True(t, hasPageInfo)
 		})
 	}
 }
 
 func Test_GetProjectField(t *testing.T) {
-	mockClient := gh.NewClient(nil)
-	tool, _ := GetProjectField(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := GetProjectField(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "get_project_field", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "project_number")
-	assert.Contains(t, tool.InputSchema.Properties, "field_id")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number", "field_id"})
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be a *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner_type")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "project_number")
+	assert.Contains(t, schema.Properties, "field_id")
+	assert.ElementsMatch(t, schema.Required, []string{"owner_type", "owner", "project_number", "field_id"})
 
 	orgField := map[string]any{"id": 101, "name": "Status", "dataType": "single_select"}
 	userField := map[string]any{"id": 202, "name": "Priority", "dataType": "single_select"}
@@ -559,9 +592,12 @@ func Test_GetProjectField(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			_, handler := GetProjectField(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -598,19 +634,21 @@ func Test_GetProjectField(t *testing.T) {
 }
 
 func Test_ListProjectItems(t *testing.T) {
-	mockClient := gh.NewClient(nil)
-	tool, _ := ListProjectItems(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ListProjectItems(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_project_items", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "project_number")
-	assert.Contains(t, tool.InputSchema.Properties, "query")
-	assert.Contains(t, tool.InputSchema.Properties, "per_page")
-	assert.Contains(t, tool.InputSchema.Properties, "fields")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number"})
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be a *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner_type")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "project_number")
+	assert.Contains(t, schema.Properties, "query")
+	assert.Contains(t, schema.Properties, "per_page")
+	assert.Contains(t, schema.Properties, "fields")
+	assert.ElementsMatch(t, schema.Required, []string{"owner_type", "owner", "project_number"})
 
 	orgItems := []map[string]any{
 		{"id": 301, "content_type": "Issue", "project_node_id": "PR_1", "fields": []map[string]any{
@@ -653,8 +691,7 @@ func Test_ListProjectItems(t *testing.T) {
 					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodGet},
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						q := r.URL.Query()
-						fieldParams := q["fields"]
-						if len(fieldParams) == 3 && fieldParams[0] == "123" && fieldParams[1] == "456" && fieldParams[2] == "789" {
+						if q.Get("fields") == "123,456,789" {
 							w.WriteHeader(http.StatusOK)
 							_, _ = w.Write(mock.MustMarshal(orgItems))
 							return
@@ -761,9 +798,12 @@ func Test_ListProjectItems(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			_, handler := ListProjectItems(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -786,27 +826,33 @@ func Test_ListProjectItems(t *testing.T) {
 
 			require.False(t, result.IsError)
 			textContent := getTextResult(t, result)
-			var items []map[string]any
-			err = json.Unmarshal([]byte(textContent.Text), &items)
+			var response map[string]any
+			err = json.Unmarshal([]byte(textContent.Text), &response)
 			require.NoError(t, err)
+			items, ok := response["items"].([]interface{})
+			require.True(t, ok)
 			assert.Equal(t, tc.expectedLength, len(items))
+			_, hasPageInfo := response["pageInfo"].(map[string]interface{})
+			assert.True(t, hasPageInfo)
 		})
 	}
 }
 
 func Test_GetProjectItem(t *testing.T) {
-	mockClient := gh.NewClient(nil)
-	tool, _ := GetProjectItem(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := GetProjectItem(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "get_project_item", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "project_number")
-	assert.Contains(t, tool.InputSchema.Properties, "item_id")
-	assert.Contains(t, tool.InputSchema.Properties, "fields")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number", "item_id"})
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be a *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner_type")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "project_number")
+	assert.Contains(t, schema.Properties, "item_id")
+	assert.Contains(t, schema.Properties, "fields")
+	assert.ElementsMatch(t, schema.Required, []string{"owner_type", "owner", "project_number", "item_id"})
 
 	orgItem := map[string]any{
 		"id":              301,
@@ -852,8 +898,7 @@ func Test_GetProjectItem(t *testing.T) {
 					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodGet},
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						q := r.URL.Query()
-						fieldParams := q["fields"]
-						if len(fieldParams) == 2 && fieldParams[0] == "123" && fieldParams[1] == "456" {
+						if q.Get("fields") == "123,456" {
 							w.WriteHeader(http.StatusOK)
 							_, _ = w.Write(mock.MustMarshal(orgItem))
 							return
@@ -950,9 +995,12 @@ func Test_GetProjectItem(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			_, handler := GetProjectItem(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -989,18 +1037,20 @@ func Test_GetProjectItem(t *testing.T) {
 }
 
 func Test_AddProjectItem(t *testing.T) {
-	mockClient := gh.NewClient(nil)
-	tool, _ := AddProjectItem(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := AddProjectItem(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "add_project_item", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "project_number")
-	assert.Contains(t, tool.InputSchema.Properties, "item_type")
-	assert.Contains(t, tool.InputSchema.Properties, "item_id")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number", "item_type", "item_id"})
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be a *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner_type")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "project_number")
+	assert.Contains(t, schema.Properties, "item_type")
+	assert.Contains(t, schema.Properties, "item_id")
+	assert.ElementsMatch(t, schema.Required, []string{"owner_type", "owner", "project_number", "item_type", "item_id"})
 
 	orgItem := map[string]any{
 		"id":           601,
@@ -1174,10 +1224,13 @@ func Test_AddProjectItem(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			_, handler := AddProjectItem(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
 
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			require.NoError(t, err)
 
 			if tc.expectError {
@@ -1223,18 +1276,20 @@ func Test_AddProjectItem(t *testing.T) {
 }
 
 func Test_UpdateProjectItem(t *testing.T) {
-	mockClient := gh.NewClient(nil)
-	tool, _ := UpdateProjectItem(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := UpdateProjectItem(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "update_project_item", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "project_number")
-	assert.Contains(t, tool.InputSchema.Properties, "item_id")
-	assert.Contains(t, tool.InputSchema.Properties, "updated_field")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number", "item_id", "updated_field"})
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be a *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner_type")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "project_number")
+	assert.Contains(t, schema.Properties, "item_id")
+	assert.Contains(t, schema.Properties, "updated_field")
+	assert.ElementsMatch(t, schema.Required, []string{"owner_type", "owner", "project_number", "item_id", "updated_field"})
 
 	orgUpdatedItem := map[string]any{
 		"id":           801,
@@ -1351,8 +1406,8 @@ func Test_UpdateProjectItem(t *testing.T) {
 				"owner_type":     "org",
 				"project_number": float64(1),
 				"item_id":        float64(2),
-				"field_id":       float64(1),
-				"new_field": map[string]any{
+				"updated_field": map[string]any{
+					"id":    float64(1),
 					"value": "X",
 				},
 			},
@@ -1365,7 +1420,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 				"owner":          "octo-org",
 				"project_number": float64(1),
 				"item_id":        float64(2),
-				"new_field": map[string]any{
+				"updated_field": map[string]any{
 					"id":    float64(1),
 					"value": "X",
 				},
@@ -1379,7 +1434,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 				"owner":      "octo-org",
 				"owner_type": "org",
 				"item_id":    float64(2),
-				"new_field": map[string]any{
+				"updated_field": map[string]any{
 					"id":    float64(1),
 					"value": "X",
 				},
@@ -1393,7 +1448,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 				"owner":          "octo-org",
 				"owner_type":     "org",
 				"project_number": float64(1),
-				"new_field": map[string]any{
+				"updated_field": map[string]any{
 					"id":    float64(1),
 					"value": "X",
 				},
@@ -1401,19 +1456,18 @@ func Test_UpdateProjectItem(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:         "missing field_value",
+			name:         "missing updated_field",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
 				"project_number": float64(1),
 				"item_id":        float64(2),
-				"field_id":       float64(2),
 			},
 			expectError: true,
 		},
 		{
-			name:         "new_field not object",
+			name:         "updated_field not object",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
@@ -1425,7 +1479,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:         "new_field missing id",
+			name:         "updated_field missing id",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
@@ -1437,7 +1491,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:         "new_field missing value",
+			name:         "updated_field missing value",
 			mockedClient: mock.NewMockedHTTPClient(),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
@@ -1455,9 +1509,12 @@ func Test_UpdateProjectItem(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			_, handler := UpdateProjectItem(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -1475,14 +1532,14 @@ func Test_UpdateProjectItem(t *testing.T) {
 					assert.Contains(t, text, "missing required parameter: project_number")
 				case "missing item_id":
 					assert.Contains(t, text, "missing required parameter: item_id")
-				case "missing field_value":
+				case "missing updated_field":
 					assert.Contains(t, text, "missing required parameter: updated_field")
-				case "field_value not object":
+				case "updated_field not object":
 					assert.Contains(t, text, "field_value must be an object")
-				case "field_value missing id":
-					assert.Contains(t, text, "missing required parameter: field_id")
-				case "field_value missing value":
-					assert.Contains(t, text, "field_value.value is required")
+				case "updated_field missing id":
+					assert.Contains(t, text, "updated_field.id is required")
+				case "updated_field missing value":
+					assert.Contains(t, text, "updated_field.value is required")
 				}
 				return
 			}
@@ -1499,17 +1556,19 @@ func Test_UpdateProjectItem(t *testing.T) {
 }
 
 func Test_DeleteProjectItem(t *testing.T) {
-	mockClient := gh.NewClient(nil)
-	tool, _ := DeleteProjectItem(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := DeleteProjectItem(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "delete_project_item", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner_type")
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "project_number")
-	assert.Contains(t, tool.InputSchema.Properties, "item_id")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner_type", "owner", "project_number", "item_id"})
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be a *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner_type")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "project_number")
+	assert.Contains(t, schema.Properties, "item_id")
+	assert.ElementsMatch(t, schema.Required, []string{"owner_type", "owner", "project_number", "item_id"})
 
 	tests := []struct {
 		name           string
@@ -1617,9 +1676,12 @@ func Test_DeleteProjectItem(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := gh.NewClient(tc.mockedClient)
-			_, handler := DeleteProjectItem(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
