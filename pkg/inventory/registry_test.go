@@ -1643,3 +1643,48 @@ func TestFilteringOrder(t *testing.T) {
 		}
 	}
 }
+
+func TestForMCPRequest_ToolsCall_FeatureFlaggedVariants(t *testing.T) {
+	// Simulate the get_job_logs scenario: two tools with the same name but different feature flags
+	// - "get_job_logs" with FeatureFlagDisable (available when flag is OFF)
+	// - "get_job_logs" with FeatureFlagEnable (available when flag is ON)
+	tools := []ServerTool{
+		mockToolWithFlags("get_job_logs", "actions", true, "", "consolidated_flag"), // disabled when flag is ON
+		mockToolWithFlags("get_job_logs", "actions", true, "consolidated_flag", ""), // enabled when flag is ON
+		mockTool("other_tool", "actions", true),
+	}
+
+	// Test 1: Flag is OFF - first tool variant should be available
+	regFlagOff := NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"all"}).
+		Build()
+	filteredOff := regFlagOff.ForMCPRequest(MCPMethodToolsCall, "get_job_logs")
+	availableOff := filteredOff.AvailableTools(context.Background())
+	if len(availableOff) != 1 {
+		t.Fatalf("Flag OFF: Expected 1 tool, got %d", len(availableOff))
+	}
+	if availableOff[0].FeatureFlagDisable != "consolidated_flag" {
+		t.Errorf("Flag OFF: Expected tool with FeatureFlagDisable, got FeatureFlagEnable=%q, FeatureFlagDisable=%q",
+			availableOff[0].FeatureFlagEnable, availableOff[0].FeatureFlagDisable)
+	}
+
+	// Test 2: Flag is ON - second tool variant should be available
+	checker := func(_ context.Context, flag string) (bool, error) {
+		return flag == "consolidated_flag", nil
+	}
+	regFlagOn := NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"all"}).
+		WithFeatureChecker(checker).
+		Build()
+	filteredOn := regFlagOn.ForMCPRequest(MCPMethodToolsCall, "get_job_logs")
+	availableOn := filteredOn.AvailableTools(context.Background())
+	if len(availableOn) != 1 {
+		t.Fatalf("Flag ON: Expected 1 tool, got %d", len(availableOn))
+	}
+	if availableOn[0].FeatureFlagEnable != "consolidated_flag" {
+		t.Errorf("Flag ON: Expected tool with FeatureFlagEnable, got FeatureFlagEnable=%q, FeatureFlagDisable=%q",
+			availableOn[0].FeatureFlagEnable, availableOn[0].FeatureFlagDisable)
+	}
+}
