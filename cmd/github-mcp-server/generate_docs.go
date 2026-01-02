@@ -51,8 +51,6 @@ func generateReadmeDocs(readmePath string) error {
 	// Create translation helper
 	t, _ := translations.TranslationHelper()
 
-	// Build inventory with all toolsets enabled and no feature checker (all flags return false).
-	// This includes tools from all toolsets, but excludes tools with FeatureFlagEnable
 	// (not available to regular users) while including tools with FeatureFlagDisable.
 	r := github.NewInventory(t).WithToolsets([]string{"all"}).Build()
 
