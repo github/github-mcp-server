@@ -44,7 +44,9 @@ func (l *SlogLogger) Error(msg string, fields ...slog.Attr) {
 
 func (l *SlogLogger) Fatal(msg string, fields ...slog.Attr) {
 	l.Log(context.Background(), FatalLevel, msg, fields...)
-	panic("fatal log called")
+	// Sync to ensure the log message is flushed before panic
+	_ = l.Sync()
+	panic("fatal: " + msg)
 }
 
 func (l *SlogLogger) WithFields(fields ...slog.Attr) Logger {
@@ -60,6 +62,9 @@ func (l *SlogLogger) WithFields(fields ...slog.Attr) Logger {
 }
 
 func (l *SlogLogger) WithError(err error) Logger {
+	if err == nil {
+		return l
+	}
 	return &SlogLogger{
 		logger: l.logger.With("error", err.Error()),
 		level:  l.level,
