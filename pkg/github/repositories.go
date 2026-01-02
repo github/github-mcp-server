@@ -671,6 +671,8 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			originalRef := ref
+
 			sha, err := OptionalParam[string](args, "sha")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -681,7 +683,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return utils.NewToolResultError("failed to get GitHub client"), nil, nil
 			}
 
-			rawOpts, err := resolveGitReference(ctx, client, owner, repo, ref, sha)
+			rawOpts, fallbackUsed, err := resolveGitReference(ctx, client, owner, repo, ref, sha)
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("failed to resolve git reference: %s", err)), nil, nil
 			}
@@ -724,7 +726,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 					// If the raw content is found, return it directly
 					body, err := io.ReadAll(resp.Body)
 					if err != nil {
-						return utils.NewToolResultError("failed to read response body"), nil, nil
+						return ghErrors.NewGitHubRawAPIErrorResponse(ctx, "failed to get raw repository content", resp, err), nil, nil
 					}
 					contentType := resp.Header.Get("Content-Type")
 
@@ -747,6 +749,12 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						}
 					}
 
+					// main branch ref passed in ref parameter but it doesn't exist - default branch was used
+					var successNote string
+					if fallbackUsed {
+						successNote = fmt.Sprintf(" Note: the provided ref '%s' does not exist, default branch '%s' was used instead.", originalRef, rawOpts.Ref)
+					}
+
 					// Determine if content is text or binary
 					isTextContent := strings.HasPrefix(contentType, "text/") ||
 						contentType == "application/json" ||
@@ -762,9 +770,9 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						}
 						// Include SHA in the result metadata
 						if fileSHA != "" {
-							return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)", fileSHA), result), nil, nil
+							return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)", fileSHA)+successNote, result), nil, nil
 						}
-						return utils.NewToolResultResource("successfully downloaded text file", result), nil, nil
+						return utils.NewToolResultResource("successfully downloaded text file"+successNote, result), nil, nil
 					}
 
 					result := &mcp.ResourceContents{
@@ -774,9 +782,9 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 					}
 					// Include SHA in the result metadata
 					if fileSHA != "" {
-						return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)", fileSHA), result), nil, nil
+						return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)", fileSHA)+successNote, result), nil, nil
 					}
-					return utils.NewToolResultResource("successfully downloaded binary file", result), nil, nil
+					return utils.NewToolResultResource("successfully downloaded binary file"+successNote, result), nil, nil
 				}
 
 				// Raw API call failed
@@ -1833,6 +1841,20 @@ func filterPaths(entries []*github.TreeEntry, path string, maxResults int) []str
 	return matchedPaths
 }
 
+// looksLikeSHA returns true if the string appears to be a Git commit SHA.
+// A SHA is a 40-character hexadecimal string.
+func looksLikeSHA(s string) bool {
+	if len(s) != 40 {
+		return false
+	}
+	for _, c := range s {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
+			return false
+		}
+	}
+	return true
+}
+
 // resolveGitReference takes a user-provided ref and sha and resolves them into a
 // definitive commit SHA and its corresponding fully-qualified reference.
 //
@@ -1841,8 +1863,11 @@ func filterPaths(entries []*github.TreeEntry, path string, maxResults int) []str
 //  1. If a specific commit `sha` is provided, it takes precedence and is used directly,
 //     and all reference resolution is skipped.
 //
-//  2. If no `sha` is provided, the function resolves the `ref`
-//     string into a fully-qualified format (e.g., "refs/heads/main") by trying
+//     1a. If `sha` is empty but `ref` looks like a commit SHA (40 hexadecimal characters),
+//     it is returned as-is without any API calls or reference resolution.
+//
+//  2. If no `sha` is provided and `ref` does not look like a SHA, the function resolves
+//     the `ref` string into a fully-qualified format (e.g., "refs/heads/main") by trying
 //     the following steps in order:
 //     a). **Empty Ref:** If `ref` is empty, the repository's default branch is used.
 //     b). **Fully-Qualified:** If `ref` already starts with "refs/", it's considered fully
@@ -1859,10 +1884,15 @@ func filterPaths(entries []*github.TreeEntry, path string, maxResults int) []str
 //
 // Any unexpected (non-404) errors during the resolution process are returned
 // immediately. All API errors are logged with rich context to aid diagnostics.
-func resolveGitReference(ctx context.Context, githubClient *github.Client, owner, repo, ref, sha string) (*raw.ContentOpts, error) {
+func resolveGitReference(ctx context.Context, githubClient *github.Client, owner, repo, ref, sha string) (*raw.ContentOpts, bool, error) {
 	// 1) If SHA explicitly provided, it's the highest priority.
 	if sha != "" {
-		return &raw.ContentOpts{Ref: "", SHA: sha}, nil
+		return &raw.ContentOpts{Ref: "", SHA: sha}, false, nil
+	}
+
+	// 1a) If sha is empty but ref looks like a SHA, return it without changes
+	if looksLikeSHA(ref) {
+		return &raw.ContentOpts{Ref: "", SHA: ref}, false, nil
 	}
 
 	originalRef := ref // Keep original ref for clearer error messages down the line.
@@ -1871,16 +1901,16 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 	var reference *github.Reference
 	var resp *github.Response
 	var err error
+	var fallbackUsed bool
 
 	switch {
 	case originalRef == "":
 		// 2a) If ref is empty, determine the default branch.
-		repoInfo, resp, err := githubClient.Repositories.Get(ctx, owner, repo)
+		reference, err = resolveDefaultBranch(ctx, githubClient, owner, repo)
 		if err != nil {
-			_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get repository info", resp, err)
-			return nil, fmt.Errorf("failed to get repository info: %w", err)
+			return nil, false, err // Error is already wrapped in resolveDefaultBranch.
 		}
-		ref = fmt.Sprintf("refs/heads/%s", repoInfo.GetDefaultBranch())
+		ref = reference.GetRef()
 	case strings.HasPrefix(originalRef, "refs/"):
 		// 2b) Already fully qualified. The reference will be fetched at the end.
 	case strings.HasPrefix(originalRef, "heads/") || strings.HasPrefix(originalRef, "tags/"):
@@ -1905,16 +1935,27 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 					// The tag lookup also failed. Check if it was a 404 Not Found error.
 					ghErr2, isGhErr2 := err.(*github.ErrorResponse)
 					if isGhErr2 && ghErr2.Response.StatusCode == http.StatusNotFound {
-						return nil, fmt.Errorf("could not resolve ref %q as a branch or a tag", originalRef)
+						if originalRef == "main" {
+							reference, err = resolveDefaultBranch(ctx, githubClient, owner, repo)
+							if err != nil {
+								return nil, false, err // Error is already wrapped in resolveDefaultBranch.
+							}
+							// Update ref to the actual default branch ref so the note can be generated
+							ref = reference.GetRef()
+							fallbackUsed = true
+							break
+						}
+						return nil, false, fmt.Errorf("could not resolve ref %q as a branch or a tag", originalRef)
 					}
+
 					// The tag lookup failed for a different reason.
 					_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get reference (tag)", resp, err)
-					return nil, fmt.Errorf("failed to get reference for tag '%s': %w", originalRef, err)
+					return nil, false, fmt.Errorf("failed to get reference for tag '%s': %w", originalRef, err)
 				}
 			} else {
 				// The branch lookup failed for a different reason.
 				_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get reference (branch)", resp, err)
-				return nil, fmt.Errorf("failed to get reference for branch '%s': %w", originalRef, err)
+				return nil, false, fmt.Errorf("failed to get reference for branch '%s': %w", originalRef, err)
 			}
 		}
 	}
@@ -1922,13 +1963,49 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 	if reference == nil {
 		reference, resp, err = githubClient.Git.GetRef(ctx, owner, repo, ref)
 		if err != nil {
-			_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get final reference", resp, err)
-			return nil, fmt.Errorf("failed to get final reference for %q: %w", ref, err)
+			if ref == "refs/heads/main" {
+				reference, err = resolveDefaultBranch(ctx, githubClient, owner, repo)
+				if err != nil {
+					return nil, false, err // Error is already wrapped in resolveDefaultBranch.
+				}
+				// Update ref to the actual default branch ref so the note can be generated
+				ref = reference.GetRef()
+				fallbackUsed = true
+			} else {
+				_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get final reference", resp, err)
+				return nil, false, fmt.Errorf("failed to get final reference for %q: %w", ref, err)
+			}
 		}
 	}
 
 	sha = reference.GetObject().GetSHA()
-	return &raw.ContentOpts{Ref: ref, SHA: sha}, nil
+	return &raw.ContentOpts{Ref: ref, SHA: sha}, fallbackUsed, nil
+}
+
+func resolveDefaultBranch(ctx context.Context, githubClient *github.Client, owner, repo string) (*github.Reference, error) {
+	repoInfo, resp, err := githubClient.Repositories.Get(ctx, owner, repo)
+	if err != nil {
+		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get repository info", resp, err)
+		return nil, fmt.Errorf("failed to get repository info: %w", err)
+	}
+
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+
+	defaultBranch := repoInfo.GetDefaultBranch()
+
+	defaultRef, resp, err := githubClient.Git.GetRef(ctx, owner, repo, "heads/"+defaultBranch)
+	if err != nil {
+		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get default branch reference", resp, err)
+		return nil, fmt.Errorf("failed to get default branch reference: %w", err)
+	}
+
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+
+	return defaultRef, nil
 }
 
 // ListStarredRepositories creates a tool to list starred repositories for the authenticated user or a specified user.

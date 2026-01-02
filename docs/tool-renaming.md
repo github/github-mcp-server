@@ -46,5 +46,20 @@ Will get `issue_read` and `get_file_contents` tools registered, with no errors.
 <!-- START AUTOMATED ALIASES -->
 | Old Name | New Name |
 |----------|----------|
-| *(none currently)* | |
+| `cancel_workflow_run` | `actions_run_trigger` |
+| `delete_workflow_run_logs` | `actions_run_trigger` |
+| `download_workflow_run_artifact` | `actions_get` |
+| `get_workflow` | `actions_get` |
+| `get_workflow_job` | `actions_get` |
+| `get_workflow_job_logs` | `actions_get` |
+| `get_workflow_run` | `actions_get` |
+| `get_workflow_run_logs` | `actions_get` |
+| `get_workflow_run_usage` | `actions_get` |
+| `list_workflow_jobs` | `actions_list` |
+| `list_workflow_run_artifacts` | `actions_list` |
+| `list_workflow_runs` | `actions_list` |
+| `list_workflows` | `actions_list` |
+| `rerun_failed_jobs` | `actions_run_trigger` |
+| `rerun_workflow_run` | `actions_run_trigger` |
+| `run_workflow` | `actions_run_trigger` |
 <!-- END AUTOMATED ALIASES -->
