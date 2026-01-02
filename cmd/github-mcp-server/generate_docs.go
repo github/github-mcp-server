@@ -154,9 +154,6 @@ func generateToolsetsDoc(i *inventory.Inventory) string {
 }
 
 func generateToolsDoc(r *inventory.Inventory) string {
-	// Use AvailableTools with the inventory's feature checker (returns false for all flags),
-	// which excludes tools requiring a feature flag (FeatureFlagEnable) while keeping
-	// tools that are disabled by feature flags (available by default).
 	tools := r.AvailableTools(context.Background())
 	if len(tools) == 0 {
 		return ""
