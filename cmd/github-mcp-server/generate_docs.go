@@ -153,9 +153,10 @@ func generateToolsetsDoc(i *inventory.Inventory) string {
 }
 
 func generateToolsDoc(r *inventory.Inventory) string {
-	// AllTools() returns tools sorted by toolset ID then tool name.
+	// AllToolsForDocs() returns tools sorted by toolset ID then tool name,
+	// excluding tools that require feature flags (not available to regular users).
 	// We iterate once, grouping by toolset as we encounter them.
-	tools := r.AllTools()
+	tools := r.AllToolsForDocs()
 	if len(tools) == 0 {
 		return ""
 	}
