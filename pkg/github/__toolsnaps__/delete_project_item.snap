@@ -1,5 +1,6 @@
 {
   "annotations": {
+    "destructiveHint": true,
     "title": "Delete project item"
   },
   "description": "Delete a specific Project item for a user or org",
