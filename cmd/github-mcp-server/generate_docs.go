@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"os"
@@ -50,8 +51,10 @@ func generateReadmeDocs(readmePath string) error {
 	// Create translation helper
 	t, _ := translations.TranslationHelper()
 
-	// Build inventory - stateless, no dependencies needed for doc generation
-	r := github.NewInventory(t).Build()
+	// Build inventory with all toolsets enabled and no feature checker (all flags return false).
+	// This includes tools from all toolsets, but excludes tools with FeatureFlagEnable
+	// (not available to regular users) while including tools with FeatureFlagDisable.
+	r := github.NewInventory(t).WithToolsets([]string{"all"}).Build()
 
 	// Generate toolsets documentation
 	toolsetsDoc := generateToolsetsDoc(r)
@@ -153,10 +156,10 @@ func generateToolsetsDoc(i *inventory.Inventory) string {
 }
 
 func generateToolsDoc(r *inventory.Inventory) string {
-	// AllToolsForDocs() returns tools sorted by toolset ID then tool name,
-	// excluding tools that require feature flags (not available to regular users).
-	// We iterate once, grouping by toolset as we encounter them.
-	tools := r.AllToolsForDocs()
+	// Use AvailableTools with the inventory's feature checker (returns false for all flags),
+	// which excludes tools requiring a feature flag (FeatureFlagEnable) while keeping
+	// tools that are disabled by feature flags (available by default).
+	tools := r.AvailableTools(context.Background())
 	if len(tools) == 0 {
 		return ""
 	}

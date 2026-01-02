@@ -266,33 +266,6 @@ func (r *Inventory) AllTools() []ServerTool {
 	return result
 }
 
-// AllToolsForDocs returns tools suitable for documentation, sorted deterministically.
-// This excludes tools that require a feature flag to be enabled (FeatureFlagEnable),
-// since those are not available to regular users and shouldn't appear in public docs.
-// Tools that are disabled by a feature flag (FeatureFlagDisable) are still included
-// since they are available by default.
-func (r *Inventory) AllToolsForDocs() []ServerTool {
-	var result []ServerTool
-	for i := range r.tools {
-		tool := &r.tools[i]
-		// Skip tools that require a feature flag to enable
-		if tool.FeatureFlagEnable != "" {
-			continue
-		}
-		result = append(result, *tool)
-	}
-
-	// Sort deterministically: by toolset ID, then by tool name
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].Toolset.ID != result[j].Toolset.ID {
-			return result[i].Toolset.ID < result[j].Toolset.ID
-		}
-		return result[i].Tool.Name < result[j].Tool.Name
-	})
-
-	return result
-}
-
 // AvailableToolsets returns the unique toolsets that have tools, in sorted order.
 // This is the ordered intersection of toolsets with reality - only toolsets that
 // actually contain tools are returned, sorted by toolset ID.
