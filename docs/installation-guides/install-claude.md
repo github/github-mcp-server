@@ -30,7 +30,7 @@ echo -e ".env\n.mcp.json" >> .gitignore
 
 1. Run the following command in the Claude Code CLI
 ```bash
-claude mcp add --transport http github https://api.githubcopilot.com/mcp -H "Authorization: Bearer YOUR_GITHUB_PAT"
+claude mcp add --transport http github https://api.githubcopilot.com/mcp -H "Authorization: Bearer $(gh auth token)"
 ```
 
 With an environment variable:
