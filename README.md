@@ -758,7 +758,7 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
 
 - **assign_copilot_to_issue** - Assign Copilot to issue
-  - `issueNumber`: Issue number (number, required)
+  - `issue_number`: Issue number (number, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 

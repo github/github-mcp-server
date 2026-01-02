@@ -25,8 +25,12 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v6
-        with:
-          ref: ${{ github.head_ref }}
+
+      # Check out the actual PR branch so we can push changes back if needed
+      - name: Check out PR branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh pr checkout ${{ github.event.pull_request.number }}
 
       - name: Set up Go
         uses: actions/setup-go@v6

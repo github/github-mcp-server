@@ -1626,19 +1626,19 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 						Type:        "string",
 						Description: "Repository name",
 					},
-					"issueNumber": {
+					"issue_number": {
 						Type:        "number",
 						Description: "Issue number",
 					},
 				},
-				Required: []string{"owner", "repo", "issueNumber"},
+				Required: []string{"owner", "repo", "issue_number"},
 			},
 		},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			var params struct {
-				Owner       string
-				Repo        string
-				IssueNumber int32
+				Owner       string `mapstructure:"owner"`
+				Repo        string `mapstructure:"repo"`
+				IssueNumber int32  `mapstructure:"issue_number"`
 			}
 			if err := mapstructure.Decode(args, &params); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
