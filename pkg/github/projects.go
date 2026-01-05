@@ -68,8 +68,7 @@ func ListProjects(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner_type", "owner"},
 			},
 		},
-		scopes.ToStringSlice(scopes.ReadProject),
-		scopes.ToStringSlice(scopes.ReadProject, scopes.Project),
+		[]scopes.Scope{scopes.ReadProject},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -175,8 +174,7 @@ func GetProject(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"project_number", "owner_type", "owner"},
 			},
 		},
-		scopes.ToStringSlice(scopes.ReadProject),
-		scopes.ToStringSlice(scopes.ReadProject, scopes.Project),
+		[]scopes.Scope{scopes.ReadProject},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			projectNumber, err := RequiredInt(args, "project_number")
@@ -277,8 +275,7 @@ func ListProjectFields(t translations.TranslationHelperFunc) inventory.ServerToo
 				Required: []string{"owner_type", "owner", "project_number"},
 			},
 		},
-		scopes.ToStringSlice(scopes.ReadProject),
-		scopes.ToStringSlice(scopes.ReadProject, scopes.Project),
+		[]scopes.Scope{scopes.ReadProject},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -377,8 +374,7 @@ func GetProjectField(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Required: []string{"owner_type", "owner", "project_number", "field_id"},
 			},
 		},
-		scopes.ToStringSlice(scopes.ReadProject),
-		scopes.ToStringSlice(scopes.ReadProject, scopes.Project),
+		[]scopes.Scope{scopes.ReadProject},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -490,8 +486,7 @@ func ListProjectItems(t translations.TranslationHelperFunc) inventory.ServerTool
 				Required: []string{"owner_type", "owner", "project_number"},
 			},
 		},
-		scopes.ToStringSlice(scopes.ReadProject),
-		scopes.ToStringSlice(scopes.ReadProject, scopes.Project),
+		[]scopes.Scope{scopes.ReadProject},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -616,8 +611,7 @@ func GetProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner_type", "owner", "project_number", "item_id"},
 			},
 		},
-		scopes.ToStringSlice(scopes.ReadProject),
-		scopes.ToStringSlice(scopes.ReadProject, scopes.Project),
+		[]scopes.Scope{scopes.ReadProject},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -722,8 +716,7 @@ func AddProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner_type", "owner", "project_number", "item_type", "item_id"},
 			},
 		},
-		scopes.ToStringSlice(scopes.Project),
-		scopes.ToStringSlice(scopes.Project),
+		[]scopes.Scope{scopes.Project},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -834,8 +827,7 @@ func UpdateProjectItem(t translations.TranslationHelperFunc) inventory.ServerToo
 				Required: []string{"owner_type", "owner", "project_number", "item_id", "updated_field"},
 			},
 		},
-		scopes.ToStringSlice(scopes.Project),
-		scopes.ToStringSlice(scopes.Project),
+		[]scopes.Scope{scopes.Project},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -945,8 +937,7 @@ func DeleteProjectItem(t translations.TranslationHelperFunc) inventory.ServerToo
 				Required: []string{"owner_type", "owner", "project_number", "item_id"},
 			},
 		},
-		scopes.ToStringSlice(scopes.Project),
-		scopes.ToStringSlice(scopes.Project),
+		[]scopes.Scope{scopes.Project},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")

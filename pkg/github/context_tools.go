@@ -52,8 +52,7 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// OpenAI strict mode requires the properties field to be present.
 			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
 		},
-		nil, // no required scopes
-		nil, // no accepted scopes
+		nil,
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -132,8 +131,7 @@ func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
 				},
 			},
 		},
-		scopes.ToStringSlice(scopes.ReadOrg),
-		scopes.ToStringSlice(scopes.ReadOrg, scopes.WriteOrg, scopes.AdminOrg),
+		[]scopes.Scope{scopes.ReadOrg},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			user, err := OptionalParam[string](args, "user")
 			if err != nil {
@@ -236,8 +234,7 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"org", "team_slug"},
 			},
 		},
-		scopes.ToStringSlice(scopes.ReadOrg),
-		scopes.ToStringSlice(scopes.ReadOrg, scopes.WriteOrg, scopes.AdminOrg),
+		[]scopes.Scope{scopes.ReadOrg},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			org, err := RequiredParam[string](args, "org")
 			if err != nil {

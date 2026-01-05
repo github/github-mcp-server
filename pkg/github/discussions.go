@@ -162,8 +162,7 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Required: []string{"owner"},
 			}),
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -306,8 +305,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "discussionNumber"},
 			},
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			// Decode params
 			var params struct {
@@ -411,8 +409,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 				Required: []string{"owner", "repo", "discussionNumber"},
 			}),
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			// Decode params
 			var params struct {
@@ -535,8 +532,7 @@ func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.Se
 				Required: []string{"owner"},
 			},
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {

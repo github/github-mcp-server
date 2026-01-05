@@ -84,8 +84,7 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventor
 				},
 			},
 		},
-		scopes.ToStringSlice(scopes.SecurityEvents),
-		scopes.ToStringSlice(scopes.SecurityEvents, scopes.Repo),
+		[]scopes.Scope{scopes.SecurityEvents},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -249,8 +248,7 @@ func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inve
 				Required: []string{"owner", "repo"},
 			},
 		},
-		scopes.ToStringSlice(scopes.SecurityEvents),
-		scopes.ToStringSlice(scopes.SecurityEvents, scopes.Repo),
+		[]scopes.Scope{scopes.SecurityEvents},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -335,8 +333,7 @@ func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.S
 				Required: []string{"ghsaId"},
 			},
 		},
-		scopes.ToStringSlice(scopes.SecurityEvents),
-		scopes.ToStringSlice(scopes.SecurityEvents, scopes.Repo),
+		[]scopes.Scope{scopes.SecurityEvents},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -408,8 +405,7 @@ func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) i
 				Required: []string{"org"},
 			},
 		},
-		scopes.ToStringSlice(scopes.SecurityEvents),
-		scopes.ToStringSlice(scopes.SecurityEvents, scopes.Repo),
+		[]scopes.Scope{scopes.SecurityEvents},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			org, err := RequiredParam[string](args, "org")
 			if err != nil {

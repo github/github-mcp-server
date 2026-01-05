@@ -70,8 +70,7 @@ Possible options:
 			},
 			InputSchema: schema,
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -521,8 +520,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			},
 			InputSchema: schema,
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -674,8 +672,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			},
 			InputSchema: schema,
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -957,8 +954,7 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 			},
 			InputSchema: schema,
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1095,8 +1091,7 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 			},
 			InputSchema: schema,
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1214,8 +1209,7 @@ func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTo
 			},
 			InputSchema: schema,
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			result, err := searchHandler(ctx, deps.GetClient, args, "pr", "failed to search pull requests")
 			return result, nil, err
@@ -1258,8 +1252,7 @@ func UpdatePullRequestBranch(t translations.TranslationHelperFunc) inventory.Ser
 			},
 			InputSchema: schema,
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1386,8 +1379,7 @@ Available methods:
 			},
 			InputSchema: schema,
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			var params PullRequestReviewWriteParams
 			if err := mapstructure.Decode(args, &params); err != nil {
@@ -1711,8 +1703,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 			},
 			InputSchema: schema,
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			var params struct {
 				Owner       string
@@ -1865,8 +1856,7 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 			},
 			InputSchema: schema,
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {

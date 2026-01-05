@@ -46,8 +46,7 @@ func GetSecretScanningAlert(t translations.TranslationHelperFunc) inventory.Serv
 				Required: []string{"owner", "repo", "alertNumber"},
 			},
 		},
-		scopes.ToStringSlice(scopes.SecurityEvents),
-		scopes.ToStringSlice(scopes.SecurityEvents, scopes.Repo),
+		[]scopes.Scope{scopes.SecurityEvents},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -134,8 +133,7 @@ func ListSecretScanningAlerts(t translations.TranslationHelperFunc) inventory.Se
 				Required: []string{"owner", "repo"},
 			},
 		},
-		scopes.ToStringSlice(scopes.SecurityEvents),
-		scopes.ToStringSlice(scopes.SecurityEvents, scopes.Repo),
+		[]scopes.Scope{scopes.SecurityEvents},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {

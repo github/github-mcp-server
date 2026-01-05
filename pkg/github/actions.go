@@ -75,8 +75,7 @@ func ListWorkflows(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			}),
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -203,8 +202,7 @@ func ListWorkflowRuns(t translations.TranslationHelperFunc) inventory.ServerTool
 				Required: []string{"owner", "repo", "workflow_id"},
 			}),
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -316,8 +314,7 @@ func RunWorkflow(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "workflow_id", "ref"},
 			},
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -422,8 +419,7 @@ func GetWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "run_id"},
 			},
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -492,8 +488,7 @@ func GetWorkflowRunLogs(t translations.TranslationHelperFunc) inventory.ServerTo
 				Required: []string{"owner", "repo", "run_id"},
 			},
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -577,8 +572,7 @@ func ListWorkflowJobs(t translations.TranslationHelperFunc) inventory.ServerTool
 				Required: []string{"owner", "repo", "run_id"},
 			}),
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -691,8 +685,7 @@ func GetJobLogs(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			},
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -941,8 +934,7 @@ func RerunWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerTool
 				Required: []string{"owner", "repo", "run_id"},
 			},
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -1018,8 +1010,7 @@ func RerunFailedJobs(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Required: []string{"owner", "repo", "run_id"},
 			},
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -1095,8 +1086,7 @@ func CancelWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerToo
 				Required: []string{"owner", "repo", "run_id"},
 			},
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -1174,8 +1164,7 @@ func ListWorkflowRunArtifacts(t translations.TranslationHelperFunc) inventory.Se
 				Required: []string{"owner", "repo", "run_id"},
 			}),
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -1256,8 +1245,7 @@ func DownloadWorkflowRunArtifact(t translations.TranslationHelperFunc) inventory
 				Required: []string{"owner", "repo", "artifact_id"},
 			},
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -1336,8 +1324,7 @@ func DeleteWorkflowRunLogs(t translations.TranslationHelperFunc) inventory.Serve
 				Required: []string{"owner", "repo", "run_id"},
 			},
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -1413,8 +1400,7 @@ func GetWorkflowRunUsage(t translations.TranslationHelperFunc) inventory.ServerT
 				Required: []string{"owner", "repo", "run_id"},
 			},
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -1579,8 +1565,7 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 				Required: []string{"method", "owner", "repo"},
 			},
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1699,8 +1684,7 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 				Required: []string{"method", "owner", "repo", "resource_id"},
 			},
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1814,8 +1798,7 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 				Required: []string{"method", "owner", "repo"},
 			},
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1930,8 +1913,7 @@ For single job logs, provide job_id. For all failed jobs in a run, provide run_i
 				Required: []string{"owner", "repo"},
 			},
 		},
-		scopes.ToStringSlice(scopes.Repo),
-		scopes.ToStringSlice(scopes.Repo),
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
