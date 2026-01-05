@@ -22,6 +22,18 @@ When the server starts with a classic PAT, it makes a lightweight HTTP HEAD requ
 
 With OAuth, the remote server can dynamically request additional scopes as needed. With PATs, scopes are fixed at token creation, so the server proactively hides tools you can't use.
 
+## OAuth Scope Challenges (Remote Server)
+
+When using the [remote MCP server](./remote-server.md) with OAuth authentication, the server uses a different approach called **scope challenges**. Instead of hiding tools upfront, all tools are available, and the server requests additional scopes on-demand when you try to use a tool that requires them.
+
+**How it works:**
+1. You attempt to use a tool (e.g., creating an issue)
+2. If your current OAuth token lacks the required scope, the server returns an OAuth scope challenge
+3. Your MCP client prompts you to authorize the additional scope
+4. After authorization, the operation completes successfully
+
+This provides a smoother user experience for OAuth users since you only grant permissions as needed, rather than requesting all scopes upfront.
+
 ## Checking Your Token's Scopes
 
 To see what scopes your token has, you can run:
