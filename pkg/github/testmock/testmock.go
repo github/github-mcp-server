@@ -139,7 +139,7 @@ func matchPath(pattern, path string) bool {
 		return trimmedPath == ""
 	}
 
-	if pattern == path {
+	if trimmedPattern == trimmedPath {
 		return true
 	}
 
@@ -183,12 +183,13 @@ var (
 	GetReposActionsWorkflowsRunsByOwnerByRepoByWorkflowID        = EndpointPattern{Pattern: "/repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs", Method: http.MethodGet}
 	PostReposActionsWorkflowsDispatchesByOwnerByRepoByWorkflowID = EndpointPattern{Pattern: "/repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches", Method: http.MethodPost}
 
-	GetReposIssuesByOwnerByRepoByIssueNumber                    = EndpointPattern{Pattern: "/repos/{owner}/{repo}/issues/{issue_number}", Method: http.MethodGet}
-	GetReposIssuesCommentsByOwnerByRepoByIssueNumber            = EndpointPattern{Pattern: "/repos/{owner}/{repo}/issues/{issue_number}/comments", Method: http.MethodGet}
-	GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber           = EndpointPattern{Pattern: "/repos/{owner}/{repo}/issues/{issue_number}/sub_issues", Method: http.MethodGet}
-	PostReposIssuesByOwnerByRepo                                = EndpointPattern{Pattern: "/repos/{owner}/{repo}/issues", Method: http.MethodPost}
-	PostReposIssuesCommentsByOwnerByRepoByIssueNumber           = EndpointPattern{Pattern: "/repos/{owner}/{repo}/issues/{issue_number}/comments", Method: http.MethodPost}
-	PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber          = EndpointPattern{Pattern: "/repos/{owner}/{repo}/issues/{issue_number}/sub_issues", Method: http.MethodPost}
+	GetReposIssuesByOwnerByRepoByIssueNumber           = EndpointPattern{Pattern: "/repos/{owner}/{repo}/issues/{issue_number}", Method: http.MethodGet}
+	GetReposIssuesCommentsByOwnerByRepoByIssueNumber   = EndpointPattern{Pattern: "/repos/{owner}/{repo}/issues/{issue_number}/comments", Method: http.MethodGet}
+	GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber  = EndpointPattern{Pattern: "/repos/{owner}/{repo}/issues/{issue_number}/sub_issues", Method: http.MethodGet}
+	PostReposIssuesByOwnerByRepo                       = EndpointPattern{Pattern: "/repos/{owner}/{repo}/issues", Method: http.MethodPost}
+	PostReposIssuesCommentsByOwnerByRepoByIssueNumber  = EndpointPattern{Pattern: "/repos/{owner}/{repo}/issues/{issue_number}/comments", Method: http.MethodPost}
+	PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber = EndpointPattern{Pattern: "/repos/{owner}/{repo}/issues/{issue_number}/sub_issues", Method: http.MethodPost}
+	// Note: GitHub's delete endpoint uses the singular form `/sub_issue`.
 	DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber         = EndpointPattern{Pattern: "/repos/{owner}/{repo}/issues/{issue_number}/sub_issue", Method: http.MethodDelete}
 	PatchReposIssuesByOwnerByRepoByIssueNumber                  = EndpointPattern{Pattern: "/repos/{owner}/{repo}/issues/{issue_number}", Method: http.MethodPatch}
 	PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber = EndpointPattern{Pattern: "/repos/{owner}/{repo}/issues/{issue_number}/sub_issues/priority", Method: http.MethodPatch}
