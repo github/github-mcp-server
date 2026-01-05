@@ -12,7 +12,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
 )
 
@@ -189,7 +188,7 @@ func generateToolsDoc(r *inventory.Inventory) string {
 			currentToolsetID = tool.Toolset.ID
 			currentToolsetIcon = tool.Toolset.Icon
 		}
-		writeToolDoc(&toolBuf, tool.Tool)
+		writeToolDoc(&toolBuf, tool)
 		toolBuf.WriteString("\n\n")
 	}
 
@@ -223,16 +222,26 @@ func formatToolsetName(name string) string {
 	}
 }
 
-func writeToolDoc(buf *strings.Builder, tool mcp.Tool) {
+func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 	// Tool name (no icon - section header already has the toolset icon)
-	fmt.Fprintf(buf, "- **%s** - %s\n", tool.Name, tool.Annotations.Title)
+	fmt.Fprintf(buf, "- **%s** - %s\n", tool.Tool.Name, tool.Tool.Annotations.Title)
+
+	// OAuth scopes if present
+	if len(tool.RequiredScopes) > 0 {
+		fmt.Fprintf(buf, "  - **Required OAuth Scopes**: `%s`\n", strings.Join(tool.RequiredScopes, "`, `"))
+
+		// Only show accepted scopes if they differ from required scopes
+		if len(tool.AcceptedScopes) > 0 && !scopesEqual(tool.RequiredScopes, tool.AcceptedScopes) {
+			fmt.Fprintf(buf, "  - **Accepted OAuth Scopes**: `%s`\n", strings.Join(tool.AcceptedScopes, "`, `"))
+		}
+	}
 
 	// Parameters
-	if tool.InputSchema == nil {
+	if tool.Tool.InputSchema == nil {
 		buf.WriteString("  - No parameters required")
 		return
 	}
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	schema, ok := tool.Tool.InputSchema.(*jsonschema.Schema)
 	if !ok || schema == nil {
 		buf.WriteString("  - No parameters required")
 		return
@@ -279,6 +288,28 @@ func writeToolDoc(buf *strings.Builder, tool mcp.Tool) {
 	} else {
 		buf.WriteString("  - No parameters required")
 	}
+}
+
+// scopesEqual checks if two scope slices contain the same elements (order-independent)
+func scopesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	// Create a map for quick lookup
+	aMap := make(map[string]bool, len(a))
+	for _, scope := range a {
+		aMap[scope] = true
+	}
+
+	// Check if all elements in b are in a
+	for _, scope := range b {
+		if !aMap[scope] {
+			return false
+		}
+	}
+
+	return true
 }
 
 func contains(slice []string, item string) bool {

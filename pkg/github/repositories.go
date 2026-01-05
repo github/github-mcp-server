@@ -12,6 +12,7 @@ import (
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/octicons"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -53,6 +54,7 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "sha"},
 			}),
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -149,6 +151,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			}),
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -248,6 +251,7 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			}),
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -361,6 +365,7 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 				Required: []string{"owner", "repo", "path", "content", "message", "branch"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -544,6 +549,7 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 				Required: []string{"name"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			name, err := RequiredParam[string](args, "name")
 			if err != nil {
@@ -650,6 +656,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Required: []string{"owner", "repo"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -833,6 +840,7 @@ func ForkRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -939,6 +947,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "path", "message", "branch"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1118,6 +1127,7 @@ func CreateBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "branch"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1248,6 +1258,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "branch", "files", "message"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1455,6 +1466,7 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			}),
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1537,6 +1549,7 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "tag"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1630,6 +1643,7 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			}),
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1704,6 +1718,7 @@ func GetLatestRelease(t translations.TranslationHelperFunc) inventory.ServerTool
 				Required: []string{"owner", "repo"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1772,6 +1787,7 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Required: []string{"owner", "repo", "tag"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1850,6 +1866,7 @@ func ListStarredRepositories(t translations.TranslationHelperFunc) inventory.Ser
 				},
 			}),
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			username, err := OptionalParam[string](args, "username")
 			if err != nil {
@@ -1977,6 +1994,7 @@ func StarRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -2041,6 +2059,7 @@ func UnstarRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 				Required: []string{"owner", "repo"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
