@@ -350,14 +350,20 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	logger := slog.New(slogHandler)
 	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "dynamicToolsets", cfg.DynamicToolsets, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode)
 
-	// Fetch token scopes for scope-based tool filtering
+	// Fetch token scopes for scope-based tool filtering (PAT tokens only)
+	// Only classic PATs (ghp_ prefix) return OAuth scopes via X-OAuth-Scopes header.
+	// Fine-grained PATs and other token types don't support this, so we skip filtering.
 	var tokenScopes []string
-	fetchedScopes, err := fetchTokenScopesForHost(ctx, cfg.Token, cfg.Host)
-	if err != nil {
-		logger.Warn("failed to fetch token scopes, continuing without scope filtering", "error", err)
+	if strings.HasPrefix(cfg.Token, "ghp_") {
+		fetchedScopes, err := fetchTokenScopesForHost(ctx, cfg.Token, cfg.Host)
+		if err != nil {
+			logger.Warn("failed to fetch token scopes, continuing without scope filtering", "error", err)
+		} else {
+			tokenScopes = fetchedScopes
+			logger.Info("token scopes fetched for filtering", "scopes", tokenScopes)
+		}
 	} else {
-		tokenScopes = fetchedScopes
-		logger.Info("token scopes fetched for filtering", "scopes", tokenScopes)
+		logger.Debug("skipping scope filtering for non-PAT token")
 	}
 
 	ghServer, err := NewMCPServer(MCPServerConfig{
