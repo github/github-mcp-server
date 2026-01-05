@@ -80,12 +80,12 @@ Alternatively, to manually configure VS Code, choose the appropriate JSON block 
 </table>
 
 ### Install in other MCP hosts
-- **[GitHub Copilot in other IDEs](/docs/installation-guides/install-other-copilot-ides.md)** - Installation for JetBrains, Visual Studio, Eclipse, and Xcode with GitHub Copilot
-- **[Claude Applications](/docs/installation-guides/install-claude.md)** - Installation guide for Claude Desktop and Claude Code CLI
-- **[Codex](/docs/installation-guides/install-codex.md)** - Installation guide for Open AI Codex
-- **[Cursor](/docs/installation-guides/install-cursor.md)** - Installation guide for Cursor IDE
-- **[Windsurf](/docs/installation-guides/install-windsurf.md)** - Installation guide for Windsurf IDE
-- **[Rovo Dev CLI](/docs/installation-guides/install-rovo-dev-cli.md)** - Installation guide for Rovo Dev CLI
+- **[GitHub Copilot in other IDEs](https://github.com/github/github-mcp-server/blob/main/docs/installation-guides/install-other-copilot-ides.md)** - Installation for JetBrains, Visual Studio, Eclipse, and Xcode with GitHub Copilot
+- **[Claude Applications](https://github.com/github/github-mcp-server/blob/main/docs/installation-guides/install-claude.md)** - Installation guide for Claude Desktop and Claude Code CLI
+- **[Codex](https://github.com/github/github-mcp-server/blob/main/docs/installation-guides/install-codex.md)** - Installation guide for Open AI Codex
+- **[Cursor](https://github.com/github/github-mcp-server/blob/main/docs/installation-guides/install-cursor.md)** - Installation guide for Cursor IDE
+- **[Windsurf](https://github.com/github/github-mcp-server/blob/main/docs/installation-guides/install-windsurf.md)** - Installation guide for Windsurf IDE
+- **[Rovo Dev CLI](https://github.com/github/github-mcp-server/blob/main/docs/installation-guides/install-rovo-dev-cli.md)** - Installation guide for Rovo Dev CLI
 
 > **Note:** Each MCP host application needs to configure a GitHub App or OAuth App to support remote access via OAuth. Any host application that supports remote MCP servers should support the remote GitHub server with PAT authentication. Configuration details and support levels vary by host. Make sure to refer to the host application's documentation for more info.
 
@@ -93,7 +93,7 @@ Alternatively, to manually configure VS Code, choose the appropriate JSON block 
 
 #### Toolset configuration
 
-See [Remote Server Documentation](docs/remote-server.md) for full details on remote server configuration, toolsets, headers, and advanced usage. This file provides comprehensive instructions and examples for connecting, customizing, and installing the remote GitHub MCP Server in VS Code and other MCP hosts.
+See [Remote Server Documentation](https://github.com/github/github-mcp-server/blob/main/docs/remote-server.md) for full details on remote server configuration, toolsets, headers, and advanced usage. This file provides comprehensive instructions and examples for connecting, customizing, and installing the remote GitHub MCP Server in VS Code and other MCP hosts.
 
 When no toolsets are specified, [default toolsets](#default-toolset) are used.
 
@@ -297,13 +297,13 @@ Optionally, you can add a similar example (i.e. without the mcp key) to a file c
 
 For other MCP host applications, please refer to our installation guides:
 
-- **[GitHub Copilot in other IDEs](/docs/installation-guides/install-other-copilot-ides.md)** - Installation for JetBrains, Visual Studio, Eclipse, and Xcode with GitHub Copilot
-- **[Claude Code & Claude Desktop](docs/installation-guides/install-claude.md)** - Installation guide for Claude Code and Claude Desktop
-- **[Cursor](docs/installation-guides/install-cursor.md)** - Installation guide for Cursor IDE
-- **[Google Gemini CLI](docs/installation-guides/install-gemini-cli.md)** - Installation guide for Google Gemini CLI
-- **[Windsurf](docs/installation-guides/install-windsurf.md)** - Installation guide for Windsurf IDE
+- **[GitHub Copilot in other IDEs](https://github.com/github/github-mcp-server/blob/main/docs/installation-guides/install-other-copilot-ides.md)** - Installation for JetBrains, Visual Studio, Eclipse, and Xcode with GitHub Copilot
+- **[Claude Code & Claude Desktop](https://github.com/github/github-mcp-server/blob/main/docs/installation-guides/install-claude.md)** - Installation guide for Claude Code and Claude Desktop
+- **[Cursor](https://github.com/github/github-mcp-server/blob/main/docs/installation-guides/install-cursor.md)** - Installation guide for Cursor IDE
+- **[Google Gemini CLI](https://github.com/github/github-mcp-server/blob/main/docs/installation-guides/install-gemini-cli.md)** - Installation guide for Google Gemini CLI
+- **[Windsurf](https://github.com/github/github-mcp-server/blob/main/docs/installation-guides/install-windsurf.md)** - Installation guide for Windsurf IDE
 
-For a complete overview of all installation options, see our **[Installation Guides Index](docs/installation-guides)**.
+For a complete overview of all installation options, see our **[Installation Guides Index](https://github.com/github/github-mcp-server/blob/main/docs/installation-guides)**.
 
 > **Note:** Any host application that supports local MCP servers should be able to access the local GitHub MCP server. However, the specific configuration process, syntax and stability of the integration will vary by host application. While many may follow a similar format to the examples above, this is not guaranteed. Please refer to your host application's documentation for the correct MCP configuration syntax and setup process.
 
@@ -336,7 +336,7 @@ _Toolsets are not limited to Tools. Relevant MCP Resources and Prompts are also 
 
 When no toolsets are specified, [default toolsets](#default-toolset) are used.
 
-> **Looking for examples?** See the [Server Configuration Guide](./docs/server-configuration.md) for common recipes like minimal setups, read-only mode, and combining tools with toolsets.
+> **Looking for examples?** See the [Server Configuration Guide](https://github.com/github/github-mcp-server/blob/main/docs/server-configuration.md) for common recipes like minimal setups, read-only mode, and combining tools with toolsets.
 
 #### Specifying Toolsets
 
@@ -386,7 +386,7 @@ You can also configure specific tools using the `--tools` flag. Tools can be use
 - Tools, toolsets, and dynamic toolsets can all be used together
 - Read-only mode takes priority: write tools are skipped if `--read-only` is set, even if explicitly requested via `--tools`
 - Tool names must match exactly (e.g., `get_file_contents`, not `getFileContents`). Invalid tool names will cause the server to fail at startup with an error message
-- When tools are renamed, old names are preserved as aliases for backward compatibility. See [Deprecated Tool Aliases](docs/deprecated-tool-aliases.md) for details.
+- When tools are renamed, old names are preserved as aliases for backward compatibility. See [Deprecated Tool Aliases](https://github.com/github/github-mcp-server/blob/main/docs/deprecated-tool-aliases.md) for details.
 
 ### Using Toolsets With Docker
 
@@ -1513,4 +1513,4 @@ The exported Go API of this module should currently be considered unstable, and 
 
 ## License
 
-This project is licensed under the terms of the MIT open source license. Please refer to [MIT](./LICENSE) for the full terms.
+This project is licensed under the terms of the MIT open source license. Please refer to [MIT](https://github.com/github/github-mcp-server/blob/main/LICENSE) for the full terms.

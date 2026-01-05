@@ -28,7 +28,7 @@ MCP servers for Gemini CLI are configured in its settings JSON under an `mcpServ
 
 After securely storing your PAT, you can add the GitHub MCP server configuration to your settings file using one of the methods below. You may need to restart the Gemini CLI for changes to take effect.
 
-> **Note:** For the most up-to-date configuration options, see the [main README.md](../../README.md).
+> **Note:** For the most up-to-date configuration options, see the [main README.md](https://github.com/github/github-mcp-server/blob/main/README.md).
 
 ### Method 1: Gemini Extension (Recommended)
 

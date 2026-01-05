@@ -8,7 +8,7 @@ Hi there! We're thrilled that you'd like to contribute to this project. Your hel
 
 Contributions to this project are [released](https://help.github.com/articles/github-terms-of-service/#6-contributions-under-repository-license) to the public under the [project's open source license](LICENSE).
 
-Please note that this project is released with a [Contributor Code of Conduct](CODE_OF_CONDUCT.md). By participating in this project you agree to abide by its terms.
+Please note that this project is released with a [Contributor Code of Conduct](https://github.com/github/github-mcp-server/blob/main/CODE_OF_CONDUCT.md). By participating in this project you agree to abide by its terms.
 
 ## What we're looking for
 
@@ -39,8 +39,8 @@ These are one time installations required to be able to test your changes locall
     - Run linter: `script/lint`
     - Update snapshots and run tests: `UPDATE_TOOLSNAPS=true go test ./...`
     - Update readme documentation: `script/generate-docs`
-    - If renaming a tool, add a deprecation alias (see [Tool Renaming Guide](docs/tool-renaming.md))
-    - For toolset and icon configuration, see [Toolsets and Icons Guide](docs/toolsets-and-icons.md)
+    - If renaming a tool, add a deprecation alias (see [Tool Renaming Guide](https://github.com/github/github-mcp-server/blob/main/docs/tool-renaming.md))
+    - For toolset and icon configuration, see [Toolsets and Icons Guide](https://github.com/github/github-mcp-server/blob/main/docs/toolsets-and-icons.md)
 6. Push to your fork and [submit a pull request][pr] targeting the `main` branch
 7. Pat yourself on the back and wait for your pull request to be reviewed and merged.
 

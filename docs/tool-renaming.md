@@ -12,7 +12,7 @@ This allows us to rename tools safely, without introducing breaking changes for 
 ## Quick Steps
 
 1. **Rename the tool** in your code (as usual, this will imply a range of changes like updating the tool registration, the tests and the toolsnaps).
-2. **Add a deprecation alias** in [pkg/github/deprecated_tool_aliases.go](../pkg/github/deprecated_tool_aliases.go):
+2. **Add a deprecation alias** in [pkg/github/deprecated_tool_aliases.go](https://github.com/github/github-mcp-server/blob/main/pkg/github/deprecated_tool_aliases.go):
    ```go
    var DeprecatedToolAliases = map[string]string{
        "old_tool_name": "new_tool_name",

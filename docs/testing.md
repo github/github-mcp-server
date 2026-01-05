@@ -17,7 +17,7 @@ This project uses a combination of unit tests and end-to-end (e2e) tests to ensu
 
 ## End-to-End (e2e) Tests
 
-- E2E tests are located in the [`e2e/`](../e2e/) directory. See the [e2e/README.md](../e2e/README.md) for full details on running and debugging these tests.
+- E2E tests are located in the [`e2e/`](https://github.com/github/github-mcp-server/blob/main/e2e/) directory. See the [e2e/README.md](https://github.com/github/github-mcp-server/blob/main/e2e/README.md) for full details on running and debugging these tests.
 
 ## toolsnaps: Tool Schema Snapshots
 
@@ -31,4 +31,4 @@ committed.
 ## Notes
 
 - Some tools that mutate global state (e.g., marking all notifications as read) are tested primarily with unit tests, not e2e, to avoid side effects.
-- For more on the limitations and philosophy of the e2e suite, see the [e2e/README.md](../e2e/README.md).
+- For more on the limitations and philosophy of the e2e suite, see the [e2e/README.md](https://github.com/github/github-mcp-server/blob/main/e2e/README.md).

@@ -128,7 +128,7 @@ Once installed, you'll have access to tools like:
 - `get_file_contents` - Read file content
 - And many more...
 
-For a complete list of available tools and features, see the [main README](../../README.md).
+For a complete list of available tools and features, see the [main README](https://github.com/github/github-mcp-server/blob/main/README.md).
 
 ## Differences from Other IDEs
 
@@ -138,6 +138,6 @@ For a complete list of available tools and features, see the [main README](../..
 
 ## Next Steps
 
-- Explore the [Server Configuration Guide](../server-configuration.md) for advanced options
-- Check out [toolsets documentation](../../README.md#available-toolsets) to customize available tools
-- See the [Remote Server Documentation](../remote-server.md) for more details
+- Explore the [Server Configuration Guide](https://github.com/github/github-mcp-server/blob/main/docs/server-configuration.md) for advanced options
+- Check out [toolsets documentation](https://github.com/github/github-mcp-server/blob/main/README.md#available-toolsets) to customize available tools
+- See the [Remote Server Documentation](https://github.com/github/github-mcp-server/blob/main/docs/remote-server.md) for more details

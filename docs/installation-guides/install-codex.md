@@ -56,7 +56,7 @@ After starting Codex (CLI or IDE):
 
 ## Usage
 
-After setup, Codex can interact with GitHub directly. It will use the default tool set automatically but can be [configured](../../README.md#default-toolset). Try these example prompts:
+After setup, Codex can interact with GitHub directly. It will use the default tool set automatically but can be [configured](https://github.com/github/github-mcp-server/blob/main/README.md#default-toolset). Try these example prompts:
 
 **Repository Operations:**
 - "List my GitHub repositories"
@@ -109,4 +109,4 @@ Use the principle of least privilege: add scopes only when a tool request fails 
 - Remote server URL: `https://api.githubcopilot.com/mcp/`
 - Release binaries: [GitHub Releases](https://github.com/github/github-mcp-server/releases)
 - OpenAI Codex MCP docs: https://developers.openai.com/codex/mcp
-- Main project README: [Advanced configuration options](../../README.md)
+- Main project README: [Advanced configuration options](https://github.com/github/github-mcp-server/blob/main/README.md)

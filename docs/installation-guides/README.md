@@ -3,13 +3,13 @@
 This directory contains detailed installation instructions for the GitHub MCP Server across different host applications and IDEs. Choose the guide that matches your development environment.
 
 ## Installation Guides by Host Application
-- **[GitHub Copilot in other IDEs](install-other-copilot-ides.md)** - Installation for JetBrains, Visual Studio, Eclipse, and Xcode with GitHub Copilot
-- **[Antigravity](install-antigravity.md)** - Installation for Google Antigravity IDE
-- **[Claude Applications](install-claude.md)** - Installation guide for Claude Web, Claude Desktop and Claude Code CLI
-- **[Cursor](install-cursor.md)** - Installation guide for Cursor IDE
-- **[Google Gemini CLI](install-gemini-cli.md)** - Installation guide for Google Gemini CLI
-- **[OpenAI Codex](install-codex.md)** - Installation guide for OpenAI Codex
-- **[Windsurf](install-windsurf.md)** - Installation guide for Windsurf IDE
+- **[GitHub Copilot in other IDEs](https://github.com/github/github-mcp-server/blob/main/docs/installation-guides/install-other-copilot-ides.md)** - Installation for JetBrains, Visual Studio, Eclipse, and Xcode with GitHub Copilot
+- **[Antigravity](https://github.com/github/github-mcp-server/blob/main/docs/installation-guides/install-antigravity.md)** - Installation for Google Antigravity IDE
+- **[Claude Applications](https://github.com/github/github-mcp-server/blob/main/docs/installation-guides/install-claude.md)** - Installation guide for Claude Web, Claude Desktop and Claude Code CLI
+- **[Cursor](https://github.com/github/github-mcp-server/blob/main/docs/installation-guides/install-cursor.md)** - Installation guide for Cursor IDE
+- **[Google Gemini CLI](https://github.com/github/github-mcp-server/blob/main/docs/installation-guides/install-gemini-cli.md)** - Installation guide for Google Gemini CLI
+- **[OpenAI Codex](https://github.com/github/github-mcp-server/blob/main/docs/installation-guides/install-codex.md)** - Installation guide for OpenAI Codex
+- **[Windsurf](https://github.com/github/github-mcp-server/blob/main/docs/installation-guides/install-windsurf.md)** - Installation guide for Windsurf IDE
 
 ## Support by Host Application
 
@@ -88,7 +88,7 @@ If you encounter issues:
 2. Verify your GitHub PAT has the required permissions
 3. Ensure Docker is running (for local installations)
 4. Review your host application's logs for error messages
-5. Consult the main [README.md](README.md) for additional configuration options
+5. Consult the main [README.md](https://github.com/github/github-mcp-server/blob/main/README.md) for additional configuration options
 
 ## Configuration Options
 

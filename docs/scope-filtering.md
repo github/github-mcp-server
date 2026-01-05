@@ -24,7 +24,7 @@ With OAuth, the remote server can dynamically request additional scopes as neede
 
 ## OAuth Scope Challenges (Remote Server)
 
-When using the [remote MCP server](./remote-server.md) with OAuth authentication, the server uses a different approach called **scope challenges**. Instead of hiding tools upfront, all tools are available, and the server requests additional scopes on-demand when you try to use a tool that requires them.
+When using the [remote MCP server](https://github.com/github/github-mcp-server/blob/main/docs/remote-server.md) with OAuth authentication, the server uses a different approach called **scope challenges**. Instead of hiding tools upfront, all tools are available, and the server requests additional scopes on-demand when you try to use a tool that requires them.
 
 **How it works:**
 1. You attempt to use a tool (e.g., creating an issue)
@@ -58,7 +58,7 @@ Some scopes implicitly include others:
 
 This means if your token has `repo`, tools requiring `security_events` will also be available.
 
-Each tool in the [README](../README.md#tools) lists its required and accepted OAuth scopes.
+Each tool in the [README](https://github.com/github/github-mcp-server/blob/main/README.md#tools) lists its required and accepted OAuth scopes.
 
 ## Public Repository Access
 
@@ -98,6 +98,6 @@ WARN: failed to fetch token scopes, continuing without scope filtering
 
 ## Related Documentation
 
-- [Server Configuration Guide](./server-configuration.md)
+- [Server Configuration Guide](https://github.com/github/github-mcp-server/blob/main/docs/server-configuration.md)
 - [GitHub PAT Documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)
 - [OAuth Scopes Reference](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps)
