@@ -492,40 +492,6 @@ The following sets of tools are available:
 
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/workflow-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/workflow-light.png"><img src="pkg/octicons/icons/workflow-light.png" width="20" height="20" alt="workflow"></picture> Actions</summary>
 
-- **actions_get** - Get details of GitHub Actions resources (workflows, workflow runs, jobs, and artifacts)
-  - `method`: The method to execute (string, required)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `resource_id`: The unique identifier of the resource. This will vary based on the "method" provided, so ensure you provide the correct ID:
-    - Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'get_workflow' method.
-    - Provide a workflow run ID for 'get_workflow_run', 'get_workflow_run_usage', and 'get_workflow_run_logs_url' methods.
-    - Provide an artifact ID for 'download_workflow_run_artifact' method.
-    - Provide a job ID for 'get_workflow_job' method.
-     (string, required)
-
-- **actions_list** - List GitHub Actions workflows in a repository
-  - `method`: The action to perform (string, required)
-  - `owner`: Repository owner (string, required)
-  - `page`: Page number for pagination (default: 1) (number, optional)
-  - `per_page`: Results per page for pagination (default: 30, max: 100) (number, optional)
-  - `repo`: Repository name (string, required)
-  - `resource_id`: The unique identifier of the resource. This will vary based on the "method" provided, so ensure you provide the correct ID:
-    - Do not provide any resource ID for 'list_workflows' method.
-    - Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'list_workflow_runs' method, or omit to list all workflow runs in the repository.
-    - Provide a workflow run ID for 'list_workflow_jobs' and 'list_workflow_run_artifacts' methods.
-     (string, optional)
-  - `workflow_jobs_filter`: Filters for workflow jobs. **ONLY** used when method is 'list_workflow_jobs' (object, optional)
-  - `workflow_runs_filter`: Filters for workflow runs. **ONLY** used when method is 'list_workflow_runs' (object, optional)
-
-- **actions_run_trigger** - Trigger GitHub Actions workflow actions
-  - `inputs`: Inputs the workflow accepts. Only used for 'run_workflow' method. (object, optional)
-  - `method`: The method to execute (string, required)
-  - `owner`: Repository owner (string, required)
-  - `ref`: The git reference for the workflow. The reference can be a branch or tag name. Required for 'run_workflow' method. (string, optional)
-  - `repo`: Repository name (string, required)
-  - `run_id`: The ID of the workflow run. Required for all methods except 'run_workflow'. (number, optional)
-  - `workflow_id`: The workflow ID (numeric) or workflow file name (e.g., main.yml, ci.yaml). Required for 'run_workflow' method. (string, optional)
-
 - **cancel_workflow_run** - Cancel workflow run
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
@@ -548,15 +514,6 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
   - `return_content`: Returns actual log content instead of URLs (boolean, optional)
   - `run_id`: Workflow run ID (required when using failed_only) (number, optional)
-  - `tail_lines`: Number of lines to return from the end of the log (number, optional)
-
-- **get_job_logs** - Get GitHub Actions workflow job logs
-  - `failed_only`: When true, gets logs for all failed jobs in the workflow run specified by run_id. Requires run_id to be provided. (boolean, optional)
-  - `job_id`: The unique identifier of the workflow job. Required when getting logs for a single job. (number, optional)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-  - `return_content`: Returns actual log content instead of URLs (boolean, optional)
-  - `run_id`: The unique identifier of the workflow run. Required when failed_only is true to get logs for all failed jobs in the run. (number, optional)
   - `tail_lines`: Number of lines to return from the end of the log (number, optional)
 
 - **get_workflow_run** - Get workflow run
