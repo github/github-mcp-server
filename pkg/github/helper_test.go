@@ -118,6 +118,7 @@ const (
 	GetReposActionsWorkflowsByOwnerByRepoByWorkflowID            = "GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}"
 	PostReposActionsWorkflowsDispatchesByOwnerByRepoByWorkflowID = "POST /repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches"
 	GetReposActionsWorkflowsRunsByOwnerByRepoByWorkflowID        = "GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs"
+	GetReposActionsRunsByOwnerByRepo                             = "GET /repos/{owner}/{repo}/actions/runs"
 	GetReposActionsRunsByOwnerByRepoByRunID                      = "GET /repos/{owner}/{repo}/actions/runs/{run_id}"
 	GetReposActionsRunsLogsByOwnerByRepoByRunID                  = "GET /repos/{owner}/{repo}/actions/runs/{run_id}/logs"
 	GetReposActionsRunsJobsByOwnerByRepoByRunID                  = "GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs"

@@ -17,6 +17,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
+	mock "github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,6 +25,10 @@ import (
 
 var defaultGQLClient *githubv4.Client = githubv4.NewClient(newRepoAccessHTTPClient())
 var repoAccessCache *lockdown.RepoAccessCache = stubRepoAccessCache(defaultGQLClient, 15*time.Minute)
+
+func githubv4MockHTTPClientWithHandlers(_ map[string]http.HandlerFunc) *http.Client {
+	return githubv4mock.NewMockedHTTPClient()
+}
 
 type repoAccessKey struct {
 	owner    string
