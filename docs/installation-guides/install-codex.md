@@ -14,7 +14,6 @@ Edit `~/.codex/config.toml` (shared by CLI and IDE extension) and add:
 ```toml
 [mcp_servers.github]
 url = "https://api.githubcopilot.com/mcp/"
-# Replace with your real PAT (least-privilege scopes). Do NOT commit this.
 bearer_token_env_var = "GITHUB_PAT_TOKEN"
 ```
 
@@ -24,9 +23,7 @@ You can also add it via the Codex CLI:
 codex mcp add github --url https://api.githubcopilot.com/mcp/  
 ```
 
-<details>
-<summary><b>Storing Your PAT Securely</b></summary>
-<br>
+###  Storing Your PAT Securely
 
 For security, avoid hardcoding your token. One common approach:
 
@@ -39,7 +36,6 @@ GITHUB_PAT_TOKEN=ghp_your_token_here
 ```bash
 echo -e ".env" >> .gitignore
 ```
-</details>
 
 ## Local Docker Configuration
 
