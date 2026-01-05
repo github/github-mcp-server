@@ -142,6 +142,31 @@ const (
 	GetRawReposContentsByOwnerByRepoByBranchByPath = "GET /{owner}/{repo}/refs/heads/{branch}/{path:.*}"
 	GetRawReposContentsByOwnerByRepoByTagByPath    = "GET /{owner}/{repo}/refs/tags/{tag}/{path:.*}"
 	GetRawReposContentsByOwnerByRepoBySHAByPath    = "GET /{owner}/{repo}/{sha}/{path:.*}"
+
+	// Projects (ProjectsV2) endpoints
+	// Organization-scoped
+	GetOrgsProjectsV2                          = "GET /orgs/{org}/projectsV2"
+	GetOrgsProjectsV2ByProject                 = "GET /orgs/{org}/projectsV2/{project}"
+	GetOrgsProjectsV2FieldsByProject           = "GET /orgs/{org}/projectsV2/{project}/fields"
+	GetOrgsProjectsV2FieldsByProjectByFieldID  = "GET /orgs/{org}/projectsV2/{project}/fields/{field_id}"
+	GetOrgsProjectsV2ItemsByProject            = "GET /orgs/{org}/projectsV2/{project}/items"
+	GetOrgsProjectsV2ItemsByProjectByItemID    = "GET /orgs/{org}/projectsV2/{project}/items/{item_id}"
+	PostOrgsProjectsV2ItemsByProject           = "POST /orgs/{org}/projectsV2/{project}/items"
+	PatchOrgsProjectsV2ItemsByProjectByItemID  = "PATCH /orgs/{org}/projectsV2/{project}/items/{item_id}"
+	DeleteOrgsProjectsV2ItemsByProjectByItemID = "DELETE /orgs/{org}/projectsV2/{project}/items/{item_id}"
+	// User-scoped
+	GetUsersProjectsV2ByUsername                          = "GET /users/{username}/projectsV2"
+	GetUsersProjectsV2ByUsernameByProject                 = "GET /users/{username}/projectsV2/{project}"
+	GetUsersProjectsV2FieldsByUsernameByProject           = "GET /users/{username}/projectsV2/{project}/fields"
+	GetUsersProjectsV2FieldsByUsernameByProjectByFieldID  = "GET /users/{username}/projectsV2/{project}/fields/{field_id}"
+	GetUsersProjectsV2ItemsByUsernameByProject            = "GET /users/{username}/projectsV2/{project}/items"
+	GetUsersProjectsV2ItemsByUsernameByProjectByItemID    = "GET /users/{username}/projectsV2/{project}/items/{item_id}"
+	PostUsersProjectsV2ItemsByUsernameByProject           = "POST /users/{username}/projectsV2/{project}/items"
+	PatchUsersProjectsV2ItemsByUsernameByProjectByItemID  = "PATCH /users/{username}/projectsV2/{project}/items/{item_id}"
+	DeleteUsersProjectsV2ItemsByUsernameByProjectByItemID = "DELETE /users/{username}/projectsV2/{project}/items/{item_id}"
+
+	// Organization issue types endpoints
+	GetOrgsIssueTypesByOrg = "GET /orgs/{org}/issue-types"
 )
 
 type expectations struct {
