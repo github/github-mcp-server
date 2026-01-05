@@ -44,15 +44,13 @@ func Test_ListProjects(t *testing.T) {
 	}{
 		{
 			name: "success organization",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2", Method: http.MethodGet},
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write(mock.MustMarshal(orgProjects))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetOrgsProjectsV2ByOrg: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					data, _ := json.Marshal(orgProjects)
+					_, _ = w.Write(data)
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":      "octo-org",
 				"owner_type": "org",
@@ -62,15 +60,13 @@ func Test_ListProjects(t *testing.T) {
 		},
 		{
 			name: "success user",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/users/{username}/projectsV2", Method: http.MethodGet},
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write(mock.MustMarshal(userProjects))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetUsersProjectsV2ByUsername: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					data, _ := json.Marshal(userProjects)
+					_, _ = w.Write(data)
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":      "octocat",
 				"owner_type": "user",
@@ -80,21 +76,19 @@ func Test_ListProjects(t *testing.T) {
 		},
 		{
 			name: "success organization with pagination & query",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2", Method: http.MethodGet},
-					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-						q := r.URL.Query()
-						if q.Get("per_page") == "50" && q.Get("q") == "roadmap" {
-							w.WriteHeader(http.StatusOK)
-							_, _ = w.Write(mock.MustMarshal(orgProjects))
-							return
-						}
-						w.WriteHeader(http.StatusBadRequest)
-						_, _ = w.Write([]byte(`{"message":"unexpected query params"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetOrgsProjectsV2ByOrg: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					q := r.URL.Query()
+					if q.Get("per_page") == "50" && q.Get("q") == "roadmap" {
+						w.WriteHeader(http.StatusOK)
+						data, _ := json.Marshal(orgProjects)
+						_, _ = w.Write(data)
+						return
+					}
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = w.Write([]byte(`{"message":"unexpected query params"}`))
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":      "octo-org",
 				"owner_type": "org",
@@ -106,12 +100,9 @@ func Test_ListProjects(t *testing.T) {
 		},
 		{
 			name: "api error",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2", Method: http.MethodGet},
-					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetOrgsProjectsV2ByOrg: mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":      "octo-org",
 				"owner_type": "org",
@@ -203,12 +194,9 @@ func Test_GetProject(t *testing.T) {
 	}{
 		{
 			name: "success organization project fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/123", Method: http.MethodGet},
-					mockResponse(t, http.StatusOK, project),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetOrgsProjectsV2ByOrgByProjectNumber: mockResponse(t, http.StatusOK, project),
+			}),
 			requestArgs: map[string]interface{}{
 				"project_number": float64(123),
 				"owner":          "octo-org",
@@ -218,12 +206,9 @@ func Test_GetProject(t *testing.T) {
 		},
 		{
 			name: "success user project fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/users/{username}/projectsV2/456", Method: http.MethodGet},
-					mockResponse(t, http.StatusOK, project),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetUsersProjectsV2ByUsernameByProjectNumber: mockResponse(t, http.StatusOK, project),
+			}),
 			requestArgs: map[string]interface{}{
 				"project_number": float64(456),
 				"owner":          "octocat",
@@ -233,12 +218,9 @@ func Test_GetProject(t *testing.T) {
 		},
 		{
 			name: "api error",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/999", Method: http.MethodGet},
-					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetOrgsProjectsV2ByOrgByProjectNumber: mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
+			}),
 			requestArgs: map[string]interface{}{
 				"project_number": float64(999),
 				"owner":          "octo-org",
@@ -342,15 +324,13 @@ func Test_ListProjectFields(t *testing.T) {
 	}{
 		{
 			name: "success organization fields",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/fields", Method: http.MethodGet},
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write(mock.MustMarshal(orgFields))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetOrgsProjectsV2FieldsByOrgByProjectNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					data, _ := json.Marshal(orgFields)
+					_, _ = w.Write(data)
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -360,21 +340,19 @@ func Test_ListProjectFields(t *testing.T) {
 		},
 		{
 			name: "success user fields with per_page override",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/fields", Method: http.MethodGet},
-					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-						q := r.URL.Query()
-						if q.Get("per_page") == "50" {
-							w.WriteHeader(http.StatusOK)
-							_, _ = w.Write(mock.MustMarshal(userFields))
-							return
-						}
-						w.WriteHeader(http.StatusBadRequest)
-						_, _ = w.Write([]byte(`{"message":"unexpected query params"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetUsersProjectsV2FieldsByUsernameByProjectNumber: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					q := r.URL.Query()
+					if q.Get("per_page") == "50" {
+						w.WriteHeader(http.StatusOK)
+						data, _ := json.Marshal(userFields)
+						_, _ = w.Write(data)
+						return
+					}
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = w.Write([]byte(`{"message":"unexpected query params"}`))
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":          "octocat",
 				"owner_type":     "user",
@@ -385,12 +363,9 @@ func Test_ListProjectFields(t *testing.T) {
 		},
 		{
 			name: "api error",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/fields", Method: http.MethodGet},
-					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetOrgsProjectsV2FieldsByOrgByProjectNumber: mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -499,12 +474,9 @@ func Test_GetProjectField(t *testing.T) {
 	}{
 		{
 			name: "success organization field",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/fields/{field_id}", Method: http.MethodGet},
-					mockResponse(t, http.StatusOK, orgField),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetOrgsProjectsV2FieldsByOrgByProjectNumberByFieldID: mockResponse(t, http.StatusOK, orgField),
+			}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -515,12 +487,9 @@ func Test_GetProjectField(t *testing.T) {
 		},
 		{
 			name: "success user field",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/fields/{field_id}", Method: http.MethodGet},
-					mockResponse(t, http.StatusOK, userField),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetUsersProjectsV2FieldsByUsernameByProjectNumberByFieldID: mockResponse(t, http.StatusOK, userField),
+			}),
 			requestArgs: map[string]any{
 				"owner":          "octocat",
 				"owner_type":     "user",
@@ -531,12 +500,9 @@ func Test_GetProjectField(t *testing.T) {
 		},
 		{
 			name: "api error",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/fields/{field_id}", Method: http.MethodGet},
-					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetOrgsProjectsV2FieldsByOrgByProjectNumberByFieldID: mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
+			}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -670,12 +636,9 @@ func Test_ListProjectItems(t *testing.T) {
 	}{
 		{
 			name: "success organization items",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodGet},
-					mockResponse(t, http.StatusOK, orgItems),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetOrgsProjectsV2ItemsByOrgByProjectNumber: mockResponse(t, http.StatusOK, orgItems),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -685,21 +648,19 @@ func Test_ListProjectItems(t *testing.T) {
 		},
 		{
 			name: "success organization items with fields",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodGet},
-					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-						q := r.URL.Query()
-						if q.Get("fields") == "123,456,789" {
-							w.WriteHeader(http.StatusOK)
-							_, _ = w.Write(mock.MustMarshal(orgItems))
-							return
-						}
-						w.WriteHeader(http.StatusBadRequest)
-						_, _ = w.Write([]byte(`{"message":"unexpected query params"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetOrgsProjectsV2ItemsByOrgByProjectNumber: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					q := r.URL.Query()
+					if q.Get("fields") == "123,456,789" {
+						w.WriteHeader(http.StatusOK)
+						data, _ := json.Marshal(orgItems)
+						_, _ = w.Write(data)
+						return
+					}
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = w.Write([]byte(`{"message":"unexpected query params"}`))
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -710,12 +671,9 @@ func Test_ListProjectItems(t *testing.T) {
 		},
 		{
 			name: "success user items",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/items", Method: http.MethodGet},
-					mockResponse(t, http.StatusOK, userItems),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetUsersProjectsV2ItemsByUsernameByProjectNumber: mockResponse(t, http.StatusOK, userItems),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":          "octocat",
 				"owner_type":     "user",
@@ -725,21 +683,19 @@ func Test_ListProjectItems(t *testing.T) {
 		},
 		{
 			name: "success with pagination and query",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodGet},
-					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-						q := r.URL.Query()
-						if q.Get("per_page") == "50" && q.Get("q") == "bug" {
-							w.WriteHeader(http.StatusOK)
-							_, _ = w.Write(mock.MustMarshal(orgItems))
-							return
-						}
-						w.WriteHeader(http.StatusBadRequest)
-						_, _ = w.Write([]byte(`{"message":"unexpected query params"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetOrgsProjectsV2ItemsByOrgByProjectNumber: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					q := r.URL.Query()
+					if q.Get("per_page") == "50" && q.Get("q") == "bug" {
+						w.WriteHeader(http.StatusOK)
+						data, _ := json.Marshal(orgItems)
+						_, _ = w.Write(data)
+						return
+					}
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = w.Write([]byte(`{"message":"unexpected query params"}`))
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -751,12 +707,9 @@ func Test_ListProjectItems(t *testing.T) {
 		},
 		{
 			name: "api error",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodGet},
-					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetOrgsProjectsV2ItemsByOrgByProjectNumber: mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -876,12 +829,9 @@ func Test_GetProjectItem(t *testing.T) {
 	}{
 		{
 			name: "success organization item",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodGet},
-					mockResponse(t, http.StatusOK, orgItem),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetOrgsProjectsV2ItemsByOrgByProjectNumberByItemID: mockResponse(t, http.StatusOK, orgItem),
+			}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -892,21 +842,19 @@ func Test_GetProjectItem(t *testing.T) {
 		},
 		{
 			name: "success organization item with fields",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodGet},
-					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-						q := r.URL.Query()
-						if q.Get("fields") == "123,456" {
-							w.WriteHeader(http.StatusOK)
-							_, _ = w.Write(mock.MustMarshal(orgItem))
-							return
-						}
-						w.WriteHeader(http.StatusBadRequest)
-						_, _ = w.Write([]byte(`{"message":"unexpected query params"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetOrgsProjectsV2ItemsByOrgByProjectNumberByItemID: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					q := r.URL.Query()
+					if q.Get("fields") == "123,456" {
+						w.WriteHeader(http.StatusOK)
+						data, _ := json.Marshal(orgItem)
+						_, _ = w.Write(data)
+						return
+					}
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = w.Write([]byte(`{"message":"unexpected query params"}`))
+				}),
+			}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -918,12 +866,9 @@ func Test_GetProjectItem(t *testing.T) {
 		},
 		{
 			name: "success user item",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/items/{item_id}", Method: http.MethodGet},
-					mockResponse(t, http.StatusOK, userItem),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetUsersProjectsV2ItemsByUsernameByProjectNumberByItemID: mockResponse(t, http.StatusOK, userItem),
+			}),
 			requestArgs: map[string]any{
 				"owner":          "octocat",
 				"owner_type":     "user",
@@ -934,12 +879,9 @@ func Test_GetProjectItem(t *testing.T) {
 		},
 		{
 			name: "api error",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodGet},
-					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetOrgsProjectsV2ItemsByOrgByProjectNumberByItemID: mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
+			}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -1085,24 +1027,22 @@ func Test_AddProjectItem(t *testing.T) {
 	}{
 		{
 			name: "success organization issue",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodPost},
-					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-						body, err := io.ReadAll(r.Body)
-						assert.NoError(t, err)
-						var payload struct {
-							Type string `json:"type"`
-							ID   int    `json:"id"`
-						}
-						assert.NoError(t, json.Unmarshal(body, &payload))
-						assert.Equal(t, "Issue", payload.Type)
-						assert.Equal(t, 9876, payload.ID)
-						w.WriteHeader(http.StatusCreated)
-						_, _ = w.Write(mock.MustMarshal(orgItem))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostOrgsProjectsV2ItemsByOrgByProjectNumber: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					body, err := io.ReadAll(r.Body)
+					assert.NoError(t, err)
+					var payload struct {
+						Type string `json:"type"`
+						ID   int    `json:"id"`
+					}
+					assert.NoError(t, json.Unmarshal(body, &payload))
+					assert.Equal(t, "Issue", payload.Type)
+					assert.Equal(t, 9876, payload.ID)
+					w.WriteHeader(http.StatusCreated)
+					data, _ := json.Marshal(orgItem)
+					_, _ = w.Write(data)
+				}),
+			}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -1116,24 +1056,22 @@ func Test_AddProjectItem(t *testing.T) {
 		},
 		{
 			name: "success user pull request",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/items", Method: http.MethodPost},
-					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-						body, err := io.ReadAll(r.Body)
-						assert.NoError(t, err)
-						var payload struct {
-							Type string `json:"type"`
-							ID   int    `json:"id"`
-						}
-						assert.NoError(t, json.Unmarshal(body, &payload))
-						assert.Equal(t, "PullRequest", payload.Type)
-						assert.Equal(t, 7654, payload.ID)
-						w.WriteHeader(http.StatusCreated)
-						_, _ = w.Write(mock.MustMarshal(userItem))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostUsersProjectsV2ItemsByUsernameByProjectNumber: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					body, err := io.ReadAll(r.Body)
+					assert.NoError(t, err)
+					var payload struct {
+						Type string `json:"type"`
+						ID   int    `json:"id"`
+					}
+					assert.NoError(t, json.Unmarshal(body, &payload))
+					assert.Equal(t, "PullRequest", payload.Type)
+					assert.Equal(t, 7654, payload.ID)
+					w.WriteHeader(http.StatusCreated)
+					data, _ := json.Marshal(userItem)
+					_, _ = w.Write(data)
+				}),
+			}),
 			requestArgs: map[string]any{
 				"owner":          "octocat",
 				"owner_type":     "user",
@@ -1147,12 +1085,9 @@ func Test_AddProjectItem(t *testing.T) {
 		},
 		{
 			name: "api error",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items", Method: http.MethodPost},
-					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostOrgsProjectsV2ItemsByOrgByProjectNumber: mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
+			}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -1309,27 +1244,25 @@ func Test_UpdateProjectItem(t *testing.T) {
 	}{
 		{
 			name: "success organization update",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodPatch},
-					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-						body, err := io.ReadAll(r.Body)
-						assert.NoError(t, err)
-						var payload struct {
-							Fields []struct {
-								ID    int         `json:"id"`
-								Value interface{} `json:"value"`
-							} `json:"fields"`
-						}
-						assert.NoError(t, json.Unmarshal(body, &payload))
-						require.Len(t, payload.Fields, 1)
-						assert.Equal(t, 101, payload.Fields[0].ID)
-						assert.Equal(t, "Done", payload.Fields[0].Value)
-						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write(mock.MustMarshal(orgUpdatedItem))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchOrgsProjectsV2ItemsByOrgByProjectNumberByItemID: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					body, err := io.ReadAll(r.Body)
+					assert.NoError(t, err)
+					var payload struct {
+						Fields []struct {
+							ID    int         `json:"id"`
+							Value interface{} `json:"value"`
+						} `json:"fields"`
+					}
+					assert.NoError(t, json.Unmarshal(body, &payload))
+					require.Len(t, payload.Fields, 1)
+					assert.Equal(t, 101, payload.Fields[0].ID)
+					assert.Equal(t, "Done", payload.Fields[0].Value)
+					w.WriteHeader(http.StatusOK)
+					data, _ := json.Marshal(orgUpdatedItem)
+					_, _ = w.Write(data)
+				}),
+			}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -1344,27 +1277,25 @@ func Test_UpdateProjectItem(t *testing.T) {
 		},
 		{
 			name: "success user update",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/items/{item_id}", Method: http.MethodPatch},
-					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-						body, err := io.ReadAll(r.Body)
-						assert.NoError(t, err)
-						var payload struct {
-							Fields []struct {
-								ID    int         `json:"id"`
-								Value interface{} `json:"value"`
-							} `json:"fields"`
-						}
-						assert.NoError(t, json.Unmarshal(body, &payload))
-						require.Len(t, payload.Fields, 1)
-						assert.Equal(t, 202, payload.Fields[0].ID)
-						assert.Equal(t, 42.0, payload.Fields[0].Value)
-						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write(mock.MustMarshal(userUpdatedItem))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchUsersProjectsV2ItemsByUsernameByProjectNumberByItemID: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					body, err := io.ReadAll(r.Body)
+					assert.NoError(t, err)
+					var payload struct {
+						Fields []struct {
+							ID    int         `json:"id"`
+							Value interface{} `json:"value"`
+						} `json:"fields"`
+					}
+					assert.NoError(t, json.Unmarshal(body, &payload))
+					require.Len(t, payload.Fields, 1)
+					assert.Equal(t, 202, payload.Fields[0].ID)
+					assert.Equal(t, 42.0, payload.Fields[0].Value)
+					w.WriteHeader(http.StatusOK)
+					data, _ := json.Marshal(userUpdatedItem)
+					_, _ = w.Write(data)
+				}),
+			}),
 			requestArgs: map[string]any{
 				"owner":          "octocat",
 				"owner_type":     "user",
@@ -1379,12 +1310,9 @@ func Test_UpdateProjectItem(t *testing.T) {
 		},
 		{
 			name: "api error",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodPatch},
-					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchOrgsProjectsV2ItemsByOrgByProjectNumberByItemID: mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
+			}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -1579,14 +1507,11 @@ func Test_DeleteProjectItem(t *testing.T) {
 	}{
 		{
 			name: "success organization delete",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodDelete},
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNoContent)
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteOrgsProjectsV2ItemsByOrgByProjectNumberByItemID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNoContent)
+				}),
+			}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -1597,14 +1522,11 @@ func Test_DeleteProjectItem(t *testing.T) {
 		},
 		{
 			name: "success user delete",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/users/{user}/projectsV2/{project}/items/{item_id}", Method: http.MethodDelete},
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNoContent)
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteUsersProjectsV2ItemsByUsernameByProjectNumberByItemID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNoContent)
+				}),
+			}),
 			requestArgs: map[string]any{
 				"owner":          "octocat",
 				"owner_type":     "user",
@@ -1615,12 +1537,9 @@ func Test_DeleteProjectItem(t *testing.T) {
 		},
 		{
 			name: "api error",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/{project}/items/{item_id}", Method: http.MethodDelete},
-					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteOrgsProjectsV2ItemsByOrgByProjectNumberByItemID: mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "boom"}),
+			}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
