@@ -23,13 +23,19 @@ func WithRequestMatch(pattern EndpointPattern, response any) Option {
 			w.WriteHeader(http.StatusOK)
 			switch body := response.(type) {
 			case string:
-				_, _ = w.Write([]byte(body))
+				if _, err := w.Write([]byte(body)); err != nil {
+					panic(err)
+				}
 			default:
 				if body == nil {
 					return
 				}
-				if data, err := json.Marshal(body); err == nil {
-					_, _ = w.Write(data)
+				data, err := json.Marshal(body)
+				if err != nil {
+					panic(err)
+				}
+				if _, err := w.Write(data); err != nil {
+					panic(err)
 				}
 			}
 		}
@@ -64,8 +70,8 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	for patternKey, handler := range t.handlers {
-		method, pattern := splitKey(patternKey)
-		if method != req.Method {
+		method, pattern, ok := splitKey(patternKey)
+		if !ok || method != req.Method {
 			continue
 		}
 		if matchPath(pattern, req.URL.Path) {
@@ -119,12 +125,12 @@ func key(p EndpointPattern) string {
 	return strings.ToUpper(p.Method) + " " + p.Pattern
 }
 
-func splitKey(k string) (method, pattern string) {
+func splitKey(k string) (method, pattern string, ok bool) {
 	parts := strings.SplitN(k, " ", 2)
 	if len(parts) == 2 {
-		return parts[0], parts[1]
+		return parts[0], parts[1], true
 	}
-	return "", ""
+	return "", "", false
 }
 
 func matchPath(pattern, path string) bool {
@@ -151,6 +157,7 @@ func matchPath(pattern, path string) bool {
 }
 
 // MustMarshal marshals the provided value or panics on error.
+// Use this in tests when marshaling test data should halt execution immediately on failure.
 func MustMarshal(v any) []byte {
 	data, err := json.Marshal(v)
 	if err != nil {
