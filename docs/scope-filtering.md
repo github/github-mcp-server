@@ -34,26 +34,7 @@ Example output:
 x-oauth-scopes: delete_repo, gist, read:org, repo
 ```
 
-## Scopes and Tools
-
-The following table shows which OAuth scopes are required for each category of tools:
-
-| Scope | Tools Enabled |
-|-------|---------------|
-| `repo` | Repository operations, issues, PRs, commits, branches, code search, workflows |
-| `public_repo` | Star/unstar public repositories (implicit with `repo`) |
-| `read:org` | Read organization info, list teams, team members |
-| `write:org` | Organization management (includes `read:org`) |
-| `admin:org` | Full organization administration (includes `write:org`, `read:org`) |
-| `gist` | Create, update, and manage gists |
-| `notifications` | List, manage, and dismiss notifications |
-| `read:project` | Read GitHub Projects |
-| `project` | Create and manage GitHub Projects (includes `read:project`) |
-| `security_events` | Code scanning, Dependabot, secret scanning alerts (implicit with `repo`) |
-| `user` | Update user profile |
-| `read:user` | Read user profile information |
-
-### Scope Hierarchy
+## Scope Hierarchy
 
 Some scopes implicitly include others:
 
@@ -63,16 +44,7 @@ Some scopes implicitly include others:
 
 This means if your token has `repo`, tools requiring `security_events` will also be available.
 
-## Recommended Token Scopes
-
-For full functionality, we recommend these scopes:
-
-| Use Case | Recommended Scopes |
-|----------|-------------------|
-| Basic development | `repo`, `read:org` |
-| Full development | `repo`, `admin:org`, `gist`, `notifications`, `project` |
-| Read-only access | `repo` (with `--read-only` flag) |
-| Security analysis | `repo` (includes `security_events`) |
+Each tool in the [README](../README.md#tools) lists its required and accepted OAuth scopes.
 
 ## Graceful Degradation
 
