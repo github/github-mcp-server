@@ -1,6 +1,7 @@
 name: Check external links
 
 on:
+  workflow_dispatch: {}
   pull_request:
   push:
     branches:
