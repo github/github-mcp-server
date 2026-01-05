@@ -15,13 +15,16 @@ import (
 	"github.com/github/github-mcp-server/internal/profiler"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	buffer "github.com/github/github-mcp-server/pkg/buffer"
-	mock "github.com/github/github-mcp-server/pkg/github/testmock"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func newMockedHTTPClient(handlers map[string]http.HandlerFunc) *http.Client {
+	return MockHTTPClientWithHandlers(handlers)
+}
 
 func Test_ListWorkflows(t *testing.T) {
 	// Verify tool definition once
@@ -1394,17 +1397,11 @@ func Test_RerunFailedJobs(t *testing.T) {
 	}{
 		{
 			name: "successful rerun of failed jobs",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{
-						Pattern: "/repos/owner/repo/actions/runs/12345/rerun-failed-jobs",
-						Method:  "POST",
-					},
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusCreated)
-					}),
-				),
-			),
+			mockedClient: newMockedHTTPClient(map[string]http.HandlerFunc{
+				"POST /repos/owner/repo/actions/runs/12345/rerun-failed-jobs": http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusCreated)
+				}),
+			}),
 			requestArgs: map[string]any{
 				"owner":  "owner",
 				"repo":   "repo",
@@ -1414,7 +1411,7 @@ func Test_RerunFailedJobs(t *testing.T) {
 		},
 		{
 			name:         "missing required parameter run_id",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
@@ -1486,7 +1483,7 @@ func Test_RerunWorkflowRun_Behavioral(t *testing.T) {
 		},
 		{
 			name:         "missing required parameter run_id",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
@@ -1573,7 +1570,7 @@ func Test_ListWorkflowRuns_Behavioral(t *testing.T) {
 		},
 		{
 			name:         "missing required parameter workflow_id",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
@@ -1649,7 +1646,7 @@ func Test_GetWorkflowRun_Behavioral(t *testing.T) {
 		},
 		{
 			name:         "missing required parameter run_id",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
@@ -1719,7 +1716,7 @@ func Test_GetWorkflowRunLogs_Behavioral(t *testing.T) {
 		},
 		{
 			name:         "missing required parameter run_id",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
@@ -1806,7 +1803,7 @@ func Test_ListWorkflowJobs_Behavioral(t *testing.T) {
 		},
 		{
 			name:         "missing required parameter run_id",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
@@ -1908,7 +1905,7 @@ func Test_ActionsList_ListWorkflows(t *testing.T) {
 		},
 		{
 			name:         "missing required parameter method",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
@@ -2204,7 +2201,7 @@ func Test_ActionsRunTrigger_RunWorkflow(t *testing.T) {
 		},
 		{
 			name:         "missing required parameter workflow_id",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"method": "run_workflow",
 				"owner":  "owner",
@@ -2216,7 +2213,7 @@ func Test_ActionsRunTrigger_RunWorkflow(t *testing.T) {
 		},
 		{
 			name:         "missing required parameter ref",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"method":      "run_workflow",
 				"owner":       "owner",
@@ -2332,7 +2329,7 @@ func Test_ActionsRunTrigger_CancelWorkflowRun(t *testing.T) {
 	})
 
 	t.Run("missing run_id for non-run_workflow methods", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient()
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
 
 		client := github.NewClient(mockedClient)
 		deps := BaseDeps{

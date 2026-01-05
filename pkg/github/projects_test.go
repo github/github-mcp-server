@@ -8,13 +8,16 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
-	mock "github.com/github/github-mcp-server/pkg/github/testmock"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gh "github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func newMockedHTTPClient(handlers map[string]http.HandlerFunc) *http.Client {
+	return MockHTTPClientWithHandlers(handlers)
+}
 
 func Test_ListProjects(t *testing.T) {
 	serverTool := ListProjects(translations.NullTranslationHelper)
@@ -122,7 +125,7 @@ func Test_ListProjects(t *testing.T) {
 		},
 		{
 			name:         "missing owner",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"owner_type": "org",
 			},
@@ -130,7 +133,7 @@ func Test_ListProjects(t *testing.T) {
 		},
 		{
 			name:         "missing owner_type",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"owner": "octo-org",
 			},
@@ -250,7 +253,7 @@ func Test_GetProject(t *testing.T) {
 		},
 		{
 			name:         "missing project_number",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"owner":      "octo-org",
 				"owner_type": "org",
@@ -259,7 +262,7 @@ func Test_GetProject(t *testing.T) {
 		},
 		{
 			name:         "missing owner",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"project_number": float64(123),
 				"owner_type":     "org",
@@ -268,7 +271,7 @@ func Test_GetProject(t *testing.T) {
 		},
 		{
 			name:         "missing owner_type",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"project_number": float64(123),
 				"owner":          "octo-org",
@@ -402,7 +405,7 @@ func Test_ListProjectFields(t *testing.T) {
 		},
 		{
 			name:         "missing owner",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"owner_type":     "org",
 				"project_number": 10,
@@ -411,7 +414,7 @@ func Test_ListProjectFields(t *testing.T) {
 		},
 		{
 			name:         "missing owner_type",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"owner":          "octo-org",
 				"project_number": 10,
@@ -420,7 +423,7 @@ func Test_ListProjectFields(t *testing.T) {
 		},
 		{
 			name:         "missing project_number",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"owner":      "octo-org",
 				"owner_type": "org",
@@ -549,7 +552,7 @@ func Test_GetProjectField(t *testing.T) {
 		},
 		{
 			name:         "missing owner",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner_type":     "org",
 				"project_number": float64(10),
@@ -559,7 +562,7 @@ func Test_GetProjectField(t *testing.T) {
 		},
 		{
 			name:         "missing owner_type",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"project_number": float64(10),
@@ -569,7 +572,7 @@ func Test_GetProjectField(t *testing.T) {
 		},
 		{
 			name:         "missing project_number",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner":      "octo-org",
 				"owner_type": "org",
@@ -579,7 +582,7 @@ func Test_GetProjectField(t *testing.T) {
 		},
 		{
 			name:         "missing field_id",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -768,7 +771,7 @@ func Test_ListProjectItems(t *testing.T) {
 		},
 		{
 			name:         "missing owner",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"owner_type":     "org",
 				"project_number": float64(10),
@@ -777,7 +780,7 @@ func Test_ListProjectItems(t *testing.T) {
 		},
 		{
 			name:         "missing owner_type",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"owner":          "octo-org",
 				"project_number": float64(10),
@@ -786,7 +789,7 @@ func Test_ListProjectItems(t *testing.T) {
 		},
 		{
 			name:         "missing project_number",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"owner":      "octo-org",
 				"owner_type": "org",
@@ -952,7 +955,7 @@ func Test_GetProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing owner",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner_type":     "org",
 				"project_number": float64(10),
@@ -962,7 +965,7 @@ func Test_GetProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing owner_type",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"project_number": float64(10),
@@ -972,7 +975,7 @@ func Test_GetProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing project_number",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner":      "octo-org",
 				"owner_type": "org",
@@ -982,7 +985,7 @@ func Test_GetProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing item_id",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -1166,7 +1169,7 @@ func Test_AddProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing owner",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner_type":     "org",
 				"project_number": float64(1),
@@ -1177,7 +1180,7 @@ func Test_AddProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing owner_type",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"project_number": float64(1),
@@ -1188,7 +1191,7 @@ func Test_AddProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing project_number",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner":      "octo-org",
 				"owner_type": "org",
@@ -1199,7 +1202,7 @@ func Test_AddProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing item_type",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -1210,7 +1213,7 @@ func Test_AddProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing item_id",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -1401,7 +1404,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing owner",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner_type":     "org",
 				"project_number": float64(1),
@@ -1415,7 +1418,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing owner_type",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"project_number": float64(1),
@@ -1429,7 +1432,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing project_number",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner":      "octo-org",
 				"owner_type": "org",
@@ -1443,7 +1446,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing item_id",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -1457,7 +1460,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing updated_field",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -1468,7 +1471,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 		},
 		{
 			name:         "updated_field not object",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -1480,7 +1483,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 		},
 		{
 			name:         "updated_field missing id",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -1492,7 +1495,7 @@ func Test_UpdateProjectItem(t *testing.T) {
 		},
 		{
 			name:         "updated_field missing value",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",
@@ -1633,7 +1636,7 @@ func Test_DeleteProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing owner",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner_type":     "org",
 				"project_number": float64(1),
@@ -1643,7 +1646,7 @@ func Test_DeleteProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing owner_type",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"project_number": float64(1),
@@ -1653,7 +1656,7 @@ func Test_DeleteProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing project_number",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner":      "octo-org",
 				"owner_type": "org",
@@ -1663,7 +1666,7 @@ func Test_DeleteProjectItem(t *testing.T) {
 		},
 		{
 			name:         "missing item_id",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner":          "octo-org",
 				"owner_type":     "org",

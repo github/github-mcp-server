@@ -13,7 +13,6 @@ import (
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
-	mock "github.com/github/github-mcp-server/pkg/github/testmock"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
@@ -22,6 +21,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func newMockedHTTPClient(handlers map[string]http.HandlerFunc) *http.Client {
+	return MockHTTPClientWithHandlers(handlers)
+}
 
 var defaultGQLClient *githubv4.Client = githubv4.NewClient(newRepoAccessHTTPClient())
 var repoAccessCache *lockdown.RepoAccessCache = stubRepoAccessCache(defaultGQLClient, 15*time.Minute)
@@ -1438,7 +1441,7 @@ func Test_UpdateIssue(t *testing.T) {
 					),
 				),
 			),
-			mockedGQLClient: githubv4mock.NewMockedHTTPClient(),
+			mockedGQLClient: githubv4MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"method":       "update",
 				"owner":        "owner",
@@ -1461,7 +1464,7 @@ func Test_UpdateIssue(t *testing.T) {
 					}),
 				),
 			),
-			mockedGQLClient: githubv4mock.NewMockedHTTPClient(),
+			mockedGQLClient: githubv4MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"method":       "update",
 				"owner":        "owner",
@@ -1748,8 +1751,8 @@ func Test_UpdateIssue(t *testing.T) {
 		},
 		{
 			name:             "duplicate_of without duplicate state_reason should fail",
-			mockedRESTClient: mock.NewMockedHTTPClient(),
-			mockedGQLClient:  githubv4mock.NewMockedHTTPClient(),
+			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			mockedGQLClient:  githubv4MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"method":       "update",
 				"owner":        "owner",
