@@ -333,11 +333,11 @@ Lockdown mode ensures the server only surfaces content in public repositories fr
 
 ### Scope Filtering
 
-**Automatic feature:** The server automatically detects your PAT's OAuth scopes and only shows tools you have permission to use.
+**Automatic feature:** The server automatically detects your classic PAT's OAuth scopes and only shows tools you have permission to use.
 
-This happens transparently at startup - no configuration needed. If scope detection fails (e.g., network issues), the server logs a warning and continues with all tools available.
+This happens transparently at startup for classic PATs (`ghp_` prefix)—no configuration needed. If scope detection fails (e.g., network issues), the server logs a warning and continues with all tools available.
 
-See [OAuth Scope Filtering](./scope-filtering.md) for details on which scopes enable which tools.
+Each tool in the [README](../README.md#tools) lists its required and accepted OAuth scopes. See [Scope Filtering](./scope-filtering.md) for details on how filtering works with different token types.
 
 ---
 
