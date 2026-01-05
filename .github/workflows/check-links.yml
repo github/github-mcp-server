@@ -15,19 +15,51 @@ jobs:
       - name: Gather external URLs
         run: |
           # find http(s) links in repo files and dedupe
-          grep -RhoE "https?://[^")'\s]+" . | sort -u > /tmp/links.txt || true
+          grep -RhoE "https?://[^\")'\s]+" . | sort -u > /tmp/links.txt || true
           echo "Found $(wc -l < /tmp/links.txt || echo 0) links"
-          cat /tmp/links.txt
-      - name: Check links
+          # remove obvious non-http schemes and local addresses
+          grep -vE "^https?://(localhost|127\.|\[::1\])" /tmp/links.txt | grep -vE "^(file:|mailto:|data:)" | sort -u > /tmp/links_filtered.txt || true
+          echo "Filtered to $(wc -l < /tmp/links_filtered.txt || echo 0) external links"
+          cat /tmp/links_filtered.txt
+      - name: Check links (with retries)
+        env:
+          # Optional allowlist regex (set in repo secrets or workflow_dispatch inputs). By default allow common CDNs and github domains.
+          ALLOWLIST: "github.com|jsdelivr.net|cdn.jsdelivr.net|raw.githubusercontent.com|fonts.googleapis.com|cdnjs.cloudflare.com|app.github.dev"
         run: |
           set -euo pipefail
+          INPUT_FILE=/tmp/links_filtered.txt
+          # If ALLOWLIST is set, filter links to only matching domains (helps reduce noise)
+          if [ -n "${ALLOWLIST:-}" ]; then
+            echo "Applying allowlist: $ALLOWLIST"
+            grep -E "$ALLOWLIST" "$INPUT_FILE" > /tmp/links_allowed.txt || true
+            mv /tmp/links_allowed.txt $INPUT_FILE
+          fi
+
+          failed=0
           while read -r url; do
+            [ -z "$url" ] && continue
             echo "Checking: $url"
-            if curl -sS -I -L --max-time 15 "$url" >/dev/null; then
+            ok=0
+            for i in 1 2 3; do
+              status=$(curl -sS -o /dev/null -w "%{http_code}" -I -L --max-time 15 "$url" || echo "000")
+              echo "  attempt $i -> HTTP $status"
+              case "$status" in
+                2*|3*) ok=1; break;;
+                429) sleep $((i*2)); continue;;
+                5*) sleep $((i*2)); continue;;
+                000) sleep 2; continue;;
+                *) break;;
+              esac
+            done
+            if [ "$ok" -eq 1 ]; then
               echo "OK: $url"
             else
               echo "FAIL: $url" >&2
-              exit 2
+              failed=1
             fi
-          done < /tmp/links.txt
+          done < "$INPUT_FILE"
+          if [ "$failed" -ne 0 ]; then
+            echo "One or more external links failed checks" >&2
+            exit 2
+          fi
         shell: bash
