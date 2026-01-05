@@ -1077,56 +1077,6 @@ func TestFeatureFlagBoth(t *testing.T) {
 	}
 }
 
-func TestFeatureFlagHoldBack(t *testing.T) {
-	// Tool with disable flag and hold-back flag (simulates legacy tool during consolidation)
-	legacyTool := mockToolWithFlags("legacy_tool", "toolset1", true, "", "consolidation_flag")
-	legacyTool.FeatureFlagHoldBack = "holdback_flag"
-
-	tools := []ServerTool{
-		mockTool("always_available", "toolset1", true),
-		legacyTool,
-	}
-
-	// Consolidation OFF, hold-back OFF -> legacy tool available (normal operation)
-	checkerAllOff := func(_ context.Context, _ string) (bool, error) { return false, nil }
-	regAllOff := NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checkerAllOff).Build()
-	availableAllOff := regAllOff.AvailableTools(context.Background())
-	if len(availableAllOff) != 2 {
-		t.Fatalf("Expected 2 tools when both flags off, got %d", len(availableAllOff))
-	}
-
-	// Consolidation ON, hold-back OFF -> legacy tool excluded (migrated to new tools)
-	checkerConsolidationOnly := func(_ context.Context, flag string) (bool, error) {
-		return flag == "consolidation_flag", nil
-	}
-	regConsolidationOnly := NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checkerConsolidationOnly).Build()
-	availableConsolidationOnly := regConsolidationOnly.AvailableTools(context.Background())
-	if len(availableConsolidationOnly) != 1 {
-		t.Fatalf("Expected 1 tool when consolidation on but holdback off, got %d", len(availableConsolidationOnly))
-	}
-	if availableConsolidationOnly[0].Tool.Name != "always_available" {
-		t.Errorf("Expected always_available, got %s", availableConsolidationOnly[0].Tool.Name)
-	}
-
-	// Consolidation ON, hold-back ON -> legacy tool available (user opted to hold back)
-	checkerBothOn := func(_ context.Context, _ string) (bool, error) { return true, nil }
-	regBothOn := NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checkerBothOn).Build()
-	availableBothOn := regBothOn.AvailableTools(context.Background())
-	if len(availableBothOn) != 2 {
-		t.Fatalf("Expected 2 tools when both consolidation and holdback on, got %d", len(availableBothOn))
-	}
-
-	// Consolidation OFF, hold-back ON -> legacy tool available (hold-back has no effect when consolidation off)
-	checkerHoldbackOnly := func(_ context.Context, flag string) (bool, error) {
-		return flag == "holdback_flag", nil
-	}
-	regHoldbackOnly := NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checkerHoldbackOnly).Build()
-	availableHoldbackOnly := regHoldbackOnly.AvailableTools(context.Background())
-	if len(availableHoldbackOnly) != 2 {
-		t.Fatalf("Expected 2 tools when only holdback on, got %d", len(availableHoldbackOnly))
-	}
-}
-
 func TestFeatureFlagError(t *testing.T) {
 	tools := []ServerTool{
 		mockToolWithFlags("needs_flag", "toolset1", true, "my_feature", ""),

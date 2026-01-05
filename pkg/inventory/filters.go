@@ -38,18 +38,13 @@ func (r *Inventory) checkFeatureFlag(ctx context.Context, flagName string) bool 
 // isFeatureFlagAllowed checks if an item passes feature flag filtering.
 // - If FeatureFlagEnable is set, the item is only allowed if the flag is enabled
 // - If FeatureFlagDisable is set, the item is excluded if the flag is enabled
-// - If FeatureFlagHoldBack is set and enabled, it overrides FeatureFlagDisable (keeps tool available)
-func (r *Inventory) isFeatureFlagAllowed(ctx context.Context, enableFlag, disableFlag, holdBackFlag string) bool {
+func (r *Inventory) isFeatureFlagAllowed(ctx context.Context, enableFlag, disableFlag string) bool {
 	// Check enable flag - item requires this flag to be on
 	if enableFlag != "" && !r.checkFeatureFlag(ctx, enableFlag) {
 		return false
 	}
 	// Check disable flag - item is excluded if this flag is on
 	if disableFlag != "" && r.checkFeatureFlag(ctx, disableFlag) {
-		// Check if hold-back flag overrides the disable
-		if holdBackFlag != "" && r.checkFeatureFlag(ctx, holdBackFlag) {
-			return true // Hold-back keeps tool enabled during transition
-		}
 		return false
 	}
 	return true
@@ -75,7 +70,7 @@ func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool) bool {
 		}
 	}
 	// 2. Check feature flags
-	if !r.isFeatureFlagAllowed(ctx, tool.FeatureFlagEnable, tool.FeatureFlagDisable, tool.FeatureFlagHoldBack) {
+	if !r.isFeatureFlagAllowed(ctx, tool.FeatureFlagEnable, tool.FeatureFlagDisable) {
 		return false
 	}
 	// 3. Check read-only filter (applies to all tools)
@@ -135,7 +130,7 @@ func (r *Inventory) AvailableResourceTemplates(ctx context.Context) []ServerReso
 	for i := range r.resourceTemplates {
 		res := &r.resourceTemplates[i]
 		// Check feature flags
-		if !r.isFeatureFlagAllowed(ctx, res.FeatureFlagEnable, res.FeatureFlagDisable, res.FeatureFlagHoldBack) {
+		if !r.isFeatureFlagAllowed(ctx, res.FeatureFlagEnable, res.FeatureFlagDisable) {
 			continue
 		}
 		if r.isToolsetEnabled(res.Toolset.ID) {
@@ -162,7 +157,7 @@ func (r *Inventory) AvailablePrompts(ctx context.Context) []ServerPrompt {
 	for i := range r.prompts {
 		prompt := &r.prompts[i]
 		// Check feature flags
-		if !r.isFeatureFlagAllowed(ctx, prompt.FeatureFlagEnable, prompt.FeatureFlagDisable, prompt.FeatureFlagHoldBack) {
+		if !r.isFeatureFlagAllowed(ctx, prompt.FeatureFlagEnable, prompt.FeatureFlagDisable) {
 			continue
 		}
 		if r.isToolsetEnabled(prompt.Toolset.ID) {
