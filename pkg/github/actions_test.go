@@ -15,10 +15,10 @@ import (
 	"github.com/github/github-mcp-server/internal/profiler"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	buffer "github.com/github/github-mcp-server/pkg/buffer"
+	mock "github.com/github/github-mcp-server/pkg/github/testmock"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1540,7 +1540,7 @@ func Test_ListWorkflowRuns_Behavioral(t *testing.T) {
 			name: "successful workflow runs listing",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
-					mock.GetReposActionsWorkflowsRunsByOwnerByRepoByWorkflowId,
+					mock.GetReposActionsWorkflowsRunsByOwnerByRepoByWorkflowID,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						runs := &github.WorkflowRuns{
 							TotalCount: github.Ptr(2),
@@ -1627,7 +1627,7 @@ func Test_GetWorkflowRun_Behavioral(t *testing.T) {
 			name: "successful get workflow run",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
-					mock.GetReposActionsRunsByOwnerByRepoByRunId,
+					mock.GetReposActionsRunsByOwnerByRepoByRunID,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						run := &github.WorkflowRun{
 							ID:         github.Ptr(int64(12345)),
@@ -1703,7 +1703,7 @@ func Test_GetWorkflowRunLogs_Behavioral(t *testing.T) {
 			name: "successful get workflow run logs",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
-					mock.GetReposActionsRunsLogsByOwnerByRepoByRunId,
+					mock.GetReposActionsRunsLogsByOwnerByRepoByRunID,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.Header().Set("Location", "https://github.com/logs/run/12345")
 						w.WriteHeader(http.StatusFound)
@@ -1773,7 +1773,7 @@ func Test_ListWorkflowJobs_Behavioral(t *testing.T) {
 			name: "successful list workflow jobs",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
-					mock.GetReposActionsRunsJobsByOwnerByRepoByRunId,
+					mock.GetReposActionsRunsJobsByOwnerByRepoByRunID,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						jobs := &github.Jobs{
 							TotalCount: github.Ptr(2),
@@ -1954,7 +1954,7 @@ func Test_ActionsList_ListWorkflowRuns(t *testing.T) {
 	t.Run("successful workflow runs list", func(t *testing.T) {
 		mockedClient := mock.NewMockedHTTPClient(
 			mock.WithRequestMatchHandler(
-				mock.GetReposActionsWorkflowsRunsByOwnerByRepoByWorkflowId,
+				mock.GetReposActionsWorkflowsRunsByOwnerByRepoByWorkflowID,
 				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					runs := &github.WorkflowRuns{
 						TotalCount: github.Ptr(1),
@@ -2070,7 +2070,7 @@ func Test_ActionsGet_GetWorkflow(t *testing.T) {
 	t.Run("successful workflow get", func(t *testing.T) {
 		mockedClient := mock.NewMockedHTTPClient(
 			mock.WithRequestMatchHandler(
-				mock.GetReposActionsWorkflowsByOwnerByRepoByWorkflowId,
+				mock.GetReposActionsWorkflowsByOwnerByRepoByWorkflowID,
 				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					workflow := &github.Workflow{
 						ID:    github.Ptr(int64(1)),
@@ -2116,7 +2116,7 @@ func Test_ActionsGet_GetWorkflowRun(t *testing.T) {
 	t.Run("successful workflow run get", func(t *testing.T) {
 		mockedClient := mock.NewMockedHTTPClient(
 			mock.WithRequestMatchHandler(
-				mock.GetReposActionsRunsByOwnerByRepoByRunId,
+				mock.GetReposActionsRunsByOwnerByRepoByRunID,
 				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					run := &github.WorkflowRun{
 						ID:         github.Ptr(int64(12345)),
@@ -2187,7 +2187,7 @@ func Test_ActionsRunTrigger_RunWorkflow(t *testing.T) {
 			name: "successful workflow run",
 			mockedClient: mock.NewMockedHTTPClient(
 				mock.WithRequestMatchHandler(
-					mock.PostReposActionsWorkflowsDispatchesByOwnerByRepoByWorkflowId,
+					mock.PostReposActionsWorkflowsDispatchesByOwnerByRepoByWorkflowID,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusNoContent)
 					}),
@@ -2381,7 +2381,7 @@ func Test_ActionsGetJobLogs_SingleJob(t *testing.T) {
 	t.Run("successful single job logs with URL", func(t *testing.T) {
 		mockedClient := mock.NewMockedHTTPClient(
 			mock.WithRequestMatchHandler(
-				mock.GetReposActionsJobsLogsByOwnerByRepoByJobId,
+				mock.GetReposActionsJobsLogsByOwnerByRepoByJobID,
 				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.Header().Set("Location", "https://github.com/logs/job/123")
 					w.WriteHeader(http.StatusFound)
@@ -2422,7 +2422,7 @@ func Test_ActionsGetJobLogs_FailedJobs(t *testing.T) {
 	t.Run("successful failed jobs logs", func(t *testing.T) {
 		mockedClient := mock.NewMockedHTTPClient(
 			mock.WithRequestMatchHandler(
-				mock.GetReposActionsRunsJobsByOwnerByRepoByRunId,
+				mock.GetReposActionsRunsJobsByOwnerByRepoByRunID,
 				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					jobs := &github.Jobs{
 						TotalCount: github.Ptr(3),
@@ -2449,7 +2449,7 @@ func Test_ActionsGetJobLogs_FailedJobs(t *testing.T) {
 				}),
 			),
 			mock.WithRequestMatchHandler(
-				mock.GetReposActionsJobsLogsByOwnerByRepoByJobId,
+				mock.GetReposActionsJobsLogsByOwnerByRepoByJobID,
 				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.Header().Set("Location", "https://github.com/logs/job/"+r.URL.Path[len(r.URL.Path)-1:])
 					w.WriteHeader(http.StatusFound)
@@ -2487,7 +2487,7 @@ func Test_ActionsGetJobLogs_FailedJobs(t *testing.T) {
 	t.Run("no failed jobs found", func(t *testing.T) {
 		mockedClient := mock.NewMockedHTTPClient(
 			mock.WithRequestMatchHandler(
-				mock.GetReposActionsRunsJobsByOwnerByRepoByRunId,
+				mock.GetReposActionsRunsJobsByOwnerByRepoByRunID,
 				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					jobs := &github.Jobs{
 						TotalCount: github.Ptr(2),
