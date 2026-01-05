@@ -29,6 +29,14 @@ const (
 // in favor of the consolidated project tools.
 const FeatureFlagConsolidatedProjects = "remote_mcp_consolidated_projects"
 
+// FeatureFlagHoldBackLegacyProjects allows users to keep the old individual project tools
+// even after FeatureFlagConsolidatedProjects is enabled. This provides a transition period
+// for users who need more time to migrate to the consolidated tools.
+//
+// Deprecated: This flag will be removed in a future release. Users should migrate to
+// the consolidated project tools (projects_list, projects_get, projects_write).
+const FeatureFlagHoldBackLegacyProjects = "remote_mcp_holdback_legacy_projects"
+
 // Method constants for consolidated project tools
 const (
 	projectsMethodListProjects      = "list_projects"
@@ -158,6 +166,7 @@ func ListProjects(t translations.TranslationHelperFunc) inventory.ServerTool {
 		},
 	)
 	tool.FeatureFlagDisable = FeatureFlagConsolidatedProjects
+	tool.FeatureFlagHoldBack = FeatureFlagHoldBackLegacyProjects
 	return tool
 }
 
@@ -248,6 +257,7 @@ func GetProject(t translations.TranslationHelperFunc) inventory.ServerTool {
 		},
 	)
 	tool.FeatureFlagDisable = FeatureFlagConsolidatedProjects
+	tool.FeatureFlagHoldBack = FeatureFlagHoldBackLegacyProjects
 	return tool
 }
 
@@ -356,6 +366,7 @@ func ListProjectFields(t translations.TranslationHelperFunc) inventory.ServerToo
 		},
 	)
 	tool.FeatureFlagDisable = FeatureFlagConsolidatedProjects
+	tool.FeatureFlagHoldBack = FeatureFlagHoldBackLegacyProjects
 	return tool
 }
 
@@ -450,6 +461,7 @@ func GetProjectField(t translations.TranslationHelperFunc) inventory.ServerTool 
 		},
 	)
 	tool.FeatureFlagDisable = FeatureFlagConsolidatedProjects
+	tool.FeatureFlagHoldBack = FeatureFlagHoldBackLegacyProjects
 	return tool
 }
 
@@ -588,6 +600,7 @@ func ListProjectItems(t translations.TranslationHelperFunc) inventory.ServerTool
 		},
 	)
 	tool.FeatureFlagDisable = FeatureFlagConsolidatedProjects
+	tool.FeatureFlagHoldBack = FeatureFlagHoldBackLegacyProjects
 	return tool
 }
 
@@ -696,6 +709,7 @@ func GetProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
 		},
 	)
 	tool.FeatureFlagDisable = FeatureFlagConsolidatedProjects
+	tool.FeatureFlagHoldBack = FeatureFlagHoldBackLegacyProjects
 	return tool
 }
 
@@ -809,6 +823,7 @@ func AddProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
 		},
 	)
 	tool.FeatureFlagDisable = FeatureFlagConsolidatedProjects
+	tool.FeatureFlagHoldBack = FeatureFlagHoldBackLegacyProjects
 	return tool
 }
 
@@ -923,6 +938,7 @@ func UpdateProjectItem(t translations.TranslationHelperFunc) inventory.ServerToo
 		},
 	)
 	tool.FeatureFlagDisable = FeatureFlagConsolidatedProjects
+	tool.FeatureFlagHoldBack = FeatureFlagHoldBackLegacyProjects
 	return tool
 }
 
@@ -1011,6 +1027,7 @@ func DeleteProjectItem(t translations.TranslationHelperFunc) inventory.ServerToo
 		},
 	)
 	tool.FeatureFlagDisable = FeatureFlagConsolidatedProjects
+	tool.FeatureFlagHoldBack = FeatureFlagHoldBackLegacyProjects
 	return tool
 }
 

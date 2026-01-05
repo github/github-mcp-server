@@ -14,6 +14,9 @@ type ServerPrompt struct {
 	// FeatureFlagDisable specifies a feature flag that, when enabled, causes this prompt
 	// to be omitted. Used to disable prompts when a feature flag is on.
 	FeatureFlagDisable string
+	// FeatureFlagHoldBack specifies a feature flag that, when enabled, overrides
+	// FeatureFlagDisable and keeps the prompt available during a transition period.
+	FeatureFlagHoldBack string
 }
 
 // NewServerPrompt creates a new ServerPrompt with toolset metadata.

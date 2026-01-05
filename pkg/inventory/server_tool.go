@@ -64,6 +64,12 @@ type ServerTool struct {
 	// to be omitted. Used to disable tools when a feature flag is on.
 	FeatureFlagDisable string
 
+	// FeatureFlagHoldBack specifies a feature flag that, when enabled, overrides
+	// FeatureFlagDisable and keeps the tool available. This allows users to "hold back"
+	// on a deprecation by opting to keep the old tools during a transition period.
+	// Used during tool consolidation to give users time to migrate.
+	FeatureFlagHoldBack string
+
 	// Enabled is an optional function called at build/filter time to determine
 	// if this tool should be available. If nil, the tool is considered enabled
 	// (subject to FeatureFlagEnable/FeatureFlagDisable checks).

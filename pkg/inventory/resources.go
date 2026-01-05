@@ -22,6 +22,9 @@ type ServerResourceTemplate struct {
 	// FeatureFlagDisable specifies a feature flag that, when enabled, causes this resource
 	// to be omitted. Used to disable resources when a feature flag is on.
 	FeatureFlagDisable string
+	// FeatureFlagHoldBack specifies a feature flag that, when enabled, overrides
+	// FeatureFlagDisable and keeps the resource available during a transition period.
+	FeatureFlagHoldBack string
 }
 
 // HasHandler returns true if this resource has a handler function.
