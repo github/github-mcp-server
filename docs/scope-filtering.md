@@ -70,9 +70,11 @@ WARN: failed to fetch token scopes, continuing without scope filtering
 
 | Problem | Cause | Solution |
 |---------|-------|----------|
-| Missing expected tools | Token lacks required scope | Add the scope to your PAT |
+| Missing expected tools | Token lacks required scope | [Edit your PAT's scopes](https://github.com/settings/tokens) in GitHub settings |
 | All tools visible despite limited PAT | Scope detection failed | Check logs for warnings about scope fetching |
 | "Insufficient permissions" errors | Tool visible but scope insufficient | This shouldn't happen with scope filtering; report as bug |
+
+> **Tip:** You can adjust the scopes of an existing classic PAT at any time via [GitHub's token settings](https://github.com/settings/tokens). After updating scopes, restart the MCP server to pick up the changes.
 
 ## Related Documentation
 
