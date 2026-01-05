@@ -27,9 +27,25 @@ func TestCreateToolScopeFilter(t *testing.T) {
 		AcceptedScopes: []string{"repo"},
 	}
 
+	toolRepoScopeReadOnly := &inventory.ServerTool{
+		Tool: mcp.Tool{
+			Name:        "repo_tool_readonly",
+			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
+		},
+		AcceptedScopes: []string{"repo"},
+	}
+
 	toolPublicRepoScope := &inventory.ServerTool{
 		Tool:           mcp.Tool{Name: "public_repo_tool"},
 		AcceptedScopes: []string{"public_repo", "repo"}, // repo is parent, also accepted
+	}
+
+	toolPublicRepoScopeReadOnly := &inventory.ServerTool{
+		Tool: mcp.Tool{
+			Name:        "public_repo_tool_readonly",
+			Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true},
+		},
+		AcceptedScopes: []string{"public_repo", "repo"},
 	}
 
 	toolGistScope := &inventory.ServerTool{
@@ -95,6 +111,18 @@ func TestCreateToolScopeFilter(t *testing.T) {
 			tokenScopes: []string{},
 			tool:        toolRepoScope,
 			expected:    false,
+		},
+		{
+			name:        "empty token scopes CAN see read-only repo tools (public repos)",
+			tokenScopes: []string{},
+			tool:        toolRepoScopeReadOnly,
+			expected:    true,
+		},
+		{
+			name:        "empty token scopes CAN see read-only public_repo tools",
+			tokenScopes: []string{},
+			tool:        toolPublicRepoScopeReadOnly,
+			expected:    true,
 		},
 		{
 			name:        "token with multiple scopes where one matches",
