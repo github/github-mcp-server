@@ -53,9 +53,7 @@ func WithRequestMatchHandler(pattern EndpointPattern, handler http.HandlerFunc) 
 func NewMockedHTTPClient(options ...Option) *http.Client {
 	handlers := make(map[string]http.HandlerFunc)
 	for _, opt := range options {
-		if opt != nil {
-			opt(handlers)
-		}
+		opt(handlers)
 	}
 	return &http.Client{Transport: &transport{handlers: handlers}}
 }
@@ -134,16 +132,19 @@ func splitKey(k string) (method, pattern string, ok bool) {
 }
 
 func matchPath(pattern, path string) bool {
-	if pattern == "" {
-		return path == ""
+	trimmedPattern := strings.Trim(pattern, "/")
+	trimmedPath := strings.Trim(path, "/")
+
+	if trimmedPattern == "" {
+		return trimmedPath == ""
 	}
 
 	if pattern == path {
 		return true
 	}
 
-	patternParts := strings.Split(strings.Trim(pattern, "/"), "/")
-	pathParts := strings.Split(strings.Trim(path, "/"), "/")
+	patternParts := strings.Split(trimmedPattern, "/")
+	pathParts := strings.Split(trimmedPath, "/")
 
 	if len(patternParts) != len(pathParts) {
 		return false
