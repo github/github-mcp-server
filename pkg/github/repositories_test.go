@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -1884,6 +1885,11 @@ func Test_PushFiles(t *testing.T) {
 					mock.GetReposGitRefByOwnerByRepoByRef,
 					mockResponse(t, http.StatusNotFound, nil),
 				),
+				// Mock Repositories.Get to fail when trying to create branch from default
+				mock.WithRequestMatchHandler(
+					mock.GetReposByOwnerByRepo,
+					mockResponse(t, http.StatusNotFound, nil),
+				),
 			),
 			requestArgs: map[string]interface{}{
 				"owner":  "owner",
@@ -1897,8 +1903,8 @@ func Test_PushFiles(t *testing.T) {
 				},
 				"message": "Update file",
 			},
-			expectError:    true,
-			expectedErrMsg: "failed to get branch reference",
+			expectError:    false,
+			expectedErrMsg: "failed to create branch from default",
 		},
 		{
 			name: "fails to get base commit",
@@ -1962,6 +1968,400 @@ func Test_PushFiles(t *testing.T) {
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to create tree",
+		},
+		{
+			name: "successful push to empty repository",
+			mockedClient: mock.NewMockedHTTPClient(
+				// Get branch reference - first returns 409 for empty repo, second returns success after init
+				mock.WithRequestMatchHandler(
+					mock.GetReposGitRefByOwnerByRepoByRef,
+					func() http.HandlerFunc {
+						callCount := 0
+						return func(w http.ResponseWriter, _ *http.Request) {
+							w.Header().Set("Content-Type", "application/json")
+							callCount++
+							if callCount == 1 {
+								// First call: empty repo
+								w.WriteHeader(http.StatusConflict)
+								response := map[string]interface{}{
+									"message": "Git Repository is empty.",
+								}
+								_ = json.NewEncoder(w).Encode(response)
+							} else {
+								// Second call: return the created reference
+								w.WriteHeader(http.StatusOK)
+								_ = json.NewEncoder(w).Encode(mockRef)
+							}
+						}
+					}(),
+				),
+				// Mock Repositories.Get to return default branch for initialization
+				mock.WithRequestMatch(
+					mock.GetReposByOwnerByRepo,
+					&github.Repository{
+						DefaultBranch: github.Ptr("main"),
+					},
+				),
+				// Create initial file using Contents API
+				mock.WithRequestMatchHandler(
+					mock.PutReposContentsByOwnerByRepoByPath,
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						var body map[string]interface{}
+						err := json.NewDecoder(r.Body).Decode(&body)
+						require.NoError(t, err)
+						require.Equal(t, "Initial commit", body["message"])
+						require.Equal(t, "main", body["branch"])
+						w.WriteHeader(http.StatusCreated)
+						response := &github.RepositoryContentResponse{
+							Commit: github.Commit{SHA: github.Ptr("abc123")},
+						}
+						b, _ := json.Marshal(response)
+						_, _ = w.Write(b)
+					}),
+				),
+				// Get the commit after initialization
+				mock.WithRequestMatch(
+					mock.GetReposGitCommitsByOwnerByRepoByCommitSha,
+					mockCommit,
+				),
+				// Create tree
+				mock.WithRequestMatch(
+					mock.PostReposGitTreesByOwnerByRepo,
+					mockTree,
+				),
+				// Create commit
+				mock.WithRequestMatch(
+					mock.PostReposGitCommitsByOwnerByRepo,
+					mockNewCommit,
+				),
+				// Update reference
+				mock.WithRequestMatch(
+					mock.PatchReposGitRefsByOwnerByRepoByRef,
+					mockUpdatedRef,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "main",
+				"files": []interface{}{
+					map[string]interface{}{
+						"path":    "README.md",
+						"content": "# Initial README\n\nFirst commit to empty repository.",
+					},
+				},
+				"message": "Initial commit",
+			},
+			expectError: false,
+			expectedRef: mockUpdatedRef,
+		},
+		{
+			name: "successful push multiple files to empty repository",
+			mockedClient: mock.NewMockedHTTPClient(
+				// Get branch reference - called twice: first for empty check, second after file creation
+				mock.WithRequestMatchHandler(
+					mock.GetReposGitRefByOwnerByRepoByRef,
+					func() http.HandlerFunc {
+						callCount := 0
+						return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+							callCount++
+							if callCount == 1 {
+								// First call: returns 409 Conflict for empty repo
+								w.Header().Set("Content-Type", "application/json")
+								w.WriteHeader(http.StatusConflict)
+								response := map[string]interface{}{
+									"message": "Git Repository is empty.",
+								}
+								_ = json.NewEncoder(w).Encode(response)
+							} else {
+								// Second call: returns the updated reference after first file creation
+								w.WriteHeader(http.StatusOK)
+								b, _ := json.Marshal(&github.Reference{
+									Ref:    github.Ptr("refs/heads/main"),
+									Object: &github.GitObject{SHA: github.Ptr("init456")},
+								})
+								_, _ = w.Write(b)
+							}
+						})
+					}(),
+				),
+				// Mock Repositories.Get to return default branch for initialization
+				mock.WithRequestMatch(
+					mock.GetReposByOwnerByRepo,
+					&github.Repository{
+						DefaultBranch: github.Ptr("main"),
+					},
+				),
+				// Create initial empty README.md file using Contents API to initialize repo
+				mock.WithRequestMatchHandler(
+					mock.PutReposContentsByOwnerByRepoByPath,
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						var body map[string]interface{}
+						err := json.NewDecoder(r.Body).Decode(&body)
+						require.NoError(t, err)
+						require.Equal(t, "Initial commit", body["message"])
+						require.Equal(t, "main", body["branch"])
+						// Verify it's an empty file
+						expectedContent := base64.StdEncoding.EncodeToString([]byte(""))
+						require.Equal(t, expectedContent, body["content"])
+						w.WriteHeader(http.StatusCreated)
+						response := &github.RepositoryContentResponse{
+							Content: &github.RepositoryContent{
+								SHA: github.Ptr("readme123"),
+							},
+							Commit: github.Commit{
+								SHA: github.Ptr("init456"),
+								Tree: &github.Tree{
+									SHA: github.Ptr("tree456"),
+								},
+							},
+						}
+						b, _ := json.Marshal(response)
+						_, _ = w.Write(b)
+					}),
+				),
+				// Get the commit to retrieve parent SHA
+				mock.WithRequestMatchHandler(
+					mock.GetReposGitCommitsByOwnerByRepoByCommitSha,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						response := &github.Commit{
+							SHA: github.Ptr("init456"),
+							Tree: &github.Tree{
+								SHA: github.Ptr("tree456"),
+							},
+						}
+						b, _ := json.Marshal(response)
+						_, _ = w.Write(b)
+					}),
+				),
+				// Create tree with all user files
+				mock.WithRequestMatchHandler(
+					mock.PostReposGitTreesByOwnerByRepo,
+					expectRequestBody(t, map[string]interface{}{
+						"base_tree": "tree456",
+						"tree": []interface{}{
+							map[string]interface{}{
+								"path":    "README.md",
+								"mode":    "100644",
+								"type":    "blob",
+								"content": "# Project\n\nProject README",
+							},
+							map[string]interface{}{
+								"path":    ".gitignore",
+								"mode":    "100644",
+								"type":    "blob",
+								"content": "node_modules/\n*.log\n",
+							},
+							map[string]interface{}{
+								"path":    "src/main.js",
+								"mode":    "100644",
+								"type":    "blob",
+								"content": "console.log('Hello World');\n",
+							},
+						},
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockTree),
+					),
+				),
+				// Create commit with all user files
+				mock.WithRequestMatchHandler(
+					mock.PostReposGitCommitsByOwnerByRepo,
+					expectRequestBody(t, map[string]interface{}{
+						"message": "Initial project setup",
+						"tree":    "ghi789",
+						"parents": []interface{}{"init456"},
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockNewCommit),
+					),
+				),
+				// Update reference
+				mock.WithRequestMatchHandler(
+					mock.PatchReposGitRefsByOwnerByRepoByRef,
+					expectRequestBody(t, map[string]interface{}{
+						"sha":   "jkl012",
+						"force": false,
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockUpdatedRef),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "main",
+				"files": []interface{}{
+					map[string]interface{}{
+						"path":    "README.md",
+						"content": "# Project\n\nProject README",
+					},
+					map[string]interface{}{
+						"path":    ".gitignore",
+						"content": "node_modules/\n*.log\n",
+					},
+					map[string]interface{}{
+						"path":    "src/main.js",
+						"content": "console.log('Hello World');\n",
+					},
+				},
+				"message": "Initial project setup",
+			},
+			expectError: false,
+			expectedRef: mockUpdatedRef,
+		},
+		{
+			name: "fails to create initial file in empty repository",
+			mockedClient: mock.NewMockedHTTPClient(
+				// Get branch reference returns 409 Conflict for empty repo
+				mock.WithRequestMatchHandler(
+					mock.GetReposGitRefByOwnerByRepoByRef,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.Header().Set("Content-Type", "application/json")
+						w.WriteHeader(http.StatusConflict)
+						response := map[string]interface{}{
+							"message": "Git Repository is empty.",
+						}
+						_ = json.NewEncoder(w).Encode(response)
+					}),
+				),
+				// Mock Repositories.Get to return default branch
+				mock.WithRequestMatch(
+					mock.GetReposByOwnerByRepo,
+					&github.Repository{
+						DefaultBranch: github.Ptr("main"),
+					},
+				),
+				// Fail to create initial file using Contents API
+				mock.WithRequestMatchHandler(
+					mock.PutReposContentsByOwnerByRepoByPath,
+					mockResponse(t, http.StatusInternalServerError, nil),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "main",
+				"files": []interface{}{
+					map[string]interface{}{
+						"path":    "README.md",
+						"content": "# README",
+					},
+				},
+				"message": "Initial commit",
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to initialize repository",
+		},
+		{
+			name: "fails to get reference after creating initial file in empty repository",
+			mockedClient: mock.NewMockedHTTPClient(
+				// Get branch reference - called twice
+				mock.WithRequestMatchHandler(
+					mock.GetReposGitRefByOwnerByRepoByRef,
+					func() http.HandlerFunc {
+						callCount := 0
+						return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+							callCount++
+							if callCount == 1 {
+								// First call: returns 409 Conflict for empty repo
+								w.Header().Set("Content-Type", "application/json")
+								w.WriteHeader(http.StatusConflict)
+								response := map[string]interface{}{
+									"message": "Git Repository is empty.",
+								}
+								_ = json.NewEncoder(w).Encode(response)
+							} else {
+								// Second call: fails
+								w.WriteHeader(http.StatusInternalServerError)
+							}
+						})
+					}(),
+				),
+				// Mock Repositories.Get to return default branch
+				mock.WithRequestMatch(
+					mock.GetReposByOwnerByRepo,
+					&github.Repository{
+						DefaultBranch: github.Ptr("main"),
+					},
+				),
+				// Create initial file using Contents API
+				mock.WithRequestMatch(
+					mock.PutReposContentsByOwnerByRepoByPath,
+					&github.RepositoryContentResponse{
+						Content: &github.RepositoryContent{SHA: github.Ptr("readme123")},
+						Commit:  github.Commit{SHA: github.Ptr("init456")},
+					},
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "main",
+				"files": []interface{}{
+					map[string]interface{}{
+						"path":    "README.md",
+						"content": "# README",
+					},
+				},
+				"message": "Initial commit",
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to initialize repository",
+		},
+		{
+			name: "fails to get commit in empty repository with multiple files",
+			mockedClient: mock.NewMockedHTTPClient(
+				// Get branch reference returns 409 Conflict for empty repo
+				mock.WithRequestMatchHandler(
+					mock.GetReposGitRefByOwnerByRepoByRef,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.Header().Set("Content-Type", "application/json")
+						w.WriteHeader(http.StatusConflict)
+						response := map[string]interface{}{
+							"message": "Git Repository is empty.",
+						}
+						_ = json.NewEncoder(w).Encode(response)
+					}),
+				),
+				// Mock Repositories.Get to return default branch
+				mock.WithRequestMatch(
+					mock.GetReposByOwnerByRepo,
+					&github.Repository{
+						DefaultBranch: github.Ptr("main"),
+					},
+				),
+				// Create initial file using Contents API
+				mock.WithRequestMatch(
+					mock.PutReposContentsByOwnerByRepoByPath,
+					&github.RepositoryContentResponse{
+						Content: &github.RepositoryContent{SHA: github.Ptr("readme123")},
+						Commit:  github.Commit{SHA: github.Ptr("init456")},
+					},
+				),
+				// Fail to get commit
+				mock.WithRequestMatchHandler(
+					mock.GetReposGitCommitsByOwnerByRepoByCommitSha,
+					mockResponse(t, http.StatusInternalServerError, nil),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "main",
+				"files": []interface{}{
+					map[string]interface{}{
+						"path":    "README.md",
+						"content": "# README",
+					},
+					map[string]interface{}{
+						"path":    "LICENSE",
+						"content": "MIT",
+					},
+				},
+				"message": "Initial commit",
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to initialize repository",
 		},
 	}
 
