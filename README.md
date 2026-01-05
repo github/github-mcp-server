@@ -602,14 +602,14 @@ The following sets of tools are available:
 
 - **get_code_scanning_alert** - Get code scanning alert
   - **Required OAuth Scopes**: `security_events`
-  - **Accepted OAuth Scopes**: `security_events`, `repo`
+  - **Accepted OAuth Scopes**: `repo`, `security_events`
   - `alertNumber`: The number of the alert. (number, required)
   - `owner`: The owner of the repository. (string, required)
   - `repo`: The name of the repository. (string, required)
 
 - **list_code_scanning_alerts** - List code scanning alerts
   - **Required OAuth Scopes**: `security_events`
-  - **Accepted OAuth Scopes**: `security_events`, `repo`
+  - **Accepted OAuth Scopes**: `repo`, `security_events`
   - `owner`: The owner of the repository. (string, required)
   - `ref`: The Git reference for the results you want to list. (string, optional)
   - `repo`: The name of the repository. (string, required)
@@ -628,13 +628,13 @@ The following sets of tools are available:
 
 - **get_team_members** - Get team members
   - **Required OAuth Scopes**: `read:org`
-  - **Accepted OAuth Scopes**: `read:org`, `admin:org`, `write:org`
+  - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `write:org`
   - `org`: Organization login (owner) that contains the team. (string, required)
   - `team_slug`: Team slug (string, required)
 
 - **get_teams** - Get teams
   - **Required OAuth Scopes**: `read:org`
-  - **Accepted OAuth Scopes**: `read:org`, `admin:org`, `write:org`
+  - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `write:org`
   - `user`: Username to get teams for. If not provided, uses the authenticated user. (string, optional)
 
 </details>
@@ -645,7 +645,7 @@ The following sets of tools are available:
 
 - **get_dependabot_alert** - Get dependabot alert
   - **Required OAuth Scopes**: `security_events`
-  - **Accepted OAuth Scopes**: `security_events`, `repo`
+  - **Accepted OAuth Scopes**: `repo`, `security_events`
   - `alertNumber`: The number of the alert. (number, required)
   - `owner`: The owner of the repository. (string, required)
   - `repo`: The name of the repository. (string, required)
@@ -798,7 +798,7 @@ The following sets of tools are available:
 
 - **list_issue_types** - List available issue types
   - **Required OAuth Scopes**: `read:org`
-  - **Accepted OAuth Scopes**: `read:org`, `admin:org`, `write:org`
+  - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `write:org`
   - `owner`: The organization owner of the repository (string, required)
 
 - **list_issues** - List issues
@@ -916,7 +916,7 @@ The following sets of tools are available:
 
 - **search_orgs** - Search organizations
   - **Required OAuth Scopes**: `read:org`
-  - **Accepted OAuth Scopes**: `read:org`, `admin:org`, `write:org`
+  - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `write:org`
   - `order`: Sort order (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -946,14 +946,14 @@ The following sets of tools are available:
 
 - **get_project** - Get project
   - **Required OAuth Scopes**: `read:project`
-  - **Accepted OAuth Scopes**: `read:project`, `project`
+  - **Accepted OAuth Scopes**: `project`, `read:project`
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
   - `project_number`: The project's number (number, required)
 
 - **get_project_field** - Get project field
   - **Required OAuth Scopes**: `read:project`
-  - **Accepted OAuth Scopes**: `read:project`, `project`
+  - **Accepted OAuth Scopes**: `project`, `read:project`
   - `field_id`: The field's id. (number, required)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
@@ -961,7 +961,7 @@ The following sets of tools are available:
 
 - **get_project_item** - Get project item
   - **Required OAuth Scopes**: `read:project`
-  - **Accepted OAuth Scopes**: `read:project`, `project`
+  - **Accepted OAuth Scopes**: `project`, `read:project`
   - `fields`: Specific list of field IDs to include in the response (e.g. ["102589", "985201", "169875"]). If not provided, only the title field is included. (string[], optional)
   - `item_id`: The item's ID. (number, required)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
@@ -980,7 +980,7 @@ The following sets of tools are available:
 
 - **list_project_items** - List project items
   - **Required OAuth Scopes**: `read:project`
-  - **Accepted OAuth Scopes**: `read:project`, `project`
+  - **Accepted OAuth Scopes**: `project`, `read:project`
   - `after`: Forward pagination cursor from previous pageInfo.nextCursor. (string, optional)
   - `before`: Backward pagination cursor from previous pageInfo.prevCursor (rare). (string, optional)
   - `fields`: Field IDs to include (e.g. ["102589", "985201"]). CRITICAL: Always provide to get field values. Without this, only titles returned. (string[], optional)
@@ -1265,14 +1265,14 @@ The following sets of tools are available:
 
 - **get_secret_scanning_alert** - Get secret scanning alert
   - **Required OAuth Scopes**: `security_events`
-  - **Accepted OAuth Scopes**: `security_events`, `repo`
+  - **Accepted OAuth Scopes**: `repo`, `security_events`
   - `alertNumber`: The number of the alert. (number, required)
   - `owner`: The owner of the repository. (string, required)
   - `repo`: The name of the repository. (string, required)
 
 - **list_secret_scanning_alerts** - List secret scanning alerts
   - **Required OAuth Scopes**: `security_events`
-  - **Accepted OAuth Scopes**: `security_events`, `repo`
+  - **Accepted OAuth Scopes**: `repo`, `security_events`
   - `owner`: The owner of the repository. (string, required)
   - `repo`: The name of the repository. (string, required)
   - `resolution`: Filter by resolution (string, optional)
@@ -1287,12 +1287,12 @@ The following sets of tools are available:
 
 - **get_global_security_advisory** - Get a global security advisory
   - **Required OAuth Scopes**: `security_events`
-  - **Accepted OAuth Scopes**: `security_events`, `repo`
+  - **Accepted OAuth Scopes**: `repo`, `security_events`
   - `ghsaId`: GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx). (string, required)
 
 - **list_global_security_advisories** - List global security advisories
   - **Required OAuth Scopes**: `security_events`
-  - **Accepted OAuth Scopes**: `security_events`, `repo`
+  - **Accepted OAuth Scopes**: `repo`, `security_events`
   - `affects`: Filter advisories by affected package or version (e.g. "package1,package2@1.0.0"). (string, optional)
   - `cveId`: Filter by CVE ID. (string, optional)
   - `cwes`: Filter by Common Weakness Enumeration IDs (e.g. ["79", "284", "22"]). (string[], optional)
@@ -1315,7 +1315,7 @@ The following sets of tools are available:
 
 - **list_repository_security_advisories** - List repository security advisories
   - **Required OAuth Scopes**: `security_events`
-  - **Accepted OAuth Scopes**: `security_events`, `repo`
+  - **Accepted OAuth Scopes**: `repo`, `security_events`
   - `direction`: Sort direction. (string, optional)
   - `owner`: The owner of the repository. (string, required)
   - `repo`: The name of the repository. (string, required)

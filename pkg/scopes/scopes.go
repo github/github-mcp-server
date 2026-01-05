@@ -1,5 +1,7 @@
 package scopes
 
+import "sort"
+
 // Scope represents a GitHub OAuth scope.
 // These constants define all OAuth scopes used by the GitHub MCP server tools.
 // See https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps
@@ -85,15 +87,21 @@ func (s ScopeSet) ToSlice() []Scope {
 	for scope := range s {
 		scopes = append(scopes, scope)
 	}
+	// Sort for deterministic output
+	sort.Slice(scopes, func(i, j int) bool {
+		return scopes[i] < scopes[j]
+	})
 	return scopes
 }
 
 // ToStringSlice converts a ScopeSet to a slice of string values.
+// The returned slice is sorted for deterministic output.
 func (s ScopeSet) ToStringSlice() []string {
 	scopes := make([]string, 0, len(s))
 	for scope := range s {
 		scopes = append(scopes, string(scope))
 	}
+	sort.Strings(scopes)
 	return scopes
 }
 
@@ -110,6 +118,7 @@ func ToStringSlice(scopes ...Scope) []string {
 // including parent scopes from the hierarchy.
 // For example, if "public_repo" is required, "repo" is also accepted since
 // having the "repo" scope grants access to "public_repo".
+// The returned slice is sorted for deterministic output.
 func ExpandScopes(required ...Scope) []string {
 	if len(required) == 0 {
 		return nil
@@ -131,10 +140,11 @@ func ExpandScopes(required ...Scope) []string {
 		}
 	}
 
-	// Convert to slice
+	// Convert to slice and sort for deterministic output
 	result := make([]string, 0, len(accepted))
 	for scope := range accepted {
 		result = append(result, scope)
 	}
+	sort.Strings(result)
 	return result
 }
