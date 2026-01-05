@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Финансовый Дашборд</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <span id="moon" data-cursor-element-id="cursor-el-3" style="font-size: 5em;">🌕</span>
+    <div class="container">
+        <header class="header">
+            <h1>💰 Финансовый Дашборд</h1>
+            <div class="user-info">
+                <span class="username">Пользователь</span>
+                <div class="avatar">👤</div>
+                <button class="btn-primary" onclick="openRegisterModal()">Регистрация</button>
+                <button class="btn-primary" onclick="openLoginModal()">Войти</button>
+            </div>
+        </header>
+
+        <div class="main-photo">
+            <img src="main-photo.jpg" alt="Главное фото" style="width:100%;border-radius:10px;box-sha
+dow:0 6px 18px rgba(18,38,63,0.06);margin-bottom:20px;">                                                     </div>
+
+        <div class="dashboard">
+            <!-- Карточки с балансами -->
+            <div class="cards-grid">
+                <div class="card balance-card">
+                    <div class="card-icon">💳</div>
+                    <div class="card-content">
+                        <h3>Общий баланс</h3>
+                        <p class="amount" id="totalBalance">₽ 125,450</p>
+                        <span class="change positive">+12.5% за месяц</span>
+                    </div>
+                </div>
+
+                <div class="card income-card">
+                    <div class="card-icon">📈</div>
+                    <div class="card-content">
+                        <h3>Доходы</h3>
+                        <p class="amount" id="totalIncome">₽ 85,000</p>
+                        <span class="change positive">+8.2% за месяц</span>
+                    </div>
+                </div>
+
+                <div class="card expense-card">
+                    <div class="card-icon">📉</div>
+                    <div class="card-content">
+                        <h3>Расходы</h3>
+                        <p class="amount" id="totalExpense">₽ 42,300</p>
+                        <span class="change negative">-5.1% за месяц</span>
+                    </div>
+                </div>
+
+                <div class="card savings-card">
+                    <div class="card-icon">🏦</div>
+                    <div class="card-content">
+                        <h3>Накопления</h3>
+                        <p class="amount" id="totalSavings">₽ 82,750</p>
+                        <span class="change positive">+15.3% за месяц</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Графики и аналитика -->
+            <div class="charts-section">
+                <div class="chart-card">
+                    <h2>Динамика финансов</h2>
+                    <canvas id="financeChart"></canvas>
+                </div>
+
+                <div class="chart-card">
+                    <h2>Распределение расходов</h2>
+                    <canvas id="expenseChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Последние транзакции -->
+            <div class="transactions-section">
+                <div class="section-header">
+                    <h2>Последние транзакции</h2>
+                    <button class="btn-primary" onclick="addTransaction()">+ Добавить</button>
+                </div>
+                <div class="transactions-list" id="transactionsList">
+                    <!-- Транзакции будут добавлены через JavaScript -->
+                </div>
+            </div>
+
+            <!-- Бюджет -->
+            <div class="budget-section">
+                <h2>Бюджет на месяц</h2>
+                <div class="budget-grid">
+                    <div class="budget-item">
+                        <div class="budget-header">
+                            <span>Продукты</span>
+                            <span class="budget-amount">₽ 15,000 / ₽ 20,000</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 75%"></div>
+                        </div>
+                    </div>
+                    <div class="budget-item">
+                        <div class="budget-header">
+                            <span>Транспорт</span>
+                            <span class="budget-amount">₽ 3,500 / ₽ 5,000</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 70%"></div>
+                        </div>
+                    </div>
+                    <div class="budget-item">
+                        <div class="budget-header">
+                            <span>Развлечения</span>
+                            <span class="budget-amount">₽ 8,200 / ₽ 10,000</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 82%"></div>
+                        </div>
+                    </div>
+                    <div class="budget-item">
+                        <div class="budget-header">
+                            <span>Здоровье</span>
+                            <span class="budget-amount">₽ 5,600 / ₽ 8,000</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 70%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для добавления транзакции -->
+    <div id="transactionModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2>Добавить транзакцию</h2>
+            <form id="transactionForm">
+                <div class="form-group">
+                    <label>Тип</label>
+                    <select id="transactionType" required>
+                        <option value="income">Доход</option>
+                        <option value="expense">Расход</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Категория</label>
+                    <select id="transactionCategory" required>
+                        <option value="salary">Зарплата</option>
+                        <option value="food">Продукты</option>
+                        <option value="transport">Транспорт</option>
+                        <option value="entertainment">Развлечения</option>
+                        <option value="health">Здоровье</option>
+                        <option value="other">Другое</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Сумма</label>
+                    <input type="number" id="transactionAmount" placeholder="0" required>
+                </div>
+                <div class="form-group">
+                    <label>Описание</label>
+                    <input type="text" id="transactionDescription" placeholder="Описание транзакции">
+                </div>
+                <button type="submit" class="btn-primary">Добавить</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно для входа -->
+    <div id="loginModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeLoginModal()">&times;</span>
+            <h2>Войти</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label>Логин</label>
+                    <input type="text" id="loginUsername" placeholder="Введите логин" required>
+                </div>
+                <div class="form-group">
+                    <label>Пароль</label>
+                    <input type="password" id="loginPassword" placeholder="Введите пароль" required>
+                </div>
+                <button type="submit" class="btn-primary">Войти</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно для регистрации -->
+    <div id="registerModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeRegisterModal()">&times;</span>
+            <h2>Регистрация</h2>
+            <form id="registerForm">
+                <div class="form-group">
+                    <label>Имя пользователя</label>
+                    <input type="text" id="registerUsername" placeholder="Введите имя пользователя" r
+equired>                                                                                                             </div>
+                <div class="form-group">
+                    <label>Пароль</label>
+                    <input type="password" id="registerPassword" placeholder="Введите пароль" require
+d>                                                                                                                   </div>
+                <div class="form-group">
+                    <label>Подтвердите пароль</label>
+                    <input type="password" id="confirmPassword" placeholder="Подтвердите пароль" requ
+ired>                                                                                                                </div>
+                <button type="submit" class="btn-primary">Зарегистрироваться</button>
+            </form>
+        </div>
+    </div>
+
+    <footer>
+        <p>Посетите наш сайт: <a href="https://solid-space-meme-5gr6g7jgwr7x3v4g4-8000.app.github.dev
+" target="_blank">Наш сайт</a></p>                                                                       </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
