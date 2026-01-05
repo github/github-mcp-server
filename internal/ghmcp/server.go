@@ -324,11 +324,6 @@ type StdioServerConfig struct {
 
 	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
 	RepoAccessCacheTTL *time.Duration
-
-	// EnableScopeFiltering enables PAT scope-based tool filtering.
-	// When true, the server will fetch the token's OAuth scopes at startup
-	// and hide tools that require scopes the token doesn't have.
-	EnableScopeFiltering bool
 }
 
 // RunStdioServer is not concurrent safe.
@@ -353,18 +348,16 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelInfo})
 	}
 	logger := slog.New(slogHandler)
-	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "dynamicToolsets", cfg.DynamicToolsets, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode, "scopeFiltering", cfg.EnableScopeFiltering)
+	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "dynamicToolsets", cfg.DynamicToolsets, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode)
 
-	// Fetch token scopes if scope filtering is enabled
+	// Fetch token scopes for scope-based tool filtering
 	var tokenScopes []string
-	if cfg.EnableScopeFiltering {
-		fetchedScopes, err := fetchTokenScopesForHost(ctx, cfg.Token, cfg.Host)
-		if err != nil {
-			logger.Warn("failed to fetch token scopes, continuing without scope filtering", "error", err)
-		} else {
-			tokenScopes = fetchedScopes
-			logger.Info("token scopes fetched for filtering", "scopes", tokenScopes)
-		}
+	fetchedScopes, err := fetchTokenScopesForHost(ctx, cfg.Token, cfg.Host)
+	if err != nil {
+		logger.Warn("failed to fetch token scopes, continuing without scope filtering", "error", err)
+	} else {
+		tokenScopes = fetchedScopes
+		logger.Info("token scopes fetched for filtering", "scopes", tokenScopes)
 	}
 
 	ghServer, err := NewMCPServer(MCPServerConfig{
