@@ -628,7 +628,7 @@ The following sets of tools are available:
 
 - **get_team_members** - Get team members
   - **Required OAuth Scopes**: `read:org`
-  - **Accepted OAuth Scopes**: `write:org`, `read:org`, `admin:org`
+  - **Accepted OAuth Scopes**: `read:org`, `admin:org`, `write:org`
   - `org`: Organization login (owner) that contains the team. (string, required)
   - `team_slug`: Team slug (string, required)
 
@@ -652,7 +652,7 @@ The following sets of tools are available:
 
 - **list_dependabot_alerts** - List dependabot alerts
   - **Required OAuth Scopes**: `security_events`
-  - **Accepted OAuth Scopes**: `security_events`, `repo`
+  - **Accepted OAuth Scopes**: `repo`, `security_events`
   - `owner`: The owner of the repository. (string, required)
   - `repo`: The name of the repository. (string, required)
   - `severity`: Filter dependabot alerts by severity (string, optional)
@@ -961,7 +961,7 @@ The following sets of tools are available:
 
 - **get_project_item** - Get project item
   - **Required OAuth Scopes**: `read:project`
-  - **Accepted OAuth Scopes**: `project`, `read:project`
+  - **Accepted OAuth Scopes**: `read:project`, `project`
   - `fields`: Specific list of field IDs to include in the response (e.g. ["102589", "985201", "169875"]). If not provided, only the title field is included. (string[], optional)
   - `item_id`: The item's ID. (number, required)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
@@ -970,7 +970,7 @@ The following sets of tools are available:
 
 - **list_project_fields** - List project fields
   - **Required OAuth Scopes**: `read:project`
-  - **Accepted OAuth Scopes**: `read:project`, `project`
+  - **Accepted OAuth Scopes**: `project`, `read:project`
   - `after`: Forward pagination cursor from previous pageInfo.nextCursor. (string, optional)
   - `before`: Backward pagination cursor from previous pageInfo.prevCursor (rare). (string, optional)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
@@ -992,7 +992,7 @@ The following sets of tools are available:
 
 - **list_projects** - List projects
   - **Required OAuth Scopes**: `read:project`
-  - **Accepted OAuth Scopes**: `read:project`, `project`
+  - **Accepted OAuth Scopes**: `project`, `read:project`
   - `after`: Forward pagination cursor from previous pageInfo.nextCursor. (string, optional)
   - `before`: Backward pagination cursor from previous pageInfo.prevCursor (rare). (string, optional)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
@@ -1265,7 +1265,7 @@ The following sets of tools are available:
 
 - **get_secret_scanning_alert** - Get secret scanning alert
   - **Required OAuth Scopes**: `security_events`
-  - **Accepted OAuth Scopes**: `repo`, `security_events`
+  - **Accepted OAuth Scopes**: `security_events`, `repo`
   - `alertNumber`: The number of the alert. (number, required)
   - `owner`: The owner of the repository. (string, required)
   - `repo`: The name of the repository. (string, required)
@@ -1307,7 +1307,7 @@ The following sets of tools are available:
 
 - **list_org_repository_security_advisories** - List org repository security advisories
   - **Required OAuth Scopes**: `security_events`
-  - **Accepted OAuth Scopes**: `security_events`, `repo`
+  - **Accepted OAuth Scopes**: `repo`, `security_events`
   - `direction`: Sort direction. (string, optional)
   - `org`: The organization login. (string, required)
   - `sort`: Sort field. (string, optional)
