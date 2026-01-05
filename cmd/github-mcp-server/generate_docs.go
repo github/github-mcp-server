@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"os"
@@ -50,8 +51,8 @@ func generateReadmeDocs(readmePath string) error {
 	// Create translation helper
 	t, _ := translations.TranslationHelper()
 
-	// Build inventory - stateless, no dependencies needed for doc generation
-	r := github.NewInventory(t).Build()
+	// (not available to regular users) while including tools with FeatureFlagDisable.
+	r := github.NewInventory(t).WithToolsets([]string{"all"}).Build()
 
 	// Generate toolsets documentation
 	toolsetsDoc := generateToolsetsDoc(r)
@@ -153,9 +154,7 @@ func generateToolsetsDoc(i *inventory.Inventory) string {
 }
 
 func generateToolsDoc(r *inventory.Inventory) string {
-	// AllTools() returns tools sorted by toolset ID then tool name.
-	// We iterate once, grouping by toolset as we encounter them.
-	tools := r.AllTools()
+	tools := r.AvailableTools(context.Background())
 	if len(tools) == 0 {
 		return ""
 	}
