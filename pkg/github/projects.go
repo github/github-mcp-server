@@ -1090,6 +1090,7 @@ Use this tool to list projects for a user or organization, or list project field
 				Required: []string{"method", "owner_type", "owner"},
 			},
 		},
+		[]scopes.Scope{scopes.ReadProject},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -1184,6 +1185,7 @@ Use this tool to get details about individual projects, project fields, and proj
 				Required: []string{"method", "owner_type", "owner", "project_number"},
 			},
 		},
+		[]scopes.Scope{scopes.ReadProject},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -1292,6 +1294,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"method", "owner_type", "owner", "project_number"},
 			},
 		},
+		[]scopes.Scope{scopes.Project},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
