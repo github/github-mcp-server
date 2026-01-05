@@ -628,13 +628,13 @@ The following sets of tools are available:
 
 - **get_team_members** - Get team members
   - **Required OAuth Scopes**: `read:org`
-  - **Accepted OAuth Scopes**: `read:org`, `write:org`, `admin:org`
+  - **Accepted OAuth Scopes**: `read:org`, `admin:org`, `write:org`
   - `org`: Organization login (owner) that contains the team. (string, required)
   - `team_slug`: Team slug (string, required)
 
 - **get_teams** - Get teams
   - **Required OAuth Scopes**: `read:org`
-  - **Accepted OAuth Scopes**: `read:org`, `write:org`, `admin:org`
+  - **Accepted OAuth Scopes**: `read:org`, `admin:org`, `write:org`
   - `user`: Username to get teams for. If not provided, uses the authenticated user. (string, optional)
 
 </details>
@@ -798,7 +798,7 @@ The following sets of tools are available:
 
 - **list_issue_types** - List available issue types
   - **Required OAuth Scopes**: `read:org`
-  - **Accepted OAuth Scopes**: `read:org`, `write:org`, `admin:org`
+  - **Accepted OAuth Scopes**: `read:org`, `admin:org`, `write:org`
   - `owner`: The organization owner of the repository (string, required)
 
 - **list_issues** - List issues
@@ -916,7 +916,7 @@ The following sets of tools are available:
 
 - **search_orgs** - Search organizations
   - **Required OAuth Scopes**: `read:org`
-  - **Accepted OAuth Scopes**: `read:org`, `write:org`, `admin:org`
+  - **Accepted OAuth Scopes**: `read:org`, `admin:org`, `write:org`
   - `order`: Sort order (string, optional)
   - `page`: Page number for pagination (min 1) (number, optional)
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
@@ -946,7 +946,7 @@ The following sets of tools are available:
 
 - **get_project** - Get project
   - **Required OAuth Scopes**: `read:project`
-  - **Accepted OAuth Scopes**: `read:project`, `project`
+  - **Accepted OAuth Scopes**: `project`, `read:project`
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
   - `project_number`: The project's number (number, required)
@@ -961,7 +961,7 @@ The following sets of tools are available:
 
 - **get_project_item** - Get project item
   - **Required OAuth Scopes**: `read:project`
-  - **Accepted OAuth Scopes**: `read:project`, `project`
+  - **Accepted OAuth Scopes**: `project`, `read:project`
   - `fields`: Specific list of field IDs to include in the response (e.g. ["102589", "985201", "169875"]). If not provided, only the title field is included. (string[], optional)
   - `item_id`: The item's ID. (number, required)
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
