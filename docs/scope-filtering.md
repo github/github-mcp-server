@@ -2,7 +2,7 @@
 
 The GitHub MCP Server automatically filters available tools based on your classic Personal Access Token's (PAT) OAuth scopes. This ensures you only see tools that your token has permission to use, reducing clutter and preventing errors from attempting operations your token can't perform.
 
-> **Note:** This feature applies to **classic PATs** (tokens starting with `ghp_`). Fine-grained PATs and other token types don't support scope detection.
+> **Note:** This feature applies to **classic PATs** (tokens starting with `ghp_`). Fine-grained PATs, GitHub App installation tokens, and server-to-server tokens don't support scope detection and show all tools.
 
 ## How It Works
 
@@ -17,6 +17,8 @@ When the server starts with a classic PAT, it makes a lightweight HTTP HEAD requ
 | **Classic PAT** (`ghp_`) | Filters tools at startup based on token scopes—tools requiring unavailable scopes are hidden |
 | **OAuth** (remote server only) | Uses OAuth scope challenges—when a tool needs a scope you haven't granted, you're prompted to authorize it |
 | **Fine-grained PAT** (`github_pat_`) | No filtering—all tools shown, API enforces permissions |
+| **GitHub App** (`ghs_`) | No filtering—all tools shown, permissions based on app installation |
+| **Server-to-server** | No filtering—all tools shown, permissions based on app/token configuration |
 
 With OAuth, the remote server can dynamically request additional scopes as needed. With PATs, scopes are fixed at token creation, so the server proactively hides tools you can't use.
 
@@ -59,6 +61,10 @@ WARN: failed to fetch token scopes, continuing without scope filtering
 **Classic PATs** (`ghp_` prefix) support OAuth scopes and return them in the `X-OAuth-Scopes` header. Scope filtering works fully with these tokens.
 
 **Fine-grained PATs** (`github_pat_` prefix) use a different permission model based on repository access and specific permissions rather than OAuth scopes. They don't return the `X-OAuth-Scopes` header, so scope filtering is skipped. All tools will be available, but the GitHub API will still enforce permissions at the API level—you'll get errors if you try to use tools your token doesn't have permission for.
+
+## GitHub App and Server-to-Server Tokens
+
+**GitHub App installation tokens** (`ghs_` prefix) and other server-to-server tokens use a permission model based on the app's installation permissions rather than OAuth scopes. These tokens don't return the `X-OAuth-Scopes` header, so scope filtering is skipped. The GitHub API enforces permissions based on the app's configuration.
 
 ## Troubleshooting
 
