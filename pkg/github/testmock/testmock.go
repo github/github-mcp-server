@@ -134,6 +134,10 @@ func splitKey(k string) (method, pattern string, ok bool) {
 }
 
 func matchPath(pattern, path string) bool {
+	if pattern == "" {
+		return path == ""
+	}
+
 	if pattern == path {
 		return true
 	}
