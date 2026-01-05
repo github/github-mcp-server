@@ -628,7 +628,7 @@ The following sets of tools are available:
 
 - **get_team_members** - Get team members
   - **Required OAuth Scopes**: `read:org`
-  - **Accepted OAuth Scopes**: `read:org`, `admin:org`, `write:org`
+  - **Accepted OAuth Scopes**: `write:org`, `read:org`, `admin:org`
   - `org`: Organization login (owner) that contains the team. (string, required)
   - `team_slug`: Team slug (string, required)
 
@@ -946,7 +946,7 @@ The following sets of tools are available:
 
 - **get_project** - Get project
   - **Required OAuth Scopes**: `read:project`
-  - **Accepted OAuth Scopes**: `project`, `read:project`
+  - **Accepted OAuth Scopes**: `read:project`, `project`
   - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (string, required)
   - `project_number`: The project's number (number, required)
@@ -1265,7 +1265,7 @@ The following sets of tools are available:
 
 - **get_secret_scanning_alert** - Get secret scanning alert
   - **Required OAuth Scopes**: `security_events`
-  - **Accepted OAuth Scopes**: `security_events`, `repo`
+  - **Accepted OAuth Scopes**: `repo`, `security_events`
   - `alertNumber`: The number of the alert. (number, required)
   - `owner`: The owner of the repository. (string, required)
   - `repo`: The name of the repository. (string, required)
@@ -1337,14 +1337,12 @@ The following sets of tools are available:
   - `username`: Username to list starred repositories for. Defaults to the authenticated user. (string, optional)
 
 - **star_repository** - Star repository
-  - **Required OAuth Scopes**: `public_repo`
-  - **Accepted OAuth Scopes**: `public_repo`, `repo`
+  - **Required OAuth Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
 - **unstar_repository** - Unstar repository
-  - **Required OAuth Scopes**: `public_repo`
-  - **Accepted OAuth Scopes**: `public_repo`, `repo`
+  - **Required OAuth Scopes**: `repo`
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
