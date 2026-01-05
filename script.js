@@ -127,13 +127,20 @@ document.addEventListener('DOMContentLoaded',()=>{
   // close modal when clicking outside content
   $('transactionModal').addEventListener('click',(e)=>{ if(e.target.id==='transactionModal') closeModal(); });
 
-  // Добавляем обработчики для кнопок "Регистрация" и "Войти"
-  const registerButton = document.querySelector('.btn-primary:nth-of-type(1)');
-  const loginButton = document.querySelector('.btn-primary:nth-of-type(2)');
+  // Attach event listeners to buttons (avoid inline handlers)
+  const registerButton = document.getElementById('btn-register');
+  const loginButton = document.getElementById('btn-login');
+  const addTxButton = document.getElementById('btn-add-transaction');
+  const txClose = document.getElementById('tx-close');
+  const loginClose = document.getElementById('login-close');
+  const registerClose = document.getElementById('register-close');
 
-  registerButton.addEventListener('click', openRegisterModal);
-
-  loginButton.addEventListener('click', openLoginModal);
+  if (registerButton) registerButton.addEventListener('click', openRegisterModal);
+  if (loginButton) loginButton.addEventListener('click', openLoginModal);
+  if (addTxButton) addTxButton.addEventListener('click', addTransaction);
+  if (txClose) txClose.addEventListener('click', closeModal);
+  if (loginClose) loginClose.addEventListener('click', closeLoginModal);
+  if (registerClose) registerClose.addEventListener('click', closeRegisterModal);
 
   const loginForm = document.getElementById('loginForm');
   loginForm.addEventListener('submit', (e) => {

@@ -6,8 +6,6 @@
     <title>Финансовый Дашборд</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Recommended minimal CSP for demo pages; prefer sending this as an HTTP header in production -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' https:; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: https:; object-src 'none';">
 </head>
 <body>
     <span id="moon" data-cursor-element-id="cursor-el-3" style="font-size: 5em;">🌕</span>
@@ -23,8 +21,8 @@
         </header>
 
         <div class="main-photo">
-            <img src="main-photo.jpg" alt="Главное фото" style="width:100%;border-radius:10px;box-sha
-dow:0 6px 18px rgba(18,38,63,0.06);margin-bottom:20px;">                                                     </div>
+            <img src="main-photo.jpg" alt="Главное фото" style="width:100%;border-radius:10px;box-shadow:0 6px 18px rgba(18,38,63,0.06);margin-bottom:20px;">
+        </div>
 
         <div class="dashboard">
             <!-- Карточки с балансами -->
@@ -199,24 +197,24 @@ dow:0 6px 18px rgba(18,38,63,0.06);margin-bottom:20px;">                        
             <form id="registerForm">
                 <div class="form-group">
                     <label>Имя пользователя</label>
-                    <input type="text" id="registerUsername" placeholder="Введите имя пользователя" r
-equired>                                                                                                             </div>
+                    <input type="text" id="registerUsername" placeholder="Введите имя пользователя" required>
+                </div>
                 <div class="form-group">
                     <label>Пароль</label>
-                    <input type="password" id="registerPassword" placeholder="Введите пароль" require
-d>                                                                                                                   </div>
+                    <input type="password" id="registerPassword" placeholder="Введите пароль" required>
+                </div>
                 <div class="form-group">
                     <label>Подтвердите пароль</label>
-                    <input type="password" id="confirmPassword" placeholder="Подтвердите пароль" requ
-ired>                                                                                                                </div>
+                    <input type="password" id="confirmPassword" placeholder="Подтвердите пароль" required>
+                </div>
                 <button type="submit" class="btn-primary">Зарегистрироваться</button>
             </form>
         </div>
     </div>
 
     <footer>
-        <p>Посетите наш сайт: <a href="https://solid-space-meme-5gr6g7jgwr7x3v4g4-8000.app.github.dev
-" target="_blank">Наш сайт</a></p>                                                                       </footer>
+        <p>Посетите наш сайт: <a href="https://solid-space-meme-5gr6g7jgwr7x3v4g4-8000.app.github.dev" target="_blank">Наш сайт</a></p>
+    </footer>
 
     <script src="script.js"></script>
 </body>
