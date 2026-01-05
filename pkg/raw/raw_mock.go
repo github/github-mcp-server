@@ -1,20 +1,20 @@
 package raw
 
-import "github.com/migueleliasweb/go-github-mock/src/mock"
+import "github.com/github/github-mcp-server/pkg/testmock"
 
-var GetRawReposContentsByOwnerByRepoByPath mock.EndpointPattern = mock.EndpointPattern{
+var GetRawReposContentsByOwnerByRepoByPath = testmock.EndpointPattern{
 	Pattern: "/{owner}/{repo}/HEAD/{path:.*}",
 	Method:  "GET",
 }
-var GetRawReposContentsByOwnerByRepoByBranchByPath mock.EndpointPattern = mock.EndpointPattern{
+var GetRawReposContentsByOwnerByRepoByBranchByPath = testmock.EndpointPattern{
 	Pattern: "/{owner}/{repo}/refs/heads/{branch}/{path:.*}",
 	Method:  "GET",
 }
-var GetRawReposContentsByOwnerByRepoByTagByPath mock.EndpointPattern = mock.EndpointPattern{
+var GetRawReposContentsByOwnerByRepoByTagByPath = testmock.EndpointPattern{
 	Pattern: "/{owner}/{repo}/refs/tags/{tag}/{path:.*}",
 	Method:  "GET",
 }
-var GetRawReposContentsByOwnerByRepoBySHAByPath mock.EndpointPattern = mock.EndpointPattern{
+var GetRawReposContentsByOwnerByRepoBySHAByPath = testmock.EndpointPattern{
 	Pattern: "/{owner}/{repo}/{sha}/{path:.*}",
 	Method:  "GET",
 }

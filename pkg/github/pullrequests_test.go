@@ -15,7 +15,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 
-	"github.com/migueleliasweb/go-github-mock/src/mock"
+	mock "github.com/github/github-mcp-server/pkg/testmock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

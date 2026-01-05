@@ -11,11 +11,11 @@ import (
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/raw"
+	mock "github.com/github/github-mcp-server/pkg/testmock"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -306,11 +306,12 @@ func Test_GetFileContents(t *testing.T) {
 					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						// Request for "refs/heads/main" -> 404 (doesn't exist)
 						// Request for "refs/heads/develop" (default branch) -> 200
+						path := r.URL.EscapedPath()
 						switch {
-						case strings.Contains(r.URL.Path, "heads/main"):
+						case strings.Contains(path, "heads/main") || strings.Contains(path, "heads%2Fmain"):
 							w.WriteHeader(http.StatusNotFound)
 							_, _ = w.Write([]byte(`{"message": "Not Found"}`))
-						case strings.Contains(r.URL.Path, "heads/develop"):
+						case strings.Contains(path, "heads/develop") || strings.Contains(path, "heads%2Fdevelop"):
 							w.WriteHeader(http.StatusOK)
 							_, _ = w.Write([]byte(`{"ref": "refs/heads/develop", "object": {"sha": "abc123def456"}}`))
 						default:
