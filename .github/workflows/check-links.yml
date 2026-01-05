@@ -1,0 +1,33 @@
+name: Check external links
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - 'add/*'
+
+jobs:
+  linkcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gather external URLs
+        run: |
+          # find http(s) links in repo files and dedupe
+          grep -RhoE "https?://[^")'\s]+" . | sort -u > /tmp/links.txt || true
+          echo "Found $(wc -l < /tmp/links.txt || echo 0) links"
+          cat /tmp/links.txt
+      - name: Check links
+        run: |
+          set -euo pipefail
+          while read -r url; do
+            echo "Checking: $url"
+            if curl -sS -I -L --max-time 15 "$url" >/dev/null; then
+              echo "OK: $url"
+            else
+              echo "FAIL: $url" >&2
+              exit 2
+            fi
+          done < /tmp/links.txt
+        shell: bash
