@@ -150,3 +150,183 @@ func TestScopeHierarchy(t *testing.T) {
 	assert.Contains(t, ScopeHierarchy[User], ReadUser)
 	assert.Contains(t, ScopeHierarchy[User], UserEmail)
 }
+
+func TestExpandScopeSet(t *testing.T) {
+	tests := []struct {
+		name     string
+		scopes   []string
+		expected map[string]bool
+	}{
+		{
+			name:     "empty scopes",
+			scopes:   []string{},
+			expected: map[string]bool{},
+		},
+		{
+			name:   "repo expands to include public_repo and security_events",
+			scopes: []string{"repo"},
+			expected: map[string]bool{
+				"repo":            true,
+				"public_repo":     true,
+				"security_events": true,
+			},
+		},
+		{
+			name:   "admin:org expands to include write:org and read:org",
+			scopes: []string{"admin:org"},
+			expected: map[string]bool{
+				"admin:org": true,
+				"write:org": true,
+				"read:org":  true,
+			},
+		},
+		{
+			name:   "write:org expands to include read:org",
+			scopes: []string{"write:org"},
+			expected: map[string]bool{
+				"write:org": true,
+				"read:org":  true,
+			},
+		},
+		{
+			name:   "user expands to include read:user and user:email",
+			scopes: []string{"user"},
+			expected: map[string]bool{
+				"user":       true,
+				"read:user":  true,
+				"user:email": true,
+			},
+		},
+		{
+			name:   "scope without children stays as-is",
+			scopes: []string{"gist"},
+			expected: map[string]bool{
+				"gist": true,
+			},
+		},
+		{
+			name:   "multiple scopes combine correctly",
+			scopes: []string{"repo", "gist"},
+			expected: map[string]bool{
+				"repo":            true,
+				"public_repo":     true,
+				"security_events": true,
+				"gist":            true,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := expandScopeSet(tt.scopes)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestHasRequiredScopes(t *testing.T) {
+	tests := []struct {
+		name           string
+		tokenScopes    []string
+		acceptedScopes []string
+		expected       bool
+	}{
+		{
+			name:           "no accepted scopes - always allowed",
+			tokenScopes:    []string{},
+			acceptedScopes: []string{},
+			expected:       true,
+		},
+		{
+			name:           "nil accepted scopes - always allowed",
+			tokenScopes:    []string{"repo"},
+			acceptedScopes: nil,
+			expected:       true,
+		},
+		{
+			name:           "token has exact required scope",
+			tokenScopes:    []string{"repo"},
+			acceptedScopes: []string{"repo"},
+			expected:       true,
+		},
+		{
+			name:           "token has parent scope that grants access",
+			tokenScopes:    []string{"repo"},
+			acceptedScopes: []string{"public_repo"},
+			expected:       true,
+		},
+		{
+			name:           "token has parent scope for security_events",
+			tokenScopes:    []string{"repo"},
+			acceptedScopes: []string{"security_events"},
+			expected:       true,
+		},
+		{
+			name:           "token has admin:org which grants read:org",
+			tokenScopes:    []string{"admin:org"},
+			acceptedScopes: []string{"read:org"},
+			expected:       true,
+		},
+		{
+			name:           "token has write:org which grants read:org",
+			tokenScopes:    []string{"write:org"},
+			acceptedScopes: []string{"read:org"},
+			expected:       true,
+		},
+		{
+			name:           "token missing required scope",
+			tokenScopes:    []string{"gist"},
+			acceptedScopes: []string{"repo"},
+			expected:       false,
+		},
+		{
+			name:           "token has child but not parent - fails",
+			tokenScopes:    []string{"public_repo"},
+			acceptedScopes: []string{"repo"},
+			expected:       false,
+		},
+		{
+			name:           "multiple token scopes - one matches",
+			tokenScopes:    []string{"gist", "repo"},
+			acceptedScopes: []string{"public_repo"},
+			expected:       true,
+		},
+		{
+			name:           "multiple accepted scopes - token has one",
+			tokenScopes:    []string{"repo"},
+			acceptedScopes: []string{"repo", "admin:org"},
+			expected:       true,
+		},
+		{
+			name:           "empty token scopes - fails when scopes required",
+			tokenScopes:    []string{},
+			acceptedScopes: []string{"repo"},
+			expected:       false,
+		},
+		{
+			name:           "user scope grants read:user",
+			tokenScopes:    []string{"user"},
+			acceptedScopes: []string{"read:user"},
+			expected:       true,
+		},
+		{
+			name:           "user scope grants user:email",
+			tokenScopes:    []string{"user"},
+			acceptedScopes: []string{"user:email"},
+			expected:       true,
+		},
+		{
+			name:           "write:packages grants read:packages",
+			tokenScopes:    []string{"write:packages"},
+			acceptedScopes: []string{"read:packages"},
+			expected:       true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := HasRequiredScopes(tt.tokenScopes, tt.acceptedScopes)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
