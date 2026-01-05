@@ -15,10 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newMockedHTTPClient(handlers map[string]http.HandlerFunc) *http.Client {
-	return MockHTTPClientWithHandlers(handlers)
-}
-
 func Test_ListProjects(t *testing.T) {
 	serverTool := ListProjects(translations.NullTranslationHelper)
 	tool := serverTool.Tool

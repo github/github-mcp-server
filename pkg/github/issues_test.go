@@ -22,10 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newMockedHTTPClient(handlers map[string]http.HandlerFunc) *http.Client {
-	return MockHTTPClientWithHandlers(handlers)
-}
-
 var defaultGQLClient *githubv4.Client = githubv4.NewClient(newRepoAccessHTTPClient())
 var repoAccessCache *lockdown.RepoAccessCache = stubRepoAccessCache(defaultGQLClient, 15*time.Minute)
 
@@ -184,12 +180,9 @@ func Test_GetIssue(t *testing.T) {
 	}{
 		{
 			name: "successful issue retrieval",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
-					mockIssue,
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "get",
 				"owner":        "owner2",
@@ -200,12 +193,9 @@ func Test_GetIssue(t *testing.T) {
 		},
 		{
 			name: "issue not found",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusNotFound, `{"message": "Issue not found"}`),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Issue not found"}`),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "get",
 				"owner":        "owner",
@@ -217,12 +207,9 @@ func Test_GetIssue(t *testing.T) {
 		},
 		{
 			name: "lockdown enabled - private repository",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
-					mockIssue2,
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue2),
+			}),
 			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
 					struct {
@@ -264,12 +251,9 @@ func Test_GetIssue(t *testing.T) {
 		},
 		{
 			name: "lockdown enabled - user lacks push access",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
-					mockIssue,
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
+			}),
 			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
 					struct {

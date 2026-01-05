@@ -22,10 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newMockedHTTPClient(handlers map[string]http.HandlerFunc) *http.Client {
-	return MockHTTPClientWithHandlers(handlers)
-}
-
 func Test_ListWorkflows(t *testing.T) {
 	// Verify tool definition once
 	toolDef := ListWorkflows(translations.NullTranslationHelper)
@@ -1397,8 +1393,8 @@ func Test_RerunFailedJobs(t *testing.T) {
 	}{
 		{
 			name: "successful rerun of failed jobs",
-			mockedClient: newMockedHTTPClient(map[string]http.HandlerFunc{
-				"POST /repos/owner/repo/actions/runs/12345/rerun-failed-jobs": http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposActionsRunsRerunFailedJobsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusCreated)
 				}),
 			}),
@@ -1463,17 +1459,11 @@ func Test_RerunWorkflowRun_Behavioral(t *testing.T) {
 	}{
 		{
 			name: "successful rerun of workflow run",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{
-						Pattern: "/repos/owner/repo/actions/runs/12345/rerun",
-						Method:  "POST",
-					},
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusCreated)
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposActionsRunsRerunByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusCreated)
+				}),
+			}),
 			requestArgs: map[string]any{
 				"owner":  "owner",
 				"repo":   "repo",
@@ -1535,32 +1525,29 @@ func Test_ListWorkflowRuns_Behavioral(t *testing.T) {
 	}{
 		{
 			name: "successful workflow runs listing",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposActionsWorkflowsRunsByOwnerByRepoByWorkflowID,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						runs := &github.WorkflowRuns{
-							TotalCount: github.Ptr(2),
-							WorkflowRuns: []*github.WorkflowRun{
-								{
-									ID:         github.Ptr(int64(123)),
-									Name:       github.Ptr("CI"),
-									Status:     github.Ptr("completed"),
-									Conclusion: github.Ptr("success"),
-								},
-								{
-									ID:         github.Ptr(int64(456)),
-									Name:       github.Ptr("CI"),
-									Status:     github.Ptr("completed"),
-									Conclusion: github.Ptr("failure"),
-								},
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposActionsWorkflowsRunsByOwnerByRepoByWorkflowID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					runs := &github.WorkflowRuns{
+						TotalCount: github.Ptr(2),
+						WorkflowRuns: []*github.WorkflowRun{
+							{
+								ID:         github.Ptr(int64(123)),
+								Name:       github.Ptr("CI"),
+								Status:     github.Ptr("completed"),
+								Conclusion: github.Ptr("success"),
 							},
-						}
-						w.WriteHeader(http.StatusOK)
-						_ = json.NewEncoder(w).Encode(runs)
-					}),
-				),
-			),
+							{
+								ID:         github.Ptr(int64(456)),
+								Name:       github.Ptr("CI"),
+								Status:     github.Ptr("completed"),
+								Conclusion: github.Ptr("failure"),
+							},
+						},
+					}
+					w.WriteHeader(http.StatusOK)
+					_ = json.NewEncoder(w).Encode(runs)
+				}),
+			}),
 			requestArgs: map[string]any{
 				"owner":       "owner",
 				"repo":        "repo",
@@ -1622,21 +1609,18 @@ func Test_GetWorkflowRun_Behavioral(t *testing.T) {
 	}{
 		{
 			name: "successful get workflow run",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposActionsRunsByOwnerByRepoByRunID,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						run := &github.WorkflowRun{
-							ID:         github.Ptr(int64(12345)),
-							Name:       github.Ptr("CI"),
-							Status:     github.Ptr("completed"),
-							Conclusion: github.Ptr("success"),
-						}
-						w.WriteHeader(http.StatusOK)
-						_ = json.NewEncoder(w).Encode(run)
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposActionsRunsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					run := &github.WorkflowRun{
+						ID:         github.Ptr(int64(12345)),
+						Name:       github.Ptr("CI"),
+						Status:     github.Ptr("completed"),
+						Conclusion: github.Ptr("success"),
+					}
+					w.WriteHeader(http.StatusOK)
+					_ = json.NewEncoder(w).Encode(run)
+				}),
+			}),
 			requestArgs: map[string]any{
 				"owner":  "owner",
 				"repo":   "repo",
@@ -1698,15 +1682,12 @@ func Test_GetWorkflowRunLogs_Behavioral(t *testing.T) {
 	}{
 		{
 			name: "successful get workflow run logs",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposActionsRunsLogsByOwnerByRepoByRunID,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.Header().Set("Location", "https://github.com/logs/run/12345")
-						w.WriteHeader(http.StatusFound)
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposActionsRunsLogsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Location", "https://github.com/logs/run/12345")
+					w.WriteHeader(http.StatusFound)
+				}),
+			}),
 			requestArgs: map[string]any{
 				"owner":  "owner",
 				"repo":   "repo",
@@ -1768,32 +1749,29 @@ func Test_ListWorkflowJobs_Behavioral(t *testing.T) {
 	}{
 		{
 			name: "successful list workflow jobs",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposActionsRunsJobsByOwnerByRepoByRunID,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						jobs := &github.Jobs{
-							TotalCount: github.Ptr(2),
-							Jobs: []*github.WorkflowJob{
-								{
-									ID:         github.Ptr(int64(1)),
-									Name:       github.Ptr("build"),
-									Status:     github.Ptr("completed"),
-									Conclusion: github.Ptr("success"),
-								},
-								{
-									ID:         github.Ptr(int64(2)),
-									Name:       github.Ptr("test"),
-									Status:     github.Ptr("completed"),
-									Conclusion: github.Ptr("failure"),
-								},
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposActionsRunsJobsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					jobs := &github.Jobs{
+						TotalCount: github.Ptr(2),
+						Jobs: []*github.WorkflowJob{
+							{
+								ID:         github.Ptr(int64(1)),
+								Name:       github.Ptr("build"),
+								Status:     github.Ptr("completed"),
+								Conclusion: github.Ptr("success"),
 							},
-						}
-						w.WriteHeader(http.StatusOK)
-						_ = json.NewEncoder(w).Encode(jobs)
-					}),
-				),
-			),
+							{
+								ID:         github.Ptr(int64(2)),
+								Name:       github.Ptr("test"),
+								Status:     github.Ptr("completed"),
+								Conclusion: github.Ptr("failure"),
+							},
+						},
+					}
+					w.WriteHeader(http.StatusOK)
+					_ = json.NewEncoder(w).Encode(jobs)
+				}),
+			}),
 			requestArgs: map[string]any{
 				"owner":  "owner",
 				"repo":   "repo",
@@ -1870,32 +1848,29 @@ func Test_ActionsList_ListWorkflows(t *testing.T) {
 	}{
 		{
 			name: "successful workflow list",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposActionsWorkflowsByOwnerByRepo,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						workflows := &github.Workflows{
-							TotalCount: github.Ptr(2),
-							Workflows: []*github.Workflow{
-								{
-									ID:    github.Ptr(int64(1)),
-									Name:  github.Ptr("CI"),
-									Path:  github.Ptr(".github/workflows/ci.yml"),
-									State: github.Ptr("active"),
-								},
-								{
-									ID:    github.Ptr(int64(2)),
-									Name:  github.Ptr("Deploy"),
-									Path:  github.Ptr(".github/workflows/deploy.yml"),
-									State: github.Ptr("active"),
-								},
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposActionsWorkflowsByOwnerByRepo: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					workflows := &github.Workflows{
+						TotalCount: github.Ptr(2),
+						Workflows: []*github.Workflow{
+							{
+								ID:    github.Ptr(int64(1)),
+								Name:  github.Ptr("CI"),
+								Path:  github.Ptr(".github/workflows/ci.yml"),
+								State: github.Ptr("active"),
 							},
-						}
-						w.WriteHeader(http.StatusOK)
-						_ = json.NewEncoder(w).Encode(workflows)
-					}),
-				),
-			),
+							{
+								ID:    github.Ptr(int64(2)),
+								Name:  github.Ptr("Deploy"),
+								Path:  github.Ptr(".github/workflows/deploy.yml"),
+								State: github.Ptr("active"),
+							},
+						},
+					}
+					w.WriteHeader(http.StatusOK)
+					_ = json.NewEncoder(w).Encode(workflows)
+				}),
+			}),
 			requestArgs: map[string]any{
 				"method": "list_workflows",
 				"owner":  "owner",
@@ -1949,26 +1924,23 @@ func Test_ActionsList_ListWorkflowRuns(t *testing.T) {
 	toolDef := ActionsList(translations.NullTranslationHelper)
 
 	t.Run("successful workflow runs list", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient(
-			mock.WithRequestMatchHandler(
-				mock.GetReposActionsWorkflowsRunsByOwnerByRepoByWorkflowID,
-				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					runs := &github.WorkflowRuns{
-						TotalCount: github.Ptr(1),
-						WorkflowRuns: []*github.WorkflowRun{
-							{
-								ID:         github.Ptr(int64(123)),
-								Name:       github.Ptr("CI"),
-								Status:     github.Ptr("completed"),
-								Conclusion: github.Ptr("success"),
-							},
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposActionsWorkflowsRunsByOwnerByRepoByWorkflowID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				runs := &github.WorkflowRuns{
+					TotalCount: github.Ptr(1),
+					WorkflowRuns: []*github.WorkflowRun{
+						{
+							ID:         github.Ptr(int64(123)),
+							Name:       github.Ptr("CI"),
+							Status:     github.Ptr("completed"),
+							Conclusion: github.Ptr("success"),
 						},
-					}
-					w.WriteHeader(http.StatusOK)
-					_ = json.NewEncoder(w).Encode(runs)
-				}),
-			),
-		)
+					},
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(runs)
+			}),
+		})
 
 		client := github.NewClient(mockedClient)
 		deps := BaseDeps{
@@ -1995,32 +1967,29 @@ func Test_ActionsList_ListWorkflowRuns(t *testing.T) {
 	})
 
 	t.Run("list all workflow runs without resource_id", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient(
-			mock.WithRequestMatchHandler(
-				mock.GetReposActionsRunsByOwnerByRepo,
-				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					runs := &github.WorkflowRuns{
-						TotalCount: github.Ptr(2),
-						WorkflowRuns: []*github.WorkflowRun{
-							{
-								ID:         github.Ptr(int64(123)),
-								Name:       github.Ptr("CI"),
-								Status:     github.Ptr("completed"),
-								Conclusion: github.Ptr("success"),
-							},
-							{
-								ID:         github.Ptr(int64(456)),
-								Name:       github.Ptr("Deploy"),
-								Status:     github.Ptr("in_progress"),
-								Conclusion: nil,
-							},
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposActionsRunsByOwnerByRepo: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				runs := &github.WorkflowRuns{
+					TotalCount: github.Ptr(2),
+					WorkflowRuns: []*github.WorkflowRun{
+						{
+							ID:         github.Ptr(int64(123)),
+							Name:       github.Ptr("CI"),
+							Status:     github.Ptr("completed"),
+							Conclusion: github.Ptr("success"),
 						},
-					}
-					w.WriteHeader(http.StatusOK)
-					_ = json.NewEncoder(w).Encode(runs)
-				}),
-			),
-		)
+						{
+							ID:         github.Ptr(int64(456)),
+							Name:       github.Ptr("Deploy"),
+							Status:     github.Ptr("in_progress"),
+							Conclusion: nil,
+						},
+					},
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(runs)
+			}),
+		})
 
 		client := github.NewClient(mockedClient)
 		deps := BaseDeps{
@@ -2065,21 +2034,18 @@ func Test_ActionsGet_GetWorkflow(t *testing.T) {
 	toolDef := ActionsGet(translations.NullTranslationHelper)
 
 	t.Run("successful workflow get", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient(
-			mock.WithRequestMatchHandler(
-				mock.GetReposActionsWorkflowsByOwnerByRepoByWorkflowID,
-				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					workflow := &github.Workflow{
-						ID:    github.Ptr(int64(1)),
-						Name:  github.Ptr("CI"),
-						Path:  github.Ptr(".github/workflows/ci.yml"),
-						State: github.Ptr("active"),
-					}
-					w.WriteHeader(http.StatusOK)
-					_ = json.NewEncoder(w).Encode(workflow)
-				}),
-			),
-		)
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposActionsWorkflowsByOwnerByRepoByWorkflowID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				workflow := &github.Workflow{
+					ID:    github.Ptr(int64(1)),
+					Name:  github.Ptr("CI"),
+					Path:  github.Ptr(".github/workflows/ci.yml"),
+					State: github.Ptr("active"),
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(workflow)
+			}),
+		})
 
 		client := github.NewClient(mockedClient)
 		deps := BaseDeps{
@@ -2111,21 +2077,18 @@ func Test_ActionsGet_GetWorkflowRun(t *testing.T) {
 	toolDef := ActionsGet(translations.NullTranslationHelper)
 
 	t.Run("successful workflow run get", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient(
-			mock.WithRequestMatchHandler(
-				mock.GetReposActionsRunsByOwnerByRepoByRunID,
-				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					run := &github.WorkflowRun{
-						ID:         github.Ptr(int64(12345)),
-						Name:       github.Ptr("CI"),
-						Status:     github.Ptr("completed"),
-						Conclusion: github.Ptr("success"),
-					}
-					w.WriteHeader(http.StatusOK)
-					_ = json.NewEncoder(w).Encode(run)
-				}),
-			),
-		)
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposActionsRunsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				run := &github.WorkflowRun{
+					ID:         github.Ptr(int64(12345)),
+					Name:       github.Ptr("CI"),
+					Status:     github.Ptr("completed"),
+					Conclusion: github.Ptr("success"),
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(run)
+			}),
+		})
 
 		client := github.NewClient(mockedClient)
 		deps := BaseDeps{
@@ -2182,14 +2145,11 @@ func Test_ActionsRunTrigger_RunWorkflow(t *testing.T) {
 	}{
 		{
 			name: "successful workflow run",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PostReposActionsWorkflowsDispatchesByOwnerByRepoByWorkflowID,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNoContent)
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposActionsWorkflowsDispatchesByOwnerByRepoByWorkflowID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNoContent)
+				}),
+			}),
 			requestArgs: map[string]any{
 				"method":      "run_workflow",
 				"owner":       "owner",
@@ -2258,17 +2218,11 @@ func Test_ActionsRunTrigger_CancelWorkflowRun(t *testing.T) {
 	toolDef := ActionsRunTrigger(translations.NullTranslationHelper)
 
 	t.Run("successful workflow run cancellation", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient(
-			mock.WithRequestMatchHandler(
-				mock.EndpointPattern{
-					Pattern: "/repos/owner/repo/actions/runs/12345/cancel",
-					Method:  "POST",
-				},
-				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusAccepted)
-				}),
-			),
-		)
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			PostReposActionsRunsCancelByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusAccepted)
+			}),
+		})
 
 		client := github.NewClient(mockedClient)
 		deps := BaseDeps{
@@ -2295,17 +2249,11 @@ func Test_ActionsRunTrigger_CancelWorkflowRun(t *testing.T) {
 	})
 
 	t.Run("conflict when cancelling a workflow run", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient(
-			mock.WithRequestMatchHandler(
-				mock.EndpointPattern{
-					Pattern: "/repos/owner/repo/actions/runs/12345/cancel",
-					Method:  "POST",
-				},
-				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusConflict)
-				}),
-			),
-		)
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			PostReposActionsRunsCancelByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusConflict)
+			}),
+		})
 
 		client := github.NewClient(mockedClient)
 		deps := BaseDeps{
@@ -2376,15 +2324,12 @@ func Test_ActionsGetJobLogs_SingleJob(t *testing.T) {
 	toolDef := ActionsGetJobLogs(translations.NullTranslationHelper)
 
 	t.Run("successful single job logs with URL", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient(
-			mock.WithRequestMatchHandler(
-				mock.GetReposActionsJobsLogsByOwnerByRepoByJobID,
-				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					w.Header().Set("Location", "https://github.com/logs/job/123")
-					w.WriteHeader(http.StatusFound)
-				}),
-			),
-		)
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposActionsJobsLogsByOwnerByRepoByJobID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Location", "https://github.com/logs/job/123")
+				w.WriteHeader(http.StatusFound)
+			}),
+		})
 
 		client := github.NewClient(mockedClient)
 		deps := BaseDeps{
@@ -2417,42 +2362,36 @@ func Test_ActionsGetJobLogs_FailedJobs(t *testing.T) {
 	toolDef := ActionsGetJobLogs(translations.NullTranslationHelper)
 
 	t.Run("successful failed jobs logs", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient(
-			mock.WithRequestMatchHandler(
-				mock.GetReposActionsRunsJobsByOwnerByRepoByRunID,
-				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					jobs := &github.Jobs{
-						TotalCount: github.Ptr(3),
-						Jobs: []*github.WorkflowJob{
-							{
-								ID:         github.Ptr(int64(1)),
-								Name:       github.Ptr("test-job-1"),
-								Conclusion: github.Ptr("success"),
-							},
-							{
-								ID:         github.Ptr(int64(2)),
-								Name:       github.Ptr("test-job-2"),
-								Conclusion: github.Ptr("failure"),
-							},
-							{
-								ID:         github.Ptr(int64(3)),
-								Name:       github.Ptr("test-job-3"),
-								Conclusion: github.Ptr("failure"),
-							},
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposActionsRunsJobsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				jobs := &github.Jobs{
+					TotalCount: github.Ptr(3),
+					Jobs: []*github.WorkflowJob{
+						{
+							ID:         github.Ptr(int64(1)),
+							Name:       github.Ptr("test-job-1"),
+							Conclusion: github.Ptr("success"),
 						},
-					}
-					w.WriteHeader(http.StatusOK)
-					_ = json.NewEncoder(w).Encode(jobs)
-				}),
-			),
-			mock.WithRequestMatchHandler(
-				mock.GetReposActionsJobsLogsByOwnerByRepoByJobID,
-				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					w.Header().Set("Location", "https://github.com/logs/job/"+r.URL.Path[len(r.URL.Path)-1:])
-					w.WriteHeader(http.StatusFound)
-				}),
-			),
-		)
+						{
+							ID:         github.Ptr(int64(2)),
+							Name:       github.Ptr("test-job-2"),
+							Conclusion: github.Ptr("failure"),
+						},
+						{
+							ID:         github.Ptr(int64(3)),
+							Name:       github.Ptr("test-job-3"),
+							Conclusion: github.Ptr("failure"),
+						},
+					},
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(jobs)
+			}),
+			GetReposActionsJobsLogsByOwnerByRepoByJobID: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Location", "https://github.com/logs/job/"+r.URL.Path[len(r.URL.Path)-1:])
+				w.WriteHeader(http.StatusFound)
+			}),
+		})
 
 		client := github.NewClient(mockedClient)
 		deps := BaseDeps{
@@ -2482,30 +2421,27 @@ func Test_ActionsGetJobLogs_FailedJobs(t *testing.T) {
 	})
 
 	t.Run("no failed jobs found", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient(
-			mock.WithRequestMatchHandler(
-				mock.GetReposActionsRunsJobsByOwnerByRepoByRunID,
-				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					jobs := &github.Jobs{
-						TotalCount: github.Ptr(2),
-						Jobs: []*github.WorkflowJob{
-							{
-								ID:         github.Ptr(int64(1)),
-								Name:       github.Ptr("test-job-1"),
-								Conclusion: github.Ptr("success"),
-							},
-							{
-								ID:         github.Ptr(int64(2)),
-								Name:       github.Ptr("test-job-2"),
-								Conclusion: github.Ptr("success"),
-							},
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetReposActionsRunsJobsByOwnerByRepoByRunID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				jobs := &github.Jobs{
+					TotalCount: github.Ptr(2),
+					Jobs: []*github.WorkflowJob{
+						{
+							ID:         github.Ptr(int64(1)),
+							Name:       github.Ptr("test-job-1"),
+							Conclusion: github.Ptr("success"),
 						},
-					}
-					w.WriteHeader(http.StatusOK)
-					_ = json.NewEncoder(w).Encode(jobs)
-				}),
-			),
-		)
+						{
+							ID:         github.Ptr(int64(2)),
+							Name:       github.Ptr("test-job-2"),
+							Conclusion: github.Ptr("success"),
+						},
+					},
+				}
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(jobs)
+			}),
+		})
 
 		client := github.NewClient(mockedClient)
 		deps := BaseDeps{
