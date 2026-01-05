@@ -148,3 +148,47 @@ func ExpandScopes(required ...Scope) []string {
 	sort.Strings(result)
 	return result
 }
+
+// expandScopeSet returns a set of all scopes granted by the given scopes,
+// including child scopes from the hierarchy.
+// For example, if "repo" is provided, the result includes "repo", "public_repo",
+// and "security_events" since "repo" grants access to those child scopes.
+func expandScopeSet(scopes []string) map[string]bool {
+	expanded := make(map[string]bool, len(scopes))
+	for _, scope := range scopes {
+		expanded[scope] = true
+		// Add child scopes granted by this scope
+		if children, ok := ScopeHierarchy[Scope(scope)]; ok {
+			for _, child := range children {
+				expanded[string(child)] = true
+			}
+		}
+	}
+	return expanded
+}
+
+// HasRequiredScopes checks if tokenScopes satisfy the acceptedScopes requirement.
+// A tool's acceptedScopes includes both the required scopes AND parent scopes
+// that implicitly grant the required permissions (via ExpandScopes).
+//
+// For PAT filtering: if ANY of the acceptedScopes are granted by the token
+// (directly or via scope hierarchy), the tool should be visible.
+//
+// Returns true if the tool should be visible to the token holder.
+func HasRequiredScopes(tokenScopes []string, acceptedScopes []string) bool {
+	// No scopes required = always allowed
+	if len(acceptedScopes) == 0 {
+		return true
+	}
+
+	// Expand token scopes to include child scopes they grant
+	grantedScopes := expandScopeSet(tokenScopes)
+
+	// Check if any accepted scope is granted by the token
+	for _, accepted := range acceptedScopes {
+		if grantedScopes[accepted] {
+			return true
+		}
+	}
+	return false
+}
