@@ -60,6 +60,14 @@ This means if your token has `repo`, tools requiring `security_events` will also
 
 Each tool in the [README](../README.md#tools) lists its required and accepted OAuth scopes.
 
+## Public Repository Access
+
+Read-only tools that only require `repo` or `public_repo` scopes are **always visible**, even if your token doesn't have these scopes. This is because these tools work on public repositories without authentication.
+
+For example, `get_file_contents` is always available—you can read files from any public repository regardless of your token's scopes. However, write operations like `create_or_update_file` will be hidden if your token lacks `repo` scope.
+
+> **Note:** The GitHub API doesn't return `public_repo` in the `X-OAuth-Scopes` header—it's implicit. The server handles this by not filtering read-only repository tools.
+
 ## Graceful Degradation
 
 If the server cannot fetch your token's scopes (e.g., network issues, rate limiting), it logs a warning and continues **without filtering**. This ensures the server remains usable even when scope detection fails.
