@@ -4,6 +4,4 @@
 // For PATs, we cannot issue OAuth scope challenges, so we hide tools that
 // require scopes the token doesn't have.
 //
-// The CreateToolScopeFilter function should be called from the github package
-// or other packages that can import inventory to create the actual filter.
 package scopes
