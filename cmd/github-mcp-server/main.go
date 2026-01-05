@@ -110,7 +110,7 @@ func init() {
 	rootCmd.PersistentFlags().Int("content-window-size", 5000, "Specify the content window size")
 	rootCmd.PersistentFlags().Bool("lockdown-mode", false, "Enable lockdown mode")
 	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "Override the repo access cache TTL (e.g. 1m, 0s to disable)")
-	rootCmd.PersistentFlags().Bool("enable-scope-filtering", false, "Filter tools based on the token's OAuth scopes")
+	rootCmd.PersistentFlags().Bool("enable-scope-filtering", true, "Filter tools based on the token's OAuth scopes")
 
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
