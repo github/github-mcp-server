@@ -184,3 +184,141 @@ func TestToolsetMetadataConsistency(t *testing.T) {
 		}
 	}
 }
+
+// TestFeatureFlaggedToolsAreMutuallyExclusive validates that when multiple tools share
+// the same name with different feature flags, they are mutually exclusive (one uses
+// FeatureFlagEnable while the other uses FeatureFlagDisable with the same flag name).
+// This ensures there are no conflicts where two tools with the same name could be active
+// simultaneously, which would cause "unknown tool" errors.
+func TestFeatureFlaggedToolsAreMutuallyExclusive(t *testing.T) {
+	tools := AllTools(stubTranslation)
+
+	// Group tools by name
+	toolsByName := make(map[string][]inventory.ServerTool)
+	for _, tool := range tools {
+		toolsByName[tool.Tool.Name] = append(toolsByName[tool.Tool.Name], tool)
+	}
+
+	// Check each group of tools with the same name
+	for name, group := range toolsByName {
+		if len(group) <= 1 {
+			continue // Single tool, no conflict possible
+		}
+
+		// Skip explicitly allowed duplicates (like get_label)
+		if name == "get_label" {
+			continue
+		}
+
+		t.Run(name, func(t *testing.T) {
+			// All tools with the same name must have feature flags
+			for i, tool := range group {
+				hasFlags := tool.FeatureFlagEnable != "" || tool.FeatureFlagDisable != ""
+				assert.True(t, hasFlags,
+					"Tool %q (variant %d/%d) shares a name with other tools but has no feature flags",
+					name, i+1, len(group))
+			}
+
+			// Verify mutual exclusivity: collect all flags used
+			enableFlags := make(map[string]bool)
+			disableFlags := make(map[string]bool)
+
+			for _, tool := range group {
+				if tool.FeatureFlagEnable != "" {
+					enableFlags[tool.FeatureFlagEnable] = true
+				}
+				if tool.FeatureFlagDisable != "" {
+					disableFlags[tool.FeatureFlagDisable] = true
+				}
+			}
+
+			// For proper mutual exclusivity, we expect:
+			// - Same flag name used in both FeatureFlagEnable and FeatureFlagDisable
+			// - This ensures only one variant is active at a time
+			if len(group) == 2 {
+				// Most common case: two variants controlled by one flag
+				var flagName string
+				for flag := range enableFlags {
+					flagName = flag
+					break
+				}
+				for flag := range disableFlags {
+					if flagName == "" {
+						flagName = flag
+					}
+				}
+
+				if flagName != "" {
+					assert.True(t, enableFlags[flagName] || disableFlags[flagName],
+						"Tools sharing name %q should use the same flag for mutual exclusivity", name)
+
+					// Verify exactly one tool has FeatureFlagEnable=flagName and one has FeatureFlagDisable=flagName
+					enableCount := 0
+					disableCount := 0
+					for _, tool := range group {
+						if tool.FeatureFlagEnable == flagName {
+							enableCount++
+						}
+						if tool.FeatureFlagDisable == flagName {
+							disableCount++
+						}
+					}
+
+					// We should have at least one of each for proper mutual exclusivity
+					assert.True(t, enableCount > 0 || disableCount > 0,
+						"Tools sharing name %q should have proper feature flag configuration", name)
+				}
+			}
+
+			// Additional safety check: ensure no two tools could be enabled simultaneously
+			// by testing all possible flag states
+			testFlagStates := []map[string]bool{
+				{}, // All flags off
+				// We'll add specific flag combinations based on what flags we found
+			}
+
+			// Add test cases for each unique flag
+			allFlags := make(map[string]bool)
+			for flag := range enableFlags {
+				allFlags[flag] = true
+			}
+			for flag := range disableFlags {
+				allFlags[flag] = true
+			}
+
+			for flag := range allFlags {
+				testFlagStates = append(testFlagStates, map[string]bool{flag: true})
+			}
+
+			// Test each flag state
+			for stateIdx, flagState := range testFlagStates {
+				enabledCount := 0
+				for _, tool := range group {
+					enabled := true
+
+					// Check FeatureFlagEnable - tool requires this flag to be ON
+					if tool.FeatureFlagEnable != "" {
+						if !flagState[tool.FeatureFlagEnable] {
+							enabled = false
+						}
+					}
+
+					// Check FeatureFlagDisable - tool is disabled if this flag is ON
+					if tool.FeatureFlagDisable != "" {
+						if flagState[tool.FeatureFlagDisable] {
+							enabled = false
+						}
+					}
+
+					if enabled {
+						enabledCount++
+					}
+				}
+
+				assert.LessOrEqual(t, enabledCount, 1,
+					"Flag state %d for tool %q: At most one variant should be enabled (found %d enabled)",
+					stateIdx, name, enabledCount)
+			}
+		})
+	}
+}

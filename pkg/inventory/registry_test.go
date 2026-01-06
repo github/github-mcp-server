@@ -1688,3 +1688,250 @@ func TestForMCPRequest_ToolsCall_FeatureFlaggedVariants(t *testing.T) {
 			availableOn[0].FeatureFlagEnable, availableOn[0].FeatureFlagDisable)
 	}
 }
+
+// TestToolsList_WithFeatureFlags validates that tools/list returns only the tools
+// available based on the current feature flag state, without duplicates
+func TestToolsList_WithFeatureFlags(t *testing.T) {
+	// Create tools with various feature flag configurations
+	// These are properly mutually exclusive
+	tools := []ServerTool{
+		mockToolWithFlags("tool_a", "test", true, "", "flag_x"), // disabled when flag_x is ON
+		mockToolWithFlags("tool_a", "test", true, "flag_x", ""), // enabled when flag_x is ON
+		mockToolWithFlags("tool_b", "test", true, "flag_y", ""), // enabled only when flag_y is ON
+		mockToolWithFlags("tool_c", "test", true, "", "flag_z"), // disabled when flag_z is ON
+		mockToolWithFlags("tool_c", "test", true, "flag_z", ""), // enabled when flag_z is ON
+		mockTool("tool_d", "test", true),                        // always enabled (no flags)
+	}
+
+	testCases := []struct {
+		name          string
+		flagStates    map[string]bool
+		expectedTools []string // tool names that should be available
+	}{
+		{
+			name:          "All flags OFF",
+			flagStates:    map[string]bool{},
+			expectedTools: []string{"tool_a", "tool_c", "tool_d"},
+		},
+		{
+			name:          "flag_x ON",
+			flagStates:    map[string]bool{"flag_x": true},
+			expectedTools: []string{"tool_a", "tool_c", "tool_d"},
+		},
+		{
+			name:          "flag_y ON",
+			flagStates:    map[string]bool{"flag_y": true},
+			expectedTools: []string{"tool_a", "tool_b", "tool_c", "tool_d"},
+		},
+		{
+			name:          "flag_z ON",
+			flagStates:    map[string]bool{"flag_z": true},
+			expectedTools: []string{"tool_a", "tool_c", "tool_d"},
+		},
+		{
+			name:          "flag_x and flag_y ON",
+			flagStates:    map[string]bool{"flag_x": true, "flag_y": true},
+			expectedTools: []string{"tool_a", "tool_b", "tool_c", "tool_d"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create feature checker that returns the flag states for this test case
+			checker := func(_ context.Context, flag string) (bool, error) {
+				return tc.flagStates[flag], nil
+			}
+
+			reg := NewBuilder().
+				SetTools(tools).
+				WithToolsets([]string{"all"}).
+				WithFeatureChecker(checker).
+				Build()
+
+			// Test tools/list endpoint
+			listReg := reg.ForMCPRequest(MCPMethodToolsList, "")
+			available := listReg.AvailableTools(context.Background())
+
+			// Collect available tool names
+			availableNames := make(map[string]int)
+			for _, tool := range available {
+				availableNames[tool.Tool.Name]++
+			}
+
+			// Verify expected tools are present
+			for _, expectedName := range tc.expectedTools {
+				count, found := availableNames[expectedName]
+				if !found {
+					t.Errorf("Expected tool %q not found in available tools", expectedName)
+				} else if count > 1 {
+					t.Errorf("Tool %q appears %d times (should appear only once)", expectedName, count)
+				}
+			}
+
+			// Verify no unexpected tools
+			if len(availableNames) != len(tc.expectedTools) {
+				t.Errorf("Expected %d tools, got %d: %v", len(tc.expectedTools), len(availableNames), availableNames)
+			}
+
+			// Verify no duplicate tool names in the result
+			for name, count := range availableNames {
+				if count > 1 {
+					t.Errorf("Duplicate tool name %q appears %d times", name, count)
+				}
+			}
+		})
+	}
+}
+
+// TestToolsCall_WithFeatureFlags validates that tools/call (ForMCPRequest with specific tool)
+// returns the correct tool variant based on feature flags
+func TestToolsCall_WithFeatureFlags(t *testing.T) {
+	tools := []ServerTool{
+		mockToolWithFlags("shared_tool", "test", true, "", "feature_flag"), // OLD: disabled when feature_flag is ON
+		mockToolWithFlags("shared_tool", "test", true, "feature_flag", ""), // NEW: enabled when feature_flag is ON
+		mockTool("other_tool", "test", true),
+	}
+
+	testCases := []struct {
+		name              string
+		toolName          string
+		featureFlagOn     bool
+		expectToolCount   int
+		expectEnableFlag  string
+		expectDisableFlag string
+	}{
+		{
+			name:              "Call shared_tool with flag OFF - should get old variant",
+			toolName:          "shared_tool",
+			featureFlagOn:     false,
+			expectToolCount:   1,
+			expectEnableFlag:  "",
+			expectDisableFlag: "feature_flag",
+		},
+		{
+			name:              "Call shared_tool with flag ON - should get new variant",
+			toolName:          "shared_tool",
+			featureFlagOn:     true,
+			expectToolCount:   1,
+			expectEnableFlag:  "feature_flag",
+			expectDisableFlag: "",
+		},
+		{
+			name:              "Call other_tool - always available",
+			toolName:          "other_tool",
+			featureFlagOn:     false,
+			expectToolCount:   1,
+			expectEnableFlag:  "",
+			expectDisableFlag: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var checker FeatureFlagChecker
+			if tc.featureFlagOn {
+				checker = func(_ context.Context, flag string) (bool, error) {
+					return flag == "feature_flag", nil
+				}
+			} else {
+				checker = func(_ context.Context, _ string) (bool, error) {
+					return false, nil
+				}
+			}
+
+			reg := NewBuilder().
+				SetTools(tools).
+				WithToolsets([]string{"all"}).
+				WithFeatureChecker(checker).
+				Build()
+
+			// Test tools/call endpoint
+			callReg := reg.ForMCPRequest(MCPMethodToolsCall, tc.toolName)
+			available := callReg.AvailableTools(context.Background())
+
+			if len(available) != tc.expectToolCount {
+				t.Fatalf("Expected %d tool(s), got %d", tc.expectToolCount, len(available))
+			}
+
+			if tc.expectToolCount > 0 {
+				tool := available[0]
+				if tool.Tool.Name != tc.toolName {
+					t.Errorf("Expected tool name %q, got %q", tc.toolName, tool.Tool.Name)
+				}
+				if tool.FeatureFlagEnable != tc.expectEnableFlag {
+					t.Errorf("Expected FeatureFlagEnable=%q, got %q", tc.expectEnableFlag, tool.FeatureFlagEnable)
+				}
+				if tool.FeatureFlagDisable != tc.expectDisableFlag {
+					t.Errorf("Expected FeatureFlagDisable=%q, got %q", tc.expectDisableFlag, tool.FeatureFlagDisable)
+				}
+			}
+		})
+	}
+}
+
+// TestNoDuplicateToolsInAnyFeatureFlagCombination validates that no matter what
+// combination of feature flags is enabled, we never have duplicate tool names in
+// the available tools list
+func TestNoDuplicateToolsInAnyFeatureFlagCombination(t *testing.T) {
+	tools := []ServerTool{
+		// Simulate real tools with feature flags
+		mockToolWithFlags("actions_list", "test", true, "", "consolidated"),
+		mockToolWithFlags("actions_list", "test", true, "consolidated", ""),
+		mockToolWithFlags("actions_get", "test", true, "", "consolidated"),
+		mockToolWithFlags("actions_get", "test", true, "consolidated", ""),
+		mockToolWithFlags("get_job_logs", "test", true, "", "consolidated"),
+		mockToolWithFlags("get_job_logs", "test", true, "consolidated", ""),
+		mockTool("regular_tool", "test", true),
+		mockToolWithFlags("feature_tool", "test", true, "other_flag", ""),
+	}
+
+	// Test all combinations of feature flags
+	flags := []string{"consolidated", "other_flag"}
+
+	// Generate all possible combinations of flags (2^n combinations)
+	numCombinations := 1 << len(flags)
+
+	for i := 0; i < numCombinations; i++ {
+		flagStates := make(map[string]bool)
+		var testName string
+		for j, flag := range flags {
+			isOn := (i & (1 << j)) != 0
+			flagStates[flag] = isOn
+			if isOn {
+				if testName != "" {
+					testName += "_"
+				}
+				testName += flag
+			}
+		}
+		if testName == "" {
+			testName = "no_flags"
+		}
+
+		t.Run(testName, func(t *testing.T) {
+			checker := func(_ context.Context, flag string) (bool, error) {
+				return flagStates[flag], nil
+			}
+
+			reg := NewBuilder().
+				SetTools(tools).
+				WithToolsets([]string{"all"}).
+				WithFeatureChecker(checker).
+				Build()
+
+			available := reg.AvailableTools(context.Background())
+
+			// Check for duplicates
+			seen := make(map[string]int)
+			for _, tool := range available {
+				seen[tool.Tool.Name]++
+			}
+
+			for name, count := range seen {
+				if count > 1 {
+					t.Errorf("Duplicate tool %q appears %d times with flag state: %v", name, count, flagStates)
+				}
+			}
+		})
+	}
+}
