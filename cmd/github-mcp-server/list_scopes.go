@@ -75,6 +75,14 @@ func init() {
 	rootCmd.AddCommand(listScopesCmd)
 }
 
+// formatScopeDisplay formats a scope string for display, handling empty scopes.
+func formatScopeDisplay(scope string) string {
+	if scope == "" {
+		return "(no scope required for public read access)"
+	}
+	return scope
+}
+
 func runListScopes() error {
 	// Get toolsets configuration (same logic as stdio command)
 	var enabledToolsets []string
@@ -217,11 +225,7 @@ func outputSummary(output ScopesOutput) error {
 	fmt.Println("Required OAuth scopes for enabled tools:")
 	fmt.Println()
 	for _, scope := range output.UniqueScopes {
-		if scope == "" {
-			fmt.Println("  (no scope required for public read access)")
-		} else {
-			fmt.Printf("  %s\n", scope)
-		}
+		fmt.Printf("  %s\n", formatScopeDisplay(scope))
 	}
 	fmt.Printf("\nTotal: %d unique scope(s)\n", len(output.UniqueScopes))
 	return nil
@@ -275,11 +279,7 @@ func outputText(output ScopesOutput) error {
 	} else {
 		fmt.Println("Unique scopes required:")
 		for _, scope := range output.UniqueScopes {
-			if scope == "" {
-				fmt.Println("  • (no scope - public read access)")
-			} else {
-				fmt.Printf("  • %s\n", scope)
-			}
+			fmt.Printf("  • %s\n", formatScopeDisplay(scope))
 		}
 	}
 	fmt.Printf("\nTotal: %d tools, %d unique scopes\n", len(output.Tools), len(output.UniqueScopes))
