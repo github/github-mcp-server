@@ -1,0 +1,128 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "List GitHub Actions workflows in a repository"
+  },
+  "description": "Tools for listing GitHub Actions resources.\nUse this tool to list workflows in a repository, or list workflow runs, jobs, and artifacts for a specific workflow or workflow run.\n",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "method": {
+        "type": "string",
+        "description": "The action to perform",
+        "enum": [
+          "list_workflows",
+          "list_workflow_runs",
+          "list_workflow_jobs",
+          "list_workflow_run_artifacts"
+        ]
+      },
+      "owner": {
+        "type": "string",
+        "description": "Repository owner"
+      },
+      "page": {
+        "type": "number",
+        "description": "Page number for pagination (default: 1)",
+        "minimum": 1
+      },
+      "per_page": {
+        "type": "number",
+        "description": "Results per page for pagination (default: 30, max: 100)",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      },
+      "resource_id": {
+        "type": "string",
+        "description": "The unique identifier of the resource. This will vary based on the \"method\" provided, so ensure you provide the correct ID:\n- Do not provide any resource ID for 'list_workflows' method.\n- Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'list_workflow_runs' method, or omit to list all workflow runs in the repository.\n- Provide a workflow run ID for 'list_workflow_jobs' and 'list_workflow_run_artifacts' methods.\n"
+      },
+      "workflow_jobs_filter": {
+        "type": "object",
+        "properties": {
+          "filter": {
+            "type": "string",
+            "description": "Filters jobs by their completed_at timestamp",
+            "enum": [
+              "latest",
+              "all"
+            ]
+          }
+        },
+        "description": "Filters for workflow jobs. **ONLY** used when method is 'list_workflow_jobs'"
+      },
+      "workflow_runs_filter": {
+        "type": "object",
+        "properties": {
+          "actor": {
+            "type": "string",
+            "description": "Filter to a specific GitHub user's workflow runs."
+          },
+          "branch": {
+            "type": "string",
+            "description": "Filter workflow runs to a specific Git branch. Use the name of the branch."
+          },
+          "event": {
+            "type": "string",
+            "description": "Filter workflow runs to a specific event type",
+            "enum": [
+              "branch_protection_rule",
+              "check_run",
+              "check_suite",
+              "create",
+              "delete",
+              "deployment",
+              "deployment_status",
+              "discussion",
+              "discussion_comment",
+              "fork",
+              "gollum",
+              "issue_comment",
+              "issues",
+              "label",
+              "merge_group",
+              "milestone",
+              "page_build",
+              "public",
+              "pull_request",
+              "pull_request_review",
+              "pull_request_review_comment",
+              "pull_request_target",
+              "push",
+              "registry_package",
+              "release",
+              "repository_dispatch",
+              "schedule",
+              "status",
+              "watch",
+              "workflow_call",
+              "workflow_dispatch",
+              "workflow_run"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "description": "Filter workflow runs to only runs with a specific status",
+            "enum": [
+              "queued",
+              "in_progress",
+              "completed",
+              "requested",
+              "waiting"
+            ]
+          }
+        },
+        "description": "Filters for workflow runs. **ONLY** used when method is 'list_workflow_runs'"
+      }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo"
+    ]
+  },
+  "name": "actions_list"
+}

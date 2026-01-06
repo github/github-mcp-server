@@ -1,40 +1,10 @@
 {
   "annotations": {
-    "title": "Create or update file",
-    "readOnlyHint": false
+    "title": "Create or update file"
   },
-  "description": "Create or update a single file in a GitHub repository. If updating, you must provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.",
+  "description": "Create or update a single file in a GitHub repository. \nIf updating, you should provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.\n\nIn order to obtain the SHA of original file version before updating, use the following git command:\ngit ls-tree HEAD \u003cpath to file\u003e\n\nIf the SHA is not provided, the tool will attempt to acquire it by fetching the current file contents from the repository, which may lead to rewriting latest committed changes if the file has changed since last retrieval.\n",
   "inputSchema": {
-    "properties": {
-      "branch": {
-        "description": "Branch to create/update the file in",
-        "type": "string"
-      },
-      "content": {
-        "description": "Content of the file",
-        "type": "string"
-      },
-      "message": {
-        "description": "Commit message",
-        "type": "string"
-      },
-      "owner": {
-        "description": "Repository owner (username or organization)",
-        "type": "string"
-      },
-      "path": {
-        "description": "Path where to create/update the file",
-        "type": "string"
-      },
-      "repo": {
-        "description": "Repository name",
-        "type": "string"
-      },
-      "sha": {
-        "description": "Required if updating an existing file. The blob SHA of the file being replaced.",
-        "type": "string"
-      }
-    },
+    "type": "object",
     "required": [
       "owner",
       "repo",
@@ -43,7 +13,36 @@
       "message",
       "branch"
     ],
-    "type": "object"
+    "properties": {
+      "branch": {
+        "type": "string",
+        "description": "Branch to create/update the file in"
+      },
+      "content": {
+        "type": "string",
+        "description": "Content of the file"
+      },
+      "message": {
+        "type": "string",
+        "description": "Commit message"
+      },
+      "owner": {
+        "type": "string",
+        "description": "Repository owner (username or organization)"
+      },
+      "path": {
+        "type": "string",
+        "description": "Path where to create/update the file"
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      },
+      "sha": {
+        "type": "string",
+        "description": "The blob SHA of the file being replaced."
+      }
+    }
   },
   "name": "create_or_update_file"
 }

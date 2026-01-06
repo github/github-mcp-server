@@ -7,40 +7,82 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
+	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/google/go-github/v74/github"
+	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/google/go-github/v79/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 )
 
-func stubGetClientFn(client *github.Client) GetClientFn {
+// stubDeps is a test helper that implements ToolDependencies with configurable behavior.
+// Use this when you need to test error paths or when you need closure-based client creation.
+type stubDeps struct {
+	clientFn    func(context.Context) (*github.Client, error)
+	gqlClientFn func(context.Context) (*githubv4.Client, error)
+	rawClientFn func(context.Context) (*raw.Client, error)
+
+	repoAccessCache   *lockdown.RepoAccessCache
+	t                 translations.TranslationHelperFunc
+	flags             FeatureFlags
+	contentWindowSize int
+}
+
+func (s stubDeps) GetClient(ctx context.Context) (*github.Client, error) {
+	if s.clientFn != nil {
+		return s.clientFn(ctx)
+	}
+	return nil, nil
+}
+
+func (s stubDeps) GetGQLClient(ctx context.Context) (*githubv4.Client, error) {
+	if s.gqlClientFn != nil {
+		return s.gqlClientFn(ctx)
+	}
+	return nil, nil
+}
+
+func (s stubDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
+	if s.rawClientFn != nil {
+		return s.rawClientFn(ctx)
+	}
+	return nil, nil
+}
+
+func (s stubDeps) GetRepoAccessCache() *lockdown.RepoAccessCache { return s.repoAccessCache }
+func (s stubDeps) GetT() translations.TranslationHelperFunc      { return s.t }
+func (s stubDeps) GetFlags() FeatureFlags                        { return s.flags }
+func (s stubDeps) GetContentWindowSize() int                     { return s.contentWindowSize }
+
+// Helper functions to create stub client functions for error testing
+func stubClientFnFromHTTP(httpClient *http.Client) func(context.Context) (*github.Client, error) {
 	return func(_ context.Context) (*github.Client, error) {
-		return client, nil
+		return github.NewClient(httpClient), nil
 	}
 }
 
-func stubGetClientFromHTTPFn(client *http.Client) GetClientFn {
+func stubClientFnErr(errMsg string) func(context.Context) (*github.Client, error) {
 	return func(_ context.Context) (*github.Client, error) {
-		return github.NewClient(client), nil
+		return nil, errors.New(errMsg)
 	}
 }
 
-func stubGetClientFnErr(err string) GetClientFn {
-	return func(_ context.Context) (*github.Client, error) {
-		return nil, errors.New(err)
-	}
-}
-
-func stubGetGQLClientFn(client *githubv4.Client) GetGQLClientFn {
+func stubGQLClientFnErr(errMsg string) func(context.Context) (*githubv4.Client, error) {
 	return func(_ context.Context) (*githubv4.Client, error) {
-		return client, nil
+		return nil, errors.New(errMsg)
 	}
 }
 
-func stubGetRawClientFn(client *raw.Client) raw.GetRawClientFn {
-	return func(_ context.Context) (*raw.Client, error) {
-		return client, nil
+func stubRepoAccessCache(client *githubv4.Client, ttl time.Duration) *lockdown.RepoAccessCache {
+	cacheName := fmt.Sprintf("repo-access-cache-test-%d", time.Now().UnixNano())
+	return lockdown.GetInstance(client, lockdown.WithTTL(ttl), lockdown.WithCacheName(cacheName))
+}
+
+func stubFeatureFlags(enabledFlags map[string]bool) FeatureFlags {
+	return FeatureFlags{
+		LockdownMode: enabledFlags["lockdown-mode"],
 	}
 }
 
@@ -135,8 +177,7 @@ func Test_RequiredStringParam(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			request := createMCPRequest(tc.params)
-			result, err := RequiredParam[string](request, tc.paramName)
+			result, err := RequiredParam[string](tc.params, tc.paramName)
 
 			if tc.expectError {
 				assert.Error(t, err)
@@ -188,8 +229,7 @@ func Test_OptionalStringParam(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			request := createMCPRequest(tc.params)
-			result, err := OptionalParam[string](request, tc.paramName)
+			result, err := OptionalParam[string](tc.params, tc.paramName)
 
 			if tc.expectError {
 				assert.Error(t, err)
@@ -234,8 +274,7 @@ func Test_RequiredInt(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			request := createMCPRequest(tc.params)
-			result, err := RequiredInt(request, tc.paramName)
+			result, err := RequiredInt(tc.params, tc.paramName)
 
 			if tc.expectError {
 				assert.Error(t, err)
@@ -286,8 +325,7 @@ func Test_OptionalIntParam(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			request := createMCPRequest(tc.params)
-			result, err := OptionalIntParam(request, tc.paramName)
+			result, err := OptionalIntParam(tc.params, tc.paramName)
 
 			if tc.expectError {
 				assert.Error(t, err)
@@ -344,8 +382,7 @@ func Test_OptionalNumberParamWithDefault(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			request := createMCPRequest(tc.params)
-			result, err := OptionalIntParamWithDefault(request, tc.paramName, tc.defaultVal)
+			result, err := OptionalIntParamWithDefault(tc.params, tc.paramName, tc.defaultVal)
 
 			if tc.expectError {
 				assert.Error(t, err)
@@ -397,8 +434,7 @@ func Test_OptionalBooleanParam(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			request := createMCPRequest(tc.params)
-			result, err := OptionalParam[bool](request, tc.paramName)
+			result, err := OptionalParam[bool](tc.params, tc.paramName)
 
 			if tc.expectError {
 				assert.Error(t, err)
@@ -465,8 +501,7 @@ func TestOptionalStringArrayParam(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			request := createMCPRequest(tc.params)
-			result, err := OptionalStringArrayParam(request, tc.paramName)
+			result, err := OptionalStringArrayParam(tc.params, tc.paramName)
 
 			if tc.expectError {
 				assert.Error(t, err)
@@ -548,8 +583,7 @@ func TestOptionalPaginationParams(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			request := createMCPRequest(tc.params)
-			result, err := OptionalPaginationParams(request)
+			result, err := OptionalPaginationParams(tc.params)
 
 			if tc.expectError {
 				assert.Error(t, err)

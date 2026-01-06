@@ -1,49 +1,57 @@
 {
   "annotations": {
-    "title": "List project items",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "List project items"
   },
-  "description": "List Project items for a user or org",
+  "description": "Search project items with advanced filtering",
   "inputSchema": {
-    "properties": {
-      "fields": {
-        "description": "Specific list of field IDs to include in the response (e.g. [\"102589\", \"985201\", \"169875\"]). If not provided, only the title field is included.",
-        "items": {
-          "type": "string"
-        },
-        "type": "array"
-      },
-      "owner": {
-        "description": "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.",
-        "type": "string"
-      },
-      "owner_type": {
-        "description": "Owner type",
-        "enum": [
-          "user",
-          "org"
-        ],
-        "type": "string"
-      },
-      "per_page": {
-        "description": "Number of results per page (max 100, default: 30)",
-        "type": "number"
-      },
-      "project_number": {
-        "description": "The project's number.",
-        "type": "number"
-      },
-      "query": {
-        "description": "Search query to filter items",
-        "type": "string"
-      }
-    },
+    "type": "object",
     "required": [
       "owner_type",
       "owner",
       "project_number"
     ],
-    "type": "object"
+    "properties": {
+      "after": {
+        "type": "string",
+        "description": "Forward pagination cursor from previous pageInfo.nextCursor."
+      },
+      "before": {
+        "type": "string",
+        "description": "Backward pagination cursor from previous pageInfo.prevCursor (rare)."
+      },
+      "fields": {
+        "type": "array",
+        "description": "Field IDs to include (e.g. [\"102589\", \"985201\"]). CRITICAL: Always provide to get field values. Without this, only titles returned.",
+        "items": {
+          "type": "string"
+        }
+      },
+      "owner": {
+        "type": "string",
+        "description": "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive."
+      },
+      "owner_type": {
+        "type": "string",
+        "description": "Owner type",
+        "enum": [
+          "user",
+          "org"
+        ]
+      },
+      "per_page": {
+        "type": "number",
+        "description": "Results per page (max 50)"
+      },
+      "project_number": {
+        "type": "number",
+        "description": "The project's number."
+      },
+      "query": {
+        "type": "string",
+        "description": "Query string for advanced filtering of project items using GitHub's project filtering syntax."
+      }
+    }
   },
   "name": "list_project_items"
 }

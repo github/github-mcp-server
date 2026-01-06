@@ -6,23 +6,28 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v74/github"
-	"github.com/migueleliasweb/go-github-mock/src/mock"
+	"github.com/google/go-github/v79/github"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_ListGlobalSecurityAdvisories(t *testing.T) {
-	mockClient := github.NewClient(nil)
-	tool, _ := ListGlobalSecurityAdvisories(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	toolDef := ListGlobalSecurityAdvisories(translations.NullTranslationHelper)
+	tool := toolDef.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_global_security_advisories", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "ecosystem")
-	assert.Contains(t, tool.InputSchema.Properties, "severity")
-	assert.Contains(t, tool.InputSchema.Properties, "ghsaId")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{})
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be of type *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "ecosystem")
+	assert.Contains(t, schema.Properties, "severity")
+	assert.Contains(t, schema.Properties, "ghsaId")
+	assert.Empty(t, schema.Required)
 
 	// Setup mock advisory for success case
 	mockAdvisory := &github.GlobalSecurityAdvisory{
@@ -44,12 +49,9 @@ func Test_ListGlobalSecurityAdvisories(t *testing.T) {
 	}{
 		{
 			name: "successful advisory fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetAdvisories,
-					[]*github.GlobalSecurityAdvisory{mockAdvisory},
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetAdvisories: mockResponse(t, http.StatusOK, []*github.GlobalSecurityAdvisory{mockAdvisory}),
+			}),
 			requestArgs: map[string]interface{}{
 				"type":      "reviewed",
 				"ecosystem": "npm",
@@ -60,15 +62,12 @@ func Test_ListGlobalSecurityAdvisories(t *testing.T) {
 		},
 		{
 			name: "invalid severity value",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetAdvisories,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusBadRequest)
-						_, _ = w.Write([]byte(`{"message": "Bad Request"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetAdvisories: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = w.Write([]byte(`{"message": "Bad Request"}`))
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"type":     "reviewed",
 				"severity": "extreme",
@@ -78,15 +77,12 @@ func Test_ListGlobalSecurityAdvisories(t *testing.T) {
 		},
 		{
 			name: "API error handling",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetAdvisories,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusInternalServerError)
-						_, _ = w.Write([]byte(`{"message": "Internal Server Error"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetAdvisories: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusInternalServerError)
+					_, _ = w.Write([]byte(`{"message": "Internal Server Error"}`))
+				}),
+			}),
 			requestArgs:    map[string]interface{}{},
 			expectError:    true,
 			expectedErrMsg: "failed to list global security advisories",
@@ -97,13 +93,14 @@ func Test_ListGlobalSecurityAdvisories(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListGlobalSecurityAdvisories(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{Client: client}
+			handler := toolDef.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -133,13 +130,17 @@ func Test_ListGlobalSecurityAdvisories(t *testing.T) {
 }
 
 func Test_GetGlobalSecurityAdvisory(t *testing.T) {
-	mockClient := github.NewClient(nil)
-	tool, _ := GetGlobalSecurityAdvisory(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	toolDef := GetGlobalSecurityAdvisory(translations.NullTranslationHelper)
+	tool := toolDef.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "get_global_security_advisory", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "ghsaId")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"ghsaId"})
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be of type *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "ghsaId")
+	assert.ElementsMatch(t, schema.Required, []string{"ghsaId"})
 
 	// Setup mock advisory for success case
 	mockAdvisory := &github.GlobalSecurityAdvisory{
@@ -161,12 +162,9 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 	}{
 		{
 			name: "successful advisory fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetAdvisoriesByGhsaId,
-					mockAdvisory,
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetAdvisoriesByGhsaID: mockResponse(t, http.StatusOK, mockAdvisory),
+			}),
 			requestArgs: map[string]interface{}{
 				"ghsaId": "GHSA-xxxx-xxxx-xxxx",
 			},
@@ -175,15 +173,12 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 		},
 		{
 			name: "invalid ghsaId format",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetAdvisoriesByGhsaId,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusBadRequest)
-						_, _ = w.Write([]byte(`{"message": "Bad Request"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetAdvisoriesByGhsaID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = w.Write([]byte(`{"message": "Bad Request"}`))
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"ghsaId": "invalid-ghsa-id",
 			},
@@ -192,15 +187,12 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 		},
 		{
 			name: "advisory not found",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetAdvisoriesByGhsaId,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetAdvisoriesByGhsaID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"ghsaId": "GHSA-xxxx-xxxx-xxxx",
 			},
@@ -213,13 +205,14 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetGlobalSecurityAdvisory(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{Client: client}
+			handler := toolDef.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(context.Background(), request)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -244,23 +237,21 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 
 func Test_ListRepositorySecurityAdvisories(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := ListRepositorySecurityAdvisories(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	toolDef := ListRepositorySecurityAdvisories(translations.NullTranslationHelper)
+	tool := toolDef.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_repository_security_advisories", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "owner")
-	assert.Contains(t, tool.InputSchema.Properties, "repo")
-	assert.Contains(t, tool.InputSchema.Properties, "direction")
-	assert.Contains(t, tool.InputSchema.Properties, "sort")
-	assert.Contains(t, tool.InputSchema.Properties, "state")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"owner", "repo"})
 
-	// Local endpoint pattern for repository security advisories
-	var GetReposSecurityAdvisoriesByOwnerByRepo = mock.EndpointPattern{
-		Pattern: "/repos/{owner}/{repo}/security-advisories",
-		Method:  "GET",
-	}
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be of type *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "direction")
+	assert.Contains(t, schema.Properties, "sort")
+	assert.Contains(t, schema.Properties, "state")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
 	// Setup mock advisories for success cases
 	adv1 := &github.SecurityAdvisory{
@@ -286,17 +277,14 @@ func Test_ListRepositorySecurityAdvisories(t *testing.T) {
 	}{
 		{
 			name: "successful advisories listing (no filters)",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					GetReposSecurityAdvisoriesByOwnerByRepo,
-					expect(t, expectations{
-						path:        "/repos/owner/repo/security-advisories",
-						queryParams: map[string]string{},
-					}).andThen(
-						mockResponse(t, http.StatusOK, []*github.SecurityAdvisory{adv1, adv2}),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposSecurityAdvisoriesByOwnerByRepo: expect(t, expectations{
+					path:        "/repos/owner/repo/security-advisories",
+					queryParams: map[string]string{},
+				}).andThen(
+					mockResponse(t, http.StatusOK, []*github.SecurityAdvisory{adv1, adv2}),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
@@ -306,21 +294,18 @@ func Test_ListRepositorySecurityAdvisories(t *testing.T) {
 		},
 		{
 			name: "successful advisories listing with filters",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					GetReposSecurityAdvisoriesByOwnerByRepo,
-					expect(t, expectations{
-						path: "/repos/octo/hello-world/security-advisories",
-						queryParams: map[string]string{
-							"direction": "desc",
-							"sort":      "updated",
-							"state":     "published",
-						},
-					}).andThen(
-						mockResponse(t, http.StatusOK, []*github.SecurityAdvisory{adv1}),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposSecurityAdvisoriesByOwnerByRepo: expect(t, expectations{
+					path: "/repos/octo/hello-world/security-advisories",
+					queryParams: map[string]string{
+						"direction": "desc",
+						"sort":      "updated",
+						"state":     "published",
+					},
+				}).andThen(
+					mockResponse(t, http.StatusOK, []*github.SecurityAdvisory{adv1}),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":     "octo",
 				"repo":      "hello-world",
@@ -333,17 +318,14 @@ func Test_ListRepositorySecurityAdvisories(t *testing.T) {
 		},
 		{
 			name: "advisories listing fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					GetReposSecurityAdvisoriesByOwnerByRepo,
-					expect(t, expectations{
-						path:        "/repos/owner/repo/security-advisories",
-						queryParams: map[string]string{},
-					}).andThen(
-						mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "Internal Server Error"}),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposSecurityAdvisoriesByOwnerByRepo: expect(t, expectations{
+					path:        "/repos/owner/repo/security-advisories",
+					queryParams: map[string]string{},
+				}).andThen(
+					mockResponse(t, http.StatusInternalServerError, map[string]string{"message": "Internal Server Error"}),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
@@ -356,11 +338,13 @@ func Test_ListRepositorySecurityAdvisories(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListRepositorySecurityAdvisories(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{Client: client}
+			handler := toolDef.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
 
-			result, err := handler(context.Background(), request)
+			// Call handler
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -388,22 +372,20 @@ func Test_ListRepositorySecurityAdvisories(t *testing.T) {
 
 func Test_ListOrgRepositorySecurityAdvisories(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := ListOrgRepositorySecurityAdvisories(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	toolDef := ListOrgRepositorySecurityAdvisories(translations.NullTranslationHelper)
+	tool := toolDef.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "list_org_repository_security_advisories", tool.Name)
 	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, tool.InputSchema.Properties, "org")
-	assert.Contains(t, tool.InputSchema.Properties, "direction")
-	assert.Contains(t, tool.InputSchema.Properties, "sort")
-	assert.Contains(t, tool.InputSchema.Properties, "state")
-	assert.ElementsMatch(t, tool.InputSchema.Required, []string{"org"})
 
-	// Endpoint pattern for org repository security advisories
-	var GetOrgsSecurityAdvisoriesByOrg = mock.EndpointPattern{
-		Pattern: "/orgs/{org}/security-advisories",
-		Method:  "GET",
-	}
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be of type *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "org")
+	assert.Contains(t, schema.Properties, "direction")
+	assert.Contains(t, schema.Properties, "sort")
+	assert.Contains(t, schema.Properties, "state")
+	assert.ElementsMatch(t, schema.Required, []string{"org"})
 
 	adv1 := &github.SecurityAdvisory{
 		GHSAID:      github.Ptr("GHSA-aaaa-bbbb-cccc"),
@@ -428,17 +410,14 @@ func Test_ListOrgRepositorySecurityAdvisories(t *testing.T) {
 	}{
 		{
 			name: "successful listing (no filters)",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					GetOrgsSecurityAdvisoriesByOrg,
-					expect(t, expectations{
-						path:        "/orgs/octo/security-advisories",
-						queryParams: map[string]string{},
-					}).andThen(
-						mockResponse(t, http.StatusOK, []*github.SecurityAdvisory{adv1, adv2}),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetOrgsSecurityAdvisoriesByOrg: expect(t, expectations{
+					path:        "/orgs/octo/security-advisories",
+					queryParams: map[string]string{},
+				}).andThen(
+					mockResponse(t, http.StatusOK, []*github.SecurityAdvisory{adv1, adv2}),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"org": "octo",
 			},
@@ -447,21 +426,18 @@ func Test_ListOrgRepositorySecurityAdvisories(t *testing.T) {
 		},
 		{
 			name: "successful listing with filters",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					GetOrgsSecurityAdvisoriesByOrg,
-					expect(t, expectations{
-						path: "/orgs/octo/security-advisories",
-						queryParams: map[string]string{
-							"direction": "asc",
-							"sort":      "created",
-							"state":     "triage",
-						},
-					}).andThen(
-						mockResponse(t, http.StatusOK, []*github.SecurityAdvisory{adv1}),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetOrgsSecurityAdvisoriesByOrg: expect(t, expectations{
+					path: "/orgs/octo/security-advisories",
+					queryParams: map[string]string{
+						"direction": "asc",
+						"sort":      "created",
+						"state":     "triage",
+					},
+				}).andThen(
+					mockResponse(t, http.StatusOK, []*github.SecurityAdvisory{adv1}),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"org":       "octo",
 				"direction": "asc",
@@ -473,17 +449,14 @@ func Test_ListOrgRepositorySecurityAdvisories(t *testing.T) {
 		},
 		{
 			name: "listing fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					GetOrgsSecurityAdvisoriesByOrg,
-					expect(t, expectations{
-						path:        "/orgs/octo/security-advisories",
-						queryParams: map[string]string{},
-					}).andThen(
-						mockResponse(t, http.StatusForbidden, map[string]string{"message": "Forbidden"}),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetOrgsSecurityAdvisoriesByOrg: expect(t, expectations{
+					path:        "/orgs/octo/security-advisories",
+					queryParams: map[string]string{},
+				}).andThen(
+					mockResponse(t, http.StatusForbidden, map[string]string{"message": "Forbidden"}),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"org": "octo",
 			},
@@ -495,11 +468,13 @@ func Test_ListOrgRepositorySecurityAdvisories(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListOrgRepositorySecurityAdvisories(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{Client: client}
+			handler := toolDef.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
 
-			result, err := handler(context.Background(), request)
+			// Call handler
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			if tc.expectError {
 				require.Error(t, err)
