@@ -1629,6 +1629,14 @@ func getProjectItem(ctx context.Context, client *github.Client, owner, ownerType
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get project item", resp, body), nil, nil
+	}
+
 	r, err := json.Marshal(projectItem)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
