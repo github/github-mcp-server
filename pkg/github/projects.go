@@ -10,6 +10,7 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -67,6 +68,7 @@ func ListProjects(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner_type", "owner"},
 			},
 		},
+		[]scopes.Scope{scopes.ReadProject},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -172,6 +174,7 @@ func GetProject(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"project_number", "owner_type", "owner"},
 			},
 		},
+		[]scopes.Scope{scopes.ReadProject},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			projectNumber, err := RequiredInt(args, "project_number")
@@ -272,6 +275,7 @@ func ListProjectFields(t translations.TranslationHelperFunc) inventory.ServerToo
 				Required: []string{"owner_type", "owner", "project_number"},
 			},
 		},
+		[]scopes.Scope{scopes.ReadProject},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -370,6 +374,7 @@ func GetProjectField(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Required: []string{"owner_type", "owner", "project_number", "field_id"},
 			},
 		},
+		[]scopes.Scope{scopes.ReadProject},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -481,6 +486,7 @@ func ListProjectItems(t translations.TranslationHelperFunc) inventory.ServerTool
 				Required: []string{"owner_type", "owner", "project_number"},
 			},
 		},
+		[]scopes.Scope{scopes.ReadProject},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -605,6 +611,7 @@ func GetProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner_type", "owner", "project_number", "item_id"},
 			},
 		},
+		[]scopes.Scope{scopes.ReadProject},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -709,6 +716,7 @@ func AddProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner_type", "owner", "project_number", "item_type", "item_id"},
 			},
 		},
+		[]scopes.Scope{scopes.Project},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -819,6 +827,7 @@ func UpdateProjectItem(t translations.TranslationHelperFunc) inventory.ServerToo
 				Required: []string{"owner_type", "owner", "project_number", "item_id", "updated_field"},
 			},
 		},
+		[]scopes.Scope{scopes.Project},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -928,6 +937,7 @@ func DeleteProjectItem(t translations.TranslationHelperFunc) inventory.ServerToo
 				Required: []string{"owner_type", "owner", "project_number", "item_id"},
 			},
 		},
+		[]scopes.Scope{scopes.Project},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 
 			owner, err := RequiredParam[string](args, "owner")

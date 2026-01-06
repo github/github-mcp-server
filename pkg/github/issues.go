@@ -14,6 +14,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/sanitize"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-viper/mapstructure/v2"
@@ -274,6 +275,7 @@ Options are:
 			},
 			InputSchema: schema,
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -565,6 +567,7 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner"},
 			},
 		},
+		[]scopes.Scope{scopes.ReadOrg},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -632,6 +635,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Required: []string{"owner", "repo", "issue_number", "body"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -736,6 +740,7 @@ Options are:
 				Required: []string{"method", "owner", "repo", "issue_number", "sub_issue_id"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -963,6 +968,7 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 			InputSchema: schema,
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			result, err := searchHandler(ctx, deps.GetClient, args, "issue", "failed to search issues")
 			return result, nil, err
@@ -1052,6 +1058,7 @@ Options are:
 				Required: []string{"method", "owner", "repo"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -1385,6 +1392,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 			InputSchema: schema,
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1642,6 +1650,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				Required: []string{"owner", "repo", "issue_number"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			var params struct {
 				Owner       string `mapstructure:"owner"`
