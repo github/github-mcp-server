@@ -23,7 +23,7 @@ You can also add it via the Codex CLI:
 codex mcp add github --url https://api.githubcopilot.com/mcp/  
 ```
 
-###  Storing Your PAT Securely
+### Storing Your PAT Securely
 
 For security, avoid hardcoding your token. One common approach:
 
