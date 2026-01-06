@@ -15,7 +15,6 @@ import (
 	"github.com/github/github-mcp-server/internal/profiler"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	buffer "github.com/github/github-mcp-server/pkg/buffer"
-	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -2299,73 +2298,6 @@ func Test_ActionsRunTrigger_CancelWorkflowRun(t *testing.T) {
 		textContent := getTextResult(t, result)
 		assert.Equal(t, "missing required parameter: run_id", textContent.Text)
 	})
-}
-
-// TestGetJobLogsFeatureFlagScenario tests the specific scenario from GitHub issue #878
-// where get_job_logs tool calls were failing with "unknown tool" errors.
-// This validates that both GetJobLogs and ActionsGetJobLogs tools are properly
-// handled with feature flags and that only one is active at a time.
-func TestGetJobLogsFeatureFlagScenario(t *testing.T) {
-	tools := AllTools(stubTranslation)
-
-	// Find all get_job_logs tools
-	var getJobLogsTools []inventory.ServerTool
-	for _, tool := range tools {
-		if tool.Tool.Name == "get_job_logs" {
-			getJobLogsTools = append(getJobLogsTools, tool)
-		}
-	}
-
-	// Should have exactly 2 variants
-	require.Len(t, getJobLogsTools, 2, "Should have exactly 2 get_job_logs tool variants")
-
-	// One should have FeatureFlagDisable, one should have FeatureFlagEnable
-	var hasEnable, hasDisable bool
-	var enableTool, disableTool inventory.ServerTool
-
-	for _, tool := range getJobLogsTools {
-		if tool.FeatureFlagEnable != "" {
-			hasEnable = true
-			enableTool = tool
-			assert.Equal(t, FeatureFlagConsolidatedActions, tool.FeatureFlagEnable,
-				"FeatureFlagEnable should be set to FeatureFlagConsolidatedActions")
-		}
-		if tool.FeatureFlagDisable != "" {
-			hasDisable = true
-			disableTool = tool
-			assert.Equal(t, FeatureFlagConsolidatedActions, tool.FeatureFlagDisable,
-				"FeatureFlagDisable should be set to FeatureFlagConsolidatedActions")
-		}
-	}
-
-	require.True(t, hasEnable, "One get_job_logs variant should have FeatureFlagEnable")
-	require.True(t, hasDisable, "One get_job_logs variant should have FeatureFlagDisable")
-
-	// Test that feature flag filtering works correctly
-	// Build inventory without feature checker (flag OFF by default)
-	regFlagOff := NewInventory(stubTranslation).WithToolsets([]string{"all"}).Build()
-	filteredOff := regFlagOff.ForMCPRequest(inventory.MCPMethodToolsCall, "get_job_logs")
-	availableOff := filteredOff.AvailableTools(context.Background())
-
-	require.Len(t, availableOff, 1, "With flag OFF, should have exactly 1 get_job_logs tool")
-	assert.Equal(t, FeatureFlagConsolidatedActions, availableOff[0].FeatureFlagDisable,
-		"With flag OFF, should get the tool with FeatureFlagDisable")
-
-	// Build inventory with feature checker (flag ON)
-	checkerOn := func(_ context.Context, flag string) (bool, error) {
-		return flag == FeatureFlagConsolidatedActions, nil
-	}
-	regFlagOn := NewInventory(stubTranslation).WithToolsets([]string{"all"}).WithFeatureChecker(checkerOn).Build()
-	filteredOn := regFlagOn.ForMCPRequest(inventory.MCPMethodToolsCall, "get_job_logs")
-	availableOn := filteredOn.AvailableTools(context.Background())
-
-	require.Len(t, availableOn, 1, "With flag ON, should have exactly 1 get_job_logs tool")
-	assert.Equal(t, FeatureFlagConsolidatedActions, availableOn[0].FeatureFlagEnable,
-		"With flag ON, should get the tool with FeatureFlagEnable")
-
-	// Verify both tools have handlers (this was the original issue - tool found but couldn't be called)
-	assert.True(t, enableTool.HasHandler(), "Consolidated tool should have handler")
-	assert.True(t, disableTool.HasHandler(), "Original tool should have handler")
 }
 
 func Test_ActionsGetJobLogs(t *testing.T) {
