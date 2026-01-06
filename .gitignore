@@ -18,6 +18,15 @@ bin/
 
 # binary
 github-mcp-server
+*.exe
+cmd/mcpcurl/mcpcurl
+
+# tests
+*.test
+coverage.out
+
+# AI Context
+GEMINI.md
 
 .history
 conformance-report/
