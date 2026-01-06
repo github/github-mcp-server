@@ -1565,15 +1565,9 @@ func Test_ProjectsList_ListProjects(t *testing.T) {
 	}{
 		{
 			name: "success organization",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2", Method: http.MethodGet},
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write(mock.MustMarshal(orgProjects))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetOrgsProjectsV2: mockResponse(t, http.StatusOK, orgProjects),
+			}),
 			requestArgs: map[string]any{
 				"method":     "list_projects",
 				"owner":      "octo-org",
@@ -1584,15 +1578,9 @@ func Test_ProjectsList_ListProjects(t *testing.T) {
 		},
 		{
 			name: "success user",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{Pattern: "/users/{username}/projectsV2", Method: http.MethodGet},
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write(mock.MustMarshal(userProjects))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetUsersProjectsV2ByUsername: mockResponse(t, http.StatusOK, userProjects),
+			}),
 			requestArgs: map[string]any{
 				"method":     "list_projects",
 				"owner":      "octocat",
@@ -1603,7 +1591,7 @@ func Test_ProjectsList_ListProjects(t *testing.T) {
 		},
 		{
 			name:         "missing required parameter method",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"owner":      "octo-org",
 				"owner_type": "org",
@@ -1613,7 +1601,7 @@ func Test_ProjectsList_ListProjects(t *testing.T) {
 		},
 		{
 			name:         "unknown method",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]any{
 				"method":     "unknown_method",
 				"owner":      "octo-org",
@@ -1662,15 +1650,9 @@ func Test_ProjectsList_ListProjectFields(t *testing.T) {
 	fields := []map[string]any{{"id": 101, "name": "Status", "data_type": "single_select"}}
 
 	t.Run("success organization", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient(
-			mock.WithRequestMatchHandler(
-				mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/1/fields", Method: http.MethodGet},
-				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusOK)
-					_, _ = w.Write(mock.MustMarshal(fields))
-				}),
-			),
-		)
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetOrgsProjectsV2FieldsByProject: mockResponse(t, http.StatusOK, fields),
+		})
 
 		client := gh.NewClient(mockedClient)
 		deps := BaseDeps{
@@ -1698,7 +1680,7 @@ func Test_ProjectsList_ListProjectFields(t *testing.T) {
 	})
 
 	t.Run("missing project_number", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient()
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
 		client := gh.NewClient(mockedClient)
 		deps := BaseDeps{
 			Client: client,
@@ -1724,15 +1706,9 @@ func Test_ProjectsList_ListProjectItems(t *testing.T) {
 	items := []map[string]any{{"id": 1001, "archived_at": nil, "content": map[string]any{"title": "Issue 1"}}}
 
 	t.Run("success organization", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient(
-			mock.WithRequestMatchHandler(
-				mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/1/items", Method: http.MethodGet},
-				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusOK)
-					_, _ = w.Write(mock.MustMarshal(items))
-				}),
-			),
-		)
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetOrgsProjectsV2ItemsByProject: mockResponse(t, http.StatusOK, items),
+		})
 
 		client := gh.NewClient(mockedClient)
 		deps := BaseDeps{
@@ -1783,15 +1759,9 @@ func Test_ProjectsGet_GetProject(t *testing.T) {
 	project := map[string]any{"id": 123, "title": "Project Title"}
 
 	t.Run("success organization", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient(
-			mock.WithRequestMatchHandler(
-				mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/1", Method: http.MethodGet},
-				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusOK)
-					_, _ = w.Write(mock.MustMarshal(project))
-				}),
-			),
-		)
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetOrgsProjectsV2ByProject: mockResponse(t, http.StatusOK, project),
+		})
 
 		client := gh.NewClient(mockedClient)
 		deps := BaseDeps{
@@ -1817,7 +1787,7 @@ func Test_ProjectsGet_GetProject(t *testing.T) {
 	})
 
 	t.Run("unknown method", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient()
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
 		client := gh.NewClient(mockedClient)
 		deps := BaseDeps{
 			Client: client,
@@ -1844,15 +1814,9 @@ func Test_ProjectsGet_GetProjectField(t *testing.T) {
 	field := map[string]any{"id": 101, "name": "Status", "data_type": "single_select"}
 
 	t.Run("success organization", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient(
-			mock.WithRequestMatchHandler(
-				mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/1/fields/101", Method: http.MethodGet},
-				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusOK)
-					_, _ = w.Write(mock.MustMarshal(field))
-				}),
-			),
-		)
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetOrgsProjectsV2FieldsByProjectByFieldID: mockResponse(t, http.StatusOK, field),
+		})
 
 		client := gh.NewClient(mockedClient)
 		deps := BaseDeps{
@@ -1879,7 +1843,7 @@ func Test_ProjectsGet_GetProjectField(t *testing.T) {
 	})
 
 	t.Run("missing field_id", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient()
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
 		client := gh.NewClient(mockedClient)
 		deps := BaseDeps{
 			Client: client,
@@ -1906,15 +1870,9 @@ func Test_ProjectsGet_GetProjectItem(t *testing.T) {
 	item := map[string]any{"id": 1001, "archived_at": nil, "content": map[string]any{"title": "Issue 1"}}
 
 	t.Run("success organization", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient(
-			mock.WithRequestMatchHandler(
-				mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/1/items/1001", Method: http.MethodGet},
-				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusOK)
-					_, _ = w.Write(mock.MustMarshal(item))
-				}),
-			),
-		)
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetOrgsProjectsV2ItemsByProjectByItemID: mockResponse(t, http.StatusOK, item),
+		})
 
 		client := gh.NewClient(mockedClient)
 		deps := BaseDeps{
@@ -1941,7 +1899,7 @@ func Test_ProjectsGet_GetProjectItem(t *testing.T) {
 	})
 
 	t.Run("missing item_id", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient()
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
 		client := gh.NewClient(mockedClient)
 		deps := BaseDeps{
 			Client: client,
@@ -1991,23 +1949,12 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 	addedItem := map[string]any{"id": 2001, "archived_at": nil}
 
 	t.Run("success organization", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient(
-			mock.WithRequestMatchHandler(
-				mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/1/items", Method: http.MethodPost},
-				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					body, _ := io.ReadAll(r.Body)
-					var payload map[string]any
-					_ = json.Unmarshal(body, &payload)
-					if payload["id"] == nil || payload["type"] == nil {
-						w.WriteHeader(http.StatusBadRequest)
-						_, _ = w.Write([]byte(`{"message":"bad request"}`))
-						return
-					}
-					w.WriteHeader(http.StatusCreated)
-					_, _ = w.Write(mock.MustMarshal(addedItem))
-				}),
-			),
-		)
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			PostOrgsProjectsV2ItemsByProject: expectRequestBody(t, map[string]any{
+				"type": "Issue",
+				"id":   float64(123),
+			}).andThen(mockResponse(t, http.StatusCreated, addedItem)),
+		})
 
 		client := gh.NewClient(mockedClient)
 		deps := BaseDeps{
@@ -2035,7 +1982,7 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 	})
 
 	t.Run("missing item_type", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient()
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
 		client := gh.NewClient(mockedClient)
 		deps := BaseDeps{
 			Client: client,
@@ -2057,7 +2004,7 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 	})
 
 	t.Run("invalid item_type", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient()
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
 		client := gh.NewClient(mockedClient)
 		deps := BaseDeps{
 			Client: client,
@@ -2080,7 +2027,7 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 	})
 
 	t.Run("unknown method", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient()
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
 		client := gh.NewClient(mockedClient)
 		deps := BaseDeps{
 			Client: client,
@@ -2107,15 +2054,9 @@ func Test_ProjectsWrite_UpdateProjectItem(t *testing.T) {
 	updatedItem := map[string]any{"id": 1001, "archived_at": nil}
 
 	t.Run("success organization", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient(
-			mock.WithRequestMatchHandler(
-				mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/1/items/1001", Method: http.MethodPatch},
-				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusOK)
-					_, _ = w.Write(mock.MustMarshal(updatedItem))
-				}),
-			),
-		)
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			PatchOrgsProjectsV2ItemsByProjectByItemID: mockResponse(t, http.StatusOK, updatedItem),
+		})
 
 		client := gh.NewClient(mockedClient)
 		deps := BaseDeps{
@@ -2146,7 +2087,7 @@ func Test_ProjectsWrite_UpdateProjectItem(t *testing.T) {
 	})
 
 	t.Run("missing updated_field", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient()
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
 		client := gh.NewClient(mockedClient)
 		deps := BaseDeps{
 			Client: client,
@@ -2172,14 +2113,11 @@ func Test_ProjectsWrite_DeleteProjectItem(t *testing.T) {
 	toolDef := ProjectsWrite(translations.NullTranslationHelper)
 
 	t.Run("success organization", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient(
-			mock.WithRequestMatchHandler(
-				mock.EndpointPattern{Pattern: "/orgs/{org}/projectsV2/1/items/1001", Method: http.MethodDelete},
-				http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusNoContent)
-				}),
-			),
-		)
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			DeleteOrgsProjectsV2ItemsByProjectByItemID: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNoContent)
+			}),
+		})
 
 		client := gh.NewClient(mockedClient)
 		deps := BaseDeps{
@@ -2203,7 +2141,7 @@ func Test_ProjectsWrite_DeleteProjectItem(t *testing.T) {
 	})
 
 	t.Run("missing item_id", func(t *testing.T) {
-		mockedClient := mock.NewMockedHTTPClient()
+		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
 		client := gh.NewClient(mockedClient)
 		deps := BaseDeps{
 			Client: client,
