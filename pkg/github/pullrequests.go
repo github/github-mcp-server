@@ -1743,6 +1743,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 			var getLatestReviewForViewerQuery struct {
 				Repository struct {
 					PullRequest struct {
+						ID      githubv4.ID
 						Reviews struct {
 							Nodes []struct {
 								ID    githubv4.ID
@@ -1788,6 +1789,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 				} `graphql:"addPullRequestReviewThread(input: $input)"`
 			}
 
+			pullRequestID := getLatestReviewForViewerQuery.Repository.PullRequest.ID
 			if err := client.Mutate(
 				ctx,
 				&addPullRequestReviewThreadMutation,
@@ -1799,6 +1801,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 					Side:                newGQLStringlikePtr[githubv4.DiffSide](params.Side),
 					StartLine:           newGQLIntPtr(params.StartLine),
 					StartSide:           newGQLStringlikePtr[githubv4.DiffSide](params.StartSide),
+					PullRequestID:       &pullRequestID,
 					PullRequestReviewID: &review.ID,
 				},
 				nil,

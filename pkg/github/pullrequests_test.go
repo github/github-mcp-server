@@ -2731,6 +2731,7 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 					owner:  "owner",
 					repo:   "repo",
 					prNum:  42,
+					prID:   "PR_kwDOTest123",
 
 					reviews: []getLatestPendingReviewQueryReview{
 						{
@@ -2756,6 +2757,7 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 						Side:                githubv4mock.Ptr(githubv4.DiffSideRight),
 						StartLine:           githubv4.NewInt(5),
 						StartSide:           githubv4mock.Ptr(githubv4.DiffSideRight),
+						PullRequestID:       githubv4.NewID("PR_kwDOTest123"),
 						PullRequestReviewID: githubv4.NewID("PR_kwDODKw3uc6WYN1T"),
 					},
 					nil,
@@ -2788,6 +2790,7 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 					owner:  "owner",
 					repo:   "repo",
 					prNum:  42,
+					prID:   "PR_kwDOTest123",
 
 					reviews: []getLatestPendingReviewQueryReview{
 						{
@@ -2813,6 +2816,7 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 						Side:                githubv4mock.Ptr(githubv4.DiffSideRight),
 						StartLine:           nil,
 						StartSide:           nil,
+						PullRequestID:       githubv4.NewID("PR_kwDOTest123"),
 						PullRequestReviewID: githubv4.NewID("PR_kwDODKw3uc6WYN1T"),
 					},
 					nil,
@@ -3183,11 +3187,57 @@ type getLatestPendingReviewQueryParams struct {
 	owner  string
 	repo   string
 	prNum  int32
+	prID   string // Optional: include PR ID when needed for AddPullRequestReviewThread mutation
 
 	reviews []getLatestPendingReviewQueryReview
 }
 
 func getLatestPendingReviewQuery(p getLatestPendingReviewQueryParams) githubv4mock.Matcher {
+	// If prID is provided, include it in the query structure (needed for AddPullRequestReviewThread)
+	if p.prID != "" {
+		return githubv4mock.NewQueryMatcher(
+			struct {
+				Repository struct {
+					PullRequest struct {
+						ID      githubv4.ID
+						Reviews struct {
+							Nodes []struct {
+								ID    githubv4.ID
+								State githubv4.PullRequestReviewState
+								URL   githubv4.URI
+							}
+						} `graphql:"reviews(first: 1, author: $author)"`
+					} `graphql:"pullRequest(number: $prNum)"`
+				} `graphql:"repository(owner: $owner, name: $name)"`
+			}{},
+			map[string]any{
+				"author": githubv4.String(p.author),
+				"owner":  githubv4.String(p.owner),
+				"name":   githubv4.String(p.repo),
+				"prNum":  githubv4.Int(p.prNum),
+			},
+			githubv4mock.DataResponse(
+				map[string]any{
+					"repository": map[string]any{
+						"pullRequest": map[string]any{
+							"id": p.prID,
+							"reviews": map[string]any{
+								"nodes": []any{
+									map[string]any{
+										"id":    p.reviews[0].id,
+										"state": p.reviews[0].state,
+										"url":   p.reviews[0].url,
+									},
+								},
+							},
+						},
+					},
+				},
+			),
+		)
+	}
+
+	// Default: without PR ID (for SubmitPendingPullRequestReview and DeletePendingPullRequestReview)
 	return githubv4mock.NewQueryMatcher(
 		struct {
 			Repository struct {
