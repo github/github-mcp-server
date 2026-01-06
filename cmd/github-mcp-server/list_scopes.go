@@ -249,7 +249,7 @@ func outputText(output ScopesOutput) error {
 
 	for _, toolsetName := range toolsetNames {
 		tools := toolsByToolset[toolsetName]
-		fmt.Printf("## %s\n\n", formatToolsetNameForOutput(toolsetName))
+		fmt.Printf("## %s\n\n", formatToolsetName(toolsetName))
 
 		for _, tool := range tools {
 			rwIndicator := "📝"
@@ -288,28 +288,4 @@ func outputText(output ScopesOutput) error {
 	fmt.Println("\nLegend: 👁 = read-only, 📝 = read-write")
 
 	return nil
-}
-
-func formatToolsetNameForOutput(name string) string {
-	switch name {
-	case "pull_requests":
-		return "Pull Requests"
-	case "repos":
-		return "Repositories"
-	case "code_security":
-		return "Code Security"
-	case "secret_protection":
-		return "Secret Protection"
-	case "orgs":
-		return "Organizations"
-	default:
-		// Capitalize first letter and replace underscores with spaces
-		parts := strings.Split(name, "_")
-		for i, part := range parts {
-			if len(part) > 0 {
-				parts[i] = strings.ToUpper(string(part[0])) + part[1:]
-			}
-		}
-		return strings.Join(parts, " ")
-	}
 }
