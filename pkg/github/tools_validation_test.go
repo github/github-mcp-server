@@ -186,10 +186,12 @@ func TestToolsetMetadataConsistency(t *testing.T) {
 }
 
 // TestFeatureFlaggedToolsAreMutuallyExclusive validates that when multiple tools share
-// the same name with different feature flags, they are mutually exclusive (one uses
-// FeatureFlagEnable while the other uses FeatureFlagDisable with the same flag name).
-// This ensures there are no conflicts where two tools with the same name could be active
-// simultaneously, which would cause "unknown tool" errors.
+// the same name with different feature flags, they are properly configured to ensure:
+// - At most one tool variant is active for any given feature flag state
+// - A tool shows up when it should (no omissions)
+// - No tool shows up when it shouldn't (no incorrect activations)
+// - No duplicate tool names are active simultaneously
+// This prevents issues where filtering returns the wrong variant or no variant at all.
 func TestFeatureFlaggedToolsAreMutuallyExclusive(t *testing.T) {
 	tools := AllTools(stubTranslation)
 
