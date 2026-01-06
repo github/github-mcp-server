@@ -14,8 +14,6 @@ import (
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
-
-	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -64,12 +62,9 @@ func Test_GetPullRequest(t *testing.T) {
 	}{
 		{
 			name: "successful PR fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposPullsByOwnerByRepoByPullNumber,
-					mockPR,
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":     "get",
 				"owner":      "owner",
@@ -81,15 +76,12 @@ func Test_GetPullRequest(t *testing.T) {
 		},
 		{
 			name: "PR fetch fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposPullsByOwnerByRepoByPullNumber,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				},
+			}),
 			requestArgs: map[string]interface{}{
 				"method":     "get",
 				"owner":      "owner",
@@ -209,24 +201,17 @@ func Test_UpdatePullRequest(t *testing.T) {
 	}{
 		{
 			name: "successful PR update (title, body, base, maintainer_can_modify)",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PatchReposPullsByOwnerByRepoByPullNumber,
-					// Expect the flat string based on previous test failure output and API docs
-					expectRequestBody(t, map[string]interface{}{
-						"title":                 "Updated Test PR Title",
-						"body":                  "Updated test PR body.",
-						"base":                  "develop",
-						"maintainer_can_modify": false,
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockUpdatedPR),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposPullsByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]interface{}{
+					"title":                 "Updated Test PR Title",
+					"body":                  "Updated test PR body.",
+					"base":                  "develop",
+					"maintainer_can_modify": false,
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockUpdatedPR),
 				),
-				mock.WithRequestMatch(
-					mock.GetReposPullsByOwnerByRepoByPullNumber,
-					mockUpdatedPR,
-				),
-			),
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockUpdatedPR),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":                 "owner",
 				"repo":                  "repo",
@@ -241,20 +226,14 @@ func Test_UpdatePullRequest(t *testing.T) {
 		},
 		{
 			name: "successful PR update (state)",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PatchReposPullsByOwnerByRepoByPullNumber,
-					expectRequestBody(t, map[string]interface{}{
-						"state": "closed",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockClosedPR),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposPullsByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]interface{}{
+					"state": "closed",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockClosedPR),
 				),
-				mock.WithRequestMatch(
-					mock.GetReposPullsByOwnerByRepoByPullNumber,
-					mockClosedPR,
-				),
-			),
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockClosedPR),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":      "owner",
 				"repo":       "repo",
@@ -266,17 +245,10 @@ func Test_UpdatePullRequest(t *testing.T) {
 		},
 		{
 			name: "successful PR update with reviewers",
-			mockedClient: mock.NewMockedHTTPClient(
-				// Mock for RequestReviewers call, returning the PR with reviewers
-				mock.WithRequestMatch(
-					mock.PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber,
-					mockPRWithReviewers,
-				),
-				mock.WithRequestMatch(
-					mock.GetReposPullsByOwnerByRepoByPullNumber,
-					mockPRWithReviewers,
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPRWithReviewers),
+				GetReposPullsByOwnerByRepoByPullNumber:                    mockResponse(t, http.StatusOK, mockPRWithReviewers),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":      "owner",
 				"repo":       "repo",
@@ -288,20 +260,14 @@ func Test_UpdatePullRequest(t *testing.T) {
 		},
 		{
 			name: "successful PR update (title only)",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PatchReposPullsByOwnerByRepoByPullNumber,
-					expectRequestBody(t, map[string]interface{}{
-						"title": "Updated Test PR Title",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockUpdatedPR),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposPullsByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]interface{}{
+					"title": "Updated Test PR Title",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockUpdatedPR),
 				),
-				mock.WithRequestMatch(
-					mock.GetReposPullsByOwnerByRepoByPullNumber,
-					mockUpdatedPR,
-				),
-			),
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockUpdatedPR),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":      "owner",
 				"repo":       "repo",
@@ -313,7 +279,7 @@ func Test_UpdatePullRequest(t *testing.T) {
 		},
 		{
 			name:         "no update parameters provided",
-			mockedClient: mock.NewMockedHTTPClient(), // No API call expected
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}), // No API call expected
 			requestArgs: map[string]interface{}{
 				"owner":      "owner",
 				"repo":       "repo",
@@ -325,15 +291,12 @@ func Test_UpdatePullRequest(t *testing.T) {
 		},
 		{
 			name: "PR update fails (API error)",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PatchReposPullsByOwnerByRepoByPullNumber,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusUnprocessableEntity)
-						_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposPullsByOwnerByRepoByPullNumber: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusUnprocessableEntity)
+					_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
+				},
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":      "owner",
 				"repo":       "repo",
@@ -345,16 +308,12 @@ func Test_UpdatePullRequest(t *testing.T) {
 		},
 		{
 			name: "request reviewers fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				// Then reviewer request fails
-				mock.WithRequestMatchHandler(
-					mock.PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusUnprocessableEntity)
-						_, _ = w.Write([]byte(`{"message": "Invalid reviewers"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusUnprocessableEntity)
+					_, _ = w.Write([]byte(`{"message": "Invalid reviewers"}`))
+				},
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":      "owner",
 				"repo":       "repo",
@@ -553,12 +512,9 @@ func Test_UpdatePullRequest_Draft(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// For draft-only tests, we need to mock both GraphQL and the final REST GET call
-			restClient := github.NewClient(mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposPullsByOwnerByRepoByPullNumber,
-					mockUpdatedPR,
-				),
-			))
+			restClient := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockUpdatedPR),
+			}))
 			gqlClient := githubv4.NewClient(tc.mockedClient)
 
 			serverTool := UpdatePullRequest(translations.NullTranslationHelper)
@@ -642,20 +598,17 @@ func Test_ListPullRequests(t *testing.T) {
 	}{
 		{
 			name: "successful PRs listing",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposPullsByOwnerByRepo,
-					expectQueryParams(t, map[string]string{
-						"state":     "all",
-						"sort":      "created",
-						"direction": "desc",
-						"per_page":  "30",
-						"page":      "1",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockPRs),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepo: expectQueryParams(t, map[string]string{
+					"state":     "all",
+					"sort":      "created",
+					"direction": "desc",
+					"per_page":  "30",
+					"page":      "1",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockPRs),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":     "owner",
 				"repo":      "repo",
@@ -670,15 +623,12 @@ func Test_ListPullRequests(t *testing.T) {
 		},
 		{
 			name: "PRs listing fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposPullsByOwnerByRepo,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusBadRequest)
-						_, _ = w.Write([]byte(`{"message": "Invalid request"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepo: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = w.Write([]byte(`{"message": "Invalid request"}`))
+				},
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
@@ -769,18 +719,15 @@ func Test_MergePullRequest(t *testing.T) {
 	}{
 		{
 			name: "successful merge",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PutReposPullsMergeByOwnerByRepoByPullNumber,
-					expectRequestBody(t, map[string]interface{}{
-						"commit_title":   "Merge PR #42",
-						"commit_message": "Merging awesome feature",
-						"merge_method":   "squash",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockMergeResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PutReposPullsMergeByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]interface{}{
+					"commit_title":   "Merge PR #42",
+					"commit_message": "Merging awesome feature",
+					"merge_method":   "squash",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockMergeResult),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":          "owner",
 				"repo":           "repo",
@@ -794,15 +741,12 @@ func Test_MergePullRequest(t *testing.T) {
 		},
 		{
 			name: "merge fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PutReposPullsMergeByOwnerByRepoByPullNumber,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusMethodNotAllowed)
-						_, _ = w.Write([]byte(`{"message": "Pull request cannot be merged"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PutReposPullsMergeByOwnerByRepoByPullNumber: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusMethodNotAllowed)
+					_, _ = w.Write([]byte(`{"message": "Pull request cannot be merged"}`))
+				},
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":      "owner",
 				"repo":       "repo",
@@ -911,23 +855,20 @@ func Test_SearchPullRequests(t *testing.T) {
 	}{
 		{
 			name: "successful pull request search with all parameters",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchIssues,
-					expectQueryParams(
-						t,
-						map[string]string{
-							"q":        "is:pr repo:owner/repo is:open",
-							"sort":     "created",
-							"order":    "desc",
-							"page":     "1",
-							"per_page": "30",
-						},
-					).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: expectQueryParams(
+					t,
+					map[string]string{
+						"q":        "is:pr repo:owner/repo is:open",
+						"sort":     "created",
+						"order":    "desc",
+						"page":     "1",
+						"per_page": "30",
+					},
+				).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"query":   "repo:owner/repo is:open",
 				"sort":    "created",
@@ -940,23 +881,20 @@ func Test_SearchPullRequests(t *testing.T) {
 		},
 		{
 			name: "pull request search with owner and repo parameters",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchIssues,
-					expectQueryParams(
-						t,
-						map[string]string{
-							"q":        "repo:test-owner/test-repo is:pr draft:false",
-							"sort":     "updated",
-							"order":    "asc",
-							"page":     "1",
-							"per_page": "30",
-						},
-					).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: expectQueryParams(
+					t,
+					map[string]string{
+						"q":        "repo:test-owner/test-repo is:pr draft:false",
+						"sort":     "updated",
+						"order":    "asc",
+						"page":     "1",
+						"per_page": "30",
+					},
+				).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"query": "draft:false",
 				"owner": "test-owner",
@@ -969,21 +907,18 @@ func Test_SearchPullRequests(t *testing.T) {
 		},
 		{
 			name: "pull request search with only owner parameter (should ignore it)",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchIssues,
-					expectQueryParams(
-						t,
-						map[string]string{
-							"q":        "is:pr feature",
-							"page":     "1",
-							"per_page": "30",
-						},
-					).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: expectQueryParams(
+					t,
+					map[string]string{
+						"q":        "is:pr feature",
+						"page":     "1",
+						"per_page": "30",
+					},
+				).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"query": "feature",
 				"owner": "test-owner",
@@ -993,21 +928,18 @@ func Test_SearchPullRequests(t *testing.T) {
 		},
 		{
 			name: "pull request search with only repo parameter (should ignore it)",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchIssues,
-					expectQueryParams(
-						t,
-						map[string]string{
-							"q":        "is:pr review-required",
-							"page":     "1",
-							"per_page": "30",
-						},
-					).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: expectQueryParams(
+					t,
+					map[string]string{
+						"q":        "is:pr review-required",
+						"page":     "1",
+						"per_page": "30",
+					},
+				).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"query": "review-required",
 				"repo":  "test-repo",
@@ -1017,12 +949,9 @@ func Test_SearchPullRequests(t *testing.T) {
 		},
 		{
 			name: "pull request search with minimal parameters",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetSearchIssues,
-					mockSearchResult,
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: mockResponse(t, http.StatusOK, mockSearchResult),
+			}),
 			requestArgs: map[string]interface{}{
 				"query": "is:pr repo:owner/repo is:open",
 			},
@@ -1031,21 +960,18 @@ func Test_SearchPullRequests(t *testing.T) {
 		},
 		{
 			name: "query with existing is:pr filter - no duplication",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchIssues,
-					expectQueryParams(
-						t,
-						map[string]string{
-							"q":        "is:pr repo:github/github-mcp-server is:open draft:false",
-							"page":     "1",
-							"per_page": "30",
-						},
-					).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: expectQueryParams(
+					t,
+					map[string]string{
+						"q":        "is:pr repo:github/github-mcp-server is:open draft:false",
+						"page":     "1",
+						"per_page": "30",
+					},
+				).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"query": "is:pr repo:github/github-mcp-server is:open draft:false",
 			},
@@ -1054,21 +980,18 @@ func Test_SearchPullRequests(t *testing.T) {
 		},
 		{
 			name: "query with existing repo: filter and conflicting owner/repo params - uses query filter",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchIssues,
-					expectQueryParams(
-						t,
-						map[string]string{
-							"q":        "is:pr repo:github/github-mcp-server author:octocat",
-							"page":     "1",
-							"per_page": "30",
-						},
-					).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: expectQueryParams(
+					t,
+					map[string]string{
+						"q":        "is:pr repo:github/github-mcp-server author:octocat",
+						"page":     "1",
+						"per_page": "30",
+					},
+				).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"query": "repo:github/github-mcp-server author:octocat",
 				"owner": "different-owner",
@@ -1079,21 +1002,18 @@ func Test_SearchPullRequests(t *testing.T) {
 		},
 		{
 			name: "complex query with existing is:pr filter and OR operators",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchIssues,
-					expectQueryParams(
-						t,
-						map[string]string{
-							"q":        "is:pr repo:github/github-mcp-server (label:bug OR label:enhancement OR label:feature)",
-							"page":     "1",
-							"per_page": "30",
-						},
-					).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: expectQueryParams(
+					t,
+					map[string]string{
+						"q":        "is:pr repo:github/github-mcp-server (label:bug OR label:enhancement OR label:feature)",
+						"page":     "1",
+						"per_page": "30",
+					},
+				).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"query": "is:pr repo:github/github-mcp-server (label:bug OR label:enhancement OR label:feature)",
 			},
@@ -1102,15 +1022,12 @@ func Test_SearchPullRequests(t *testing.T) {
 		},
 		{
 			name: "search pull requests fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchIssues,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusBadRequest)
-						_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
+				},
+			}),
 			requestArgs: map[string]interface{}{
 				"query": "invalid:query",
 			},
@@ -1216,12 +1133,14 @@ func Test_GetPullRequestFiles(t *testing.T) {
 	}{
 		{
 			name: "successful files fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposPullsFilesByOwnerByRepoByPullNumber,
-					mockFiles,
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsFilesByOwnerByRepoByPullNumber: expectQueryParams(t, map[string]string{
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockFiles),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":     "get_files",
 				"owner":      "owner",
@@ -1233,12 +1152,14 @@ func Test_GetPullRequestFiles(t *testing.T) {
 		},
 		{
 			name: "successful files fetch with pagination",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposPullsFilesByOwnerByRepoByPullNumber,
-					mockFiles,
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsFilesByOwnerByRepoByPullNumber: expectQueryParams(t, map[string]string{
+					"page":     "2",
+					"per_page": "10",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockFiles),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":     "get_files",
 				"owner":      "owner",
@@ -1252,15 +1173,17 @@ func Test_GetPullRequestFiles(t *testing.T) {
 		},
 		{
 			name: "files fetch fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposPullsFilesByOwnerByRepoByPullNumber,
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsFilesByOwnerByRepoByPullNumber: expectQueryParams(t, map[string]string{
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusNotFound)
 						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
 					}),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":     "get_files",
 				"owner":      "owner",
@@ -1382,16 +1305,10 @@ func Test_GetPullRequestStatus(t *testing.T) {
 	}{
 		{
 			name: "successful status fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposPullsByOwnerByRepoByPullNumber,
-					mockPR,
-				),
-				mock.WithRequestMatch(
-					mock.GetReposCommitsStatusByOwnerByRepoByRef,
-					mockStatus,
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber:  mockResponse(t, http.StatusOK, mockPR),
+				GetReposCommitsStatusByOwnerByRepoByRef: mockResponse(t, http.StatusOK, mockStatus),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":     "get_status",
 				"owner":      "owner",
@@ -1403,15 +1320,12 @@ func Test_GetPullRequestStatus(t *testing.T) {
 		},
 		{
 			name: "PR fetch fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposPullsByOwnerByRepoByPullNumber,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":     "get_status",
 				"owner":      "owner",
@@ -1423,19 +1337,13 @@ func Test_GetPullRequestStatus(t *testing.T) {
 		},
 		{
 			name: "status fetch fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposPullsByOwnerByRepoByPullNumber,
-					mockPR,
-				),
-				mock.WithRequestMatchHandler(
-					mock.GetReposCommitsStatusesByOwnerByRepoByRef,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockPR),
+				GetReposCommitsStatusesByOwnerByRepoByRef: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":     "get_status",
 				"owner":      "owner",
@@ -1527,16 +1435,13 @@ func Test_UpdatePullRequestBranch(t *testing.T) {
 	}{
 		{
 			name: "successful branch update",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PutReposPullsUpdateBranchByOwnerByRepoByPullNumber,
-					expectRequestBody(t, map[string]interface{}{
-						"expected_head_sha": "abcd1234",
-					}).andThen(
-						mockResponse(t, http.StatusAccepted, mockUpdateResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PutReposPullsUpdateBranchByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]interface{}{
+					"expected_head_sha": "abcd1234",
+				}).andThen(
+					mockResponse(t, http.StatusAccepted, mockUpdateResult),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":           "owner",
 				"repo":            "repo",
@@ -1548,14 +1453,11 @@ func Test_UpdatePullRequestBranch(t *testing.T) {
 		},
 		{
 			name: "branch update without expected SHA",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PutReposPullsUpdateBranchByOwnerByRepoByPullNumber,
-					expectRequestBody(t, map[string]interface{}{}).andThen(
-						mockResponse(t, http.StatusAccepted, mockUpdateResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PutReposPullsUpdateBranchByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]interface{}{}).andThen(
+					mockResponse(t, http.StatusAccepted, mockUpdateResult),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":      "owner",
 				"repo":       "repo",
@@ -1566,15 +1468,12 @@ func Test_UpdatePullRequestBranch(t *testing.T) {
 		},
 		{
 			name: "branch update fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PutReposPullsUpdateBranchByOwnerByRepoByPullNumber,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusConflict)
-						_, _ = w.Write([]byte(`{"message": "Merge conflict"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PutReposPullsUpdateBranchByOwnerByRepoByPullNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusConflict)
+					_, _ = w.Write([]byte(`{"message": "Merge conflict"}`))
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":      "owner",
 				"repo":       "repo",
@@ -1997,12 +1896,9 @@ func Test_GetPullRequestReviews(t *testing.T) {
 	}{
 		{
 			name: "successful reviews fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposPullsReviewsByOwnerByRepoByPullNumber,
-					mockReviews,
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsReviewsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockReviews),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":     "get_reviews",
 				"owner":      "owner",
@@ -2014,15 +1910,12 @@ func Test_GetPullRequestReviews(t *testing.T) {
 		},
 		{
 			name: "reviews fetch fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposPullsReviewsByOwnerByRepoByPullNumber,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsReviewsByOwnerByRepoByPullNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":     "get_reviews",
 				"owner":      "owner",
@@ -2034,25 +1927,22 @@ func Test_GetPullRequestReviews(t *testing.T) {
 		},
 		{
 			name: "lockdown enabled filters reviews without push access",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposPullsReviewsByOwnerByRepoByPullNumber,
-					[]*github.PullRequestReview{
-						{
-							ID:    github.Ptr(int64(2030)),
-							State: github.Ptr("APPROVED"),
-							Body:  github.Ptr("Maintainer review"),
-							User:  &github.User{Login: github.Ptr("maintainer")},
-						},
-						{
-							ID:    github.Ptr(int64(2031)),
-							State: github.Ptr("COMMENTED"),
-							Body:  github.Ptr("External reviewer"),
-							User:  &github.User{Login: github.Ptr("testuser")},
-						},
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsReviewsByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, []*github.PullRequestReview{
+					{
+						ID:    github.Ptr(int64(2030)),
+						State: github.Ptr("APPROVED"),
+						Body:  github.Ptr("Maintainer review"),
+						User:  &github.User{Login: github.Ptr("maintainer")},
 					},
-				),
-			),
+					{
+						ID:    github.Ptr(int64(2031)),
+						State: github.Ptr("COMMENTED"),
+						Body:  github.Ptr("External reviewer"),
+						User:  &github.User{Login: github.Ptr("testuser")},
+					},
+				}),
+			}),
 			gqlHTTPClient: newRepoAccessHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"method":     "get_reviews",
@@ -2183,21 +2073,18 @@ func Test_CreatePullRequest(t *testing.T) {
 	}{
 		{
 			name: "successful PR creation",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PostReposPullsByOwnerByRepo,
-					expectRequestBody(t, map[string]interface{}{
-						"title":                 "Test PR",
-						"body":                  "This is a test PR",
-						"head":                  "feature-branch",
-						"base":                  "main",
-						"draft":                 false,
-						"maintainer_can_modify": true,
-					}).andThen(
-						mockResponse(t, http.StatusCreated, mockPR),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposPullsByOwnerByRepo: expectRequestBody(t, map[string]interface{}{
+					"title":                 "Test PR",
+					"body":                  "This is a test PR",
+					"head":                  "feature-branch",
+					"base":                  "main",
+					"draft":                 false,
+					"maintainer_can_modify": true,
+				}).andThen(
+					mockResponse(t, http.StatusCreated, mockPR),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":                 "owner",
 				"repo":                  "repo",
@@ -2213,7 +2100,7 @@ func Test_CreatePullRequest(t *testing.T) {
 		},
 		{
 			name:         "missing required parameter",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
@@ -2224,15 +2111,12 @@ func Test_CreatePullRequest(t *testing.T) {
 		},
 		{
 			name: "PR creation fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PostReposPullsByOwnerByRepo,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusUnprocessableEntity)
-						_, _ = w.Write([]byte(`{"message":"Validation failed","errors":[{"resource":"PullRequest","code":"invalid"}]}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposPullsByOwnerByRepo: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusUnprocessableEntity)
+					_, _ = w.Write([]byte(`{"message":"Validation failed","errors":[{"resource":"PullRequest","code":"invalid"}]}`))
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
@@ -2535,19 +2419,16 @@ func Test_RequestCopilotReview(t *testing.T) {
 	}{
 		{
 			name: "successful request",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber,
-					expect(t, expectations{
-						path: "/repos/owner/repo/pulls/1/requested_reviewers",
-						requestBody: map[string]any{
-							"reviewers": []any{"copilot-pull-request-reviewer[bot]"},
-						},
-					}).andThen(
-						mockResponse(t, http.StatusCreated, mockPR),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: expect(t, expectations{
+					path: "/repos/owner/repo/pulls/1/requested_reviewers",
+					requestBody: map[string]any{
+						"reviewers": []any{"copilot-pull-request-reviewer[bot]"},
+					},
+				}).andThen(
+					mockResponse(t, http.StatusCreated, mockPR),
 				),
-			),
+			}),
 			requestArgs: map[string]any{
 				"owner":      "owner",
 				"repo":       "repo",
@@ -2557,15 +2438,12 @@ func Test_RequestCopilotReview(t *testing.T) {
 		},
 		{
 			name: "request fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				}),
+			}),
 			requestArgs: map[string]any{
 				"owner":      "owner",
 				"repo":       "repo",
@@ -3234,15 +3112,11 @@ index 5d6e7b2..8a4f5c3 100644
 				"repo":       "repo",
 				"pullNumber": float64(42),
 			},
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposPullsByOwnerByRepoByPullNumber,
-					// Should also expect Accept header to be application/vnd.github.v3.diff
-					expectPath(t, "/repos/owner/repo/pulls/42").andThen(
-						mockResponse(t, http.StatusOK, stubbedDiff),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepoByPullNumber: expectPath(t, "/repos/owner/repo/pulls/42").andThen(
+					mockResponse(t, http.StatusOK, stubbedDiff),
 				),
-			),
+			}),
 			expectToolError: false,
 		},
 	}

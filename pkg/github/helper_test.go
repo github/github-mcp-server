@@ -11,7 +11,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	testifymock "github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,9 +41,9 @@ const (
 
 	// Git endpoints
 	GetReposGitTreesByOwnerByRepoByTree        = "GET /repos/{owner}/{repo}/git/trees/{tree}"
-	GetReposGitRefByOwnerByRepoByRef           = "GET /repos/{owner}/{repo}/git/ref/{ref}"
+	GetReposGitRefByOwnerByRepoByRef           = "GET /repos/{owner}/{repo}/git/ref/{ref:.*}"
 	PostReposGitRefsByOwnerByRepo              = "POST /repos/{owner}/{repo}/git/refs"
-	PatchReposGitRefsByOwnerByRepoByRef        = "PATCH /repos/{owner}/{repo}/git/refs/{ref}"
+	PatchReposGitRefsByOwnerByRepoByRef        = "PATCH /repos/{owner}/{repo}/git/refs/{ref:.*}"
 	GetReposGitCommitsByOwnerByRepoByCommitSHA = "GET /repos/{owner}/{repo}/git/commits/{commit_sha}"
 	PostReposGitCommitsByOwnerByRepo           = "POST /repos/{owner}/{repo}/git/commits"
 	GetReposGitTagsByOwnerByRepoByTagSHA       = "GET /repos/{owner}/{repo}/git/tags/{tag_sha}"
@@ -133,8 +133,8 @@ const (
 	// Search endpoints
 	GetSearchCode         = "GET /search/code"
 	GetSearchIssues       = "GET /search/issues"
-	GetSearchRepositories = "GET /search/repositories"
 	GetSearchUsers        = "GET /search/users"
+	GetSearchRepositories = "GET /search/repositories"
 
 	// Raw content endpoints (used for GitHub raw content API, not standard API)
 	// These are used with the raw content client that interacts with raw.githubusercontent.com
@@ -434,7 +434,7 @@ func getResourceResult(t *testing.T, result *mcp.CallToolResult) *mcp.ResourceCo
 
 // MockRoundTripper is a mock HTTP transport using testify/mock
 type MockRoundTripper struct {
-	mock.Mock
+	testifymock.Mock
 	handlers map[string]http.HandlerFunc
 }
 
@@ -588,6 +588,64 @@ func MockHTTPClientWithHandler(handler http.HandlerFunc) *http.Client {
 func MockHTTPClientWithHandlers(handlers map[string]http.HandlerFunc) *http.Client {
 	transport := &multiHandlerTransport{handlers: handlers}
 	return &http.Client{Transport: transport}
+}
+
+// Compatibility helpers to replace github.com/migueleliasweb/go-github-mock in tests
+type EndpointPattern string
+
+type MockBackendOption func(map[string]http.HandlerFunc)
+
+func parseEndpointPattern(p EndpointPattern) (string, string) {
+	parts := strings.SplitN(string(p), " ", 2)
+	if len(parts) != 2 {
+		return http.MethodGet, string(p)
+	}
+	return parts[0], parts[1]
+}
+
+func WithRequestMatch(pattern EndpointPattern, response any) MockBackendOption {
+	return func(handlers map[string]http.HandlerFunc) {
+		method, path := parseEndpointPattern(pattern)
+		handlers[method+" "+path] = func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			switch v := response.(type) {
+			case string:
+				_, _ = w.Write([]byte(v))
+			case []byte:
+				_, _ = w.Write(v)
+			default:
+				data, err := json.Marshal(v)
+				if err == nil {
+					_, _ = w.Write(data)
+				}
+			}
+		}
+	}
+}
+
+func WithRequestMatchHandler(pattern EndpointPattern, handler http.HandlerFunc) MockBackendOption {
+	return func(handlers map[string]http.HandlerFunc) {
+		method, path := parseEndpointPattern(pattern)
+		handlers[method+" "+path] = handler
+	}
+}
+
+func NewMockedHTTPClient(options ...MockBackendOption) *http.Client {
+	handlers := map[string]http.HandlerFunc{}
+	for _, opt := range options {
+		if opt != nil {
+			opt(handlers)
+		}
+	}
+	return MockHTTPClientWithHandlers(handlers)
+}
+
+func MustMarshal(v any) []byte {
+	data, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return data
 }
 
 type multiHandlerTransport struct {
