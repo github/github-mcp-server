@@ -1690,7 +1690,7 @@ func TestForMCPRequest_ToolsCall_FeatureFlaggedVariants(t *testing.T) {
 }
 
 // TestToolsList_WithFeatureFlags validates that tools/list returns only the tools
-// available based on the current feature flag state, without duplicates
+// available based on the current feature flag state, without duplicates or omissions
 func TestToolsList_WithFeatureFlags(t *testing.T) {
 	// Create tools with various feature flag configurations
 	// These are properly mutually exclusive
