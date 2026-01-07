@@ -499,3 +499,252 @@ func Test_ListOrgRepositorySecurityAdvisories(t *testing.T) {
 		})
 	}
 }
+
+func Test_ReportSecurityVulnerability(t *testing.T) {
+	toolDef := ReportSecurityVulnerability(translations.NullTranslationHelper)
+	tool := toolDef.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "report_security_vulnerability", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be of type *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "summary")
+	assert.Contains(t, schema.Properties, "description")
+	assert.Contains(t, schema.Properties, "severity")
+	assert.Contains(t, schema.Properties, "cvss_vector_string")
+	assert.Contains(t, schema.Properties, "cwe_ids")
+	assert.Contains(t, schema.Properties, "vulnerabilities")
+	assert.Contains(t, schema.Properties, "start_private_fork")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "summary", "description"})
+
+	// Setup mock advisory for success case
+	mockAdvisory := &github.SecurityAdvisory{
+		GHSAID:      github.Ptr("GHSA-xxxx-yyyy-zzzz"),
+		Summary:     github.Ptr("Newly reported vulnerability"),
+		Description: github.Ptr("A detailed description of the vulnerability."),
+		Severity:    github.Ptr("high"),
+		State:       github.Ptr("triage"),
+	}
+
+	tests := []struct {
+		name             string
+		mockedClient     *http.Client
+		requestArgs      map[string]interface{}
+		expectError      bool
+		expectedAdvisory *github.SecurityAdvisory
+		expectedErrMsg   string
+	}{
+		{
+			name: "successful vulnerability report",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"POST /repos/owner/repo/security-advisories/reports": mockResponse(t, http.StatusCreated, mockAdvisory),
+			}),
+			requestArgs: map[string]interface{}{
+				"owner":       "owner",
+				"repo":        "repo",
+				"summary":     "Newly reported vulnerability",
+				"description": "A detailed description of the vulnerability.",
+				"severity":    "high",
+			},
+			expectError:      false,
+			expectedAdvisory: mockAdvisory,
+		},
+		{
+			name: "successful report with CWE IDs",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"POST /repos/owner/repo/security-advisories/reports": mockResponse(t, http.StatusCreated, mockAdvisory),
+			}),
+			requestArgs: map[string]interface{}{
+				"owner":       "owner",
+				"repo":        "repo",
+				"summary":     "XSS vulnerability",
+				"description": "Cross-site scripting issue in form validation.",
+				"severity":    "medium",
+				"cwe_ids":     []interface{}{"CWE-79", "CWE-20"},
+			},
+			expectError:      false,
+			expectedAdvisory: mockAdvisory,
+		},
+		{
+			name: "successful report with vulnerabilities",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"POST /repos/owner/repo/security-advisories/reports": mockResponse(t, http.StatusCreated, mockAdvisory),
+			}),
+			requestArgs: map[string]interface{}{
+				"owner":       "owner",
+				"repo":        "repo",
+				"summary":     "Package vulnerability",
+				"description": "Security issue in npm package.",
+				"severity":    "critical",
+				"vulnerabilities": []interface{}{
+					map[string]interface{}{
+						"package": map[string]interface{}{
+							"ecosystem": "npm",
+							"name":      "vulnerable-package",
+						},
+						"vulnerable_version_range": "< 1.0.0",
+						"patched_versions":         "1.0.0",
+						"vulnerable_functions":     []interface{}{"validateInput", "processData"},
+					},
+				},
+			},
+			expectError:      false,
+			expectedAdvisory: mockAdvisory,
+		},
+		{
+			name: "successful report with CVSS vector string",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"POST /repos/owner/repo/security-advisories/reports": mockResponse(t, http.StatusCreated, mockAdvisory),
+			}),
+			requestArgs: map[string]interface{}{
+				"owner":              "owner",
+				"repo":               "repo",
+				"summary":            "Custom CVSS severity",
+				"description":        "Vulnerability with custom CVSS scoring.",
+				"cvss_vector_string": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+			},
+			expectError:      false,
+			expectedAdvisory: mockAdvisory,
+		},
+		{
+			name: "successful report with private fork",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"POST /repos/owner/repo/security-advisories/reports": mockResponse(t, http.StatusCreated, mockAdvisory),
+			}),
+			requestArgs: map[string]interface{}{
+				"owner":              "owner",
+				"repo":               "repo",
+				"summary":            "Vulnerability requiring patch",
+				"description":        "Issue that needs immediate fix.",
+				"severity":           "high",
+				"start_private_fork": true,
+			},
+			expectError:      false,
+			expectedAdvisory: mockAdvisory,
+		},
+		{
+			name:         "error when both severity and cvss_vector_string provided",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]interface{}{
+				"owner":              "owner",
+				"repo":               "repo",
+				"summary":            "Test",
+				"description":        "Test description",
+				"severity":           "high",
+				"cvss_vector_string": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
+			},
+			expectError:    true,
+			expectedErrMsg: "cannot specify both severity and cvss_vector_string",
+		},
+		{
+			name:         "missing required owner parameter",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]interface{}{
+				"repo":        "repo",
+				"summary":     "Test",
+				"description": "Test description",
+			},
+			expectError:    true,
+			expectedErrMsg: "owner",
+		},
+		{
+			name: "API error - forbidden",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"POST /repos/owner/repo/security-advisories/reports": http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusForbidden)
+					_, _ = w.Write([]byte(`{"message": "Forbidden"}`))
+				}),
+			}),
+			requestArgs: map[string]interface{}{
+				"owner":       "owner",
+				"repo":        "repo",
+				"summary":     "Test",
+				"description": "Test description",
+				"severity":    "high",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to report security vulnerability",
+		},
+		{
+			name: "API error - not found",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"POST /repos/owner/repo/security-advisories/reports": http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				}),
+			}),
+			requestArgs: map[string]interface{}{
+				"owner":       "owner",
+				"repo":        "nonexistent",
+				"summary":     "Test",
+				"description": "Test description",
+				"severity":    "medium",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to report security vulnerability",
+		},
+		{
+			name: "API error - validation failed",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"POST /repos/owner/repo/security-advisories/reports": http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusUnprocessableEntity)
+					_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
+				}),
+			}),
+			requestArgs: map[string]interface{}{
+				"owner":       "owner",
+				"repo":        "repo",
+				"summary":     "Test",
+				"description": "Test description",
+				"severity":    "invalid",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to report security vulnerability",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := github.NewClient(tc.mockedClient)
+			deps := BaseDeps{Client: client}
+			handler := toolDef.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			if tc.expectError {
+				// For validation errors, err is nil but result.IsError is true
+				// For API errors, err is not nil
+				if err != nil {
+					assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				} else {
+					require.True(t, result.IsError)
+					text := getTextResult(t, result).Text
+					assert.Contains(t, text, tc.expectedErrMsg)
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+			textContent := getTextResult(t, result)
+
+			var returnedAdvisory github.SecurityAdvisory
+			err = json.Unmarshal([]byte(textContent.Text), &returnedAdvisory)
+			assert.NoError(t, err)
+			assert.Equal(t, *tc.expectedAdvisory.GHSAID, *returnedAdvisory.GHSAID)
+			assert.Equal(t, *tc.expectedAdvisory.Summary, *returnedAdvisory.Summary)
+			assert.Equal(t, *tc.expectedAdvisory.Description, *returnedAdvisory.Description)
+			assert.Equal(t, *tc.expectedAdvisory.Severity, *returnedAdvisory.Severity)
+			if tc.expectedAdvisory.State != nil {
+				assert.Equal(t, *tc.expectedAdvisory.State, *returnedAdvisory.State)
+			}
+		})
+	}
+}

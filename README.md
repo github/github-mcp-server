@@ -1322,6 +1322,19 @@ The following sets of tools are available:
   - `sort`: Sort field. (string, optional)
   - `state`: Filter by advisory state. (string, optional)
 
+- **report_security_vulnerability** - Report security vulnerability
+  - **Required OAuth Scopes**: `security_events`
+  - **Accepted OAuth Scopes**: `repo`, `security_events`
+  - `cvss_vector_string`: The CVSS vector that calculates the severity of the advisory. You must choose between setting this field or severity. (string, optional)
+  - `cwe_ids`: A list of Common Weakness Enumeration (CWE) IDs (e.g. ["CWE-79", "CWE-89"]). (string[], optional)
+  - `description`: A detailed description of what the vulnerability entails. (string, required)
+  - `owner`: The owner of the repository. (string, required)
+  - `repo`: The name of the repository. (string, required)
+  - `severity`: The severity of the advisory. You must choose between setting this field or cvss_vector_string. (string, optional)
+  - `start_private_fork`: Whether to create a temporary private fork of the repository to collaborate on a fix. Default: false (boolean, optional)
+  - `summary`: A short summary of the security vulnerability. (string, required)
+  - `vulnerabilities`: An array of products affected by the vulnerability. (object[], optional)
+
 </details>
 
 <details>
