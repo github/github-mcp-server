@@ -250,6 +250,9 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	// enable toolsets or tools explicitly that do need registration).
 	inventory.RegisterAll(context.Background(), ghServer, deps)
 
+	// Register MCP App UI resources (static resources for tool UI)
+	github.RegisterUIResources(ghServer)
+
 	// Register dynamic toolset management tools (enable/disable) - these are separate
 	// meta-tools that control the inventory, not part of the inventory itself
 	if cfg.DynamicToolsets {
