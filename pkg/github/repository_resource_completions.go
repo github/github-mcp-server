@@ -33,8 +33,10 @@ func RepositoryResourceCompletionHandler(getClient GetClientFn) func(ctx context
 
 		argName := req.Params.Argument.Name
 		argValue := req.Params.Argument.Value
-		resolved := req.Params.Context.Arguments
-		if resolved == nil {
+		var resolved map[string]string
+		if req.Params.Context != nil && req.Params.Context.Arguments != nil {
+			resolved = req.Params.Context.Arguments
+		} else {
 			resolved = map[string]string{}
 		}
 
