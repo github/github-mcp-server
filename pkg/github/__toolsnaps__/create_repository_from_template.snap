@@ -1,0 +1,45 @@
+{
+  "annotations": {
+    "title": "Create repository from template"
+  },
+  "description": "Create a new GitHub repository from a template repository",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "description": {
+        "type": "string",
+        "description": "Description for the new repository"
+      },
+      "include_all_branches": {
+        "type": "boolean",
+        "description": "Whether to include all branches from template (default: false, only default branch)"
+      },
+      "name": {
+        "type": "string",
+        "description": "Name for the new repository"
+      },
+      "owner": {
+        "type": "string",
+        "description": "Owner for the new repository (username or organization). Omit to create in your personal account"
+      },
+      "private": {
+        "type": "boolean",
+        "description": "Whether the new repository should be private"
+      },
+      "template_owner": {
+        "type": "string",
+        "description": "Owner of the template repository"
+      },
+      "template_repo": {
+        "type": "string",
+        "description": "Name of the template repository"
+      }
+    },
+    "required": [
+      "template_owner",
+      "template_repo",
+      "name"
+    ]
+  },
+  "name": "create_repository_from_template"
+}
