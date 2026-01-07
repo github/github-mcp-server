@@ -11,6 +11,7 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/observability"
+	mcpLog "github.com/github/github-mcp-server/pkg/observability/log"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
@@ -54,10 +55,10 @@ func (s stubDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
 }
 
 func (s stubDeps) GetRepoAccessCache() *lockdown.RepoAccessCache { return s.repoAccessCache }
-func (s stubDeps) GetObsv() *observability.Exporters             { return &s.obsv }
 func (s stubDeps) GetT() translations.TranslationHelperFunc      { return s.t }
 func (s stubDeps) GetFlags() FeatureFlags                        { return s.flags }
 func (s stubDeps) GetContentWindowSize() int                     { return s.contentWindowSize }
+func (s stubDeps) Logger(ctx context.Context) mcpLog.Logger      { return s.obsv.Logger(ctx) }
 
 // Helper functions to create stub client functions for error testing
 func stubClientFnFromHTTP(httpClient *http.Client) func(context.Context) (*github.Client, error) {
