@@ -80,6 +80,7 @@ Alternatively, to manually configure VS Code, choose the appropriate JSON block 
 </table>
 
 ### Install in other MCP hosts
+
 - **[GitHub Copilot in other IDEs](/docs/installation-guides/install-other-copilot-ides.md)** - Installation for JetBrains, Visual Studio, Eclipse, and Xcode with GitHub Copilot
 - **[Claude Applications](/docs/installation-guides/install-claude.md)** - Installation guide for Claude Desktop and Claude Code CLI
 - **[Codex](/docs/installation-guides/install-codex.md)** - Installation guide for Open AI Codex
@@ -104,6 +105,7 @@ When no toolsets are specified, [default toolsets](#default-toolset) are used.
 GitHub Enterprise Cloud can also make use of the remote server.
 
 Example for `https://octocorp.ghe.com` with GitHub PAT token:
+
 ```
 {
     ...
@@ -140,24 +142,30 @@ The MCP server can use many of the GitHub APIs, so enable the permissions that y
 <details><summary><b>Handling PATs Securely</b></summary>
 
 ### Environment Variables (Recommended)
+
 To keep your GitHub PAT secure and reusable across different MCP hosts:
 
 1. **Store your PAT in environment variables**
+
    ```bash
    export GITHUB_PAT=your_token_here
    ```
+
    Or create a `.env` file:
+
    ```env
    GITHUB_PAT=your_token_here
    ```
 
 2. **Protect your `.env` file**
+
    ```bash
    # Add to .gitignore to prevent accidental commits
    echo ".env" >> .gitignore
    ```
 
 3. **Reference the token in configurations**
+
    ```bash
    # CLI usage
    claude mcp update github -e GITHUB_PERSONAL_ACCESS_TOKEN=$GITHUB_PAT
@@ -180,11 +188,28 @@ To keep your GitHub PAT secure and reusable across different MCP hosts:
 - **Regular rotation**: Update tokens periodically
 - **Never commit**: Keep tokens out of version control
 - **File permissions**: Restrict access to config files containing tokens
+
   ```bash
   chmod 600 ~/.your-app/config.json
   ```
 
 </details>
+
+### Check PAT scopes
+
+- Required scopes per toolset: run [script/list-scopes](script/list-scopes) to print the scopes the server needs. Example:
+
+```bash
+script/list-scopes --toolsets=all --output=summary
+```
+
+- Scopes granted to a PAT: run [script/get-token-scopes](script/get-token-scopes) to read the `X-OAuth-Scopes` header for a token. Example:
+
+```bash
+script/get-token-scopes --token=ghp_yourtoken
+```
+
+Use both commands together to confirm your token covers the toolsets you plan to enable.
 
 ### GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)
 
@@ -193,6 +218,7 @@ the hostname for GitHub Enterprise Server or GitHub Enterprise Cloud with data r
 
 - For GitHub Enterprise Server, prefix the hostname with the `https://` URI scheme, as it otherwise defaults to `http://`, which GitHub Enterprise Server does not support.
 - For GitHub Enterprise Cloud with data residency, use `https://YOURSUBDOMAIN.ghe.com` as the hostname.
+
 ``` json
 "github": {
     "command": "docker",
@@ -349,6 +375,7 @@ To specify toolsets you want available to the LLM, you can pass an allow-list in
    ```
 
 2. **Using Environment Variable**:
+
    ```bash
    GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security" ./github-mcp-server
    ```
@@ -366,23 +393,29 @@ You can also configure specific tools using the `--tools` flag. Tools can be use
    ```
 
 2. **Using Environment Variable**:
+
    ```bash
    GITHUB_TOOLS="get_file_contents,issue_read,create_pull_request" ./github-mcp-server
    ```
 
 3. **Combining with Toolsets** (additive):
+
    ```bash
    github-mcp-server --toolsets repos,issues --tools get_gist
    ```
+
    This registers all tools from `repos` and `issues` toolsets, plus `get_gist`.
 
 4. **Combining with Dynamic Toolsets** (additive):
+
    ```bash
    github-mcp-server --tools get_file_contents --dynamic-toolsets
    ```
+
    This registers `get_file_contents` plus the dynamic toolset tools (`enable_toolset`, `list_available_toolsets`, `get_toolset_tools`).
 
 **Important Notes:**
+
 - Tools, toolsets, and dynamic toolsets can all be used together
 - Read-only mode takes priority: write tools are skipped if `--read-only` is set, even if explicitly requested via `--tools`
 - Tool names must match exactly (e.g., `get_file_contents`, not `getFileContents`). Invalid tool names will cause the server to fail at startup with an error message
@@ -435,9 +468,11 @@ GITHUB_TOOLSETS="all" ./github-mcp-server
 ```
 
 #### "default" toolset
+
 The default toolset `default` is the configuration that gets passed to the server if no toolsets are specified.
 
 The default configuration is:
+
 - context
 - repos
 - issues
@@ -833,7 +868,7 @@ The following sets of tools are available:
     - 'add' - add a sub-issue to a parent issue in a GitHub repository.
     - 'remove' - remove a sub-issue from a parent issue in a GitHub repository.
     - 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.
-    				 (string, required)
+         (string, required)
   - `owner`: Repository owner (string, required)
   - `replace_parent`: When true, replaces the sub-issue's current parent issue. Use with 'add' method only. (boolean, optional)
   - `repo`: Repository name (string, required)
@@ -1061,8 +1096,8 @@ The following sets of tools are available:
 
 - **pull_request_read** - Get details for a single pull request
   - **Required OAuth Scopes**: `repo`
-  - `method`: Action to specify what pull request data needs to be retrieved from GitHub. 
-    Possible options: 
+  - `method`: Action to specify what pull request data needs to be retrieved from GitHub.
+    Possible options:
      1. get - Get details of a specific pull request.
      2. get_diff - Get the diff of a pull request.
      3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
@@ -1369,12 +1404,12 @@ The following sets of tools are available:
 
 <summary>Copilot</summary>
 
--   **create_pull_request_with_copilot** - Perform task with GitHub Copilot coding agent
-    -   `owner`: Repository owner. You can guess the owner, but confirm it with the user before proceeding. (string, required)
-    -   `repo`: Repository name. You can guess the repository name, but confirm it with the user before proceeding. (string, required)
-    -   `problem_statement`: Detailed description of the task to be performed (e.g., 'Implement a feature that does X', 'Fix bug Y', etc.) (string, required)
-    -   `title`: Title for the pull request that will be created (string, required)
-    -   `base_ref`: Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch (string, optional)
+- **create_pull_request_with_copilot** - Perform task with GitHub Copilot coding agent
+  - `owner`: Repository owner. You can guess the owner, but confirm it with the user before proceeding. (string, required)
+  - `repo`: Repository name. You can guess the repository name, but confirm it with the user before proceeding. (string, required)
+  - `problem_statement`: Detailed description of the task to be performed (e.g., 'Implement a feature that does X', 'Fix bug Y', etc.) (string, required)
+  - `title`: Title for the pull request that will be created (string, required)
+  - `base_ref`: Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch (string, optional)
 
 </details>
 
@@ -1382,19 +1417,21 @@ The following sets of tools are available:
 
 <summary>Copilot Spaces</summary>
 
--   **get_copilot_space** - Get Copilot Space
-    -   `owner`: The owner of the space. (string, required)
-    -   `name`: The name of the space. (string, required)
+- **get_copilot_space** - Get Copilot Space
+  - `owner`: The owner of the space. (string, required)
+  - `name`: The name of the space. (string, required)
 
--   **list_copilot_spaces** - List Copilot Spaces
+- **list_copilot_spaces** - List Copilot Spaces
+
 </details>
 
 <details>
 
 <summary>GitHub Support Docs Search</summary>
 
--   **github_support_docs_search** - Retrieve documentation relevant to answer GitHub product and support questions. Support topics include: GitHub Actions Workflows, Authentication, GitHub Support Inquiries, Pull Request Practices, Repository Maintenance, GitHub Pages, GitHub Packages, GitHub Discussions, Copilot Spaces
-    -   `query`: Input from the user about the question they need answered. This is the latest raw unedited user message. You should ALWAYS leave the user message as it is, you should never modify it. (string, required)
+- **github_support_docs_search** - Retrieve documentation relevant to answer GitHub product and support questions. Support topics include: GitHub Actions Workflows, Authentication, GitHub Support Inquiries, Pull Request Practices, Repository Maintenance, GitHub Pages, GitHub Packages, GitHub Discussions, Copilot Spaces
+  - `query`: Input from the user about the question they need answered. This is the latest raw unedited user message. You should ALWAYS leave the user message as it is, you should never modify it. (string, required)
+
 </details>
 
 ## Dynamic Tool Discovery
