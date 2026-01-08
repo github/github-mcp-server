@@ -1,0 +1,29 @@
+#!/bin/bash
+#
+# Compare PAT token scopes with required scopes for enabled tools.
+#
+# Usage:
+#   script/compare-scopes [--toolsets=...] [--token=...] [--output=text|json]
+#
+# The token can be provided via GITHUB_PERSONAL_ACCESS_TOKEN environment variable
+# or via the --token flag.
+#
+# Examples:
+#   export GITHUB_PERSONAL_ACCESS_TOKEN=ghp_...
+#   script/compare-scopes
+#
+#   script/compare-scopes --toolsets=all --output=json
+#   script/compare-scopes --token=ghp_... --toolsets=repos,issues
+#
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+# Build the server if it doesn't exist or is outdated
+if [ ! -f github-mcp-server ] || [ cmd/github-mcp-server/compare_scopes.go -nt github-mcp-server ]; then
+    echo "Building github-mcp-server..." >&2
+    go build -o github-mcp-server ./cmd/github-mcp-server
+fi
+
+exec ./github-mcp-server compare-scopes "$@"
