@@ -184,6 +184,12 @@ To keep your GitHub PAT secure and reusable across different MCP hosts:
   chmod 600 ~/.your-app/config.json
   ```
 
+> **💡 Tip**: Use the `compare-scopes` command to check if your PAT has all required scopes:
+> ```bash
+> GITHUB_PERSONAL_ACCESS_TOKEN=your_token script/compare-scopes
+> ```
+> See [Scope Filtering documentation](docs/scope-filtering.md#compare-token-scopes-with-required-scopes) for details.
+
 </details>
 
 ### GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)

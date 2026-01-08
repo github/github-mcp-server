@@ -62,13 +62,13 @@ func compareScopes() error {
 	// Get all required scopes from the inventory
 	t, _ := translations.TranslationHelper()
 	inventory := github.NewInventory(t).WithToolsets([]string{"all"}).Build()
-	
+
 	allTools := inventory.AllTools()
-	
+
 	// Collect unique required and accepted scopes
 	requiredScopesSet := make(map[string]bool)
 	acceptedScopesSet := make(map[string]bool)
-	
+
 	for _, tool := range allTools {
 		for _, scope := range tool.RequiredScopes {
 			requiredScopesSet[scope] = true
@@ -95,7 +95,8 @@ func compareScopes() error {
 	sort.Strings(tokenScopes)
 
 	// Print results
-	fmt.Println("\n=== PAT Scope Comparison ===\n")
+	fmt.Println("\n=== PAT Scope Comparison ===")
+	fmt.Println()
 
 	// Show token scopes
 	fmt.Println("Token Scopes:")
@@ -117,68 +118,36 @@ func compareScopes() error {
 		}
 	}
 
-	// Calculate missing and extra scopes
+	// Calculate missing scopes - check each tool to see if token has required permissions
 	tokenScopesSet := make(map[string]bool)
 	for _, scope := range tokenScopes {
 		tokenScopesSet[scope] = true
 	}
 
-	// Expand token scopes to include child scopes they grant
-	grantedScopes := expandScopeSet(tokenScopes)
+	// Track which tools are missing scopes and collect unique missing scopes
+	missingScopesSet := make(map[string]bool)
+	toolsMissingScopes := make(map[string][]string) // scope -> list of affected tools
 
-	// Find missing required scopes (considering hierarchy)
+	for _, tool := range allTools {
+		// Skip tools that don't require any scopes
+		if len(tool.AcceptedScopes) == 0 {
+			continue
+		}
+
+		// Use the existing HasRequiredScopes function which handles hierarchy correctly
+		if !scopes.HasRequiredScopes(tokenScopes, tool.AcceptedScopes) {
+			// This tool is not usable - track which required scopes are missing
+			for _, reqScope := range tool.RequiredScopes {
+				missingScopesSet[reqScope] = true
+				toolsMissingScopes[reqScope] = append(toolsMissingScopes[reqScope], tool.Tool.Name)
+			}
+		}
+	}
+
+	// Convert to sorted slice
 	var missingScopes []string
-	for _, scope := range requiredScopes {
-		// Check if this scope is granted directly or via hierarchy
-		found := false
-		for acceptedScope := range acceptedScopesSet {
-			if strings.HasPrefix(acceptedScope, scope) || scope == acceptedScope {
-				if grantedScopes[acceptedScope] {
-					found = true
-					break
-				}
-			}
-		}
-		
-		// Also check if any token scope grants this required scope
-		if !found {
-			for tokenScope := range tokenScopesSet {
-				// Check if this token scope is in the accepted scopes for this required scope
-				if tokenScope == scope || grantedScopes[scope] {
-					found = true
-					break
-				}
-			}
-		}
-		
-		if !found && !tokenScopesSet[scope] && !grantedScopes[scope] {
-			// Check if any accepted scope that matches this required scope is granted
-			hasAcceptedEquivalent := false
-			for _, tool := range allTools {
-				hasThisRequired := false
-				for _, rs := range tool.RequiredScopes {
-					if rs == scope {
-						hasThisRequired = true
-						break
-					}
-				}
-				if hasThisRequired {
-					// Check if token has any of the accepted scopes for this tool
-					for _, as := range tool.AcceptedScopes {
-						if tokenScopesSet[as] || grantedScopes[as] {
-							hasAcceptedEquivalent = true
-							break
-						}
-					}
-				}
-				if hasAcceptedEquivalent {
-					break
-				}
-			}
-			if !hasAcceptedEquivalent {
-				missingScopes = append(missingScopes, scope)
-			}
-		}
+	for scope := range missingScopesSet {
+		missingScopes = append(missingScopes, scope)
 	}
 	sort.Strings(missingScopes)
 
@@ -192,24 +161,23 @@ func compareScopes() error {
 	sort.Strings(extraScopes)
 
 	// Print comparison summary
-	fmt.Println("\n=== Comparison Summary ===\n")
+	fmt.Println("\n=== Comparison Summary ===")
+	fmt.Println()
 
 	if len(missingScopes) > 0 {
 		fmt.Println("Missing Scopes (required by tools but not granted to token):")
 		for _, scope := range missingScopes {
 			fmt.Printf("  - %s\n", scope)
 			// Show which tools require this scope
-			var toolsNeedingScope []string
-			for _, tool := range allTools {
-				for _, rs := range tool.RequiredScopes {
-					if rs == scope {
-						toolsNeedingScope = append(toolsNeedingScope, tool.Tool.Name)
-						break
-					}
+			if tools, ok := toolsMissingScopes[scope]; ok && len(tools) > 0 {
+				// Limit to first 5 tools to avoid overwhelming output
+				displayTools := tools
+				if len(displayTools) > 5 {
+					displayTools = tools[:5]
+					fmt.Printf("    Tools affected: %s, ... and %d more\n", strings.Join(displayTools, ", "), len(tools)-5)
+				} else {
+					fmt.Printf("    Tools affected: %s\n", strings.Join(displayTools, ", "))
 				}
-			}
-			if len(toolsNeedingScope) > 0 {
-				fmt.Printf("    Tools affected: %s\n", strings.Join(toolsNeedingScope, ", "))
 			}
 		}
 		fmt.Println("\nWarning: Some tools may not be available due to missing scopes.")
@@ -226,20 +194,4 @@ func compareScopes() error {
 	}
 
 	return nil
-}
-
-// expandScopeSet returns a set of all scopes granted by the given scopes,
-// including child scopes from the hierarchy.
-func expandScopeSet(scopeList []string) map[string]bool {
-	expanded := make(map[string]bool, len(scopeList))
-	for _, scope := range scopeList {
-		expanded[scope] = true
-		// Add child scopes granted by this scope
-		if children, ok := scopes.ScopeHierarchy[scopes.Scope(scope)]; ok {
-			for _, child := range children {
-				expanded[string(child)] = true
-			}
-		}
-	}
-	return expanded
 }

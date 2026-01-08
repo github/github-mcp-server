@@ -36,6 +36,8 @@ This provides a smoother user experience for OAuth users since you only grant pe
 
 ## Checking Your Token's Scopes
 
+### Quick Check via API
+
 To see what scopes your token has, you can run:
 
 ```bash
@@ -47,6 +49,62 @@ Example output:
 ```
 x-oauth-scopes: delete_repo, gist, read:org, repo
 ```
+
+### Compare Token Scopes with Required Scopes
+
+The GitHub MCP Server includes a built-in tool to compare your PAT's scopes with the scopes required by all available tools:
+
+```bash
+# Using the script
+GITHUB_PERSONAL_ACCESS_TOKEN=your_token script/compare-scopes
+
+# Or directly with the command
+GITHUB_PERSONAL_ACCESS_TOKEN=your_token go run ./cmd/github-mcp-server compare-scopes
+
+# For GitHub Enterprise Server
+GITHUB_PERSONAL_ACCESS_TOKEN=your_token go run ./cmd/github-mcp-server compare-scopes --gh-host=github.example.com
+```
+
+The command will:
+1. Fetch your token's scopes from the GitHub API
+2. Collect all required scopes from the MCP tools
+3. Display a comparison showing:
+   - Token scopes (what your PAT has)
+   - Required scopes (what tools need)
+   - Missing scopes (what's required but not granted)
+   - Extra scopes (what your PAT has but isn't used)
+4. List which tools are affected by missing scopes
+5. Exit with code 1 if any required scopes are missing (useful for CI/automation)
+
+Example output:
+```
+=== PAT Scope Comparison ===
+
+Token Scopes:
+  - gist
+  - read:org
+  - repo
+
+Required Scopes (by tools):
+  - gist
+  - read:org
+  - read:project
+  - repo
+  - user
+
+=== Comparison Summary ===
+
+Missing Scopes (required by tools but not granted to token):
+  - read:project
+    Tools affected: list_projects, get_project, ...
+  - user
+    Tools affected: get_me
+
+Warning: Some tools may not be available due to missing scopes.
+Error: token is missing 2 required scope(s)
+```
+
+> **Note:** For fine-grained PATs, the command will show "(none)" for token scopes since these tokens don't expose OAuth scopes via the API. All tools will still be shown, but the GitHub API enforces permissions at runtime.
 
 ## Scope Hierarchy
 
