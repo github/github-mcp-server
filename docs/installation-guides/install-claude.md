@@ -28,7 +28,7 @@ echo -e ".env\n.mcp.json" >> .gitignore
 
 ### Remote Server Setup (Streamable HTTP)
 
-1. Run the following command in the Claude Code CLI
+1. Run the following command in the terminal (not in Claude Code CLI):
 ```bash
 claude mcp add --transport http github https://api.githubcopilot.com/mcp -H "Authorization: Bearer YOUR_GITHUB_PAT"
 ```
@@ -43,7 +43,7 @@ claude mcp add --transport http github https://api.githubcopilot.com/mcp -H "Aut
 ### Local Server Setup (Docker required)
 
 ### With Docker
-1. Run the following command in the Claude Code CLI:
+1. Run the following command in the terminal (not in Claude Code CLI):
 ```bash
 claude mcp add github -e GITHUB_PERSONAL_ACCESS_TOKEN=YOUR_GITHUB_PAT -- docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server
 ```
