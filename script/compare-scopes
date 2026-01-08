@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# This script compares the scopes of your GitHub PAT with the scopes required by the MCP server tools.
+# It helps identify missing permissions that would prevent certain tools from working.
+#
+# Usage:
+#   GITHUB_PERSONAL_ACCESS_TOKEN=your_token script/compare-scopes
+#   GITHUB_PERSONAL_ACCESS_TOKEN=your_token GITHUB_HOST=github.example.com script/compare-scopes
+
+set -e
+
+if [ -z "$GITHUB_PERSONAL_ACCESS_TOKEN" ]; then
+    echo "Error: GITHUB_PERSONAL_ACCESS_TOKEN environment variable is not set" >&2
+    echo "" >&2
+    echo "Usage:" >&2
+    echo "  GITHUB_PERSONAL_ACCESS_TOKEN=your_token script/compare-scopes" >&2
+    exit 1
+fi
+
+# Run the compare-scopes command
+exec go run ./cmd/github-mcp-server compare-scopes
