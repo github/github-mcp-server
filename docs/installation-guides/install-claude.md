@@ -32,18 +32,20 @@ echo -e ".env\n.mcp.json" >> .gitignore
 
 1. Run the following command in the terminal (not in Claude Code CLI):
 ```bash
-claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/mcp","headers":{"Authorization":"Bearer YOUR_GITHUB_PAT"}}' --scope user
+claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/mcp","headers":{"Authorization":"Bearer YOUR_GITHUB_PAT"}}'
 ```
 
 With an environment variable:
 ```bash
-claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/mcp","headers":{"Authorization":"Bearer '"$(grep GITHUB_PAT .env | cut -d '=' -f2)"'"}}' --scope user
+claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/mcp","headers":{"Authorization":"Bearer '"$(grep GITHUB_PAT .env | cut -d '=' -f2)"'"}}'
 ```
 
-> **About the `--scope` flag**: This specifies where the configuration is stored. Options:
+> **About the `--scope` flag** (optional): Use this to specify where the configuration is stored:
 > - `local` (default): Available only to you in the current project (was called `project` in older versions)
 > - `project`: Shared with everyone in the project via `.mcp.json` file
 > - `user`: Available to you across all projects (was called `global` in older versions)
+>
+> Example: Add `--scope user` to the end of the command to make it available across all projects.
 
 2. Restart Claude Code
 3. Run `claude mcp list` to see if the GitHub server is configured
