@@ -198,30 +198,6 @@ func generateToolsDoc(r *inventory.Inventory) string {
 	return buf.String()
 }
 
-func formatToolsetName(name string) string {
-	switch name {
-	case "pull_requests":
-		return "Pull Requests"
-	case "repos":
-		return "Repositories"
-	case "code_security":
-		return "Code Security"
-	case "secret_protection":
-		return "Secret Protection"
-	case "orgs":
-		return "Organizations"
-	default:
-		// Fallback: capitalize first letter and replace underscores with spaces
-		parts := strings.Split(name, "_")
-		for i, part := range parts {
-			if len(part) > 0 {
-				parts[i] = strings.ToUpper(string(part[0])) + part[1:]
-			}
-		}
-		return strings.Join(parts, " ")
-	}
-}
-
 func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 	// Tool name (no icon - section header already has the toolset icon)
 	fmt.Fprintf(buf, "- **%s** - %s\n", tool.Tool.Name, tool.Tool.Annotations.Title)

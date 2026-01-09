@@ -1688,3 +1688,57 @@ func TestForMCPRequest_ToolsCall_FeatureFlaggedVariants(t *testing.T) {
 			availableOn[0].FeatureFlagEnable, availableOn[0].FeatureFlagDisable)
 	}
 }
+
+// TestWithTools_DeprecatedAliasAndFeatureFlag tests that deprecated aliases work correctly
+// when the old tool is controlled by a feature flag. This covers the scenario where:
+// - Old tool "old_tool" has FeatureFlagDisable="my_flag" (available when flag is OFF)
+// - New tool "new_tool" has FeatureFlagEnable="my_flag" (available when flag is ON)
+// - Deprecated alias maps "old_tool" -> "new_tool"
+// - User specifies --tools=old_tool
+// Expected behavior:
+// - Flag OFF: old_tool should be available (not the new_tool via alias)
+// - Flag ON: new_tool should be available (via alias resolution)
+func TestWithTools_DeprecatedAliasAndFeatureFlag(t *testing.T) {
+	oldTool := mockToolWithFlags("old_tool", "actions", true, "", "my_flag")
+	newTool := mockToolWithFlags("new_tool", "actions", true, "my_flag", "")
+	tools := []ServerTool{oldTool, newTool}
+
+	deprecatedAliases := map[string]string{
+		"old_tool": "new_tool",
+	}
+
+	// Test 1: Flag OFF - old_tool should be available via direct name match
+	// (not via alias resolution to new_tool, since old_tool still exists)
+	regFlagOff := NewBuilder().
+		SetTools(tools).
+		WithDeprecatedAliases(deprecatedAliases).
+		WithToolsets([]string{}).        // No toolsets enabled
+		WithTools([]string{"old_tool"}). // Explicitly request old tool
+		Build()
+	availableOff := regFlagOff.AvailableTools(context.Background())
+	if len(availableOff) != 1 {
+		t.Fatalf("Flag OFF: Expected 1 tool, got %d", len(availableOff))
+	}
+	if availableOff[0].Tool.Name != "old_tool" {
+		t.Errorf("Flag OFF: Expected old_tool, got %s", availableOff[0].Tool.Name)
+	}
+
+	// Test 2: Flag ON - new_tool should be available via alias resolution
+	checker := func(_ context.Context, flag string) (bool, error) {
+		return flag == "my_flag", nil
+	}
+	regFlagOn := NewBuilder().
+		SetTools(tools).
+		WithDeprecatedAliases(deprecatedAliases).
+		WithToolsets([]string{}).        // No toolsets enabled
+		WithTools([]string{"old_tool"}). // Request old tool name
+		WithFeatureChecker(checker).
+		Build()
+	availableOn := regFlagOn.AvailableTools(context.Background())
+	if len(availableOn) != 1 {
+		t.Fatalf("Flag ON: Expected 1 tool, got %d", len(availableOn))
+	}
+	if availableOn[0].Tool.Name != "new_tool" {
+		t.Errorf("Flag ON: Expected new_tool (via alias), got %s", availableOn[0].Tool.Name)
+	}
+}
