@@ -41,7 +41,6 @@
         {
           "name": "Authorization",
           "description": "Authorization header with authentication token (PAT or App token)",
-          "isRequired": true,
           "isSecret": true
         }
       ]
