@@ -28,4 +28,15 @@ var DeprecatedToolAliases = map[string]string{
 	"rerun_failed_jobs":              "actions_run_trigger",
 	"cancel_workflow_run":            "actions_run_trigger",
 	"delete_workflow_run_logs":       "actions_run_trigger",
+
+	// Projects tools consolidated
+	"list_projects":       "projects_list",
+	"list_project_fields": "projects_list",
+	"list_project_items":  "projects_list",
+	"get_project":         "projects_get",
+	"get_project_field":   "projects_get",
+	"get_project_item":    "projects_get",
+	"add_project_item":    "projects_write",
+	"update_project_item": "projects_write",
+	"delete_project_item": "projects_write",
 }

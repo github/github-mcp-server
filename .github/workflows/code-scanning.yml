@@ -14,6 +14,8 @@ env:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
+    # Only run on the main repository, not on forks
+    if: github.repository == 'github/github-mcp-server'
     runs-on: ${{ fromJSON(matrix.runner) }}
     permissions:
       actions: read

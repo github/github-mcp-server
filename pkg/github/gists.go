@@ -9,6 +9,7 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -41,6 +42,7 @@ func ListGists(t translations.TranslationHelperFunc) inventory.ServerTool {
 				},
 			}),
 		},
+		nil,
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			username, err := OptionalParam[string](args, "username")
 			if err != nil {
@@ -124,6 +126,7 @@ func GetGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"gist_id"},
 			},
 		},
+		nil,
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			gistID, err := RequiredParam[string](args, "gist_id")
 			if err != nil {
@@ -194,6 +197,7 @@ func CreateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"filename", "content"},
 			},
 		},
+		[]scopes.Scope{scopes.Gist},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			description, err := OptionalParam[string](args, "description")
 			if err != nil {
@@ -295,6 +299,7 @@ func UpdateGist(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"gist_id", "filename", "content"},
 			},
 		},
+		[]scopes.Scope{scopes.Gist},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			gistID, err := RequiredParam[string](args, "gist_id")
 			if err != nil {

@@ -1,0 +1,59 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get details of GitHub Projects resources"
+  },
+  "description": "Get details about specific GitHub Projects resources.\nUse this tool to get details about individual projects, project fields, and project items by their unique IDs.\n",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "method",
+      "owner_type",
+      "owner",
+      "project_number"
+    ],
+    "properties": {
+      "field_id": {
+        "type": "number",
+        "description": "The field's ID. Required for 'get_project_field' method."
+      },
+      "fields": {
+        "type": "array",
+        "description": "Specific list of field IDs to include in the response when getting a project item (e.g. [\"102589\", \"985201\", \"169875\"]). If not provided, only the title field is included. Only used for 'get_project_item' method.",
+        "items": {
+          "type": "string"
+        }
+      },
+      "item_id": {
+        "type": "number",
+        "description": "The item's ID. Required for 'get_project_item' method."
+      },
+      "method": {
+        "type": "string",
+        "description": "The method to execute",
+        "enum": [
+          "get_project",
+          "get_project_field",
+          "get_project_item"
+        ]
+      },
+      "owner": {
+        "type": "string",
+        "description": "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive."
+      },
+      "owner_type": {
+        "type": "string",
+        "description": "Owner type",
+        "enum": [
+          "user",
+          "org"
+        ]
+      },
+      "project_number": {
+        "type": "number",
+        "description": "The project's number."
+      }
+    }
+  },
+  "name": "projects_get"
+}

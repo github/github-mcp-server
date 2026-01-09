@@ -7,6 +7,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/raw"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v79/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -148,11 +149,23 @@ func (d BaseDeps) GetContentWindowSize() int { return d.ContentWindowSize }
 //
 // The handler function receives deps extracted from context via MustDepsFromContext.
 // Ensure ContextWithDeps is called to inject deps before any tool handlers are invoked.
-func NewTool[In, Out any](toolset inventory.ToolsetMetadata, tool mcp.Tool, handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error)) inventory.ServerTool {
-	return inventory.NewServerToolWithContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error) {
+//
+// requiredScopes specifies the minimum OAuth scopes needed for this tool.
+// AcceptedScopes are automatically derived using the scope hierarchy (e.g., if
+// public_repo is required, repo is also accepted since repo grants public_repo).
+func NewTool[In, Out any](
+	toolset inventory.ToolsetMetadata,
+	tool mcp.Tool,
+	requiredScopes []scopes.Scope,
+	handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error),
+) inventory.ServerTool {
+	st := inventory.NewServerToolWithContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error) {
 		deps := MustDepsFromContext(ctx)
 		return handler(ctx, deps, req, args)
 	})
+	st.RequiredScopes = scopes.ToStringSlice(requiredScopes...)
+	st.AcceptedScopes = scopes.ExpandScopes(requiredScopes...)
+	return st
 }
 
 // NewToolFromHandler creates a ServerTool that retrieves ToolDependencies from context at call time.
@@ -160,9 +173,20 @@ func NewTool[In, Out any](toolset inventory.ToolsetMetadata, tool mcp.Tool, hand
 //
 // The handler function receives deps extracted from context via MustDepsFromContext.
 // Ensure ContextWithDeps is called to inject deps before any tool handlers are invoked.
-func NewToolFromHandler(toolset inventory.ToolsetMetadata, tool mcp.Tool, handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest) (*mcp.CallToolResult, error)) inventory.ServerTool {
-	return inventory.NewServerToolWithRawContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+//
+// requiredScopes specifies the minimum OAuth scopes needed for this tool.
+// AcceptedScopes are automatically derived using the scope hierarchy.
+func NewToolFromHandler(
+	toolset inventory.ToolsetMetadata,
+	tool mcp.Tool,
+	requiredScopes []scopes.Scope,
+	handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest) (*mcp.CallToolResult, error),
+) inventory.ServerTool {
+	st := inventory.NewServerToolWithRawContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		deps := MustDepsFromContext(ctx)
 		return handler(ctx, deps, req)
 	})
+	st.RequiredScopes = scopes.ToStringSlice(requiredScopes...)
+	st.AcceptedScopes = scopes.ExpandScopes(requiredScopes...)
+	return st
 }

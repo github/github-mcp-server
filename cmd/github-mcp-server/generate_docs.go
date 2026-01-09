@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"os"
@@ -11,7 +12,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
 )
 
@@ -50,8 +50,8 @@ func generateReadmeDocs(readmePath string) error {
 	// Create translation helper
 	t, _ := translations.TranslationHelper()
 
-	// Build inventory - stateless, no dependencies needed for doc generation
-	r := github.NewInventory(t).Build()
+	// (not available to regular users) while including tools with FeatureFlagDisable.
+	r := github.NewInventory(t).WithToolsets([]string{"all"}).Build()
 
 	// Generate toolsets documentation
 	toolsetsDoc := generateToolsetsDoc(r)
@@ -153,9 +153,7 @@ func generateToolsetsDoc(i *inventory.Inventory) string {
 }
 
 func generateToolsDoc(r *inventory.Inventory) string {
-	// AllTools() returns tools sorted by toolset ID then tool name.
-	// We iterate once, grouping by toolset as we encounter them.
-	tools := r.AllTools()
+	tools := r.AvailableTools(context.Background())
 	if len(tools) == 0 {
 		return ""
 	}
@@ -190,7 +188,7 @@ func generateToolsDoc(r *inventory.Inventory) string {
 			currentToolsetID = tool.Toolset.ID
 			currentToolsetIcon = tool.Toolset.Icon
 		}
-		writeToolDoc(&toolBuf, tool.Tool)
+		writeToolDoc(&toolBuf, tool)
 		toolBuf.WriteString("\n\n")
 	}
 
@@ -200,40 +198,26 @@ func generateToolsDoc(r *inventory.Inventory) string {
 	return buf.String()
 }
 
-func formatToolsetName(name string) string {
-	switch name {
-	case "pull_requests":
-		return "Pull Requests"
-	case "repos":
-		return "Repositories"
-	case "code_security":
-		return "Code Security"
-	case "secret_protection":
-		return "Secret Protection"
-	case "orgs":
-		return "Organizations"
-	default:
-		// Fallback: capitalize first letter and replace underscores with spaces
-		parts := strings.Split(name, "_")
-		for i, part := range parts {
-			if len(part) > 0 {
-				parts[i] = strings.ToUpper(string(part[0])) + part[1:]
-			}
-		}
-		return strings.Join(parts, " ")
-	}
-}
-
-func writeToolDoc(buf *strings.Builder, tool mcp.Tool) {
+func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 	// Tool name (no icon - section header already has the toolset icon)
-	fmt.Fprintf(buf, "- **%s** - %s\n", tool.Name, tool.Annotations.Title)
+	fmt.Fprintf(buf, "- **%s** - %s\n", tool.Tool.Name, tool.Tool.Annotations.Title)
+
+	// OAuth scopes if present
+	if len(tool.RequiredScopes) > 0 {
+		fmt.Fprintf(buf, "  - **Required OAuth Scopes**: `%s`\n", strings.Join(tool.RequiredScopes, "`, `"))
+
+		// Only show accepted scopes if they differ from required scopes
+		if len(tool.AcceptedScopes) > 0 && !scopesEqual(tool.RequiredScopes, tool.AcceptedScopes) {
+			fmt.Fprintf(buf, "  - **Accepted OAuth Scopes**: `%s`\n", strings.Join(tool.AcceptedScopes, "`, `"))
+		}
+	}
 
 	// Parameters
-	if tool.InputSchema == nil {
+	if tool.Tool.InputSchema == nil {
 		buf.WriteString("  - No parameters required")
 		return
 	}
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	schema, ok := tool.Tool.InputSchema.(*jsonschema.Schema)
 	if !ok || schema == nil {
 		buf.WriteString("  - No parameters required")
 		return
@@ -280,6 +264,28 @@ func writeToolDoc(buf *strings.Builder, tool mcp.Tool) {
 	} else {
 		buf.WriteString("  - No parameters required")
 	}
+}
+
+// scopesEqual checks if two scope slices contain the same elements (order-independent)
+func scopesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	// Create a map for quick lookup
+	aMap := make(map[string]bool, len(a))
+	for _, scope := range a {
+		aMap[scope] = true
+	}
+
+	// Check if all elements in b are in a
+	for _, scope := range b {
+		if !aMap[scope] {
+			return false
+		}
+	}
+
+	return true
 }
 
 func contains(slice []string, item string) bool {

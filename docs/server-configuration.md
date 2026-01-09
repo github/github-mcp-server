@@ -12,6 +12,7 @@ We currently support the following ways in which the GitHub MCP Server can be co
 | Read-Only Mode | `X-MCP-Readonly` header or `/readonly` URL | `--read-only` flag or `GITHUB_READ_ONLY` env var |
 | Dynamic Mode | Not available | `--dynamic-toolsets` flag or `GITHUB_DYNAMIC_TOOLSETS` env var |
 | Lockdown Mode | `X-MCP-Lockdown` header | `--lockdown-mode` flag or `GITHUB_LOCKDOWN_MODE` env var |
+| Scope Filtering | Always enabled | Always enabled |
 
 > **Default behavior:** If you don't specify any configuration, the server uses the **default toolsets**: `context`, `issues`, `pull_requests`, `repos`, `users`.
 
@@ -327,6 +328,20 @@ Lockdown mode ensures the server only surfaces content in public repositories fr
 </td>
 </tr>
 </table>
+
+---
+
+### Scope Filtering
+
+**Automatic feature:** The server handles OAuth scopes differently depending on authentication type:
+
+- **Classic PATs** (`ghp_` prefix): Tools are filtered at startup based on token scopes—you only see tools you have permission to use
+- **OAuth** (remote server): Uses scope challenges—when a tool needs a scope you haven't granted, you're prompted to authorize it
+- **Other tokens**: No filtering—all tools shown, API enforces permissions
+
+This happens transparently—no configuration needed. If scope detection fails for a classic PAT (e.g., network issues), the server logs a warning and continues with all tools available.
+
+See [Scope Filtering](./scope-filtering.md) for details on how filtering works with different token types.
 
 ---
 
