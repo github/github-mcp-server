@@ -3,9 +3,12 @@ package github
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
+	"github.com/github/github-mcp-server/pkg/observability"
+	obsvLog "github.com/github/github-mcp-server/pkg/observability/log"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -77,6 +80,9 @@ type ToolDependencies interface {
 
 	// GetContentWindowSize returns the content window size for log truncation
 	GetContentWindowSize() int
+
+	// GetLogger returns the logger
+	Logger(ctx context.Context) obsvLog.Logger
 }
 
 // BaseDeps is the standard implementation of ToolDependencies for the local server.
@@ -93,6 +99,7 @@ type BaseDeps struct {
 	T                 translations.TranslationHelperFunc
 	Flags             FeatureFlags
 	ContentWindowSize int
+	Obsv              observability.Exporters
 }
 
 // NewBaseDeps creates a BaseDeps with the provided clients and configuration.
@@ -104,6 +111,7 @@ func NewBaseDeps(
 	t translations.TranslationHelperFunc,
 	flags FeatureFlags,
 	contentWindowSize int,
+	logger *slog.Logger,
 ) *BaseDeps {
 	return &BaseDeps{
 		Client:            client,
@@ -113,6 +121,7 @@ func NewBaseDeps(
 		T:                 t,
 		Flags:             flags,
 		ContentWindowSize: contentWindowSize,
+		Obsv:              observability.NewExporters(obsvLog.NewSlogLogger(logger, obsvLog.InfoLevel)),
 	}
 }
 
@@ -133,6 +142,11 @@ func (d BaseDeps) GetRawClient(_ context.Context) (*raw.Client, error) {
 
 // GetRepoAccessCache implements ToolDependencies.
 func (d BaseDeps) GetRepoAccessCache() *lockdown.RepoAccessCache { return d.RepoAccessCache }
+
+// GetLogger implements ToolDependencies.
+func (d BaseDeps) Logger(ctx context.Context) obsvLog.Logger {
+	return d.Obsv.Logger(ctx)
+}
 
 // GetT implements ToolDependencies.
 func (d BaseDeps) GetT() translations.TranslationHelperFunc { return d.T }

@@ -207,6 +207,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		cfg.Translator,
 		github.FeatureFlags{LockdownMode: cfg.LockdownMode},
 		cfg.ContentWindowSize,
+		cfg.Logger,
 	)
 
 	// Inject dependencies into context for all tool handlers

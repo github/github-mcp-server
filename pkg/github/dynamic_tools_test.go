@@ -1,8 +1,10 @@
 package github
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -128,12 +130,14 @@ func TestDynamicTools_EnableToolset(t *testing.T) {
 
 	// Create a mock server
 	server := mcp.NewServer(&mcp.Implementation{Name: "test"}, nil)
+	var logBuffer bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuffer, nil))
 
 	// Create dynamic tool dependencies
 	deps := DynamicToolDependencies{
 		Server:    server,
 		Inventory: reg,
-		ToolDeps:  NewBaseDeps(nil, nil, nil, nil, translations.NullTranslationHelper, FeatureFlags{}, 0),
+		ToolDeps:  NewBaseDeps(nil, nil, nil, nil, translations.NullTranslationHelper, FeatureFlags{}, 0, logger),
 		T:         translations.NullTranslationHelper,
 	}
 
