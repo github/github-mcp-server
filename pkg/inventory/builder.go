@@ -149,11 +149,14 @@ func (b *Builder) Build() *Inventory {
 	if len(b.additionalTools) > 0 {
 		r.additionalTools = make(map[string]bool, len(b.additionalTools))
 		for _, name := range b.additionalTools {
-			// Resolve deprecated aliases to canonical names
+			// Always include the original name - this handles the case where
+			// the tool exists but is controlled by a feature flag that's OFF.
+			r.additionalTools[name] = true
+			// Also include the canonical name if this is a deprecated alias.
+			// This handles the case where the feature flag is ON and only
+			// the new consolidated tool is available.
 			if canonical, isAlias := b.deprecatedAliases[name]; isAlias {
 				r.additionalTools[canonical] = true
-			} else {
-				r.additionalTools[name] = true
 			}
 		}
 	}
