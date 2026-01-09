@@ -26,7 +26,9 @@ LABEL io.modelcontextprotocol.server.name="io.github.github/github-mcp-server"
 WORKDIR /server
 # Copy the binary from the build stage
 COPY --from=build /bin/github-mcp-server .
+# Expose the default SSE port
+EXPOSE 8080
 # Set the entrypoint to the server binary
 ENTRYPOINT ["/server/github-mcp-server"]
-# Default arguments for ENTRYPOINT
-CMD ["stdio"]
+# Default arguments for ENTRYPOINT (SSE mode)
+CMD ["sse", "--sse-addr=:8080"]
