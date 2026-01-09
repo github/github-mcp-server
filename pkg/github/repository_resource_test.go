@@ -26,7 +26,7 @@ func Test_repositoryResourceContents(t *testing.T) {
 		name                 string
 		mockedClient         *http.Client
 		uri                  string
-		handlerFn            func(deps ToolDependencies) mcp.ResourceHandler
+		handlerFn            func() mcp.ResourceHandler
 		expectedResponseType resourceResponseType
 		expectError          string
 		expectedResult       *mcp.ReadResourceResult
@@ -41,8 +41,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 				}),
 			}),
 			uri: "repo:///repo/contents/README.md",
-			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
-				return RepositoryResourceContentsHandler(deps, repositoryResourceContentURITemplate)
+			handlerFn: func() mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(repositoryResourceContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText, // Ignored as error is expected
 			expectError:          "owner is required",
@@ -57,8 +57,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 				}),
 			}),
 			uri: "repo://owner//refs/heads/main/contents/README.md",
-			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
-				return RepositoryResourceContentsHandler(deps, repositoryResourceBranchContentURITemplate)
+			handlerFn: func() mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(repositoryResourceBranchContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText, // Ignored as error is expected
 			expectError:          "repo is required",
@@ -73,8 +73,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 				}),
 			}),
 			uri: "repo://owner/repo/contents/data.png",
-			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
-				return RepositoryResourceContentsHandler(deps, repositoryResourceContentURITemplate)
+			handlerFn: func() mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(repositoryResourceContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeBlob,
 			expectedResult: &mcp.ReadResourceResult{
@@ -94,8 +94,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 				}),
 			}),
 			uri: "repo://owner/repo/contents/README.md",
-			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
-				return RepositoryResourceContentsHandler(deps, repositoryResourceContentURITemplate)
+			handlerFn: func() mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(repositoryResourceContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText,
 			expectedResult: &mcp.ReadResourceResult{
@@ -117,8 +117,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 				}),
 			}),
 			uri: "repo://owner/repo/contents/pkg/github/actions.go",
-			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
-				return RepositoryResourceContentsHandler(deps, repositoryResourceContentURITemplate)
+			handlerFn: func() mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(repositoryResourceContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText,
 			expectedResult: &mcp.ReadResourceResult{
@@ -138,8 +138,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 				}),
 			}),
 			uri: "repo://owner/repo/refs/heads/main/contents/README.md",
-			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
-				return RepositoryResourceContentsHandler(deps, repositoryResourceBranchContentURITemplate)
+			handlerFn: func() mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(repositoryResourceBranchContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText,
 			expectedResult: &mcp.ReadResourceResult{
@@ -159,8 +159,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 				}),
 			}),
 			uri: "repo://owner/repo/refs/tags/v1.0.0/contents/README.md",
-			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
-				return RepositoryResourceContentsHandler(deps, repositoryResourceTagContentURITemplate)
+			handlerFn: func() mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(repositoryResourceTagContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText,
 			expectedResult: &mcp.ReadResourceResult{
@@ -180,8 +180,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 				}),
 			}),
 			uri: "repo://owner/repo/sha/abc123/contents/README.md",
-			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
-				return RepositoryResourceContentsHandler(deps, repositoryResourceCommitContentURITemplate)
+			handlerFn: func() mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(repositoryResourceCommitContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText,
 			expectedResult: &mcp.ReadResourceResult{
@@ -206,8 +206,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 				}),
 			}),
 			uri: "repo://owner/repo/refs/pull/42/head/contents/README.md",
-			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
-				return RepositoryResourceContentsHandler(deps, repositoryResourcePrContentURITemplate)
+			handlerFn: func() mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(repositoryResourcePrContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText,
 			expectedResult: &mcp.ReadResourceResult{
@@ -226,8 +226,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 				}),
 			}),
 			uri: "repo://owner/repo/contents/nonexistent.md",
-			handlerFn: func(deps ToolDependencies) mcp.ResourceHandler {
-				return RepositoryResourceContentsHandler(deps, repositoryResourceContentURITemplate)
+			handlerFn: func() mcp.ResourceHandler {
+				return RepositoryResourceContentsHandler(repositoryResourceContentURITemplate)
 			},
 			expectedResponseType: resourceResponseTypeText, // Ignored as error is expected
 			expectError:          "404 Not Found",
@@ -242,7 +242,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 				Client:    client,
 				RawClient: mockRawClient,
 			}
-			handler := tc.handlerFn(deps)
+			ctx := ContextWithDeps(context.Background(), deps)
+			handler := tc.handlerFn()
 
 			request := &mcp.ReadResourceRequest{
 				Params: &mcp.ReadResourceParams{
@@ -250,7 +251,7 @@ func Test_repositoryResourceContents(t *testing.T) {
 				},
 			}
 
-			resp, err := handler(context.TODO(), request)
+			resp, err := handler(ctx, request)
 
 			if tc.expectError != "" {
 				require.ErrorContains(t, err, tc.expectError)
