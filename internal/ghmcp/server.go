@@ -235,6 +235,11 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		fmt.Fprintf(os.Stderr, "Warning: unrecognized toolsets ignored: %s\n", strings.Join(unrecognized, ", "))
 	}
 
+	// Check for unrecognized tools and error out (unlike toolsets which just warn)
+	if unrecognized := inventory.UnrecognizedTools(); len(unrecognized) > 0 {
+		return nil, fmt.Errorf("unrecognized tools: %s", strings.Join(unrecognized, ", "))
+	}
+
 	// Register GitHub tools/resources/prompts from the inventory.
 	// In dynamic mode with no explicit toolsets, this is a no-op since enabledToolsets
 	// is empty - users enable toolsets at runtime via the dynamic tools below (but can

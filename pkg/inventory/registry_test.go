@@ -270,6 +270,77 @@ func TestUnrecognizedToolsets(t *testing.T) {
 	}
 }
 
+func TestUnrecognizedTools(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("tool1", "toolset1", true),
+		mockTool("tool2", "toolset2", true),
+	}
+
+	deprecatedAliases := map[string]string{
+		"old_tool": "tool1",
+	}
+
+	tests := []struct {
+		name                 string
+		withTools            []string
+		expectedUnrecognized []string
+	}{
+		{
+			name:                 "all valid",
+			withTools:            []string{"tool1", "tool2"},
+			expectedUnrecognized: nil,
+		},
+		{
+			name:                 "one invalid",
+			withTools:            []string{"tool1", "blabla"},
+			expectedUnrecognized: []string{"blabla"},
+		},
+		{
+			name:                 "multiple invalid",
+			withTools:            []string{"invalid1", "tool1", "invalid2"},
+			expectedUnrecognized: []string{"invalid1", "invalid2"},
+		},
+		{
+			name:                 "deprecated alias is valid",
+			withTools:            []string{"old_tool"},
+			expectedUnrecognized: nil,
+		},
+		{
+			name:                 "mixed valid and deprecated alias",
+			withTools:            []string{"old_tool", "tool2"},
+			expectedUnrecognized: nil,
+		},
+		{
+			name:                 "empty input",
+			withTools:            []string{},
+			expectedUnrecognized: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			inv := NewBuilder().
+				SetTools(tools).
+				WithDeprecatedAliases(deprecatedAliases).
+				WithToolsets([]string{"all"}).
+				WithTools(tt.withTools).
+				Build()
+			unrecognized := inv.UnrecognizedTools()
+
+			if len(unrecognized) != len(tt.expectedUnrecognized) {
+				t.Fatalf("Expected %d unrecognized, got %d: %v",
+					len(tt.expectedUnrecognized), len(unrecognized), unrecognized)
+			}
+
+			for i, expected := range tt.expectedUnrecognized {
+				if unrecognized[i] != expected {
+					t.Errorf("Expected unrecognized[%d] = %q, got %q", i, expected, unrecognized[i])
+				}
+			}
+		})
+	}
+}
+
 func TestWithTools(t *testing.T) {
 	tools := []ServerTool{
 		mockTool("tool1", "toolset1", true),

@@ -145,9 +145,17 @@ func (b *Builder) Build() *Inventory {
 	// Process toolsets and pre-compute metadata in a single pass
 	r.enabledToolsets, r.unrecognizedToolsets, r.toolsetIDs, r.toolsetIDSet, r.defaultToolsetIDs, r.toolsetDescriptions = b.processToolsets()
 
-	// Process additional tools (resolve aliases)
+	// Build set of valid tool names for validation
+	validToolNames := make(map[string]bool, len(b.tools))
+	for i := range b.tools {
+		validToolNames[b.tools[i].Tool.Name] = true
+	}
+
+	// Process additional tools (resolve aliases and track unrecognized)
+	// Note: input is expected to be pre-cleaned (trimmed, deduped) via CleanTools
 	if len(b.additionalTools) > 0 {
 		r.additionalTools = make(map[string]bool, len(b.additionalTools))
+		var unrecognizedTools []string
 		for _, name := range b.additionalTools {
 			// Always include the original name - this handles the case where
 			// the tool exists but is controlled by a feature flag that's OFF.
@@ -157,8 +165,12 @@ func (b *Builder) Build() *Inventory {
 			// the new consolidated tool is available.
 			if canonical, isAlias := b.deprecatedAliases[name]; isAlias {
 				r.additionalTools[canonical] = true
+			} else if !validToolNames[name] {
+				// Not a valid tool and not a deprecated alias - track as unrecognized
+				unrecognizedTools = append(unrecognizedTools, name)
 			}
 		}
+		r.unrecognizedTools = unrecognizedTools
 	}
 
 	return r
