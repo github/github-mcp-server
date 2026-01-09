@@ -101,6 +101,7 @@ func (b *Builder) WithToolsets(toolsetIDs []string) *Builder {
 // WithTools specifies additional tools that bypass toolset filtering.
 // These tools are additive - they will be included even if their toolset is not enabled.
 // Read-only filtering still applies to these tools.
+// Input is cleaned (trimmed, deduplicated) during Build().
 // Deprecated tool aliases are automatically resolved to their canonical names during Build().
 // Returns self for chaining.
 func (b *Builder) WithTools(toolNames []string) *Builder {
@@ -127,6 +128,24 @@ func (b *Builder) WithFilter(filter ToolFilter) *Builder {
 	return b
 }
 
+// cleanTools trims whitespace and removes duplicates from tool names.
+// Empty strings after trimming are excluded.
+func cleanTools(tools []string) []string {
+	seen := make(map[string]bool)
+	var cleaned []string
+	for _, name := range tools {
+		trimmed := strings.TrimSpace(name)
+		if trimmed == "" {
+			continue
+		}
+		if !seen[trimmed] {
+			seen[trimmed] = true
+			cleaned = append(cleaned, trimmed)
+		}
+	}
+	return cleaned
+}
+
 // Build creates the final Inventory with all configuration applied.
 // This processes toolset filtering, tool name resolution, and sets up
 // the inventory for use. The returned Inventory is ready for use with
@@ -145,10 +164,19 @@ func (b *Builder) Build() *Inventory {
 	// Process toolsets and pre-compute metadata in a single pass
 	r.enabledToolsets, r.unrecognizedToolsets, r.toolsetIDs, r.toolsetIDSet, r.defaultToolsetIDs, r.toolsetDescriptions = b.processToolsets()
 
-	// Process additional tools (resolve aliases)
+	// Build set of valid tool names for validation
+	validToolNames := make(map[string]bool, len(b.tools))
+	for i := range b.tools {
+		validToolNames[b.tools[i].Tool.Name] = true
+	}
+
+	// Process additional tools (clean, resolve aliases, and track unrecognized)
 	if len(b.additionalTools) > 0 {
-		r.additionalTools = make(map[string]bool, len(b.additionalTools))
-		for _, name := range b.additionalTools {
+		cleanedTools := cleanTools(b.additionalTools)
+
+		r.additionalTools = make(map[string]bool, len(cleanedTools))
+		var unrecognizedTools []string
+		for _, name := range cleanedTools {
 			// Always include the original name - this handles the case where
 			// the tool exists but is controlled by a feature flag that's OFF.
 			r.additionalTools[name] = true
@@ -157,8 +185,12 @@ func (b *Builder) Build() *Inventory {
 			// the new consolidated tool is available.
 			if canonical, isAlias := b.deprecatedAliases[name]; isAlias {
 				r.additionalTools[canonical] = true
+			} else if !validToolNames[name] {
+				// Not a valid tool and not a deprecated alias - track as unrecognized
+				unrecognizedTools = append(unrecognizedTools, name)
 			}
 		}
+		r.unrecognizedTools = unrecognizedTools
 	}
 
 	return r
