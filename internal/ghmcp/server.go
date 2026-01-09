@@ -221,7 +221,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		WithDeprecatedAliases(github.DeprecatedToolAliases).
 		WithReadOnly(cfg.ReadOnly).
 		WithToolsets(enabledToolsets).
-		WithTools(github.CleanTools(cfg.EnabledTools)).
+		WithTools(cfg.EnabledTools).
 		WithFeatureChecker(createFeatureChecker(cfg.EnabledFeatures))
 
 	// Apply token scope filtering if scopes are known (for PAT filtering)
