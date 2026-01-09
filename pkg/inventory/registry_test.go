@@ -315,6 +315,36 @@ func TestUnrecognizedTools(t *testing.T) {
 			withTools:            []string{},
 			expectedUnrecognized: nil,
 		},
+		{
+			name:                 "whitespace trimmed from valid tool",
+			withTools:            []string{" tool1 ", "  tool2  "},
+			expectedUnrecognized: nil,
+		},
+		{
+			name:                 "whitespace trimmed from invalid tool",
+			withTools:            []string{" invalid_tool "},
+			expectedUnrecognized: []string{"invalid_tool"},
+		},
+		{
+			name:                 "duplicate tools deduplicated",
+			withTools:            []string{"tool1", "tool1"},
+			expectedUnrecognized: nil,
+		},
+		{
+			name:                 "duplicate invalid tools deduplicated",
+			withTools:            []string{"blabla", "blabla"},
+			expectedUnrecognized: []string{"blabla"},
+		},
+		{
+			name:                 "mixed whitespace and duplicates",
+			withTools:            []string{" tool1 ", "tool1", "  tool1  "},
+			expectedUnrecognized: nil,
+		},
+		{
+			name:                 "empty strings ignored",
+			withTools:            []string{"", "tool1", "  ", ""},
+			expectedUnrecognized: nil,
+		},
 	}
 
 	for _, tt := range tests {
