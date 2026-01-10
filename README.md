@@ -751,6 +751,7 @@ The following sets of tools are available:
 
 - **assign_copilot_to_issue** - Assign Copilot to issue
   - **Required OAuth Scopes**: `repo`
+  - `base_ref`: Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch (string, optional)
   - `issue_number`: Issue number (number, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
