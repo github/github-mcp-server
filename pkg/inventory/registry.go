@@ -91,7 +91,7 @@ const (
 //   - MCPMethodToolsList: All available tools (no resources/prompts)
 //   - MCPMethodToolsCall: Only the named tool
 //   - MCPMethodResourcesList, MCPMethodResourcesTemplatesList: All available resources (no tools/prompts)
-//   - MCPMethodResourcesRead: Only the named resource template
+//   - MCPMethodResourcesRead: All resources (SDK handles URI template matching)
 //   - MCPMethodPromptsList: All available prompts (no tools/resources)
 //   - MCPMethodPromptsGet: Only the named prompt
 //   - Unknown methods: Empty (no items registered)
@@ -134,10 +134,8 @@ func (r *Inventory) ForMCPRequest(method string, itemName string) *Inventory {
 	case MCPMethodResourcesList, MCPMethodResourcesTemplatesList:
 		result.tools, result.prompts = nil, nil
 	case MCPMethodResourcesRead:
+		// Keep all resources registered - SDK handles URI template matching internally
 		result.tools, result.prompts = nil, nil
-		if itemName != "" {
-			result.resourceTemplates = r.filterResourcesByURI(itemName)
-		}
 	case MCPMethodPromptsList:
 		result.tools, result.resourceTemplates = nil, nil
 	case MCPMethodPromptsGet:
