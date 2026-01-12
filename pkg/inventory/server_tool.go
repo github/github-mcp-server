@@ -115,13 +115,14 @@ func (st *ServerTool) RegisterFunc(s *mcp.Server, deps any) {
 	s.AddTool(&toolCopy, handler)
 }
 
-// NewServerTool creates a ServerTool from a tool definition, toolset metadata, and a typed handler function.
+// NewServerToolWithDeps creates a ServerTool from a tool definition, toolset metadata, and a typed handler function.
 // The handler function takes dependencies (as any) and returns a typed handler.
 // Callers should type-assert deps to their typed dependencies struct.
 //
-// Deprecated: This creates closures at registration time. For better performance in
-// per-request server scenarios, use NewServerToolWithContextHandler instead.
-func NewServerTool[In any, Out any](tool mcp.Tool, toolset ToolsetMetadata, handlerFn func(deps any) mcp.ToolHandlerFor[In, Out]) ServerTool {
+// This function creates closures at registration time and should only be used for special cases
+// where the deps structure differs from the standard ToolDependencies (e.g., dynamic tools).
+// For regular tools, use NewServerToolWithContextHandler or NewServerTool instead.
+func NewServerToolWithDeps[In any, Out any](tool mcp.Tool, toolset ToolsetMetadata, handlerFn func(deps any) mcp.ToolHandlerFor[In, Out]) ServerTool {
 	return ServerTool{
 		Tool:    tool,
 		Toolset: toolset,
@@ -163,13 +164,13 @@ func NewServerToolWithContextHandler[In any, Out any](tool mcp.Tool, toolset Too
 	}
 }
 
-// NewServerToolWithRawContextHandler creates a ServerTool with a raw handler that receives deps via context.
+// NewServerTool creates a ServerTool with a raw handler that receives deps via context.
 // This is the preferred approach for tools that use mcp.ToolHandler directly because it doesn't
 // create closures at registration time.
 //
 // The handler function is stored directly without wrapping in a deps closure.
 // Dependencies should be injected into context before calling tool handlers.
-func NewServerToolWithRawContextHandler(tool mcp.Tool, toolset ToolsetMetadata, handler mcp.ToolHandler) ServerTool {
+func NewServerTool(tool mcp.Tool, toolset ToolsetMetadata, handler mcp.ToolHandler) ServerTool {
 	return ServerTool{
 		Tool:    tool,
 		Toolset: toolset,
