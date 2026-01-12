@@ -28,7 +28,7 @@ func testToolsetMetadataWithDefault(id string, isDefault bool) ToolsetMetadata {
 
 // mockToolWithDefault creates a mock tool with a default toolset flag
 func mockToolWithDefault(name string, toolsetID string, readOnly bool, isDefault bool) ServerTool {
-	return NewServerToolFromHandler(
+	return NewServerToolWithRawContextHandler(
 		mcp.Tool{
 			Name: name,
 			Annotations: &mcp.ToolAnnotations{
@@ -37,17 +37,15 @@ func mockToolWithDefault(name string, toolsetID string, readOnly bool, isDefault
 			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
 		},
 		testToolsetMetadataWithDefault(toolsetID, isDefault),
-		func(_ any) mcp.ToolHandler {
-			return func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-				return nil, nil
-			}
+		func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return nil, nil
 		},
 	)
 }
 
 // mockTool creates a minimal ServerTool for testing
 func mockTool(name string, toolsetID string, readOnly bool) ServerTool {
-	return NewServerToolFromHandler(
+	return NewServerToolWithRawContextHandler(
 		mcp.Tool{
 			Name: name,
 			Annotations: &mcp.ToolAnnotations{
@@ -56,10 +54,8 @@ func mockTool(name string, toolsetID string, readOnly bool) ServerTool {
 			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
 		},
 		testToolsetMetadata(toolsetID),
-		func(_ any) mcp.ToolHandler {
-			return func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-				return nil, nil
-			}
+		func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return nil, nil
 		},
 	)
 }
