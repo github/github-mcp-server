@@ -88,6 +88,20 @@ var (
 			return ghmcp.RunStdioServer(stdioServerConfig)
 		},
 	}
+
+	httpCmd = &cobra.Command{
+		Use:   "http",
+		Short: "Start HTTP server",
+		Long:  `Start a server that communicates via HTTP using JSON-RPC messages.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			config := ghmcp.HTTPServerConfig{
+				Version: version,
+				Host:    viper.GetString("host"),
+			}
+
+			return ghmcp.RunHTTPServer(config)
+		},
+	}
 )
 
 func init() {
@@ -126,6 +140,7 @@ func init() {
 
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)
+	rootCmd.AddCommand(httpCmd)
 }
 
 func initConfig() {

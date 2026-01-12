@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/github/github-mcp-server/pkg/http/middleware"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/raw"
@@ -190,3 +191,44 @@ func NewToolFromHandler(
 	st.AcceptedScopes = scopes.ExpandScopes(requiredScopes...)
 	return st
 }
+
+type RequestDep struct {
+	// Pre-created clients
+	Client    *gogithub.Client
+	GQLClient *githubv4.Client
+	RawClient *raw.Client
+
+	// Static dependencies
+	RepoAccessCache   *lockdown.RepoAccessCache
+	T                 translations.TranslationHelperFunc
+	Flags             FeatureFlags
+	ContentWindowSize int
+}
+
+// GetClient implements ToolDependencies.
+func (d RequestDep) GetClient(ctx context.Context) (*gogithub.Client, error) {
+	token := middleware.Token(ctx)
+	return d.Client.WithAuthToken(token.Token), nil
+}
+
+// GetGQLClient implements ToolDependencies.
+func (d RequestDep) GetGQLClient(_ context.Context) (*githubv4.Client, error) {
+	return d.GQLClient, nil
+}
+
+// GetRawClient implements ToolDependencies.
+func (d RequestDep) GetRawClient(_ context.Context) (*raw.Client, error) {
+	return d.RawClient, nil
+}
+
+// GetRepoAccessCache implements ToolDependencies.
+func (d RequestDep) GetRepoAccessCache() *lockdown.RepoAccessCache { return d.RepoAccessCache }
+
+// GetT implements ToolDependencies.
+func (d RequestDep) GetT() translations.TranslationHelperFunc { return d.T }
+
+// GetFlags implements ToolDependencies.
+func (d RequestDep) GetFlags() FeatureFlags { return d.Flags }
+
+// GetContentWindowSize implements ToolDependencies.
+func (d RequestDep) GetContentWindowSize() int { return d.ContentWindowSize }

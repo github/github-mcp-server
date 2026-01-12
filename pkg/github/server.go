@@ -124,9 +124,9 @@ func createGitHubClients(cfg MCPServerConfig, apiHost apiHost) (*githubClients, 
 	}, nil
 }
 
-// ResolveEnabledToolsets determines which toolsets should be enabled based on config.
+// resolveEnabledToolsets determines which toolsets should be enabled based on config.
 // Returns nil for "use defaults", empty slice for "none", or explicit list.
-func ResolveEnabledToolsets(cfg MCPServerConfig) []string {
+func resolveEnabledToolsets(cfg MCPServerConfig) []string {
 	enabledToolsets := cfg.EnabledToolsets
 
 	// In dynamic mode, remove "all" and "default" since users enable toolsets on demand
@@ -162,7 +162,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		return nil, fmt.Errorf("failed to create GitHub clients: %w", err)
 	}
 
-	enabledToolsets := ResolveEnabledToolsets(cfg)
+	enabledToolsets := resolveEnabledToolsets(cfg)
 
 	// For instruction generation, we need actual toolset names (not nil).
 	// nil means "use defaults" in inventory, so expand it for instructions.

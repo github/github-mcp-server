@@ -8,12 +8,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/github/github-mcp-server/pkg/github"
+	httpMiddleware "github.com/github/github-mcp-server/pkg/http/middleware"
 	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type HTTPServerConfig struct {
@@ -22,9 +23,6 @@ type HTTPServerConfig struct {
 
 	// GitHub Host to target for API requests (e.g. github.com or github.enterprise.com)
 	Host string
-
-	// GitHub Token to authenticate with the GitHub API
-	Token string
 
 	// EnabledToolsets is a list of toolsets to enable
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration
@@ -90,26 +88,9 @@ func RunHTTPServer(cfg HTTPServerConfig) error {
 	logger := slog.New(slogHandler)
 	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "dynamicToolsets", cfg.DynamicToolsets, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode)
 
-	// Fetch token scopes for scope-based tool filtering (PAT tokens only)
-	// Only classic PATs (ghp_ prefix) return OAuth scopes via X-OAuth-Scopes header.
-	// Fine-grained PATs and other token types don't support this, so we skip filtering.
-	var tokenScopes []string
-	if strings.HasPrefix(cfg.Token, "ghp_") {
-		fetchedScopes, err := github.FetchTokenScopesForHost(ctx, cfg.Token, cfg.Host)
-		if err != nil {
-			logger.Warn("failed to fetch token scopes, continuing without scope filtering", "error", err)
-		} else {
-			tokenScopes = fetchedScopes
-			logger.Info("token scopes fetched for filtering", "scopes", tokenScopes)
-		}
-	} else {
-		logger.Debug("skipping scope filtering for non-PAT token")
-	}
-
 	ghServer, err := github.NewMCPServer(github.MCPServerConfig{
 		Version:           cfg.Version,
 		Host:              cfg.Host,
-		Token:             cfg.Token,
 		EnabledToolsets:   cfg.EnabledToolsets,
 		EnabledTools:      cfg.EnabledTools,
 		EnabledFeatures:   cfg.EnabledFeatures,
@@ -120,10 +101,40 @@ func RunHTTPServer(cfg HTTPServerConfig) error {
 		LockdownMode:      cfg.LockdownMode,
 		Logger:            logger,
 		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
-		TokenScopes:       tokenScopes,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)
 	}
 
+	handler := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
+		return ghServer
+	}, &mcp.StreamableHTTPOptions{})
+
+	httpSvr := http.Server{
+		Addr:    ":8082",
+		Handler: httpMiddleware.ExtractUserToken()(handler),
+	}
+
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		logger.Info("shutting down server")
+		if err := httpSvr.Shutdown(shutdownCtx); err != nil {
+			logger.Error("error during server shutdown", "error", err)
+		}
+	}()
+
+	if cfg.ExportTranslations {
+		// Once server is initialized, all translations are loaded
+		dumpTranslations()
+	}
+
+	logger.Info("HTTP server listening on :8082")
+	if err := httpSvr.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		return fmt.Errorf("HTTP server error: %w", err)
+	}
+
+	logger.Info("server stopped gracefully")
+	return nil
 }
