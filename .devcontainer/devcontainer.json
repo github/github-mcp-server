@@ -1,0 +1,313 @@
+"use client"
+
+import type React from "react"
+
+import { useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { createClient } from "@/lib/supabase"
+import Link from "next/link"
+
+export default function OwnerInfoContent() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
+  const [formData, setFormData] = useState({
+    full_name: "",
+    date_of_birth: "",
+    id_number: "",
+    phone: "",
+    email: "",
+    nationality: "",
+    gender: "male",
+    has_partners: false,
+    partners: [] as Array<{ name: string; id_number: string; ownership_percentage: string }>,
+    agree_terms: false,
+    agree_privacy: false,
+  })
+
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target
+    const val = type === "checkbox" ? (e.target as HTMLInputElement).checked : value
+
+    setFormData((prev) => ({
+      ...prev,
+      [name]: val,
+    }))
+  }
+
+  const handleAddPartner = () => {
+    setFormData((prev) => ({
+      ...prev,
+      partners: [
+        ...prev.partners,
+        {
+          name: "",
+          id_number: "",
+          ownership_percentage: "",
+        },
+      ],
+    }))
+  }
+
+  const handlePartnerChange = (index: number, field: string, value: string) => {
+    setFormData((prev) => {
+      const newPartners = [...prev.partners]
+      newPartners[index] = { ...newPartners[index], [field]: value }
+      return { ...prev, partners: newPartners }
+    })
+  }
+
+  const handleRemovePartner = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      partners: prev.partners.filter((_, i) => i !== index),
+    }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+
+    if (!formData.agree_terms || !formData.agree_privacy) {
+      setError("ظٹط¬ط¨ ط§ظ„ظ…ظˆط§ظپظ‚ط© ط¹ظ„ظ‰ ط§ظ„ط´ط±ظˆط· ظˆط§ظ„ط®طµظˆطµظٹط©")
+      return
+    }
+
+    setIsLoading(true)
+
+    try {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        throw new Error("User not authenticated")
+      }
+
+      router.push("/dashboard/owner/setup/payment")
+    } catch (err) {
+      setError("ط­ط¯ط« ط®ط·ط£. ظٹط±ط¬ظ‰ ط§ظ„ظ…ط­ط§ظˆظ„ط© ظ…ط±ط© ط£ط®ط±ظ‰.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-background py-12 px-4">
+      <div className="max-w-2xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-foreground mb-2">ظ…ط¹ظ„ظˆظ…ط§طھ ط§ظ„ظ…ط§ظ„ظƒ</h1>
+          <p className="text-foreground-secondary">ط§ظ„ط®ط·ظˆط© 4 ظ…ظ† 4</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && <div className="p-3 bg-error/10 border border-error rounded-lg text-error text-sm">{error}</div>}
+
+          {/* ط§ظ„ط¨ظٹط§ظ†ط§طھ ط§ظ„ط£ط³ط§ط³ظٹط© */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">ط§ظ„ط§ط³ظ… ط§ظ„ظƒط§ظ…ظ„</label>
+              <input
+                type="text"
+                name="full_name"
+                value={formData.full_name}
+                onChange={handleInputChange}
+                required
+                className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">طھط§ط±ظٹط® ط§ظ„ظ…ظٹظ„ط§ط¯</label>
+              <input
+                type="date"
+                name="date_of_birth"
+                value={formData.date_of_birth}
+                onChange={handleInputChange}
+                required
+                className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:border-primary"
+              />
+            </div>
+          </div>
+
+          {/* ط§ظ„ظ‡ظˆظٹط© ظˆط§ظ„ط§طھطµط§ظ„ */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">ط±ظ‚ظ… ط§ظ„ظ‡ظˆظٹط©</label>
+              <input
+                type="text"
+                name="id_number"
+                value={formData.id_number}
+                onChange={handleInputChange}
+                required
+                className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">ط±ظ‚ظ… ط§ظ„ط¬ظˆط§ظ„</label>
+              <input
+                type="tel"
+                name="phone"
+                value={formData.phone}
+                onChange={handleInputChange}
+                required
+                className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ</label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleInputChange}
+                required
+                className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:border-primary"
+              />
+            </div>
+          </div>
+
+          {/* ط§ظ„ط¬ظ†ط³ظٹط© ظˆط§ظ„ظ†ظˆط¹ */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">ط§ظ„ط¬ظ†ط³ظٹط©</label>
+              <input
+                type="text"
+                name="nationality"
+                value={formData.nationality}
+                onChange={handleInputChange}
+                className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">ط§ظ„ط¬ظ†ط³</label>
+              <select
+                name="gender"
+                value={formData.gender}
+                onChange={handleInputChange}
+                className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:border-primary"
+              >
+                <option value="male">ط°ظƒط±</option>
+                <option value="female">ط£ظ†ط«ظ‰</option>
+              </select>
+            </div>
+          </div>
+
+          {/* ظ‡ظ„ ظ„ط¯ظٹظƒ ط´ط±ظƒط§ط، */}
+          <div className="p-4 border border-border rounded-lg bg-background-secondary">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                name="has_partners"
+                checked={formData.has_partners}
+                onChange={handleInputChange}
+                className="w-5 h-5 rounded border-border"
+              />
+              <span className="font-medium text-foreground">ظ‡ظ„ ظ„ط¯ظٹظƒ ط´ط±ظƒط§ط، ظپظٹ ط§ظ„ظ…ظ†ط´ط£ط©طں</span>
+            </label>
+          </div>
+
+          {/* ط¨ظٹط§ظ†ط§طھ ط§ظ„ط´ط±ظƒط§ط، */}
+          {formData.has_partners && (
+            <div className="space-y-4 p-4 border border-primary/50 rounded-lg bg-primary/5">
+              {formData.partners.map((partner, index) => (
+                <div key={index} className="space-y-3 p-4 bg-background rounded-lg border border-border">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <input
+                      type="text"
+                      placeholder="ط§ط³ظ… ط§ظ„ط´ط±ظٹظƒ"
+                      value={partner.name}
+                      onChange={(e) => handlePartnerChange(index, "name", e.target.value)}
+                      className="px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:border-primary"
+                    />
+                    <input
+                      type="text"
+                      placeholder="ط±ظ‚ظ… ط§ظ„ظ‡ظˆظٹط©"
+                      value={partner.id_number}
+                      onChange={(e) => handlePartnerChange(index, "id_number", e.target.value)}
+                      className="px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:border-primary"
+                    />
+                    <input
+                      type="number"
+                      placeholder="ظ†ط³ط¨ط© ط§ظ„ظ…ظ„ظƒظٹط© %"
+                      value={partner.ownership_percentage}
+                      onChange={(e) => handlePartnerChange(index, "ownership_percentage", e.target.value)}
+                      className="px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:border-primary"
+                      min="0"
+                      max="100"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRemovePartner(index)}
+                    className="text-sm text-error hover:text-error/80"
+                  >
+                    ط­ط°ظپ ط§ظ„ط´ط±ظٹظƒ
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={handleAddPartner}
+                className="w-full py-2 border-2 border-dashed border-primary text-primary rounded-lg font-semibold hover:bg-primary/5 transition-colors"
+              >
+                ط¥ط¶ط§ظپط© ط´ط±ظٹظƒ
+              </button>
+            </div>
+          )}
+
+          {/* ط§ظ„ظ…ظˆط§ظپظ‚ط§طھ */}
+          <div className="space-y-3 p-4 bg-background-secondary rounded-lg">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                name="agree_terms"
+                checked={formData.agree_terms}
+                onChange={handleInputChange}
+                className="w-5 h-5 mt-1 rounded border-border"
+              />
+              <span className="text-sm text-foreground">
+                ط£ظˆط§ظپظ‚ ط¹ظ„ظ‰ <span className="font-semibold">ط§ظ„ط´ط±ظˆط· ظˆط§ظ„ط£ط­ظƒط§ظ…</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                name="agree_privacy"
+                checked={formData.agree_privacy}
+                onChange={handleInputChange}
+                className="w-5 h-5 mt-1 rounded border-border"
+              />
+              <span className="text-sm text-foreground">
+                ط£ظˆط§ظپظ‚ ط¹ظ„ظ‰ <span className="font-semibold">ط³ظٹط§ط³ط© ط­ظ…ط§ظٹط© ط§ظ„ط®طµظˆطµظٹط©</span>
+              </span>
+            </label>
+          </div>
+
+          {/* ط£ط²ط±ط§ط± ط§ظ„طھظ†ظ‚ظ„ */}
+          <div className="flex gap-4 mt-8">
+            <Link
+              href={`/dashboard/owner/setup/step-3-business-info?${searchParams.toString()}`}
+              className="flex-1 py-2 border-2 border-border text-foreground rounded-lg font-semibold hover:border-primary transition-colors text-center"
+            >
+              ط§ظ„ط³ط§ط¨ظ‚
+            </Link>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="flex-1 py-2 bg-primary text-background rounded-lg font-semibold hover:bg-primary-hover transition-colors disabled:opacity-50"
+            >
+              {isLoading ? "ط¬ط§ط±ظٹ..." : "ط§ظ„طھط§ظ„ظٹ ط¥ظ„ظ‰ ط§ظ„ط¯ظپط¹"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}{
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "features": {}
+}
