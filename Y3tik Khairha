@@ -1,184 +1,313 @@
-[![Go Report Card](https://goreportcard.com/badge/github.com/github/github-mcp-server)](https://goreportcard.com/report/github.com/github/github-mcp-server)
+"use client"
 
-# GitHub MCP Server
+import type React from "react"
 
-The GitHub MCP Server connects AI tools directly to GitHub's platform. This gives AI agents, assistants, and chatbots the ability to read repositories and code files, manage issues and PRs, analyze code, and automate workflows. All through natural language interactions.
+import { useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { createClient } from "@/lib/supabase"
+import Link from "next/link"
 
-### Use Cases
+export default function OwnerInfoContent() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
 
-- Repository Management: Browse and query code, search files, analyze commits, and understand project structure across any repository you have access to.
-- Issue & PR Automation: Create, update, and manage issues and pull requests. Let AI help triage bugs, review code changes, and maintain project boards.
-- CI/CD & Workflow Intelligence: Monitor GitHub Actions workflow runs, analyze build failures, manage releases, and get insights into your development pipeline.
-- Code Analysis: Examine security findings, review Dependabot alerts, understand code patterns, and get comprehensive insights into your codebase.
-- Team Collaboration: Access discussions, manage notifications, analyze team activity, and streamline processes for your team.
+  const [formData, setFormData] = useState({
+    full_name: "",
+    date_of_birth: "",
+    id_number: "",
+    phone: "",
+    email: "",
+    nationality: "",
+    gender: "male",
+    has_partners: false,
+    partners: [] as Array<{ name: string; id_number: string; ownership_percentage: string }>,
+    agree_terms: false,
+    agree_privacy: false,
+  })
 
-Built for developers who want to connect their AI tools to GitHub context and capabilities, from simple natural language queries to complex multi-step agent workflows.
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
 
----
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target
+    const val = type === "checkbox" ? (e.target as HTMLInputElement).checked : value
 
-## Remote GitHub MCP Server
+    setFormData((prev) => ({
+      ...prev,
+      [name]: val,
+    }))
+  }
 
-[![Install in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%22%7D) [![Install in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install_Server-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%7B%22type%22%3A%20%22http%22%2C%22url%22%3A%20%22https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F%22%7D&quality=insiders)
+  const handleAddPartner = () => {
+    setFormData((prev) => ({
+      ...prev,
+      partners: [
+        ...prev.partners,
+        {
+          name: "",
+          id_number: "",
+          ownership_percentage: "",
+        },
+      ],
+    }))
+  }
 
-The remote GitHub MCP Server is hosted by GitHub and provides the easiest method for getting up and running. If your MCP host does not support remote MCP servers, don't worry! You can use the [local version of the GitHub MCP Server](https://github.com/github/github-mcp-server?tab=readme-ov-file#local-github-mcp-server) instead.
+  const handlePartnerChange = (index: number, field: string, value: string) => {
+    setFormData((prev) => {
+      const newPartners = [...prev.partners]
+      newPartners[index] = { ...newPartners[index], [field]: value }
+      return { ...prev, partners: newPartners }
+    })
+  }
 
-### Prerequisites
+  const handleRemovePartner = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      partners: prev.partners.filter((_, i) => i !== index),
+    }))
+  }
 
-1. A compatible MCP host with remote server support (VS Code 1.101+, Claude Desktop, Cursor, Windsurf, etc.)
-2. Any applicable [policies enabled](https://github.com/github/github-mcp-server/blob/main/docs/policies-and-governance.md)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
 
-### Install in VS Code
+    if (!formData.agree_terms || !formData.agree_privacy) {
+      setError("ظٹط¬ط¨ ط§ظ„ظ…ظˆط§ظپظ‚ط© ط¹ظ„ظ‰ ط§ظ„ط´ط±ظˆط· ظˆط§ظ„ط®طµظˆطµظٹط©")
+      return
+    }
 
-For quick installation, use one of the one-click install buttons above. Once you complete that flow, toggle Agent mode (located by the Copilot Chat text input) and the server will start. Make sure you're using [VS Code 1.101](https://code.visualstudio.com/updates/v1_101) or [later](https://code.visualstudio.com/updates) for remote MCP and OAuth support.
+    setIsLoading(true)
 
-Alternatively, to manually configure VS Code, choose the appropriate JSON block from the examples below and add it to your host configuration:
+    try {
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
 
-<table>
-<tr><th>Using OAuth</th><th>Using a GitHub PAT</th></tr>
-<tr><th align=left colspan=2>VS Code (version 1.101 or greater)</th></tr>
-<tr valign=top>
-<td>
+      if (!user) {
+        throw new Error("User not authenticated")
+      }
 
-```json
-{
-  "servers": {
-    "github": {
-      "type": "http",
-      "url": "https://api.githubcopilot.com/mcp/"
+      router.push("/dashboard/owner/setup/payment")
+    } catch (err) {
+      setError("ط­ط¯ط« ط®ط·ط£. ظٹط±ط¬ظ‰ ط§ظ„ظ…ط­ط§ظˆظ„ط© ظ…ط±ط© ط£ط®ط±ظ‰.")
+    } finally {
+      setIsLoading(false)
     }
   }
-}
-```
 
-</td>
-<td>
+  return (
+    <div className="min-h-screen bg-background py-12 px-4">
+      <div className="max-w-2xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-foreground mb-2">ظ…ط¹ظ„ظˆظ…ط§طھ ط§ظ„ظ…ط§ظ„ظƒ</h1>
+          <p className="text-foreground-secondary">ط§ظ„ط®ط·ظˆط© 4 ظ…ظ† 4</p>
+        </div>
 
-```json
-{
-  "servers": {
-    "github": {
-      "type": "http",
-      "url": "https://api.githubcopilot.com/mcp/",
-      "headers": {
-        "Authorization": "Bearer ${input:github_mcp_pat}"
-      }
-    }
-  },
-  "inputs": [
-    {
-      "type": "promptString",
-      "id": "github_mcp_pat",
-      "description": "GitHub Personal Access Token",
-      "password": true
-    }
-  ]
-}
-```
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && <div className="p-3 bg-error/10 border border-error rounded-lg text-error text-sm">{error}</div>}
 
-</td>
-</tr>
-</table>
+          {/* ط§ظ„ط¨ظٹط§ظ†ط§طھ ط§ظ„ط£ط³ط§ط³ظٹط© */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">ط§ظ„ط§ط³ظ… ط§ظ„ظƒط§ظ…ظ„</label>
+              <input
+                type="text"
+                name="full_name"
+                value={formData.full_name}
+                onChange={handleInputChange}
+                required
+                className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">طھط§ط±ظٹط® ط§ظ„ظ…ظٹظ„ط§ط¯</label>
+              <input
+                type="date"
+                name="date_of_birth"
+                value={formData.date_of_birth}
+                onChange={handleInputChange}
+                required
+                className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:border-primary"
+              />
+            </div>
+          </div>
 
-### Install in other MCP hosts
-- **[GitHub Copilot in other IDEs](/docs/installation-guides/install-other-copilot-ides.md)** - Installation for JetBrains, Visual Studio, Eclipse, and Xcode with GitHub Copilot
-- **[Claude Applications](/docs/installation-guides/install-claude.md)** - Installation guide for Claude Desktop and Claude Code CLI
-- **[Codex](/docs/installation-guides/install-codex.md)** - Installation guide for Open AI Codex
-- **[Cursor](/docs/installation-guides/install-cursor.md)** - Installation guide for Cursor IDE
-- **[Windsurf](/docs/installation-guides/install-windsurf.md)** - Installation guide for Windsurf IDE
-- **[Rovo Dev CLI](/docs/installation-guides/install-rovo-dev-cli.md)** - Installation guide for Rovo Dev CLI
+          {/* ط§ظ„ظ‡ظˆظٹط© ظˆط§ظ„ط§طھطµط§ظ„ */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">ط±ظ‚ظ… ط§ظ„ظ‡ظˆظٹط©</label>
+              <input
+                type="text"
+                name="id_number"
+                value={formData.id_number}
+                onChange={handleInputChange}
+                required
+                className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">ط±ظ‚ظ… ط§ظ„ط¬ظˆط§ظ„</label>
+              <input
+                type="tel"
+                name="phone"
+                value={formData.phone}
+                onChange={handleInputChange}
+                required
+                className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ</label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleInputChange}
+                required
+                className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:border-primary"
+              />
+            </div>
+          </div>
 
-> **Note:** Each MCP host application needs to configure a GitHub App or OAuth App to support remote access via OAuth. Any host application that supports remote MCP servers should support the remote GitHub server with PAT authentication. Configuration details and support levels vary by host. Make sure to refer to the host application's documentation for more info.
+          {/* ط§ظ„ط¬ظ†ط³ظٹط© ظˆط§ظ„ظ†ظˆط¹ */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">ط§ظ„ط¬ظ†ط³ظٹط©</label>
+              <input
+                type="text"
+                name="nationality"
+                value={formData.nationality}
+                onChange={handleInputChange}
+                className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">ط§ظ„ط¬ظ†ط³</label>
+              <select
+                name="gender"
+                value={formData.gender}
+                onChange={handleInputChange}
+                className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:border-primary"
+              >
+                <option value="male">ط°ظƒط±</option>
+                <option value="female">ط£ظ†ط«ظ‰</option>
+              </select>
+            </div>
+          </div>
 
-### Configuration
+          {/* ظ‡ظ„ ظ„ط¯ظٹظƒ ط´ط±ظƒط§ط، */}
+          <div className="p-4 border border-border rounded-lg bg-background-secondary">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                name="has_partners"
+                checked={formData.has_partners}
+                onChange={handleInputChange}
+                className="w-5 h-5 rounded border-border"
+              />
+              <span className="font-medium text-foreground">ظ‡ظ„ ظ„ط¯ظٹظƒ ط´ط±ظƒط§ط، ظپظٹ ط§ظ„ظ…ظ†ط´ط£ط©طں</span>
+            </label>
+          </div>
 
-#### Toolset configuration
+          {/* ط¨ظٹط§ظ†ط§طھ ط§ظ„ط´ط±ظƒط§ط، */}
+          {formData.has_partners && (
+            <div className="space-y-4 p-4 border border-primary/50 rounded-lg bg-primary/5">
+              {formData.partners.map((partner, index) => (
+                <div key={index} className="space-y-3 p-4 bg-background rounded-lg border border-border">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <input
+                      type="text"
+                      placeholder="ط§ط³ظ… ط§ظ„ط´ط±ظٹظƒ"
+                      value={partner.name}
+                      onChange={(e) => handlePartnerChange(index, "name", e.target.value)}
+                      className="px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:border-primary"
+                    />
+                    <input
+                      type="text"
+                      placeholder="ط±ظ‚ظ… ط§ظ„ظ‡ظˆظٹط©"
+                      value={partner.id_number}
+                      onChange={(e) => handlePartnerChange(index, "id_number", e.target.value)}
+                      className="px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:border-primary"
+                    />
+                    <input
+                      type="number"
+                      placeholder="ظ†ط³ط¨ط© ط§ظ„ظ…ظ„ظƒظٹط© %"
+                      value={partner.ownership_percentage}
+                      onChange={(e) => handlePartnerChange(index, "ownership_percentage", e.target.value)}
+                      className="px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:border-primary"
+                      min="0"
+                      max="100"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleRemovePartner(index)}
+                    className="text-sm text-error hover:text-error/80"
+                  >
+                    ط­ط°ظپ ط§ظ„ط´ط±ظٹظƒ
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={handleAddPartner}
+                className="w-full py-2 border-2 border-dashed border-primary text-primary rounded-lg font-semibold hover:bg-primary/5 transition-colors"
+              >
+                ط¥ط¶ط§ظپط© ط´ط±ظٹظƒ
+              </button>
+            </div>
+          )}
 
-See [Remote Server Documentation](docs/remote-server.md) for full details on remote server configuration, toolsets, headers, and advanced usage. This file provides comprehensive instructions and examples for connecting, customizing, and installing the remote GitHub MCP Server in VS Code and other MCP hosts.
+          {/* ط§ظ„ظ…ظˆط§ظپظ‚ط§طھ */}
+          <div className="space-y-3 p-4 bg-background-secondary rounded-lg">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                name="agree_terms"
+                checked={formData.agree_terms}
+                onChange={handleInputChange}
+                className="w-5 h-5 mt-1 rounded border-border"
+              />
+              <span className="text-sm text-foreground">
+                ط£ظˆط§ظپظ‚ ط¹ظ„ظ‰ <span className="font-semibold">ط§ظ„ط´ط±ظˆط· ظˆط§ظ„ط£ط­ظƒط§ظ…</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                name="agree_privacy"
+                checked={formData.agree_privacy}
+                onChange={handleInputChange}
+                className="w-5 h-5 mt-1 rounded border-border"
+              />
+              <span className="text-sm text-foreground">
+                ط£ظˆط§ظپظ‚ ط¹ظ„ظ‰ <span className="font-semibold">ط³ظٹط§ط³ط© ط­ظ…ط§ظٹط© ط§ظ„ط®طµظˆطµظٹط©</span>
+              </span>
+            </label>
+          </div>
 
-When no toolsets are specified, [default toolsets](#default-toolset) are used.
-
-#### GitHub Enterprise
-
-##### GitHub Enterprise Cloud with data residency (ghe.com)
-
-GitHub Enterprise Cloud can also make use of the remote server.
-
-Example for `https://octocorp.ghe.com` with GitHub PAT token:
-```
-{
-    ...
-    "proxima-github": {
-      "type": "http",
-      "url": "https://copilot-api.octocorp.ghe.com/mcp",
-      "headers": {
-        "Authorization": "Bearer ${input:github_mcp_pat}"
-      }
-    },
-    ...
-}
-```
-
-> **Note:** When using OAuth with GitHub Enterprise with VS Code and GitHub Copilot, you also need to configure your VS Code settings to point to your GitHub Enterprise instance - see [Authenticate from VS Code](https://docs.github.com/en/enterprise-cloud@latest/copilot/how-tos/configure-personal-settings/authenticate-to-ghecom)
-
-##### GitHub Enterprise Server
-
-GitHub Enterprise Server does not support remote server hosting. Please refer to [GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)](#github-enterprise-server-and-enterprise-cloud-with-data-residency-ghecom) from the local server configuration.
-
----
-
-## Local GitHub MCP Server
-
-[![Install with Docker in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&inputs=%5B%7B%22id%22%3A%22github_token%22%2C%22type%22%3A%22promptString%22%2C%22description%22%3A%22GitHub%20Personal%20Access%20Token%22%2C%22password%22%3Atrue%7D%5D&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-e%22%2C%22GITHUB_PERSONAL_ACCESS_TOKEN%22%2C%22ghcr.io%2Fgithub%2Fgithub-mcp-server%22%5D%2C%22env%22%3A%7B%22GITHUB_PERSONAL_ACCESS_TOKEN%22%3A%22%24%7Binput%3Agithub_token%7D%22%7D%7D) [![Install with Docker in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install_Server-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&inputs=%5B%7B%22id%22%3A%22github_token%22%2C%22type%22%3A%22promptString%22%2C%22description%22%3A%22GitHub%20Personal%20Access%20Token%22%2C%22password%22%3Atrue%7D%5D&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-e%22%2C%22GITHUB_PERSONAL_ACCESS_TOKEN%22%2C%22ghcr.io%2Fgithub%2Fgithub-mcp-server%22%5D%2C%22env%22%3A%7B%22GITHUB_PERSONAL_ACCESS_TOKEN%22%3A%22%24%7Binput%3Agithub_token%7D%22%7D%7D&quality=insiders)
-
-### Prerequisites
-
-1. To run the server in a container, you will need to have [Docker](https://www.docker.com/) installed.
-2. Once Docker is installed, you will also need to ensure Docker is running. The Docker image is available at `ghcr.io/github/github-mcp-server`. The image is public; if you get errors on pull, you may have an expired token and need to `docker logout ghcr.io`.
-3. Lastly you will need to [Create a GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new).
-The MCP server can use many of the GitHub APIs, so enable the permissions that you feel comfortable granting your AI tools (to learn more about access tokens, please check out the [documentation](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)).
-
-<details><summary><b>Handling PATs Securely</b></summary>
-
-### Environment Variables (Recommended)
-To keep your GitHub PAT secure and reusable across different MCP hosts:
-
-1. **Store your PAT in environment variables**
-   ```bash
-   export GITHUB_PAT=your_token_here
-   ```
-   Or create a `.env` file:
-   ```env
-   GITHUB_PAT=your_token_here
-   ```
-
-2. **Protect your `.env` file**
-   ```bash
-   # Add to .gitignore to prevent accidental commits
-   echo ".env" >> .gitignore
-   ```
-
-3. **Reference the token in configurations**
-   ```bash
-   # CLI usage
-   claude mcp update github -e GITHUB_PERSONAL_ACCESS_TOKEN=$GITHUB_PAT
-
-   # In config files (where supported)
-   "env": {
-     "GITHUB_PERSONAL_ACCESS_TOKEN": "$GITHUB_PAT"
-   }
-   ```
-
-> **Note**: Environment variable support varies by host app and IDE. Some applications (like Windsurf) require hardcoded tokens in config files.
-
-### Token Security Best Practices
-
-- **Minimum scopes**: Only grant necessary permissions
-  - `repo` - Repository operations
-  - `read:packages` - Docker image access
-  - `read:org` - Organization team access
-- **Separate tokens**: Use different PATs for different projects/environments
-- **Regular rotation**: Update tokens periodically
-- **Never commit**: Keep tokens out of version control
+          {/* ط£ط²ط±ط§ط± ط§ظ„طھظ†ظ‚ظ„ */}
+          <div className="flex gap-4 mt-8">
+            <Link
+              href={`/dashboard/owner/setup/step-3-business-info?${searchParams.toString()}`}
+              className="flex-1 py-2 border-2 border-border text-foreground rounded-lg font-semibold hover:border-primary transition-colors text-center"
+            >
+              ط§ظ„ط³ط§ط¨ظ‚
+            </Link>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="flex-1 py-2 bg-primary text-background rounded-lg font-semibold hover:bg-primary-hover transition-colors disabled:opacity-50"
+            >
+              {isLoading ? "ط¬ط§ط±ظٹ..." : "ط§ظ„طھط§ظ„ظٹ ط¥ظ„ظ‰ ط§ظ„ط¯ظپط¹"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}f version control
 - **File permissions**: Restrict access to config files containing tokens
   ```bash
   chmod 600 ~/.your-app/config.json
