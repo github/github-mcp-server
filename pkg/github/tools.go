@@ -289,9 +289,6 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GetLabelForLabelsToolset(t),
 		ListLabels(t),
 		LabelWrite(t),
-
-		// Demonstration tool for feature flag conditional behavior
-		HelloWorld(t),
 	}
 }
 
