@@ -6,11 +6,6 @@
   "description": "Tools for listing GitHub Projects resources.\nUse this tool to list projects for a user or organization, or list project fields and items for a specific project.\n",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "method",
-      "owner_type",
-      "owner"
-    ],
     "properties": {
       "after": {
         "type": "string",
@@ -22,10 +17,10 @@
       },
       "fields": {
         "type": "array",
-        "description": "Field IDs to include when listing project items (e.g. [\"102589\", \"985201\"]). CRITICAL: Always provide to get field values. Without this, only titles returned. Only used for 'list_project_items' method.",
         "items": {
           "type": "string"
-        }
+        },
+        "description": "Field IDs to include when listing project items (e.g. [\"102589\", \"985201\"]). CRITICAL: Always provide to get field values. Without this, only titles returned. Only used for 'list_project_items' method."
       },
       "method": {
         "type": "string",
@@ -60,7 +55,12 @@
         "type": "string",
         "description": "Filter/query string. For list_projects: filter by title text and state (e.g. \"roadmap is:open\"). For list_project_items: advanced filtering using GitHub's project filtering syntax."
       }
-    }
+    },
+    "required": [
+      "method",
+      "owner_type",
+      "owner"
+    ]
   },
   "name": "projects_list"
 }

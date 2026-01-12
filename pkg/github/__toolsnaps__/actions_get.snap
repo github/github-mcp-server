@@ -6,12 +6,6 @@
   "description": "Get details about specific GitHub Actions resources.\nUse this tool to get details about individual workflows, workflow runs, jobs, and artifacts by their unique IDs.\n",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "method",
-      "owner",
-      "repo",
-      "resource_id"
-    ],
     "properties": {
       "method": {
         "type": "string",
@@ -37,7 +31,13 @@
         "type": "string",
         "description": "The unique identifier of the resource. This will vary based on the \"method\" provided, so ensure you provide the correct ID:\n- Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'get_workflow' method.\n- Provide a workflow run ID for 'get_workflow_run', 'get_workflow_run_usage', and 'get_workflow_run_logs_url' methods.\n- Provide an artifact ID for 'download_workflow_run_artifact' method.\n- Provide a job ID for 'get_workflow_job' method.\n"
       }
-    }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo",
+      "resource_id"
+    ]
   },
   "name": "actions_get"
 }

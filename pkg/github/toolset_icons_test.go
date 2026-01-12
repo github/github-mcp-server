@@ -13,7 +13,8 @@ import (
 // This prevents broken icon references from being merged.
 func TestAllToolsetIconsExist(t *testing.T) {
 	// Get all available toolsets from the inventory
-	inv := NewInventory(stubTranslator).Build()
+	inv, err := NewInventory(stubTranslator).Build()
+	require.NoError(t, err)
 	toolsets := inv.AvailableToolsets()
 
 	// Also test remote-only toolsets
@@ -72,7 +73,8 @@ func TestToolsetMetadataHasIcons(t *testing.T) {
 		"default": true, // Meta-toolset
 	}
 
-	inv := NewInventory(stubTranslator).Build()
+	inv, err := NewInventory(stubTranslator).Build()
+	require.NoError(t, err)
 	toolsets := inv.AvailableToolsets()
 
 	for _, ts := range toolsets {

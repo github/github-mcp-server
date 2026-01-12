@@ -5,18 +5,13 @@
   "description": "Create a new or update an existing issue in a GitHub repository.",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "method",
-      "owner",
-      "repo"
-    ],
     "properties": {
       "assignees": {
         "type": "array",
-        "description": "Usernames to assign to this issue",
         "items": {
           "type": "string"
-        }
+        },
+        "description": "Usernames to assign to this issue"
       },
       "body": {
         "type": "string",
@@ -32,10 +27,10 @@
       },
       "labels": {
         "type": "array",
-        "description": "Labels to apply to this issue",
         "items": {
           "type": "string"
-        }
+        },
+        "description": "Labels to apply to this issue"
       },
       "method": {
         "type": "string",
@@ -82,7 +77,12 @@
         "type": "string",
         "description": "Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter."
       }
-    }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo"
+    ]
   },
   "name": "issue_write"
 }

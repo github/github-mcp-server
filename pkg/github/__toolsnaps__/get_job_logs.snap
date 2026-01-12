@@ -6,10 +6,6 @@
   "description": "Download logs for a specific workflow job or efficiently get all failed job logs for a workflow run",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo"
-    ],
     "properties": {
       "failed_only": {
         "type": "boolean",
@@ -40,7 +36,11 @@
         "description": "Number of lines to return from the end of the log",
         "default": 500
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ]
   },
   "name": "get_job_logs"
 }

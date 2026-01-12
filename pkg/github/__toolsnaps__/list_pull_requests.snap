@@ -6,10 +6,6 @@
   "description": "List pull requests in a GitHub repository. If the user specifies an author, then DO NOT use this tool and use the search_pull_requests tool instead.",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo"
-    ],
     "properties": {
       "base": {
         "type": "string",
@@ -65,7 +61,11 @@
           "all"
         ]
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ]
   },
   "name": "list_pull_requests"
 }

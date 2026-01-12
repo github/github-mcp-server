@@ -6,12 +6,6 @@
   "description": "Add, update, or delete project items in a GitHub Project.",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "method",
-      "owner_type",
-      "owner",
-      "project_number"
-    ],
     "properties": {
       "item_id": {
         "type": "number",
@@ -54,7 +48,13 @@
         "type": "object",
         "description": "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}. Required for 'update_project_item' method."
       }
-    }
+    },
+    "required": [
+      "method",
+      "owner_type",
+      "owner",
+      "project_number"
+    ]
   },
   "name": "projects_write"
 }

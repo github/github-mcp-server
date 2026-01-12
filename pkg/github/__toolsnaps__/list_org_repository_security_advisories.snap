@@ -6,9 +6,6 @@
   "description": "List repository security advisories for a GitHub organization.",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "org"
-    ],
     "properties": {
       "direction": {
         "type": "string",
@@ -41,7 +38,10 @@
           "closed"
         ]
       }
-    }
+    },
+    "required": [
+      "org"
+    ]
   },
   "name": "list_org_repository_security_advisories"
 }

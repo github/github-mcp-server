@@ -6,10 +6,6 @@
   "description": "Get the contents of a file or directory from a GitHub repository",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo"
-    ],
     "properties": {
       "owner": {
         "type": "string",
@@ -32,7 +28,11 @@
         "type": "string",
         "description": "Accepts optional commit SHA. If specified, it will be used instead of ref"
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ]
   },
   "name": "get_file_contents"
 }

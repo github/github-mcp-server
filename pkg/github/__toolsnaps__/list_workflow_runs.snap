@@ -6,11 +6,6 @@
   "description": "List workflow runs for a specific workflow",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo",
-      "workflow_id"
-    ],
     "properties": {
       "actor": {
         "type": "string",
@@ -92,7 +87,12 @@
         "type": "string",
         "description": "The workflow ID or workflow file name"
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "workflow_id"
+    ]
   },
   "name": "list_workflow_runs"
 }

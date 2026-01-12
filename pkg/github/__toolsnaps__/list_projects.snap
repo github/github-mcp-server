@@ -6,10 +6,6 @@
   "description": "List Projects for a user or organization",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner_type",
-      "owner"
-    ],
     "properties": {
       "after": {
         "type": "string",
@@ -39,7 +35,11 @@
         "type": "string",
         "description": "Filter projects by title text and open/closed state; permitted qualifiers: is:open, is:closed; examples: \"roadmap is:open\", \"is:open feature planning\"."
       }
-    }
+    },
+    "required": [
+      "owner_type",
+      "owner"
+    ]
   },
   "name": "list_projects"
 }

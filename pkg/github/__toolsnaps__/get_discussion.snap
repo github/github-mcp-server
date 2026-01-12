@@ -6,11 +6,6 @@
   "description": "Get a specific discussion by ID",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo",
-      "discussionNumber"
-    ],
     "properties": {
       "discussionNumber": {
         "type": "number",
@@ -24,7 +19,12 @@
         "type": "string",
         "description": "Repository name"
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "discussionNumber"
+    ]
   },
   "name": "get_discussion"
 }

@@ -6,11 +6,6 @@
   "description": "Get details for a commit from a GitHub repository",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo",
-      "sha"
-    ],
     "properties": {
       "include_diff": {
         "type": "boolean",
@@ -40,7 +35,12 @@
         "type": "string",
         "description": "Commit SHA, branch name, or tag name"
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "sha"
+    ]
   },
   "name": "get_commit"
 }

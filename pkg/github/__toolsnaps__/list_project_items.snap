@@ -6,11 +6,6 @@
   "description": "Search project items with advanced filtering",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner_type",
-      "owner",
-      "project_number"
-    ],
     "properties": {
       "after": {
         "type": "string",
@@ -22,10 +17,10 @@
       },
       "fields": {
         "type": "array",
-        "description": "Field IDs to include (e.g. [\"102589\", \"985201\"]). CRITICAL: Always provide to get field values. Without this, only titles returned.",
         "items": {
           "type": "string"
-        }
+        },
+        "description": "Field IDs to include (e.g. [\"102589\", \"985201\"]). CRITICAL: Always provide to get field values. Without this, only titles returned."
       },
       "owner": {
         "type": "string",
@@ -51,7 +46,12 @@
         "type": "string",
         "description": "Query string for advanced filtering of project items using GitHub's project filtering syntax."
       }
-    }
+    },
+    "required": [
+      "owner_type",
+      "owner",
+      "project_number"
+    ]
   },
   "name": "list_project_items"
 }

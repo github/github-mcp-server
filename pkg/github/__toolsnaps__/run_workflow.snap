@@ -5,12 +5,6 @@
   "description": "Run an Actions workflow by workflow ID or filename",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo",
-      "workflow_id",
-      "ref"
-    ],
     "properties": {
       "inputs": {
         "type": "object",
@@ -32,7 +26,13 @@
         "type": "string",
         "description": "The workflow ID (numeric) or workflow file name (e.g., main.yml, ci.yaml)"
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "workflow_id",
+      "ref"
+    ]
   },
   "name": "run_workflow"
 }

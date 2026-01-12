@@ -6,10 +6,6 @@
   "description": "List issues in a GitHub repository. For pagination, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter.",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo"
-    ],
     "properties": {
       "after": {
         "type": "string",
@@ -25,10 +21,10 @@
       },
       "labels": {
         "type": "array",
-        "description": "Filter by labels",
         "items": {
           "type": "string"
-        }
+        },
+        "description": "Filter by labels"
       },
       "orderBy": {
         "type": "string",
@@ -65,7 +61,11 @@
           "CLOSED"
         ]
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ]
   },
   "name": "list_issues"
 }

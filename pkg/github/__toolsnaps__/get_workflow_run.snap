@@ -6,11 +6,6 @@
   "description": "Get details of a specific workflow run",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo",
-      "run_id"
-    ],
     "properties": {
       "owner": {
         "type": "string",
@@ -24,7 +19,12 @@
         "type": "number",
         "description": "The unique identifier of the workflow run"
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "run_id"
+    ]
   },
   "name": "get_workflow_run"
 }

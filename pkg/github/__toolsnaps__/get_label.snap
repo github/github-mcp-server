@@ -6,11 +6,6 @@
   "description": "Get a specific label from a repository.",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo",
-      "name"
-    ],
     "properties": {
       "name": {
         "type": "string",
@@ -24,7 +19,12 @@
         "type": "string",
         "description": "Repository name"
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "name"
+    ]
   },
   "name": "get_label"
 }

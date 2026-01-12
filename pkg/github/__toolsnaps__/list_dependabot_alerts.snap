@@ -6,10 +6,6 @@
   "description": "List dependabot alerts in a GitHub repository.",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo"
-    ],
     "properties": {
       "owner": {
         "type": "string",
@@ -40,7 +36,11 @@
           "auto_dismissed"
         ]
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ]
   },
   "name": "list_dependabot_alerts"
 }

@@ -6,11 +6,6 @@
   "description": "Get details about a specific git tag in a GitHub repository",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo",
-      "tag"
-    ],
     "properties": {
       "owner": {
         "type": "string",
@@ -24,7 +19,12 @@
         "type": "string",
         "description": "Tag name"
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "tag"
+    ]
   },
   "name": "get_tag"
 }

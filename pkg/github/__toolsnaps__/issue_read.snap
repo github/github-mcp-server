@@ -6,12 +6,6 @@
   "description": "Get information about a specific issue in a GitHub repository.",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "method",
-      "owner",
-      "repo",
-      "issue_number"
-    ],
     "properties": {
       "issue_number": {
         "type": "number",
@@ -46,7 +40,13 @@
         "type": "string",
         "description": "The name of the repository"
       }
-    }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo",
+      "issue_number"
+    ]
   },
   "name": "issue_read"
 }

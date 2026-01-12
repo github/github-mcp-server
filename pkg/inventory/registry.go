@@ -58,21 +58,12 @@ type Inventory struct {
 	filters []ToolFilter
 	// unrecognizedToolsets holds toolset IDs that were requested but don't match any registered toolsets
 	unrecognizedToolsets []string
-	// unrecognizedTools holds tool names that were requested via WithTools but don't exist
-	unrecognizedTools []string
 }
 
 // UnrecognizedToolsets returns toolset IDs that were passed to WithToolsets but don't
 // match any registered toolsets. This is useful for warning users about typos.
 func (r *Inventory) UnrecognizedToolsets() []string {
 	return r.unrecognizedToolsets
-}
-
-// UnrecognizedTools returns tool names that were passed to WithTools but don't
-// match any registered tools (and are not deprecated aliases). This is used to
-// error out when invalid tool names are specified.
-func (r *Inventory) UnrecognizedTools() []string {
-	return r.unrecognizedTools
 }
 
 // MCP method constants for use with ForMCPRequest.
@@ -121,7 +112,6 @@ func (r *Inventory) ForMCPRequest(method string, itemName string) *Inventory {
 		featureChecker:       r.featureChecker,
 		filters:              r.filters, // shared, not modified
 		unrecognizedToolsets: r.unrecognizedToolsets,
-		unrecognizedTools:    r.unrecognizedTools,
 	}
 
 	// Helper to clear all item types

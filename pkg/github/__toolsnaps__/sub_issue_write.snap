@@ -5,13 +5,6 @@
   "description": "Add a sub-issue to a parent issue in a GitHub repository.",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "method",
-      "owner",
-      "repo",
-      "issue_number",
-      "sub_issue_id"
-    ],
     "properties": {
       "after_id": {
         "type": "number",
@@ -45,7 +38,14 @@
         "type": "number",
         "description": "The ID of the sub-issue to add. ID is not the same as issue number"
       }
-    }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo",
+      "issue_number",
+      "sub_issue_id"
+    ]
   },
   "name": "sub_issue_write"
 }

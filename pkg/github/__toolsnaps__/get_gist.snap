@@ -6,15 +6,15 @@
   "description": "Get gist content of a particular gist, by gist ID",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "gist_id"
-    ],
     "properties": {
       "gist_id": {
         "type": "string",
         "description": "The ID of the gist"
       }
-    }
+    },
+    "required": [
+      "gist_id"
+    ]
   },
   "name": "get_gist"
 }

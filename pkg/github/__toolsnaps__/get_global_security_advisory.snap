@@ -6,15 +6,15 @@
   "description": "Get a global security advisory",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "ghsaId"
-    ],
     "properties": {
       "ghsaId": {
         "type": "string",
         "description": "GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx)."
       }
-    }
+    },
+    "required": [
+      "ghsaId"
+    ]
   },
   "name": "get_global_security_advisory"
 }

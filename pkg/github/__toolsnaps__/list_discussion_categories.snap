@@ -6,9 +6,6 @@
   "description": "List discussion categories with their id and name, for a repository or organisation.",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner"
-    ],
     "properties": {
       "owner": {
         "type": "string",
@@ -18,7 +15,10 @@
         "type": "string",
         "description": "Repository name. If not provided, discussion categories will be queried at the organisation level."
       }
-    }
+    },
+    "required": [
+      "owner"
+    ]
   },
   "name": "list_discussion_categories"
 }

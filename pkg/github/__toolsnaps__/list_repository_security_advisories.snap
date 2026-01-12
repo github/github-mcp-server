@@ -6,10 +6,6 @@
   "description": "List repository security advisories for a GitHub repository.",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo"
-    ],
     "properties": {
       "direction": {
         "type": "string",
@@ -46,7 +42,11 @@
           "closed"
         ]
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ]
   },
   "name": "list_repository_security_advisories"
 }

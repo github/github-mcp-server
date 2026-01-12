@@ -6,11 +6,6 @@
   "description": "List Project fields for a user or org",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner_type",
-      "owner",
-      "project_number"
-    ],
     "properties": {
       "after": {
         "type": "string",
@@ -40,7 +35,12 @@
         "type": "number",
         "description": "The project's number."
       }
-    }
+    },
+    "required": [
+      "owner_type",
+      "owner",
+      "project_number"
+    ]
   },
   "name": "list_project_fields"
 }

@@ -17,10 +17,10 @@
       },
       "cwes": {
         "type": "array",
-        "description": "Filter by Common Weakness Enumeration IDs (e.g. [\"79\", \"284\", \"22\"]).",
         "items": {
           "type": "string"
-        }
+        },
+        "description": "Filter by Common Weakness Enumeration IDs (e.g. [\"79\", \"284\", \"22\"])."
       },
       "ecosystem": {
         "type": "string",

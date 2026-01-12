@@ -6,10 +6,6 @@
   "description": "Get the tree structure (files and directories) of a GitHub repository at a specific ref or SHA",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo"
-    ],
     "properties": {
       "owner": {
         "type": "string",
@@ -32,7 +28,11 @@
         "type": "string",
         "description": "The SHA1 value or ref (branch or tag) name of the tree. Defaults to the repository's default branch"
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ]
   },
   "name": "get_repository_tree"
 }

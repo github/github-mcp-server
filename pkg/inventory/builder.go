@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 )
@@ -150,7 +151,11 @@ func cleanTools(tools []string) []string {
 // This processes toolset filtering, tool name resolution, and sets up
 // the inventory for use. The returned Inventory is ready for use with
 // AvailableTools(), RegisterAll(), etc.
-func (b *Builder) Build() *Inventory {
+//
+// Build returns an error if any tools specified via WithTools() are not recognized
+// (i.e., they don't exist in the tool set and are not deprecated aliases).
+// This ensures invalid tool configurations fail fast at build time.
+func (b *Builder) Build() (*Inventory, error) {
 	r := &Inventory{
 		tools:             b.tools,
 		resourceTemplates: b.resourceTemplates,
@@ -190,10 +195,14 @@ func (b *Builder) Build() *Inventory {
 				unrecognizedTools = append(unrecognizedTools, name)
 			}
 		}
-		r.unrecognizedTools = unrecognizedTools
+
+		// Error out if there are unrecognized tools
+		if len(unrecognizedTools) > 0 {
+			return nil, fmt.Errorf("unrecognized tools: %s", strings.Join(unrecognizedTools, ", "))
+		}
 	}
 
-	return r
+	return r, nil
 }
 
 // processToolsets processes the toolsetIDs configuration and returns:

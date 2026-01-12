@@ -6,11 +6,6 @@
   "description": "Get details of a specific dependabot alert in a GitHub repository.",
   "inputSchema": {
     "type": "object",
-    "required": [
-      "owner",
-      "repo",
-      "alertNumber"
-    ],
     "properties": {
       "alertNumber": {
         "type": "number",
@@ -24,7 +19,12 @@
         "type": "string",
         "description": "The name of the repository."
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "alertNumber"
+    ]
   },
   "name": "get_dependabot_alert"
 }

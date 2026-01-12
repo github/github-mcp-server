@@ -229,15 +229,13 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		inventoryBuilder = inventoryBuilder.WithFilter(github.CreateToolScopeFilter(cfg.TokenScopes))
 	}
 
-	inventory := inventoryBuilder.Build()
+	inventory, err := inventoryBuilder.Build()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build inventory: %w", err)
+	}
 
 	if unrecognized := inventory.UnrecognizedToolsets(); len(unrecognized) > 0 {
 		fmt.Fprintf(os.Stderr, "Warning: unrecognized toolsets ignored: %s\n", strings.Join(unrecognized, ", "))
-	}
-
-	// Check for unrecognized tools and error out (unlike toolsets which just warn)
-	if unrecognized := inventory.UnrecognizedTools(); len(unrecognized) > 0 {
-		return nil, fmt.Errorf("unrecognized tools: %s", strings.Join(unrecognized, ", "))
 	}
 
 	// Register GitHub tools/resources/prompts from the inventory.
