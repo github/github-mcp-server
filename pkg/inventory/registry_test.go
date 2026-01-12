@@ -885,17 +885,15 @@ func TestForMCPRequest_ResourcesRead(t *testing.T) {
 	}
 
 	reg := mustBuild(t, NewBuilder().SetResources(resources).WithToolsets([]string{"all"}))
-	filtered := reg.ForMCPRequest(MCPMethodResourcesRead, "repo://{owner}/{repo}")
+	// Pass a concrete URI - all resources remain registered, SDK handles matching
+	filtered := reg.ForMCPRequest(MCPMethodResourcesRead, "repo://owner/repo")
 
+	// All resources should be available - SDK handles URI template matching internally
 	available := filtered.AvailableResourceTemplates(context.Background())
-	if len(available) != 1 {
-		t.Fatalf("Expected 1 resource for resources/read, got %d", len(available))
-	}
-	if available[0].Template.URITemplate != "repo://{owner}/{repo}" {
-		t.Errorf("Expected URI template 'repo://{owner}/{repo}', got %q", available[0].Template.URITemplate)
+	if len(available) != 2 {
+		t.Fatalf("Expected 2 resources for resources/read (SDK handles matching), got %d", len(available))
 	}
 }
-
 func TestForMCPRequest_PromptsList(t *testing.T) {
 	tools := []ServerTool{
 		mockTool("tool1", "repos", true),
