@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 )
@@ -25,6 +26,7 @@ type ToolFilter func(ctx context.Context, tool *ServerTool) (bool, error)
 //	    WithToolsets([]string{"repos", "issues"}).
 //	    WithFeatureChecker(checker).
 //	    WithFilter(myFilter).
+//	    WithRequireScopes(true).
 //	    Build()
 type Builder struct {
 	tools             []ServerTool
@@ -39,6 +41,7 @@ type Builder struct {
 	additionalTools []string // raw input, processed at Build()
 	featureChecker  FeatureFlagChecker
 	filters         []ToolFilter // filters to apply to all tools
+	requireScopes   bool         // when true, validates all tools have scope definitions
 }
 
 // NewBuilder creates a new Builder.
@@ -127,11 +130,34 @@ func (b *Builder) WithFilter(filter ToolFilter) *Builder {
 	return b
 }
 
+// WithRequireScopes enables validation that all tools have scope definitions.
+// When enabled, Build() will panic if any tool has both RequiredScopes and
+// AcceptedScopes set to nil. Empty slices ([]string{}) are allowed, as they
+// explicitly indicate the tool requires no scopes.
+// Returns self for chaining.
+func (b *Builder) WithRequireScopes(require bool) *Builder {
+	b.requireScopes = require
+	return b
+}
+
 // Build creates the final Inventory with all configuration applied.
 // This processes toolset filtering, tool name resolution, and sets up
 // the inventory for use. The returned Inventory is ready for use with
 // AvailableTools(), RegisterAll(), etc.
+//
+// If WithRequireScopes(true) was called, this method will panic if any
+// tool has both RequiredScopes and AcceptedScopes set to nil.
 func (b *Builder) Build() *Inventory {
+	// Validate scopes if required
+	if b.requireScopes {
+		for i := range b.tools {
+			tool := &b.tools[i]
+			if tool.RequiredScopes == nil && tool.AcceptedScopes == nil {
+				panic(fmt.Sprintf("tool %q missing scope definitions (both RequiredScopes and AcceptedScopes are nil)", tool.Tool.Name))
+			}
+		}
+	}
+
 	r := &Inventory{
 		tools:             b.tools,
 		resourceTemplates: b.resourceTemplates,
