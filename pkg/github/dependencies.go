@@ -3,6 +3,8 @@ package github
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
@@ -77,6 +79,11 @@ type ToolDependencies interface {
 
 	// GetContentWindowSize returns the content window size for log truncation
 	GetContentWindowSize() int
+
+	// IsFeatureEnabled checks if a feature flag is enabled.
+	// Returns false if checker is nil or flag is not enabled.
+	// This allows tools to conditionally change behavior based on feature flags.
+	IsFeatureEnabled(ctx context.Context, flagName string) bool
 }
 
 // BaseDeps is the standard implementation of ToolDependencies for the local server.
@@ -93,6 +100,9 @@ type BaseDeps struct {
 	T                 translations.TranslationHelperFunc
 	Flags             FeatureFlags
 	ContentWindowSize int
+
+	// Feature flag checker for runtime checks
+	featureChecker inventory.FeatureFlagChecker
 }
 
 // NewBaseDeps creates a BaseDeps with the provided clients and configuration.
@@ -104,6 +114,7 @@ func NewBaseDeps(
 	t translations.TranslationHelperFunc,
 	flags FeatureFlags,
 	contentWindowSize int,
+	featureChecker inventory.FeatureFlagChecker,
 ) *BaseDeps {
 	return &BaseDeps{
 		Client:            client,
@@ -113,6 +124,7 @@ func NewBaseDeps(
 		T:                 t,
 		Flags:             flags,
 		ContentWindowSize: contentWindowSize,
+		featureChecker:    featureChecker,
 	}
 }
 
@@ -142,6 +154,24 @@ func (d BaseDeps) GetFlags() FeatureFlags { return d.Flags }
 
 // GetContentWindowSize implements ToolDependencies.
 func (d BaseDeps) GetContentWindowSize() int { return d.ContentWindowSize }
+
+// IsFeatureEnabled checks if a feature flag is enabled.
+// Returns false if the feature checker is nil, flag name is empty, or an error occurs.
+// This allows tools to conditionally change behavior based on feature flags.
+func (d BaseDeps) IsFeatureEnabled(ctx context.Context, flagName string) bool {
+	if d.featureChecker == nil || flagName == "" {
+		return false
+	}
+
+	enabled, err := d.featureChecker(ctx, flagName)
+	if err != nil {
+		// Log error but don't fail the tool - treat as disabled
+		fmt.Fprintf(os.Stderr, "Feature flag check error for %q: %v\n", flagName, err)
+		return false
+	}
+
+	return enabled
+}
 
 // NewTool creates a ServerTool that retrieves ToolDependencies from context at call time.
 // This avoids creating closures at registration time, which is important for performance

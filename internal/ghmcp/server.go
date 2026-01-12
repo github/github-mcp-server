@@ -198,6 +198,9 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
 	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.rest, clients.gqlHTTP))
 
+	// Create feature checker
+	featureChecker := createFeatureChecker(cfg.EnabledFeatures)
+
 	// Create dependencies for tool handlers
 	deps := github.NewBaseDeps(
 		clients.rest,
@@ -207,6 +210,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		cfg.Translator,
 		github.FeatureFlags{LockdownMode: cfg.LockdownMode},
 		cfg.ContentWindowSize,
+		featureChecker,
 	)
 
 	// Inject dependencies into context for all tool handlers
@@ -222,7 +226,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		WithReadOnly(cfg.ReadOnly).
 		WithToolsets(enabledToolsets).
 		WithTools(github.CleanTools(cfg.EnabledTools)).
-		WithFeatureChecker(createFeatureChecker(cfg.EnabledFeatures))
+		WithFeatureChecker(featureChecker)
 
 	// Apply token scope filtering if scopes are known (for PAT filtering)
 	if cfg.TokenScopes != nil {

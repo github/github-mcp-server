@@ -55,6 +55,7 @@ func (s stubDeps) GetRepoAccessCache() *lockdown.RepoAccessCache { return s.repo
 func (s stubDeps) GetT() translations.TranslationHelperFunc      { return s.t }
 func (s stubDeps) GetFlags() FeatureFlags                        { return s.flags }
 func (s stubDeps) GetContentWindowSize() int                     { return s.contentWindowSize }
+func (s stubDeps) IsFeatureEnabled(_ context.Context, _ string) bool { return false }
 
 // Helper functions to create stub client functions for error testing
 func stubClientFnFromHTTP(httpClient *http.Client) func(context.Context) (*github.Client, error) {
