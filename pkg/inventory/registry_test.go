@@ -28,7 +28,7 @@ func testToolsetMetadataWithDefault(id string, isDefault bool) ToolsetMetadata {
 
 // mockToolWithDefault creates a mock tool with a default toolset flag
 func mockToolWithDefault(name string, toolsetID string, readOnly bool, isDefault bool) ServerTool {
-	return NewServerToolWithRawContextHandler(
+	return NewServerTool(
 		mcp.Tool{
 			Name: name,
 			Annotations: &mcp.ToolAnnotations{
@@ -45,7 +45,7 @@ func mockToolWithDefault(name string, toolsetID string, readOnly bool, isDefault
 
 // mockTool creates a minimal ServerTool for testing
 func mockTool(name string, toolsetID string, readOnly bool) ServerTool {
-	return NewServerToolWithRawContextHandler(
+	return NewServerTool(
 		mcp.Tool{
 			Name: name,
 			Annotations: &mcp.ToolAnnotations{
