@@ -1775,7 +1775,8 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				agentAssignment.BaseRef = &baseRef
 			}
 
-			// Execute the updateIssue mutation
+			// Execute the updateIssue mutation with the GraphQL-Features header
+			// This header is required for the agent assignment API which is not GA yet
 			var updateIssueMutation struct {
 				UpdateIssue struct {
 					Issue struct {
@@ -1786,8 +1787,12 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				} `graphql:"updateIssue(input: $input)"`
 			}
 
+			// Add the GraphQL-Features header for the agent assignment API
+			// The header will be read by the HTTP transport if it's configured to do so
+			ctxWithFeatures := withGraphQLFeatures(ctx, "issues_copilot_assignment_api_support")
+
 			if err := client.Mutate(
-				ctx,
+				ctxWithFeatures,
 				&updateIssueMutation,
 				UpdateIssueInput{
 					ID:              getIssueQuery.Repository.Issue.ID,
@@ -1907,4 +1912,20 @@ func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) inventory.Ser
 			}, nil
 		},
 	)
+}
+
+// graphQLFeaturesKey is a context key for GraphQL feature flags
+type graphQLFeaturesKey struct{}
+
+// withGraphQLFeatures adds GraphQL feature flags to the context
+func withGraphQLFeatures(ctx context.Context, features ...string) context.Context {
+	return context.WithValue(ctx, graphQLFeaturesKey{}, features)
+}
+
+// GetGraphQLFeatures retrieves GraphQL feature flags from the context
+func GetGraphQLFeatures(ctx context.Context) []string {
+	if features, ok := ctx.Value(graphQLFeaturesKey{}).([]string); ok {
+		return features
+	}
+	return nil
 }
