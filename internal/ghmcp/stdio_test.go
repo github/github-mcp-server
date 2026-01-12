@@ -3,6 +3,7 @@ package ghmcp
 import (
 	"testing"
 
+	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,7 +15,7 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 	t.Parallel()
 
 	// Create a minimal server configuration
-	cfg := MCPServerConfig{
+	cfg := github.MCPServerConfig{
 		Version:           "test",
 		Host:              "", // defaults to github.com
 		Token:             "test-token",
@@ -26,7 +27,7 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 	}
 
 	// Create the server
-	server, err := NewMCPServer(cfg)
+	server, err := github.NewMCPServer(cfg)
 	require.NoError(t, err, "expected server creation to succeed")
 	require.NotNil(t, server, "expected server to be non-nil")
 
@@ -47,12 +48,12 @@ func TestResolveEnabledToolsets(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		cfg            MCPServerConfig
+		cfg            github.MCPServerConfig
 		expectedResult []string
 	}{
 		{
 			name: "nil toolsets without dynamic mode and no tools - use defaults",
-			cfg: MCPServerConfig{
+			cfg: github.MCPServerConfig{
 				EnabledToolsets: nil,
 				DynamicToolsets: false,
 				EnabledTools:    nil,
@@ -61,7 +62,7 @@ func TestResolveEnabledToolsets(t *testing.T) {
 		},
 		{
 			name: "nil toolsets with dynamic mode - start empty",
-			cfg: MCPServerConfig{
+			cfg: github.MCPServerConfig{
 				EnabledToolsets: nil,
 				DynamicToolsets: true,
 				EnabledTools:    nil,
@@ -70,7 +71,7 @@ func TestResolveEnabledToolsets(t *testing.T) {
 		},
 		{
 			name: "explicit toolsets",
-			cfg: MCPServerConfig{
+			cfg: github.MCPServerConfig{
 				EnabledToolsets: []string{"repos", "issues"},
 				DynamicToolsets: false,
 			},
@@ -78,7 +79,7 @@ func TestResolveEnabledToolsets(t *testing.T) {
 		},
 		{
 			name: "empty toolsets - disable all",
-			cfg: MCPServerConfig{
+			cfg: github.MCPServerConfig{
 				EnabledToolsets: []string{},
 				DynamicToolsets: false,
 			},
@@ -86,7 +87,7 @@ func TestResolveEnabledToolsets(t *testing.T) {
 		},
 		{
 			name: "specific tools without toolsets - no default toolsets",
-			cfg: MCPServerConfig{
+			cfg: github.MCPServerConfig{
 				EnabledToolsets: nil,
 				DynamicToolsets: false,
 				EnabledTools:    []string{"get_me"},
@@ -95,7 +96,7 @@ func TestResolveEnabledToolsets(t *testing.T) {
 		},
 		{
 			name: "dynamic mode with explicit toolsets removes all and default",
-			cfg: MCPServerConfig{
+			cfg: github.MCPServerConfig{
 				EnabledToolsets: []string{"all", "repos"},
 				DynamicToolsets: true,
 			},
@@ -105,7 +106,7 @@ func TestResolveEnabledToolsets(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := resolveEnabledToolsets(tc.cfg)
+			result := github.ResolveEnabledToolsets(tc.cfg)
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
