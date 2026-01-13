@@ -626,6 +626,12 @@ type bearerAuthTransport struct {
 func (t *bearerAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req = req.Clone(req.Context())
 	req.Header.Set("Authorization", "Bearer "+t.token)
+
+	// Check for GraphQL-Features in context and add header if present
+	if features := github.GetGraphQLFeatures(req.Context()); len(features) > 0 {
+		req.Header.Set("GraphQL-Features", strings.Join(features, ", "))
+	}
+
 	return t.transport.RoundTrip(req)
 }
 

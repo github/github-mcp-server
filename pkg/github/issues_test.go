@@ -2085,7 +2085,14 @@ func TestAssignCopilotToIssue(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "base_ref")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo", "issue_number"})
+
+	// Helper function to create pointer to githubv4.String
+	ptrGitHubv4String := func(s string) *githubv4.String {
+		v := githubv4.String(s)
+		return &v
+	}
 
 	var pageOfFakeBots = func(n int) []struct{} {
 		// We don't _really_ need real bots here, just objects that count as entries for the page
@@ -2151,6 +2158,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 				githubv4mock.NewQueryMatcher(
 					struct {
 						Repository struct {
+							ID    githubv4.ID
 							Issue struct {
 								ID        githubv4.ID
 								Assignees struct {
@@ -2168,6 +2176,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 					},
 					githubv4mock.DataResponse(map[string]any{
 						"repository": map[string]any{
+							"id": githubv4.ID("test-repo-id"),
 							"issue": map[string]any{
 								"id": githubv4.ID("test-issue-id"),
 								"assignees": map[string]any{
@@ -2179,16 +2188,34 @@ func TestAssignCopilotToIssue(t *testing.T) {
 				),
 				githubv4mock.NewMutationMatcher(
 					struct {
-						ReplaceActorsForAssignable struct {
-							Typename string `graphql:"__typename"`
-						} `graphql:"replaceActorsForAssignable(input: $input)"`
+						UpdateIssue struct {
+							Issue struct {
+								ID     githubv4.ID
+								Number githubv4.Int
+								URL    githubv4.String
+							}
+						} `graphql:"updateIssue(input: $input)"`
 					}{},
-					ReplaceActorsForAssignableInput{
-						AssignableID: githubv4.ID("test-issue-id"),
-						ActorIDs:     []githubv4.ID{githubv4.ID("copilot-swe-agent-id")},
+					UpdateIssueInput{
+						ID:          githubv4.ID("test-issue-id"),
+						AssigneeIDs: []githubv4.ID{githubv4.ID("copilot-swe-agent-id")},
+						AgentAssignment: &AgentAssignmentInput{
+							BaseRef:            nil,
+							CustomAgent:        ptrGitHubv4String(""),
+							CustomInstructions: ptrGitHubv4String(""),
+							TargetRepositoryID: githubv4.ID("test-repo-id"),
+						},
 					},
 					nil,
-					githubv4mock.DataResponse(map[string]any{}),
+					githubv4mock.DataResponse(map[string]any{
+						"updateIssue": map[string]any{
+							"issue": map[string]any{
+								"id":     githubv4.ID("test-issue-id"),
+								"number": githubv4.Int(123),
+								"url":    githubv4.String("https://github.com/owner/repo/issues/123"),
+							},
+						},
+					}),
 				),
 			),
 		},
@@ -2240,6 +2267,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 				githubv4mock.NewQueryMatcher(
 					struct {
 						Repository struct {
+							ID    githubv4.ID
 							Issue struct {
 								ID        githubv4.ID
 								Assignees struct {
@@ -2257,6 +2285,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 					},
 					githubv4mock.DataResponse(map[string]any{
 						"repository": map[string]any{
+							"id": githubv4.ID("test-repo-id"),
 							"issue": map[string]any{
 								"id": githubv4.ID("test-issue-id"),
 								"assignees": map[string]any{
@@ -2275,20 +2304,38 @@ func TestAssignCopilotToIssue(t *testing.T) {
 				),
 				githubv4mock.NewMutationMatcher(
 					struct {
-						ReplaceActorsForAssignable struct {
-							Typename string `graphql:"__typename"`
-						} `graphql:"replaceActorsForAssignable(input: $input)"`
+						UpdateIssue struct {
+							Issue struct {
+								ID     githubv4.ID
+								Number githubv4.Int
+								URL    githubv4.String
+							}
+						} `graphql:"updateIssue(input: $input)"`
 					}{},
-					ReplaceActorsForAssignableInput{
-						AssignableID: githubv4.ID("test-issue-id"),
-						ActorIDs: []githubv4.ID{
+					UpdateIssueInput{
+						ID: githubv4.ID("test-issue-id"),
+						AssigneeIDs: []githubv4.ID{
 							githubv4.ID("existing-assignee-id"),
 							githubv4.ID("existing-assignee-id-2"),
 							githubv4.ID("copilot-swe-agent-id"),
 						},
+						AgentAssignment: &AgentAssignmentInput{
+							BaseRef:            nil,
+							CustomAgent:        ptrGitHubv4String(""),
+							CustomInstructions: ptrGitHubv4String(""),
+							TargetRepositoryID: githubv4.ID("test-repo-id"),
+						},
 					},
 					nil,
-					githubv4mock.DataResponse(map[string]any{}),
+					githubv4mock.DataResponse(map[string]any{
+						"updateIssue": map[string]any{
+							"issue": map[string]any{
+								"id":     githubv4.ID("test-issue-id"),
+								"number": githubv4.Int(123),
+								"url":    githubv4.String("https://github.com/owner/repo/issues/123"),
+							},
+						},
+					}),
 				),
 			),
 		},
@@ -2377,6 +2424,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 				githubv4mock.NewQueryMatcher(
 					struct {
 						Repository struct {
+							ID    githubv4.ID
 							Issue struct {
 								ID        githubv4.ID
 								Assignees struct {
@@ -2394,6 +2442,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 					},
 					githubv4mock.DataResponse(map[string]any{
 						"repository": map[string]any{
+							"id": githubv4.ID("test-repo-id"),
 							"issue": map[string]any{
 								"id": githubv4.ID("test-issue-id"),
 								"assignees": map[string]any{
@@ -2405,16 +2454,34 @@ func TestAssignCopilotToIssue(t *testing.T) {
 				),
 				githubv4mock.NewMutationMatcher(
 					struct {
-						ReplaceActorsForAssignable struct {
-							Typename string `graphql:"__typename"`
-						} `graphql:"replaceActorsForAssignable(input: $input)"`
+						UpdateIssue struct {
+							Issue struct {
+								ID     githubv4.ID
+								Number githubv4.Int
+								URL    githubv4.String
+							}
+						} `graphql:"updateIssue(input: $input)"`
 					}{},
-					ReplaceActorsForAssignableInput{
-						AssignableID: githubv4.ID("test-issue-id"),
-						ActorIDs:     []githubv4.ID{githubv4.ID("copilot-swe-agent-id")},
+					UpdateIssueInput{
+						ID:          githubv4.ID("test-issue-id"),
+						AssigneeIDs: []githubv4.ID{githubv4.ID("copilot-swe-agent-id")},
+						AgentAssignment: &AgentAssignmentInput{
+							BaseRef:            nil,
+							CustomAgent:        ptrGitHubv4String(""),
+							CustomInstructions: ptrGitHubv4String(""),
+							TargetRepositoryID: githubv4.ID("test-repo-id"),
+						},
 					},
 					nil,
-					githubv4mock.DataResponse(map[string]any{}),
+					githubv4mock.DataResponse(map[string]any{
+						"updateIssue": map[string]any{
+							"issue": map[string]any{
+								"id":     githubv4.ID("test-issue-id"),
+								"number": githubv4.Int(123),
+								"url":    githubv4.String("https://github.com/owner/repo/issues/123"),
+							},
+						},
+					}),
 				),
 			),
 		},
@@ -2460,6 +2527,116 @@ func TestAssignCopilotToIssue(t *testing.T) {
 			),
 			expectToolError:    true,
 			expectedToolErrMsg: "copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot for more information.",
+		},
+		{
+			name: "successful assignment with base_ref specified",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				"base_ref":     "feature-branch",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							SuggestedActors struct {
+								Nodes []struct {
+									Bot struct {
+										ID       githubv4.ID
+										Login    githubv4.String
+										TypeName string `graphql:"__typename"`
+									} `graphql:"... on Bot"`
+								}
+								PageInfo struct {
+									HasNextPage bool
+									EndCursor   string
+								}
+							} `graphql:"suggestedActors(first: 100, after: $endCursor, capabilities: CAN_BE_ASSIGNED)"`
+						} `graphql:"repository(owner: $owner, name: $name)"`
+					}{},
+					map[string]any{
+						"owner":     githubv4.String("owner"),
+						"name":      githubv4.String("repo"),
+						"endCursor": (*githubv4.String)(nil),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"suggestedActors": map[string]any{
+								"nodes": []any{
+									map[string]any{
+										"id":         githubv4.ID("copilot-swe-agent-id"),
+										"login":      githubv4.String("copilot-swe-agent"),
+										"__typename": "Bot",
+									},
+								},
+							},
+						},
+					}),
+				),
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							ID    githubv4.ID
+							Issue struct {
+								ID        githubv4.ID
+								Assignees struct {
+									Nodes []struct {
+										ID githubv4.ID
+									}
+								} `graphql:"assignees(first: 100)"`
+							} `graphql:"issue(number: $number)"`
+						} `graphql:"repository(owner: $owner, name: $name)"`
+					}{},
+					map[string]any{
+						"owner":  githubv4.String("owner"),
+						"name":   githubv4.String("repo"),
+						"number": githubv4.Int(123),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"id": githubv4.ID("test-repo-id"),
+							"issue": map[string]any{
+								"id": githubv4.ID("test-issue-id"),
+								"assignees": map[string]any{
+									"nodes": []any{},
+								},
+							},
+						},
+					}),
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						UpdateIssue struct {
+							Issue struct {
+								ID     githubv4.ID
+								Number githubv4.Int
+								URL    githubv4.String
+							}
+						} `graphql:"updateIssue(input: $input)"`
+					}{},
+					UpdateIssueInput{
+						ID:          githubv4.ID("test-issue-id"),
+						AssigneeIDs: []githubv4.ID{githubv4.ID("copilot-swe-agent-id")},
+						AgentAssignment: &AgentAssignmentInput{
+							BaseRef:            ptrGitHubv4String("feature-branch"),
+							CustomAgent:        ptrGitHubv4String(""),
+							CustomInstructions: ptrGitHubv4String(""),
+							TargetRepositoryID: githubv4.ID("test-repo-id"),
+						},
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"updateIssue": map[string]any{
+							"issue": map[string]any{
+								"id":     githubv4.ID("test-issue-id"),
+								"number": githubv4.Int(123),
+								"url":    githubv4.String("https://github.com/owner/repo/issues/123"),
+							},
+						},
+					}),
+				),
+			),
 		},
 	}
 

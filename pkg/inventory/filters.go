@@ -203,17 +203,6 @@ func (r *Inventory) filterToolsByName(name string) []ServerTool {
 	return result
 }
 
-// filterResourcesByURI returns resource templates matching the given URI pattern.
-// Uses linear scan - optimized for single-lookup per-request scenarios (ForMCPRequest).
-func (r *Inventory) filterResourcesByURI(uri string) []ServerResourceTemplate {
-	for i := range r.resourceTemplates {
-		if r.resourceTemplates[i].Template.URITemplate == uri {
-			return []ServerResourceTemplate{r.resourceTemplates[i]}
-		}
-	}
-	return []ServerResourceTemplate{}
-}
-
 // filterPromptsByName returns prompts matching the given name.
 // Uses linear scan - optimized for single-lookup per-request scenarios (ForMCPRequest).
 func (r *Inventory) filterPromptsByName(name string) []ServerPrompt {
