@@ -88,53 +88,19 @@ func RunHTTPServer(cfg HTTPServerConfig) error {
 	logger := slog.New(slogHandler)
 	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "dynamicToolsets", cfg.DynamicToolsets, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode)
 
-	// Set up repo access cache for lockdown mode
-	var opts []lockdown.RepoAccessOption
-	if cfg.LockdownMode {
-		opts = []lockdown.RepoAccessOption{
-			lockdown.WithLogger(logger.With("component", "lockdown")),
-		}
-		if cfg.RepoAccessCacheTTL != nil {
-			opts = append(opts, lockdown.WithTTL(*cfg.RepoAccessCacheTTL))
-		}
-	}
-
 	apiHost, err := utils.ParseAPIHost(cfg.Host)
 	if err != nil {
 		return fmt.Errorf("failed to parse API host: %w", err)
 	}
 
-	deps := github.NewRequestDeps(
-		&apiHost,
-		cfg.Version,
-		cfg.LockdownMode,
-		opts,
-		t,
-		github.FeatureFlags{
-			LockdownMode: cfg.LockdownMode,
-		},
-		cfg.ContentWindowSize,
-	)
-
-	ghServer, err := github.NewMcpServer(&github.MCPServerConfig{
-		Version:           cfg.Version,
-		Host:              cfg.Host,
-		EnabledToolsets:   cfg.EnabledToolsets,
-		EnabledTools:      cfg.EnabledTools,
-		EnabledFeatures:   cfg.EnabledFeatures,
-		DynamicToolsets:   cfg.DynamicToolsets,
-		ReadOnly:          cfg.ReadOnly,
-		Translator:        t,
-		ContentWindowSize: cfg.ContentWindowSize,
-		LockdownMode:      cfg.LockdownMode,
-		Logger:            logger,
-		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
-	}, deps)
-	if err != nil {
-		return fmt.Errorf("failed to create MCP server: %w", err)
+	repoAccessOpts := []lockdown.RepoAccessOption{
+		lockdown.WithLogger(logger.With("component", "lockdown")),
+	}
+	if cfg.RepoAccessCacheTTL != nil {
+		repoAccessOpts = append(repoAccessOpts, lockdown.WithTTL(*cfg.RepoAccessCacheTTL))
 	}
 
-	handler := NewHttpMcpHandler(&cfg, ghServer)
+	handler := NewHttpMcpHandler(&cfg, t, &apiHost, repoAccessOpts, logger)
 
 	httpSvr := http.Server{
 		Addr:    ":8082",
@@ -166,20 +132,59 @@ func RunHTTPServer(cfg HTTPServerConfig) error {
 }
 
 type HttpMcpHandler struct {
-	config   *HTTPServerConfig
-	ghServer *mcp.Server
+	config         *HTTPServerConfig
+	apiHosts       utils.ApiHost
+	logger         *slog.Logger
+	t              translations.TranslationHelperFunc
+	repoAccessOpts []lockdown.RepoAccessOption
 }
 
-func NewHttpMcpHandler(cfg *HTTPServerConfig, mcpServer *mcp.Server) *HttpMcpHandler {
+func NewHttpMcpHandler(cfg *HTTPServerConfig,
+	t translations.TranslationHelperFunc,
+	apiHosts *utils.ApiHost,
+	repoAccessOptions []lockdown.RepoAccessOption,
+	logger *slog.Logger) *HttpMcpHandler {
 	return &HttpMcpHandler{
-		config:   cfg,
-		ghServer: mcpServer,
+		config:         cfg,
+		apiHosts:       *apiHosts,
+		logger:         logger,
+		t:              t,
+		repoAccessOpts: repoAccessOptions,
 	}
 }
 
 func (s *HttpMcpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Set up repo access cache for lockdown mode
+	deps := github.NewRequestDeps(
+		&s.apiHosts,
+		s.config.Version,
+		s.repoAccessOpts,
+		s.t,
+		github.FeatureFlags{
+			LockdownMode: s.config.LockdownMode,
+		},
+		s.config.ContentWindowSize,
+	)
+
+	ghServer, err := github.NewMcpServer(&github.MCPServerConfig{
+		Version:           s.config.Version,
+		Host:              s.config.Host,
+		EnabledToolsets:   s.config.EnabledToolsets,
+		EnabledTools:      s.config.EnabledTools,
+		EnabledFeatures:   s.config.EnabledFeatures,
+		DynamicToolsets:   s.config.DynamicToolsets,
+		ReadOnly:          s.config.ReadOnly,
+		Translator:        s.t,
+		ContentWindowSize: s.config.ContentWindowSize,
+		Logger:            s.logger,
+		RepoAccessTTL:     s.config.RepoAccessCacheTTL,
+	}, deps)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+	}
+
 	mcpHandler := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
-		return s.ghServer
+		return ghServer
 	}, &mcp.StreamableHTTPOptions{
 		Stateless: true,
 	})

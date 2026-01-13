@@ -211,7 +211,6 @@ type RequestDeps struct {
 	GQLClient       *githubv4.Client
 	RawClient       *raw.Client
 	RepoAccessCache *lockdown.RepoAccessCache
-	LockdownMode    bool
 
 	// Static dependencies
 	apiHosts          *utils.ApiHost
@@ -226,7 +225,6 @@ type RequestDeps struct {
 func NewRequestDeps(
 	apiHosts *utils.ApiHost,
 	version string,
-	lockdownMode bool,
 	repoAccessOpts []lockdown.RepoAccessOption,
 	t translations.TranslationHelperFunc,
 	flags FeatureFlags,
@@ -235,7 +233,6 @@ func NewRequestDeps(
 	return &RequestDeps{
 		apiHosts:          apiHosts,
 		version:           version,
-		LockdownMode:      lockdownMode,
 		RepoAccessOpts:    repoAccessOpts,
 		T:                 t,
 		Flags:             flags,
@@ -301,7 +298,7 @@ func (d *RequestDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
 
 // GetRepoAccessCache implements ToolDependencies.
 func (d *RequestDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAccessCache, error) {
-	if d.LockdownMode == false {
+	if !ghcontext.IsLockdownMode(ctx) {
 		return nil, nil
 	}
 
