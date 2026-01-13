@@ -11,6 +11,10 @@
         "type": "string",
         "description": "Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch"
       },
+      "custom_instructions": {
+        "type": "string",
+        "description": "Optional custom instructions to guide the agent beyond the issue body. Use this to provide additional context, constraints, or guidance that is not captured in the issue description"
+      },
       "issue_number": {
         "type": "number",
         "description": "Issue number"
