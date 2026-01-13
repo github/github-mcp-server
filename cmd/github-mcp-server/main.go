@@ -88,6 +88,24 @@ var (
 			return ghmcp.RunStdioServer(stdioServerConfig)
 		},
 	}
+
+	httpCmd = &cobra.Command{
+		Use:   "http",
+		Short: "Start HTTP server",
+		Long:  `Start an HTTP server that listens for MCP requests over HTTP.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			httpConfig := ghmcp.HTTPServerConfig{
+				Version:              version,
+				Host:                 viper.GetString("host"),
+				ExportTranslations:   viper.GetBool("export-translations"),
+				EnableCommandLogging: viper.GetBool("enable-command-logging"),
+				LogFilePath:          viper.GetString("log-file"),
+				ContentWindowSize:    viper.GetInt("content-window-size"),
+			}
+
+			return ghmcp.RunHTTPServer(httpConfig)
+		},
+	}
 )
 
 func init() {
@@ -126,6 +144,7 @@ func init() {
 
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)
+	rootCmd.AddCommand(httpCmd)
 }
 
 func initConfig() {

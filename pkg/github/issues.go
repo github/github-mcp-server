@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/scopes"
@@ -312,13 +312,13 @@ Options are:
 
 			switch method {
 			case "get":
-				result, err := GetIssue(ctx, client, deps.GetRepoAccessCache(), owner, repo, issueNumber, deps.GetFlags())
+				result, err := GetIssue(ctx, client, deps, owner, repo, issueNumber)
 				return result, nil, err
 			case "get_comments":
-				result, err := GetIssueComments(ctx, client, deps.GetRepoAccessCache(), owner, repo, issueNumber, pagination, deps.GetFlags())
+				result, err := GetIssueComments(ctx, client, deps, owner, repo, issueNumber, pagination)
 				return result, nil, err
 			case "get_sub_issues":
-				result, err := GetSubIssues(ctx, client, deps.GetRepoAccessCache(), owner, repo, issueNumber, pagination, deps.GetFlags())
+				result, err := GetSubIssues(ctx, client, deps, owner, repo, issueNumber, pagination)
 				return result, nil, err
 			case "get_labels":
 				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
@@ -329,7 +329,13 @@ Options are:
 		})
 }
 
-func GetIssue(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner string, repo string, issueNumber int, flags FeatureFlags) (*mcp.CallToolResult, error) {
+func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
+	cache, err := deps.GetRepoAccessCache(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+	}
+	flags := deps.GetFlags()
+
 	issue, resp, err := client.Issues.Get(ctx, owner, repo, issueNumber)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get issue: %w", err)
@@ -378,7 +384,13 @@ func GetIssue(ctx context.Context, client *github.Client, cache *lockdown.RepoAc
 	return utils.NewToolResultText(string(r)), nil
 }
 
-func GetIssueComments(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner string, repo string, issueNumber int, pagination PaginationParams, flags FeatureFlags) (*mcp.CallToolResult, error) {
+func GetIssueComments(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	cache, err := deps.GetRepoAccessCache(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+	}
+	flags := deps.GetFlags()
+
 	opts := &github.IssueListCommentsOptions{
 		ListOptions: github.ListOptions{
 			Page:    pagination.Page,
@@ -432,7 +444,13 @@ func GetIssueComments(ctx context.Context, client *github.Client, cache *lockdow
 	return utils.NewToolResultText(string(r)), nil
 }
 
-func GetSubIssues(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner string, repo string, issueNumber int, pagination PaginationParams, featureFlags FeatureFlags) (*mcp.CallToolResult, error) {
+func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	cache, err := deps.GetRepoAccessCache(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+	}
+	featureFlags := deps.GetFlags()
+
 	opts := &github.IssueListOptions{
 		ListOptions: github.ListOptions{
 			Page:    pagination.Page,
@@ -1789,7 +1807,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 
 			// Add the GraphQL-Features header for the agent assignment API
 			// The header will be read by the HTTP transport if it's configured to do so
-			ctxWithFeatures := withGraphQLFeatures(ctx, "issues_copilot_assignment_api_support")
+			ctxWithFeatures := ghcontext.WithGraphQLFeatures(ctx, "issues_copilot_assignment_api_support")
 
 			if err := client.Mutate(
 				ctxWithFeatures,
@@ -1912,20 +1930,4 @@ func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) inventory.Ser
 			}, nil
 		},
 	)
-}
-
-// graphQLFeaturesKey is a context key for GraphQL feature flags
-type graphQLFeaturesKey struct{}
-
-// withGraphQLFeatures adds GraphQL feature flags to the context
-func withGraphQLFeatures(ctx context.Context, features ...string) context.Context {
-	return context.WithValue(ctx, graphQLFeaturesKey{}, features)
-}
-
-// GetGraphQLFeatures retrieves GraphQL feature flags from the context
-func GetGraphQLFeatures(ctx context.Context) []string {
-	if features, ok := ctx.Value(graphQLFeaturesKey{}).([]string); ok {
-		return features
-	}
-	return nil
 }
