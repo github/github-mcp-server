@@ -84,6 +84,7 @@ func stubRepoAccessCache(client *githubv4.Client, ttl time.Duration) *lockdown.R
 func stubFeatureFlags(enabledFlags map[string]bool) FeatureFlags {
 	return FeatureFlags{
 		LockdownMode: enabledFlags["lockdown-mode"],
+		Experimental: enabledFlags["experimental"],
 	}
 }
 
