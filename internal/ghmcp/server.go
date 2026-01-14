@@ -99,7 +99,7 @@ func NewStdioMCPServer(cfg github.MCPServerConfig) (*mcp.Server, error) {
 		cfg.ContentWindowSize,
 	)
 
-	ghServer, err := github.NewMcpServer(&cfg, deps)
+	ghServer, err := github.NewMCPServer(&cfg, deps)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub MCP server: %w", err)
 	}

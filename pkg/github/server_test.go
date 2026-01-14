@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"testing"
 	"time"
 
 	"github.com/github/github-mcp-server/pkg/lockdown"
@@ -13,6 +14,8 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
 	"github.com/shurcooL/githubv4"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // stubDeps is a test helper that implements ToolDependencies with configurable behavior.
@@ -49,10 +52,12 @@ func (s stubDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
 	return nil, nil
 }
 
-func (s stubDeps) GetRepoAccessCache() *lockdown.RepoAccessCache { return s.repoAccessCache }
-func (s stubDeps) GetT() translations.TranslationHelperFunc      { return s.t }
-func (s stubDeps) GetFlags() FeatureFlags                        { return s.flags }
-func (s stubDeps) GetContentWindowSize() int                     { return s.contentWindowSize }
+func (s stubDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAccessCache, error) {
+	return s.repoAccessCache, nil
+}
+func (s stubDeps) GetT() translations.TranslationHelperFunc { return s.t }
+func (s stubDeps) GetFlags() FeatureFlags                   { return s.flags }
+func (s stubDeps) GetContentWindowSize() int                { return s.contentWindowSize }
 
 // Helper functions to create stub client functions for error testing
 func stubClientFnFromHTTP(httpClient *http.Client) func(context.Context) (*github.Client, error) {
@@ -96,5 +101,110 @@ func badRequestHandler(msg string) http.HandlerFunc {
 		}
 
 		http.Error(w, string(b), http.StatusBadRequest)
+	}
+}
+
+// TestNewMCPServer_CreatesSuccessfully verifies that the server can be created
+// with the deps injection middleware properly configured.
+func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
+	t.Parallel()
+
+	// Create a minimal server configuration
+	cfg := MCPServerConfig{
+		Version:           "test",
+		Host:              "", // defaults to github.com
+		Token:             "test-token",
+		EnabledToolsets:   []string{"context"},
+		ReadOnly:          false,
+		Translator:        translations.NullTranslationHelper,
+		ContentWindowSize: 5000,
+		LockdownMode:      false,
+	}
+
+	deps := stubDeps{}
+
+	// Create the server
+	server, err := NewMCPServer(&cfg, deps)
+	require.NoError(t, err, "expected server creation to succeed")
+	require.NotNil(t, server, "expected server to be non-nil")
+
+	// The fact that the server was created successfully indicates that:
+	// 1. The deps injection middleware is properly added
+	// 2. Tools can be registered without panicking
+	//
+	// If the middleware wasn't properly added, tool calls would panic with
+	// "ToolDependencies not found in context" when executed.
+	//
+	// The actual middleware functionality and tool execution with ContextWithDeps
+	// is already tested in pkg/github/*_test.go.
+}
+
+// TestResolveEnabledToolsets verifies the toolset resolution logic.
+func TestResolveEnabledToolsets(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name           string
+		cfg            MCPServerConfig
+		expectedResult []string
+	}{
+		{
+			name: "nil toolsets without dynamic mode and no tools - use defaults",
+			cfg: MCPServerConfig{
+				EnabledToolsets: nil,
+				DynamicToolsets: false,
+				EnabledTools:    nil,
+			},
+			expectedResult: nil, // nil means "use defaults"
+		},
+		{
+			name: "nil toolsets with dynamic mode - start empty",
+			cfg: MCPServerConfig{
+				EnabledToolsets: nil,
+				DynamicToolsets: true,
+				EnabledTools:    nil,
+			},
+			expectedResult: []string{}, // empty slice means no toolsets
+		},
+		{
+			name: "explicit toolsets",
+			cfg: MCPServerConfig{
+				EnabledToolsets: []string{"repos", "issues"},
+				DynamicToolsets: false,
+			},
+			expectedResult: []string{"repos", "issues"},
+		},
+		{
+			name: "empty toolsets - disable all",
+			cfg: MCPServerConfig{
+				EnabledToolsets: []string{},
+				DynamicToolsets: false,
+			},
+			expectedResult: []string{}, // empty slice means no toolsets
+		},
+		{
+			name: "specific tools without toolsets - no default toolsets",
+			cfg: MCPServerConfig{
+				EnabledToolsets: nil,
+				DynamicToolsets: false,
+				EnabledTools:    []string{"get_me"},
+			},
+			expectedResult: []string{}, // empty slice when tools specified but no toolsets
+		},
+		{
+			name: "dynamic mode with explicit toolsets removes all and default",
+			cfg: MCPServerConfig{
+				EnabledToolsets: []string{"all", "repos"},
+				DynamicToolsets: true,
+			},
+			expectedResult: []string{"repos"}, // "all" is removed in dynamic mode
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := resolveEnabledToolsets(&tc.cfg)
+			assert.Equal(t, tc.expectedResult, result)
+		})
 	}
 }

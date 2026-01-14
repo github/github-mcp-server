@@ -48,7 +48,7 @@ func (s *HttpMcpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.config.ContentWindowSize,
 	)
 
-	ghServer, err := github.NewMcpServer(&github.MCPServerConfig{
+	ghServer, err := github.NewMCPServer(&github.MCPServerConfig{
 		Version:           s.config.Version,
 		Host:              s.config.Host,
 		EnabledToolsets:   s.config.EnabledToolsets,

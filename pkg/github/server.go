@@ -66,7 +66,7 @@ type MCPServerConfig struct {
 	TokenScopes []string
 }
 
-func NewMcpServer(cfg *MCPServerConfig, deps ToolDependencies) (*mcp.Server, error) {
+func NewMCPServer(cfg *MCPServerConfig, deps ToolDependencies) (*mcp.Server, error) {
 	enabledToolsets := resolveEnabledToolsets(cfg)
 
 	// For instruction generation, we need actual toolset names (not nil).
