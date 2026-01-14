@@ -13,16 +13,21 @@ import (
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/jsonschema-go/jsonschema"
 )
 
 // RemoteMCPExperimental is a long-lived feature flag for experimental remote MCP features.
 // This flag enables experimental behaviors in tools that are being tested for remote server deployment.
 const RemoteMCPEnthusiasticGreeting = "remote_mcp_enthusiastic_greeting"
 
+// FeatureChecker is an interface for checking if a feature flag is enabled.
+type FeatureChecker interface {
+	// IsFeatureEnabled checks if a feature flag is enabled.
+	IsFeatureEnabled(ctx context.Context, flagName string) bool
+}
+
 // HelloWorld returns a simple greeting tool that demonstrates feature flag conditional behavior.
 // This tool is for testing and demonstration purposes only.
-func HelloWorld(t translations.TranslationHelperFunc) inventory.ServerTool {
+func HelloWorldTool(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataContext, // Use existing "context" toolset
 		mcp.Tool{
@@ -32,39 +37,22 @@ func HelloWorld(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Title:        t("TOOL_HELLO_WORLD_TITLE", "Hello World"),
 				ReadOnlyHint: true,
 			},
-			InputSchema: &jsonschema.Schema{
-				Type: "object",
-				Properties: map[string]*jsonschema.Schema{
-					"name": {
-						Type:        "string",
-						Description: "Name to greet (optional, defaults to 'World')",
-					},
-				},
-			},
 		},
 		[]scopes.Scope{},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			// Extract name parameter (optional)
-			name := "World"
-			if nameArg, ok := args["name"].(string); ok && nameArg != "" {
-				name = nameArg
-			}
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
 
 			// Check feature flag to determine greeting style
-			var greeting string
+			greeting := "Hello, world!"
 			if deps.IsFeatureEnabled(ctx, RemoteMCPEnthusiasticGreeting) {
-				// Experimental: More enthusiastic greeting
-				greeting = "🚀 Hello, " + name + "! Welcome to the EXPERIMENTAL future of MCP! 🎉"
-			} else {
-				// Default: Simple greeting
-				greeting = "Hello, " + name + "!"
+				greeting = greeting + " Welcome to the future of MCP! 🎉"
+			}
+			if deps.GetFlags().Experimental {
+				greeting = greeting + " Experimental features are enabled! 🚀"
 			}
 
 			// Build response
 			response := map[string]any{
-				"greeting":          greeting,
-				"experimental_mode": deps.IsFeatureEnabled(ctx, RemoteMCPEnthusiasticGreeting),
-				"timestamp":         "2026-01-12", // Static for demonstration
+				"greeting": greeting,
 			}
 
 			jsonBytes, err := json.Marshal(response)
@@ -77,53 +65,24 @@ func HelloWorld(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
-func TestHelloWorld_ToolDefinition(t *testing.T) {
-	t.Parallel()
-
-	// Create tool
-	tool := HelloWorld(translations.NullTranslationHelper)
-
-	// Verify tool definition
-	assert.Equal(t, "hello_world", tool.Tool.Name)
-	assert.NotEmpty(t, tool.Tool.Description)
-	assert.True(t, tool.Tool.Annotations.ReadOnlyHint, "hello_world should be read-only")
-	assert.NotNil(t, tool.Tool.InputSchema)
-	assert.NotNil(t, tool.HandlerFunc, "Tool must have a handler")
-
-	// Verify it's in the context toolset
-	assert.Equal(t, "context", string(tool.Toolset.ID))
-
-	// Verify no scopes required
-	assert.Empty(t, tool.RequiredScopes)
-
-	// Verify no feature flags set (tool itself isn't gated by flags)
-	assert.Empty(t, tool.FeatureFlagEnable)
-	assert.Empty(t, tool.FeatureFlagDisable)
-}
-
-func TestHelloWorld_ConditionalBehavior(t *testing.T) {
+func TestHelloWorld_ConditionalBehavior_Featureflag(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name                     string
-		featureFlagEnabled       bool
-		inputName                string
-		expectedGreeting         string
-		expectedExperimentalMode bool
+		name               string
+		featureFlagEnabled bool
+		inputName          string
+		expectedGreeting   string
 	}{
 		{
-			name:                     "Feature flag disabled - default greeting",
-			featureFlagEnabled:       false,
-			inputName:                "Alice",
-			expectedGreeting:         "Hello, Alice!",
-			expectedExperimentalMode: false,
+			name:               "Feature flag disabled - default greeting",
+			featureFlagEnabled: false,
+			expectedGreeting:   "Hello, world!",
 		},
 		{
-			name:                     "Feature flag enabled - experimental greeting",
-			featureFlagEnabled:       true,
-			inputName:                "Alice",
-			expectedGreeting:         "🚀 Hello, Alice! Welcome to the EXPERIMENTAL future of MCP! 🎉",
-			expectedExperimentalMode: true,
+			name:               "Feature flag enabled - enthusiastic greeting",
+			featureFlagEnabled: true,
+			expectedGreeting:   "Hello, world! Welcome to the future of MCP! 🎉",
 		},
 	}
 
@@ -149,26 +108,16 @@ func TestHelloWorld_ConditionalBehavior(t *testing.T) {
 			)
 
 			// Get the tool and its handler
-			tool := HelloWorld(translations.NullTranslationHelper)
+			tool := HelloWorldTool(translations.NullTranslationHelper)
 			handler := tool.Handler(deps)
-
-			// Create request
-			args := map[string]any{}
-			if tt.inputName != "" {
-				args["name"] = tt.inputName
-			}
-			argsJSON, err := json.Marshal(args)
-			require.NoError(t, err)
-
-			request := mcp.CallToolRequest{
-				Params: &mcp.CallToolParamsRaw{
-					Arguments: json.RawMessage(argsJSON),
-				},
-			}
 
 			// Call the handler with deps in context
 			ctx := ContextWithDeps(context.Background(), deps)
-			result, err := handler(ctx, &request)
+			result, err := handler(ctx, &mcp.CallToolRequest{
+			Params: &mcp.CallToolParamsRaw{
+				Arguments: json.RawMessage(`{}`),
+			},
+		})
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			require.Len(t, result.Content, 1)
@@ -183,7 +132,68 @@ func TestHelloWorld_ConditionalBehavior(t *testing.T) {
 
 			// Verify the greeting matches expected based on feature flag
 			assert.Equal(t, tt.expectedGreeting, response["greeting"])
-			assert.Equal(t, tt.expectedExperimentalMode, response["experimental_mode"])
+		})
+	}
+}
+
+func TestHelloWorld_ConditionalBehavior_Config(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		experimental     bool
+		expectedGreeting string
+	}{
+		{
+			name:             "Experimental disabled - default greeting",
+			experimental:     false,
+			expectedGreeting: "Hello, world!",
+		},
+		{
+			name:             "Experimental enabled - experimental greeting",
+			experimental:     true,
+			expectedGreeting: "Hello, world! Experimental features are enabled! 🚀",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Create deps with the checker
+			deps := NewBaseDeps(
+				nil, nil, nil, nil,
+				translations.NullTranslationHelper,
+				FeatureFlags{Experimental: tt.experimental},
+				0,
+				nil,
+			)
+
+			// Get the tool and its handler
+			tool := HelloWorldTool(translations.NullTranslationHelper)
+			handler := tool.Handler(deps)
+
+			// Call the handler with deps in context
+			ctx := ContextWithDeps(context.Background(), deps)
+			result, err := handler(ctx, &mcp.CallToolRequest{
+			Params: &mcp.CallToolParamsRaw{
+				Arguments: json.RawMessage(`{}`),
+			},
+		})
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			require.Len(t, result.Content, 1)
+
+			// Parse the response - should be TextContent
+			textContent, ok := result.Content[0].(*mcp.TextContent)
+			require.True(t, ok, "expected content to be TextContent")
+
+			var response map[string]any
+			err = json.Unmarshal([]byte(textContent.Text), &response)
+			require.NoError(t, err)
+
+			// Verify the greeting matches expected based on feature flag
+			assert.Equal(t, tt.expectedGreeting, response["greeting"])
 		})
 	}
 }
