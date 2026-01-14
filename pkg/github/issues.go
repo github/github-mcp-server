@@ -1945,7 +1945,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				result["message"] = "successfully assigned copilot to issue - pull request created"
 			} else {
 				result["message"] = "successfully assigned copilot to issue - pull request pending"
-				result["note"] = "The pull request may still be in progress. Use get_copilot_job_status with the pull request number once created, or check the issue timeline for updates."
+				result["note"] = "The pull request may still be in progress. Once created, the PR number can be used to check job status, or check the issue timeline for updates."
 			}
 
 			r, err := json.Marshal(result)
