@@ -9,6 +9,10 @@ import (
 // header to requests based on context values. This is required for using
 // non-GA GraphQL API features like the agent assignment API.
 //
+// This transport is exported for use by library consumers who need to build
+// their own HTTP clients with GraphQL feature flag support. The MCP server
+// itself uses an inline implementation in its transport stack.
+//
 // Usage:
 //
 //	httpClient := &http.Client{

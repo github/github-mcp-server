@@ -1916,7 +1916,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 
 				pr, err := findLinkedCopilotPR(ctx, client, params.Owner, params.Repo, int(params.IssueNumber), assignmentTime)
 				if err != nil {
-					// Log but don't fail - polling errors are non-fatal
+					// Polling errors are non-fatal, continue to next attempt
 					continue
 				}
 				if pr != nil {
@@ -1928,8 +1928,8 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 			// Build the result
 			result := map[string]any{
 				"message":      "successfully assigned copilot to issue",
-				"issue_number": updateIssueMutation.UpdateIssue.Issue.Number,
-				"issue_url":    updateIssueMutation.UpdateIssue.Issue.URL,
+				"issue_number": int(updateIssueMutation.UpdateIssue.Issue.Number),
+				"issue_url":    string(updateIssueMutation.UpdateIssue.Issue.URL),
 				"owner":        params.Owner,
 				"repo":         params.Repo,
 			}
