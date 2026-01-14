@@ -3723,3 +3723,31 @@ func Test_ListIssueTypes(t *testing.T) {
 		})
 	}
 }
+
+// TestGraphQLFeatures tests the exported GraphQL features context functions
+func TestGraphQLFeatures(t *testing.T) {
+	ctx := context.Background()
+
+	// Test that GetGraphQLFeatures returns nil when no features are set
+	features := GetGraphQLFeatures(ctx)
+	require.Nil(t, features)
+
+	// Test WithGraphQLFeatures adds features to context
+	ctxWithFeatures := WithGraphQLFeatures(ctx, "feature1", "feature2")
+	features = GetGraphQLFeatures(ctxWithFeatures)
+	require.NotNil(t, features)
+	require.Len(t, features, 2)
+	assert.Equal(t, "feature1", features[0])
+	assert.Equal(t, "feature2", features[1])
+
+	// Test that the original context is not modified
+	features = GetGraphQLFeatures(ctx)
+	require.Nil(t, features)
+
+	// Test WithGraphQLFeatures with single feature
+	ctxWithOneFeature := WithGraphQLFeatures(ctx, "issues_copilot_assignment_api_support")
+	features = GetGraphQLFeatures(ctxWithOneFeature)
+	require.NotNil(t, features)
+	require.Len(t, features, 1)
+	assert.Equal(t, "issues_copilot_assignment_api_support", features[0])
+}
