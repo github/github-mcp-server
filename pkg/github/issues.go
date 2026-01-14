@@ -1914,15 +1914,22 @@ func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) inventory.Ser
 	)
 }
 
-// graphQLFeaturesKey is a context key for GraphQL feature flags
+// graphQLFeaturesKey is a context key for GraphQL feature flags.
+// These flags enable preview or experimental GitHub API features that are not yet GA.
 type graphQLFeaturesKey struct{}
 
-// withGraphQLFeatures adds GraphQL feature flags to the context
+// withGraphQLFeatures adds GraphQL feature flags to the context.
+// The flags are read by GraphQLFeaturesTransport and sent as the GraphQL-Features header.
+// This is used internally by tool handlers that require experimental GitHub API features.
 func withGraphQLFeatures(ctx context.Context, features ...string) context.Context {
 	return context.WithValue(ctx, graphQLFeaturesKey{}, features)
 }
 
-// GetGraphQLFeatures retrieves GraphQL feature flags from the context
+// GetGraphQLFeatures retrieves GraphQL feature flags from the context.
+// This function is exported to allow custom HTTP transports (e.g., in remote servers)
+// to read feature flags and add them as the "GraphQL-Features" header.
+//
+// For most use cases, use GraphQLFeaturesTransport instead of calling this directly.
 func GetGraphQLFeatures(ctx context.Context) []string {
 	if features, ok := ctx.Value(graphQLFeaturesKey{}).([]string); ok {
 		return features
