@@ -23,6 +23,16 @@
             "program": "cmd/github-mcp-server/main.go",
             "args": ["stdio", "--read-only"],
             "console": "integratedTerminal",
+        },
+        {
+            "name": "Launch http server",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "cwd": "${workspaceFolder}",
+            "program": "cmd/github-mcp-server/main.go",
+            "args": ["http"],
+            "console": "integratedTerminal",
         }
     ]
 }
