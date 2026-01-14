@@ -63,7 +63,7 @@ func TestIsFeatureEnabled_EmptyFlagName(t *testing.T) {
 	t.Parallel()
 
 	// Create a feature checker
-	checker := func(_ context.Context, flagName string) (bool, error) {
+	checker := func(_ context.Context, _ string) (bool, error) {
 		return true, nil
 	}
 
@@ -87,7 +87,7 @@ func TestIsFeatureEnabled_CheckerError(t *testing.T) {
 	t.Parallel()
 
 	// Create a feature checker that returns an error
-	checker := func(_ context.Context, flagName string) (bool, error) {
+	checker := func(_ context.Context, _ string) (bool, error) {
 		return false, errors.New("checker error")
 	}
 
@@ -106,4 +106,3 @@ func TestIsFeatureEnabled_CheckerError(t *testing.T) {
 	result := deps.IsFeatureEnabled(context.Background(), "error_flag")
 	assert.False(t, result, "Expected false when checker returns error")
 }
-

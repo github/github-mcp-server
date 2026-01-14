@@ -51,10 +51,10 @@ func (s stubDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
 	return nil, nil
 }
 
-func (s stubDeps) GetRepoAccessCache() *lockdown.RepoAccessCache { return s.repoAccessCache }
-func (s stubDeps) GetT() translations.TranslationHelperFunc      { return s.t }
-func (s stubDeps) GetFlags() FeatureFlags                        { return s.flags }
-func (s stubDeps) GetContentWindowSize() int                     { return s.contentWindowSize }
+func (s stubDeps) GetRepoAccessCache() *lockdown.RepoAccessCache     { return s.repoAccessCache }
+func (s stubDeps) GetT() translations.TranslationHelperFunc          { return s.t }
+func (s stubDeps) GetFlags() FeatureFlags                            { return s.flags }
+func (s stubDeps) GetContentWindowSize() int                         { return s.contentWindowSize }
 func (s stubDeps) IsFeatureEnabled(_ context.Context, _ string) bool { return false }
 
 // Helper functions to create stub client functions for error testing

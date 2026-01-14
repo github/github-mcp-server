@@ -81,8 +81,6 @@ type ToolDependencies interface {
 	GetContentWindowSize() int
 
 	// IsFeatureEnabled checks if a feature flag is enabled.
-	// Returns false if checker is nil or flag is not enabled.
-	// This allows tools to conditionally change behavior based on feature flags.
 	IsFeatureEnabled(ctx context.Context, flagName string) bool
 }
 

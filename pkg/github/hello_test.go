@@ -2,10 +2,12 @@ package github_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,50 +36,89 @@ func TestHelloWorld_ToolDefinition(t *testing.T) {
 	assert.Empty(t, tool.FeatureFlagDisable)
 }
 
-func TestHelloWorld_IsFeatureEnabledIntegration(t *testing.T) {
+func TestHelloWorld_ConditionalBehavior(t *testing.T) {
 	t.Parallel()
 
-	// This test verifies that the feature flag checking mechanism works
-	// by testing deps.IsFeatureEnabled directly
-
-	// Test 1: With feature flag disabled
-	checkerDisabled := func(ctx context.Context, flagName string) (bool, error) {
-		return false, nil
+	tests := []struct {
+		name                     string
+		featureFlagEnabled       bool
+		inputName                string
+		expectedGreeting         string
+		expectedExperimentalMode bool
+	}{
+		{
+			name:                     "Feature flag disabled - default greeting",
+			featureFlagEnabled:       false,
+			inputName:                "Alice",
+			expectedGreeting:         "Hello, Alice!",
+			expectedExperimentalMode: false,
+		},
+		{
+			name:                     "Feature flag enabled - experimental greeting",
+			featureFlagEnabled:       true,
+			inputName:                "Alice",
+			expectedGreeting:         "🚀 Hello, Alice! Welcome to the EXPERIMENTAL future of MCP! 🎉",
+			expectedExperimentalMode: true,
+		},
 	}
-	depsDisabled := github.NewBaseDeps(
-		nil, nil, nil, nil,
-		translations.NullTranslationHelper,
-		github.FeatureFlags{},
-		0,
-		checkerDisabled,
-	)
 
-	result := depsDisabled.IsFeatureEnabled(context.Background(), github.RemoteMCPExperimental)
-	assert.False(t, result, "Feature flag should be disabled")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Test 2: With feature flag enabled
-	checkerEnabled := func(ctx context.Context, flagName string) (bool, error) {
-		return flagName == github.RemoteMCPExperimental, nil
+			// Create feature checker based on test case
+			checker := func(_ context.Context, flagName string) (bool, error) {
+				if flagName == github.RemoteMCPExperimental {
+					return tt.featureFlagEnabled, nil
+				}
+				return false, nil
+			}
+
+			// Create deps with the checker
+			deps := github.NewBaseDeps(
+				nil, nil, nil, nil,
+				translations.NullTranslationHelper,
+				github.FeatureFlags{},
+				0,
+				checker,
+			)
+
+			// Get the tool and its handler
+			tool := github.HelloWorld(translations.NullTranslationHelper)
+			handler := tool.Handler(deps)
+
+			// Create request
+			args := map[string]any{}
+			if tt.inputName != "" {
+				args["name"] = tt.inputName
+			}
+			argsJSON, err := json.Marshal(args)
+			require.NoError(t, err)
+
+			request := mcp.CallToolRequest{
+				Params: &mcp.CallToolParamsRaw{
+					Arguments: json.RawMessage(argsJSON),
+				},
+			}
+
+			// Call the handler with deps in context
+			ctx := github.ContextWithDeps(context.Background(), deps)
+			result, err := handler(ctx, &request)
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			require.Len(t, result.Content, 1)
+
+			// Parse the response - should be TextContent
+			textContent, ok := result.Content[0].(*mcp.TextContent)
+			require.True(t, ok, "expected content to be TextContent")
+
+			var response map[string]any
+			err = json.Unmarshal([]byte(textContent.Text), &response)
+			require.NoError(t, err)
+
+			// Verify the greeting matches expected based on feature flag
+			assert.Equal(t, tt.expectedGreeting, response["greeting"])
+			assert.Equal(t, tt.expectedExperimentalMode, response["experimental_mode"])
+		})
 	}
-	depsEnabled := github.NewBaseDeps(
-		nil, nil, nil, nil,
-		translations.NullTranslationHelper,
-		github.FeatureFlags{},
-		0,
-		checkerEnabled,
-	)
-
-	result = depsEnabled.IsFeatureEnabled(context.Background(), github.RemoteMCPExperimental)
-	assert.True(t, result, "Feature flag should be enabled")
-
-	result = depsEnabled.IsFeatureEnabled(context.Background(), "other_flag")
-	assert.False(t, result, "Other flag should be disabled")
-}
-
-func TestHelloWorld_FeatureFlagConstant(t *testing.T) {
-	t.Parallel()
-
-	// Verify the constant exists and has the expected value
-	assert.Equal(t, "remote_mcp_experimental", github.RemoteMCPExperimental)
-	require.NotEmpty(t, github.RemoteMCPExperimental, "Feature flag constant should not be empty")
 }
