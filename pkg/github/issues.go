@@ -1611,10 +1611,11 @@ func (d *mvpDescription) String() string {
 
 // linkedPullRequest represents a PR linked to an issue by Copilot.
 type linkedPullRequest struct {
-	Number int
-	URL    string
-	Title  string
-	State  string
+	Number    int
+	URL       string
+	Title     string
+	State     string
+	CreatedAt time.Time
 }
 
 // pollConfigKey is a context key for polling configuration.
@@ -1644,7 +1645,8 @@ func getPollConfig(ctx context.Context) PollConfig {
 
 // findLinkedCopilotPR searches for a PR created by the copilot-swe-agent bot that references the given issue.
 // It queries the issue's timeline for CrossReferencedEvent items from PRs authored by copilot-swe-agent.
-func findLinkedCopilotPR(ctx context.Context, client *githubv4.Client, owner, repo string, issueNumber int) (*linkedPullRequest, error) {
+// The createdAfter parameter filters to only return PRs created after the specified time.
+func findLinkedCopilotPR(ctx context.Context, client *githubv4.Client, owner, repo string, issueNumber int, createdAfter time.Time) (*linkedPullRequest, error) {
 	// Query timeline items looking for CrossReferencedEvent from PRs by copilot-swe-agent
 	var query struct {
 		Repository struct {
@@ -1655,11 +1657,12 @@ func findLinkedCopilotPR(ctx context.Context, client *githubv4.Client, owner, re
 						CrossReferencedEvent struct {
 							Source struct {
 								PullRequest struct {
-									Number int
-									URL    string
-									Title  string
-									State  string
-									Author struct {
+									Number    int
+									URL       string
+									Title     string
+									State     string
+									CreatedAt githubv4.DateTime
+									Author    struct {
 										Login string
 									}
 								} `graphql:"... on PullRequest"`
@@ -1681,19 +1684,23 @@ func findLinkedCopilotPR(ctx context.Context, client *githubv4.Client, owner, re
 		return nil, err
 	}
 
-	// Look for a PR from copilot-swe-agent
+	// Look for a PR from copilot-swe-agent created after the assignment time
 	for _, node := range query.Repository.Issue.TimelineItems.Nodes {
 		if node.TypeName != "CrossReferencedEvent" {
 			continue
 		}
 		pr := node.CrossReferencedEvent.Source.PullRequest
 		if pr.Number > 0 && pr.Author.Login == "copilot-swe-agent" {
-			return &linkedPullRequest{
-				Number: pr.Number,
-				URL:    pr.URL,
-				Title:  pr.Title,
-				State:  pr.State,
-			}, nil
+			// Only return PRs created after the assignment time
+			if pr.CreatedAt.Time.After(createdAfter) {
+				return &linkedPullRequest{
+					Number:    pr.Number,
+					URL:       pr.URL,
+					Title:     pr.Title,
+					State:     pr.State,
+					CreatedAt: pr.CreatedAt.Time,
+				}, nil
+			}
 		}
 	}
 
@@ -1882,6 +1889,9 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 			// The header will be read by the HTTP transport if it's configured to do so
 			ctxWithFeatures := withGraphQLFeatures(ctx, "issues_copilot_assignment_api_support")
 
+			// Capture the time before assignment to filter out older PRs during polling
+			assignmentTime := time.Now().UTC()
+
 			if err := client.Mutate(
 				ctxWithFeatures,
 				&updateIssueMutation,
@@ -1895,7 +1905,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				return nil, nil, fmt.Errorf("failed to update issue with agent assignment: %w", err)
 			}
 
-			// Poll for a linked PR created by Copilot
+			// Poll for a linked PR created by Copilot after the assignment
 			pollConfig := getPollConfig(ctx)
 
 			var linkedPR *linkedPullRequest
@@ -1904,7 +1914,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 					time.Sleep(pollConfig.Delay)
 				}
 
-				pr, err := findLinkedCopilotPR(ctx, client, params.Owner, params.Repo, int(params.IssueNumber))
+				pr, err := findLinkedCopilotPR(ctx, client, params.Owner, params.Repo, int(params.IssueNumber), assignmentTime)
 				if err != nil {
 					// Log but don't fail - polling errors are non-fatal
 					continue
