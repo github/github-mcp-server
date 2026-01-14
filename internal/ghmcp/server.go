@@ -94,10 +94,13 @@ func createGitHubClients(cfg MCPServerConfig, apiHost apiHost) (*githubClients, 
 
 	// Construct GraphQL client
 	// We use NewEnterpriseClient unconditionally since we already parsed the API host
+	// Layer transports: DefaultTransport -> bearerAuthTransport -> GraphQLFeaturesTransport
 	gqlHTTPClient := &http.Client{
-		Transport: &bearerAuthTransport{
-			transport: http.DefaultTransport,
-			token:     cfg.Token,
+		Transport: &github.GraphQLFeaturesTransport{
+			Transport: &bearerAuthTransport{
+				transport: http.DefaultTransport,
+				token:     cfg.Token,
+			},
 		},
 	}
 	gqlClient := githubv4.NewEnterpriseClient(apiHost.graphqlURL.String(), gqlHTTPClient)
@@ -622,12 +625,6 @@ type bearerAuthTransport struct {
 func (t *bearerAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req = req.Clone(req.Context())
 	req.Header.Set("Authorization", "Bearer "+t.token)
-
-	// Check for GraphQL-Features in context and add header if present
-	if features := github.GetGraphQLFeatures(req.Context()); len(features) > 0 {
-		req.Header.Set("GraphQL-Features", strings.Join(features, ", "))
-	}
-
 	return t.transport.RoundTrip(req)
 }
 
