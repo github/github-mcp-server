@@ -2654,8 +2654,12 @@ func TestAssignCopilotToIssue(t *testing.T) {
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
+			// Disable polling in tests to avoid timeouts
+			ctx := ContextWithPollConfig(context.Background(), PollConfig{MaxAttempts: 0})
+			ctx = ContextWithDeps(ctx, deps)
+
 			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ctx, &request)
 			require.NoError(t, err)
 
 			textContent := getTextResult(t, result)
@@ -2667,7 +2671,16 @@ func TestAssignCopilotToIssue(t *testing.T) {
 			}
 
 			require.False(t, result.IsError, fmt.Sprintf("expected there to be no tool error, text was %s", textContent.Text))
-			require.Equal(t, textContent.Text, "successfully assigned copilot to issue")
+
+			// Verify the JSON response contains expected fields
+			var response map[string]any
+			err = json.Unmarshal([]byte(textContent.Text), &response)
+			require.NoError(t, err, "response should be valid JSON")
+			assert.Equal(t, float64(123), response["issue_number"])
+			assert.Equal(t, "https://github.com/owner/repo/issues/123", response["issue_url"])
+			assert.Equal(t, "owner", response["owner"])
+			assert.Equal(t, "repo", response["repo"])
+			assert.Contains(t, response["message"], "successfully assigned copilot to issue")
 		})
 	}
 }

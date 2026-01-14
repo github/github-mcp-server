@@ -1609,6 +1609,97 @@ func (d *mvpDescription) String() string {
 	return sb.String()
 }
 
+// linkedPullRequest represents a PR linked to an issue by Copilot.
+type linkedPullRequest struct {
+	Number int
+	URL    string
+	Title  string
+	State  string
+}
+
+// pollConfigKey is a context key for polling configuration.
+type pollConfigKey struct{}
+
+// PollConfig configures the PR polling behavior.
+type PollConfig struct {
+	MaxAttempts int
+	Delay       time.Duration
+}
+
+// ContextWithPollConfig returns a context with polling configuration.
+// Use this in tests to reduce or disable polling.
+func ContextWithPollConfig(ctx context.Context, config PollConfig) context.Context {
+	return context.WithValue(ctx, pollConfigKey{}, config)
+}
+
+// getPollConfig returns the polling configuration from context, or defaults.
+func getPollConfig(ctx context.Context) PollConfig {
+	if config, ok := ctx.Value(pollConfigKey{}).(PollConfig); ok {
+		return config
+	}
+	// Default: 9 attempts with 1s delay = 8s max wait
+	// Based on observed latency in remote server: p50 ~5s, p90 ~7s
+	return PollConfig{MaxAttempts: 9, Delay: 1 * time.Second}
+}
+
+// findLinkedCopilotPR searches for a PR created by the copilot-swe-agent bot that references the given issue.
+// It queries the issue's timeline for CrossReferencedEvent items from PRs authored by copilot-swe-agent.
+func findLinkedCopilotPR(ctx context.Context, client *githubv4.Client, owner, repo string, issueNumber int) (*linkedPullRequest, error) {
+	// Query timeline items looking for CrossReferencedEvent from PRs by copilot-swe-agent
+	var query struct {
+		Repository struct {
+			Issue struct {
+				TimelineItems struct {
+					Nodes []struct {
+						TypeName             string `graphql:"__typename"`
+						CrossReferencedEvent struct {
+							Source struct {
+								PullRequest struct {
+									Number int
+									URL    string
+									Title  string
+									State  string
+									Author struct {
+										Login string
+									}
+								} `graphql:"... on PullRequest"`
+							}
+						} `graphql:"... on CrossReferencedEvent"`
+					}
+				} `graphql:"timelineItems(first: 20, itemTypes: [CROSS_REFERENCED_EVENT])"`
+			} `graphql:"issue(number: $number)"`
+		} `graphql:"repository(owner: $owner, name: $name)"`
+	}
+
+	variables := map[string]any{
+		"owner":  githubv4.String(owner),
+		"name":   githubv4.String(repo),
+		"number": githubv4.Int(issueNumber), //nolint:gosec // Issue numbers are always small positive integers
+	}
+
+	if err := client.Query(ctx, &query, variables); err != nil {
+		return nil, err
+	}
+
+	// Look for a PR from copilot-swe-agent
+	for _, node := range query.Repository.Issue.TimelineItems.Nodes {
+		if node.TypeName != "CrossReferencedEvent" {
+			continue
+		}
+		pr := node.CrossReferencedEvent.Source.PullRequest
+		if pr.Number > 0 && pr.Author.Login == "copilot-swe-agent" {
+			return &linkedPullRequest{
+				Number: pr.Number,
+				URL:    pr.URL,
+				Title:  pr.Title,
+				State:  pr.State,
+			}, nil
+		}
+	}
+
+	return nil, nil
+}
+
 func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.ServerTool {
 	description := mvpDescription{
 		summary: "Assign Copilot to a specific issue in a GitHub repository.",
@@ -1804,7 +1895,55 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				return nil, nil, fmt.Errorf("failed to update issue with agent assignment: %w", err)
 			}
 
-			return utils.NewToolResultText("successfully assigned copilot to issue"), nil, nil
+			// Poll for a linked PR created by Copilot
+			pollConfig := getPollConfig(ctx)
+
+			var linkedPR *linkedPullRequest
+			for attempt := range pollConfig.MaxAttempts {
+				if attempt > 0 {
+					time.Sleep(pollConfig.Delay)
+				}
+
+				pr, err := findLinkedCopilotPR(ctx, client, params.Owner, params.Repo, int(params.IssueNumber))
+				if err != nil {
+					// Log but don't fail - polling errors are non-fatal
+					continue
+				}
+				if pr != nil {
+					linkedPR = pr
+					break
+				}
+			}
+
+			// Build the result
+			result := map[string]any{
+				"message":      "successfully assigned copilot to issue",
+				"issue_number": updateIssueMutation.UpdateIssue.Issue.Number,
+				"issue_url":    updateIssueMutation.UpdateIssue.Issue.URL,
+				"owner":        params.Owner,
+				"repo":         params.Repo,
+			}
+
+			// Add PR info if found during polling
+			if linkedPR != nil {
+				result["pull_request"] = map[string]any{
+					"number": linkedPR.Number,
+					"url":    linkedPR.URL,
+					"title":  linkedPR.Title,
+					"state":  linkedPR.State,
+				}
+				result["message"] = "successfully assigned copilot to issue - pull request created"
+			} else {
+				result["message"] = "successfully assigned copilot to issue - pull request pending"
+				result["note"] = "The pull request may still be in progress. Use get_copilot_job_status with the pull request number once created, or check the issue timeline for updates."
+			}
+
+			r, err := json.Marshal(result)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to marshal response: %s", err)), nil, nil
+			}
+
+			return utils.NewToolResultText(string(r)), result, nil
 		})
 }
 
