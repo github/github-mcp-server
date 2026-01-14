@@ -1789,7 +1789,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 
 			// Add the GraphQL-Features header for the agent assignment API
 			// The header will be read by the HTTP transport if it's configured to do so
-			ctxWithFeatures := withGraphQLFeatures(ctx, "issues_copilot_assignment_api_support")
+			ctxWithFeatures := WithGraphQLFeatures(ctx, "issues_copilot_assignment_api_support")
 
 			if err := client.Mutate(
 				ctxWithFeatures,

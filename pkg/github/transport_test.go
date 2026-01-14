@@ -61,7 +61,7 @@ func TestGraphQLFeaturesTransport(t *testing.T) {
 			// Create request with or without features in context
 			ctx := context.Background()
 			if tt.features != nil {
-				ctx = withGraphQLFeatures(ctx, tt.features...)
+				ctx = WithGraphQLFeatures(ctx, tt.features...)
 			}
 
 			req, err := http.NewRequestWithContext(ctx, "GET", server.URL, nil)
@@ -97,7 +97,7 @@ func TestGraphQLFeaturesTransport_NilTransport(t *testing.T) {
 		},
 	}
 
-	ctx := withGraphQLFeatures(context.Background(), "test_feature")
+	ctx := WithGraphQLFeatures(context.Background(), "test_feature")
 	req, err := http.NewRequestWithContext(ctx, "GET", server.URL, nil)
 	require.NoError(t, err)
 
@@ -123,7 +123,7 @@ func TestGraphQLFeaturesTransport_PreservesOtherHeaders(t *testing.T) {
 		},
 	}
 
-	ctx := withGraphQLFeatures(context.Background(), "feature1")
+	ctx := WithGraphQLFeatures(context.Background(), "feature1")
 	req, err := http.NewRequestWithContext(ctx, "GET", server.URL, nil)
 	require.NoError(t, err)
 

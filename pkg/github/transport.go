@@ -10,10 +10,11 @@ import (
 // These flags enable preview or experimental GitHub API features that are not yet GA.
 type graphQLFeaturesKey struct{}
 
-// withGraphQLFeatures adds GraphQL feature flags to the context.
+// WithGraphQLFeatures adds GraphQL feature flags to the context.
 // The flags are read by GraphQLFeaturesTransport and sent as the GraphQL-Features header.
-// This is used internally by tool handlers that require experimental GitHub API features.
-func withGraphQLFeatures(ctx context.Context, features ...string) context.Context {
+// This is used by tool handlers that require experimental GitHub API features.
+// Remote servers can also use this function in tests to simulate feature flag contexts.
+func WithGraphQLFeatures(ctx context.Context, features ...string) context.Context {
 	return context.WithValue(ctx, graphQLFeaturesKey{}, features)
 }
 
@@ -30,7 +31,7 @@ func GetGraphQLFeatures(ctx context.Context) []string {
 }
 
 // GraphQLFeaturesTransport is an http.RoundTripper that adds GraphQL-Features
-// header based on context values set by withGraphQLFeatures.
+// header based on context values set by WithGraphQLFeatures.
 //
 // This transport should be used in the HTTP client chain for githubv4.Client
 // to ensure GraphQL feature flags are properly sent to the GitHub API.
@@ -59,7 +60,7 @@ func GetGraphQLFeatures(ctx context.Context) []string {
 //	gqlClient := githubv4.NewClient(httpClient)
 //
 // The transport reads feature flags from request context using GetGraphQLFeatures.
-// Feature flags are added to context by the tool handler via withGraphQLFeatures.
+// Feature flags are added to context by the tool handler via WithGraphQLFeatures.
 type GraphQLFeaturesTransport struct {
 	// Transport is the underlying http.RoundTripper. If nil, http.DefaultTransport is used.
 	Transport http.RoundTripper
