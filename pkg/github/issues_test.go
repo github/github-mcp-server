@@ -3723,3 +3723,35 @@ func Test_ListIssueTypes(t *testing.T) {
 		})
 	}
 }
+
+func TestWithGraphQLFeatures(t *testing.T) {
+	t.Parallel()
+
+	t.Run("adds features to context", func(t *testing.T) {
+		ctx := context.Background()
+		features := []string{"feature1", "feature2"}
+
+		ctx = WithGraphQLFeatures(ctx, features...)
+		retrievedFeatures := GetGraphQLFeatures(ctx)
+
+		assert.Equal(t, features, retrievedFeatures)
+	})
+
+	t.Run("returns nil for context without features", func(t *testing.T) {
+		ctx := context.Background()
+		features := GetGraphQLFeatures(ctx)
+
+		assert.Nil(t, features)
+	})
+
+	t.Run("can add multiple features", func(t *testing.T) {
+		ctx := context.Background()
+		ctx = WithGraphQLFeatures(ctx, "feature1", "feature2", "feature3")
+		features := GetGraphQLFeatures(ctx)
+
+		assert.Len(t, features, 3)
+		assert.Contains(t, features, "feature1")
+		assert.Contains(t, features, "feature2")
+		assert.Contains(t, features, "feature3")
+	})
+}
