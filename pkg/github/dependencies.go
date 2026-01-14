@@ -103,6 +103,9 @@ type BaseDeps struct {
 	featureChecker inventory.FeatureFlagChecker
 }
 
+// Compile-time assertion to verify that BaseDeps implements the ToolDependencies interface.
+var _ ToolDependencies = (*BaseDeps)(nil)
+
 // NewBaseDeps creates a BaseDeps with the provided clients and configuration.
 func NewBaseDeps(
 	client *gogithub.Client,
