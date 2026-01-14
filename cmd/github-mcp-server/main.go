@@ -9,6 +9,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/ghmcp"
 	"github.com/github/github-mcp-server/pkg/github"
+	ghhttp "github.com/github/github-mcp-server/pkg/http"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -94,7 +95,7 @@ var (
 		Short: "Start HTTP server",
 		Long:  `Start an HTTP server that listens for MCP requests over HTTP.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			httpConfig := ghmcp.HTTPServerConfig{
+			httpConfig := ghhttp.HTTPServerConfig{
 				Version:              version,
 				Host:                 viper.GetString("host"),
 				ExportTranslations:   viper.GetBool("export-translations"),
@@ -103,7 +104,7 @@ var (
 				ContentWindowSize:    viper.GetInt("content-window-size"),
 			}
 
-			return ghmcp.RunHTTPServer(httpConfig)
+			return ghhttp.RunHTTPServer(httpConfig)
 		},
 	}
 )

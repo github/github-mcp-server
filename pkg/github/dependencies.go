@@ -215,6 +215,7 @@ type RequestDeps struct {
 	// Static dependencies
 	apiHosts          *utils.ApiHost
 	version           string
+	lockdownMode      bool
 	RepoAccessOpts    []lockdown.RepoAccessOption
 	T                 translations.TranslationHelperFunc
 	Flags             FeatureFlags
@@ -225,6 +226,7 @@ type RequestDeps struct {
 func NewRequestDeps(
 	apiHosts *utils.ApiHost,
 	version string,
+	lockdownMode bool,
 	repoAccessOpts []lockdown.RepoAccessOption,
 	t translations.TranslationHelperFunc,
 	flags FeatureFlags,
@@ -233,6 +235,7 @@ func NewRequestDeps(
 	return &RequestDeps{
 		apiHosts:          apiHosts,
 		version:           version,
+		lockdownMode:      lockdownMode,
 		RepoAccessOpts:    repoAccessOpts,
 		T:                 t,
 		Flags:             flags,
@@ -298,7 +301,7 @@ func (d *RequestDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
 
 // GetRepoAccessCache implements ToolDependencies.
 func (d *RequestDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAccessCache, error) {
-	if !ghcontext.IsLockdownMode(ctx) {
+	if !d.lockdownMode {
 		return nil, nil
 	}
 
