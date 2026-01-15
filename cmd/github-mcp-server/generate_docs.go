@@ -198,30 +198,6 @@ func generateToolsDoc(r *inventory.Inventory) string {
 	return buf.String()
 }
 
-func formatToolsetName(name string) string {
-	switch name {
-	case "pull_requests":
-		return "Pull Requests"
-	case "repos":
-		return "Repositories"
-	case "code_security":
-		return "Code Security"
-	case "secret_protection":
-		return "Secret Protection"
-	case "orgs":
-		return "Organizations"
-	default:
-		// Fallback: capitalize first letter and replace underscores with spaces
-		parts := strings.Split(name, "_")
-		for i, part := range parts {
-			if len(part) > 0 {
-				parts[i] = strings.ToUpper(string(part[0])) + part[1:]
-			}
-		}
-		return strings.Join(parts, " ")
-	}
-}
-
 func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 	// Tool name (no icon - section header already has the toolset icon)
 	fmt.Fprintf(buf, "- **%s** - %s\n", tool.Tool.Name, tool.Tool.Annotations.Title)
@@ -373,14 +349,13 @@ func generateRemoteToolsetsDoc() string {
 
 	// Add "all" toolset first (special case)
 	allIcon := octiconImg("apps", "../")
-	fmt.Fprintf(&buf, "| %s<br>all | All available GitHub MCP tools | https://api.githubcopilot.com/mcp/ | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2F%%22%%7D) | [read-only](https://api.githubcopilot.com/mcp/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2Freadonly%%22%%7D) |\n", allIcon)
+	fmt.Fprintf(&buf, "| %s<br>`all` | All available GitHub MCP tools | https://api.githubcopilot.com/mcp/ | [Install](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2F%%22%%7D) | [read-only](https://api.githubcopilot.com/mcp/readonly) | [Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=github&config=%%7B%%22type%%22%%3A%%20%%22http%%22%%2C%%22url%%22%%3A%%20%%22https%%3A%%2F%%2Fapi.githubcopilot.com%%2Fmcp%%2Freadonly%%22%%7D) |\n", allIcon)
 
 	// AvailableToolsets() returns toolsets that have tools, sorted by ID
 	// Exclude context (handled separately) and dynamic (internal only)
 	for _, ts := range r.AvailableToolsets("context", "dynamic") {
 		idStr := string(ts.ID)
 
-		formattedName := formatToolsetName(idStr)
 		apiURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s", idStr)
 		readonlyURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s/readonly", idStr)
 
@@ -396,9 +371,9 @@ func generateRemoteToolsetsDoc() string {
 		readonlyInstallLink := fmt.Sprintf("[Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, readonlyConfig)
 
 		icon := octiconImg(ts.Icon, "../")
-		fmt.Fprintf(&buf, "| %s<br>%s | %s | %s | %s | [read-only](%s) | %s |\n",
+		fmt.Fprintf(&buf, "| %s<br>`%s` | %s | %s | %s | [read-only](%s) | %s |\n",
 			icon,
-			formattedName,
+			idStr,
 			ts.Description,
 			apiURL,
 			installLink,
@@ -421,7 +396,6 @@ func generateRemoteOnlyToolsetsDoc() string {
 	for _, ts := range github.RemoteOnlyToolsets() {
 		idStr := string(ts.ID)
 
-		formattedName := formatToolsetName(idStr)
 		apiURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s", idStr)
 		readonlyURL := fmt.Sprintf("https://api.githubcopilot.com/mcp/x/%s/readonly", idStr)
 
@@ -437,9 +411,9 @@ func generateRemoteOnlyToolsetsDoc() string {
 		readonlyInstallLink := fmt.Sprintf("[Install read-only](https://insiders.vscode.dev/redirect/mcp/install?name=gh-%s&config=%s)", idStr, readonlyConfig)
 
 		icon := octiconImg(ts.Icon, "../")
-		fmt.Fprintf(&buf, "| %s<br>%s | %s | %s | %s | [read-only](%s) | %s |\n",
+		fmt.Fprintf(&buf, "| %s<br>`%s` | %s | %s | %s | [read-only](%s) | %s |\n",
 			icon,
-			formattedName,
+			idStr,
 			ts.Description,
 			apiURL,
 			installLink,
