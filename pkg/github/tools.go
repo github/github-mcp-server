@@ -187,6 +187,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ListIssues(t),
 		ListIssueTypes(t),
 		IssueWrite(t),
+		CreateIssueUI(t),
 		AddIssueComment(t),
 		AssignCopilotToIssue(t),
 		SubIssueWrite(t),

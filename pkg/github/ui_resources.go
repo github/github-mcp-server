@@ -40,4 +40,25 @@ func RegisterUIResources(s *mcp.Server) {
 			}, nil
 		},
 	)
+
+	// Register the issue_write UI resource
+	s.AddResource(
+		&mcp.Resource{
+			URI:         IssueWriteUIResourceURI,
+			Name:        "issue_write_ui",
+			Description: "MCP App UI for creating GitHub issues",
+			MIMEType:    "text/html",
+		},
+		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+			return &mcp.ReadResourceResult{
+				Contents: []*mcp.ResourceContents{
+					{
+						URI:      IssueWriteUIResourceURI,
+						MIMEType: "text/html",
+						Text:     IssueWriteUIHTML,
+					},
+				},
+			}, nil
+		},
+	)
 }
