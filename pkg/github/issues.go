@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -1459,12 +1460,21 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			deps.Logger(ctx).Info("list_issues called",
+				slog.String("owner", owner),
+				slog.String("repo", repo),
+				slog.String("orderBy", orderBy),
+				slog.String("direction", direction),
+				slog.String("since", since),
+			)
+
 			// There are two optional parameters: since and labels.
 			var sinceTime time.Time
 			var hasSince bool
 			if since != "" {
 				sinceTime, err = parseISOTimestamp(since)
 				if err != nil {
+					deps.Logger(ctx).Info("failed to parse 'since' timestamp", slog.String("error", err.Error()))
 					return utils.NewToolResultError(fmt.Sprintf("failed to list issues: %s", err.Error())), nil, nil
 				}
 				hasSince = true
