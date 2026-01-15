@@ -121,7 +121,10 @@ func runListScopes() error {
 		inventoryBuilder = inventoryBuilder.WithTools(enabledTools)
 	}
 
-	inv := inventoryBuilder.Build()
+	inv, err := inventoryBuilder.Build()
+	if err != nil {
+		return fmt.Errorf("failed to build inventory: %w", err)
+	}
 
 	// Collect all tools and their scopes
 	output := collectToolScopes(inv, readOnly)

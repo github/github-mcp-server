@@ -1748,6 +1748,10 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 						Type:        "string",
 						Description: "Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch",
 					},
+					"custom_instructions": {
+						Type:        "string",
+						Description: "Optional custom instructions to guide the agent beyond the issue body. Use this to provide additional context, constraints, or guidance that is not captured in the issue description",
+					},
 				},
 				Required: []string{"owner", "repo", "issue_number"},
 			},
@@ -1755,10 +1759,11 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			var params struct {
-				Owner       string `mapstructure:"owner"`
-				Repo        string `mapstructure:"repo"`
-				IssueNumber int32  `mapstructure:"issue_number"`
-				BaseRef     string `mapstructure:"base_ref"`
+				Owner              string `mapstructure:"owner"`
+				Repo               string `mapstructure:"repo"`
+				IssueNumber        int32  `mapstructure:"issue_number"`
+				BaseRef            string `mapstructure:"base_ref"`
+				CustomInstructions string `mapstructure:"custom_instructions"`
 			}
 			if err := mapstructure.Decode(args, &params); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -1871,6 +1876,12 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 			if params.BaseRef != "" {
 				baseRef := githubv4.String(params.BaseRef)
 				agentAssignment.BaseRef = &baseRef
+			}
+
+			// Add custom instructions if provided
+			if params.CustomInstructions != "" {
+				customInstructions := githubv4.String(params.CustomInstructions)
+				agentAssignment.CustomInstructions = &customInstructions
 			}
 
 			// Execute the updateIssue mutation with the GraphQL-Features header
