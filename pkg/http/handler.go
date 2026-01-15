@@ -60,11 +60,6 @@ func (s *HttpMcpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ghServer, err := github.NewMCPServer(&github.MCPServerConfig{
 		Version:           s.config.Version,
 		Host:              s.config.Host,
-		EnabledToolsets:   s.config.EnabledToolsets,
-		EnabledTools:      s.config.EnabledTools,
-		EnabledFeatures:   s.config.EnabledFeatures,
-		DynamicToolsets:   s.config.DynamicToolsets,
-		ReadOnly:          s.config.ReadOnly,
 		Translator:        s.t,
 		ContentWindowSize: s.config.ContentWindowSize,
 		Logger:            s.logger,
