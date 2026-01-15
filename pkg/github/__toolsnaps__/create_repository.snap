@@ -4,32 +4,32 @@
   },
   "description": "Create a new GitHub repository in your account or specified organization",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "autoInit": {
-        "type": "boolean",
-        "description": "Initialize with README"
+        "description": "Initialize with README",
+        "type": "boolean"
       },
       "description": {
-        "type": "string",
-        "description": "Repository description"
+        "description": "Repository description",
+        "type": "string"
       },
       "name": {
-        "type": "string",
-        "description": "Repository name"
+        "description": "Repository name",
+        "type": "string"
       },
       "organization": {
-        "type": "string",
-        "description": "Organization to create the repository in (omit to create in your personal account)"
+        "description": "Organization to create the repository in (omit to create in your personal account)",
+        "type": "string"
       },
       "private": {
-        "type": "boolean",
-        "description": "Whether repo should be private"
+        "description": "Whether repo should be private",
+        "type": "boolean"
       }
     },
     "required": [
       "name"
-    ]
+    ],
+    "type": "object"
   },
   "name": "create_repository"
 }

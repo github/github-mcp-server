@@ -5,26 +5,26 @@
   },
   "description": "Get a specific discussion by ID",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "discussionNumber": {
-        "type": "number",
-        "description": "Discussion Number"
+        "description": "Discussion Number",
+        "type": "number"
       },
       "owner": {
-        "type": "string",
-        "description": "Repository owner"
+        "description": "Repository owner",
+        "type": "string"
       },
       "repo": {
-        "type": "string",
-        "description": "Repository name"
+        "description": "Repository name",
+        "type": "string"
       }
     },
     "required": [
       "owner",
       "repo",
       "discussionNumber"
-    ]
+    ],
+    "type": "object"
   },
   "name": "get_discussion"
 }

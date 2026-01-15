@@ -5,36 +5,36 @@
   },
   "description": "Get comments from a discussion",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "after": {
-        "type": "string",
-        "description": "Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs."
+        "description": "Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs.",
+        "type": "string"
       },
       "discussionNumber": {
-        "type": "number",
-        "description": "Discussion Number"
+        "description": "Discussion Number",
+        "type": "number"
       },
       "owner": {
-        "type": "string",
-        "description": "Repository owner"
+        "description": "Repository owner",
+        "type": "string"
       },
       "perPage": {
-        "type": "number",
         "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
         "minimum": 1,
-        "maximum": 100
+        "type": "number"
       },
       "repo": {
-        "type": "string",
-        "description": "Repository name"
+        "description": "Repository name",
+        "type": "string"
       }
     },
     "required": [
       "owner",
       "repo",
       "discussionNumber"
-    ]
+    ],
+    "type": "object"
   },
   "name": "get_discussion_comments"
 }

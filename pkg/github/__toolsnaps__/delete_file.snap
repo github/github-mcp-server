@@ -5,27 +5,26 @@
   },
   "description": "Delete a file from a GitHub repository",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "branch": {
-        "type": "string",
-        "description": "Branch to delete the file from"
+        "description": "Branch to delete the file from",
+        "type": "string"
       },
       "message": {
-        "type": "string",
-        "description": "Commit message"
+        "description": "Commit message",
+        "type": "string"
       },
       "owner": {
-        "type": "string",
-        "description": "Repository owner (username or organization)"
+        "description": "Repository owner (username or organization)",
+        "type": "string"
       },
       "path": {
-        "type": "string",
-        "description": "Path to the file to delete"
+        "description": "Path to the file to delete",
+        "type": "string"
       },
       "repo": {
-        "type": "string",
-        "description": "Repository name"
+        "description": "Repository name",
+        "type": "string"
       }
     },
     "required": [
@@ -34,7 +33,8 @@
       "path",
       "message",
       "branch"
-    ]
+    ],
+    "type": "object"
   },
   "name": "delete_file"
 }

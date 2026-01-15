@@ -4,44 +4,43 @@
   },
   "description": "Push multiple files to a GitHub repository in a single commit",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "branch": {
-        "type": "string",
-        "description": "Branch to push to"
+        "description": "Branch to push to",
+        "type": "string"
       },
       "files": {
-        "type": "array",
+        "description": "Array of file objects to push, each object with path (string) and content (string)",
         "items": {
-          "type": "object",
           "properties": {
             "content": {
-              "type": "string",
-              "description": "file content"
+              "description": "file content",
+              "type": "string"
             },
             "path": {
-              "type": "string",
-              "description": "path to the file"
+              "description": "path to the file",
+              "type": "string"
             }
           },
           "required": [
             "path",
             "content"
-          ]
+          ],
+          "type": "object"
         },
-        "description": "Array of file objects to push, each object with path (string) and content (string)"
+        "type": "array"
       },
       "message": {
-        "type": "string",
-        "description": "Commit message"
+        "description": "Commit message",
+        "type": "string"
       },
       "owner": {
-        "type": "string",
-        "description": "Repository owner"
+        "description": "Repository owner",
+        "type": "string"
       },
       "repo": {
-        "type": "string",
-        "description": "Repository name"
+        "description": "Repository name",
+        "type": "string"
       }
     },
     "required": [
@@ -50,7 +49,8 @@
       "branch",
       "files",
       "message"
-    ]
+    ],
+    "type": "object"
   },
   "name": "push_files"
 }

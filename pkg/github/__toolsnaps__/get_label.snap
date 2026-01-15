@@ -5,26 +5,26 @@
   },
   "description": "Get a specific label from a repository.",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "name": {
-        "type": "string",
-        "description": "Label name."
+        "description": "Label name.",
+        "type": "string"
       },
       "owner": {
-        "type": "string",
-        "description": "Repository owner (username or organization name)"
+        "description": "Repository owner (username or organization name)",
+        "type": "string"
       },
       "repo": {
-        "type": "string",
-        "description": "Repository name"
+        "description": "Repository name",
+        "type": "string"
       }
     },
     "required": [
       "owner",
       "repo",
       "name"
-    ]
+    ],
+    "type": "object"
   },
   "name": "get_label"
 }

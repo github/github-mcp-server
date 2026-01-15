@@ -4,59 +4,58 @@
   },
   "description": "Add review comment to the requester's latest pending pull request review. A pending review needs to already exist to call this (check with the user if not sure).",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "body": {
-        "type": "string",
-        "description": "The text of the review comment"
+        "description": "The text of the review comment",
+        "type": "string"
       },
       "line": {
-        "type": "number",
-        "description": "The line of the blob in the pull request diff that the comment applies to. For multi-line comments, the last line of the range"
+        "description": "The line of the blob in the pull request diff that the comment applies to. For multi-line comments, the last line of the range",
+        "type": "number"
       },
       "owner": {
-        "type": "string",
-        "description": "Repository owner"
+        "description": "Repository owner",
+        "type": "string"
       },
       "path": {
-        "type": "string",
-        "description": "The relative path to the file that necessitates a comment"
+        "description": "The relative path to the file that necessitates a comment",
+        "type": "string"
       },
       "pullNumber": {
-        "type": "number",
-        "description": "Pull request number"
+        "description": "Pull request number",
+        "type": "number"
       },
       "repo": {
-        "type": "string",
-        "description": "Repository name"
+        "description": "Repository name",
+        "type": "string"
       },
       "side": {
-        "type": "string",
         "description": "The side of the diff to comment on. LEFT indicates the previous state, RIGHT indicates the new state",
         "enum": [
           "LEFT",
           "RIGHT"
-        ]
+        ],
+        "type": "string"
       },
       "startLine": {
-        "type": "number",
-        "description": "For multi-line comments, the first line of the range that the comment applies to"
+        "description": "For multi-line comments, the first line of the range that the comment applies to",
+        "type": "number"
       },
       "startSide": {
-        "type": "string",
         "description": "For multi-line comments, the starting side of the diff that the comment applies to. LEFT indicates the previous state, RIGHT indicates the new state",
         "enum": [
           "LEFT",
           "RIGHT"
-        ]
+        ],
+        "type": "string"
       },
       "subjectType": {
-        "type": "string",
         "description": "The level at which the comment is targeted",
         "enum": [
           "FILE",
           "LINE"
-        ]
+        ],
+        "type": "string"
       }
     },
     "required": [
@@ -66,7 +65,8 @@
       "path",
       "body",
       "subjectType"
-    ]
+    ],
+    "type": "object"
   },
   "name": "add_comment_to_pending_review"
 }

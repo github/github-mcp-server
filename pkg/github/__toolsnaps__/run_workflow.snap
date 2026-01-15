@@ -4,27 +4,26 @@
   },
   "description": "Run an Actions workflow by workflow ID or filename",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "inputs": {
-        "type": "object",
-        "description": "Inputs the workflow accepts"
+        "description": "Inputs the workflow accepts",
+        "type": "object"
       },
       "owner": {
-        "type": "string",
-        "description": "Repository owner"
+        "description": "Repository owner",
+        "type": "string"
       },
       "ref": {
-        "type": "string",
-        "description": "The git reference for the workflow. The reference can be a branch or tag name."
+        "description": "The git reference for the workflow. The reference can be a branch or tag name.",
+        "type": "string"
       },
       "repo": {
-        "type": "string",
-        "description": "Repository name"
+        "description": "Repository name",
+        "type": "string"
       },
       "workflow_id": {
-        "type": "string",
-        "description": "The workflow ID (numeric) or workflow file name (e.g., main.yml, ci.yaml)"
+        "description": "The workflow ID (numeric) or workflow file name (e.g., main.yml, ci.yaml)",
+        "type": "string"
       }
     },
     "required": [
@@ -32,7 +31,8 @@
       "repo",
       "workflow_id",
       "ref"
-    ]
+    ],
+    "type": "object"
   },
   "name": "run_workflow"
 }

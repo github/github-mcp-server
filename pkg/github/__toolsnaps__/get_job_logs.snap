@@ -5,42 +5,42 @@
   },
   "description": "Download logs for a specific workflow job or efficiently get all failed job logs for a workflow run",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "failed_only": {
-        "type": "boolean",
-        "description": "When true, gets logs for all failed jobs in run_id"
+        "description": "When true, gets logs for all failed jobs in run_id",
+        "type": "boolean"
       },
       "job_id": {
-        "type": "number",
-        "description": "The unique identifier of the workflow job (required for single job logs)"
+        "description": "The unique identifier of the workflow job (required for single job logs)",
+        "type": "number"
       },
       "owner": {
-        "type": "string",
-        "description": "Repository owner"
+        "description": "Repository owner",
+        "type": "string"
       },
       "repo": {
-        "type": "string",
-        "description": "Repository name"
+        "description": "Repository name",
+        "type": "string"
       },
       "return_content": {
-        "type": "boolean",
-        "description": "Returns actual log content instead of URLs"
+        "description": "Returns actual log content instead of URLs",
+        "type": "boolean"
       },
       "run_id": {
-        "type": "number",
-        "description": "Workflow run ID (required when using failed_only)"
+        "description": "Workflow run ID (required when using failed_only)",
+        "type": "number"
       },
       "tail_lines": {
-        "type": "number",
+        "default": 500,
         "description": "Number of lines to return from the end of the log",
-        "default": 500
+        "type": "number"
       }
     },
     "required": [
       "owner",
       "repo"
-    ]
+    ],
+    "type": "object"
   },
   "name": "get_job_logs"
 }

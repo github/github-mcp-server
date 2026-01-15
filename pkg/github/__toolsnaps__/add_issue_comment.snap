@@ -4,23 +4,22 @@
   },
   "description": "Add a comment to a specific issue in a GitHub repository. Use this tool to add comments to pull requests as well (in this case pass pull request number as issue_number), but only if user is not asking specifically to add review comments.",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "body": {
-        "type": "string",
-        "description": "Comment content"
+        "description": "Comment content",
+        "type": "string"
       },
       "issue_number": {
-        "type": "number",
-        "description": "Issue number to comment on"
+        "description": "Issue number to comment on",
+        "type": "number"
       },
       "owner": {
-        "type": "string",
-        "description": "Repository owner"
+        "description": "Repository owner",
+        "type": "string"
       },
       "repo": {
-        "type": "string",
-        "description": "Repository name"
+        "description": "Repository name",
+        "type": "string"
       }
     },
     "required": [
@@ -28,7 +27,8 @@
       "repo",
       "issue_number",
       "body"
-    ]
+    ],
+    "type": "object"
   },
   "name": "add_issue_comment"
 }

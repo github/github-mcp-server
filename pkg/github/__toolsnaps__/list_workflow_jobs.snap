@@ -5,45 +5,45 @@
   },
   "description": "List jobs for a specific workflow run",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "filter": {
-        "type": "string",
         "description": "Filters jobs by their completed_at timestamp",
         "enum": [
           "latest",
           "all"
-        ]
+        ],
+        "type": "string"
       },
       "owner": {
-        "type": "string",
-        "description": "Repository owner"
+        "description": "Repository owner",
+        "type": "string"
       },
       "page": {
-        "type": "number",
         "description": "Page number for pagination (min 1)",
-        "minimum": 1
+        "minimum": 1,
+        "type": "number"
       },
       "perPage": {
-        "type": "number",
         "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
         "minimum": 1,
-        "maximum": 100
+        "type": "number"
       },
       "repo": {
-        "type": "string",
-        "description": "Repository name"
+        "description": "Repository name",
+        "type": "string"
       },
       "run_id": {
-        "type": "number",
-        "description": "The unique identifier of the workflow run"
+        "description": "The unique identifier of the workflow run",
+        "type": "number"
       }
     },
     "required": [
       "owner",
       "repo",
       "run_id"
-    ]
+    ],
+    "type": "object"
   },
   "name": "list_workflow_jobs"
 }

@@ -4,61 +4,61 @@
   },
   "description": "Update an existing pull request in a GitHub repository.",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "base": {
-        "type": "string",
-        "description": "New base branch name"
+        "description": "New base branch name",
+        "type": "string"
       },
       "body": {
-        "type": "string",
-        "description": "New description"
+        "description": "New description",
+        "type": "string"
       },
       "draft": {
-        "type": "boolean",
-        "description": "Mark pull request as draft (true) or ready for review (false)"
+        "description": "Mark pull request as draft (true) or ready for review (false)",
+        "type": "boolean"
       },
       "maintainer_can_modify": {
-        "type": "boolean",
-        "description": "Allow maintainer edits"
+        "description": "Allow maintainer edits",
+        "type": "boolean"
       },
       "owner": {
-        "type": "string",
-        "description": "Repository owner"
+        "description": "Repository owner",
+        "type": "string"
       },
       "pullNumber": {
-        "type": "number",
-        "description": "Pull request number to update"
+        "description": "Pull request number to update",
+        "type": "number"
       },
       "repo": {
-        "type": "string",
-        "description": "Repository name"
+        "description": "Repository name",
+        "type": "string"
       },
       "reviewers": {
-        "type": "array",
+        "description": "GitHub usernames to request reviews from",
         "items": {
           "type": "string"
         },
-        "description": "GitHub usernames to request reviews from"
+        "type": "array"
       },
       "state": {
-        "type": "string",
         "description": "New state",
         "enum": [
           "open",
           "closed"
-        ]
+        ],
+        "type": "string"
       },
       "title": {
-        "type": "string",
-        "description": "New title"
+        "description": "New title",
+        "type": "string"
       }
     },
     "required": [
       "owner",
       "repo",
       "pullNumber"
-    ]
+    ],
+    "type": "object"
   },
   "name": "update_pull_request"
 }

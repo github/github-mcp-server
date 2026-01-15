@@ -5,40 +5,40 @@
   },
   "description": "Get list of commits of a branch in a GitHub repository. Returns at least 30 results per page by default, but can return more if specified using the perPage parameter (up to 100).",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "author": {
-        "type": "string",
-        "description": "Author username or email address to filter commits by"
+        "description": "Author username or email address to filter commits by",
+        "type": "string"
       },
       "owner": {
-        "type": "string",
-        "description": "Repository owner"
+        "description": "Repository owner",
+        "type": "string"
       },
       "page": {
-        "type": "number",
         "description": "Page number for pagination (min 1)",
-        "minimum": 1
+        "minimum": 1,
+        "type": "number"
       },
       "perPage": {
-        "type": "number",
         "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
         "minimum": 1,
-        "maximum": 100
+        "type": "number"
       },
       "repo": {
-        "type": "string",
-        "description": "Repository name"
+        "description": "Repository name",
+        "type": "string"
       },
       "sha": {
-        "type": "string",
-        "description": "Commit SHA, branch or tag name to list commits of. If not provided, uses the default branch of the repository. If a commit SHA is provided, will list commits up to that SHA."
+        "description": "Commit SHA, branch or tag name to list commits of. If not provided, uses the default branch of the repository. If a commit SHA is provided, will list commits up to that SHA.",
+        "type": "string"
       }
     },
     "required": [
       "owner",
       "repo"
-    ]
+    ],
+    "type": "object"
   },
   "name": "list_commits"
 }

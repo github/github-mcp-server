@@ -4,31 +4,30 @@
   },
   "description": "Update a specific Project item for a user or org",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "item_id": {
-        "type": "number",
-        "description": "The unique identifier of the project item. This is not the issue or pull request ID."
+        "description": "The unique identifier of the project item. This is not the issue or pull request ID.",
+        "type": "number"
       },
       "owner": {
-        "type": "string",
-        "description": "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive."
+        "description": "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.",
+        "type": "string"
       },
       "owner_type": {
-        "type": "string",
         "description": "Owner type",
         "enum": [
           "user",
           "org"
-        ]
+        ],
+        "type": "string"
       },
       "project_number": {
-        "type": "number",
-        "description": "The project's number."
+        "description": "The project's number.",
+        "type": "number"
       },
       "updated_field": {
-        "type": "object",
-        "description": "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}"
+        "description": "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}",
+        "type": "object"
       }
     },
     "required": [
@@ -37,7 +36,8 @@
       "project_number",
       "item_id",
       "updated_field"
-    ]
+    ],
+    "type": "object"
   },
   "name": "update_project_item"
 }

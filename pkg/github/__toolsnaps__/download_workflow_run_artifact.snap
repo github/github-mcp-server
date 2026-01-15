@@ -5,26 +5,26 @@
   },
   "description": "Get download URL for a workflow run artifact",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "artifact_id": {
-        "type": "number",
-        "description": "The unique identifier of the artifact"
+        "description": "The unique identifier of the artifact",
+        "type": "number"
       },
       "owner": {
-        "type": "string",
-        "description": "Repository owner"
+        "description": "Repository owner",
+        "type": "string"
       },
       "repo": {
-        "type": "string",
-        "description": "Repository name"
+        "description": "Repository name",
+        "type": "string"
       }
     },
     "required": [
       "owner",
       "repo",
       "artifact_id"
-    ]
+    ],
+    "type": "object"
   },
   "name": "download_workflow_run_artifact"
 }

@@ -4,39 +4,38 @@
   },
   "description": "Create a new pull request in a GitHub repository.",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "base": {
-        "type": "string",
-        "description": "Branch to merge into"
+        "description": "Branch to merge into",
+        "type": "string"
       },
       "body": {
-        "type": "string",
-        "description": "PR description"
+        "description": "PR description",
+        "type": "string"
       },
       "draft": {
-        "type": "boolean",
-        "description": "Create as draft PR"
+        "description": "Create as draft PR",
+        "type": "boolean"
       },
       "head": {
-        "type": "string",
-        "description": "Branch containing changes"
+        "description": "Branch containing changes",
+        "type": "string"
       },
       "maintainer_can_modify": {
-        "type": "boolean",
-        "description": "Allow maintainer edits"
+        "description": "Allow maintainer edits",
+        "type": "boolean"
       },
       "owner": {
-        "type": "string",
-        "description": "Repository owner"
+        "description": "Repository owner",
+        "type": "string"
       },
       "repo": {
-        "type": "string",
-        "description": "Repository name"
+        "description": "Repository name",
+        "type": "string"
       },
       "title": {
-        "type": "string",
-        "description": "PR title"
+        "description": "PR title",
+        "type": "string"
       }
     },
     "required": [
@@ -45,7 +44,8 @@
       "title",
       "head",
       "base"
-    ]
+    ],
+    "type": "object"
   },
   "name": "create_pull_request"
 }

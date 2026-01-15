@@ -4,40 +4,39 @@
   },
   "description": "Perform write operations on repository labels. To set labels on issues, use the 'update_issue' tool.",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "color": {
-        "type": "string",
-        "description": "Label color as 6-character hex code without '#' prefix (e.g., 'f29513'). Required for 'create', optional for 'update'."
+        "description": "Label color as 6-character hex code without '#' prefix (e.g., 'f29513'). Required for 'create', optional for 'update'.",
+        "type": "string"
       },
       "description": {
-        "type": "string",
-        "description": "Label description text. Optional for 'create' and 'update'."
+        "description": "Label description text. Optional for 'create' and 'update'.",
+        "type": "string"
       },
       "method": {
-        "type": "string",
         "description": "Operation to perform: 'create', 'update', or 'delete'",
         "enum": [
           "create",
           "update",
           "delete"
-        ]
+        ],
+        "type": "string"
       },
       "name": {
-        "type": "string",
-        "description": "Label name - required for all operations"
+        "description": "Label name - required for all operations",
+        "type": "string"
       },
       "new_name": {
-        "type": "string",
-        "description": "New name for the label (used only with 'update' method to rename)"
+        "description": "New name for the label (used only with 'update' method to rename)",
+        "type": "string"
       },
       "owner": {
-        "type": "string",
-        "description": "Repository owner (username or organization name)"
+        "description": "Repository owner (username or organization name)",
+        "type": "string"
       },
       "repo": {
-        "type": "string",
-        "description": "Repository name"
+        "description": "Repository name",
+        "type": "string"
       }
     },
     "required": [
@@ -45,7 +44,8 @@
       "owner",
       "repo",
       "name"
-    ]
+    ],
+    "type": "object"
   },
   "name": "label_write"
 }

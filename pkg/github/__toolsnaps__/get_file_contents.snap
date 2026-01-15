@@ -5,34 +5,34 @@
   },
   "description": "Get the contents of a file or directory from a GitHub repository",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "owner": {
-        "type": "string",
-        "description": "Repository owner (username or organization)"
+        "description": "Repository owner (username or organization)",
+        "type": "string"
       },
       "path": {
-        "type": "string",
+        "default": "/",
         "description": "Path to file/directory",
-        "default": "/"
+        "type": "string"
       },
       "ref": {
-        "type": "string",
-        "description": "Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head`"
+        "description": "Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head`",
+        "type": "string"
       },
       "repo": {
-        "type": "string",
-        "description": "Repository name"
+        "description": "Repository name",
+        "type": "string"
       },
       "sha": {
-        "type": "string",
-        "description": "Accepts optional commit SHA. If specified, it will be used instead of ref"
+        "description": "Accepts optional commit SHA. If specified, it will be used instead of ref",
+        "type": "string"
       }
     },
     "required": [
       "owner",
       "repo"
-    ]
+    ],
+    "type": "object"
   },
   "name": "get_file_contents"
 }
