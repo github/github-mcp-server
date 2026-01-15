@@ -190,21 +190,12 @@ const IssueWriteUIHTML = `<!DOCTYPE html>
         .status-message {
             padding: 12px 16px;
             border-radius: var(--border-radius-sm, 6px);
-            margin-bottom: 16px;
-        }
-        .status-success {
-            background: var(--color-background-success-subtle, #dafbe1);
-            color: var(--color-text-success, #1a7f37);
-            border: 1px solid var(--color-border-success, #aceebb);
+            margin: 16px;
         }
         .status-error {
             background: var(--color-background-danger-subtle, #ffebe9);
             color: var(--color-text-danger, #cf222e);
             border: 1px solid var(--color-border-danger, #ffcecb);
-        }
-        .status-success a {
-            color: var(--color-text-success, #1a7f37);
-            font-weight: 600;
         }
         .hidden {
             display: none;
@@ -236,17 +227,97 @@ const IssueWriteUIHTML = `<!DOCTYPE html>
             border-radius: 3px;
             font-size: inherit;
         }
+        /* Success view styles */
+        .success-view {
+            padding: 16px;
+        }
+        .success-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+            color: var(--color-text-success, #1a7f37);
+        }
+        .success-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--color-background-success, #1f883d);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+        .success-title {
+            font-weight: 600;
+            font-size: var(--font-heading-xs-size, 16px);
+        }
+        .issue-card {
+            border: 1px solid var(--color-border-primary, #d0d7de);
+            border-radius: var(--border-radius-sm, 6px);
+            background: var(--color-background-primary, #fff);
+            overflow: hidden;
+        }
+        .issue-card-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--color-border-primary, #d0d7de);
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+        .issue-state-icon {
+            color: var(--color-text-success, #1a7f37);
+            margin-top: 2px;
+        }
+        .issue-title-link {
+            font-weight: 600;
+            color: var(--color-text-primary, #24292f);
+            text-decoration: none;
+        }
+        .issue-title-link:hover {
+            color: var(--color-text-info, #0969da);
+            text-decoration: underline;
+        }
+        .issue-number {
+            color: var(--color-text-secondary, #656d76);
+            font-weight: 400;
+        }
+        .issue-card-body {
+            padding: 12px 16px;
+            color: var(--color-text-secondary, #656d76);
+            font-size: var(--font-text-sm-size, 13px);
+        }
+        .issue-card-body p {
+            margin: 0;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .issue-card-footer {
+            padding: 8px 16px;
+            background: var(--color-background-tertiary, #f6f8fa);
+            border-top: 1px solid var(--color-border-primary, #d0d7de);
+            font-size: var(--font-text-sm-size, 12px);
+            color: var(--color-text-secondary, #656d76);
+        }
+        .issue-card-footer a {
+            color: var(--color-text-info, #0969da);
+            text-decoration: none;
+        }
+        .issue-card-footer a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
     <div id="content">
-        <div class="issue-form">
+        <!-- Form View -->
+        <div id="form-view" class="issue-form">
             <div class="form-header">
                 <span class="form-header-icon">●</span>
                 <span>New Issue</span>
             </div>
             <div id="repo-info" class="repo-info hidden"></div>
-            <div id="status-container"></div>
             <div class="form-body" id="form-body">
                 <div class="form-group">
                     <label class="form-label" for="issue-title">Title</label>
@@ -255,13 +326,38 @@ const IssueWriteUIHTML = `<!DOCTYPE html>
                 <div class="form-group">
                     <label class="form-label" for="issue-body">Description</label>
                     <textarea id="issue-body" class="form-input form-textarea" placeholder="Describe the issue..."></textarea>
-                    <p class="form-hint">Markdown is supported</p>
+                    <p class="form-hint">Markdown is not supported</p>
                 </div>
             </div>
             <div class="form-actions" id="form-actions">
                 <button type="button" id="submit-btn" class="btn btn-primary" onclick="handleSubmit()">
                     Create Issue
                 </button>
+            </div>
+        </div>
+
+        <!-- Success View (hidden by default) -->
+        <div id="success-view" class="issue-form hidden">
+            <div class="success-view">
+                <div class="success-header">
+                    <span class="success-icon">✓</span>
+                    <span class="success-title">Issue created</span>
+                </div>
+                <div class="issue-card">
+                    <div class="issue-card-header">
+                        <span class="issue-state-icon">●</span>
+                        <div>
+                            <a id="success-issue-link" class="issue-title-link" href="#" target="_blank">
+                                <span id="success-issue-title"></span>
+                                <span id="success-issue-number" class="issue-number"></span>
+                            </a>
+                        </div>
+                    </div>
+                    <div id="success-issue-body" class="issue-card-body"></div>
+                    <div class="issue-card-footer">
+                        <a id="success-view-link" href="#" target="_blank">View on GitHub →</a>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -386,7 +482,7 @@ const IssueWriteUIHTML = `<!DOCTYPE html>
             }
 
             setLoading(true);
-            clearStatus();
+            clearError();
 
             try {
                 const result = await sendRequest('tools/call', {
@@ -409,12 +505,15 @@ const IssueWriteUIHTML = `<!DOCTYPE html>
                     if (textContent?.text) {
                         try {
                             const issueData = JSON.parse(textContent.text);
+                            // Store the title and body we submitted for the success view
+                            issueData._submittedTitle = title;
+                            issueData._submittedBody = body;
                             showSuccess(issueData);
                         } catch {
-                            showSuccess({ url: textContent.text });
+                            showSuccess({ url: textContent.text, _submittedTitle: title, _submittedBody: body });
                         }
                     } else {
-                        showSuccess({});
+                        showSuccess({ _submittedTitle: title, _submittedBody: body });
                     }
                 }
             } catch (error) {
@@ -434,30 +533,39 @@ const IssueWriteUIHTML = `<!DOCTYPE html>
             }
         }
 
-        function clearStatus() {
-            document.getElementById('status-container').innerHTML = '';
+        function clearError() {
+            document.getElementById('error-container').innerHTML = '';
         }
 
         function showSuccess(data) {
-            const container = document.getElementById('status-container');
-            let message = '✓ Issue created successfully!';
-            if (data.url || data.URL) {
-                const url = data.url || data.URL;
-                message += ' <a href="' + escapeHtml(url) + '" target="_blank">View Issue →</a>';
+            // Hide the form view
+            document.getElementById('form-view').classList.add('hidden');
+            
+            // Populate and show the success view
+            const successView = document.getElementById('success-view');
+            const url = data.url || data.URL || data.html_url || '#';
+            const title = data.title || data._submittedTitle || 'Issue';
+            const body = data.body || data._submittedBody || '';
+            const number = data.number ? '#' + data.number : '';
+            
+            document.getElementById('success-issue-title').textContent = title;
+            document.getElementById('success-issue-number').textContent = number ? ' ' + number : '';
+            document.getElementById('success-issue-link').href = url;
+            document.getElementById('success-view-link').href = url;
+            
+            const bodyEl = document.getElementById('success-issue-body');
+            if (body) {
+                bodyEl.innerHTML = '<p>' + escapeHtml(body) + '</p>';
+            } else {
+                bodyEl.innerHTML = '<p><em>No description provided.</em></p>';
             }
-            container.innerHTML = '<div class="status-message status-success">' + message + '</div>';
             
-            // Disable the form after successful creation
-            document.getElementById('issue-title').disabled = true;
-            document.getElementById('issue-body').disabled = true;
-            document.getElementById('submit-btn').disabled = true;
-            document.getElementById('submit-btn').innerHTML = 'Created ✓';
-            
+            successView.classList.remove('hidden');
             notifySize();
         }
 
         function showError(message) {
-            const container = document.getElementById('status-container');
+            const container = document.getElementById('error-container');
             container.innerHTML = '<div class="status-message status-error">' + escapeHtml(message) + '</div>';
             notifySize();
         }
