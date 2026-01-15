@@ -221,7 +221,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		WithDeprecatedAliases(github.DeprecatedToolAliases).
 		WithReadOnly(cfg.ReadOnly).
 		WithToolsets(enabledToolsets).
-		WithTools(github.CleanTools(cfg.EnabledTools)).
+		WithTools(cfg.EnabledTools).
 		WithFeatureChecker(createFeatureChecker(cfg.EnabledFeatures))
 
 	// Apply token scope filtering if scopes are known (for PAT filtering)
@@ -229,7 +229,10 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		inventoryBuilder = inventoryBuilder.WithFilter(github.CreateToolScopeFilter(cfg.TokenScopes))
 	}
 
-	inventory := inventoryBuilder.Build()
+	inventory, err := inventoryBuilder.Build()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build inventory: %w", err)
+	}
 
 	if unrecognized := inventory.UnrecognizedToolsets(); len(unrecognized) > 0 {
 		fmt.Fprintf(os.Stderr, "Warning: unrecognized toolsets ignored: %s\n", strings.Join(unrecognized, ", "))

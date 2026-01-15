@@ -4,21 +4,21 @@
   },
   "description": "Unstar a GitHub repository",
   "inputSchema": {
-    "type": "object",
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
     "required": [
       "owner",
       "repo"
     ],
-    "properties": {
-      "owner": {
-        "type": "string",
-        "description": "Repository owner"
-      },
-      "repo": {
-        "type": "string",
-        "description": "Repository name"
-      }
-    }
+    "type": "object"
   },
   "name": "unstar_repository"
 }
