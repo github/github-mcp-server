@@ -252,3 +252,63 @@ func TestToolSnapKeysSorted(t *testing.T) {
 	assert.Greater(t, mmmIndex, aaaIndex, "mmm should come after aaa")
 	assert.Greater(t, zzzIndex, mmmIndex, "zzz should come after mmm")
 }
+
+func TestStructFieldOrderingSortedAlphabetically(t *testing.T) {
+	withIsolatedWorkingDir(t)
+
+	// Given a struct with fields defined in non-alphabetical order
+	// This test ensures that struct field order doesn't affect the JSON output
+	type toolWithNonAlphabeticalFields struct {
+		ZField string `json:"zField"` // Should appear last in JSON
+		AField string `json:"aField"` // Should appear first in JSON
+		MField string `json:"mField"` // Should appear in the middle
+	}
+
+	tool := toolWithNonAlphabeticalFields{
+		ZField: "z value",
+		AField: "a value",
+		MField: "m value",
+	}
+
+	// When we write the snapshot
+	t.Setenv("UPDATE_TOOLSNAPS", "true")
+	err := Test("struct_field_order", tool)
+	require.NoError(t, err)
+
+	// Then the snapshot file should have alphabetically sorted keys despite struct field order
+	snapJSON, err := os.ReadFile("__toolsnaps__/struct_field_order.snap")
+	require.NoError(t, err)
+
+	snapStr := string(snapJSON)
+
+	// Find the positions of each field in the JSON string
+	aFieldIndex := -1
+	mFieldIndex := -1
+	zFieldIndex := -1
+	for i := 0; i < len(snapStr)-7; i++ {
+		switch snapStr[i : i+6] {
+		case "aField":
+			aFieldIndex = i
+		case "mField":
+			mFieldIndex = i
+		case "zField":
+			zFieldIndex = i
+		}
+	}
+
+	// Verify alphabetical ordering in the JSON output
+	require.NotEqual(t, -1, aFieldIndex, "aField should be present")
+	require.NotEqual(t, -1, mFieldIndex, "mField should be present")
+	require.NotEqual(t, -1, zFieldIndex, "zField should be present")
+	assert.Less(t, aFieldIndex, mFieldIndex, "aField should appear before mField")
+	assert.Less(t, mFieldIndex, zFieldIndex, "mField should appear before zField")
+
+	// Also verify idempotency - running the test again should produce identical output
+	err = Test("struct_field_order", tool)
+	require.NoError(t, err)
+
+	snapJSON2, err := os.ReadFile("__toolsnaps__/struct_field_order.snap")
+	require.NoError(t, err)
+
+	assert.Equal(t, string(snapJSON), string(snapJSON2), "Multiple runs should produce identical output")
+}
