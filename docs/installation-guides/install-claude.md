@@ -28,22 +28,32 @@ echo -e ".env\n.mcp.json" >> .gitignore
 
 ### Remote Server Setup (Streamable HTTP)
 
-1. Run the following command in the Claude Code CLI
+> **Note**: For Claude Code versions **2.1.1 and newer**, use the `add-json` command format below. For older versions, see the [legacy command format](#for-older-versions-of-claude-code).
+
+1. Run the following command in the terminal (not in Claude Code CLI):
 ```bash
-claude mcp add --transport http github https://api.githubcopilot.com/mcp -H "Authorization: Bearer YOUR_GITHUB_PAT"
+claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/mcp","headers":{"Authorization":"Bearer YOUR_GITHUB_PAT"}}'
 ```
 
 With an environment variable:
 ```bash
-claude mcp add --transport http github https://api.githubcopilot.com/mcp -H "Authorization: Bearer $(grep GITHUB_PAT .env | cut -d '=' -f2)"
+claude mcp add-json github '{"type":"http","url":"https://api.githubcopilot.com/mcp","headers":{"Authorization":"Bearer '"$(grep GITHUB_PAT .env | cut -d '=' -f2)"'"}}'
 ```
+
+> **About the `--scope` flag** (optional): Use this to specify where the configuration is stored:
+> - `local` (default): Available only to you in the current project (was called `project` in older versions)
+> - `project`: Shared with everyone in the project via `.mcp.json` file
+> - `user`: Available to you across all projects (was called `global` in older versions)
+>
+> Example: Add `--scope user` to the end of the command to make it available across all projects.
+
 2. Restart Claude Code
 3. Run `claude mcp list` to see if the GitHub server is configured
 
 ### Local Server Setup (Docker required)
 
 ### With Docker
-1. Run the following command in the Claude Code CLI:
+1. Run the following command in the terminal (not in Claude Code CLI):
 ```bash
 claude mcp add github -e GITHUB_PERSONAL_ACCESS_TOKEN=YOUR_GITHUB_PAT -- docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server
 ```
@@ -70,6 +80,19 @@ claude mcp add-json github '{"command": "github-mcp-server", "args": ["stdio"], 
 ```bash
 claude mcp list
 claude mcp get github
+```
+
+### For Older Versions of Claude Code
+
+If you're using Claude Code version **2.1.0 or earlier**, use this legacy command format:
+
+```bash
+claude mcp add --transport http github https://api.githubcopilot.com/mcp -H "Authorization: Bearer YOUR_GITHUB_PAT"
+```
+
+With an environment variable:
+```bash
+claude mcp add --transport http github https://api.githubcopilot.com/mcp -H "Authorization: Bearer $(grep GITHUB_PAT .env | cut -d '=' -f2)"
 ```
 
 ---
@@ -161,7 +184,4 @@ Add this codeblock to your `claude_desktop_config.json`:
 
 - The npm package `@modelcontextprotocol/server-github` is deprecated as of April 2025
 - Remote server requires Streamable HTTP support (check your Claude version)
-- Configuration scopes for Claude Code:
-  - `-s user`: Available across all projects
-  - `-s project`: Shared via `.mcp.json` file
-  - Default: `local` (current project only)
+- For Claude Code configuration scopes, see the `--scope` flag documentation in the [Remote Server Setup](#remote-server-setup-streamable-http) section

@@ -5,50 +5,50 @@
   },
   "description": "Find GitHub repositories by name, description, readme, topics, or other metadata. Perfect for discovering projects, finding examples, or locating specific repositories across GitHub.",
   "inputSchema": {
-    "type": "object",
-    "required": [
-      "query"
-    ],
     "properties": {
       "minimal_output": {
-        "type": "boolean",
+        "default": true,
         "description": "Return minimal repository information (default: true). When false, returns full GitHub API repository objects.",
-        "default": true
+        "type": "boolean"
       },
       "order": {
-        "type": "string",
         "description": "Sort order",
         "enum": [
           "asc",
           "desc"
-        ]
+        ],
+        "type": "string"
       },
       "page": {
-        "type": "number",
         "description": "Page number for pagination (min 1)",
-        "minimum": 1
+        "minimum": 1,
+        "type": "number"
       },
       "perPage": {
-        "type": "number",
         "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
         "minimum": 1,
-        "maximum": 100
+        "type": "number"
       },
       "query": {
-        "type": "string",
-        "description": "Repository search query. Examples: 'machine learning in:name stars:\u003e1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering."
+        "description": "Repository search query. Examples: 'machine learning in:name stars:\u003e1000 language:python', 'topic:react', 'user:facebook'. Supports advanced search syntax for precise filtering.",
+        "type": "string"
       },
       "sort": {
-        "type": "string",
         "description": "Sort repositories by field, defaults to best match",
         "enum": [
           "stars",
           "forks",
           "help-wanted-issues",
           "updated"
-        ]
+        ],
+        "type": "string"
       }
-    }
+    },
+    "required": [
+      "query"
+    ],
+    "type": "object"
   },
   "name": "search_repositories"
 }

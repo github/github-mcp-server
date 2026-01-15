@@ -14,6 +14,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/sanitize"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-viper/mapstructure/v2"
@@ -274,6 +275,7 @@ Options are:
 			},
 			InputSchema: schema,
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -565,6 +567,7 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner"},
 			},
 		},
+		[]scopes.Scope{scopes.ReadOrg},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -632,6 +635,7 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Required: []string{"owner", "repo", "issue_number", "body"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -736,6 +740,7 @@ Options are:
 				Required: []string{"method", "owner", "repo", "issue_number", "sub_issue_id"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -963,6 +968,7 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 			InputSchema: schema,
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			result, err := searchHandler(ctx, deps.GetClient, args, "issue", "failed to search issues")
 			return result, nil, err
@@ -1052,6 +1058,7 @@ Options are:
 				Required: []string{"method", "owner", "repo"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
@@ -1175,7 +1182,11 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 
 	issue, resp, err := client.Issues.Create(ctx, owner, repo, issueRequest)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr("failed to create issue", err), nil
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to create issue",
+			resp,
+			err,
+		), nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -1381,6 +1392,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			},
 			InputSchema: schema,
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1522,7 +1534,11 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			issueQuery := getIssueQueryType(hasLabels, hasSince)
 			if err := client.Query(ctx, issueQuery, vars); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return ghErrors.NewGitHubGraphQLErrorResponse(
+					ctx,
+					"failed to list issues",
+					err,
+				), nil, nil
 			}
 
 			// Extract and convert all issue nodes using the common interface
@@ -1626,19 +1642,30 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 						Type:        "string",
 						Description: "Repository name",
 					},
-					"issueNumber": {
+					"issue_number": {
 						Type:        "number",
 						Description: "Issue number",
 					},
+					"base_ref": {
+						Type:        "string",
+						Description: "Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch",
+					},
+					"custom_instructions": {
+						Type:        "string",
+						Description: "Optional custom instructions to guide the agent beyond the issue body. Use this to provide additional context, constraints, or guidance that is not captured in the issue description",
+					},
 				},
-				Required: []string{"owner", "repo", "issueNumber"},
+				Required: []string{"owner", "repo", "issue_number"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			var params struct {
-				Owner       string
-				Repo        string
-				IssueNumber int32
+				Owner              string `mapstructure:"owner"`
+				Repo               string `mapstructure:"repo"`
+				IssueNumber        int32  `mapstructure:"issue_number"`
+				BaseRef            string `mapstructure:"base_ref"`
+				CustomInstructions string `mapstructure:"custom_instructions"`
 			}
 			if err := mapstructure.Decode(args, &params); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -1683,7 +1710,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				var query suggestedActorsQuery
 				err := client.Query(ctx, &query, variables)
 				if err != nil {
-					return nil, nil, err
+					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get suggested actors", err), nil, nil
 				}
 
 				// Iterate all the returned nodes looking for the copilot bot, which is supposed to have the
@@ -1707,10 +1734,10 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				return utils.NewToolResultError("copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot for more information."), nil, nil
 			}
 
-			// Next let's get the GQL Node ID and current assignees for this issue because the only way to
-			// assign copilot is to use replaceActorsForAssignable which requires the full list.
+			// Next, get the issue ID and repository ID
 			var getIssueQuery struct {
 				Repository struct {
+					ID    githubv4.ID
 					Issue struct {
 						ID        githubv4.ID
 						Assignees struct {
@@ -1729,33 +1756,63 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 			}
 
 			if err := client.Query(ctx, &getIssueQuery, variables); err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to get issue ID: %v", err)), nil, nil
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get issue ID", err), nil, nil
 			}
 
-			// Finally, do the assignment. Just for reference, assigning copilot to an issue that it is already
-			// assigned to seems to have no impact (which is a good thing).
-			var assignCopilotMutation struct {
-				ReplaceActorsForAssignable struct {
-					Typename string `graphql:"__typename"` // Not required but we need a selector or GQL errors
-				} `graphql:"replaceActorsForAssignable(input: $input)"`
-			}
-
+			// Build the assignee IDs list including copilot
 			actorIDs := make([]githubv4.ID, len(getIssueQuery.Repository.Issue.Assignees.Nodes)+1)
 			for i, node := range getIssueQuery.Repository.Issue.Assignees.Nodes {
 				actorIDs[i] = node.ID
 			}
 			actorIDs[len(getIssueQuery.Repository.Issue.Assignees.Nodes)] = copilotAssignee.ID
 
+			// Prepare agent assignment input
+			emptyString := githubv4.String("")
+			agentAssignment := &AgentAssignmentInput{
+				CustomAgent:        &emptyString,
+				CustomInstructions: &emptyString,
+				TargetRepositoryID: getIssueQuery.Repository.ID,
+			}
+
+			// Add base ref if provided
+			if params.BaseRef != "" {
+				baseRef := githubv4.String(params.BaseRef)
+				agentAssignment.BaseRef = &baseRef
+			}
+
+			// Add custom instructions if provided
+			if params.CustomInstructions != "" {
+				customInstructions := githubv4.String(params.CustomInstructions)
+				agentAssignment.CustomInstructions = &customInstructions
+			}
+
+			// Execute the updateIssue mutation with the GraphQL-Features header
+			// This header is required for the agent assignment API which is not GA yet
+			var updateIssueMutation struct {
+				UpdateIssue struct {
+					Issue struct {
+						ID     githubv4.ID
+						Number githubv4.Int
+						URL    githubv4.String
+					}
+				} `graphql:"updateIssue(input: $input)"`
+			}
+
+			// Add the GraphQL-Features header for the agent assignment API
+			// The header will be read by the HTTP transport if it's configured to do so
+			ctxWithFeatures := withGraphQLFeatures(ctx, "issues_copilot_assignment_api_support")
+
 			if err := client.Mutate(
-				ctx,
-				&assignCopilotMutation,
-				ReplaceActorsForAssignableInput{
-					AssignableID: getIssueQuery.Repository.Issue.ID,
-					ActorIDs:     actorIDs,
+				ctxWithFeatures,
+				&updateIssueMutation,
+				UpdateIssueInput{
+					ID:              getIssueQuery.Repository.Issue.ID,
+					AssigneeIDs:     actorIDs,
+					AgentAssignment: agentAssignment,
 				},
 				nil,
 			); err != nil {
-				return nil, nil, fmt.Errorf("failed to replace actors for assignable: %w", err)
+				return nil, nil, fmt.Errorf("failed to update issue with agent assignment: %w", err)
 			}
 
 			return utils.NewToolResultText("successfully assigned copilot to issue"), nil, nil
@@ -1765,6 +1822,21 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 type ReplaceActorsForAssignableInput struct {
 	AssignableID githubv4.ID   `json:"assignableId"`
 	ActorIDs     []githubv4.ID `json:"actorIds"`
+}
+
+// AgentAssignmentInput represents the input for assigning an agent to an issue.
+type AgentAssignmentInput struct {
+	BaseRef            *githubv4.String `json:"baseRef,omitempty"`
+	CustomAgent        *githubv4.String `json:"customAgent,omitempty"`
+	CustomInstructions *githubv4.String `json:"customInstructions,omitempty"`
+	TargetRepositoryID githubv4.ID      `json:"targetRepositoryId"`
+}
+
+// UpdateIssueInput represents the input for updating an issue with agent assignment.
+type UpdateIssueInput struct {
+	ID              githubv4.ID           `json:"id"`
+	AssigneeIDs     []githubv4.ID         `json:"assigneeIds"`
+	AgentAssignment *AgentAssignmentInput `json:"agentAssignment,omitempty"`
 }
 
 // parseISOTimestamp parses an ISO 8601 timestamp string into a time.Time object.
@@ -1851,4 +1923,20 @@ func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) inventory.Ser
 			}, nil
 		},
 	)
+}
+
+// graphQLFeaturesKey is a context key for GraphQL feature flags
+type graphQLFeaturesKey struct{}
+
+// withGraphQLFeatures adds GraphQL feature flags to the context
+func withGraphQLFeatures(ctx context.Context, features ...string) context.Context {
+	return context.WithValue(ctx, graphQLFeaturesKey{}, features)
+}
+
+// GetGraphQLFeatures retrieves GraphQL feature flags from the context
+func GetGraphQLFeatures(ctx context.Context) []string {
+	if features, ok := ctx.Value(graphQLFeaturesKey{}).([]string); ok {
+		return features
+	}
+	return nil
 }

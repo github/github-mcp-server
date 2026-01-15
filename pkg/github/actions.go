@@ -13,6 +13,7 @@ import (
 	buffer "github.com/github/github-mcp-server/pkg/buffer"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -74,6 +75,7 @@ func ListWorkflows(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			}),
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -200,6 +202,7 @@ func ListWorkflowRuns(t translations.TranslationHelperFunc) inventory.ServerTool
 				Required: []string{"owner", "repo", "workflow_id"},
 			}),
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -311,6 +314,7 @@ func RunWorkflow(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "workflow_id", "ref"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -415,6 +419,7 @@ func GetWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "run_id"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -483,6 +488,7 @@ func GetWorkflowRunLogs(t translations.TranslationHelperFunc) inventory.ServerTo
 				Required: []string{"owner", "repo", "run_id"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -566,6 +572,7 @@ func ListWorkflowJobs(t translations.TranslationHelperFunc) inventory.ServerTool
 				Required: []string{"owner", "repo", "run_id"},
 			}),
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -678,6 +685,7 @@ func GetJobLogs(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -926,6 +934,7 @@ func RerunWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerTool
 				Required: []string{"owner", "repo", "run_id"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -1001,6 +1010,7 @@ func RerunFailedJobs(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Required: []string{"owner", "repo", "run_id"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -1076,6 +1086,7 @@ func CancelWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerToo
 				Required: []string{"owner", "repo", "run_id"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -1153,6 +1164,7 @@ func ListWorkflowRunArtifacts(t translations.TranslationHelperFunc) inventory.Se
 				Required: []string{"owner", "repo", "run_id"},
 			}),
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -1233,6 +1245,7 @@ func DownloadWorkflowRunArtifact(t translations.TranslationHelperFunc) inventory
 				Required: []string{"owner", "repo", "artifact_id"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -1311,6 +1324,7 @@ func DeleteWorkflowRunLogs(t translations.TranslationHelperFunc) inventory.Serve
 				Required: []string{"owner", "repo", "run_id"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -1386,6 +1400,7 @@ func GetWorkflowRunUsage(t translations.TranslationHelperFunc) inventory.ServerT
 				Required: []string{"owner", "repo", "run_id"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
@@ -1463,7 +1478,7 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 						Type: "string",
 						Description: `The unique identifier of the resource. This will vary based on the "method" provided, so ensure you provide the correct ID:
 - Do not provide any resource ID for 'list_workflows' method.
-- Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'list_workflow_runs' method.
+- Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'list_workflow_runs' method, or omit to list all workflow runs in the repository.
 - Provide a workflow run ID for 'list_workflow_jobs' and 'list_workflow_run_artifacts' methods.
 `,
 					},
@@ -1550,6 +1565,7 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 				Required: []string{"method", "owner", "repo"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1586,18 +1602,18 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 			switch method {
 			case actionsMethodListWorkflows:
 				// Do nothing, no resource ID needed
+			case actionsMethodListWorkflowRuns:
+				// resource_id is optional for list_workflow_runs
+				// If not provided, list all workflow runs in the repository
 			default:
 				if resourceID == "" {
 					return utils.NewToolResultError(fmt.Sprintf("missing required parameter for method %s: resource_id", method)), nil, nil
 				}
 
-				// For list_workflow_runs, resource_id could be a filename or numeric ID
-				// For other actions, resource ID must be an integer
-				if method != actionsMethodListWorkflowRuns {
-					resourceIDInt, parseErr = strconv.ParseInt(resourceID, 10, 64)
-					if parseErr != nil {
-						return utils.NewToolResultError(fmt.Sprintf("invalid resource_id, must be an integer for method %s: %v", method, parseErr)), nil, nil
-					}
+				// resource ID must be an integer for jobs and artifacts
+				resourceIDInt, parseErr = strconv.ParseInt(resourceID, 10, 64)
+				if parseErr != nil {
+					return utils.NewToolResultError(fmt.Sprintf("invalid resource_id, must be an integer for method %s: %v", method, parseErr)), nil, nil
 				}
 			}
 
@@ -1668,6 +1684,7 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 				Required: []string{"method", "owner", "repo", "resource_id"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1781,6 +1798,7 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 				Required: []string{"method", "owner", "repo"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1895,6 +1913,7 @@ For single job logs, provide job_id. For all failed jobs in a run, provide run_i
 				Required: []string{"owner", "repo"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -2063,7 +2082,9 @@ func listWorkflowRuns(ctx context.Context, client *github.Client, args map[strin
 	var workflowRuns *github.WorkflowRuns
 	var resp *github.Response
 
-	if workflowIDInt, parseErr := strconv.ParseInt(resourceID, 10, 64); parseErr == nil {
+	if resourceID == "" {
+		workflowRuns, resp, err = client.Actions.ListRepositoryWorkflowRuns(ctx, owner, repo, listWorkflowRunsOptions)
+	} else if workflowIDInt, parseErr := strconv.ParseInt(resourceID, 10, 64); parseErr == nil {
 		workflowRuns, resp, err = client.Actions.ListWorkflowRunsByID(ctx, owner, repo, workflowIDInt, listWorkflowRunsOptions)
 	} else {
 		workflowRuns, resp, err = client.Actions.ListWorkflowRunsByFileName(ctx, owner, repo, resourceID, listWorkflowRunsOptions)
