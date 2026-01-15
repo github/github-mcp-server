@@ -318,6 +318,7 @@ const IssueWriteUIHTML = `<!DOCTYPE html>
                 <span>New Issue</span>
             </div>
             <div id="repo-info" class="repo-info hidden"></div>
+            <div id="error-container"></div>
             <div class="form-body" id="form-body">
                 <div class="form-group">
                     <label class="form-label" for="issue-title">Title</label>
@@ -543,15 +544,16 @@ const IssueWriteUIHTML = `<!DOCTYPE html>
             
             // Populate and show the success view
             const successView = document.getElementById('success-view');
-            const url = data.url || data.URL || data.html_url || '#';
+            const issueUrl = data.url || data.URL || data.html_url || '#';
+            const repoIssuesUrl = 'https://github.com/' + encodeURIComponent(toolInput.owner) + '/' + encodeURIComponent(toolInput.repo) + '/issues';
             const title = data.title || data._submittedTitle || 'Issue';
             const body = data.body || data._submittedBody || '';
             const number = data.number ? '#' + data.number : '';
             
             document.getElementById('success-issue-title').textContent = title;
             document.getElementById('success-issue-number').textContent = number ? ' ' + number : '';
-            document.getElementById('success-issue-link').href = url;
-            document.getElementById('success-view-link').href = url;
+            document.getElementById('success-issue-link').href = issueUrl;
+            document.getElementById('success-view-link').href = repoIssuesUrl;
             
             const bodyEl = document.getElementById('success-issue-body');
             if (body) {
