@@ -5,26 +5,20 @@
   },
   "description": "List code scanning alerts in a GitHub repository.",
   "inputSchema": {
-    "type": "object",
-    "required": [
-      "owner",
-      "repo"
-    ],
     "properties": {
       "owner": {
-        "type": "string",
-        "description": "The owner of the repository."
+        "description": "The owner of the repository.",
+        "type": "string"
       },
       "ref": {
-        "type": "string",
-        "description": "The Git reference for the results you want to list."
+        "description": "The Git reference for the results you want to list.",
+        "type": "string"
       },
       "repo": {
-        "type": "string",
-        "description": "The name of the repository."
+        "description": "The name of the repository.",
+        "type": "string"
       },
       "severity": {
-        "type": "string",
         "description": "Filter code scanning alerts by severity",
         "enum": [
           "critical",
@@ -34,24 +28,30 @@
           "warning",
           "note",
           "error"
-        ]
+        ],
+        "type": "string"
       },
       "state": {
-        "type": "string",
-        "description": "Filter code scanning alerts by state. Defaults to open",
         "default": "open",
+        "description": "Filter code scanning alerts by state. Defaults to open",
         "enum": [
           "open",
           "closed",
           "dismissed",
           "fixed"
-        ]
+        ],
+        "type": "string"
       },
       "tool_name": {
-        "type": "string",
-        "description": "The name of the tool used for code scanning."
+        "description": "The name of the tool used for code scanning.",
+        "type": "string"
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "type": "object"
   },
   "name": "list_code_scanning_alerts"
 }

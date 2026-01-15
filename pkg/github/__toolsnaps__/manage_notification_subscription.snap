@@ -4,26 +4,26 @@
   },
   "description": "Manage a notification subscription: ignore, watch, or delete a notification thread subscription.",
   "inputSchema": {
-    "type": "object",
-    "required": [
-      "notificationID",
-      "action"
-    ],
     "properties": {
       "action": {
-        "type": "string",
         "description": "Action to perform: ignore, watch, or delete the notification subscription.",
         "enum": [
           "ignore",
           "watch",
           "delete"
-        ]
+        ],
+        "type": "string"
       },
       "notificationID": {
-        "type": "string",
-        "description": "The ID of the notification thread."
+        "description": "The ID of the notification thread.",
+        "type": "string"
       }
-    }
+    },
+    "required": [
+      "notificationID",
+      "action"
+    ],
+    "type": "object"
   },
   "name": "manage_notification_subscription"
 }
