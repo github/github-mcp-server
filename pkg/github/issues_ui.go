@@ -348,7 +348,7 @@ const IssueWriteUIHTML = `<!DOCTYPE html>
                     <div class="issue-card-header">
                         <span class="issue-state-icon">●</span>
                         <div>
-                            <a id="success-issue-link" class="issue-title-link" href="#" target="_blank">
+                            <a id="success-issue-link" class="issue-title-link" href="#" onclick="openLink(this.href); return false;">
                                 <span id="success-issue-title"></span>
                                 <span id="success-issue-number" class="issue-number"></span>
                             </a>
@@ -356,7 +356,7 @@ const IssueWriteUIHTML = `<!DOCTYPE html>
                     </div>
                     <div id="success-issue-body" class="issue-card-body"></div>
                     <div class="issue-card-footer">
-                        <a id="success-view-link" href="#" target="_blank">View on GitHub →</a>
+                        <a id="success-view-link" href="#" onclick="openLink(this.href); return false;">View on GitHub →</a>
                     </div>
                 </div>
             </div>
@@ -441,13 +441,17 @@ const IssueWriteUIHTML = `<!DOCTYPE html>
             setLoading(false);
             
             if (!result || !result.content) {
-                showError('No result received');
+                // Initial tool load - no content yet, just ignore
                 return;
             }
 
             const textContent = result.content.find(c => c.type === 'text');
             if (!textContent || !textContent.text) {
-                showError('No content in result');
+                return;
+            }
+
+            // Ignore the initial "Ready to create an issue" message
+            if (textContent.text.startsWith('Ready to create an issue')) {
                 return;
             }
 
@@ -583,6 +587,16 @@ const IssueWriteUIHTML = `<!DOCTYPE html>
             const div = document.createElement('div');
             div.textContent = String(text);
             return div.innerHTML;
+        }
+
+        function openLink(url) {
+            if (!url || url === '#') return;
+            // Try window.open first, then fall back to creating a link
+            const opened = window.open(url, '_blank');
+            if (!opened) {
+                // If popup blocked, try navigation
+                window.location.href = url;
+            }
         }
 
         // Listen for messages from the host
