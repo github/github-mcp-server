@@ -66,7 +66,7 @@ type MCPServerConfig struct {
 	TokenScopes []string
 }
 
-func NewMCPServer(cfg *MCPServerConfig, deps ToolDependencies) (*mcp.Server, error) {
+func NewMCPServer(cfg *MCPServerConfig, deps ToolDependencies, inventory *inventory.Inventory) (*mcp.Server, error) {
 	enabledToolsets := resolveEnabledToolsets(cfg)
 
 	// For instruction generation, we need actual toolset names (not nil).
@@ -98,21 +98,6 @@ func NewMCPServer(cfg *MCPServerConfig, deps ToolDependencies) (*mcp.Server, err
 	// Add middlewares
 	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
 	ghServer.AddReceivingMiddleware(InjectDepsMiddleware(deps))
-
-	// Build and register the tool/resource/prompt inventory
-	inventoryBuilder := NewInventory(cfg.Translator).
-		WithDeprecatedAliases(DeprecatedToolAliases).
-		WithReadOnly(cfg.ReadOnly).
-		WithToolsets(enabledToolsets).
-		WithTools(CleanTools(cfg.EnabledTools)).
-		WithFeatureChecker(createFeatureChecker(cfg.EnabledFeatures))
-
-	// Apply token scope filtering if scopes are known (for PAT filtering)
-	if cfg.TokenScopes != nil {
-		inventoryBuilder = inventoryBuilder.WithFilter(CreateToolScopeFilter(cfg.TokenScopes))
-	}
-
-	inventory := inventoryBuilder.Build()
 
 	if unrecognized := inventory.UnrecognizedToolsets(); len(unrecognized) > 0 {
 		fmt.Fprintf(os.Stderr, "Warning: unrecognized toolsets ignored: %s\n", strings.Join(unrecognized, ", "))

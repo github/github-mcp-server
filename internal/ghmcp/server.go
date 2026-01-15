@@ -98,8 +98,22 @@ func NewStdioMCPServer(cfg github.MCPServerConfig) (*mcp.Server, error) {
 		github.FeatureFlags{LockdownMode: cfg.LockdownMode},
 		cfg.ContentWindowSize,
 	)
+	// Build and register the tool/resource/prompt inventory
+	inventoryBuilder := github.NewInventory(cfg.Translator).
+		WithDeprecatedAliases(github.DeprecatedToolAliases).
+		WithReadOnly(cfg.ReadOnly).
+		WithToolsets(cfg.EnabledToolsets).
+		WithTools(github.CleanTools(cfg.EnabledTools))
+		// WithFeatureChecker(createFeatureChecker(cfg.EnabledFeatures))
 
-	ghServer, err := github.NewMCPServer(&cfg, deps)
+	// Apply token scope filtering if scopes are known (for PAT filtering)
+	if cfg.TokenScopes != nil {
+		inventoryBuilder = inventoryBuilder.WithFilter(github.CreateToolScopeFilter(cfg.TokenScopes))
+	}
+
+	inventory := inventoryBuilder.Build()
+
+	ghServer, err := github.NewMCPServer(&cfg, deps, inventory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub MCP server: %w", err)
 	}
