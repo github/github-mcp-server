@@ -20,10 +20,9 @@ jobs:
         uses: SamMorrowDrums/mcp-conformance-action@v1
         with:
           setup_go: "true"
-          go_version_file: go.mod
           install_command: go mod download
-          server_command: go run ./cmd/github-mcp-server stdio
-          server_env: |
+          start_command: go run ./cmd/github-mcp-server stdio
+          env_vars: |
             GITHUB_PERSONAL_ACCESS_TOKEN=test-token
           configurations: |
             [
