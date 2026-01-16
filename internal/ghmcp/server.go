@@ -215,7 +215,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		cfg.Translator,
 		github.FeatureFlags{
 			LockdownMode: cfg.LockdownMode,
-			InsiderMode: cfg.InsiderMode,
+			InsiderMode:  cfg.InsiderMode,
 		},
 		cfg.ContentWindowSize,
 		featureChecker,
@@ -235,7 +235,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		WithToolsets(enabledToolsets).
 		WithTools(cfg.EnabledTools).
 		WithFeatureChecker(featureChecker)
-  
+
 	// Apply token scope filtering if scopes are known (for PAT filtering)
 	if cfg.TokenScopes != nil {
 		inventoryBuilder = inventoryBuilder.WithFilter(github.CreateToolScopeFilter(cfg.TokenScopes))

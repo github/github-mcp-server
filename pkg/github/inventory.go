@@ -14,5 +14,6 @@ func NewInventory(t translations.TranslationHelperFunc) *inventory.Builder {
 	return inventory.NewBuilder().
 		SetTools(AllTools(t)).
 		SetResources(AllResources(t)).
-		SetPrompts(AllPrompts(t))
+		SetPrompts(AllPrompts(t)).
+		SetToolsetMetadata(RemoteOnlyToolsets())
 }

@@ -133,6 +133,7 @@ var (
 	ToolsetMetadataCopilot = inventory.ToolsetMetadata{
 		ID:          "copilot",
 		Description: "Copilot related tools",
+		Default:     true,
 		Icon:        "copilot",
 	}
 	ToolsetMetadataCopilotSpaces = inventory.ToolsetMetadata{
