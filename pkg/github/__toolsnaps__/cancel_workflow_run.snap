@@ -4,26 +4,26 @@
   },
   "description": "Cancel a workflow run",
   "inputSchema": {
-    "type": "object",
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "run_id": {
+        "description": "The unique identifier of the workflow run",
+        "type": "number"
+      }
+    },
     "required": [
       "owner",
       "repo",
       "run_id"
     ],
-    "properties": {
-      "owner": {
-        "type": "string",
-        "description": "Repository owner"
-      },
-      "repo": {
-        "type": "string",
-        "description": "Repository name"
-      },
-      "run_id": {
-        "type": "number",
-        "description": "The unique identifier of the workflow run"
-      }
-    }
+    "type": "object"
   },
   "name": "cancel_workflow_run"
 }
