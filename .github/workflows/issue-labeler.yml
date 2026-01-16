@@ -1,4 +1,4 @@
-name: Label issues
+name: Label issues for AI review
 on:
   issues:
     types:
