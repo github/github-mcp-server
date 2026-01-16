@@ -6,10 +6,12 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gh "github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1948,26 +1950,80 @@ func Test_ProjectsWrite(t *testing.T) {
 }
 
 func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
-	// TODO: Update these tests to use GraphQL mocking for the new add_project_item implementation
-	// The implementation now uses GraphQL to resolve issue/PR numbers to node IDs
-	// and add them to projects, rather than using the REST API with raw IDs.
-	t.Skip("Tests need to be updated for GraphQL-based add_project_item implementation")
-
 	toolDef := ProjectsWrite(translations.NullTranslationHelper)
 
-	addedItem := map[string]any{"id": 2001, "archived_at": nil}
+	t.Run("success organization with issue", func(t *testing.T) {
+		mockedClient := githubv4mock.NewMockedHTTPClient(
+			// Mock resolveIssueNodeID query
+			githubv4mock.NewQueryMatcher(
+				struct {
+					Repository struct {
+						Issue struct {
+							ID githubv4.ID
+						} `graphql:"issue(number: $issueNumber)"`
+					} `graphql:"repository(owner: $owner, name: $repo)"`
+				}{},
+				map[string]any{
+					"owner":       githubv4.String("item-owner"),
+					"repo":        githubv4.String("item-repo"),
+					"issueNumber": githubv4.Int(123),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"repository": map[string]any{
+						"issue": map[string]any{
+							"id": "I_issue123",
+						},
+					},
+				}),
+			),
+			// Mock project ID query for org
+			githubv4mock.NewQueryMatcher(
+				struct {
+					Organization struct {
+						ProjectV2 struct {
+							ID githubv4.ID
+						} `graphql:"projectV2(number: $projectNumber)"`
+					} `graphql:"organization(login: $owner)"`
+				}{},
+				map[string]any{
+					"owner":         githubv4.String("octo-org"),
+					"projectNumber": githubv4.Int(1),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"organization": map[string]any{
+						"projectV2": map[string]any{
+							"id": "PVT_project1",
+						},
+					},
+				}),
+			),
+			// Mock addProjectV2ItemById mutation
+			githubv4mock.NewMutationMatcher(
+				struct {
+					AddProjectV2ItemByID struct {
+						Item struct {
+							ID githubv4.ID
+						}
+					} `graphql:"addProjectV2ItemById(input: $input)"`
+				}{},
+				githubv4.AddProjectV2ItemByIdInput{
+					ProjectID: githubv4.ID("PVT_project1"),
+					ContentID: githubv4.ID("I_issue123"),
+				},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"addProjectV2ItemById": map[string]any{
+						"item": map[string]any{
+							"id": "PVTI_item1",
+						},
+					},
+				}),
+			),
+		)
 
-	t.Run("success organization", func(t *testing.T) {
-		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-			PostOrgsProjectsV2ItemsByProject: expectRequestBody(t, map[string]any{
-				"type": "Issue",
-				"id":   float64(123),
-			}).andThen(mockResponse(t, http.StatusCreated, addedItem)),
-		})
-
-		client := gh.NewClient(mockedClient)
+		client := githubv4.NewClient(mockedClient)
 		deps := BaseDeps{
-			Client: client,
+			GQLClient: client,
 		}
 		handler := toolDef.Handler(deps)
 		request := createMCPRequest(map[string]any{
@@ -1975,7 +2031,9 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 			"owner":          "octo-org",
 			"owner_type":     "org",
 			"project_number": float64(1),
-			"item_id":        float64(123),
+			"item_owner":     "item-owner",
+			"item_repo":      "item-repo",
+			"issue_number":   float64(123),
 			"item_type":      "issue",
 		})
 		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
@@ -1988,13 +2046,111 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
 		assert.NotNil(t, response["id"])
+		assert.Contains(t, response["message"], "Successfully added")
+	})
+
+	t.Run("success user with pull request", func(t *testing.T) {
+		mockedClient := githubv4mock.NewMockedHTTPClient(
+			// Mock resolvePullRequestNodeID query
+			githubv4mock.NewQueryMatcher(
+				struct {
+					Repository struct {
+						PullRequest struct {
+							ID githubv4.ID
+						} `graphql:"pullRequest(number: $prNumber)"`
+					} `graphql:"repository(owner: $owner, name: $repo)"`
+				}{},
+				map[string]any{
+					"owner":    githubv4.String("item-owner"),
+					"repo":     githubv4.String("item-repo"),
+					"prNumber": githubv4.Int(456),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"repository": map[string]any{
+						"pullRequest": map[string]any{
+							"id": "PR_pr456",
+						},
+					},
+				}),
+			),
+			// Mock project ID query for user
+			githubv4mock.NewQueryMatcher(
+				struct {
+					User struct {
+						ProjectV2 struct {
+							ID githubv4.ID
+						} `graphql:"projectV2(number: $projectNumber)"`
+					} `graphql:"user(login: $owner)"`
+				}{},
+				map[string]any{
+					"owner":         githubv4.String("octo-user"),
+					"projectNumber": githubv4.Int(2),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"user": map[string]any{
+						"projectV2": map[string]any{
+							"id": "PVT_project2",
+						},
+					},
+				}),
+			),
+			// Mock addProjectV2ItemById mutation
+			githubv4mock.NewMutationMatcher(
+				struct {
+					AddProjectV2ItemByID struct {
+						Item struct {
+							ID githubv4.ID
+						}
+					} `graphql:"addProjectV2ItemById(input: $input)"`
+				}{},
+				githubv4.AddProjectV2ItemByIdInput{
+					ProjectID: githubv4.ID("PVT_project2"),
+					ContentID: githubv4.ID("PR_pr456"),
+				},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"addProjectV2ItemById": map[string]any{
+						"item": map[string]any{
+							"id": "PVTI_item2",
+						},
+					},
+				}),
+			),
+		)
+
+		client := githubv4.NewClient(mockedClient)
+		deps := BaseDeps{
+			GQLClient: client,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":              "add_project_item",
+			"owner":               "octo-user",
+			"owner_type":          "user",
+			"project_number":      float64(2),
+			"item_owner":          "item-owner",
+			"item_repo":           "item-repo",
+			"pull_request_number": float64(456),
+			"item_type":           "pull_request",
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		var response map[string]any
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+		assert.NotNil(t, response["id"])
+		assert.Contains(t, response["message"], "Successfully added")
 	})
 
 	t.Run("missing item_type", func(t *testing.T) {
-		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
-		client := gh.NewClient(mockedClient)
+		mockedClient := githubv4mock.NewMockedHTTPClient()
+		client := githubv4.NewClient(mockedClient)
 		deps := BaseDeps{
-			Client: client,
+			GQLClient: client,
 		}
 		handler := toolDef.Handler(deps)
 		request := createMCPRequest(map[string]any{
@@ -2002,7 +2158,9 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 			"owner":          "octo-org",
 			"owner_type":     "org",
 			"project_number": float64(1),
-			"item_id":        float64(123),
+			"item_owner":     "item-owner",
+			"item_repo":      "item-repo",
+			"issue_number":   float64(123),
 		})
 		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
@@ -2013,10 +2171,10 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 	})
 
 	t.Run("invalid item_type", func(t *testing.T) {
-		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
-		client := gh.NewClient(mockedClient)
+		mockedClient := githubv4mock.NewMockedHTTPClient()
+		client := githubv4.NewClient(mockedClient)
 		deps := BaseDeps{
-			Client: client,
+			GQLClient: client,
 		}
 		handler := toolDef.Handler(deps)
 		request := createMCPRequest(map[string]any{
@@ -2024,7 +2182,9 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 			"owner":          "octo-org",
 			"owner_type":     "org",
 			"project_number": float64(1),
-			"item_id":        float64(123),
+			"item_owner":     "item-owner",
+			"item_repo":      "item-repo",
+			"issue_number":   float64(123),
 			"item_type":      "invalid_type",
 		})
 		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
@@ -2036,10 +2196,10 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 	})
 
 	t.Run("unknown method", func(t *testing.T) {
-		mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{})
-		client := gh.NewClient(mockedClient)
+		mockedClient := githubv4mock.NewMockedHTTPClient()
+		client := githubv4.NewClient(mockedClient)
 		deps := BaseDeps{
-			Client: client,
+			GQLClient: client,
 		}
 		handler := toolDef.Handler(deps)
 		request := createMCPRequest(map[string]any{

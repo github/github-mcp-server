@@ -1412,7 +1412,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					return utils.NewToolResultError("item_type must be either 'issue' or 'pull_request'"), nil, nil
 				}
 
-				return addProjectItemWithResolution(ctx, gqlClient, owner, ownerType, projectNumber, itemOwner, itemRepo, itemNumber, itemType)
+				return addProjectItem(ctx, gqlClient, owner, ownerType, projectNumber, itemOwner, itemRepo, itemNumber, itemType)
 			case projectsMethodUpdateProjectItem:
 				itemID, err := RequiredBigInt(args, "item_id")
 				if err != nil {
@@ -1472,56 +1472,7 @@ func listProjects(ctx context.Context, client *github.Client, args map[string]an
 	// If owner_type not provided, fetch from both user and org
 	switch ownerType {
 	case "":
-		// Fetch user projects
-		userProjects, userResp, userErr := client.Projects.ListUserProjects(ctx, owner, opts)
-		var userProjectsList []MinimalProject
-		if userErr == nil && userResp.StatusCode == http.StatusOK {
-			for _, project := range userProjects {
-				mp := convertToMinimalProject(project)
-				mp.OwnerType = "user" // Add owner type for clarity
-				userProjectsList = append(userProjectsList, *mp)
-			}
-			_ = userResp.Body.Close()
-		}
-
-		// Fetch org projects
-		orgProjects, orgResp, orgErr := client.Projects.ListOrganizationProjects(ctx, owner, opts)
-		var orgProjectsList []MinimalProject
-		if orgErr == nil && orgResp.StatusCode == http.StatusOK {
-			for _, project := range orgProjects {
-				mp := convertToMinimalProject(project)
-				mp.OwnerType = "org" // Add owner type for clarity
-				orgProjectsList = append(orgProjectsList, *mp)
-			}
-			resp = orgResp // Use org response for pagination info
-		} else if userResp != nil {
-			resp = userResp // Fallback to user response
-		}
-
-		// Combine results
-		minimalProjects = append(minimalProjects, userProjectsList...)
-		minimalProjects = append(minimalProjects, orgProjectsList...)
-
-		// If both failed, return error
-		if (userErr != nil || userResp.StatusCode != http.StatusOK) && (orgErr != nil || orgResp.StatusCode != http.StatusOK) {
-			return utils.NewToolResultError(fmt.Sprintf("failed to list projects for owner '%s': not found as user or organization", owner)), nil, nil
-		}
-
-		response := map[string]any{
-			"projects": minimalProjects,
-			"note":     "Results include both user and org projects. Each project includes 'owner_type' field. Pagination is limited when owner_type is not specified - specify 'owner_type' for full pagination support.",
-		}
-		if resp != nil {
-			response["pageInfo"] = buildPageInfo(resp)
-			defer func() { _ = resp.Body.Close() }()
-		}
-
-		r, err := json.Marshal(response)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-		}
-		return utils.NewToolResultText(string(r)), nil, nil
-
+		return listProjectsFromBothOwnerTypes(ctx, client, owner, opts)
 	case "org":
 		projects, resp, err = client.Projects.ListOrganizationProjects(ctx, owner, opts)
 		if err != nil {
@@ -1566,6 +1517,58 @@ func listProjects(ctx context.Context, client *github.Client, args map[string]an
 	}
 
 	return nil, nil, fmt.Errorf("unexpected state in listProjects")
+}
+
+// listProjectsFromBothOwnerTypes fetches projects from both user and org endpoints
+// when owner_type is not specified, combining the results with owner_type labels.
+func listProjectsFromBothOwnerTypes(ctx context.Context, client *github.Client, owner string, opts *github.ListProjectsOptions) (*mcp.CallToolResult, any, error) {
+	var minimalProjects []MinimalProject
+	var resp *github.Response
+
+	// Fetch user projects
+	userProjects, userResp, userErr := client.Projects.ListUserProjects(ctx, owner, opts)
+	if userErr == nil && userResp.StatusCode == http.StatusOK {
+		for _, project := range userProjects {
+			mp := convertToMinimalProject(project)
+			mp.OwnerType = "user"
+			minimalProjects = append(minimalProjects, *mp)
+		}
+		_ = userResp.Body.Close()
+	}
+
+	// Fetch org projects
+	orgProjects, orgResp, orgErr := client.Projects.ListOrganizationProjects(ctx, owner, opts)
+	if orgErr == nil && orgResp.StatusCode == http.StatusOK {
+		for _, project := range orgProjects {
+			mp := convertToMinimalProject(project)
+			mp.OwnerType = "org"
+			minimalProjects = append(minimalProjects, *mp)
+		}
+		resp = orgResp // Use org response for pagination info
+	} else if userResp != nil {
+		resp = userResp // Fallback to user response
+	}
+
+	// If both failed, return error
+	if (userErr != nil || userResp == nil || userResp.StatusCode != http.StatusOK) &&
+		(orgErr != nil || orgResp == nil || orgResp.StatusCode != http.StatusOK) {
+		return utils.NewToolResultError(fmt.Sprintf("failed to list projects for owner '%s': not found as user or organization", owner)), nil, nil
+	}
+
+	response := map[string]any{
+		"projects": minimalProjects,
+		"note":     "Results include both user and org projects. Each project includes 'owner_type' field. Pagination is limited when owner_type is not specified - specify 'owner_type' for full pagination support.",
+	}
+	if resp != nil {
+		response["pageInfo"] = buildPageInfo(resp)
+		defer func() { _ = resp.Body.Close() }()
+	}
+
+	r, err := json.Marshal(response)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+	return utils.NewToolResultText(string(r)), nil, nil
 }
 
 func listProjectFields(ctx context.Context, client *github.Client, args map[string]any, owner, ownerType string) (*mcp.CallToolResult, any, error) {
@@ -1861,8 +1864,8 @@ func deleteProjectItem(ctx context.Context, client *github.Client, owner, ownerT
 	return utils.NewToolResultText("project item successfully deleted"), nil, nil
 }
 
-// addProjectItemWithResolution adds an item to a project by resolving the issue/PR number to a node ID
-func addProjectItemWithResolution(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, itemOwner, itemRepo string, itemNumber int, itemType string) (*mcp.CallToolResult, any, error) {
+// addProjectItem adds an item to a project by resolving the issue/PR number to a node ID
+func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, itemOwner, itemRepo string, itemNumber int, itemType string) (*mcp.CallToolResult, any, error) {
 	if itemType != "issue" && itemType != "pull_request" {
 		return utils.NewToolResultError("item_type must be either 'issue' or 'pull_request'"), nil, nil
 	}
