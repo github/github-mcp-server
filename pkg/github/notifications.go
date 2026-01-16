@@ -231,7 +231,7 @@ func DismissNotification(t translations.TranslationHelperFunc) inventory.ServerT
 			}
 			defer func() { _ = resp.Body.Close() }()
 
-			if resp.StatusCode != http.StatusResetContent && resp.StatusCode != http.StatusOK {
+			if resp.StatusCode != http.StatusResetContent && resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil

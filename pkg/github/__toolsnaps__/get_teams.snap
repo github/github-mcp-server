@@ -5,13 +5,13 @@
   },
   "description": "Get details of the teams the user is a member of. Limited to organizations accessible with current credentials",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "user": {
-        "type": "string",
-        "description": "Username to get teams for. If not provided, uses the authenticated user."
+        "description": "Username to get teams for. If not provided, uses the authenticated user.",
+        "type": "string"
       }
-    }
+    },
+    "type": "object"
   },
   "name": "get_teams"
 }
