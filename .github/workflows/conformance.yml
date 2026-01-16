@@ -12,58 +12,57 @@ jobs:
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v6
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          # Fetch full history to access merge-base
           fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
+      - name: Run MCP Conformance Test
+        uses: SamMorrowDrums/mcp-conformance-action@v1
         with:
-          go-version-file: "go.mod"
+          setup_go: "true"
+          go_version_file: go.mod
+          install_command: go mod download
+          server_command: go run ./cmd/github-mcp-server stdio
+          server_env: |
+            GITHUB_PERSONAL_ACCESS_TOKEN=test-token
+          configurations: |
+            [
+              {"name": "default", "args": ""},
+              {"name": "read-only", "args": "--read-only"},
+              {"name": "dynamic-toolsets", "args": "--dynamic-toolsets"},
+              {"name": "read-only+dynamic", "args": "--read-only --dynamic-toolsets"},
+              {"name": "toolsets-repos", "args": "--toolsets=repos"},
+              {"name": "toolsets-issues", "args": "--toolsets=issues"},
+              {"name": "toolsets-pull_requests", "args": "--toolsets=pull_requests"},
+              {"name": "toolsets-repos,issues", "args": "--toolsets=repos,issues"},
+              {"name": "toolsets-all", "args": "--toolsets=all"},
+              {"name": "tools-get_me", "args": "--tools=get_me"},
+              {"name": "tools-get_me,list_issues", "args": "--tools=get_me,list_issues"},
+              {"name": "toolsets-repos+read-only", "args": "--toolsets=repos --read-only"},
+              {"name": "toolsets-all+dynamic", "args": "--toolsets=all --dynamic-toolsets"},
+              {"name": "toolsets-repos+dynamic", "args": "--toolsets=repos --dynamic-toolsets"},
+              {"name": "toolsets-repos,issues+dynamic", "args": "--toolsets=repos,issues --dynamic-toolsets"},
+              {
+                "name": "dynamic-tool-calls",
+                "args": "--dynamic-toolsets",
+                "custom_messages": [
+                  {"id": 10, "name": "list_toolsets_before", "message": {"jsonrpc": "2.0", "id": 10, "method": "tools/call", "params": {"name": "list_available_toolsets", "arguments": {}}}},
+                  {"id": 11, "name": "get_toolset_tools", "message": {"jsonrpc": "2.0", "id": 11, "method": "tools/call", "params": {"name": "get_toolset_tools", "arguments": {"toolset": "repos"}}}},
+                  {"id": 12, "name": "enable_toolset", "message": {"jsonrpc": "2.0", "id": 12, "method": "tools/call", "params": {"name": "enable_toolset", "arguments": {"toolset": "repos"}}}},
+                  {"id": 13, "name": "list_toolsets_after", "message": {"jsonrpc": "2.0", "id": 13, "method": "tools/call", "params": {"name": "list_available_toolsets", "arguments": {}}}}
+                ]
+              }
+            ]
 
-      - name: Download dependencies
-        run: go mod download
-
-      - name: Run conformance test
-        id: conformance
+      - name: Add interpretation note
+        if: always()
         run: |
-          # Run conformance test, capture stdout for summary
-          script/conformance-test > conformance-summary.txt 2>&1 || true
-          
-          # Output the summary
-          cat conformance-summary.txt
-          
-          # Check result
-          if grep -q "RESULT: ALL TESTS PASSED" conformance-summary.txt; then
-            echo "status=passed" >> $GITHUB_OUTPUT
-          else
-            echo "status=differences" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Generate Job Summary
-        run: |
-          # Add the full markdown report to the job summary
-          echo "# MCP Server Conformance Report" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Comparing PR branch against merge-base with \`origin/main\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # Extract and append the report content (skip the header since we added our own)
-          tail -n +5 conformance-report/CONFORMANCE_REPORT.md >> $GITHUB_STEP_SUMMARY
-          
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
-          # Add interpretation note
-          if [ "${{ steps.conformance.outputs.status }}" = "passed" ]; then
-            echo "✅ **All conformance tests passed** - No behavioral differences detected." >> $GITHUB_STEP_SUMMARY
-          else
-            echo "⚠️ **Differences detected** - Review the diffs above to ensure changes are intentional." >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Common expected differences:" >> $GITHUB_STEP_SUMMARY
-            echo "- New tools/toolsets added" >> $GITHUB_STEP_SUMMARY
-            echo "- Tool descriptions updated" >> $GITHUB_STEP_SUMMARY
-            echo "- Capability changes (intentional improvements)" >> $GITHUB_STEP_SUMMARY
-          fi
+          echo "ℹ️ **Note:** Differences may be intentional improvements." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Common expected differences:" >> $GITHUB_STEP_SUMMARY
+          echo "- New tools/toolsets added" >> $GITHUB_STEP_SUMMARY
+          echo "- Tool descriptions updated" >> $GITHUB_STEP_SUMMARY
+          echo "- Capability changes (intentional improvements)" >> $GITHUB_STEP_SUMMARY
