@@ -2,6 +2,8 @@
 
 ## Claude Code CLI
 
+> ⚠️ **Important**: Claude Code includes a built-in `github@claude-plugins-official` plugin that attempts OAuth authentication. This plugin currently fails with "Incompatible auth server: does not support dynamic client registration" due to a compatibility issue between Claude Code's OAuth implementation and GitHub's MCP server ([anthropics/claude-code#3273](https://github.com/anthropics/claude-code/issues/3273)). **Use the PAT-based setup below instead**, which bypasses OAuth entirely and works reliably.
+
 ### Prerequisites
 - Claude Code CLI installed
 - [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens/new)
@@ -154,6 +156,20 @@ Add this codeblock to your `claude_desktop_config.json`:
 ---
 
 ## Troubleshooting
+
+**Built-in Plugin OAuth Errors:**
+
+If you see "Incompatible auth server: does not support dynamic client registration" when running `/mcp` in Claude Code, the built-in `github@claude-plugins-official` plugin is conflicting with the manual setup. To resolve:
+
+1. Disable the built-in plugin:
+   ```bash
+   claude plugins disable github@claude-plugins-official
+   ```
+   Or in `~/.claude/settings.json`, set `"github@claude-plugins-official": false` under `enabledPlugins`.
+
+2. Use the PAT-based setup described above instead.
+
+3. Verify with `claude mcp list` — you should see `github: ✓ Connected` (the manual config) and the plugin entry should no longer appear.
 
 **Authentication Failed:**
 - Verify PAT has `repo` scope
