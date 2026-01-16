@@ -163,15 +163,6 @@ func NewServerToolWithContextHandler[In any, Out any](tool mcp.Tool, toolset Too
 	}
 }
 
-// NewServerToolFromHandler creates a ServerTool from a tool definition, toolset metadata, and a raw handler function.
-// Use this when you have a handler that already conforms to mcp.ToolHandler.
-//
-// Deprecated: This creates closures at registration time. For better performance in
-// per-request server scenarios, use NewServerToolWithRawContextHandler instead.
-func NewServerToolFromHandler(tool mcp.Tool, toolset ToolsetMetadata, handlerFn func(deps any) mcp.ToolHandler) ServerTool {
-	return ServerTool{Tool: tool, Toolset: toolset, HandlerFunc: handlerFn}
-}
-
 // NewServerToolWithRawContextHandler creates a ServerTool with a raw handler that receives deps via context.
 // This is the preferred approach for tools that use mcp.ToolHandler directly because it doesn't
 // create closures at registration time.
