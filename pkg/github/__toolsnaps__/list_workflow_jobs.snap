@@ -5,45 +5,45 @@
   },
   "description": "List jobs for a specific workflow run",
   "inputSchema": {
-    "type": "object",
+    "properties": {
+      "filter": {
+        "description": "Filters jobs by their completed_at timestamp",
+        "enum": [
+          "latest",
+          "all"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "page": {
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1,
+        "type": "number"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "run_id": {
+        "description": "The unique identifier of the workflow run",
+        "type": "number"
+      }
+    },
     "required": [
       "owner",
       "repo",
       "run_id"
     ],
-    "properties": {
-      "filter": {
-        "type": "string",
-        "description": "Filters jobs by their completed_at timestamp",
-        "enum": [
-          "latest",
-          "all"
-        ]
-      },
-      "owner": {
-        "type": "string",
-        "description": "Repository owner"
-      },
-      "page": {
-        "type": "number",
-        "description": "Page number for pagination (min 1)",
-        "minimum": 1
-      },
-      "perPage": {
-        "type": "number",
-        "description": "Results per page for pagination (min 1, max 100)",
-        "minimum": 1,
-        "maximum": 100
-      },
-      "repo": {
-        "type": "string",
-        "description": "Repository name"
-      },
-      "run_id": {
-        "type": "number",
-        "description": "The unique identifier of the workflow run"
-      }
-    }
+    "type": "object"
   },
   "name": "list_workflow_jobs"
 }

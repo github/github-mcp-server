@@ -1609,6 +1609,104 @@ func (d *mvpDescription) String() string {
 	return sb.String()
 }
 
+// linkedPullRequest represents a PR linked to an issue by Copilot.
+type linkedPullRequest struct {
+	Number    int
+	URL       string
+	Title     string
+	State     string
+	CreatedAt time.Time
+}
+
+// pollConfigKey is a context key for polling configuration.
+type pollConfigKey struct{}
+
+// PollConfig configures the PR polling behavior.
+type PollConfig struct {
+	MaxAttempts int
+	Delay       time.Duration
+}
+
+// ContextWithPollConfig returns a context with polling configuration.
+// Use this in tests to reduce or disable polling.
+func ContextWithPollConfig(ctx context.Context, config PollConfig) context.Context {
+	return context.WithValue(ctx, pollConfigKey{}, config)
+}
+
+// getPollConfig returns the polling configuration from context, or defaults.
+func getPollConfig(ctx context.Context) PollConfig {
+	if config, ok := ctx.Value(pollConfigKey{}).(PollConfig); ok {
+		return config
+	}
+	// Default: 9 attempts with 1s delay = 8s max wait
+	// Based on observed latency in remote server: p50 ~5s, p90 ~7s
+	return PollConfig{MaxAttempts: 9, Delay: 1 * time.Second}
+}
+
+// findLinkedCopilotPR searches for a PR created by the copilot-swe-agent bot that references the given issue.
+// It queries the issue's timeline for CrossReferencedEvent items from PRs authored by copilot-swe-agent.
+// The createdAfter parameter filters to only return PRs created after the specified time.
+func findLinkedCopilotPR(ctx context.Context, client *githubv4.Client, owner, repo string, issueNumber int, createdAfter time.Time) (*linkedPullRequest, error) {
+	// Query timeline items looking for CrossReferencedEvent from PRs by copilot-swe-agent
+	var query struct {
+		Repository struct {
+			Issue struct {
+				TimelineItems struct {
+					Nodes []struct {
+						TypeName             string `graphql:"__typename"`
+						CrossReferencedEvent struct {
+							Source struct {
+								PullRequest struct {
+									Number    int
+									URL       string
+									Title     string
+									State     string
+									CreatedAt githubv4.DateTime
+									Author    struct {
+										Login string
+									}
+								} `graphql:"... on PullRequest"`
+							}
+						} `graphql:"... on CrossReferencedEvent"`
+					}
+				} `graphql:"timelineItems(first: 20, itemTypes: [CROSS_REFERENCED_EVENT])"`
+			} `graphql:"issue(number: $number)"`
+		} `graphql:"repository(owner: $owner, name: $name)"`
+	}
+
+	variables := map[string]any{
+		"owner":  githubv4.String(owner),
+		"name":   githubv4.String(repo),
+		"number": githubv4.Int(issueNumber), //nolint:gosec // Issue numbers are always small positive integers
+	}
+
+	if err := client.Query(ctx, &query, variables); err != nil {
+		return nil, err
+	}
+
+	// Look for a PR from copilot-swe-agent created after the assignment time
+	for _, node := range query.Repository.Issue.TimelineItems.Nodes {
+		if node.TypeName != "CrossReferencedEvent" {
+			continue
+		}
+		pr := node.CrossReferencedEvent.Source.PullRequest
+		if pr.Number > 0 && pr.Author.Login == "copilot-swe-agent" {
+			// Only return PRs created after the assignment time
+			if pr.CreatedAt.Time.After(createdAfter) {
+				return &linkedPullRequest{
+					Number:    pr.Number,
+					URL:       pr.URL,
+					Title:     pr.Title,
+					State:     pr.State,
+					CreatedAt: pr.CreatedAt.Time,
+				}, nil
+			}
+		}
+	}
+
+	return nil, nil
+}
+
 func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.ServerTool {
 	description := mvpDescription{
 		summary: "Assign Copilot to a specific issue in a GitHub repository.",
@@ -1646,16 +1744,26 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 						Type:        "number",
 						Description: "Issue number",
 					},
+					"base_ref": {
+						Type:        "string",
+						Description: "Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch",
+					},
+					"custom_instructions": {
+						Type:        "string",
+						Description: "Optional custom instructions to guide the agent beyond the issue body. Use this to provide additional context, constraints, or guidance that is not captured in the issue description",
+					},
 				},
 				Required: []string{"owner", "repo", "issue_number"},
 			},
 		},
 		[]scopes.Scope{scopes.Repo},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, request *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			var params struct {
-				Owner       string `mapstructure:"owner"`
-				Repo        string `mapstructure:"repo"`
-				IssueNumber int32  `mapstructure:"issue_number"`
+				Owner              string `mapstructure:"owner"`
+				Repo               string `mapstructure:"repo"`
+				IssueNumber        int32  `mapstructure:"issue_number"`
+				BaseRef            string `mapstructure:"base_ref"`
+				CustomInstructions string `mapstructure:"custom_instructions"`
 			}
 			if err := mapstructure.Decode(args, &params); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -1724,10 +1832,10 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				return utils.NewToolResultError("copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot for more information."), nil, nil
 			}
 
-			// Next let's get the GQL Node ID and current assignees for this issue because the only way to
-			// assign copilot is to use replaceActorsForAssignable which requires the full list.
+			// Next, get the issue ID and repository ID
 			var getIssueQuery struct {
 				Repository struct {
+					ID    githubv4.ID
 					Issue struct {
 						ID        githubv4.ID
 						Assignees struct {
@@ -1749,39 +1857,158 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get issue ID", err), nil, nil
 			}
 
-			// Finally, do the assignment. Just for reference, assigning copilot to an issue that it is already
-			// assigned to seems to have no impact (which is a good thing).
-			var assignCopilotMutation struct {
-				ReplaceActorsForAssignable struct {
-					Typename string `graphql:"__typename"` // Not required but we need a selector or GQL errors
-				} `graphql:"replaceActorsForAssignable(input: $input)"`
-			}
-
+			// Build the assignee IDs list including copilot
 			actorIDs := make([]githubv4.ID, len(getIssueQuery.Repository.Issue.Assignees.Nodes)+1)
 			for i, node := range getIssueQuery.Repository.Issue.Assignees.Nodes {
 				actorIDs[i] = node.ID
 			}
 			actorIDs[len(getIssueQuery.Repository.Issue.Assignees.Nodes)] = copilotAssignee.ID
 
+			// Prepare agent assignment input
+			emptyString := githubv4.String("")
+			agentAssignment := &AgentAssignmentInput{
+				CustomAgent:        &emptyString,
+				CustomInstructions: &emptyString,
+				TargetRepositoryID: getIssueQuery.Repository.ID,
+			}
+
+			// Add base ref if provided
+			if params.BaseRef != "" {
+				baseRef := githubv4.String(params.BaseRef)
+				agentAssignment.BaseRef = &baseRef
+			}
+
+			// Add custom instructions if provided
+			if params.CustomInstructions != "" {
+				customInstructions := githubv4.String(params.CustomInstructions)
+				agentAssignment.CustomInstructions = &customInstructions
+			}
+
+			// Execute the updateIssue mutation with the GraphQL-Features header
+			// This header is required for the agent assignment API which is not GA yet
+			var updateIssueMutation struct {
+				UpdateIssue struct {
+					Issue struct {
+						ID     githubv4.ID
+						Number githubv4.Int
+						URL    githubv4.String
+					}
+				} `graphql:"updateIssue(input: $input)"`
+			}
+
+			// Add the GraphQL-Features header for the agent assignment API
+			// The header will be read by the HTTP transport if it's configured to do so
+			ctxWithFeatures := withGraphQLFeatures(ctx, "issues_copilot_assignment_api_support")
+
+			// Capture the time before assignment to filter out older PRs during polling
+			assignmentTime := time.Now().UTC()
+
 			if err := client.Mutate(
-				ctx,
-				&assignCopilotMutation,
-				ReplaceActorsForAssignableInput{
-					AssignableID: getIssueQuery.Repository.Issue.ID,
-					ActorIDs:     actorIDs,
+				ctxWithFeatures,
+				&updateIssueMutation,
+				UpdateIssueInput{
+					ID:              getIssueQuery.Repository.Issue.ID,
+					AssigneeIDs:     actorIDs,
+					AgentAssignment: agentAssignment,
 				},
 				nil,
 			); err != nil {
-				return nil, nil, fmt.Errorf("failed to replace actors for assignable: %w", err)
+				return nil, nil, fmt.Errorf("failed to update issue with agent assignment: %w", err)
 			}
 
-			return utils.NewToolResultText("successfully assigned copilot to issue"), nil, nil
+			// Poll for a linked PR created by Copilot after the assignment
+			pollConfig := getPollConfig(ctx)
+
+			// Get progress token from request for sending progress notifications
+			progressToken := request.Params.GetProgressToken()
+
+			// Send initial progress notification that assignment succeeded and polling is starting
+			if progressToken != nil && request.Session != nil && pollConfig.MaxAttempts > 0 {
+				_ = request.Session.NotifyProgress(ctx, &mcp.ProgressNotificationParams{
+					ProgressToken: progressToken,
+					Progress:      0,
+					Total:         float64(pollConfig.MaxAttempts),
+					Message:       "Copilot assigned to issue, waiting for PR creation...",
+				})
+			}
+
+			var linkedPR *linkedPullRequest
+			for attempt := range pollConfig.MaxAttempts {
+				if attempt > 0 {
+					time.Sleep(pollConfig.Delay)
+				}
+
+				// Send progress notification if progress token is available
+				if progressToken != nil && request.Session != nil {
+					_ = request.Session.NotifyProgress(ctx, &mcp.ProgressNotificationParams{
+						ProgressToken: progressToken,
+						Progress:      float64(attempt + 1),
+						Total:         float64(pollConfig.MaxAttempts),
+						Message:       fmt.Sprintf("Waiting for Copilot to create PR... (attempt %d/%d)", attempt+1, pollConfig.MaxAttempts),
+					})
+				}
+
+				pr, err := findLinkedCopilotPR(ctx, client, params.Owner, params.Repo, int(params.IssueNumber), assignmentTime)
+				if err != nil {
+					// Polling errors are non-fatal, continue to next attempt
+					continue
+				}
+				if pr != nil {
+					linkedPR = pr
+					break
+				}
+			}
+
+			// Build the result
+			result := map[string]any{
+				"message":      "successfully assigned copilot to issue",
+				"issue_number": int(updateIssueMutation.UpdateIssue.Issue.Number),
+				"issue_url":    string(updateIssueMutation.UpdateIssue.Issue.URL),
+				"owner":        params.Owner,
+				"repo":         params.Repo,
+			}
+
+			// Add PR info if found during polling
+			if linkedPR != nil {
+				result["pull_request"] = map[string]any{
+					"number": linkedPR.Number,
+					"url":    linkedPR.URL,
+					"title":  linkedPR.Title,
+					"state":  linkedPR.State,
+				}
+				result["message"] = "successfully assigned copilot to issue - pull request created"
+			} else {
+				result["message"] = "successfully assigned copilot to issue - pull request pending"
+				result["note"] = "The pull request may still be in progress. Once created, the PR number can be used to check job status, or check the issue timeline for updates."
+			}
+
+			r, err := json.Marshal(result)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to marshal response: %s", err)), nil, nil
+			}
+
+			return utils.NewToolResultText(string(r)), result, nil
 		})
 }
 
 type ReplaceActorsForAssignableInput struct {
 	AssignableID githubv4.ID   `json:"assignableId"`
 	ActorIDs     []githubv4.ID `json:"actorIds"`
+}
+
+// AgentAssignmentInput represents the input for assigning an agent to an issue.
+type AgentAssignmentInput struct {
+	BaseRef            *githubv4.String `json:"baseRef,omitempty"`
+	CustomAgent        *githubv4.String `json:"customAgent,omitempty"`
+	CustomInstructions *githubv4.String `json:"customInstructions,omitempty"`
+	TargetRepositoryID githubv4.ID      `json:"targetRepositoryId"`
+}
+
+// UpdateIssueInput represents the input for updating an issue with agent assignment.
+type UpdateIssueInput struct {
+	ID              githubv4.ID           `json:"id"`
+	AssigneeIDs     []githubv4.ID         `json:"assigneeIds"`
+	AgentAssignment *AgentAssignmentInput `json:"agentAssignment,omitempty"`
 }
 
 // parseISOTimestamp parses an ISO 8601 timestamp string into a time.Time object.
@@ -1868,4 +2095,20 @@ func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) inventory.Ser
 			}, nil
 		},
 	)
+}
+
+// graphQLFeaturesKey is a context key for GraphQL feature flags
+type graphQLFeaturesKey struct{}
+
+// withGraphQLFeatures adds GraphQL feature flags to the context
+func withGraphQLFeatures(ctx context.Context, features ...string) context.Context {
+	return context.WithValue(ctx, graphQLFeaturesKey{}, features)
+}
+
+// GetGraphQLFeatures retrieves GraphQL feature flags from the context
+func GetGraphQLFeatures(ctx context.Context) []string {
+	if features, ok := ctx.Value(graphQLFeaturesKey{}).([]string); ok {
+		return features
+	}
+	return nil
 }

@@ -5,68 +5,66 @@
   },
   "description": "Tools for listing GitHub Actions resources.\nUse this tool to list workflows in a repository, or list workflow runs, jobs, and artifacts for a specific workflow or workflow run.\n",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "method": {
-        "type": "string",
         "description": "The action to perform",
         "enum": [
           "list_workflows",
           "list_workflow_runs",
           "list_workflow_jobs",
           "list_workflow_run_artifacts"
-        ]
+        ],
+        "type": "string"
       },
       "owner": {
-        "type": "string",
-        "description": "Repository owner"
+        "description": "Repository owner",
+        "type": "string"
       },
       "page": {
-        "type": "number",
         "description": "Page number for pagination (default: 1)",
-        "minimum": 1
+        "minimum": 1,
+        "type": "number"
       },
       "per_page": {
-        "type": "number",
         "description": "Results per page for pagination (default: 30, max: 100)",
+        "maximum": 100,
         "minimum": 1,
-        "maximum": 100
+        "type": "number"
       },
       "repo": {
-        "type": "string",
-        "description": "Repository name"
+        "description": "Repository name",
+        "type": "string"
       },
       "resource_id": {
-        "type": "string",
-        "description": "The unique identifier of the resource. This will vary based on the \"method\" provided, so ensure you provide the correct ID:\n- Do not provide any resource ID for 'list_workflows' method.\n- Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'list_workflow_runs' method, or omit to list all workflow runs in the repository.\n- Provide a workflow run ID for 'list_workflow_jobs' and 'list_workflow_run_artifacts' methods.\n"
+        "description": "The unique identifier of the resource. This will vary based on the \"method\" provided, so ensure you provide the correct ID:\n- Do not provide any resource ID for 'list_workflows' method.\n- Provide a workflow ID or workflow file name (e.g. ci.yaml) for 'list_workflow_runs' method, or omit to list all workflow runs in the repository.\n- Provide a workflow run ID for 'list_workflow_jobs' and 'list_workflow_run_artifacts' methods.\n",
+        "type": "string"
       },
       "workflow_jobs_filter": {
-        "type": "object",
+        "description": "Filters for workflow jobs. **ONLY** used when method is 'list_workflow_jobs'",
         "properties": {
           "filter": {
-            "type": "string",
             "description": "Filters jobs by their completed_at timestamp",
             "enum": [
               "latest",
               "all"
-            ]
+            ],
+            "type": "string"
           }
         },
-        "description": "Filters for workflow jobs. **ONLY** used when method is 'list_workflow_jobs'"
+        "type": "object"
       },
       "workflow_runs_filter": {
-        "type": "object",
+        "description": "Filters for workflow runs. **ONLY** used when method is 'list_workflow_runs'",
         "properties": {
           "actor": {
-            "type": "string",
-            "description": "Filter to a specific GitHub user's workflow runs."
+            "description": "Filter to a specific GitHub user's workflow runs.",
+            "type": "string"
           },
           "branch": {
-            "type": "string",
-            "description": "Filter workflow runs to a specific Git branch. Use the name of the branch."
+            "description": "Filter workflow runs to a specific Git branch. Use the name of the branch.",
+            "type": "string"
           },
           "event": {
-            "type": "string",
             "description": "Filter workflow runs to a specific event type",
             "enum": [
               "branch_protection_rule",
@@ -101,10 +99,10 @@
               "workflow_call",
               "workflow_dispatch",
               "workflow_run"
-            ]
+            ],
+            "type": "string"
           },
           "status": {
-            "type": "string",
             "description": "Filter workflow runs to only runs with a specific status",
             "enum": [
               "queued",
@@ -112,17 +110,19 @@
               "completed",
               "requested",
               "waiting"
-            ]
+            ],
+            "type": "string"
           }
         },
-        "description": "Filters for workflow runs. **ONLY** used when method is 'list_workflow_runs'"
+        "type": "object"
       }
     },
     "required": [
       "method",
       "owner",
       "repo"
-    ]
+    ],
+    "type": "object"
   },
   "name": "actions_list"
 }
