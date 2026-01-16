@@ -64,6 +64,9 @@ type MCPServerConfig struct {
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
 
+	// Insider indicates if we should enable experimental features
+	InsiderMode bool
+
 	// Logger is used for logging within the server
 	Logger *slog.Logger
 	// RepoAccessTTL overrides the default TTL for repository access cache entries.
@@ -200,6 +203,9 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
 	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.rest, clients.gqlHTTP))
 
+	// Create feature checker
+	featureChecker := createFeatureChecker(cfg.EnabledFeatures)
+
 	// Create dependencies for tool handlers
 	deps := github.NewBaseDeps(
 		clients.rest,
@@ -207,8 +213,12 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		clients.raw,
 		clients.repoAccess,
 		cfg.Translator,
-		github.FeatureFlags{LockdownMode: cfg.LockdownMode},
+		github.FeatureFlags{
+			LockdownMode: cfg.LockdownMode,
+			InsiderMode: cfg.InsiderMode,
+		},
 		cfg.ContentWindowSize,
+		featureChecker,
 	)
 
 	// Inject dependencies into context for all tool handlers
@@ -224,8 +234,8 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		WithReadOnly(cfg.ReadOnly).
 		WithToolsets(enabledToolsets).
 		WithTools(cfg.EnabledTools).
-		WithFeatureChecker(createFeatureChecker(cfg.EnabledFeatures))
-
+		WithFeatureChecker(featureChecker)
+  
 	// Apply token scope filtering if scopes are known (for PAT filtering)
 	if cfg.TokenScopes != nil {
 		inventoryBuilder = inventoryBuilder.WithFilter(github.CreateToolScopeFilter(cfg.TokenScopes))
@@ -327,6 +337,9 @@ type StdioServerConfig struct {
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
 
+	// InsiderMode indicates if we should enable experimental features
+	InsiderMode bool
+
 	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
 	RepoAccessCacheTTL *time.Duration
 }
@@ -383,6 +396,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		Translator:        t,
 		ContentWindowSize: cfg.ContentWindowSize,
 		LockdownMode:      cfg.LockdownMode,
+		InsiderMode:       cfg.InsiderMode,
 		Logger:            logger,
 		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
 		TokenScopes:       tokenScopes,
