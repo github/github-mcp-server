@@ -23,7 +23,7 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 		Translator:        translations.NullTranslationHelper,
 		ContentWindowSize: 5000,
 		LockdownMode:      false,
-		Experimental:      false,
+		InsiderMode:       false,
 	}
 
 	// Create the server

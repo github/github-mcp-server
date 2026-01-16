@@ -15,8 +15,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/utils"
 )
 
-// RemoteMCPExperimental is a long-lived feature flag for experimental remote MCP features.
-// This flag enables experimental behaviors in tools that are being tested for remote server deployment.
+// RemoteMCPEnthusiasticGreeting is a dummy test feature flag .
 const RemoteMCPEnthusiasticGreeting = "remote_mcp_enthusiastic_greeting"
 
 // FeatureChecker is an interface for checking if a feature flag is enabled.
@@ -46,7 +45,7 @@ func HelloWorldTool(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if deps.IsFeatureEnabled(ctx, RemoteMCPEnthusiasticGreeting) {
 				greeting += " Welcome to the future of MCP! 🎉"
 			}
-			if deps.GetFlags().Experimental {
+			if deps.GetFlags().InsiderMode {
 				greeting += " Experimental features are enabled! 🚀"
 			}
 
@@ -114,10 +113,10 @@ func TestHelloWorld_ConditionalBehavior_Featureflag(t *testing.T) {
 			// Call the handler with deps in context
 			ctx := ContextWithDeps(context.Background(), deps)
 			result, err := handler(ctx, &mcp.CallToolRequest{
-			Params: &mcp.CallToolParamsRaw{
-				Arguments: json.RawMessage(`{}`),
-			},
-		})
+				Params: &mcp.CallToolParamsRaw{
+					Arguments: json.RawMessage(`{}`),
+				},
+			})
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			require.Len(t, result.Content, 1)
@@ -141,17 +140,17 @@ func TestHelloWorld_ConditionalBehavior_Config(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		experimental     bool
+		insiderMode      bool
 		expectedGreeting string
 	}{
 		{
 			name:             "Experimental disabled - default greeting",
-			experimental:     false,
+			insiderMode:      false,
 			expectedGreeting: "Hello, world!",
 		},
 		{
 			name:             "Experimental enabled - experimental greeting",
-			experimental:     true,
+			insiderMode:      true,
 			expectedGreeting: "Hello, world! Experimental features are enabled! 🚀",
 		},
 	}
@@ -164,7 +163,7 @@ func TestHelloWorld_ConditionalBehavior_Config(t *testing.T) {
 			deps := NewBaseDeps(
 				nil, nil, nil, nil,
 				translations.NullTranslationHelper,
-				FeatureFlags{Experimental: tt.experimental},
+				FeatureFlags{InsiderMode: tt.insiderMode},
 				0,
 				nil,
 			)
@@ -176,10 +175,10 @@ func TestHelloWorld_ConditionalBehavior_Config(t *testing.T) {
 			// Call the handler with deps in context
 			ctx := ContextWithDeps(context.Background(), deps)
 			result, err := handler(ctx, &mcp.CallToolRequest{
-			Params: &mcp.CallToolParamsRaw{
-				Arguments: json.RawMessage(`{}`),
-			},
-		})
+				Params: &mcp.CallToolParamsRaw{
+					Arguments: json.RawMessage(`{}`),
+				},
+			})
 			require.NoError(t, err)
 			require.NotNil(t, result)
 			require.Len(t, result.Content, 1)
