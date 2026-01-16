@@ -10,7 +10,8 @@ jobs:
     permissions:
       issues: write
     steps:
-      - run: gh issue edit "$NUMBER" --add-label "$LABELS"
+      - name: Add AI review label to issue
+        run: gh issue edit "$NUMBER" --add-label "$LABELS"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
