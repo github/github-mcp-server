@@ -17,7 +17,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run MCP Conformance Test
-        uses: SamMorrowDrums/mcp-conformance-action@3a3e7108e20d87c071081d45848b4969d380fcee # v1.4.3
+        uses: SamMorrowDrums/mcp-conformance-action@d1cc7dd57d8a7e93e32e7abcf6ef74a812f2bcf6 # v1.4.4
         with:
           setup_go: "true"
           install_command: go mod download
