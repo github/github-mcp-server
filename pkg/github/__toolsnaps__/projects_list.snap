@@ -31,11 +31,11 @@
         "type": "string"
       },
       "owner": {
-        "description": "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.",
+        "description": "The owner (user or organization login). The name is not case sensitive.",
         "type": "string"
       },
       "owner_type": {
-        "description": "Owner type",
+        "description": "Owner type (user or org). If not provided, will automatically try both.",
         "enum": [
           "user",
           "org"
@@ -57,7 +57,6 @@
     },
     "required": [
       "method",
-      "owner_type",
       "owner"
     ],
     "type": "object"

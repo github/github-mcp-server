@@ -131,6 +131,7 @@ type MinimalProject struct {
 	Number           *int              `json:"number,omitempty"`
 	ShortDescription *string           `json:"short_description,omitempty"`
 	DeletedBy        *MinimalUser      `json:"deleted_by,omitempty"`
+	OwnerType        string            `json:"owner_type,omitempty"`
 }
 
 // Helper functions
