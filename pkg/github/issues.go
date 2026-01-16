@@ -1898,7 +1898,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 
 			// Add the GraphQL-Features header for the agent assignment API
 			// The header will be read by the HTTP transport if it's configured to do so
-			ctxWithFeatures := withGraphQLFeatures(ctx, "issues_copilot_assignment_api_support")
+			ctxWithFeatures := WithGraphQLFeatures(ctx, "issues_copilot_assignment_api_support")
 
 			// Capture the time before assignment to filter out older PRs during polling
 			assignmentTime := time.Now().UTC()
@@ -2100,8 +2100,8 @@ func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) inventory.Ser
 // graphQLFeaturesKey is a context key for GraphQL feature flags
 type graphQLFeaturesKey struct{}
 
-// withGraphQLFeatures adds GraphQL feature flags to the context
-func withGraphQLFeatures(ctx context.Context, features ...string) context.Context {
+// WithGraphQLFeatures adds GraphQL feature flags to the context
+func WithGraphQLFeatures(ctx context.Context, features ...string) context.Context {
 	return context.WithValue(ctx, graphQLFeaturesKey{}, features)
 }
 
