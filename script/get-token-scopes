@@ -1,0 +1,71 @@
+#!/bin/bash
+#
+# Fetch OAuth scopes granted to a personal access token.
+#
+# Usage:
+#   script/get-token-scopes --token=...
+#
+# Requires a token to be provided explicitly via --token.
+
+set -euo pipefail
+
+HOST="https://api.github.com"
+TOKEN=""
+
+usage() {
+  cat <<'EOF'
+Usage:
+  script/get-token-scopes --token=...
+
+Options:
+  --token=TOKEN   Personal access token (required)
+  -h, --help      Show this help message
+EOF
+}
+
+for arg in "$@"; do
+  case "$arg" in
+    --token=*)
+      TOKEN="${arg#*=}"
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $arg" >&2
+      usage
+      exit 1
+      ;;
+  esac
+done
+
+if [[ -z "${TOKEN}" ]]; then
+  echo "--token is required." >&2
+  exit 1
+fi
+
+API="${HOST%/}/user"
+
+headers=$(curl -fsSL -D - -o /dev/null -H "Authorization: Bearer ${TOKEN}" "${API}" || true)
+
+if [[ -z "$headers" ]]; then
+  echo "Failed to fetch headers from ${API}. Check connectivity and host URL." >&2
+  exit 1
+fi
+
+status=$(printf "%s\n" "$headers" | head -n1)
+if ! printf "%s" "$status" | grep -q " 200 "; then
+  echo "Request failed (${status}). Check that the token is valid for ${HOST}." >&2
+  exit 1
+fi
+
+scopes=$(printf "%s\n" "$headers" | grep -i '^x-oauth-scopes:' | cut -d':' -f2- | sed 's/^[[:space:]]*//' | tr -d '\r')
+
+if [[ -z "$scopes" ]]; then
+  echo "No X-OAuth-Scopes header returned. The token may be invalid or lacks scopes." >&2
+  exit 1
+fi
+
+echo "Scopes for token:"
+printf '%s\n' "$scopes" | tr ',' '\n' | sed 's/^[[:space:]]*//' | sed '/^$/d'
