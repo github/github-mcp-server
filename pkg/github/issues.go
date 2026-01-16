@@ -1757,7 +1757,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 			},
 		},
 		[]scopes.Scope{scopes.Repo},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, request *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			var params struct {
 				Owner              string `mapstructure:"owner"`
 				Repo               string `mapstructure:"repo"`
@@ -1919,10 +1919,33 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 			// Poll for a linked PR created by Copilot after the assignment
 			pollConfig := getPollConfig(ctx)
 
+			// Get progress token from request for sending progress notifications
+			progressToken := request.Params.GetProgressToken()
+
+			// Send initial progress notification that assignment succeeded and polling is starting
+			if progressToken != nil && request.Session != nil && pollConfig.MaxAttempts > 0 {
+				_ = request.Session.NotifyProgress(ctx, &mcp.ProgressNotificationParams{
+					ProgressToken: progressToken,
+					Progress:      0,
+					Total:         float64(pollConfig.MaxAttempts),
+					Message:       "Copilot assigned to issue, waiting for PR creation...",
+				})
+			}
+
 			var linkedPR *linkedPullRequest
 			for attempt := range pollConfig.MaxAttempts {
 				if attempt > 0 {
 					time.Sleep(pollConfig.Delay)
+				}
+
+				// Send progress notification if progress token is available
+				if progressToken != nil && request.Session != nil {
+					_ = request.Session.NotifyProgress(ctx, &mcp.ProgressNotificationParams{
+						ProgressToken: progressToken,
+						Progress:      float64(attempt + 1),
+						Total:         float64(pollConfig.MaxAttempts),
+						Message:       fmt.Sprintf("Waiting for Copilot to create PR... (attempt %d/%d)", attempt+1, pollConfig.MaxAttempts),
+					})
 				}
 
 				pr, err := findLinkedCopilotPR(ctx, client, params.Owner, params.Repo, int(params.IssueNumber), assignmentTime)
