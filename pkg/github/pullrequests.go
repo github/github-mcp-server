@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/google/go-github/v79/github"
@@ -1045,6 +1046,27 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 		})
 }
 
+// workflowProtectedPaths contains the directory prefixes that require the workflow scope
+var workflowProtectedPaths = []string{
+	".github/workflows/",
+	".github/workflows-lab/",
+}
+
+// containsWorkflowFiles checks if any of the given commit files are in workflow-protected directories
+func containsWorkflowFiles(files []*github.CommitFile) bool {
+	for _, file := range files {
+		if file == nil || file.Filename == nil {
+			continue
+		}
+		for _, protectedPath := range workflowProtectedPaths {
+			if strings.HasPrefix(*file.Filename, protectedPath) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // MergePullRequest creates a tool to merge a pull request.
 func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
@@ -1118,15 +1140,37 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			// Pre-flight check: detect workflow files that require the 'workflow' scope
+			files, resp, err := client.PullRequests.ListFiles(ctx, owner, repo, pullNumber, &github.ListOptions{PerPage: 100})
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to list pull request files for workflow scope check",
+					resp,
+					err,
+				), nil, nil
+			}
+			if resp != nil && resp.Body != nil {
+				_ = resp.Body.Close()
+			}
+
+			if containsWorkflowFiles(files) {
+				return utils.NewToolResultError(
+					"This pull request modifies GitHub Actions workflow files (.github/workflows/). " +
+						"Merging requires the 'workflow' OAuth scope, which is not included by default. " +
+						"Please use a Personal Access Token with the 'workflow' scope, or merge manually via the GitHub UI.",
+				), nil, nil
+			}
+
 			options := &github.PullRequestOptions{
 				CommitTitle: commitTitle,
 				MergeMethod: mergeMethod,
 			}
 
-			client, err := deps.GetClient(ctx)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
-			}
 			result, resp, err := client.PullRequests.Merge(ctx, owner, repo, pullNumber, commitMessage, options)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
