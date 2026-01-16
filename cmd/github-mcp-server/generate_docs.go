@@ -51,7 +51,8 @@ func generateReadmeDocs(readmePath string) error {
 	t, _ := translations.TranslationHelper()
 
 	// (not available to regular users) while including tools with FeatureFlagDisable.
-	r := github.NewInventory(t).WithToolsets([]string{"all"}).Build()
+	// Build() can only fail if WithTools specifies invalid tools - not used here
+	r, _ := github.NewInventory(t).WithToolsets([]string{"all"}).Build()
 
 	// Generate toolsets documentation
 	toolsetsDoc := generateToolsetsDoc(r)
@@ -341,7 +342,8 @@ func generateRemoteToolsetsDoc() string {
 	t, _ := translations.TranslationHelper()
 
 	// Build inventory - stateless
-	r := github.NewInventory(t).Build()
+	// Build() can only fail if WithTools specifies invalid tools - not used here
+	r, _ := github.NewInventory(t).Build()
 
 	// Generate table header (icon is combined with Name column)
 	buf.WriteString("| Name | Description | API URL | 1-Click Install (VS Code) | Read-only Link | 1-Click Read-only Install (VS Code) |\n")
