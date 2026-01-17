@@ -1,0 +1,60 @@
+{
+  "annotations": {
+    "destructiveHint": true,
+    "title": "Modify GitHub Project items"
+  },
+  "description": "Add, update, or delete project items in a GitHub Project.",
+  "inputSchema": {
+    "properties": {
+      "item_id": {
+        "description": "The project item ID. Required for 'update_project_item' and 'delete_project_item' methods. For add_project_item, this is the numeric ID of the issue or pull request to add.",
+        "type": "number"
+      },
+      "item_type": {
+        "description": "The item's type, either issue or pull_request. Required for 'add_project_item' method.",
+        "enum": [
+          "issue",
+          "pull_request"
+        ],
+        "type": "string"
+      },
+      "method": {
+        "description": "The method to execute",
+        "enum": [
+          "add_project_item",
+          "update_project_item",
+          "delete_project_item"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive.",
+        "type": "string"
+      },
+      "owner_type": {
+        "description": "Owner type",
+        "enum": [
+          "user",
+          "org"
+        ],
+        "type": "string"
+      },
+      "project_number": {
+        "description": "The project's number.",
+        "type": "number"
+      },
+      "updated_field": {
+        "description": "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}. Required for 'update_project_item' method.",
+        "type": "object"
+      }
+    },
+    "required": [
+      "method",
+      "owner_type",
+      "owner",
+      "project_number"
+    ],
+    "type": "object"
+  },
+  "name": "projects_write"
+}

@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -15,7 +16,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,9 +23,8 @@ import (
 
 func Test_GetFileContents(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	mockRawClient := raw.NewClient(mockClient, &url.URL{Scheme: "https", Host: "raw.githubusercontent.com", Path: "/"})
-	tool, _ := GetFileContents(stubGetClientFn(mockClient), stubGetRawClientFn(mockRawClient), translations.NullTranslationHelper)
+	serverTool := GetFileContents(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -70,39 +69,29 @@ func Test_GetFileContents(t *testing.T) {
 		expectedResult interface{}
 		expectedErrMsg string
 		expectStatus   int
+		expectedMsg    string // optional: expected message text to verify in result
 	}{
 		{
 			name: "successful text content fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposGitRefByOwnerByRepoByRef,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write([]byte(`{"ref": "refs/heads/main", "object": {"sha": ""}}`))
-					}),
-				),
-				mock.WithRequestMatchHandler(
-					mock.GetReposContentsByOwnerByRepoByPath,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusOK)
-						fileContent := &github.RepositoryContent{
-							Name: github.Ptr("README.md"),
-							Path: github.Ptr("README.md"),
-							SHA:  github.Ptr("abc123"),
-							Type: github.Ptr("file"),
-						}
-						contentBytes, _ := json.Marshal(fileContent)
-						_, _ = w.Write(contentBytes)
-					}),
-				),
-				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoByBranchByPath,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.Header().Set("Content-Type", "text/markdown")
-						_, _ = w.Write(mockRawContent)
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposGitRefByOwnerByRepoByRef: mockResponse(t, http.StatusOK, "{\"ref\": \"refs/heads/main\", \"object\": {\"sha\": \"\"}}"),
+				GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
+				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					fileContent := &github.RepositoryContent{
+						Name: github.Ptr("README.md"),
+						Path: github.Ptr("README.md"),
+						SHA:  github.Ptr("abc123"),
+						Type: github.Ptr("file"),
+					}
+					contentBytes, _ := json.Marshal(fileContent)
+					_, _ = w.Write(contentBytes)
+				},
+				GetRawReposContentsByOwnerByRepoByBranchByPath: func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "text/markdown")
+					_, _ = w.Write(mockRawContent)
+				},
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
@@ -118,36 +107,25 @@ func Test_GetFileContents(t *testing.T) {
 		},
 		{
 			name: "successful file blob content fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposGitRefByOwnerByRepoByRef,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write([]byte(`{"ref": "refs/heads/main", "object": {"sha": ""}}`))
-					}),
-				),
-				mock.WithRequestMatchHandler(
-					mock.GetReposContentsByOwnerByRepoByPath,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusOK)
-						fileContent := &github.RepositoryContent{
-							Name: github.Ptr("test.png"),
-							Path: github.Ptr("test.png"),
-							SHA:  github.Ptr("def456"),
-							Type: github.Ptr("file"),
-						}
-						contentBytes, _ := json.Marshal(fileContent)
-						_, _ = w.Write(contentBytes)
-					}),
-				),
-				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoByBranchByPath,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.Header().Set("Content-Type", "image/png")
-						_, _ = w.Write(mockRawContent)
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposGitRefByOwnerByRepoByRef: mockResponse(t, http.StatusOK, "{\"ref\": \"refs/heads/main\", \"object\": {\"sha\": \"\"}}"),
+				GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
+				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					fileContent := &github.RepositoryContent{
+						Name: github.Ptr("test.png"),
+						Path: github.Ptr("test.png"),
+						SHA:  github.Ptr("def456"),
+						Type: github.Ptr("file"),
+					}
+					contentBytes, _ := json.Marshal(fileContent)
+					_, _ = w.Write(contentBytes)
+				},
+				GetRawReposContentsByOwnerByRepoByBranchByPath: func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "image/png")
+					_, _ = w.Write(mockRawContent)
+				},
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
@@ -163,36 +141,25 @@ func Test_GetFileContents(t *testing.T) {
 		},
 		{
 			name: "successful PDF file content fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposGitRefByOwnerByRepoByRef,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write([]byte(`{"ref": "refs/heads/main", "object": {"sha": ""}}`))
-					}),
-				),
-				mock.WithRequestMatchHandler(
-					mock.GetReposContentsByOwnerByRepoByPath,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusOK)
-						fileContent := &github.RepositoryContent{
-							Name: github.Ptr("document.pdf"),
-							Path: github.Ptr("document.pdf"),
-							SHA:  github.Ptr("pdf123"),
-							Type: github.Ptr("file"),
-						}
-						contentBytes, _ := json.Marshal(fileContent)
-						_, _ = w.Write(contentBytes)
-					}),
-				),
-				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoByBranchByPath,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.Header().Set("Content-Type", "application/pdf")
-						_, _ = w.Write(mockRawContent)
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposGitRefByOwnerByRepoByRef: mockResponse(t, http.StatusOK, "{\"ref\": \"refs/heads/main\", \"object\": {\"sha\": \"\"}}"),
+				GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
+				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					fileContent := &github.RepositoryContent{
+						Name: github.Ptr("document.pdf"),
+						Path: github.Ptr("document.pdf"),
+						SHA:  github.Ptr("pdf123"),
+						Type: github.Ptr("file"),
+					}
+					contentBytes, _ := json.Marshal(fileContent)
+					_, _ = w.Write(contentBytes)
+				},
+				GetRawReposContentsByOwnerByRepoByBranchByPath: func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "application/pdf")
+					_, _ = w.Write(mockRawContent)
+				},
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
@@ -208,36 +175,16 @@ func Test_GetFileContents(t *testing.T) {
 		},
 		{
 			name: "successful directory content fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposByOwnerByRepo,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write([]byte(`{"name": "repo", "default_branch": "main"}`))
-					}),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
+				GetReposGitRefByOwnerByRepoByRef: mockResponse(t, http.StatusOK, "{\"ref\": \"refs/heads/main\", \"object\": {\"sha\": \"\"}}"),
+				GetReposContentsByOwnerByRepoByPath: expectQueryParams(t, map[string]string{}).andThen(
+					mockResponse(t, http.StatusOK, mockDirContent),
 				),
-				mock.WithRequestMatchHandler(
-					mock.GetReposGitRefByOwnerByRepoByRef,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write([]byte(`{"ref": "refs/heads/main", "object": {"sha": ""}}`))
-					}),
+				GetRawReposContentsByOwnerByRepoByPath: expectQueryParams(t, map[string]string{"branch": "main"}).andThen(
+					mockResponse(t, http.StatusNotFound, nil),
 				),
-				mock.WithRequestMatchHandler(
-					mock.GetReposContentsByOwnerByRepoByPath,
-					expectQueryParams(t, map[string]string{}).andThen(
-						mockResponse(t, http.StatusOK, mockDirContent),
-					),
-				),
-				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoByPath,
-					expectQueryParams(t, map[string]string{
-						"branch": "main",
-					}).andThen(
-						mockResponse(t, http.StatusNotFound, nil),
-					),
-				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
@@ -247,30 +194,144 @@ func Test_GetFileContents(t *testing.T) {
 			expectedResult: mockDirContent,
 		},
 		{
-			name: "content fetch fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposGitRefByOwnerByRepoByRef,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			name: "successful text content fetch with leading slash in path",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposGitRefByOwnerByRepoByRef: mockResponse(t, http.StatusOK, "{\"ref\": \"refs/heads/main\", \"object\": {\"sha\": \"\"}}"),
+				GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
+				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					fileContent := &github.RepositoryContent{
+						Name: github.Ptr("README.md"),
+						Path: github.Ptr("README.md"),
+						SHA:  github.Ptr("abc123"),
+						Type: github.Ptr("file"),
+					}
+					contentBytes, _ := json.Marshal(fileContent)
+					_, _ = w.Write(contentBytes)
+				},
+				GetRawReposContentsByOwnerByRepoByBranchByPath: func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "text/markdown")
+					_, _ = w.Write(mockRawContent)
+				},
+			}),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+				"path":  "/README.md",
+				"ref":   "refs/heads/main",
+			},
+			expectError: false,
+			expectedResult: mcp.ResourceContents{
+				URI:      "repo://owner/repo/refs/heads/main/contents/README.md",
+				Text:     "# Test Repository\n\nThis is a test repository.",
+				MIMEType: "text/markdown",
+			},
+		},
+		{
+			name: "successful text content fetch with note when ref falls back to default branch",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposByOwnerByRepo: mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"develop\"}"),
+				GetReposGitRefByOwnerByRepoByRef: func(w http.ResponseWriter, r *http.Request) {
+					path := strings.ReplaceAll(r.URL.Path, "%2F", "/")
+					switch {
+					case strings.Contains(path, "heads/main"):
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					case strings.Contains(path, "heads/develop"):
 						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write([]byte(`{"ref": "refs/heads/main", "object": {"sha": ""}}`))
-					}),
-				),
-				mock.WithRequestMatchHandler(
-					mock.GetReposContentsByOwnerByRepoByPath,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						_, _ = w.Write([]byte(`{"ref": "refs/heads/develop", "object": {"sha": "abc123def456", "type": "commit", "url": "https://api.github.com/repos/owner/repo/git/commits/abc123def456"}}`))
+					default:
 						w.WriteHeader(http.StatusNotFound)
 						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
-					}),
-				),
-				mock.WithRequestMatchHandler(
-					raw.GetRawReposContentsByOwnerByRepoByPath,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					}
+				},
+				"GET /repos/{owner}/{repo}/git/refs/{ref}": func(w http.ResponseWriter, r *http.Request) {
+					path := strings.ReplaceAll(r.URL.Path, "%2F", "/")
+					switch {
+					case strings.Contains(path, "heads/main"):
 						w.WriteHeader(http.StatusNotFound)
 						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
-					}),
-				),
-			),
+					case strings.Contains(path, "heads/develop"):
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write([]byte(`{"ref": "refs/heads/develop", "object": {"sha": "abc123def456", "type": "commit", "url": "https://api.github.com/repos/owner/repo/git/commits/abc123def456"}}`))
+					default:
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}
+				},
+				"GET /repos/{owner}/{repo}/git/refs/{ref:.*}": func(w http.ResponseWriter, r *http.Request) {
+					path := strings.ReplaceAll(r.URL.Path, "%2F", "/")
+					switch {
+					case strings.Contains(path, "heads/main"):
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					case strings.Contains(path, "heads/develop"):
+						w.WriteHeader(http.StatusOK)
+						_, _ = w.Write([]byte(`{"ref": "refs/heads/develop", "object": {"sha": "abc123def456", "type": "commit", "url": "https://api.github.com/repos/owner/repo/git/commits/abc123def456"}}`))
+					default:
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+					}
+				},
+				"GET /repos/owner/repo/git/ref/heads/main": func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				},
+				"GET /repos/owner/repo/git/ref/heads/develop": func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					_, _ = w.Write([]byte(`{"ref": "refs/heads/develop", "object": {"sha": "abc123def456", "type": "commit", "url": "https://api.github.com/repos/owner/repo/git/commits/abc123def456"}}`))
+				},
+				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					fileContent := &github.RepositoryContent{
+						Name: github.Ptr("README.md"),
+						Path: github.Ptr("README.md"),
+						SHA:  github.Ptr("abc123"),
+						Type: github.Ptr("file"),
+					}
+					contentBytes, _ := json.Marshal(fileContent)
+					_, _ = w.Write(contentBytes)
+				},
+				"GET /owner/repo/refs/heads/develop/README.md": func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "text/markdown")
+					_, _ = w.Write(mockRawContent)
+				},
+				"GET /owner/repo/refs%2Fheads%2Fdevelop/README.md": func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "text/markdown")
+					_, _ = w.Write(mockRawContent)
+				},
+				"GET /owner/repo/abc123def456/README.md": func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "text/markdown")
+					_, _ = w.Write(mockRawContent)
+				},
+			}),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+				"path":  "README.md",
+				"ref":   "main",
+			},
+			expectError: false,
+			expectedResult: mcp.ResourceContents{
+				URI:      "repo://owner/repo/abc123def456/contents/README.md",
+				Text:     "# Test Repository\n\nThis is a test repository.",
+				MIMEType: "text/markdown",
+			},
+			expectedMsg: " Note: the provided ref 'main' does not exist, default branch 'refs/heads/develop' was used instead.",
+		},
+		{
+			name: "content fetch fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposGitRefByOwnerByRepoByRef: mockResponse(t, http.StatusOK, "{\"ref\": \"refs/heads/main\", \"object\": {\"sha\": \"\"}}"),
+				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				},
+				GetRawReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				},
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
@@ -287,18 +348,23 @@ func Test_GetFileContents(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
 			mockRawClient := raw.NewClient(client, &url.URL{Scheme: "https", Host: "raw.example.com", Path: "/"})
-			_, handler := GetFileContents(stubGetClientFn(client), stubGetRawClientFn(mockRawClient), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client:    client,
+				RawClient: mockRawClient,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				require.NoError(t, err)
+				textContent := getErrorResult(t, result)
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
 				return
 			}
 
@@ -309,6 +375,14 @@ func Test_GetFileContents(t *testing.T) {
 				// Handle both text and blob resources
 				resource := getResourceResult(t, result)
 				assert.Equal(t, expected, *resource)
+
+				// If expectedMsg is set, verify the message text
+				if tc.expectedMsg != "" {
+					require.Len(t, result.Content, 2)
+					textContent, ok := result.Content[0].(*mcp.TextContent)
+					require.True(t, ok, "expected Content[0] to be TextContent")
+					assert.Contains(t, textContent.Text, tc.expectedMsg)
+				}
 			case []*github.RepositoryContent:
 				// Directory content fetch returns a text result (JSON array)
 				textContent := getTextResult(t, result)
@@ -331,8 +405,8 @@ func Test_GetFileContents(t *testing.T) {
 
 func Test_ForkRepository(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := ForkRepository(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ForkRepository(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -369,12 +443,9 @@ func Test_ForkRepository(t *testing.T) {
 	}{
 		{
 			name: "successful repository fork",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PostReposForksByOwnerByRepo,
-					mockResponse(t, http.StatusAccepted, mockForkedRepo),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposForksByOwnerByRepo: mockResponse(t, http.StatusAccepted, mockForkedRepo),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
@@ -384,15 +455,12 @@ func Test_ForkRepository(t *testing.T) {
 		},
 		{
 			name: "repository fork fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PostReposForksByOwnerByRepo,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusForbidden)
-						_, _ = w.Write([]byte(`{"message": "Forbidden"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposForksByOwnerByRepo: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusForbidden)
+					_, _ = w.Write([]byte(`{"message": "Forbidden"}`))
+				},
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
@@ -406,13 +474,16 @@ func Test_ForkRepository(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ForkRepository(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -436,8 +507,8 @@ func Test_ForkRepository(t *testing.T) {
 
 func Test_CreateBranch(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := CreateBranch(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := CreateBranch(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -482,16 +553,11 @@ func Test_CreateBranch(t *testing.T) {
 	}{
 		{
 			name: "successful branch creation with from_branch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposGitRefByOwnerByRepoByRef,
-					mockSourceRef,
-				),
-				mock.WithRequestMatch(
-					mock.PostReposGitRefsByOwnerByRepo,
-					mockCreatedRef,
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposGitRefByOwnerByRepoByRef:           mockResponse(t, http.StatusOK, mockSourceRef),
+				"GET /repos/owner/repo/git/ref/heads/main": mockResponse(t, http.StatusOK, mockSourceRef),
+				PostReposGitRefsByOwnerByRepo:              mockResponse(t, http.StatusCreated, mockCreatedRef),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":       "owner",
 				"repo":        "repo",
@@ -503,25 +569,17 @@ func Test_CreateBranch(t *testing.T) {
 		},
 		{
 			name: "successful branch creation with default branch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposByOwnerByRepo,
-					mockRepo,
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposByOwnerByRepo:                      mockResponse(t, http.StatusOK, mockRepo),
+				GetReposGitRefByOwnerByRepoByRef:           mockResponse(t, http.StatusOK, mockSourceRef),
+				"GET /repos/owner/repo/git/ref/heads/main": mockResponse(t, http.StatusOK, mockSourceRef),
+				PostReposGitRefsByOwnerByRepo: expectRequestBody(t, map[string]interface{}{
+					"ref": "refs/heads/new-feature",
+					"sha": "abc123def456",
+				}).andThen(
+					mockResponse(t, http.StatusCreated, mockCreatedRef),
 				),
-				mock.WithRequestMatch(
-					mock.GetReposGitRefByOwnerByRepoByRef,
-					mockSourceRef,
-				),
-				mock.WithRequestMatchHandler(
-					mock.PostReposGitRefsByOwnerByRepo,
-					expectRequestBody(t, map[string]interface{}{
-						"ref": "refs/heads/new-feature",
-						"sha": "abc123def456",
-					}).andThen(
-						mockResponse(t, http.StatusCreated, mockCreatedRef),
-					),
-				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":  "owner",
 				"repo":   "repo",
@@ -532,15 +590,12 @@ func Test_CreateBranch(t *testing.T) {
 		},
 		{
 			name: "fail to get repository",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposByOwnerByRepo,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Repository not found"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposByOwnerByRepo: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Repository not found"}`))
+				},
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":  "owner",
 				"repo":   "nonexistent-repo",
@@ -551,15 +606,12 @@ func Test_CreateBranch(t *testing.T) {
 		},
 		{
 			name: "fail to get reference",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposGitRefByOwnerByRepoByRef,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Reference not found"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposGitRefByOwnerByRepoByRef: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Reference not found"}`))
+				},
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":       "owner",
 				"repo":        "repo",
@@ -571,19 +623,14 @@ func Test_CreateBranch(t *testing.T) {
 		},
 		{
 			name: "fail to create branch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposGitRefByOwnerByRepoByRef,
-					mockSourceRef,
-				),
-				mock.WithRequestMatchHandler(
-					mock.PostReposGitRefsByOwnerByRepo,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusUnprocessableEntity)
-						_, _ = w.Write([]byte(`{"message": "Reference already exists"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposGitRefByOwnerByRepoByRef:           mockResponse(t, http.StatusOK, mockSourceRef),
+				"GET /repos/owner/repo/git/ref/heads/main": mockResponse(t, http.StatusOK, mockSourceRef),
+				PostReposGitRefsByOwnerByRepo: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusUnprocessableEntity)
+					_, _ = w.Write([]byte(`{"message": "Reference already exists"}`))
+				},
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":       "owner",
 				"repo":        "repo",
@@ -599,13 +646,16 @@ func Test_CreateBranch(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := CreateBranch(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -634,8 +684,8 @@ func Test_CreateBranch(t *testing.T) {
 
 func Test_GetCommit(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := GetCommit(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := GetCommit(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -689,12 +739,9 @@ func Test_GetCommit(t *testing.T) {
 	}{
 		{
 			name: "successful commit fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposCommitsByOwnerByRepoByRef,
-					mockResponse(t, http.StatusOK, mockCommit),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposCommitsByOwnerByRepoByRef: mockResponse(t, http.StatusOK, mockCommit),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
@@ -705,15 +752,12 @@ func Test_GetCommit(t *testing.T) {
 		},
 		{
 			name: "commit fetch fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposCommitsByOwnerByRepoByRef,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposCommitsByOwnerByRepoByRef: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				},
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
@@ -728,13 +772,16 @@ func Test_GetCommit(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetCommit(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -766,8 +813,8 @@ func Test_GetCommit(t *testing.T) {
 
 func Test_ListCommits(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := ListCommits(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ListCommits(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -868,12 +915,9 @@ func Test_ListCommits(t *testing.T) {
 	}{
 		{
 			name: "successful commits fetch with default params",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposCommitsByOwnerByRepo,
-					mockCommits,
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposCommitsByOwnerByRepo: mockResponse(t, http.StatusOK, mockCommits),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
@@ -883,19 +927,16 @@ func Test_ListCommits(t *testing.T) {
 		},
 		{
 			name: "successful commits fetch with branch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposCommitsByOwnerByRepo,
-					expectQueryParams(t, map[string]string{
-						"author":   "username",
-						"sha":      "main",
-						"page":     "1",
-						"per_page": "30",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockCommits),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposCommitsByOwnerByRepo: expectQueryParams(t, map[string]string{
+					"author":   "username",
+					"sha":      "main",
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockCommits),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":  "owner",
 				"repo":   "repo",
@@ -907,17 +948,14 @@ func Test_ListCommits(t *testing.T) {
 		},
 		{
 			name: "successful commits fetch with pagination",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposCommitsByOwnerByRepo,
-					expectQueryParams(t, map[string]string{
-						"page":     "2",
-						"per_page": "10",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockCommits),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposCommitsByOwnerByRepo: expectQueryParams(t, map[string]string{
+					"page":     "2",
+					"per_page": "10",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockCommits),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":   "owner",
 				"repo":    "repo",
@@ -929,15 +967,12 @@ func Test_ListCommits(t *testing.T) {
 		},
 		{
 			name: "commits fetch fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposCommitsByOwnerByRepo,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposCommitsByOwnerByRepo: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				},
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "nonexistent-repo",
@@ -951,13 +986,16 @@ func Test_ListCommits(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListCommits(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -999,8 +1037,8 @@ func Test_ListCommits(t *testing.T) {
 
 func Test_CreateOrUpdateFile(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := CreateOrUpdateFile(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := CreateOrUpdateFile(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -1049,18 +1087,22 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 	}{
 		{
 			name: "successful file creation",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PutReposContentsByOwnerByRepoByPath,
-					expectRequestBody(t, map[string]interface{}{
-						"message": "Add example file",
-						"content": "IyBFeGFtcGxlCgpUaGlzIGlzIGFuIGV4YW1wbGUgZmlsZS4=", // Base64 encoded content
-						"branch":  "main",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockFileResponse),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PutReposContentsByOwnerByRepoByPath: expectRequestBody(t, map[string]interface{}{
+					"message": "Add example file",
+					"content": "IyBFeGFtcGxlCgpUaGlzIGlzIGFuIGV4YW1wbGUgZmlsZS4=", // Base64 encoded content
+					"branch":  "main",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockFileResponse),
 				),
-			),
+				"PUT /repos/{owner}/{repo}/contents/{path:.*}": expectRequestBody(t, map[string]interface{}{
+					"message": "Add example file",
+					"content": "IyBFeGFtcGxlCgpUaGlzIGlzIGFuIGV4YW1wbGUgZmlsZS4=", // Base64 encoded content
+					"branch":  "main",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockFileResponse),
+				),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":   "owner",
 				"repo":    "repo",
@@ -1074,19 +1116,24 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 		},
 		{
 			name: "successful file update with SHA",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PutReposContentsByOwnerByRepoByPath,
-					expectRequestBody(t, map[string]interface{}{
-						"message": "Update example file",
-						"content": "IyBVcGRhdGVkIEV4YW1wbGUKClRoaXMgZmlsZSBoYXMgYmVlbiB1cGRhdGVkLg==", // Base64 encoded content
-						"branch":  "main",
-						"sha":     "abc123def456",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockFileResponse),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PutReposContentsByOwnerByRepoByPath: expectRequestBody(t, map[string]interface{}{
+					"message": "Update example file",
+					"content": "IyBVcGRhdGVkIEV4YW1wbGUKClRoaXMgZmlsZSBoYXMgYmVlbiB1cGRhdGVkLg==", // Base64 encoded content
+					"branch":  "main",
+					"sha":     "abc123def456",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockFileResponse),
 				),
-			),
+				"PUT /repos/{owner}/{repo}/contents/{path:.*}": expectRequestBody(t, map[string]interface{}{
+					"message": "Update example file",
+					"content": "IyBVcGRhdGVkIEV4YW1wbGUKClRoaXMgZmlsZSBoYXMgYmVlbiB1cGRhdGVkLg==", // Base64 encoded content
+					"branch":  "main",
+					"sha":     "abc123def456",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockFileResponse),
+				),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":   "owner",
 				"repo":    "repo",
@@ -1101,15 +1148,16 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 		},
 		{
 			name: "file creation fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PutReposContentsByOwnerByRepoByPath,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusUnprocessableEntity)
-						_, _ = w.Write([]byte(`{"message": "Invalid request"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PutReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusUnprocessableEntity)
+					_, _ = w.Write([]byte(`{"message": "Invalid request"}`))
+				},
+				"PUT /repos/{owner}/{repo}/contents/{path:.*}": func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusUnprocessableEntity)
+					_, _ = w.Write([]byte(`{"message": "Invalid request"}`))
+				},
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":   "owner",
 				"repo":    "repo",
@@ -1121,19 +1169,208 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to create/update file",
 		},
+		{
+			name: "sha validation - current sha matches (304 Not Modified)",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"HEAD /repos/owner/repo/contents/docs/example.md": func(w http.ResponseWriter, req *http.Request) {
+					ifNoneMatch := req.Header.Get("If-None-Match")
+					if ifNoneMatch == `"abc123def456"` {
+						w.WriteHeader(http.StatusNotModified)
+					} else {
+						w.WriteHeader(http.StatusOK)
+						w.Header().Set("ETag", `"abc123def456"`)
+					}
+				},
+				"HEAD /repos/{owner}/{repo}/contents/{path:.*}": func(w http.ResponseWriter, req *http.Request) {
+					ifNoneMatch := req.Header.Get("If-None-Match")
+					if ifNoneMatch == `"abc123def456"` {
+						w.WriteHeader(http.StatusNotModified)
+					} else {
+						w.WriteHeader(http.StatusOK)
+						w.Header().Set("ETag", `"abc123def456"`)
+					}
+				},
+				PutReposContentsByOwnerByRepoByPath: expectRequestBody(t, map[string]interface{}{
+					"message": "Update example file",
+					"content": "IyBVcGRhdGVkIEV4YW1wbGUKClRoaXMgZmlsZSBoYXMgYmVlbiB1cGRhdGVkLg==",
+					"branch":  "main",
+					"sha":     "abc123def456",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockFileResponse),
+				),
+				"PUT /repos/{owner}/{repo}/contents/{path:.*}": expectRequestBody(t, map[string]interface{}{
+					"message": "Update example file",
+					"content": "IyBVcGRhdGVkIEV4YW1wbGUKClRoaXMgZmlsZSBoYXMgYmVlbiB1cGRhdGVkLg==",
+					"branch":  "main",
+					"sha":     "abc123def456",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockFileResponse),
+				),
+			}),
+			requestArgs: map[string]interface{}{
+				"owner":   "owner",
+				"repo":    "repo",
+				"path":    "docs/example.md",
+				"content": "# Updated Example\n\nThis file has been updated.",
+				"message": "Update example file",
+				"branch":  "main",
+				"sha":     "abc123def456",
+			},
+			expectError:     false,
+			expectedContent: mockFileResponse,
+		},
+		{
+			name: "sha validation - stale sha detected (200 OK with different ETag)",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"HEAD /repos/owner/repo/contents/docs/example.md": func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("ETag", `"newsha999888"`)
+					w.WriteHeader(http.StatusOK)
+				},
+				"HEAD /repos/{owner}/{repo}/contents/{path:.*}": func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("ETag", `"newsha999888"`)
+					w.WriteHeader(http.StatusOK)
+				},
+			}),
+			requestArgs: map[string]interface{}{
+				"owner":   "owner",
+				"repo":    "repo",
+				"path":    "docs/example.md",
+				"content": "# Updated Example\n\nThis file has been updated.",
+				"message": "Update example file",
+				"branch":  "main",
+				"sha":     "oldsha123456",
+			},
+			expectError:    true,
+			expectedErrMsg: "SHA mismatch: provided SHA oldsha123456 is stale. Current file SHA is newsha999888",
+		},
+		{
+			name: "sha validation - file doesn't exist (404), proceed with create",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"HEAD /repos/owner/repo/contents/docs/example.md": func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+				},
+				PutReposContentsByOwnerByRepoByPath: expectRequestBody(t, map[string]interface{}{
+					"message": "Create new file",
+					"content": "IyBOZXcgRmlsZQoKVGhpcyBpcyBhIG5ldyBmaWxlLg==",
+					"branch":  "main",
+					"sha":     "ignoredsha", // SHA is sent but GitHub API ignores it for new files
+				}).andThen(
+					mockResponse(t, http.StatusCreated, mockFileResponse),
+				),
+				"HEAD /repos/{owner}/{repo}/contents/{path:.*}": func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+				},
+				"PUT /repos/{owner}/{repo}/contents/{path:.*}": expectRequestBody(t, map[string]interface{}{
+					"message": "Create new file",
+					"content": "IyBOZXcgRmlsZQoKVGhpcyBpcyBhIG5ldyBmaWxlLg==",
+					"branch":  "main",
+					"sha":     "ignoredsha", // SHA is sent but GitHub API ignores it for new files
+				}).andThen(
+					mockResponse(t, http.StatusCreated, mockFileResponse),
+				),
+			}),
+			requestArgs: map[string]interface{}{
+				"owner":   "owner",
+				"repo":    "repo",
+				"path":    "docs/example.md",
+				"content": "# New File\n\nThis is a new file.",
+				"message": "Create new file",
+				"branch":  "main",
+				"sha":     "ignoredsha",
+			},
+			expectError:     false,
+			expectedContent: mockFileResponse,
+		},
+		{
+			name: "no sha provided - file exists, returns warning",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"HEAD /repos/owner/repo/contents/docs/example.md": func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("ETag", `"existing123"`)
+					w.WriteHeader(http.StatusOK)
+				},
+				PutReposContentsByOwnerByRepoByPath: expectRequestBody(t, map[string]interface{}{
+					"message": "Update without SHA",
+					"content": "IyBVcGRhdGVkCgpVcGRhdGVkIHdpdGhvdXQgU0hBLg==",
+					"branch":  "main",
+					"sha":     "existing123", // SHA is automatically added from ETag
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockFileResponse),
+				),
+				"HEAD /repos/{owner}/{repo}/contents/{path:.*}": func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("ETag", `"existing123"`)
+					w.WriteHeader(http.StatusOK)
+				},
+				"PUT /repos/{owner}/{repo}/contents/{path:.*}": expectRequestBody(t, map[string]interface{}{
+					"message": "Update without SHA",
+					"content": "IyBVcGRhdGVkCgpVcGRhdGVkIHdpdGhvdXQgU0hBLg==",
+					"branch":  "main",
+					"sha":     "existing123", // SHA is automatically added from ETag
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockFileResponse),
+				),
+			}),
+			requestArgs: map[string]interface{}{
+				"owner":   "owner",
+				"repo":    "repo",
+				"path":    "docs/example.md",
+				"content": "# Updated\n\nUpdated without SHA.",
+				"message": "Update without SHA",
+				"branch":  "main",
+			},
+			expectError:    false,
+			expectedErrMsg: "Warning: File updated without SHA validation. Previous file SHA was existing123",
+		},
+		{
+			name: "no sha provided - file doesn't exist, no warning",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"HEAD /repos/owner/repo/contents/docs/example.md": func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+				},
+				PutReposContentsByOwnerByRepoByPath: expectRequestBody(t, map[string]interface{}{
+					"message": "Create new file",
+					"content": "IyBOZXcgRmlsZQoKQ3JlYXRlZCB3aXRob3V0IFNIQQ==",
+					"branch":  "main",
+				}).andThen(
+					mockResponse(t, http.StatusCreated, mockFileResponse),
+				),
+				"HEAD /repos/{owner}/{repo}/contents/{path:.*}": func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+				},
+				"PUT /repos/{owner}/{repo}/contents/{path:.*}": expectRequestBody(t, map[string]interface{}{
+					"message": "Create new file",
+					"content": "IyBOZXcgRmlsZQoKQ3JlYXRlZCB3aXRob3V0IFNIQQ==",
+					"branch":  "main",
+				}).andThen(
+					mockResponse(t, http.StatusCreated, mockFileResponse),
+				),
+			}),
+			requestArgs: map[string]interface{}{
+				"owner":   "owner",
+				"repo":    "repo",
+				"path":    "docs/example.md",
+				"content": "# New File\n\nCreated without SHA",
+				"message": "Create new file",
+				"branch":  "main",
+			},
+			expectError:     false,
+			expectedContent: mockFileResponse,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := CreateOrUpdateFile(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -1149,6 +1386,12 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
+
+			// If expectedErrMsg is set (but expectError is false), this is a warning case
+			if tc.expectedErrMsg != "" {
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				return
+			}
 
 			// Unmarshal and verify the result
 			var returnedContent github.RepositoryContentResponse
@@ -1169,8 +1412,8 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 
 func Test_CreateRepository(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := CreateRepository(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := CreateRepository(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -1207,12 +1450,9 @@ func Test_CreateRepository(t *testing.T) {
 	}{
 		{
 			name: "successful repository creation with all parameters",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{
-						Pattern: "/user/repos",
-						Method:  "POST",
-					},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern("POST /user/repos"),
 					expectRequestBody(t, map[string]interface{}{
 						"name":        "test-repo",
 						"description": "Test repository",
@@ -1234,12 +1474,9 @@ func Test_CreateRepository(t *testing.T) {
 		},
 		{
 			name: "successful repository creation in organization",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{
-						Pattern: "/orgs/testorg/repos",
-						Method:  "POST",
-					},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern("POST /orgs/testorg/repos"),
 					expectRequestBody(t, map[string]interface{}{
 						"name":        "test-repo",
 						"description": "Test repository",
@@ -1262,12 +1499,9 @@ func Test_CreateRepository(t *testing.T) {
 		},
 		{
 			name: "successful repository creation with minimal parameters",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{
-						Pattern: "/user/repos",
-						Method:  "POST",
-					},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern("POST /user/repos"),
 					expectRequestBody(t, map[string]interface{}{
 						"name":        "test-repo",
 						"auto_init":   false,
@@ -1286,12 +1520,9 @@ func Test_CreateRepository(t *testing.T) {
 		},
 		{
 			name: "repository creation fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{
-						Pattern: "/user/repos",
-						Method:  "POST",
-					},
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					EndpointPattern("POST /user/repos"),
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusUnprocessableEntity)
 						_, _ = w.Write([]byte(`{"message": "Repository creation failed"}`))
@@ -1310,13 +1541,16 @@ func Test_CreateRepository(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := CreateRepository(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -1346,8 +1580,8 @@ func Test_CreateRepository(t *testing.T) {
 
 func Test_PushFiles(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := PushFiles(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := PushFiles(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -1407,20 +1641,20 @@ func Test_PushFiles(t *testing.T) {
 	}{
 		{
 			name: "successful push of multiple files",
-			mockedClient: mock.NewMockedHTTPClient(
+			mockedClient: NewMockedHTTPClient(
 				// Get branch reference
-				mock.WithRequestMatch(
-					mock.GetReposGitRefByOwnerByRepoByRef,
+				WithRequestMatch(
+					GetReposGitRefByOwnerByRepoByRef,
 					mockRef,
 				),
 				// Get commit
-				mock.WithRequestMatch(
-					mock.GetReposGitCommitsByOwnerByRepoByCommitSha,
+				WithRequestMatch(
+					GetReposGitCommitsByOwnerByRepoByCommitSHA,
 					mockCommit,
 				),
 				// Create tree
-				mock.WithRequestMatchHandler(
-					mock.PostReposGitTreesByOwnerByRepo,
+				WithRequestMatchHandler(
+					PostReposGitTreesByOwnerByRepo,
 					expectRequestBody(t, map[string]interface{}{
 						"base_tree": "def456",
 						"tree": []interface{}{
@@ -1442,8 +1676,8 @@ func Test_PushFiles(t *testing.T) {
 					),
 				),
 				// Create commit
-				mock.WithRequestMatchHandler(
-					mock.PostReposGitCommitsByOwnerByRepo,
+				WithRequestMatchHandler(
+					PostReposGitCommitsByOwnerByRepo,
 					expectRequestBody(t, map[string]interface{}{
 						"message": "Update multiple files",
 						"tree":    "ghi789",
@@ -1453,8 +1687,8 @@ func Test_PushFiles(t *testing.T) {
 					),
 				),
 				// Update reference
-				mock.WithRequestMatchHandler(
-					mock.PatchReposGitRefsByOwnerByRepoByRef,
+				WithRequestMatchHandler(
+					PatchReposGitRefsByOwnerByRepoByRef,
 					expectRequestBody(t, map[string]interface{}{
 						"sha":   "jkl012",
 						"force": false,
@@ -1484,7 +1718,7 @@ func Test_PushFiles(t *testing.T) {
 		},
 		{
 			name:         "fails when files parameter is invalid",
-			mockedClient: mock.NewMockedHTTPClient(
+			mockedClient: NewMockedHTTPClient(
 			// No requests expected
 			),
 			requestArgs: map[string]interface{}{
@@ -1499,15 +1733,15 @@ func Test_PushFiles(t *testing.T) {
 		},
 		{
 			name: "fails when files contains object without path",
-			mockedClient: mock.NewMockedHTTPClient(
+			mockedClient: NewMockedHTTPClient(
 				// Get branch reference
-				mock.WithRequestMatch(
-					mock.GetReposGitRefByOwnerByRepoByRef,
+				WithRequestMatch(
+					GetReposGitRefByOwnerByRepoByRef,
 					mockRef,
 				),
 				// Get commit
-				mock.WithRequestMatch(
-					mock.GetReposGitCommitsByOwnerByRepoByCommitSha,
+				WithRequestMatch(
+					GetReposGitCommitsByOwnerByRepoByCommitSHA,
 					mockCommit,
 				),
 			),
@@ -1527,15 +1761,15 @@ func Test_PushFiles(t *testing.T) {
 		},
 		{
 			name: "fails when files contains object without content",
-			mockedClient: mock.NewMockedHTTPClient(
+			mockedClient: NewMockedHTTPClient(
 				// Get branch reference
-				mock.WithRequestMatch(
-					mock.GetReposGitRefByOwnerByRepoByRef,
+				WithRequestMatch(
+					GetReposGitRefByOwnerByRepoByRef,
 					mockRef,
 				),
 				// Get commit
-				mock.WithRequestMatch(
-					mock.GetReposGitCommitsByOwnerByRepoByCommitSha,
+				WithRequestMatch(
+					GetReposGitCommitsByOwnerByRepoByCommitSHA,
 					mockCommit,
 				),
 			),
@@ -1556,9 +1790,14 @@ func Test_PushFiles(t *testing.T) {
 		},
 		{
 			name: "fails to get branch reference",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposGitRefByOwnerByRepoByRef,
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					GetReposGitRefByOwnerByRepoByRef,
+					mockResponse(t, http.StatusNotFound, nil),
+				),
+				// Mock Repositories.Get to fail when trying to create branch from default
+				WithRequestMatchHandler(
+					GetReposByOwnerByRepo,
 					mockResponse(t, http.StatusNotFound, nil),
 				),
 			),
@@ -1574,20 +1813,20 @@ func Test_PushFiles(t *testing.T) {
 				},
 				"message": "Update file",
 			},
-			expectError:    true,
-			expectedErrMsg: "failed to get branch reference",
+			expectError:    false,
+			expectedErrMsg: "failed to create branch from default",
 		},
 		{
 			name: "fails to get base commit",
-			mockedClient: mock.NewMockedHTTPClient(
+			mockedClient: NewMockedHTTPClient(
 				// Get branch reference
-				mock.WithRequestMatch(
-					mock.GetReposGitRefByOwnerByRepoByRef,
+				WithRequestMatch(
+					GetReposGitRefByOwnerByRepoByRef,
 					mockRef,
 				),
 				// Fail to get commit
-				mock.WithRequestMatchHandler(
-					mock.GetReposGitCommitsByOwnerByRepoByCommitSha,
+				WithRequestMatchHandler(
+					GetReposGitCommitsByOwnerByRepoByCommitSHA,
 					mockResponse(t, http.StatusNotFound, nil),
 				),
 			),
@@ -1608,20 +1847,20 @@ func Test_PushFiles(t *testing.T) {
 		},
 		{
 			name: "fails to create tree",
-			mockedClient: mock.NewMockedHTTPClient(
+			mockedClient: NewMockedHTTPClient(
 				// Get branch reference
-				mock.WithRequestMatch(
-					mock.GetReposGitRefByOwnerByRepoByRef,
+				WithRequestMatch(
+					GetReposGitRefByOwnerByRepoByRef,
 					mockRef,
 				),
 				// Get commit
-				mock.WithRequestMatch(
-					mock.GetReposGitCommitsByOwnerByRepoByCommitSha,
+				WithRequestMatch(
+					GetReposGitCommitsByOwnerByRepoByCommitSHA,
 					mockCommit,
 				),
 				// Fail to create tree
-				mock.WithRequestMatchHandler(
-					mock.PostReposGitTreesByOwnerByRepo,
+				WithRequestMatchHandler(
+					PostReposGitTreesByOwnerByRepo,
 					mockResponse(t, http.StatusInternalServerError, nil),
 				),
 			),
@@ -1640,19 +1879,416 @@ func Test_PushFiles(t *testing.T) {
 			expectError:    true,
 			expectedErrMsg: "failed to create tree",
 		},
+		{
+			name: "successful push to empty repository",
+			mockedClient: NewMockedHTTPClient(
+				// Get branch reference - first returns 409 for empty repo, second returns success after init
+				WithRequestMatchHandler(
+					GetReposGitRefByOwnerByRepoByRef,
+					func() http.HandlerFunc {
+						callCount := 0
+						return func(w http.ResponseWriter, _ *http.Request) {
+							w.Header().Set("Content-Type", "application/json")
+							callCount++
+							if callCount == 1 {
+								// First call: empty repo
+								w.WriteHeader(http.StatusConflict)
+								response := map[string]interface{}{
+									"message": "Git Repository is empty.",
+								}
+								_ = json.NewEncoder(w).Encode(response)
+							} else {
+								// Second call: return the created reference
+								w.WriteHeader(http.StatusOK)
+								_ = json.NewEncoder(w).Encode(mockRef)
+							}
+						}
+					}(),
+				),
+				// Mock Repositories.Get to return default branch for initialization
+				WithRequestMatch(
+					GetReposByOwnerByRepo,
+					&github.Repository{
+						DefaultBranch: github.Ptr("main"),
+					},
+				),
+				// Create initial file using Contents API
+				WithRequestMatchHandler(
+					PutReposContentsByOwnerByRepoByPath,
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						var body map[string]interface{}
+						err := json.NewDecoder(r.Body).Decode(&body)
+						require.NoError(t, err)
+						require.Equal(t, "Initial commit", body["message"])
+						require.Equal(t, "main", body["branch"])
+						w.WriteHeader(http.StatusCreated)
+						response := &github.RepositoryContentResponse{
+							Commit: github.Commit{SHA: github.Ptr("abc123")},
+						}
+						b, _ := json.Marshal(response)
+						_, _ = w.Write(b)
+					}),
+				),
+				// Get the commit after initialization
+				WithRequestMatch(
+					GetReposGitCommitsByOwnerByRepoByCommitSHA,
+					mockCommit,
+				),
+				// Create tree
+				WithRequestMatch(
+					PostReposGitTreesByOwnerByRepo,
+					mockTree,
+				),
+				// Create commit
+				WithRequestMatch(
+					PostReposGitCommitsByOwnerByRepo,
+					mockNewCommit,
+				),
+				// Update reference
+				WithRequestMatch(
+					PatchReposGitRefsByOwnerByRepoByRef,
+					mockUpdatedRef,
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "main",
+				"files": []interface{}{
+					map[string]interface{}{
+						"path":    "README.md",
+						"content": "# Initial README\n\nFirst commit to empty repository.",
+					},
+				},
+				"message": "Initial commit",
+			},
+			expectError: false,
+			expectedRef: mockUpdatedRef,
+		},
+		{
+			name: "successful push multiple files to empty repository",
+			mockedClient: NewMockedHTTPClient(
+				// Get branch reference - called twice: first for empty check, second after file creation
+				WithRequestMatchHandler(
+					GetReposGitRefByOwnerByRepoByRef,
+					func() http.HandlerFunc {
+						callCount := 0
+						return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+							callCount++
+							if callCount == 1 {
+								// First call: returns 409 Conflict for empty repo
+								w.Header().Set("Content-Type", "application/json")
+								w.WriteHeader(http.StatusConflict)
+								response := map[string]interface{}{
+									"message": "Git Repository is empty.",
+								}
+								_ = json.NewEncoder(w).Encode(response)
+							} else {
+								// Second call: returns the updated reference after first file creation
+								w.WriteHeader(http.StatusOK)
+								b, _ := json.Marshal(&github.Reference{
+									Ref:    github.Ptr("refs/heads/main"),
+									Object: &github.GitObject{SHA: github.Ptr("init456")},
+								})
+								_, _ = w.Write(b)
+							}
+						})
+					}(),
+				),
+				// Mock Repositories.Get to return default branch for initialization
+				WithRequestMatch(
+					GetReposByOwnerByRepo,
+					&github.Repository{
+						DefaultBranch: github.Ptr("main"),
+					},
+				),
+				// Create initial empty README.md file using Contents API to initialize repo
+				WithRequestMatchHandler(
+					PutReposContentsByOwnerByRepoByPath,
+					http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						var body map[string]interface{}
+						err := json.NewDecoder(r.Body).Decode(&body)
+						require.NoError(t, err)
+						require.Equal(t, "Initial commit", body["message"])
+						require.Equal(t, "main", body["branch"])
+						// Verify it's an empty file
+						expectedContent := base64.StdEncoding.EncodeToString([]byte(""))
+						require.Equal(t, expectedContent, body["content"])
+						w.WriteHeader(http.StatusCreated)
+						response := &github.RepositoryContentResponse{
+							Content: &github.RepositoryContent{
+								SHA: github.Ptr("readme123"),
+							},
+							Commit: github.Commit{
+								SHA: github.Ptr("init456"),
+								Tree: &github.Tree{
+									SHA: github.Ptr("tree456"),
+								},
+							},
+						}
+						b, _ := json.Marshal(response)
+						_, _ = w.Write(b)
+					}),
+				),
+				// Get the commit to retrieve parent SHA
+				WithRequestMatchHandler(
+					GetReposGitCommitsByOwnerByRepoByCommitSHA,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusOK)
+						response := &github.Commit{
+							SHA: github.Ptr("init456"),
+							Tree: &github.Tree{
+								SHA: github.Ptr("tree456"),
+							},
+						}
+						b, _ := json.Marshal(response)
+						_, _ = w.Write(b)
+					}),
+				),
+				// Create tree with all user files
+				WithRequestMatchHandler(
+					PostReposGitTreesByOwnerByRepo,
+					expectRequestBody(t, map[string]interface{}{
+						"base_tree": "tree456",
+						"tree": []interface{}{
+							map[string]interface{}{
+								"path":    "README.md",
+								"mode":    "100644",
+								"type":    "blob",
+								"content": "# Project\n\nProject README",
+							},
+							map[string]interface{}{
+								"path":    ".gitignore",
+								"mode":    "100644",
+								"type":    "blob",
+								"content": "node_modules/\n*.log\n",
+							},
+							map[string]interface{}{
+								"path":    "src/main.js",
+								"mode":    "100644",
+								"type":    "blob",
+								"content": "console.log('Hello World');\n",
+							},
+						},
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockTree),
+					),
+				),
+				// Create commit with all user files
+				WithRequestMatchHandler(
+					PostReposGitCommitsByOwnerByRepo,
+					expectRequestBody(t, map[string]interface{}{
+						"message": "Initial project setup",
+						"tree":    "ghi789",
+						"parents": []interface{}{"init456"},
+					}).andThen(
+						mockResponse(t, http.StatusCreated, mockNewCommit),
+					),
+				),
+				// Update reference
+				WithRequestMatchHandler(
+					PatchReposGitRefsByOwnerByRepoByRef,
+					expectRequestBody(t, map[string]interface{}{
+						"sha":   "jkl012",
+						"force": false,
+					}).andThen(
+						mockResponse(t, http.StatusOK, mockUpdatedRef),
+					),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "main",
+				"files": []interface{}{
+					map[string]interface{}{
+						"path":    "README.md",
+						"content": "# Project\n\nProject README",
+					},
+					map[string]interface{}{
+						"path":    ".gitignore",
+						"content": "node_modules/\n*.log\n",
+					},
+					map[string]interface{}{
+						"path":    "src/main.js",
+						"content": "console.log('Hello World');\n",
+					},
+				},
+				"message": "Initial project setup",
+			},
+			expectError: false,
+			expectedRef: mockUpdatedRef,
+		},
+		{
+			name: "fails to create initial file in empty repository",
+			mockedClient: NewMockedHTTPClient(
+				// Get branch reference returns 409 Conflict for empty repo
+				WithRequestMatchHandler(
+					GetReposGitRefByOwnerByRepoByRef,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.Header().Set("Content-Type", "application/json")
+						w.WriteHeader(http.StatusConflict)
+						response := map[string]interface{}{
+							"message": "Git Repository is empty.",
+						}
+						_ = json.NewEncoder(w).Encode(response)
+					}),
+				),
+				// Mock Repositories.Get to return default branch
+				WithRequestMatch(
+					GetReposByOwnerByRepo,
+					&github.Repository{
+						DefaultBranch: github.Ptr("main"),
+					},
+				),
+				// Fail to create initial file using Contents API
+				WithRequestMatchHandler(
+					PutReposContentsByOwnerByRepoByPath,
+					mockResponse(t, http.StatusInternalServerError, nil),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "main",
+				"files": []interface{}{
+					map[string]interface{}{
+						"path":    "README.md",
+						"content": "# README",
+					},
+				},
+				"message": "Initial commit",
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to initialize repository",
+		},
+		{
+			name: "fails to get reference after creating initial file in empty repository",
+			mockedClient: NewMockedHTTPClient(
+				// Get branch reference - called twice
+				WithRequestMatchHandler(
+					GetReposGitRefByOwnerByRepoByRef,
+					func() http.HandlerFunc {
+						callCount := 0
+						return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+							callCount++
+							if callCount == 1 {
+								// First call: returns 409 Conflict for empty repo
+								w.Header().Set("Content-Type", "application/json")
+								w.WriteHeader(http.StatusConflict)
+								response := map[string]interface{}{
+									"message": "Git Repository is empty.",
+								}
+								_ = json.NewEncoder(w).Encode(response)
+							} else {
+								// Second call: fails
+								w.WriteHeader(http.StatusInternalServerError)
+							}
+						})
+					}(),
+				),
+				// Mock Repositories.Get to return default branch
+				WithRequestMatch(
+					GetReposByOwnerByRepo,
+					&github.Repository{
+						DefaultBranch: github.Ptr("main"),
+					},
+				),
+				// Create initial file using Contents API
+				WithRequestMatch(
+					PutReposContentsByOwnerByRepoByPath,
+					&github.RepositoryContentResponse{
+						Content: &github.RepositoryContent{SHA: github.Ptr("readme123")},
+						Commit:  github.Commit{SHA: github.Ptr("init456")},
+					},
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "main",
+				"files": []interface{}{
+					map[string]interface{}{
+						"path":    "README.md",
+						"content": "# README",
+					},
+				},
+				"message": "Initial commit",
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to initialize repository",
+		},
+		{
+			name: "fails to get commit in empty repository with multiple files",
+			mockedClient: NewMockedHTTPClient(
+				// Get branch reference returns 409 Conflict for empty repo
+				WithRequestMatchHandler(
+					GetReposGitRefByOwnerByRepoByRef,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.Header().Set("Content-Type", "application/json")
+						w.WriteHeader(http.StatusConflict)
+						response := map[string]interface{}{
+							"message": "Git Repository is empty.",
+						}
+						_ = json.NewEncoder(w).Encode(response)
+					}),
+				),
+				// Mock Repositories.Get to return default branch
+				WithRequestMatch(
+					GetReposByOwnerByRepo,
+					&github.Repository{
+						DefaultBranch: github.Ptr("main"),
+					},
+				),
+				// Create initial file using Contents API
+				WithRequestMatch(
+					PutReposContentsByOwnerByRepoByPath,
+					&github.RepositoryContentResponse{
+						Content: &github.RepositoryContent{SHA: github.Ptr("readme123")},
+						Commit:  github.Commit{SHA: github.Ptr("init456")},
+					},
+				),
+				// Fail to get commit
+				WithRequestMatchHandler(
+					GetReposGitCommitsByOwnerByRepoByCommitSHA,
+					mockResponse(t, http.StatusInternalServerError, nil),
+				),
+			),
+			requestArgs: map[string]interface{}{
+				"owner":  "owner",
+				"repo":   "repo",
+				"branch": "main",
+				"files": []interface{}{
+					map[string]interface{}{
+						"path":    "README.md",
+						"content": "# README",
+					},
+					map[string]interface{}{
+						"path":    "LICENSE",
+						"content": "MIT",
+					},
+				},
+				"message": "Initial commit",
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to initialize repository",
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := PushFiles(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -1690,8 +2326,8 @@ func Test_PushFiles(t *testing.T) {
 
 func Test_ListBranches(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := ListBranches(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ListBranches(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -1721,7 +2357,7 @@ func Test_ListBranches(t *testing.T) {
 	tests := []struct {
 		name          string
 		args          map[string]interface{}
-		mockResponses []mock.MockBackendOption
+		mockResponses []MockBackendOption
 		wantErr       bool
 		errContains   string
 	}{
@@ -1732,9 +2368,9 @@ func Test_ListBranches(t *testing.T) {
 				"repo":  "repo",
 				"page":  float64(2),
 			},
-			mockResponses: []mock.MockBackendOption{
-				mock.WithRequestMatch(
-					mock.GetReposBranchesByOwnerByRepo,
+			mockResponses: []MockBackendOption{
+				WithRequestMatch(
+					GetReposBranchesByOwnerByRepo,
 					mockBranches,
 				),
 			},
@@ -1745,7 +2381,7 @@ func Test_ListBranches(t *testing.T) {
 			args: map[string]interface{}{
 				"repo": "repo",
 			},
-			mockResponses: []mock.MockBackendOption{},
+			mockResponses: []MockBackendOption{},
 			wantErr:       false,
 			errContains:   "missing required parameter: owner",
 		},
@@ -1754,7 +2390,7 @@ func Test_ListBranches(t *testing.T) {
 			args: map[string]interface{}{
 				"owner": "owner",
 			},
-			mockResponses: []mock.MockBackendOption{},
+			mockResponses: []MockBackendOption{},
 			wantErr:       false,
 			errContains:   "missing required parameter: repo",
 		},
@@ -1763,18 +2399,22 @@ func Test_ListBranches(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create mock client
-			mockClient := github.NewClient(mock.NewMockedHTTPClient(tt.mockResponses...))
-			_, handler := ListBranches(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+			mockClient := github.NewClient(NewMockedHTTPClient(tt.mockResponses...))
+			deps := BaseDeps{
+				Client: mockClient,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create request
 			request := createMCPRequest(tt.args)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tt.args)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 			if tt.wantErr {
-				require.Error(t, err)
+				require.NoError(t, err)
 				if tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
+					textContent := getErrorResult(t, result)
+					assert.Contains(t, textContent.Text, tt.errContains)
 				}
 				return
 			}
@@ -1804,8 +2444,8 @@ func Test_ListBranches(t *testing.T) {
 
 func Test_DeleteFile(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := DeleteFile(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := DeleteFile(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -1856,20 +2496,20 @@ func Test_DeleteFile(t *testing.T) {
 	}{
 		{
 			name: "successful file deletion using Git Data API",
-			mockedClient: mock.NewMockedHTTPClient(
+			mockedClient: NewMockedHTTPClient(
 				// Get branch reference
-				mock.WithRequestMatch(
-					mock.GetReposGitRefByOwnerByRepoByRef,
+				WithRequestMatch(
+					GetReposGitRefByOwnerByRepoByRef,
 					mockRef,
 				),
 				// Get commit
-				mock.WithRequestMatch(
-					mock.GetReposGitCommitsByOwnerByRepoByCommitSha,
+				WithRequestMatch(
+					GetReposGitCommitsByOwnerByRepoByCommitSHA,
 					mockCommit,
 				),
 				// Create tree
-				mock.WithRequestMatchHandler(
-					mock.PostReposGitTreesByOwnerByRepo,
+				WithRequestMatchHandler(
+					PostReposGitTreesByOwnerByRepo,
 					expectRequestBody(t, map[string]interface{}{
 						"base_tree": "def456",
 						"tree": []interface{}{
@@ -1885,8 +2525,8 @@ func Test_DeleteFile(t *testing.T) {
 					),
 				),
 				// Create commit
-				mock.WithRequestMatchHandler(
-					mock.PostReposGitCommitsByOwnerByRepo,
+				WithRequestMatchHandler(
+					PostReposGitCommitsByOwnerByRepo,
 					expectRequestBody(t, map[string]interface{}{
 						"message": "Delete example file",
 						"tree":    "ghi789",
@@ -1896,8 +2536,8 @@ func Test_DeleteFile(t *testing.T) {
 					),
 				),
 				// Update reference
-				mock.WithRequestMatchHandler(
-					mock.PatchReposGitRefsByOwnerByRepoByRef,
+				WithRequestMatchHandler(
+					PatchReposGitRefsByOwnerByRepoByRef,
 					expectRequestBody(t, map[string]interface{}{
 						"sha":   "jkl012",
 						"force": false,
@@ -1923,9 +2563,9 @@ func Test_DeleteFile(t *testing.T) {
 		},
 		{
 			name: "file deletion fails - branch not found",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposGitRefByOwnerByRepoByRef,
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					GetReposGitRefByOwnerByRepoByRef,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusNotFound)
 						_, _ = w.Write([]byte(`{"message": "Reference not found"}`))
@@ -1948,13 +2588,16 @@ func Test_DeleteFile(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := DeleteFile(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -1985,8 +2628,8 @@ func Test_DeleteFile(t *testing.T) {
 
 func Test_ListTags(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := ListTags(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ListTags(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -2030,9 +2673,9 @@ func Test_ListTags(t *testing.T) {
 	}{
 		{
 			name: "successful tags list",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposTagsByOwnerByRepo,
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					GetReposTagsByOwnerByRepo,
 					expectPath(
 						t,
 						"/repos/owner/repo/tags",
@@ -2050,9 +2693,9 @@ func Test_ListTags(t *testing.T) {
 		},
 		{
 			name: "list tags fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposTagsByOwnerByRepo,
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					GetReposTagsByOwnerByRepo,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusInternalServerError)
 						_, _ = w.Write([]byte(`{"message": "Internal Server Error"}`))
@@ -2072,13 +2715,16 @@ func Test_ListTags(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListTags(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -2112,8 +2758,8 @@ func Test_ListTags(t *testing.T) {
 
 func Test_GetTag(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := GetTag(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := GetTag(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -2153,9 +2799,9 @@ func Test_GetTag(t *testing.T) {
 	}{
 		{
 			name: "successful tag retrieval",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposGitRefByOwnerByRepoByRef,
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					GetReposGitRefByOwnerByRepoByRef,
 					expectPath(
 						t,
 						"/repos/owner/repo/git/ref/tags/v1.0.0",
@@ -2163,8 +2809,8 @@ func Test_GetTag(t *testing.T) {
 						mockResponse(t, http.StatusOK, mockTagRef),
 					),
 				),
-				mock.WithRequestMatchHandler(
-					mock.GetReposGitTagsByOwnerByRepoByTagSha,
+				WithRequestMatchHandler(
+					GetReposGitTagsByOwnerByRepoByTagSHA,
 					expectPath(
 						t,
 						"/repos/owner/repo/git/tags/v1.0.0-tag-sha",
@@ -2183,9 +2829,9 @@ func Test_GetTag(t *testing.T) {
 		},
 		{
 			name: "tag reference not found",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposGitRefByOwnerByRepoByRef,
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					GetReposGitRefByOwnerByRepoByRef,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusNotFound)
 						_, _ = w.Write([]byte(`{"message": "Reference does not exist"}`))
@@ -2202,13 +2848,13 @@ func Test_GetTag(t *testing.T) {
 		},
 		{
 			name: "tag object not found",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposGitRefByOwnerByRepoByRef,
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatch(
+					GetReposGitRefByOwnerByRepoByRef,
 					mockTagRef,
 				),
-				mock.WithRequestMatchHandler(
-					mock.GetReposGitTagsByOwnerByRepoByTagSha,
+				WithRequestMatchHandler(
+					GetReposGitTagsByOwnerByRepoByTagSHA,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusNotFound)
 						_, _ = w.Write([]byte(`{"message": "Tag object does not exist"}`))
@@ -2229,13 +2875,16 @@ func Test_GetTag(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetTag(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -2267,8 +2916,8 @@ func Test_GetTag(t *testing.T) {
 }
 
 func Test_ListReleases(t *testing.T) {
-	mockClient := github.NewClient(nil)
-	tool, _ := ListReleases(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ListReleases(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -2303,9 +2952,9 @@ func Test_ListReleases(t *testing.T) {
 	}{
 		{
 			name: "successful releases list",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposReleasesByOwnerByRepo,
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatch(
+					GetReposReleasesByOwnerByRepo,
 					mockReleases,
 				),
 			),
@@ -2318,9 +2967,9 @@ func Test_ListReleases(t *testing.T) {
 		},
 		{
 			name: "releases list fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposReleasesByOwnerByRepo,
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					GetReposReleasesByOwnerByRepo,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusNotFound)
 						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
@@ -2339,9 +2988,12 @@ func Test_ListReleases(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListReleases(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -2362,8 +3014,8 @@ func Test_ListReleases(t *testing.T) {
 	}
 }
 func Test_GetLatestRelease(t *testing.T) {
-	mockClient := github.NewClient(nil)
-	tool, _ := GetLatestRelease(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := GetLatestRelease(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -2391,9 +3043,9 @@ func Test_GetLatestRelease(t *testing.T) {
 	}{
 		{
 			name: "successful latest release fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposReleasesLatestByOwnerByRepo,
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatch(
+					GetReposReleasesLatestByOwnerByRepo,
 					mockRelease,
 				),
 			),
@@ -2406,9 +3058,9 @@ func Test_GetLatestRelease(t *testing.T) {
 		},
 		{
 			name: "latest release fetch fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposReleasesLatestByOwnerByRepo,
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					GetReposReleasesLatestByOwnerByRepo,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusNotFound)
 						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
@@ -2427,9 +3079,12 @@ func Test_GetLatestRelease(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetLatestRelease(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -2448,8 +3103,8 @@ func Test_GetLatestRelease(t *testing.T) {
 }
 
 func Test_GetReleaseByTag(t *testing.T) {
-	mockClient := github.NewClient(nil)
-	tool, _ := GetReleaseByTag(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := GetReleaseByTag(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -2485,9 +3140,9 @@ func Test_GetReleaseByTag(t *testing.T) {
 	}{
 		{
 			name: "successful release by tag fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposReleasesTagsByOwnerByRepoByTag,
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatch(
+					GetReposReleasesTagsByOwnerByRepoByTag,
 					mockRelease,
 				),
 			),
@@ -2501,7 +3156,7 @@ func Test_GetReleaseByTag(t *testing.T) {
 		},
 		{
 			name:         "missing owner parameter",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"repo": "repo",
 				"tag":  "v1.0.0",
@@ -2511,7 +3166,7 @@ func Test_GetReleaseByTag(t *testing.T) {
 		},
 		{
 			name:         "missing repo parameter",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"tag":   "v1.0.0",
@@ -2521,7 +3176,7 @@ func Test_GetReleaseByTag(t *testing.T) {
 		},
 		{
 			name:         "missing tag parameter",
-			mockedClient: mock.NewMockedHTTPClient(),
+			mockedClient: NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
@@ -2531,9 +3186,9 @@ func Test_GetReleaseByTag(t *testing.T) {
 		},
 		{
 			name: "release by tag not found",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposReleasesTagsByOwnerByRepoByTag,
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					GetReposReleasesTagsByOwnerByRepoByTag,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusNotFound)
 						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
@@ -2550,9 +3205,9 @@ func Test_GetReleaseByTag(t *testing.T) {
 		},
 		{
 			name: "server error",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposReleasesTagsByOwnerByRepoByTag,
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					GetReposReleasesTagsByOwnerByRepoByTag,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusInternalServerError)
 						_, _ = w.Write([]byte(`{"message": "Internal Server Error"}`))
@@ -2572,11 +3227,14 @@ func Test_GetReleaseByTag(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetReleaseByTag(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
 
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -2611,6 +3269,72 @@ func Test_GetReleaseByTag(t *testing.T) {
 				require.Len(t, returnedRelease.Assets, len(tc.expectedResult.Assets))
 				assert.Equal(t, *tc.expectedResult.Assets[0].Name, *returnedRelease.Assets[0].Name)
 			}
+		})
+	}
+}
+
+func Test_looksLikeSHA(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{
+			name:     "full 40-character SHA",
+			input:    "abc123def456abc123def456abc123def456abc1",
+			expected: true,
+		},
+		{
+			name:     "too short",
+			input:    "abc123def456abc123def45",
+			expected: false,
+		},
+		{
+			name:     "too long - 41 characters",
+			input:    "abc123def456abc123def456abc123def456abc12",
+			expected: false,
+		},
+		{
+			name:     "contains invalid character - space",
+			input:    "abc123def456abc123def456 bc123def456abc1",
+			expected: false,
+		},
+		{
+			name:     "contains invalid character - dash",
+			input:    "abc123def456abc123d-f456abc123def456abc1",
+			expected: false,
+		},
+		{
+			name:     "contains invalid character - g",
+			input:    "abc123def456gbc123def456abc123def456abc1",
+			expected: false,
+		},
+		{
+			name:     "branch name with slash",
+			input:    "feature/branch",
+			expected: false,
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: false,
+		},
+		{
+			name:     "all zeros SHA",
+			input:    "0000000000000000000000000000000000000000",
+			expected: true,
+		},
+		{
+			name:     "all f's SHA",
+			input:    "ffffffffffffffffffffffffffffffffffffffff",
+			expected: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := looksLikeSHA(tc.input)
+			assert.Equal(t, tc.expected, result)
 		})
 	}
 }
@@ -2730,7 +3454,7 @@ func Test_resolveGitReference(t *testing.T) {
 			sha:  "123sha456",
 			mockSetup: func() *http.Client {
 				// No API calls should be made when SHA is provided
-				return mock.NewMockedHTTPClient()
+				return NewMockedHTTPClient()
 			},
 			expectedOutput: &raw.ContentOpts{
 				SHA: "123sha456",
@@ -2742,16 +3466,16 @@ func Test_resolveGitReference(t *testing.T) {
 			ref:  "",
 			sha:  "",
 			mockSetup: func() *http.Client {
-				return mock.NewMockedHTTPClient(
-					mock.WithRequestMatchHandler(
-						mock.GetReposByOwnerByRepo,
+				return NewMockedHTTPClient(
+					WithRequestMatchHandler(
+						GetReposByOwnerByRepo,
 						http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 							w.WriteHeader(http.StatusOK)
 							_, _ = w.Write([]byte(`{"name": "repo", "default_branch": "main"}`))
 						}),
 					),
-					mock.WithRequestMatchHandler(
-						mock.GetReposGitRefByOwnerByRepoByRef,
+					WithRequestMatchHandler(
+						GetReposGitRefByOwnerByRepoByRef,
 						http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 							assert.Contains(t, r.URL.Path, "/git/ref/heads/main")
 							w.WriteHeader(http.StatusOK)
@@ -2771,9 +3495,9 @@ func Test_resolveGitReference(t *testing.T) {
 			ref:  "refs/heads/feature-branch",
 			sha:  "",
 			mockSetup: func() *http.Client {
-				return mock.NewMockedHTTPClient(
-					mock.WithRequestMatchHandler(
-						mock.GetReposGitRefByOwnerByRepoByRef,
+				return NewMockedHTTPClient(
+					WithRequestMatchHandler(
+						GetReposGitRefByOwnerByRepoByRef,
 						http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 							assert.Contains(t, r.URL.Path, "/git/ref/heads/feature-branch")
 							w.WriteHeader(http.StatusOK)
@@ -2793,9 +3517,9 @@ func Test_resolveGitReference(t *testing.T) {
 			ref:  "main",
 			sha:  "",
 			mockSetup: func() *http.Client {
-				return mock.NewMockedHTTPClient(
-					mock.WithRequestMatchHandler(
-						mock.GetReposGitRefByOwnerByRepoByRef,
+				return NewMockedHTTPClient(
+					WithRequestMatchHandler(
+						GetReposGitRefByOwnerByRepoByRef,
 						http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 							if strings.Contains(r.URL.Path, "/git/ref/heads/main") {
 								w.WriteHeader(http.StatusOK)
@@ -2819,9 +3543,9 @@ func Test_resolveGitReference(t *testing.T) {
 			ref:  "v1.0.0",
 			sha:  "",
 			mockSetup: func() *http.Client {
-				return mock.NewMockedHTTPClient(
-					mock.WithRequestMatchHandler(
-						mock.GetReposGitRefByOwnerByRepoByRef,
+				return NewMockedHTTPClient(
+					WithRequestMatchHandler(
+						GetReposGitRefByOwnerByRepoByRef,
 						http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 							switch {
 							case strings.Contains(r.URL.Path, "/git/ref/heads/v1.0.0"):
@@ -2849,9 +3573,9 @@ func Test_resolveGitReference(t *testing.T) {
 			ref:  "heads/feature-branch",
 			sha:  "",
 			mockSetup: func() *http.Client {
-				return mock.NewMockedHTTPClient(
-					mock.WithRequestMatchHandler(
-						mock.GetReposGitRefByOwnerByRepoByRef,
+				return NewMockedHTTPClient(
+					WithRequestMatchHandler(
+						GetReposGitRefByOwnerByRepoByRef,
 						http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 							assert.Contains(t, r.URL.Path, "/git/ref/heads/feature-branch")
 							w.WriteHeader(http.StatusOK)
@@ -2871,9 +3595,9 @@ func Test_resolveGitReference(t *testing.T) {
 			ref:  "tags/v1.0.0",
 			sha:  "",
 			mockSetup: func() *http.Client {
-				return mock.NewMockedHTTPClient(
-					mock.WithRequestMatchHandler(
-						mock.GetReposGitRefByOwnerByRepoByRef,
+				return NewMockedHTTPClient(
+					WithRequestMatchHandler(
+						GetReposGitRefByOwnerByRepoByRef,
 						http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 							assert.Contains(t, r.URL.Path, "/git/ref/tags/v1.0.0")
 							w.WriteHeader(http.StatusOK)
@@ -2893,9 +3617,9 @@ func Test_resolveGitReference(t *testing.T) {
 			ref:  "nonexistent",
 			sha:  "",
 			mockSetup: func() *http.Client {
-				return mock.NewMockedHTTPClient(
-					mock.WithRequestMatchHandler(
-						mock.GetReposGitRefByOwnerByRepoByRef,
+				return NewMockedHTTPClient(
+					WithRequestMatchHandler(
+						GetReposGitRefByOwnerByRepoByRef,
 						http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 							// Both branch and tag attempts should return 404
 							w.WriteHeader(http.StatusNotFound)
@@ -2912,9 +3636,9 @@ func Test_resolveGitReference(t *testing.T) {
 			ref:  "refs/pull/123/head",
 			sha:  "",
 			mockSetup: func() *http.Client {
-				return mock.NewMockedHTTPClient(
-					mock.WithRequestMatchHandler(
-						mock.GetReposGitRefByOwnerByRepoByRef,
+				return NewMockedHTTPClient(
+					WithRequestMatchHandler(
+						GetReposGitRefByOwnerByRepoByRef,
 						http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 							assert.Contains(t, r.URL.Path, "/git/ref/pull/123/head")
 							w.WriteHeader(http.StatusOK)
@@ -2929,13 +3653,26 @@ func Test_resolveGitReference(t *testing.T) {
 			},
 			expectError: false,
 		},
+		{
+			name: "ref looks like full SHA with empty sha parameter",
+			ref:  "abc123def456abc123def456abc123def456abc1",
+			sha:  "",
+			mockSetup: func() *http.Client {
+				// No API calls should be made when ref looks like SHA
+				return NewMockedHTTPClient()
+			},
+			expectedOutput: &raw.ContentOpts{
+				SHA: "abc123def456abc123def456abc123def456abc1",
+			},
+			expectError: false,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockSetup())
-			opts, err := resolveGitReference(ctx, client, owner, repo, tc.ref, tc.sha)
+			opts, _, err := resolveGitReference(ctx, client, owner, repo, tc.ref, tc.sha)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -2960,8 +3697,8 @@ func Test_resolveGitReference(t *testing.T) {
 
 func Test_ListStarredRepositories(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := ListStarredRepositories(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := ListStarredRepositories(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -3030,12 +3767,12 @@ func Test_ListStarredRepositories(t *testing.T) {
 	}{
 		{
 			name: "successful list for authenticated user",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetUserStarred,
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					GetUserStarred,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write(mock.MustMarshal(mockStarredRepos))
+						_, _ = w.Write(MustMarshal(mockStarredRepos))
 					}),
 				),
 			),
@@ -3045,12 +3782,12 @@ func Test_ListStarredRepositories(t *testing.T) {
 		},
 		{
 			name: "successful list for specific user",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetUsersStarredByUsername,
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					GetUsersStarredByUsername,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write(mock.MustMarshal(mockStarredRepos))
+						_, _ = w.Write(MustMarshal(mockStarredRepos))
 					}),
 				),
 			),
@@ -3062,9 +3799,9 @@ func Test_ListStarredRepositories(t *testing.T) {
 		},
 		{
 			name: "list fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetUserStarred,
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					GetUserStarred,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusNotFound)
 						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
@@ -3081,13 +3818,16 @@ func Test_ListStarredRepositories(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListStarredRepositories(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -3119,8 +3859,8 @@ func Test_ListStarredRepositories(t *testing.T) {
 
 func Test_StarRepository(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := StarRepository(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := StarRepository(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -3141,9 +3881,9 @@ func Test_StarRepository(t *testing.T) {
 	}{
 		{
 			name: "successful star",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PutUserStarredByOwnerByRepo,
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					PutUserStarredByOwnerByRepo,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusNoContent)
 					}),
@@ -3157,9 +3897,9 @@ func Test_StarRepository(t *testing.T) {
 		},
 		{
 			name: "star fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PutUserStarredByOwnerByRepo,
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					PutUserStarredByOwnerByRepo,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusNotFound)
 						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
@@ -3179,13 +3919,16 @@ func Test_StarRepository(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := StarRepository(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -3207,8 +3950,8 @@ func Test_StarRepository(t *testing.T) {
 
 func Test_UnstarRepository(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := UnstarRepository(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := UnstarRepository(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	schema, ok := tool.InputSchema.(*jsonschema.Schema)
@@ -3229,9 +3972,9 @@ func Test_UnstarRepository(t *testing.T) {
 	}{
 		{
 			name: "successful unstar",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.DeleteUserStarredByOwnerByRepo,
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					DeleteUserStarredByOwnerByRepo,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusNoContent)
 					}),
@@ -3245,9 +3988,9 @@ func Test_UnstarRepository(t *testing.T) {
 		},
 		{
 			name: "unstar fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.DeleteUserStarredByOwnerByRepo,
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatchHandler(
+					DeleteUserStarredByOwnerByRepo,
 					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 						w.WriteHeader(http.StatusNotFound)
 						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
@@ -3267,13 +4010,16 @@ func Test_UnstarRepository(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := UnstarRepository(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -3288,184 +4034,6 @@ func Test_UnstarRepository(t *testing.T) {
 				// Parse the result and get the text content
 				textContent := getTextResult(t, result)
 				assert.Contains(t, textContent.Text, "Successfully unstarred repository")
-			}
-		})
-	}
-}
-
-func Test_RepositoriesGetRepositoryTree(t *testing.T) {
-	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := GetRepositoryTree(stubGetClientFn(mockClient), translations.NullTranslationHelper)
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
-	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
-
-	assert.Equal(t, "get_repository_tree", tool.Name)
-	assert.NotEmpty(t, tool.Description)
-	assert.Contains(t, schema.Properties, "owner")
-	assert.Contains(t, schema.Properties, "repo")
-	assert.Contains(t, schema.Properties, "tree_sha")
-	assert.Contains(t, schema.Properties, "recursive")
-	assert.Contains(t, schema.Properties, "path_filter")
-	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
-
-	// Setup mock data
-	mockRepo := &github.Repository{
-		DefaultBranch: github.Ptr("main"),
-	}
-	mockTree := &github.Tree{
-		SHA:       github.Ptr("abc123"),
-		Truncated: github.Ptr(false),
-		Entries: []*github.TreeEntry{
-			{
-				Path: github.Ptr("README.md"),
-				Mode: github.Ptr("100644"),
-				Type: github.Ptr("blob"),
-				SHA:  github.Ptr("file1sha"),
-				Size: github.Ptr(123),
-				URL:  github.Ptr("https://api.github.com/repos/owner/repo/git/blobs/file1sha"),
-			},
-			{
-				Path: github.Ptr("src/main.go"),
-				Mode: github.Ptr("100644"),
-				Type: github.Ptr("blob"),
-				SHA:  github.Ptr("file2sha"),
-				Size: github.Ptr(456),
-				URL:  github.Ptr("https://api.github.com/repos/owner/repo/git/blobs/file2sha"),
-			},
-		},
-	}
-
-	tests := []struct {
-		name           string
-		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
-		expectError    bool
-		expectedErrMsg string
-	}{
-		{
-			name: "successfully get repository tree",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposByOwnerByRepo,
-					mockResponse(t, http.StatusOK, mockRepo),
-				),
-				mock.WithRequestMatchHandler(
-					mock.GetReposGitTreesByOwnerByRepoByTreeSha,
-					mockResponse(t, http.StatusOK, mockTree),
-				),
-			),
-			requestArgs: map[string]interface{}{
-				"owner": "owner",
-				"repo":  "repo",
-			},
-		},
-		{
-			name: "successfully get repository tree with path filter",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposByOwnerByRepo,
-					mockResponse(t, http.StatusOK, mockRepo),
-				),
-				mock.WithRequestMatchHandler(
-					mock.GetReposGitTreesByOwnerByRepoByTreeSha,
-					mockResponse(t, http.StatusOK, mockTree),
-				),
-			),
-			requestArgs: map[string]interface{}{
-				"owner":       "owner",
-				"repo":        "repo",
-				"path_filter": "src/",
-			},
-		},
-		{
-			name: "repository not found",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposByOwnerByRepo,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
-					}),
-				),
-			),
-			requestArgs: map[string]interface{}{
-				"owner": "owner",
-				"repo":  "nonexistent",
-			},
-			expectError:    true,
-			expectedErrMsg: "failed to get repository info",
-		},
-		{
-			name: "tree not found",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposByOwnerByRepo,
-					mockResponse(t, http.StatusOK, mockRepo),
-				),
-				mock.WithRequestMatchHandler(
-					mock.GetReposGitTreesByOwnerByRepoByTreeSha,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
-					}),
-				),
-			),
-			requestArgs: map[string]interface{}{
-				"owner": "owner",
-				"repo":  "repo",
-			},
-			expectError:    true,
-			expectedErrMsg: "failed to get repository tree",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			_, handler := GetRepositoryTree(stubGetClientFromHTTPFn(tc.mockedClient), translations.NullTranslationHelper)
-
-			// Create the tool request
-			request := createMCPRequest(tc.requestArgs)
-
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
-
-			if tc.expectError {
-				require.NoError(t, err)
-				require.True(t, result.IsError)
-				errorContent := getErrorResult(t, result)
-				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
-			} else {
-				require.NoError(t, err)
-				require.False(t, result.IsError)
-
-				// Parse the result and get the text content
-				textContent := getTextResult(t, result)
-
-				// Parse the JSON response
-				var treeResponse map[string]interface{}
-				err := json.Unmarshal([]byte(textContent.Text), &treeResponse)
-				require.NoError(t, err)
-
-				// Verify response structure
-				assert.Equal(t, "owner", treeResponse["owner"])
-				assert.Equal(t, "repo", treeResponse["repo"])
-				assert.Contains(t, treeResponse, "tree")
-				assert.Contains(t, treeResponse, "count")
-				assert.Contains(t, treeResponse, "sha")
-				assert.Contains(t, treeResponse, "truncated")
-
-				// Check filtering if path_filter was provided
-				if pathFilter, exists := tc.requestArgs["path_filter"]; exists {
-					tree := treeResponse["tree"].([]interface{})
-					for _, entry := range tree {
-						entryMap := entry.(map[string]interface{})
-						path := entryMap["path"].(string)
-						assert.True(t, strings.HasPrefix(path, pathFilter.(string)),
-							"Path %s should start with filter %s", path, pathFilter)
-					}
-				}
 			}
 		})
 	}

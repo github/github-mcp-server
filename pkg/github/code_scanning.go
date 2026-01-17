@@ -3,11 +3,12 @@ package github
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -15,8 +16,10 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func GetCodeScanningAlert(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func GetCodeScanningAlert(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataCodeSecurity,
+		mcp.Tool{
 			Name:        "get_code_scanning_alert",
 			Description: t("TOOL_GET_CODE_SCANNING_ALERT_DESCRIPTION", "Get details of a specific code scanning alert in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
@@ -42,7 +45,8 @@ func GetCodeScanningAlert(getClient GetClientFn, t translations.TranslationHelpe
 				Required: []string{"owner", "repo", "alertNumber"},
 			},
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		[]scopes.Scope{scopes.SecurityEvents},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -56,7 +60,7 @@ func GetCodeScanningAlert(getClient GetClientFn, t translations.TranslationHelpe
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			client, err := getClient(ctx)
+			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
@@ -76,7 +80,7 @@ func GetCodeScanningAlert(getClient GetClientFn, t translations.TranslationHelpe
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 				}
-				return utils.NewToolResultError(fmt.Sprintf("failed to get alert: %s", string(body))), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get alert", resp, body), nil, nil
 			}
 
 			r, err := json.Marshal(alert)
@@ -85,11 +89,14 @@ func GetCodeScanningAlert(getClient GetClientFn, t translations.TranslationHelpe
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
-		}
+		},
+	)
 }
 
-func ListCodeScanningAlerts(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func ListCodeScanningAlerts(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataCodeSecurity,
+		mcp.Tool{
 			Name:        "list_code_scanning_alerts",
 			Description: t("TOOL_LIST_CODE_SCANNING_ALERTS_DESCRIPTION", "List code scanning alerts in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
@@ -130,7 +137,8 @@ func ListCodeScanningAlerts(getClient GetClientFn, t translations.TranslationHel
 				Required: []string{"owner", "repo"},
 			},
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		[]scopes.Scope{scopes.SecurityEvents},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -156,7 +164,7 @@ func ListCodeScanningAlerts(getClient GetClientFn, t translations.TranslationHel
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			client, err := getClient(ctx)
+			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
@@ -175,7 +183,7 @@ func ListCodeScanningAlerts(getClient GetClientFn, t translations.TranslationHel
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 				}
-				return utils.NewToolResultError(fmt.Sprintf("failed to list alerts: %s", string(body))), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list alerts", resp, body), nil, nil
 			}
 
 			r, err := json.Marshal(alerts)
@@ -184,5 +192,6 @@ func ListCodeScanningAlerts(getClient GetClientFn, t translations.TranslationHel
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
-		}
+		},
+	)
 }

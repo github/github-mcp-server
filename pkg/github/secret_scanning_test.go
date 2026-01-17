@@ -10,22 +10,20 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_GetSecretScanningAlert(t *testing.T) {
-	mockClient := github.NewClient(nil)
-	tool, _ := GetSecretScanningAlert(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	toolDef := GetSecretScanningAlert(translations.NullTranslationHelper)
 
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
 
-	assert.Equal(t, "get_secret_scanning_alert", tool.Name)
-	assert.NotEmpty(t, tool.Description)
+	assert.Equal(t, "get_secret_scanning_alert", toolDef.Tool.Name)
+	assert.NotEmpty(t, toolDef.Tool.Description)
 
 	// Verify InputSchema structure
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	schema, ok := toolDef.Tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
@@ -49,12 +47,9 @@ func Test_GetSecretScanningAlert(t *testing.T) {
 	}{
 		{
 			name: "successful alert fetch",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposSecretScanningAlertsByOwnerByRepoByAlertNumber,
-					mockAlert,
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposSecretScanningAlertsByOwnerByRepoByAlertNumber: mockResponse(t, http.StatusOK, mockAlert),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":       "owner",
 				"repo":        "repo",
@@ -65,15 +60,12 @@ func Test_GetSecretScanningAlert(t *testing.T) {
 		},
 		{
 			name: "alert fetch fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposSecretScanningAlertsByOwnerByRepoByAlertNumber,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposSecretScanningAlertsByOwnerByRepoByAlertNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":       "owner",
 				"repo":        "repo",
@@ -88,13 +80,16 @@ func Test_GetSecretScanningAlert(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := GetSecretScanningAlert(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := toolDef.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -125,16 +120,15 @@ func Test_GetSecretScanningAlert(t *testing.T) {
 
 func Test_ListSecretScanningAlerts(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := ListSecretScanningAlerts(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	toolDef := ListSecretScanningAlerts(translations.NullTranslationHelper)
 
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+	require.NoError(t, toolsnaps.Test(toolDef.Tool.Name, toolDef.Tool))
 
-	assert.Equal(t, "list_secret_scanning_alerts", tool.Name)
-	assert.NotEmpty(t, tool.Description)
+	assert.Equal(t, "list_secret_scanning_alerts", toolDef.Tool.Name)
+	assert.NotEmpty(t, toolDef.Tool.Description)
 
 	// Verify InputSchema structure
-	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	schema, ok := toolDef.Tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
@@ -169,16 +163,13 @@ func Test_ListSecretScanningAlerts(t *testing.T) {
 	}{
 		{
 			name: "successful resolved alerts listing",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposSecretScanningAlertsByOwnerByRepo,
-					expectQueryParams(t, map[string]string{
-						"state": "resolved",
-					}).andThen(
-						mockResponse(t, http.StatusOK, []*github.SecretScanningAlert{&resolvedAlert}),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposSecretScanningAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{
+					"state": "resolved",
+				}).andThen(
+					mockResponse(t, http.StatusOK, []*github.SecretScanningAlert{&resolvedAlert}),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
@@ -189,14 +180,11 @@ func Test_ListSecretScanningAlerts(t *testing.T) {
 		},
 		{
 			name: "successful alerts listing",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposSecretScanningAlertsByOwnerByRepo,
-					expectQueryParams(t, map[string]string{}).andThen(
-						mockResponse(t, http.StatusOK, []*github.SecretScanningAlert{&resolvedAlert, &openAlert}),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposSecretScanningAlertsByOwnerByRepo: expectQueryParams(t, map[string]string{}).andThen(
+					mockResponse(t, http.StatusOK, []*github.SecretScanningAlert{&resolvedAlert, &openAlert}),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
@@ -206,15 +194,12 @@ func Test_ListSecretScanningAlerts(t *testing.T) {
 		},
 		{
 			name: "alerts listing fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposSecretScanningAlertsByOwnerByRepo,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusUnauthorized)
-						_, _ = w.Write([]byte(`{"message": "Unauthorized access"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposSecretScanningAlertsByOwnerByRepo: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusUnauthorized)
+					_, _ = w.Write([]byte(`{"message": "Unauthorized access"}`))
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "owner",
 				"repo":  "repo",
@@ -227,11 +212,14 @@ func Test_ListSecretScanningAlerts(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			client := github.NewClient(tc.mockedClient)
-			_, handler := ListSecretScanningAlerts(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := toolDef.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
 
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			if tc.expectError {
 				require.NoError(t, err)

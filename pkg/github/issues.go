@@ -10,8 +10,11 @@ import (
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
+	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/sanitize"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-viper/mapstructure/v2"
@@ -229,7 +232,7 @@ func fragmentToIssue(fragment IssueFragment) *github.Issue {
 }
 
 // IssueRead creates a tool to get details of a specific issue in a GitHub repository.
-func IssueRead(getClient GetClientFn, getGQLClient GetGQLClientFn, cache *lockdown.RepoAccessCache, t translations.TranslationHelperFunc, flags FeatureFlags) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -261,7 +264,9 @@ Options are:
 	}
 	WithPagination(schema)
 
-	return mcp.Tool{
+	return NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
 			Name:        "issue_read",
 			Description: t("TOOL_ISSUE_READ_DESCRIPTION", "Get information about a specific issue in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
@@ -270,7 +275,8 @@ Options are:
 			},
 			InputSchema: schema,
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -294,25 +300,25 @@ Options are:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			client, err := getClient(ctx)
+			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			gqlClient, err := getGQLClient(ctx)
+			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub graphql client", err), nil, nil
 			}
 
 			switch method {
 			case "get":
-				result, err := GetIssue(ctx, client, cache, owner, repo, issueNumber, flags)
+				result, err := GetIssue(ctx, client, deps.GetRepoAccessCache(), owner, repo, issueNumber, deps.GetFlags())
 				return result, nil, err
 			case "get_comments":
-				result, err := GetIssueComments(ctx, client, cache, owner, repo, issueNumber, pagination, flags)
+				result, err := GetIssueComments(ctx, client, deps.GetRepoAccessCache(), owner, repo, issueNumber, pagination, deps.GetFlags())
 				return result, nil, err
 			case "get_sub_issues":
-				result, err := GetSubIssues(ctx, client, cache, owner, repo, issueNumber, pagination, flags)
+				result, err := GetSubIssues(ctx, client, deps.GetRepoAccessCache(), owner, repo, issueNumber, pagination, deps.GetFlags())
 				return result, nil, err
 			case "get_labels":
 				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
@@ -320,7 +326,7 @@ Options are:
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
-		}
+		})
 }
 
 func GetIssue(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner string, repo string, issueNumber int, flags FeatureFlags) (*mcp.CallToolResult, error) {
@@ -335,7 +341,7 @@ func GetIssue(ctx context.Context, client *github.Client, cache *lockdown.RepoAc
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to get issue: %s", string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get issue", resp, body), nil
 	}
 
 	if flags.LockdownMode {
@@ -391,7 +397,7 @@ func GetIssueComments(ctx context.Context, client *github.Client, cache *lockdow
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to get issue comments: %s", string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get issue comments", resp, body), nil
 	}
 	if flags.LockdownMode {
 		if cache == nil {
@@ -450,7 +456,7 @@ func GetSubIssues(ctx context.Context, client *github.Client, cache *lockdown.Re
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to list sub-issues: %s", string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list sub-issues", resp, body), nil
 	}
 
 	if featureFlags.LockdownMode {
@@ -540,8 +546,10 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 }
 
 // ListIssueTypes creates a tool to list defined issue types for an organization. This can be used to understand supported issue type values for creating or updating issues.
-func ListIssueTypes(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
 			Name:        "list_issue_types",
 			Description: t("TOOL_LIST_ISSUE_TYPES_FOR_ORG", "List supported issue types for repository owner (organization)."),
 			Annotations: &mcp.ToolAnnotations{
@@ -559,13 +567,14 @@ func ListIssueTypes(getClient GetClientFn, t translations.TranslationHelperFunc)
 				Required: []string{"owner"},
 			},
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		[]scopes.Scope{scopes.ReadOrg},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			client, err := getClient(ctx)
+			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
@@ -580,7 +589,7 @@ func ListIssueTypes(getClient GetClientFn, t translations.TranslationHelperFunc)
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 				}
-				return utils.NewToolResultError(fmt.Sprintf("failed to list issue types: %s", string(body))), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list issue types", resp, body), nil, nil
 			}
 
 			r, err := json.Marshal(issueTypes)
@@ -589,12 +598,14 @@ func ListIssueTypes(getClient GetClientFn, t translations.TranslationHelperFunc)
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
-		}
+		})
 }
 
 // AddIssueComment creates a tool to add a comment to an issue.
-func AddIssueComment(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
 			Name:        "add_issue_comment",
 			Description: t("TOOL_ADD_ISSUE_COMMENT_DESCRIPTION", "Add a comment to a specific issue in a GitHub repository. Use this tool to add comments to pull requests as well (in this case pass pull request number as issue_number), but only if user is not asking specifically to add review comments."),
 			Annotations: &mcp.ToolAnnotations{
@@ -624,7 +635,8 @@ func AddIssueComment(getClient GetClientFn, t translations.TranslationHelperFunc
 				Required: []string{"owner", "repo", "issue_number", "body"},
 			},
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -646,7 +658,7 @@ func AddIssueComment(getClient GetClientFn, t translations.TranslationHelperFunc
 				Body: github.Ptr(body),
 			}
 
-			client, err := getClient(ctx)
+			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
@@ -661,7 +673,7 @@ func AddIssueComment(getClient GetClientFn, t translations.TranslationHelperFunc
 				if err != nil {
 					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 				}
-				return utils.NewToolResultError(fmt.Sprintf("failed to create comment: %s", string(body))), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create comment", resp, body), nil, nil
 			}
 
 			r, err := json.Marshal(createdComment)
@@ -670,12 +682,14 @@ func AddIssueComment(getClient GetClientFn, t translations.TranslationHelperFunc
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil
-		}
+		})
 }
 
 // SubIssueWrite creates a tool to add a sub-issue to a parent issue.
-func SubIssueWrite(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func SubIssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
 			Name:        "sub_issue_write",
 			Description: t("TOOL_SUB_ISSUE_WRITE_DESCRIPTION", "Add a sub-issue to a parent issue in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
@@ -726,7 +740,8 @@ Options are:
 				Required: []string{"method", "owner", "repo", "issue_number", "sub_issue_id"},
 			},
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -761,7 +776,7 @@ Options are:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			client, err := getClient(ctx)
+			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
@@ -781,7 +796,7 @@ Options are:
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
-		}
+		})
 }
 
 func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int, replaceParent bool) (*mcp.CallToolResult, error) {
@@ -806,7 +821,7 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to add sub-issue: %s", string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add sub-issue", resp, body), nil
 	}
 
 	r, err := json.Marshal(subIssue)
@@ -838,7 +853,7 @@ func RemoveSubIssue(ctx context.Context, client *github.Client, owner string, re
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to remove sub-issue: %s", string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to remove sub-issue", resp, body), nil
 	}
 
 	r, err := json.Marshal(subIssue)
@@ -887,7 +902,7 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to reprioritize sub-issue: %s", string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to reprioritize sub-issue", resp, body), nil
 	}
 
 	r, err := json.Marshal(subIssue)
@@ -899,7 +914,7 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 }
 
 // SearchIssues creates a tool to search for issues.
-func SearchIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -942,7 +957,9 @@ func SearchIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (
 	}
 	WithPagination(schema)
 
-	return mcp.Tool{
+	return NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
 			Name:        "search_issues",
 			Description: t("TOOL_SEARCH_ISSUES_DESCRIPTION", "Search for issues in GitHub repositories using issues search syntax already scoped to is:issue"),
 			Annotations: &mcp.ToolAnnotations{
@@ -951,15 +968,18 @@ func SearchIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (
 			},
 			InputSchema: schema,
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			result, err := searchHandler(ctx, getClient, args, "issue", "failed to search issues")
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			result, err := searchHandler(ctx, deps.GetClient, args, "issue", "failed to search issues")
 			return result, nil, err
-		}
+		})
 }
 
 // IssueWrite creates a tool to create a new or update an existing issue in a GitHub repository.
-func IssueWrite(getClient GetClientFn, getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func IssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
 			Name:        "issue_write",
 			Description: t("TOOL_ISSUE_WRITE_DESCRIPTION", "Create a new or update an existing issue in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
@@ -1038,7 +1058,8 @@ Options are:
 				Required: []string{"method", "owner", "repo"},
 			},
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -1111,12 +1132,12 @@ Options are:
 				return utils.NewToolResultError("duplicate_of can only be used when state_reason is 'duplicate'"), nil, nil
 			}
 
-			client, err := getClient(ctx)
+			client, err := deps.GetClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			gqlClient, err := getGQLClient(ctx)
+			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to get GraphQL client", err), nil, nil
 			}
@@ -1135,7 +1156,7 @@ Options are:
 			default:
 				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
 			}
-		}
+		})
 }
 
 func CreateIssue(ctx context.Context, client *github.Client, owner string, repo string, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string) (*mcp.CallToolResult, error) {
@@ -1161,7 +1182,11 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 
 	issue, resp, err := client.Issues.Create(ctx, owner, repo, issueRequest)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr("failed to create issue", err), nil
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to create issue",
+			resp,
+			err,
+		), nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -1170,7 +1195,7 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 		if err != nil {
 			return utils.NewToolResultErrorFromErr("failed to read response body", err), nil
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to create issue: %s", string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create issue", resp, body), nil
 	}
 
 	// Return minimal response with just essential information
@@ -1231,7 +1256,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
-		return utils.NewToolResultError(fmt.Sprintf("failed to update issue: %s", string(body))), nil
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update issue", resp, body), nil
 	}
 
 	// Use GraphQL API for state updates
@@ -1313,7 +1338,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 }
 
 // ListIssues creates a tool to list and filter repository issues
-func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
 		Properties: map[string]*jsonschema.Schema{
@@ -1356,7 +1381,9 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 	}
 	WithCursorPagination(schema)
 
-	return mcp.Tool{
+	return NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
 			Name:        "list_issues",
 			Description: t("TOOL_LIST_ISSUES_DESCRIPTION", "List issues in a GitHub repository. For pagination, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter."),
 			Annotations: &mcp.ToolAnnotations{
@@ -1365,7 +1392,8 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 			},
 			InputSchema: schema,
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -1381,11 +1409,14 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// If the state has a value, cast into an array of strings
+			// Normalize and filter by state
+			state = strings.ToUpper(state)
 			var states []githubv4.IssueState
-			if state != "" {
-				states = append(states, githubv4.IssueState(state))
-			} else {
+
+			switch state {
+			case "OPEN", "CLOSED":
+				states = []githubv4.IssueState{githubv4.IssueState(state)}
+			default:
 				states = []githubv4.IssueState{githubv4.IssueStateOpen, githubv4.IssueStateClosed}
 			}
 
@@ -1405,13 +1436,21 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// These variables are required for the GraphQL query to be set by default
-			// If orderBy is empty, default to CREATED_AT
-			if orderBy == "" {
+			// Normalize and validate orderBy
+			orderBy = strings.ToUpper(orderBy)
+			switch orderBy {
+			case "CREATED_AT", "UPDATED_AT", "COMMENTS":
+				// Valid, keep as is
+			default:
 				orderBy = "CREATED_AT"
 			}
-			// If direction is empty, default to DESC
-			if direction == "" {
+
+			// Normalize and validate direction
+			direction = strings.ToUpper(direction)
+			switch direction {
+			case "ASC", "DESC":
+				// Valid, keep as is
+			default:
 				direction = "DESC"
 			}
 
@@ -1458,7 +1497,7 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 				paginationParams.First = &defaultFirst
 			}
 
-			client, err := getGQLClient(ctx)
+			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
@@ -1495,7 +1534,11 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 
 			issueQuery := getIssueQueryType(hasLabels, hasSince)
 			if err := client.Query(ctx, issueQuery, vars); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return ghErrors.NewGitHubGraphQLErrorResponse(
+					ctx,
+					"failed to list issues",
+					err,
+				), nil, nil
 			}
 
 			// Extract and convert all issue nodes using the common interface
@@ -1533,7 +1576,7 @@ func ListIssues(getGQLClient GetGQLClientFn, t translations.TranslationHelperFun
 				return nil, nil, fmt.Errorf("failed to marshal issues: %w", err)
 			}
 			return utils.NewToolResultText(string(out)), nil, nil
-		}
+		})
 }
 
 // mvpDescription is an MVP idea for generating tool descriptions from structured data in a shared format.
@@ -1566,7 +1609,105 @@ func (d *mvpDescription) String() string {
 	return sb.String()
 }
 
-func AssignCopilotToIssue(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
+// linkedPullRequest represents a PR linked to an issue by Copilot.
+type linkedPullRequest struct {
+	Number    int
+	URL       string
+	Title     string
+	State     string
+	CreatedAt time.Time
+}
+
+// pollConfigKey is a context key for polling configuration.
+type pollConfigKey struct{}
+
+// PollConfig configures the PR polling behavior.
+type PollConfig struct {
+	MaxAttempts int
+	Delay       time.Duration
+}
+
+// ContextWithPollConfig returns a context with polling configuration.
+// Use this in tests to reduce or disable polling.
+func ContextWithPollConfig(ctx context.Context, config PollConfig) context.Context {
+	return context.WithValue(ctx, pollConfigKey{}, config)
+}
+
+// getPollConfig returns the polling configuration from context, or defaults.
+func getPollConfig(ctx context.Context) PollConfig {
+	if config, ok := ctx.Value(pollConfigKey{}).(PollConfig); ok {
+		return config
+	}
+	// Default: 9 attempts with 1s delay = 8s max wait
+	// Based on observed latency in remote server: p50 ~5s, p90 ~7s
+	return PollConfig{MaxAttempts: 9, Delay: 1 * time.Second}
+}
+
+// findLinkedCopilotPR searches for a PR created by the copilot-swe-agent bot that references the given issue.
+// It queries the issue's timeline for CrossReferencedEvent items from PRs authored by copilot-swe-agent.
+// The createdAfter parameter filters to only return PRs created after the specified time.
+func findLinkedCopilotPR(ctx context.Context, client *githubv4.Client, owner, repo string, issueNumber int, createdAfter time.Time) (*linkedPullRequest, error) {
+	// Query timeline items looking for CrossReferencedEvent from PRs by copilot-swe-agent
+	var query struct {
+		Repository struct {
+			Issue struct {
+				TimelineItems struct {
+					Nodes []struct {
+						TypeName             string `graphql:"__typename"`
+						CrossReferencedEvent struct {
+							Source struct {
+								PullRequest struct {
+									Number    int
+									URL       string
+									Title     string
+									State     string
+									CreatedAt githubv4.DateTime
+									Author    struct {
+										Login string
+									}
+								} `graphql:"... on PullRequest"`
+							}
+						} `graphql:"... on CrossReferencedEvent"`
+					}
+				} `graphql:"timelineItems(first: 20, itemTypes: [CROSS_REFERENCED_EVENT])"`
+			} `graphql:"issue(number: $number)"`
+		} `graphql:"repository(owner: $owner, name: $name)"`
+	}
+
+	variables := map[string]any{
+		"owner":  githubv4.String(owner),
+		"name":   githubv4.String(repo),
+		"number": githubv4.Int(issueNumber), //nolint:gosec // Issue numbers are always small positive integers
+	}
+
+	if err := client.Query(ctx, &query, variables); err != nil {
+		return nil, err
+	}
+
+	// Look for a PR from copilot-swe-agent created after the assignment time
+	for _, node := range query.Repository.Issue.TimelineItems.Nodes {
+		if node.TypeName != "CrossReferencedEvent" {
+			continue
+		}
+		pr := node.CrossReferencedEvent.Source.PullRequest
+		if pr.Number > 0 && pr.Author.Login == "copilot-swe-agent" {
+			// Only return PRs created after the assignment time
+			if pr.CreatedAt.Time.After(createdAfter) {
+				return &linkedPullRequest{
+					Number:    pr.Number,
+					URL:       pr.URL,
+					Title:     pr.Title,
+					State:     pr.State,
+					CreatedAt: pr.CreatedAt.Time,
+				}, nil
+			}
+		}
+	}
+
+	return nil, nil
+}
+
+func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.ServerTool {
 	description := mvpDescription{
 		summary: "Assign Copilot to a specific issue in a GitHub repository.",
 		outcomes: []string{
@@ -1577,9 +1718,12 @@ func AssignCopilotToIssue(getGQLClient GetGQLClientFn, t translations.Translatio
 		},
 	}
 
-	return mcp.Tool{
+	return NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
 			Name:        "assign_copilot_to_issue",
 			Description: t("TOOL_ASSIGN_COPILOT_TO_ISSUE_DESCRIPTION", description.String()),
+			Icons:       octicons.Icons("copilot"),
 			Annotations: &mcp.ToolAnnotations{
 				Title:          t("TOOL_ASSIGN_COPILOT_TO_ISSUE_USER_TITLE", "Assign Copilot to issue"),
 				ReadOnlyHint:   false,
@@ -1596,25 +1740,36 @@ func AssignCopilotToIssue(getGQLClient GetGQLClientFn, t translations.Translatio
 						Type:        "string",
 						Description: "Repository name",
 					},
-					"issueNumber": {
+					"issue_number": {
 						Type:        "number",
 						Description: "Issue number",
 					},
+					"base_ref": {
+						Type:        "string",
+						Description: "Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch",
+					},
+					"custom_instructions": {
+						Type:        "string",
+						Description: "Optional custom instructions to guide the agent beyond the issue body. Use this to provide additional context, constraints, or guidance that is not captured in the issue description",
+					},
 				},
-				Required: []string{"owner", "repo", "issueNumber"},
+				Required: []string{"owner", "repo", "issue_number"},
 			},
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, request *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			var params struct {
-				Owner       string
-				Repo        string
-				IssueNumber int32
+				Owner              string `mapstructure:"owner"`
+				Repo               string `mapstructure:"repo"`
+				IssueNumber        int32  `mapstructure:"issue_number"`
+				BaseRef            string `mapstructure:"base_ref"`
+				CustomInstructions string `mapstructure:"custom_instructions"`
 			}
 			if err := mapstructure.Decode(args, &params); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			client, err := getGQLClient(ctx)
+			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
@@ -1653,7 +1808,7 @@ func AssignCopilotToIssue(getGQLClient GetGQLClientFn, t translations.Translatio
 				var query suggestedActorsQuery
 				err := client.Query(ctx, &query, variables)
 				if err != nil {
-					return nil, nil, err
+					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get suggested actors", err), nil, nil
 				}
 
 				// Iterate all the returned nodes looking for the copilot bot, which is supposed to have the
@@ -1677,10 +1832,10 @@ func AssignCopilotToIssue(getGQLClient GetGQLClientFn, t translations.Translatio
 				return utils.NewToolResultError("copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot for more information."), nil, nil
 			}
 
-			// Next let's get the GQL Node ID and current assignees for this issue because the only way to
-			// assign copilot is to use replaceActorsForAssignable which requires the full list.
+			// Next, get the issue ID and repository ID
 			var getIssueQuery struct {
 				Repository struct {
+					ID    githubv4.ID
 					Issue struct {
 						ID        githubv4.ID
 						Assignees struct {
@@ -1699,42 +1854,161 @@ func AssignCopilotToIssue(getGQLClient GetGQLClientFn, t translations.Translatio
 			}
 
 			if err := client.Query(ctx, &getIssueQuery, variables); err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to get issue ID: %v", err)), nil, nil
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "failed to get issue ID", err), nil, nil
 			}
 
-			// Finally, do the assignment. Just for reference, assigning copilot to an issue that it is already
-			// assigned to seems to have no impact (which is a good thing).
-			var assignCopilotMutation struct {
-				ReplaceActorsForAssignable struct {
-					Typename string `graphql:"__typename"` // Not required but we need a selector or GQL errors
-				} `graphql:"replaceActorsForAssignable(input: $input)"`
-			}
-
+			// Build the assignee IDs list including copilot
 			actorIDs := make([]githubv4.ID, len(getIssueQuery.Repository.Issue.Assignees.Nodes)+1)
 			for i, node := range getIssueQuery.Repository.Issue.Assignees.Nodes {
 				actorIDs[i] = node.ID
 			}
 			actorIDs[len(getIssueQuery.Repository.Issue.Assignees.Nodes)] = copilotAssignee.ID
 
+			// Prepare agent assignment input
+			emptyString := githubv4.String("")
+			agentAssignment := &AgentAssignmentInput{
+				CustomAgent:        &emptyString,
+				CustomInstructions: &emptyString,
+				TargetRepositoryID: getIssueQuery.Repository.ID,
+			}
+
+			// Add base ref if provided
+			if params.BaseRef != "" {
+				baseRef := githubv4.String(params.BaseRef)
+				agentAssignment.BaseRef = &baseRef
+			}
+
+			// Add custom instructions if provided
+			if params.CustomInstructions != "" {
+				customInstructions := githubv4.String(params.CustomInstructions)
+				agentAssignment.CustomInstructions = &customInstructions
+			}
+
+			// Execute the updateIssue mutation with the GraphQL-Features header
+			// This header is required for the agent assignment API which is not GA yet
+			var updateIssueMutation struct {
+				UpdateIssue struct {
+					Issue struct {
+						ID     githubv4.ID
+						Number githubv4.Int
+						URL    githubv4.String
+					}
+				} `graphql:"updateIssue(input: $input)"`
+			}
+
+			// Add the GraphQL-Features header for the agent assignment API
+			// The header will be read by the HTTP transport if it's configured to do so
+			ctxWithFeatures := withGraphQLFeatures(ctx, "issues_copilot_assignment_api_support")
+
+			// Capture the time before assignment to filter out older PRs during polling
+			assignmentTime := time.Now().UTC()
+
 			if err := client.Mutate(
-				ctx,
-				&assignCopilotMutation,
-				ReplaceActorsForAssignableInput{
-					AssignableID: getIssueQuery.Repository.Issue.ID,
-					ActorIDs:     actorIDs,
+				ctxWithFeatures,
+				&updateIssueMutation,
+				UpdateIssueInput{
+					ID:              getIssueQuery.Repository.Issue.ID,
+					AssigneeIDs:     actorIDs,
+					AgentAssignment: agentAssignment,
 				},
 				nil,
 			); err != nil {
-				return nil, nil, fmt.Errorf("failed to replace actors for assignable: %w", err)
+				return nil, nil, fmt.Errorf("failed to update issue with agent assignment: %w", err)
 			}
 
-			return utils.NewToolResultText("successfully assigned copilot to issue"), nil, nil
-		}
+			// Poll for a linked PR created by Copilot after the assignment
+			pollConfig := getPollConfig(ctx)
+
+			// Get progress token from request for sending progress notifications
+			progressToken := request.Params.GetProgressToken()
+
+			// Send initial progress notification that assignment succeeded and polling is starting
+			if progressToken != nil && request.Session != nil && pollConfig.MaxAttempts > 0 {
+				_ = request.Session.NotifyProgress(ctx, &mcp.ProgressNotificationParams{
+					ProgressToken: progressToken,
+					Progress:      0,
+					Total:         float64(pollConfig.MaxAttempts),
+					Message:       "Copilot assigned to issue, waiting for PR creation...",
+				})
+			}
+
+			var linkedPR *linkedPullRequest
+			for attempt := range pollConfig.MaxAttempts {
+				if attempt > 0 {
+					time.Sleep(pollConfig.Delay)
+				}
+
+				// Send progress notification if progress token is available
+				if progressToken != nil && request.Session != nil {
+					_ = request.Session.NotifyProgress(ctx, &mcp.ProgressNotificationParams{
+						ProgressToken: progressToken,
+						Progress:      float64(attempt + 1),
+						Total:         float64(pollConfig.MaxAttempts),
+						Message:       fmt.Sprintf("Waiting for Copilot to create PR... (attempt %d/%d)", attempt+1, pollConfig.MaxAttempts),
+					})
+				}
+
+				pr, err := findLinkedCopilotPR(ctx, client, params.Owner, params.Repo, int(params.IssueNumber), assignmentTime)
+				if err != nil {
+					// Polling errors are non-fatal, continue to next attempt
+					continue
+				}
+				if pr != nil {
+					linkedPR = pr
+					break
+				}
+			}
+
+			// Build the result
+			result := map[string]any{
+				"message":      "successfully assigned copilot to issue",
+				"issue_number": int(updateIssueMutation.UpdateIssue.Issue.Number),
+				"issue_url":    string(updateIssueMutation.UpdateIssue.Issue.URL),
+				"owner":        params.Owner,
+				"repo":         params.Repo,
+			}
+
+			// Add PR info if found during polling
+			if linkedPR != nil {
+				result["pull_request"] = map[string]any{
+					"number": linkedPR.Number,
+					"url":    linkedPR.URL,
+					"title":  linkedPR.Title,
+					"state":  linkedPR.State,
+				}
+				result["message"] = "successfully assigned copilot to issue - pull request created"
+			} else {
+				result["message"] = "successfully assigned copilot to issue - pull request pending"
+				result["note"] = "The pull request may still be in progress. Once created, the PR number can be used to check job status, or check the issue timeline for updates."
+			}
+
+			r, err := json.Marshal(result)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to marshal response: %s", err)), nil, nil
+			}
+
+			return utils.NewToolResultText(string(r)), result, nil
+		})
 }
 
 type ReplaceActorsForAssignableInput struct {
 	AssignableID githubv4.ID   `json:"assignableId"`
 	ActorIDs     []githubv4.ID `json:"actorIds"`
+}
+
+// AgentAssignmentInput represents the input for assigning an agent to an issue.
+type AgentAssignmentInput struct {
+	BaseRef            *githubv4.String `json:"baseRef,omitempty"`
+	CustomAgent        *githubv4.String `json:"customAgent,omitempty"`
+	CustomInstructions *githubv4.String `json:"customInstructions,omitempty"`
+	TargetRepositoryID githubv4.ID      `json:"targetRepositoryId"`
+}
+
+// UpdateIssueInput represents the input for updating an issue with agent assignment.
+type UpdateIssueInput struct {
+	ID              githubv4.ID           `json:"id"`
+	AssigneeIDs     []githubv4.ID         `json:"assigneeIds"`
+	AgentAssignment *AgentAssignmentInput `json:"agentAssignment,omitempty"`
 }
 
 // parseISOTimestamp parses an ISO 8601 timestamp string into a time.Time object.
@@ -1761,8 +2035,10 @@ func parseISOTimestamp(timestamp string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("invalid ISO 8601 timestamp: %s (supported formats: YYYY-MM-DDThh:mm:ssZ or YYYY-MM-DD)", timestamp)
 }
 
-func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) (mcp.Prompt, mcp.PromptHandler) {
-	return mcp.Prompt{
+func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) inventory.ServerPrompt {
+	return inventory.NewServerPrompt(
+		ToolsetMetadataIssues,
+		mcp.Prompt{
 			Name:        "AssignCodingAgent",
 			Description: t("PROMPT_ASSIGN_CODING_AGENT_DESCRIPTION", "Assign GitHub Coding Agent to multiple tasks in a GitHub repository."),
 			Arguments: []*mcp.PromptArgument{
@@ -1772,7 +2048,8 @@ func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) (mcp.Prompt, 
 					Required:    true,
 				},
 			},
-		}, func(_ context.Context, request *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+		},
+		func(_ context.Context, request *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 			repo := request.Params.Arguments["repo"]
 
 			messages := []*mcp.PromptMessage{
@@ -1816,5 +2093,22 @@ func AssignCodingAgentPrompt(t translations.TranslationHelperFunc) (mcp.Prompt, 
 			return &mcp.GetPromptResult{
 				Messages: messages,
 			}, nil
-		}
+		},
+	)
+}
+
+// graphQLFeaturesKey is a context key for GraphQL feature flags
+type graphQLFeaturesKey struct{}
+
+// withGraphQLFeatures adds GraphQL feature flags to the context
+func withGraphQLFeatures(ctx context.Context, features ...string) context.Context {
+	return context.WithValue(ctx, graphQLFeaturesKey{}, features)
+}
+
+// GetGraphQLFeatures retrieves GraphQL feature flags from the context
+func GetGraphQLFeatures(ctx context.Context) []string {
+	if features, ok := ctx.Value(graphQLFeaturesKey{}).([]string); ok {
+		return features
+	}
+	return nil
 }
