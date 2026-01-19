@@ -3020,6 +3020,149 @@ func Test_AddSubIssue(t *testing.T) {
 	}
 }
 
+func Test_AddSubIssue_RetryLogic(t *testing.T) {
+	// Setup mock issue for success case
+	mockIssue := &github.Issue{
+		Number:  github.Ptr(42),
+		Title:   github.Ptr("Parent Issue"),
+		Body:    github.Ptr("This is the parent issue with a sub-issue"),
+		State:   github.Ptr("open"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42"),
+		User: &github.User{
+			Login: github.Ptr("testuser"),
+		},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectSuccess  bool
+		expectedErrMsg string
+	}{
+		{
+			name: "successful retry after priority conflict",
+			mockedClient: func() *http.Client {
+				// Create a handler that fails twice with priority conflict, then succeeds
+				callCount := 0
+				handler := func(w http.ResponseWriter, _ *http.Request) {
+					callCount++
+					if callCount <= 2 {
+						// First two calls fail with priority conflict
+						w.WriteHeader(http.StatusUnprocessableEntity)
+						_, _ = w.Write([]byte(`{"message": "An error occurred while adding the sub-issue to the parent issue. Priority has already been taken"}`))
+					} else {
+						// Third call succeeds
+						w.WriteHeader(http.StatusCreated)
+						responseJSON, _ := json.Marshal(mockIssue)
+						_, _ = w.Write(responseJSON)
+					}
+				}
+				return MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+					PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber: handler,
+				})
+			}(),
+			requestArgs: map[string]interface{}{
+				"method":       "add",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"sub_issue_id": float64(123),
+			},
+			expectSuccess: true,
+		},
+		{
+			name: "exhausted retries with priority conflict",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber: func(w http.ResponseWriter, _ *http.Request) {
+					// Always fail with priority conflict
+					w.WriteHeader(http.StatusUnprocessableEntity)
+					_, _ = w.Write([]byte(`{"message": "An error occurred while adding the sub-issue to the parent issue. Priority has already been taken"}`))
+				},
+			}),
+			requestArgs: map[string]interface{}{
+				"method":       "add",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"sub_issue_id": float64(123),
+			},
+			expectSuccess:  false,
+			expectedErrMsg: "Priority has already been taken",
+		},
+		{
+			name: "non-retryable 422 error - sub-issue cannot be parent of itself",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber: func(w http.ResponseWriter, _ *http.Request) {
+					// Non-retryable 422 error
+					w.WriteHeader(http.StatusUnprocessableEntity)
+					_, _ = w.Write([]byte(`{"message": "Validation failed", "errors": [{"message": "Sub-issue cannot be a parent of itself"}]}`))
+				},
+			}),
+			requestArgs: map[string]interface{}{
+				"method":       "add",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"sub_issue_id": float64(42),
+			},
+			expectSuccess:  false,
+			expectedErrMsg: "failed to add sub-issue",
+		},
+		{
+			name: "first attempt succeeds - no retry needed",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockIssue),
+			}),
+			requestArgs: map[string]interface{}{
+				"method":       "add",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"sub_issue_id": float64(123),
+			},
+			expectSuccess: true,
+		},
+	}
+
+	serverTool := SubIssueWrite(translations.NullTranslationHelper)
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			if tc.expectSuccess {
+				require.NoError(t, err)
+				require.NotNil(t, result)
+
+				// Parse and verify the result
+				textContent := getTextResult(t, result)
+				var returnedIssue github.Issue
+				err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
+				require.NoError(t, err)
+				assert.Equal(t, *mockIssue.Number, *returnedIssue.Number)
+				assert.Equal(t, *mockIssue.Title, *returnedIssue.Title)
+			} else {
+				// Expect error in result content
+				require.NotNil(t, result)
+				textContent := getTextResult(t, result)
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+			}
+		})
+	}
+}
+
 func Test_GetSubIssues(t *testing.T) {
 	// Verify tool definition once
 	serverTool := IssueRead(translations.NullTranslationHelper)
