@@ -859,8 +859,8 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 
 	// Handle non-201 status codes after retries exhausted
 	if lastResp != nil && lastResp.StatusCode != http.StatusCreated {
-		body, err := io.ReadAll(lastResp.Body)
 		defer func() { _ = lastResp.Body.Close() }()
+		body, err := io.ReadAll(lastResp.Body)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
