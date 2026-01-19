@@ -13,7 +13,7 @@ GitHub MCP Server now provides intelligent handling of OAuth scopes across all a
 
 ### OAuth Scope Challenges (Remote Server)
 
-When using the remote MCP server with OAuth authentication (like VS Code's GitHub Copilot Chat), the server now implements the [MCP step-up authentication specification](https://spec.modelcontextprotocol.io/). Instead of failing when you lack a required scope, the server can request additional permissions dynamically.
+When using the remote MCP server with OAuth authentication (like VS Code's GitHub Copilot Chat), the server now implements the [MCP scope challenge handling specification](https://modelcontextprotocol.io/specification/2025-11-05/basic/authorization#scope-challenge-handling). Instead of failing when you lack a required scope, the server can request additional permissions dynamically.
 
 **How it works:**
 1. You attempt to use a tool that requires a scope you haven't granted
@@ -23,9 +23,9 @@ When using the remote MCP server with OAuth authentication (like VS Code's GitHu
 
 This means you can start with minimal permissions and expand them naturally as you use more features—no upfront "grant all permissions" prompts.
 
-### PAT Scope Filtering (Local Server)
+### PAT Scope Filtering
 
-For users running the local server with a classic Personal Access Token (`ghp_` prefix), tools are now automatically filtered based on your token's scopes. At startup, the server discovers your token's scopes and hides tools you can't use.
+For users authenticating with a classic Personal Access Token (`ghp_` prefix), tools are now automatically filtered based on your token's scopes. At startup, the server discovers your token's scopes and hides tools you can't use. This works on both the local (stdio) and remote server.
 
 **Benefits:**
 - **Reduced clutter** — Only see tools your token supports
