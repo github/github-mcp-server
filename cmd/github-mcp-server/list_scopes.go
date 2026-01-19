@@ -101,27 +101,28 @@ func runListScopes() error {
 		}
 	}
 
+	// Get enabled features (similar to toolsets)
+	var enabledFeatures []string
+	if viper.IsSet("features") {
+		if err := viper.UnmarshalKey("features", &enabledFeatures); err != nil {
+			return fmt.Errorf("failed to unmarshal features: %w", err)
+		}
+	}
+
 	readOnly := viper.GetBool("read-only")
 	outputFormat := viper.GetString("list-scopes-output")
 
 	// Create translation helper
 	t, _ := translations.TranslationHelper()
 
-	// Build inventory using the same logic as the stdio server
-	inventoryBuilder := github.NewInventory(t).
-		WithReadOnly(readOnly)
-
-	// Configure toolsets (same as stdio)
-	if enabledToolsets != nil {
-		inventoryBuilder = inventoryBuilder.WithToolsets(enabledToolsets)
-	}
-
-	// Configure specific tools
-	if len(enabledTools) > 0 {
-		inventoryBuilder = inventoryBuilder.WithTools(enabledTools)
-	}
-
-	inv, err := inventoryBuilder.Build()
+	// Build inventory using the shared builder for consistency
+	inv, err := github.NewStandardBuilder(github.InventoryConfig{
+		Translator:      t,
+		ReadOnly:        readOnly,
+		Toolsets:        enabledToolsets,
+		Tools:           enabledTools,
+		EnabledFeatures: enabledFeatures,
+	}).Build()
 	if err != nil {
 		return fmt.Errorf("failed to build inventory: %w", err)
 	}
