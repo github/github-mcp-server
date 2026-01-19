@@ -11,19 +11,19 @@ GitHub MCP Server now intelligently handles OAuth scopes—filtering tools based
 
 ## What's New
 
-### OAuth Scope Challenges (Remote Server)
+### OAuth Scope Challenges
 
-The remote server now implements [MCP scope challenge handling](https://modelcontextprotocol.io/specification/2025-11-05/basic/authorization#scope-challenge-handling). Instead of failing when you lack a required scope, it requests additional permissions dynamically—start with minimal permissions and expand them as needed.
+The server now implements [MCP scope challenge handling](https://modelcontextprotocol.io/specification/2025-11-05/basic/authorization#scope-challenge-handling). Instead of failing when you lack a required scope, it requests additional permissions dynamically—start with minimal permissions and expand them as needed.
 
 ### PAT Scope Filtering
 
-For classic Personal Access Tokens (`ghp_` prefix), tools are automatically filtered based on your token's scopes. The server discovers your scopes at startup and hides tools you can't use.
+For classic Personal Access Tokens (`ghp_`), tools are automatically filtered based on your token's scopes. The server discovers your scopes at startup and hides tools you can't use.
 
 **Example:** If your PAT only has `repo` and `gist` scopes, tools requiring `admin:org`, `project`, or `notifications` are hidden.
 
-### Server-to-Server Token Handling (Remote Server)
+### Server-to-Server Token Handling
 
-For server-to-server tokens (like `GITHUB_TOKEN` in Actions), the remote server hides user-context tools like `get_me` that don't apply without a human user.
+For server-to-server tokens (like `GITHUB_TOKEN` in Actions), the server hides user-context tools like `get_me` that don't apply without a human user.
 
 ### Documented OAuth Scopes
 
@@ -75,6 +75,4 @@ If a tool requires `read:org` and your token has `admin:org`, the tool is availa
 
 ## Feedback
 
-Share your experience in the [Scope filtering/challenging discussion](https://github.com/github/github-mcp-server/discussions/1802).
-
-We're exploring ways to better support fine-grained permissions in the future.
+Share your experience in the [Scope filtering/challenging discussion](https://github.com/github/github-mcp-server/discussions/1802). We're exploring ways to better support fine-grained permissions in the future.
