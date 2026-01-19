@@ -834,18 +834,12 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 
 		// Check if this is a retryable priority conflict error
 		shouldRetry := false
-		if resp != nil && resp.StatusCode == http.StatusUnprocessableEntity {
+		if resp != nil && resp.StatusCode == http.StatusUnprocessableEntity && resp.Body != nil {
 			// Read the body to check for priority conflict
-			if resp.Body != nil {
-				body, readErr := io.ReadAll(resp.Body)
-				_ = resp.Body.Close()
-				if readErr == nil {
-					bodyStr := string(body)
-					if strings.Contains(bodyStr, "Priority has already been taken") ||
-						(err != nil && strings.Contains(err.Error(), "Priority has already been taken")) {
-						shouldRetry = true
-					}
-				}
+			body, readErr := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			if readErr == nil && strings.Contains(string(body), "Priority has already been taken") {
+				shouldRetry = true
 			}
 		}
 
@@ -864,15 +858,14 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 		), nil
 	}
 
-	if lastResp != nil {
+	// Handle non-201 status codes after retries exhausted
+	if lastResp != nil && lastResp.StatusCode != http.StatusCreated {
 		defer func() { _ = lastResp.Body.Close() }()
-		if lastResp.StatusCode != http.StatusCreated {
-			body, err := io.ReadAll(lastResp.Body)
-			if err != nil {
-				return nil, fmt.Errorf("failed to read response body: %w", err)
-			}
-			return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add sub-issue", lastResp, body), nil
+		body, err := io.ReadAll(lastResp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add sub-issue", lastResp, body), nil
 	}
 
 	return nil, fmt.Errorf("failed to add sub-issue after %d retries", maxRetries)
