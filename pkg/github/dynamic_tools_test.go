@@ -25,9 +25,10 @@ func createDynamicRequest(args map[string]any) *mcp.CallToolRequest {
 
 func TestDynamicTools_ListAvailableToolsets(t *testing.T) {
 	// Build a registry with no toolsets enabled (dynamic mode)
-	reg := NewInventory(translations.NullTranslationHelper).
+	reg, err := NewInventory(translations.NullTranslationHelper).
 		WithToolsets([]string{}).
 		Build()
+	require.NoError(t, err)
 
 	// Create a mock server
 	server := mcp.NewServer(&mcp.Implementation{Name: "test"}, nil)
@@ -73,9 +74,10 @@ func TestDynamicTools_ListAvailableToolsets(t *testing.T) {
 
 func TestDynamicTools_GetToolsetTools(t *testing.T) {
 	// Build a registry with no toolsets enabled (dynamic mode)
-	reg := NewInventory(translations.NullTranslationHelper).
+	reg, err := NewInventory(translations.NullTranslationHelper).
 		WithToolsets([]string{}).
 		Build()
+	require.NoError(t, err)
 
 	// Create a mock server
 	server := mcp.NewServer(&mcp.Implementation{Name: "test"}, nil)
@@ -122,9 +124,10 @@ func TestDynamicTools_GetToolsetTools(t *testing.T) {
 
 func TestDynamicTools_EnableToolset(t *testing.T) {
 	// Build a registry with no toolsets enabled (dynamic mode)
-	reg := NewInventory(translations.NullTranslationHelper).
+	reg, err := NewInventory(translations.NullTranslationHelper).
 		WithToolsets([]string{}).
 		Build()
+	require.NoError(t, err)
 
 	// Create a mock server
 	server := mcp.NewServer(&mcp.Implementation{Name: "test"}, nil)
@@ -133,7 +136,7 @@ func TestDynamicTools_EnableToolset(t *testing.T) {
 	deps := DynamicToolDependencies{
 		Server:    server,
 		Inventory: reg,
-		ToolDeps:  NewBaseDeps(nil, nil, nil, nil, translations.NullTranslationHelper, FeatureFlags{}, 0),
+		ToolDeps:  NewBaseDeps(nil, nil, nil, nil, translations.NullTranslationHelper, FeatureFlags{}, 0, nil),
 		T:         translations.NullTranslationHelper,
 	}
 
@@ -170,9 +173,10 @@ func TestDynamicTools_EnableToolset(t *testing.T) {
 
 func TestDynamicTools_EnableToolset_InvalidToolset(t *testing.T) {
 	// Build a registry with no toolsets enabled (dynamic mode)
-	reg := NewInventory(translations.NullTranslationHelper).
+	reg, err := NewInventory(translations.NullTranslationHelper).
 		WithToolsets([]string{}).
 		Build()
+	require.NoError(t, err)
 
 	// Create a mock server
 	server := mcp.NewServer(&mcp.Implementation{Name: "test"}, nil)
@@ -203,7 +207,8 @@ func TestDynamicTools_EnableToolset_InvalidToolset(t *testing.T) {
 
 func TestDynamicTools_ToolsetsEnum(t *testing.T) {
 	// Build a registry
-	reg := NewInventory(translations.NullTranslationHelper).Build()
+	reg, err := NewInventory(translations.NullTranslationHelper).Build()
+	require.NoError(t, err)
 
 	// Get tools to verify they have proper enum values
 	tools := DynamicTools(reg)
