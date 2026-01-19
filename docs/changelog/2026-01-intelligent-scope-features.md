@@ -77,6 +77,4 @@ If a tool requires `read:org` and your token has `admin:org`, the tool is availa
 
 Share your experience in the [Scope filtering/challenging discussion](https://github.com/github/github-mcp-server/discussions/1802).
 
-## What's Not Included
-
-**Fine-grained permissions** — Fine-grained PATs (`github_pat_`) and GitHub Apps (`ghs_`) use repository-based permissions rather than OAuth scopes. They don't return `X-OAuth-Scopes` headers, so scope filtering and scope challenges don't apply. The API enforces permissions at call time.
+We're exploring ways to better support fine-grained permissions in the future.
