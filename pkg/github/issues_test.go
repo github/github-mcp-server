@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -3044,11 +3045,10 @@ func Test_AddSubIssue_RetryLogic(t *testing.T) {
 			name: "successful retry after priority conflict",
 			mockedClient: func() *http.Client {
 				// Create a handler that fails twice with priority conflict, then succeeds
-				var callCount int32
+				var callCount atomic.Int32
 				handler := func(w http.ResponseWriter, _ *http.Request) {
-					count := callCount
-					callCount++
-					if count < 2 {
+					count := callCount.Add(1)
+					if count <= 2 {
 						// First two calls fail with priority conflict
 						w.WriteHeader(http.StatusUnprocessableEntity)
 						_, _ = w.Write([]byte(`{"message": "An error occurred while adding the sub-issue to the parent issue. Priority has already been taken"}`))
