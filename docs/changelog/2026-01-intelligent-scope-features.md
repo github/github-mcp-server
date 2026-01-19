@@ -138,9 +138,9 @@ curl -sI -H "Authorization: Bearer $GITHUB_PERSONAL_ACCESS_TOKEN" \
 
 ## Related Documentation
 
-- [PAT Scope Filtering Guide](https://github.com/github/github-mcp-server/blob/main/docs/scope-filtering.md)
-- [OAuth Authentication Guide](https://github.com/github/github-mcp-server/blob/main/docs/oauth-authentication.md)
-- [Server Configuration](https://github.com/github/github-mcp-server/blob/main/docs/server-configuration.md)
+- [PAT Scope Filtering Guide](https://github.com/github/github-mcp-server/blob/v0.29.0/docs/scope-filtering.md)
+- [OAuth Authentication Guide](https://github.com/github/github-mcp-server/blob/v0.29.0/docs/oauth-authentication.md)
+- [Server Configuration](https://github.com/github/github-mcp-server/blob/v0.29.0/docs/server-configuration.md)
 
 ## Feedback
 
