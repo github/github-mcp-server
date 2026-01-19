@@ -13,6 +13,7 @@ The following open source dependencies are used to build the [github/github-mcp-
 The following packages are included for the 386, amd64, arm64 architectures.
 
  - [github.com/aymerick/douceur](https://pkg.go.dev/github.com/aymerick/douceur) ([MIT](https://github.com/aymerick/douceur/blob/v0.2.0/LICENSE))
+ - [github.com/fatih/color](https://pkg.go.dev/github.com/fatih/color) ([MIT](https://github.com/fatih/color/blob/v1.18.0/LICENSE.md))
  - [github.com/fsnotify/fsnotify](https://pkg.go.dev/github.com/fsnotify/fsnotify) ([BSD-3-Clause](https://github.com/fsnotify/fsnotify/blob/v1.9.0/LICENSE))
  - [github.com/github/github-mcp-server](https://pkg.go.dev/github.com/github/github-mcp-server) ([MIT](https://github.com/github/github-mcp-server/blob/HEAD/LICENSE))
  - [github.com/go-openapi/jsonpointer](https://pkg.go.dev/github.com/go-openapi/jsonpointer) ([Apache-2.0](https://github.com/go-openapi/jsonpointer/blob/v0.19.5/LICENSE))
@@ -25,7 +26,10 @@ The following packages are included for the 386, amd64, arm64 architectures.
  - [github.com/inconshreveable/mousetrap](https://pkg.go.dev/github.com/inconshreveable/mousetrap) ([Apache-2.0](https://github.com/inconshreveable/mousetrap/blob/v1.1.0/LICENSE))
  - [github.com/josephburnett/jd/v2](https://pkg.go.dev/github.com/josephburnett/jd/v2) ([MIT](https://github.com/josephburnett/jd/blob/v1.9.2/LICENSE))
  - [github.com/josharian/intern](https://pkg.go.dev/github.com/josharian/intern) ([MIT](https://github.com/josharian/intern/blob/v1.0.0/license.md))
+ - [github.com/lithammer/fuzzysearch/fuzzy](https://pkg.go.dev/github.com/lithammer/fuzzysearch/fuzzy) ([MIT](https://github.com/lithammer/fuzzysearch/blob/v1.1.8/LICENSE))
  - [github.com/mailru/easyjson](https://pkg.go.dev/github.com/mailru/easyjson) ([MIT](https://github.com/mailru/easyjson/blob/v0.7.7/LICENSE))
+ - [github.com/mattn/go-colorable](https://pkg.go.dev/github.com/mattn/go-colorable) ([MIT](https://github.com/mattn/go-colorable/blob/v0.1.13/LICENSE))
+ - [github.com/mattn/go-isatty](https://pkg.go.dev/github.com/mattn/go-isatty) ([MIT](https://github.com/mattn/go-isatty/blob/v0.0.20/LICENSE))
  - [github.com/microcosm-cc/bluemonday](https://pkg.go.dev/github.com/microcosm-cc/bluemonday) ([BSD-3-Clause](https://github.com/microcosm-cc/bluemonday/blob/v1.0.27/LICENSE.md))
  - [github.com/modelcontextprotocol/go-sdk](https://pkg.go.dev/github.com/modelcontextprotocol/go-sdk) ([MIT](https://github.com/modelcontextprotocol/go-sdk/blob/v1.2.0/LICENSE))
  - [github.com/muesli/cache2go](https://pkg.go.dev/github.com/muesli/cache2go) ([BSD-3-Clause](https://github.com/muesli/cache2go/blob/518229cd8021/LICENSE.txt))

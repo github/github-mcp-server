@@ -346,6 +346,8 @@ The `github-mcp-server` binary includes a few CLI subcommands that are helpful f
 Example:
 
 ```bash
+docker run -i --rm ghcr.io/github/github-mcp-server tool-search "issue" --max-results 5
+
 github-mcp-server tool-search "issue" --max-results 5
 ```
 
