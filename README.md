@@ -866,7 +866,7 @@ The following sets of tools are available:
     - 'add' - add a sub-issue to a parent issue in a GitHub repository.
     - 'remove' - remove a sub-issue from a parent issue in a GitHub repository.
     - 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.
-         (string, required)
+    				 (string, required)
   - `owner`: Repository owner (string, required)
   - `replace_parent`: When true, replaces the sub-issue's current parent issue. Use with 'add' method only. (boolean, optional)
   - `repo`: Repository name (string, required)
@@ -1094,8 +1094,8 @@ The following sets of tools are available:
 
 - **pull_request_read** - Get details for a single pull request
   - **Required OAuth Scopes**: `repo`
-  - `method`: Action to specify what pull request data needs to be retrieved from GitHub.
-    Possible options:
+  - `method`: Action to specify what pull request data needs to be retrieved from GitHub. 
+    Possible options: 
      1. get - Get details of a specific pull request.
      2. get_diff - Get the diff of a pull request.
      3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
