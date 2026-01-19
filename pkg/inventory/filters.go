@@ -12,6 +12,18 @@ import (
 // Returns (enabled, error). If error occurs, the caller should log and treat as false.
 type FeatureFlagChecker func(ctx context.Context, flagName string) (bool, error)
 
+// NewSliceFeatureChecker creates a FeatureFlagChecker from a slice of enabled features.
+// This is a simple implementation for CLI usage where features are specified via flags.
+func NewSliceFeatureChecker(enabledFeatures []string) FeatureFlagChecker {
+	featureSet := make(map[string]bool, len(enabledFeatures))
+	for _, f := range enabledFeatures {
+		featureSet[f] = true
+	}
+	return func(_ context.Context, flagName string) (bool, error) {
+		return featureSet[flagName], nil
+	}
+}
+
 // isToolsetEnabled checks if a toolset is enabled based on current filters.
 func (r *Inventory) isToolsetEnabled(toolsetID ToolsetID) bool {
 	// Check enabled toolsets filter

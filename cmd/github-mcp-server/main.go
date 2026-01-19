@@ -1,14 +1,18 @@
 package main
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/github/github-mcp-server/internal/ghmcp"
+	"github.com/github/github-mcp-server/internal/oauth"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -32,11 +36,6 @@ var (
 		Short: "Start stdio server",
 		Long:  `Start a server that communicates via standard input/output streams using JSON-RPC messages.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			token := viper.GetString("personal_access_token")
-			if token == "" {
-				return errors.New("GITHUB_PERSONAL_ACCESS_TOKEN not set")
-			}
-
 			// If you're wondering why we're not using viper.GetStringSlice("toolsets"),
 			// it's because viper doesn't handle comma-separated values correctly for env
 			// vars when using GetStringSlice.
@@ -68,11 +67,54 @@ var (
 				}
 			}
 
+			token := viper.GetString("personal_access_token")
+			var oauthMgr *oauth.Manager
+			var oauthScopes []string
+			var prebuiltInventory *inventory.Inventory
+
+			// If no token provided, setup OAuth manager if configured
+			if token == "" {
+				oauthClientID := viper.GetString("oauth_client_id")
+				if oauthClientID != "" {
+					// Get translation helper for inventory building
+					t, _ := translations.TranslationHelper()
+
+					// Compute OAuth scopes and get inventory (avoids double building)
+					scopesResult := getOAuthScopes(enabledToolsets, enabledTools, enabledFeatures, t)
+					oauthScopes = scopesResult.scopes
+					prebuiltInventory = scopesResult.inventory
+
+					// Create OAuth manager for lazy authentication
+					oauthCfg := oauth.GetGitHubOAuthConfig(
+						oauthClientID,
+						viper.GetString("oauth_client_secret"),
+						oauthScopes,
+						viper.GetString("host"),
+						viper.GetInt("oauth_callback_port"),
+					)
+					oauthMgr = oauth.NewManager(oauthCfg)
+					fmt.Fprintf(os.Stderr, "OAuth configured - will prompt for authentication when needed\n")
+				} else {
+					fmt.Fprintf(os.Stderr, "Warning: No authentication configured\n")
+					fmt.Fprintf(os.Stderr, "  - Set GITHUB_PERSONAL_ACCESS_TOKEN, or\n")
+					fmt.Fprintf(os.Stderr, "  - Configure OAuth with --oauth-client-id\n")
+					fmt.Fprintf(os.Stderr, "Tools will prompt for authentication when called\n")
+				}
+			}
+
+			// Extract token from OAuth manager if available
+			if oauthMgr != nil && token == "" {
+				token = oauthMgr.GetAccessToken()
+			}
+
 			ttl := viper.GetDuration("repo-access-cache-ttl")
 			stdioServerConfig := ghmcp.StdioServerConfig{
 				Version:              version,
 				Host:                 viper.GetString("host"),
 				Token:                token,
+				OAuthManager:         oauthMgr,
+				OAuthScopes:          oauthScopes,
+				PrebuiltInventory:    prebuiltInventory,
 				EnabledToolsets:      enabledToolsets,
 				EnabledTools:         enabledTools,
 				EnabledFeatures:      enabledFeatures,
@@ -112,6 +154,12 @@ func init() {
 	rootCmd.PersistentFlags().Bool("insider-mode", false, "Enable insider features")
 	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "Override the repo access cache TTL (e.g. 1m, 0s to disable)")
 
+	// OAuth flags (stdio mode only)
+	rootCmd.PersistentFlags().String("oauth-client-id", "", "GitHub OAuth app client ID (enables interactive OAuth flow if token not set)")
+	rootCmd.PersistentFlags().String("oauth-client-secret", "", "GitHub OAuth app client secret (recommended)")
+	rootCmd.PersistentFlags().StringSlice("oauth-scopes", nil, "OAuth scopes to request (comma-separated)")
+	rootCmd.PersistentFlags().Int("oauth-callback-port", 0, "Fixed port for OAuth callback (0 for random, required for Docker with -p flag)")
+
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
 	_ = viper.BindPFlag("tools", rootCmd.PersistentFlags().Lookup("tools"))
@@ -126,6 +174,10 @@ func init() {
 	_ = viper.BindPFlag("lockdown-mode", rootCmd.PersistentFlags().Lookup("lockdown-mode"))
 	_ = viper.BindPFlag("insider-mode", rootCmd.PersistentFlags().Lookup("insider-mode"))
 	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
+	_ = viper.BindPFlag("oauth_client_id", rootCmd.PersistentFlags().Lookup("oauth-client-id"))
+	_ = viper.BindPFlag("oauth_client_secret", rootCmd.PersistentFlags().Lookup("oauth-client-secret"))
+	_ = viper.BindPFlag("oauth_scopes", rootCmd.PersistentFlags().Lookup("oauth-scopes"))
+	_ = viper.BindPFlag("oauth_callback_port", rootCmd.PersistentFlags().Lookup("oauth-callback-port"))
 
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)
@@ -153,4 +205,72 @@ func wordSepNormalizeFunc(_ *pflag.FlagSet, name string) pflag.NormalizedName {
 		name = strings.ReplaceAll(name, sep, to)
 	}
 	return pflag.NormalizedName(name)
+}
+
+// oauthScopesResult holds the result of OAuth scope computation
+type oauthScopesResult struct {
+	scopes    []string
+	inventory *inventory.Inventory // reused inventory to avoid double building
+}
+
+// getOAuthScopes returns the OAuth scopes to request based on enabled tools
+// Also returns the built inventory to avoid building it twice
+// Uses custom scopes if explicitly provided, otherwise computes required scopes
+// from the tools that will be enabled based on user configuration
+func getOAuthScopes(enabledToolsets, enabledTools, enabledFeatures []string, t translations.TranslationHelperFunc) oauthScopesResult {
+	// Allow explicit override via --oauth-scopes flag
+	var scopeList []string
+	if viper.IsSet("oauth_scopes") {
+		if err := viper.UnmarshalKey("oauth_scopes", &scopeList); err == nil && len(scopeList) > 0 {
+			// When scopes are explicit, don't build inventory (will be built in server)
+			return oauthScopesResult{scopes: scopeList}
+		}
+	}
+
+	// Build inventory with the same configuration that will be used at runtime
+	// This allows us to determine which tools will actually be available
+	// and avoids building the inventory twice
+	inventoryBuilder := github.NewStandardBuilder(github.InventoryConfig{
+		Translator:      t,
+		ReadOnly:        viper.GetBool("read-only"),
+		Toolsets:        enabledToolsets,
+		Tools:           enabledTools,
+		EnabledFeatures: enabledFeatures,
+	})
+
+	inv, err := inventoryBuilder.Build()
+	if err != nil {
+		// Inventory build only fails if invalid tool names are passed via --tools
+		// In that case, return empty scopes - the error will surface when server starts
+		return oauthScopesResult{scopes: nil}
+	}
+
+	// Collect all required scopes from available tools
+	// This is the canonical source of OAuth scopes for the enabled tools
+	requiredScopes := collectRequiredScopes(inv)
+	return oauthScopesResult{scopes: requiredScopes, inventory: inv}
+}
+
+// collectRequiredScopes collects all unique required scopes from available tools
+// Returns a sorted, deduplicated list of OAuth scopes needed for the enabled tools
+func collectRequiredScopes(inv *inventory.Inventory) []string {
+	scopeSet := make(map[string]bool)
+
+	// Get available tools (respects filters like read-only, toolsets, etc.)
+	for _, tool := range inv.AvailableTools(context.Background()) {
+		for _, scope := range tool.RequiredScopes {
+			if scope != "" {
+				scopeSet[scope] = true
+			}
+		}
+	}
+
+	// Convert to sorted slice for deterministic output
+	scopes := make([]string, 0, len(scopeSet))
+	for scope := range scopeSet {
+		scopes = append(scopes, scope)
+	}
+	sort.Strings(scopes)
+
+	return scopes
 }

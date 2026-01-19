@@ -16,3 +16,28 @@ func NewInventory(t translations.TranslationHelperFunc) *inventory.Builder {
 		SetResources(AllResources(t)).
 		SetPrompts(AllPrompts(t))
 }
+
+// InventoryConfig holds configuration for building an inventory with standard filters.
+// This struct enables consistent inventory building across the codebase.
+type InventoryConfig struct {
+	Translator      translations.TranslationHelperFunc
+	ReadOnly        bool
+	Toolsets        []string // nil = use defaults, empty = none
+	Tools           []string // additional specific tools
+	EnabledFeatures []string // feature flags
+}
+
+// NewStandardBuilder creates an inventory builder with all standard filters applied.
+// This is the canonical way to create an inventory builder, ensuring consistency
+// between OAuth scope computation, server initialization, and CLI tools.
+//
+// The returned builder can be further customized (e.g., WithFilter for scope filtering)
+// before calling Build().
+func NewStandardBuilder(cfg InventoryConfig) *inventory.Builder {
+	return NewInventory(cfg.Translator).
+		WithDeprecatedAliases(DeprecatedToolAliases).
+		WithReadOnly(cfg.ReadOnly).
+		WithToolsets(cfg.Toolsets).
+		WithTools(cfg.Tools).
+		WithFeatureChecker(inventory.NewSliceFeatureChecker(cfg.EnabledFeatures))
+}

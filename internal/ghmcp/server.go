@@ -36,6 +36,15 @@ type MCPServerConfig struct {
 	// GitHub Token to authenticate with the GitHub API
 	Token string
 
+	// TokenProvider is an optional function to dynamically get the token.
+	// Used for OAuth flows where the token is obtained after server startup.
+	// If set, this takes precedence over Token for API requests.
+	TokenProvider func() string
+
+	// PrebuiltInventory is an optional pre-built inventory to avoid double building
+	// When set, this inventory will be used instead of building a new one
+	PrebuiltInventory *inventory.Inventory
+
 	// EnabledToolsets is a list of toolsets to enable
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration
 	EnabledToolsets []string
@@ -88,9 +97,19 @@ type githubClients struct {
 }
 
 // createGitHubClients creates all the GitHub API clients needed by the server.
-func createGitHubClients(cfg MCPServerConfig, apiHost apiHost) (*githubClients, error) {
-	// Construct REST client
-	restClient := gogithub.NewClient(nil).WithAuthToken(cfg.Token)
+// If tokenProviderFn is provided, it will be used to get the token dynamically (for OAuth).
+// Otherwise, cfg.Token is used as a static token.
+func createGitHubClients(cfg MCPServerConfig, apiHost apiHost, tokenProviderFn tokenProvider) (*githubClients, error) {
+	// Create bearer auth transport that can use dynamic token
+	restTransport := &bearerAuthTransport{
+		transport:     http.DefaultTransport,
+		token:         cfg.Token,
+		tokenProvider: tokenProviderFn,
+	}
+
+	// Construct REST client with custom transport
+	restHTTPClient := &http.Client{Transport: restTransport}
+	restClient := gogithub.NewClient(restHTTPClient)
 	restClient.UserAgent = fmt.Sprintf("github-mcp-server/%s", cfg.Version)
 	restClient.BaseURL = apiHost.baseRESTURL
 	restClient.UploadURL = apiHost.uploadURL
@@ -102,12 +121,13 @@ func createGitHubClients(cfg MCPServerConfig, apiHost apiHost) (*githubClients, 
 			transport: &github.GraphQLFeaturesTransport{
 				Transport: http.DefaultTransport,
 			},
-			token: cfg.Token,
+			token:         cfg.Token,
+			tokenProvider: tokenProviderFn,
 		},
 	}
 	gqlClient := githubv4.NewEnterpriseClient(apiHost.graphqlURL.String(), gqlHTTPClient)
 
-	// Create raw content client (shares REST client's HTTP transport)
+	// Create raw content client (inherits transport from REST client)
 	rawClient := raw.NewClient(restClient, apiHost.rawURL)
 
 	// Set up repo access cache for lockdown mode
@@ -164,7 +184,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
 	}
 
-	clients, err := createGitHubClients(cfg, apiHost)
+	clients, err := createGitHubClients(cfg, apiHost, cfg.TokenProvider)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub clients: %w", err)
 	}
@@ -204,7 +224,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.rest, clients.gqlHTTP))
 
 	// Create feature checker
-	featureChecker := createFeatureChecker(cfg.EnabledFeatures)
+	featureChecker := inventory.NewSliceFeatureChecker(cfg.EnabledFeatures)
 
 	// Create dependencies for tool handlers
 	deps := github.NewBaseDeps(
@@ -215,7 +235,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		cfg.Translator,
 		github.FeatureFlags{
 			LockdownMode: cfg.LockdownMode,
-			InsiderMode: cfg.InsiderMode,
+			InsiderMode:  cfg.InsiderMode,
 		},
 		cfg.ContentWindowSize,
 		featureChecker,
@@ -229,24 +249,52 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	})
 
 	// Build and register the tool/resource/prompt inventory
-	inventoryBuilder := github.NewInventory(cfg.Translator).
-		WithDeprecatedAliases(github.DeprecatedToolAliases).
-		WithReadOnly(cfg.ReadOnly).
-		WithToolsets(enabledToolsets).
-		WithTools(cfg.EnabledTools).
-		WithFeatureChecker(featureChecker)
-  
-	// Apply token scope filtering if scopes are known (for PAT filtering)
-	if cfg.TokenScopes != nil {
-		inventoryBuilder = inventoryBuilder.WithFilter(github.CreateToolScopeFilter(cfg.TokenScopes))
+	var inv *inventory.Inventory
+	if cfg.PrebuiltInventory != nil {
+		// Use prebuilt inventory to avoid double building
+		inv = cfg.PrebuiltInventory
+
+		// Apply scope filtering if needed (only if not already applied)
+		// Prebuilt inventory from OAuth scope computation doesn't have scope filter yet
+		if cfg.TokenScopes != nil {
+			// Need to rebuild with scope filter
+			inventoryBuilder := github.NewStandardBuilder(github.InventoryConfig{
+				Translator:      cfg.Translator,
+				ReadOnly:        cfg.ReadOnly,
+				Toolsets:        enabledToolsets,
+				Tools:           cfg.EnabledTools,
+				EnabledFeatures: cfg.EnabledFeatures,
+			}).WithFilter(github.CreateToolScopeFilter(cfg.TokenScopes))
+
+			var err error
+			inv, err = inventoryBuilder.Build()
+			if err != nil {
+				return nil, fmt.Errorf("failed to rebuild inventory with scope filter: %w", err)
+			}
+		}
+	} else {
+		// Build inventory from scratch
+		inventoryBuilder := github.NewStandardBuilder(github.InventoryConfig{
+			Translator:      cfg.Translator,
+			ReadOnly:        cfg.ReadOnly,
+			Toolsets:        enabledToolsets,
+			Tools:           cfg.EnabledTools,
+			EnabledFeatures: cfg.EnabledFeatures,
+		})
+
+		// Apply token scope filtering if scopes are known (for PAT filtering)
+		if cfg.TokenScopes != nil {
+			inventoryBuilder = inventoryBuilder.WithFilter(github.CreateToolScopeFilter(cfg.TokenScopes))
+		}
+
+		var err error
+		inv, err = inventoryBuilder.Build()
+		if err != nil {
+			return nil, fmt.Errorf("failed to build inventory: %w", err)
+		}
 	}
 
-	inventory, err := inventoryBuilder.Build()
-	if err != nil {
-		return nil, fmt.Errorf("failed to build inventory: %w", err)
-	}
-
-	if unrecognized := inventory.UnrecognizedToolsets(); len(unrecognized) > 0 {
+	if unrecognized := inv.UnrecognizedToolsets(); len(unrecognized) > 0 {
 		fmt.Fprintf(os.Stderr, "Warning: unrecognized toolsets ignored: %s\n", strings.Join(unrecognized, ", "))
 	}
 
@@ -254,12 +302,12 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	// In dynamic mode with no explicit toolsets, this is a no-op since enabledToolsets
 	// is empty - users enable toolsets at runtime via the dynamic tools below (but can
 	// enable toolsets or tools explicitly that do need registration).
-	inventory.RegisterAll(context.Background(), ghServer, deps)
+	inv.RegisterAll(context.Background(), ghServer, deps)
 
 	// Register dynamic toolset management tools (enable/disable) - these are separate
 	// meta-tools that control the inventory, not part of the inventory itself
 	if cfg.DynamicToolsets {
-		registerDynamicTools(ghServer, inventory, deps, cfg.Translator)
+		registerDynamicTools(ghServer, inv, deps, cfg.Translator)
 	}
 
 	return ghServer, nil
@@ -278,20 +326,6 @@ func registerDynamicTools(server *mcp.Server, inventory *inventory.Inventory, de
 	}
 }
 
-// createFeatureChecker returns a FeatureFlagChecker that checks if a flag name
-// is present in the provided list of enabled features. For the local server,
-// this is populated from the --features CLI flag.
-func createFeatureChecker(enabledFeatures []string) inventory.FeatureFlagChecker {
-	// Build a set for O(1) lookup
-	featureSet := make(map[string]bool, len(enabledFeatures))
-	for _, f := range enabledFeatures {
-		featureSet[f] = true
-	}
-	return func(_ context.Context, flagName string) (bool, error) {
-		return featureSet[flagName], nil
-	}
-}
-
 type StdioServerConfig struct {
 	// Version of the server
 	Version string
@@ -301,6 +335,22 @@ type StdioServerConfig struct {
 
 	// GitHub Token to authenticate with the GitHub API
 	Token string
+
+	// OAuthManager handles OAuth authentication with lazy loading
+	// When set, tools will trigger OAuth flow when authentication is needed
+	OAuthManager interface {
+		HasToken() bool
+		GetAccessToken() string
+		RequestAuthentication(context.Context, *mcp.ServerSession) error
+	}
+
+	// OAuthScopes contains the OAuth scopes that were requested
+	// When non-nil and OAuthManager is set, these scopes are used for scope filtering
+	OAuthScopes []string
+
+	// PrebuiltInventory is an optional pre-built inventory to avoid double building
+	// When set, this inventory will be used instead of building a new one
+	PrebuiltInventory *inventory.Inventory
 
 	// EnabledToolsets is a list of toolsets to enable
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration
@@ -372,7 +422,8 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	// Only classic PATs (ghp_ prefix) return OAuth scopes via X-OAuth-Scopes header.
 	// Fine-grained PATs and other token types don't support this, so we skip filtering.
 	var tokenScopes []string
-	if strings.HasPrefix(cfg.Token, "ghp_") {
+	switch {
+	case strings.HasPrefix(cfg.Token, "ghp_"):
 		fetchedScopes, err := fetchTokenScopesForHost(ctx, cfg.Token, cfg.Host)
 		if err != nil {
 			logger.Warn("failed to fetch token scopes, continuing without scope filtering", "error", err)
@@ -380,14 +431,32 @@ func RunStdioServer(cfg StdioServerConfig) error {
 			tokenScopes = fetchedScopes
 			logger.Info("token scopes fetched for filtering", "scopes", tokenScopes)
 		}
-	} else {
+	case len(cfg.OAuthScopes) > 0:
+		// Use OAuth scopes for filtering when OAuth is configured
+		// This filters tools to only those compatible with the requested OAuth scopes
+		tokenScopes = cfg.OAuthScopes
+		logger.Info("using OAuth scopes for tool filtering", "scopes", tokenScopes)
+	default:
 		logger.Debug("skipping scope filtering for non-PAT token")
+	}
+
+	// Create token provider that checks OAuth first, then falls back to static token
+	var tokenProvider func() string
+	if cfg.OAuthManager != nil {
+		tokenProvider = func() string {
+			if token := cfg.OAuthManager.GetAccessToken(); token != "" {
+				return token
+			}
+			return cfg.Token
+		}
 	}
 
 	ghServer, err := NewMCPServer(MCPServerConfig{
 		Version:           cfg.Version,
 		Host:              cfg.Host,
 		Token:             cfg.Token,
+		TokenProvider:     tokenProvider,
+		PrebuiltInventory: cfg.PrebuiltInventory,
 		EnabledToolsets:   cfg.EnabledToolsets,
 		EnabledTools:      cfg.EnabledTools,
 		EnabledFeatures:   cfg.EnabledFeatures,
@@ -403,6 +472,11 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)
+	}
+
+	// Add OAuth authentication middleware if OAuth manager is configured
+	if cfg.OAuthManager != nil {
+		ghServer.AddReceivingMiddleware(createOAuthMiddleware(cfg.OAuthManager, logger))
 	}
 
 	if cfg.ExportTranslations {
@@ -633,14 +707,24 @@ func (t *userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error
 	return t.transport.RoundTrip(req)
 }
 
+// tokenProvider is a function that returns the current auth token
+type tokenProvider func() string
+
 type bearerAuthTransport struct {
-	transport http.RoundTripper
-	token     string
+	transport     http.RoundTripper
+	token         string        // static token (used if tokenProvider is nil)
+	tokenProvider tokenProvider // dynamic token provider (takes precedence)
 }
 
 func (t *bearerAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req = req.Clone(req.Context())
-	req.Header.Set("Authorization", "Bearer "+t.token)
+	token := t.token
+	if t.tokenProvider != nil {
+		token = t.tokenProvider()
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 	return t.transport.RoundTrip(req)
 }
 
@@ -698,4 +782,44 @@ func fetchTokenScopesForHost(ctx context.Context, token, host string) ([]string,
 	})
 
 	return fetcher.FetchTokenScopes(ctx, token)
+}
+
+// createOAuthMiddleware creates middleware that triggers OAuth authentication when needed
+func createOAuthMiddleware(oauthMgr interface {
+	HasToken() bool
+	GetAccessToken() string
+	RequestAuthentication(context.Context, *mcp.ServerSession) error
+}, logger *slog.Logger) func(mcp.MethodHandler) mcp.MethodHandler {
+	return func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (mcp.Result, error) {
+			// Only check authentication for tool calls
+			if method != "tools/call" {
+				return next(ctx, method, req)
+			}
+
+			// Check if we have a token
+			if !oauthMgr.HasToken() {
+				logger.Info("no authentication token available, triggering OAuth flow")
+
+				// Get the session for elicitation
+				var session *mcp.ServerSession
+				if sess := req.GetSession(); sess != nil {
+					// Type assert to ServerSession
+					if ss, ok := sess.(*mcp.ServerSession); ok {
+						session = ss
+					}
+				}
+
+				// Trigger OAuth authentication (blocks until complete)
+				if err := oauthMgr.RequestAuthentication(ctx, session); err != nil {
+					return nil, err
+				}
+				// OAuth completed successfully - fall through to execute the tool
+				logger.Info("OAuth authentication completed successfully")
+			}
+
+			// Execute the tool with authentication
+			return next(ctx, method, req)
+		}
+	}
 }
