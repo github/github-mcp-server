@@ -23,4 +23,15 @@ const (
 
 	// RequestHmacHeader is used to authenticate requests to the Raw API.
 	RequestHmacHeader = "Request-Hmac"
+
+	// MCP-specific headers.
+
+	// MCPReadOnlyHeader indicates whether the MCP is in read-only mode.
+	MCPReadOnlyHeader = "X-MCP-Readonly"
+	// MCPToolsetsHeader is a comma-separated list of MCP toolsets that the request is for.
+	MCPToolsetsHeader = "X-MCP-Toolsets"
+	// MCPToolsHeader is a comma-separated list of MCP tools that the request is for.
+	MCPToolsHeader = "X-MCP-Tools"
+	// MCPFeaturesHeader is a comma-separated list of feature flags to enable.
+	MCPFeaturesHeader = "X-MCP-Features"
 )

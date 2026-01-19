@@ -82,7 +82,7 @@ func RunHTTPServer(cfg HTTPServerConfig) error {
 		repoAccessOpts = append(repoAccessOpts, lockdown.WithTTL(*cfg.RepoAccessCacheTTL))
 	}
 
-	handler := NewHTTPMcpHandler(&cfg, t, &apiHost, repoAccessOpts, logger, DefaultInventoryFactory(&cfg, t))
+	handler := NewHTTPMcpHandler(&cfg, t, &apiHost, repoAccessOpts, logger, DefaultInventoryFactory(&cfg, t, nil))
 
 	r := chi.NewRouter()
 	r.Mount("/", handler)

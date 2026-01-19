@@ -31,7 +31,7 @@
             "mode": "auto",
             "cwd": "${workspaceFolder}",
             "program": "cmd/github-mcp-server/main.go",
-            "args": ["http"],
+            "args": ["http", "--port", "8082"],
             "console": "integratedTerminal",
         }
     ]

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/github/github-mcp-server/pkg/http/middleware"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
@@ -78,28 +79,55 @@ func (s *HTTPMcpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	middleware.ExtractUserToken()(mcpHandler).ServeHTTP(w, r)
 }
 
-func DefaultInventoryFactory(cfg *HTTPServerConfig, t translations.TranslationHelperFunc) InventoryFactoryFunc {
+func DefaultInventoryFactory(cfg *HTTPServerConfig, t translations.TranslationHelperFunc, staticChecker inventory.FeatureFlagChecker) InventoryFactoryFunc {
 	return func(r *http.Request) *inventory.Inventory {
 		b := github.NewInventory(t).WithDeprecatedAliases(github.DeprecatedToolAliases)
+
+		// Feature checker composition
+		headerFeatures := parseCommaSeparatedHeader(r.Header.Get(headers.MCPFeaturesHeader))
+		if checker := ComposeFeatureChecker(headerFeatures, staticChecker); checker != nil {
+			b = b.WithFeatureChecker(checker)
+		}
+
 		b = InventoryFiltersForRequestHeaders(r, b)
 		return b.Build()
 	}
 }
 
+// InventoryFiltersForRequestHeaders applies inventory filters based on HTTP request headers.
+// Whitespace is trimmed from comma-separated values; empty values are ignored.
 func InventoryFiltersForRequestHeaders(r *http.Request, builder *inventory.Builder) *inventory.Builder {
-	if r.Header.Get("X-MCP-Readonly") != "" {
+	if r.Header.Get(headers.MCPReadOnlyHeader) != "" {
 		builder = builder.WithReadOnly(true)
 	}
 
-	if toolsetsStr := r.Header.Get("X-MCP-Toolsets"); toolsetsStr != "" {
-		toolsets := strings.Split(toolsetsStr, ",")
+	if toolsetsStr := r.Header.Get(headers.MCPToolsetsHeader); toolsetsStr != "" {
+		toolsets := parseCommaSeparatedHeader(toolsetsStr)
 		builder = builder.WithToolsets(toolsets)
 	}
 
-	if toolsStr := r.Header.Get("X-MCP-Tools"); toolsStr != "" {
-		tools := strings.Split(toolsStr, ",")
+	if toolsStr := r.Header.Get(headers.MCPToolsHeader); toolsStr != "" {
+		tools := parseCommaSeparatedHeader(toolsStr)
 		builder = builder.WithTools(github.CleanTools(tools))
 	}
 
 	return builder
+}
+
+// parseCommaSeparatedHeader splits a header value by comma, trims whitespace,
+// and filters out empty values.
+func parseCommaSeparatedHeader(value string) []string {
+	if value == "" {
+		return []string{}
+	}
+
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(p)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
 }
