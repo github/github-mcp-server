@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -70,7 +71,7 @@ func RunHTTPServer(cfg HTTPServerConfig) error {
 	logger := slog.New(slogHandler)
 	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "lockdownEnabled", cfg.LockdownMode)
 
-	apiHost, err := utils.ParseAPIHost(cfg.Host)
+	apiHost, err := utils.NewAPIHost(cfg.Host)
 	if err != nil {
 		return fmt.Errorf("failed to parse API host: %w", err)
 	}
@@ -82,7 +83,19 @@ func RunHTTPServer(cfg HTTPServerConfig) error {
 		repoAccessOpts = append(repoAccessOpts, lockdown.WithTTL(*cfg.RepoAccessCacheTTL))
 	}
 
-	handler := NewHTTPMcpHandler(&cfg, t, &apiHost, repoAccessOpts, logger, DefaultInventoryFactory(&cfg, t, nil))
+	deps := github.NewRequestDeps(
+		apiHost,
+		cfg.Version,
+		cfg.LockdownMode,
+		repoAccessOpts,
+		t,
+		github.FeatureFlags{
+			LockdownMode: cfg.LockdownMode,
+		},
+		cfg.ContentWindowSize,
+	)
+
+	handler := NewHTTPMcpHandler(&cfg, deps, t, logger, DefaultInventoryFactory(&cfg, t, nil))
 
 	r := chi.NewRouter()
 	r.Mount("/", handler)

@@ -36,12 +36,32 @@ type githubClients struct {
 }
 
 // createGitHubClients creates all the GitHub API clients needed by the server.
-func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHost) (*githubClients, error) {
+func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolver) (*githubClients, error) {
+	restURL, err := apiHost.BaseRESTURL(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get base REST URL: %w", err)
+	}
+
+	uploadURL, err := apiHost.UploadURL(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get upload URL: %w", err)
+	}
+
+	graphQLURL, err := apiHost.GraphqlURL(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get GraphQL URL: %w", err)
+	}
+
+	rawURL, err := apiHost.RawURL(context.Background())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Raw URL: %w", err)
+	}
+
 	// Construct REST client
 	restClient := gogithub.NewClient(nil).WithAuthToken(cfg.Token)
 	restClient.UserAgent = fmt.Sprintf("github-mcp-server/%s", cfg.Version)
-	restClient.BaseURL = apiHost.BaseRESTURL
-	restClient.UploadURL = apiHost.UploadURL
+	restClient.BaseURL = restURL
+	restClient.UploadURL = uploadURL
 
 	// Construct GraphQL client
 	// We use NewEnterpriseClient unconditionally since we already parsed the API host
@@ -51,10 +71,11 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHost) (*gi
 			Token:     cfg.Token,
 		},
 	}
-	gqlClient := githubv4.NewEnterpriseClient(apiHost.GraphqlURL.String(), gqlHTTPClient)
+
+	gqlClient := githubv4.NewEnterpriseClient(graphQLURL.String(), gqlHTTPClient)
 
 	// Create raw content client (shares REST client's HTTP transport)
-	rawClient := raw.NewClient(restClient, apiHost.RawURL)
+	rawClient := raw.NewClient(restClient, rawURL)
 
 	// Set up repo access cache for lockdown mode
 	var repoAccessCache *lockdown.RepoAccessCache
@@ -78,7 +99,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHost) (*gi
 }
 
 func NewStdioMCPServer(cfg github.MCPServerConfig) (*mcp.Server, error) {
-	apiHost, err := utils.ParseAPIHost(cfg.Host)
+	apiHost, err := utils.NewAPIHost(cfg.Host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
 	}
@@ -308,13 +329,18 @@ func addUserAgentsMiddleware(cfg github.MCPServerConfig, restClient *gogithub.Cl
 // fetchTokenScopesForHost fetches the OAuth scopes for a token from the GitHub API.
 // It constructs the appropriate API host URL based on the configured host.
 func fetchTokenScopesForHost(ctx context.Context, token, host string) ([]string, error) {
-	apiHost, err := utils.ParseAPIHost(host)
+	apiHost, err := utils.NewAPIHost(host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
 	}
 
+	baseRestURL, err := apiHost.BaseRESTURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get base REST URL: %w", err)
+	}
+
 	fetcher := scopes.NewFetcher(scopes.FetcherOptions{
-		APIHost: apiHost.BaseRESTURL.String(),
+		APIHost: baseRestURL.String(),
 	})
 
 	return fetcher.FetchTokenScopes(ctx, token)

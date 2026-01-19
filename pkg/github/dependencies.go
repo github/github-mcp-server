@@ -213,7 +213,7 @@ type RequestDeps struct {
 	RepoAccessCache *lockdown.RepoAccessCache
 
 	// Static dependencies
-	apiHosts          *utils.APIHost
+	apiHosts          utils.APIHostResolver
 	version           string
 	lockdownMode      bool
 	RepoAccessOpts    []lockdown.RepoAccessOption
@@ -224,7 +224,7 @@ type RequestDeps struct {
 
 // NewRequestDeps creates a RequestDeps with the provided clients and configuration.
 func NewRequestDeps(
-	apiHosts *utils.APIHost,
+	apiHosts utils.APIHostResolver,
 	version string,
 	lockdownMode bool,
 	repoAccessOpts []lockdown.RepoAccessOption,
@@ -252,11 +252,20 @@ func (d *RequestDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
 	// extract the token from the context
 	token, _ := ghcontext.GetTokenInfo(ctx)
 
+	baseRestURL, err := d.apiHosts.BaseRESTURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get base REST URL: %w", err)
+	}
+	uploadURL, err := d.apiHosts.UploadURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get upload URL: %w", err)
+	}
+
 	// Construct REST client
 	restClient := gogithub.NewClient(nil).WithAuthToken(token)
 	restClient.UserAgent = fmt.Sprintf("github-mcp-server/%s", d.version)
-	restClient.BaseURL = d.apiHosts.BaseRESTURL
-	restClient.UploadURL = d.apiHosts.UploadURL
+	restClient.BaseURL = baseRestURL
+	restClient.UploadURL = uploadURL
 	return restClient, nil
 }
 
@@ -277,7 +286,13 @@ func (d *RequestDeps) GetGQLClient(ctx context.Context) (*githubv4.Client, error
 			Token:     token,
 		},
 	}
-	gqlClient := githubv4.NewEnterpriseClient(d.apiHosts.GraphqlURL.String(), gqlHTTPClient)
+
+	graphqlURL, err := d.apiHosts.GraphqlURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get GraphQL URL: %w", err)
+	}
+
+	gqlClient := githubv4.NewEnterpriseClient(graphqlURL.String(), gqlHTTPClient)
 	d.GQLClient = gqlClient
 	return gqlClient, nil
 }
@@ -293,7 +308,12 @@ func (d *RequestDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
 		return nil, err
 	}
 
-	rawClient := raw.NewClient(client, d.apiHosts.RawURL)
+	rawURL, err := d.apiHosts.RawURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Raw URL: %w", err)
+	}
+
+	rawClient := raw.NewClient(client, rawURL)
 	d.RawClient = rawClient
 
 	return rawClient, nil

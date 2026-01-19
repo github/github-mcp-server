@@ -9,9 +9,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/github/github-mcp-server/pkg/http/middleware"
 	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -19,43 +17,27 @@ type InventoryFactoryFunc func(r *http.Request) *inventory.Inventory
 
 type HTTPMcpHandler struct {
 	config               *HTTPServerConfig
-	apiHosts             utils.APIHost
+	deps                 github.ToolDependencies
 	logger               *slog.Logger
 	t                    translations.TranslationHelperFunc
-	repoAccessOpts       []lockdown.RepoAccessOption
 	inventoryFactoryFunc InventoryFactoryFunc
 }
 
 func NewHTTPMcpHandler(cfg *HTTPServerConfig,
+	deps github.ToolDependencies,
 	t translations.TranslationHelperFunc,
-	apiHosts *utils.APIHost,
-	repoAccessOptions []lockdown.RepoAccessOption,
 	logger *slog.Logger,
 	inventoryFactory InventoryFactoryFunc) *HTTPMcpHandler {
 	return &HTTPMcpHandler{
 		config:               cfg,
-		apiHosts:             *apiHosts,
+		deps:                 deps,
 		logger:               logger,
 		t:                    t,
-		repoAccessOpts:       repoAccessOptions,
 		inventoryFactoryFunc: inventoryFactory,
 	}
 }
 
 func (s *HTTPMcpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Set up repo access cache for lockdown mode
-	deps := github.NewRequestDeps(
-		&s.apiHosts,
-		s.config.Version,
-		s.config.LockdownMode,
-		s.repoAccessOpts,
-		s.t,
-		github.FeatureFlags{
-			LockdownMode: s.config.LockdownMode,
-		},
-		s.config.ContentWindowSize,
-	)
-
 	inventory := s.inventoryFactoryFunc(r)
 
 	ghServer, err := github.NewMCPServer(&github.MCPServerConfig{
@@ -65,7 +47,7 @@ func (s *HTTPMcpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		ContentWindowSize: s.config.ContentWindowSize,
 		Logger:            s.logger,
 		RepoAccessTTL:     s.config.RepoAccessCacheTTL,
-	}, deps, inventory)
+	}, s.deps, inventory)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 	}

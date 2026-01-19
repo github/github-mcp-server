@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -8,11 +9,47 @@ import (
 	"time"
 )
 
+type APIHostResolver interface {
+	BaseRESTURL(ctx context.Context) (*url.URL, error)
+	GraphqlURL(ctx context.Context) (*url.URL, error)
+	UploadURL(ctx context.Context) (*url.URL, error)
+	RawURL(ctx context.Context) (*url.URL, error)
+}
+
 type APIHost struct {
-	BaseRESTURL *url.URL
-	GraphqlURL  *url.URL
-	UploadURL   *url.URL
-	RawURL      *url.URL
+	restURL   *url.URL
+	gqlURL    *url.URL
+	uploadURL *url.URL
+	rawURL    *url.URL
+}
+
+var _ APIHostResolver = APIHost{}
+
+func NewAPIHost(s string) (APIHostResolver, error) {
+	a, err := parseAPIHost(s)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return a, nil
+}
+
+// APIHostResolver implementation
+func (a APIHost) BaseRESTURL(_ context.Context) (*url.URL, error) {
+	return a.restURL, nil
+}
+
+func (a APIHost) GraphqlURL(_ context.Context) (*url.URL, error) {
+	return a.gqlURL, nil
+}
+
+func (a APIHost) UploadURL(_ context.Context) (*url.URL, error) {
+	return a.uploadURL, nil
+}
+
+func (a APIHost) RawURL(_ context.Context) (*url.URL, error) {
+	return a.rawURL, nil
 }
 
 func newDotcomHost() (APIHost, error) {
@@ -37,10 +74,10 @@ func newDotcomHost() (APIHost, error) {
 	}
 
 	return APIHost{
-		BaseRESTURL: baseRestURL,
-		GraphqlURL:  gqlURL,
-		UploadURL:   uploadURL,
-		RawURL:      rawURL,
+		restURL:   baseRestURL,
+		gqlURL:    gqlURL,
+		uploadURL: uploadURL,
+		rawURL:    rawURL,
 	}, nil
 }
 
@@ -76,10 +113,10 @@ func newGHECHost(hostname string) (APIHost, error) {
 	}
 
 	return APIHost{
-		BaseRESTURL: restURL,
-		GraphqlURL:  gqlURL,
-		UploadURL:   uploadURL,
-		RawURL:      rawURL,
+		restURL:   restURL,
+		gqlURL:    gqlURL,
+		uploadURL: uploadURL,
+		rawURL:    rawURL,
 	}, nil
 }
 
@@ -128,10 +165,10 @@ func newGHESHost(hostname string) (APIHost, error) {
 	}
 
 	return APIHost{
-		BaseRESTURL: restURL,
-		GraphqlURL:  gqlURL,
-		UploadURL:   uploadURL,
-		RawURL:      rawURL,
+		restURL:   restURL,
+		gqlURL:    gqlURL,
+		uploadURL: uploadURL,
+		rawURL:    rawURL,
 	}, nil
 }
 
@@ -159,7 +196,7 @@ func checkSubdomainIsolation(scheme, hostname string) bool {
 }
 
 // Note that this does not handle ports yet, so development environments are out.
-func ParseAPIHost(s string) (APIHost, error) {
+func parseAPIHost(s string) (APIHost, error) {
 	if s == "" {
 		return newDotcomHost()
 	}
