@@ -824,7 +824,6 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 
 		// Success case
 		if err == nil && resp.StatusCode == http.StatusCreated {
-			defer func() { _ = resp.Body.Close() }()
 			r, err := json.Marshal(subIssue)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -860,15 +859,16 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 
 	// Handle non-201 status codes after retries exhausted
 	if lastResp != nil && lastResp.StatusCode != http.StatusCreated {
-		defer func() { _ = lastResp.Body.Close() }()
 		body, err := io.ReadAll(lastResp.Body)
+		defer func() { _ = lastResp.Body.Close() }()
 		if err != nil {
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add sub-issue", lastResp, body), nil
 	}
 
-	return nil, fmt.Errorf("failed to add sub-issue after %d retries", maxRetries)
+	// This should not be reached in normal operation
+	return nil, fmt.Errorf("unexpected error: failed to add sub-issue")
 }
 
 func RemoveSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int) (*mcp.CallToolResult, error) {
