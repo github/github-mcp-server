@@ -12,13 +12,13 @@ import (
 type SearchResult struct {
 	Tool      mcp.Tool `json:"tool"`
 	Score     float64  `json:"score"`
-	MatchedIn []string `json:"matchedIn"` // Fields where matches were found (name, description, properties)
+	MatchedIn []string `json:"matchedIn"` // Signals that contributed to scoring (e.g. name:token, description, parameter:token).
 }
 
 const (
 	DefaultMaxSearchResults = 3
 
-	// Scoring weights for different token match types
+	// Scoring weights used by scoreTool.
 	substringMatchScore   = 5
 	exactTokensMatchScore = 2.5
 	descriptionMatchScore = 2
@@ -26,36 +26,28 @@ const (
 	parameterMatchScore   = 1
 )
 
-// SearchOptions configures the search behavior
+// SearchOptions configures search behavior.
 type SearchOptions struct {
 	MaxResults int `json:"maxResults"` // Maximum number of results to return (default: 3)
 }
 
 // Search returns the most relevant tools for a free-text query.
 //
-// The search scans all tools in the local cache, assigns each tool a relevance
-// score based on how well its name, description, and parameters match the query,
-// and returns the highest-scoring results.
-//
-// Key behavior:
-//   - Matching strongly favors tool names, with softer boosts for descriptions,
-//     parameters, and fuzzy similarity.
-//   - Results are sorted by relevance, low-quality matches are filtered out,
-//     and the list is limited to MaxResults (default: 3).
-//   - Empty or whitespace-only queries return (nil, nil).
-//   - Errors listing servers abort the search; per-server read errors are skipped.
-//
-// Each SearchResult includes the tool, its score, and a short explanation of
-// where the match came from (MatchedIn) for debugging and tuning.
+// Prefer using SearchTools and passing an explicit tool list. This function is
+// kept for API compatibility and currently searches an empty tool set.
 func Search(query string, options ...SearchOptions) ([]SearchResult, error) {
 	return SearchTools(nil, query, options...)
 }
 
 // SearchTools is like Search, but searches across the provided tool list.
 //
-// This is useful for callers that already have an inventory of tools (e.g., from
-// github.NewInventory(...).Build()) and want to run discovery/scoring without
-// relying on any external caches.
+// Matching uses a weighted combination of:
+//   - tool name matches (strongest)
+//   - description matches
+//   - input parameter name matches (JSON schema property names)
+//   - fuzzy similarity as a tie-breaker
+//
+// Empty or whitespace-only queries return (nil, nil).
 func SearchTools(tools []mcp.Tool, query string, options ...SearchOptions) ([]SearchResult, error) {
 	maxResults := getMaxResults(options)
 
@@ -98,13 +90,14 @@ func SearchTools(tools []mcp.Tool, query string, options ...SearchOptions) ([]Se
 	return results, nil
 }
 
-// scoreTool assigns a relevance score to the tool for the given query.
-// It layers score boosts (name/description/parameter hits, token coverage, prefix and exact-token matches)
-// and subtracts for extra name tokens, then smooths ordering with fuzzy similarity. MatchedIn lists
-// each signal that contributed to the score for debugging.
-// Examples:
-//   - scoreTool(tool("issue_write"), "issue write", ["issue" "write"], "issuewrite") → score≈15, matchedIn=[name:exact-tokens name:token]
-//   - scoreTool(tool("generic"), "issue write", ["issue" "write"], "issuewrite") → score≈0.5, matchedIn=[]
+// scoreTool assigns a relevance score to a tool for the given query.
+//
+// It combines several signals (substrings, token coverage, and similarity) from:
+//   - tool name
+//   - tool description
+//   - input parameter names (schema property names)
+//
+// MatchedIn records which signals contributed to the score for debugging/tuning.
 func scoreTool(
 	tool mcp.Tool,
 	queryLower string,
@@ -236,7 +229,7 @@ func lowerInputPropertyNames(inputSchema any) []string {
 		return nil
 	}
 
-	// Server-side tools (defined via go-sdk helpers) typically use *jsonschema.Schema.
+	// From the server, this is commonly a *jsonschema.Schema.
 	if schema, ok := inputSchema.(*jsonschema.Schema); ok {
 		if len(schema.Properties) == 0 {
 			return nil
@@ -248,7 +241,7 @@ func lowerInputPropertyNames(inputSchema any) []string {
 		return out
 	}
 
-	// Client-side tools arrive as map[string]any.
+	// From the client (or when unmarshaled), schemas arrive as map[string]any.
 	if schema, ok := inputSchema.(map[string]any); ok {
 		propsAny, ok := schema["properties"]
 		if !ok {
