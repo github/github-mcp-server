@@ -342,14 +342,21 @@ If you don't have Docker, you can use `go build` to build the binary in the
 
 The `github-mcp-server` binary includes a few CLI subcommands that are helpful for debugging and exploring the server.
 
-- `github-mcp-server tool-search "<query>"` searches tools by name, description, and input parameter names.
-- Use `--max-results` to return more matches.
-- Output is colorized when writing to a TTY (and typically not colorized when piped).
-
+- `github-mcp-server tool-search "<query>"` searches tools by name, description, and input parameter names. Use `--max-results` to return more matches.
 Example:
 
 ```bash
-github-mcp-server tool-search "owner" --max-results 5
+github-mcp-server tool-search "issue" --max-results 5
+```
+
+- `github-mcp-server list-scopes` lists required OAuth scopes for the currently enabled tools/toolsets.
+
+List required OAuth scopes for enabled tools:
+
+```bash
+github-mcp-server list-scopes
+github-mcp-server list-scopes --toolsets=repos,issues,pull_requests
+github-mcp-server list-scopes --output=json
 ```
 
 ## Tool Configuration
@@ -868,7 +875,7 @@ The following sets of tools are available:
     - 'add' - add a sub-issue to a parent issue in a GitHub repository.
     - 'remove' - remove a sub-issue from a parent issue in a GitHub repository.
     - 'reprioritize' - change the order of sub-issues within a parent issue in a GitHub repository. Use either 'after_id' or 'before_id' to specify the new position.
-    				 (string, required)
+         (string, required)
   - `owner`: Repository owner (string, required)
   - `replace_parent`: When true, replaces the sub-issue's current parent issue. Use with 'add' method only. (boolean, optional)
   - `repo`: Repository name (string, required)
@@ -1096,8 +1103,8 @@ The following sets of tools are available:
 
 - **pull_request_read** - Get details for a single pull request
   - **Required OAuth Scopes**: `repo`
-  - `method`: Action to specify what pull request data needs to be retrieved from GitHub. 
-    Possible options: 
+  - `method`: Action to specify what pull request data needs to be retrieved from GitHub.
+    Possible options:
      1. get - Get details of a specific pull request.
      2. get_diff - Get the diff of a pull request.
      3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
