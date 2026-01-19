@@ -34,6 +34,16 @@ For users running the local server with a classic Personal Access Token (`ghp_` 
 
 **Example:** If your PAT only has `repo` and `gist` scopes, tools requiring `admin:org`, `project`, or `notifications` will be hidden from your tool list.
 
+### Server-to-Server Token Handling (Remote Server)
+
+When using server-to-server tokens (like the `GITHUB_TOKEN` in GitHub Actions), the remote server now intelligently hides user-context tools that don't make sense without a human user.
+
+**Tools hidden for S2S tokens:**
+- `get_me` — No user to query
+- Other user-specific context tools
+
+This ensures automated workflows see only the tools they can actually use, rather than failing when they attempt to call user-context APIs.
+
 ### Documented OAuth Scopes
 
 Every MCP tool now includes explicit OAuth scope documentation:
@@ -100,6 +110,7 @@ If a tool requires `read:org` and your token has `admin:org`, the tool is availa
 | **Classic PAT** (`ghp_`) | Automatic filtering — hide unavailable tools |
 | **Fine-grained PAT** (`github_pat_`) | No filtering — API enforces permissions at call time |
 | **GitHub App** (`ghs_`) | No filtering — permissions based on app installation |
+| **Server-to-Server** (`GITHUB_TOKEN`) | User tools hidden — no user context available |
 
 ## Getting Started
 
@@ -130,6 +141,10 @@ curl -sI -H "Authorization: Bearer $GITHUB_PERSONAL_ACCESS_TOKEN" \
 - [PAT Scope Filtering Guide](../scope-filtering.md)
 - [OAuth Authentication Guide](../oauth-authentication.md)
 - [Server Configuration](../server-configuration.md)
+
+## Feedback
+
+Share your experience and report issues in the [Scope filtering/challenging discussion](https://github.com/github/github-mcp-server/discussions/1802).
 
 ## Key PRs
 
