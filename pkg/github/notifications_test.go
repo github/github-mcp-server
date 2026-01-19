@@ -472,7 +472,19 @@ func Test_DismissNotification(t *testing.T) {
 			expectRead:  true,
 		},
 		{
-			name: "mark as done",
+			name: "mark as done with 204 response",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteNotificationsThreadsByThreadID: mockResponse(t, http.StatusNoContent, nil),
+			}),
+			requestArgs: map[string]interface{}{
+				"threadID": "123",
+				"state":    "done",
+			},
+			expectError: false,
+			expectDone:  true,
+		},
+		{
+			name: "mark as done with 200 response",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				DeleteNotificationsThreadsByThreadID: mockResponse(t, http.StatusOK, nil),
 			}),

@@ -167,11 +167,12 @@ func TestCreateToolScopeFilter_Integration(t *testing.T) {
 	filter := CreateToolScopeFilter([]string{"repo"})
 
 	// Build inventory with the filter
-	inv := inventory.NewBuilder().
+	inv, err := inventory.NewBuilder().
 		SetTools(tools).
 		WithToolsets([]string{"test"}).
 		WithFilter(filter).
 		Build()
+	require.NoError(t, err)
 
 	// Get available tools
 	availableTools := inv.AvailableTools(context.Background())

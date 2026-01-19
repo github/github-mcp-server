@@ -5,26 +5,26 @@
   },
   "description": "Get details about a specific git tag in a GitHub repository",
   "inputSchema": {
-    "type": "object",
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "tag": {
+        "description": "Tag name",
+        "type": "string"
+      }
+    },
     "required": [
       "owner",
       "repo",
       "tag"
     ],
-    "properties": {
-      "owner": {
-        "type": "string",
-        "description": "Repository owner"
-      },
-      "repo": {
-        "type": "string",
-        "description": "Repository name"
-      },
-      "tag": {
-        "type": "string",
-        "description": "Tag name"
-      }
-    }
+    "type": "object"
   },
   "name": "get_tag"
 }

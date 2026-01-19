@@ -8,6 +8,31 @@
     "source": "github"
   },
   "version": "${VERSION}",
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/github/github-mcp-server:${VERSION}",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "-e",
+          "description": "Set an environment variable in the runtime",
+          "value": "GITHUB_PERSONAL_ACCESS_TOKEN={token}",
+          "isRequired": true,
+          "variables": {
+            "token": {
+              "isRequired": true,
+              "isSecret": true,
+              "format": "string"
+            }
+          }
+        }
+      ]
+    }
+  ],
   "remotes": [
     {
       "type": "streamable-http",
@@ -15,8 +40,7 @@
       "headers": [
         {
           "name": "Authorization",
-          "description": "Authentication token (PAT or App token)",
-          "isRequired": true,
+          "description": "Authorization header with authentication token (PAT or App token)",
           "isSecret": true
         }
       ]

@@ -102,15 +102,16 @@ func GetRepositoryResourcePrContent(t translations.TranslationHelperFunc) invent
 
 // repositoryResourceContentsHandlerFunc returns a ResourceHandlerFunc that creates handlers on-demand.
 func repositoryResourceContentsHandlerFunc(resourceURITemplate *uritemplate.Template) inventory.ResourceHandlerFunc {
-	return func(deps any) mcp.ResourceHandler {
-		d := deps.(ToolDependencies)
-		return RepositoryResourceContentsHandler(d, resourceURITemplate)
+	return func(_ any) mcp.ResourceHandler {
+		return RepositoryResourceContentsHandler(resourceURITemplate)
 	}
 }
 
 // RepositoryResourceContentsHandler returns a handler function for repository content requests.
-func RepositoryResourceContentsHandler(deps ToolDependencies, resourceURITemplate *uritemplate.Template) mcp.ResourceHandler {
+// It retrieves ToolDependencies from the context at call time via MustDepsFromContext.
+func RepositoryResourceContentsHandler(resourceURITemplate *uritemplate.Template) mcp.ResourceHandler {
 	return func(ctx context.Context, request *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+		deps := MustDepsFromContext(ctx)
 		// Match the URI to extract parameters
 		uriValues := resourceURITemplate.Match(request.Params.URI)
 		if uriValues == nil {
