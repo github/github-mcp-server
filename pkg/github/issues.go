@@ -801,7 +801,13 @@ Options are:
 }
 
 func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int, replaceParent bool) (*mcp.CallToolResult, error) {
-	const maxRetries = 3
+	const (
+		maxRetries    = 3
+		minJitterMs   = 50
+		maxJitterMs   = 200
+		jitterRangeMs = maxJitterMs - minJitterMs + 1
+	)
+
 	subIssueRequest := github.SubIssueRequest{
 		SubIssueID:    int64(subIssueID),
 		ReplaceParent: github.Ptr(replaceParent),
@@ -815,7 +821,7 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 		if attempt > 0 {
 			// Random jitter: 50-200ms to desynchronize parallel retries
 			// #nosec G404 -- Using non-cryptographic random for jitter is acceptable
-			jitter := time.Duration(50+rand.IntN(151)) * time.Millisecond
+			jitter := time.Duration(minJitterMs+rand.IntN(jitterRangeMs)) * time.Millisecond
 			time.Sleep(jitter)
 		}
 
@@ -878,8 +884,12 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 		}
 	}
 
-	// This should not be reached in normal operation
-	return nil, fmt.Errorf("unexpected error: failed to add sub-issue")
+	// This should not be reached in normal operation - indicates a logic error
+	statusCode := 0
+	if lastResp != nil {
+		statusCode = lastResp.StatusCode
+	}
+	return nil, fmt.Errorf("unexpected error: failed to add sub-issue after %d attempts (last status: %d)", maxRetries, statusCode)
 }
 
 func RemoveSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int) (*mcp.CallToolResult, error) {
