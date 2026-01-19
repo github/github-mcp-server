@@ -309,7 +309,8 @@ func ToStringPtr(s string) *string {
 // GenerateToolsetsHelp generates the help text for the toolsets flag
 func GenerateToolsetsHelp() string {
 	// Get toolset group to derive defaults and available toolsets
-	r := NewInventory(stubTranslator).Build()
+	// Build() can only fail if WithTools specifies invalid tools - not used here
+	r, _ := NewInventory(stubTranslator).Build()
 
 	// Format default tools from metadata using strings.Builder
 	var defaultBuf strings.Builder
@@ -391,7 +392,8 @@ func AddDefaultToolset(result []string) []string {
 	result = RemoveToolset(result, string(ToolsetMetadataDefault.ID))
 
 	// Get default toolset IDs from the Inventory
-	r := NewInventory(stubTranslator).Build()
+	// Build() can only fail if WithTools specifies invalid tools - not used here
+	r, _ := NewInventory(stubTranslator).Build()
 	for _, id := range r.DefaultToolsetIDs() {
 		if !seen[string(id)] {
 			result = append(result, string(id))
@@ -443,7 +445,8 @@ func CleanTools(toolNames []string) []string {
 // GetDefaultToolsetIDs returns the IDs of toolsets marked as Default.
 // This is a convenience function that builds an inventory to determine defaults.
 func GetDefaultToolsetIDs() []string {
-	r := NewInventory(stubTranslator).Build()
+	// Build() can only fail if WithTools specifies invalid tools - not used here
+	r, _ := NewInventory(stubTranslator).Build()
 	ids := r.DefaultToolsetIDs()
 	result := make([]string, len(ids))
 	for i, id := range ids {
