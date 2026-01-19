@@ -213,7 +213,7 @@ type RequestDeps struct {
 	RepoAccessCache *lockdown.RepoAccessCache
 
 	// Static dependencies
-	apiHosts          *utils.ApiHost
+	apiHosts          *utils.APIHost
 	version           string
 	lockdownMode      bool
 	RepoAccessOpts    []lockdown.RepoAccessOption
@@ -224,7 +224,7 @@ type RequestDeps struct {
 
 // NewRequestDeps creates a RequestDeps with the provided clients and configuration.
 func NewRequestDeps(
-	apiHosts *utils.ApiHost,
+	apiHosts *utils.APIHost,
 	version string,
 	lockdownMode bool,
 	repoAccessOpts []lockdown.RepoAccessOption,

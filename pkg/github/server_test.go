@@ -123,8 +123,14 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 
 	deps := stubDeps{}
 
+	// Build inventory
+	inv := NewInventory(cfg.Translator).
+		WithDeprecatedAliases(DeprecatedToolAliases).
+		WithToolsets(cfg.EnabledToolsets).
+		Build()
+
 	// Create the server
-	server, err := NewMCPServer(&cfg, deps)
+	server, err := NewMCPServer(&cfg, deps, inv)
 	require.NoError(t, err, "expected server creation to succeed")
 	require.NotNil(t, server, "expected server to be non-nil")
 

@@ -24,6 +24,9 @@ type HTTPServerConfig struct {
 	// GitHub Host to target for API requests (e.g. github.com or github.enterprise.com)
 	Host string
 
+	// Port to listen on (default: 8082)
+	Port int
+
 	// ExportTranslations indicates if we should export translations
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#i18n--overriding-descriptions
 	ExportTranslations bool
@@ -79,14 +82,16 @@ func RunHTTPServer(cfg HTTPServerConfig) error {
 		repoAccessOpts = append(repoAccessOpts, lockdown.WithTTL(*cfg.RepoAccessCacheTTL))
 	}
 
-	handler := NewHttpMcpHandler(&cfg, t, &apiHost, repoAccessOpts, logger, DefaultInventoryFactory(&cfg, t))
+	handler := NewHTTPMcpHandler(&cfg, t, &apiHost, repoAccessOpts, logger, DefaultInventoryFactory(&cfg, t))
 
 	r := chi.NewRouter()
 	r.Mount("/", handler)
 
+	addr := fmt.Sprintf(":%d", cfg.Port)
 	httpSvr := http.Server{
-		Addr:    ":8082",
-		Handler: r,
+		Addr:              addr,
+		Handler:           r,
+		ReadHeaderTimeout: 60 * time.Second,
 	}
 
 	go func() {
@@ -104,7 +109,7 @@ func RunHTTPServer(cfg HTTPServerConfig) error {
 		dumpTranslations()
 	}
 
-	logger.Info("HTTP server listening on :8082")
+	logger.Info("HTTP server listening", "addr", addr)
 	if err := httpSvr.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("HTTP server error: %w", err)
 	}

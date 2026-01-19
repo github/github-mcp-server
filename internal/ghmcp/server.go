@@ -36,7 +36,7 @@ type githubClients struct {
 }
 
 // createGitHubClients creates all the GitHub API clients needed by the server.
-func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.ApiHost) (*githubClients, error) {
+func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHost) (*githubClients, error) {
 	// Construct REST client
 	restClient := gogithub.NewClient(nil).WithAuthToken(cfg.Token)
 	restClient.UserAgent = fmt.Sprintf("github-mcp-server/%s", cfg.Version)

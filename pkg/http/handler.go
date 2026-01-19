@@ -16,22 +16,22 @@ import (
 
 type InventoryFactoryFunc func(r *http.Request) *inventory.Inventory
 
-type HttpMcpHandler struct {
+type HTTPMcpHandler struct {
 	config               *HTTPServerConfig
-	apiHosts             utils.ApiHost
+	apiHosts             utils.APIHost
 	logger               *slog.Logger
 	t                    translations.TranslationHelperFunc
 	repoAccessOpts       []lockdown.RepoAccessOption
 	inventoryFactoryFunc InventoryFactoryFunc
 }
 
-func NewHttpMcpHandler(cfg *HTTPServerConfig,
+func NewHTTPMcpHandler(cfg *HTTPServerConfig,
 	t translations.TranslationHelperFunc,
-	apiHosts *utils.ApiHost,
+	apiHosts *utils.APIHost,
 	repoAccessOptions []lockdown.RepoAccessOption,
 	logger *slog.Logger,
-	inventoryFactory InventoryFactoryFunc) *HttpMcpHandler {
-	return &HttpMcpHandler{
+	inventoryFactory InventoryFactoryFunc) *HTTPMcpHandler {
+	return &HTTPMcpHandler{
 		config:               cfg,
 		apiHosts:             *apiHosts,
 		logger:               logger,
@@ -41,7 +41,7 @@ func NewHttpMcpHandler(cfg *HTTPServerConfig,
 	}
 }
 
-func (s *HttpMcpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s *HTTPMcpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Set up repo access cache for lockdown mode
 	deps := github.NewRequestDeps(
 		&s.apiHosts,
