@@ -809,6 +809,7 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 
 	var lastResp *github.Response
 	var lastErr error
+	var lastBody []byte
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
 		if attempt > 0 {
@@ -837,8 +838,11 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 			// Read the body to check for priority conflict
 			body, readErr := io.ReadAll(resp.Body)
 			_ = resp.Body.Close()
-			if readErr == nil && strings.Contains(string(body), "Priority has already been taken") {
-				shouldRetry = true
+			if readErr == nil {
+				lastBody = body
+				if strings.Contains(string(body), "Priority has already been taken") {
+					shouldRetry = true
+				}
 			}
 		}
 
@@ -859,12 +863,19 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 
 	// Handle non-201 status codes after retries exhausted
 	if lastResp != nil && lastResp.StatusCode != http.StatusCreated {
-		defer func() { _ = lastResp.Body.Close() }()
-		body, err := io.ReadAll(lastResp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+		// Use the body we already read during retry attempts if available
+		if len(lastBody) > 0 {
+			return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add sub-issue", lastResp, lastBody), nil
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add sub-issue", lastResp, body), nil
+		// Otherwise try to read the body if it's still available
+		if lastResp.Body != nil {
+			body, err := io.ReadAll(lastResp.Body)
+			_ = lastResp.Body.Close()
+			if err != nil {
+				return nil, fmt.Errorf("failed to read response body: %w", err)
+			}
+			return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add sub-issue", lastResp, body), nil
+		}
 	}
 
 	// This should not be reached in normal operation
