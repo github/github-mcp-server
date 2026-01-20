@@ -831,6 +831,7 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 
 		// Success case
 		if err == nil && resp.StatusCode == http.StatusCreated {
+			_ = resp.Body.Close()
 			r, err := json.Marshal(subIssue)
 			if err != nil {
 				return nil, fmt.Errorf("failed to marshal response: %w", err)
