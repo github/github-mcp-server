@@ -63,7 +63,12 @@ type MCPServerConfig struct {
 	// When non-nil, tools requiring scopes not in this list will be hidden.
 	// This is used for PAT scope filtering where we can't issue scope challenges.
 	TokenScopes []string
+
+	// Additional server options to apply
+	ServerOptions []MCPServerOption
 }
+
+type MCPServerOption func(*mcp.ServerOptions)
 
 func NewMCPServer(cfg *MCPServerConfig, deps ToolDependencies, inventory *inventory.Inventory) (*mcp.Server, error) {
 	enabledToolsets := resolveEnabledToolsets(cfg)
@@ -80,6 +85,11 @@ func NewMCPServer(cfg *MCPServerConfig, deps ToolDependencies, inventory *invent
 		Instructions:      GenerateInstructions(instructionToolsets),
 		Logger:            cfg.Logger,
 		CompletionHandler: CompletionsHandler(deps.GetClient),
+	}
+
+	// Apply any additional server options
+	for _, o := range cfg.ServerOptions {
+		o(serverOpts)
 	}
 
 	// In dynamic mode, explicitly advertise capabilities since tools/resources/prompts
