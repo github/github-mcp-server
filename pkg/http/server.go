@@ -95,10 +95,10 @@ func RunHTTPServer(cfg HTTPServerConfig) error {
 		cfg.ContentWindowSize,
 	)
 
-	handler := NewHTTPMcpHandler(&cfg, deps, t, logger, DefaultInventoryFactory(&cfg, t, nil))
-
 	r := chi.NewRouter()
-	r.Mount("/", handler)
+
+	handler := NewHTTPMcpHandler(&cfg, deps, t, logger)
+	handler.RegisterRoutes(r)
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	httpSvr := http.Server{

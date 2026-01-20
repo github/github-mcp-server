@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"os"
 	"strings"
 	"time"
 
@@ -100,7 +99,7 @@ func NewMCPServer(cfg *MCPServerConfig, deps ToolDependencies, inventory *invent
 	ghServer.AddReceivingMiddleware(InjectDepsMiddleware(deps))
 
 	if unrecognized := inventory.UnrecognizedToolsets(); len(unrecognized) > 0 {
-		fmt.Fprintf(os.Stderr, "Warning: unrecognized toolsets ignored: %s\n", strings.Join(unrecognized, ", "))
+		cfg.Logger.Warn("Warning: unrecognized toolsets ignored", "toolsets", strings.Join(unrecognized, ", "))
 	}
 
 	// Register GitHub tools/resources/prompts from the inventory.

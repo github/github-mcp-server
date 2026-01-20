@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -10,44 +11,86 @@ import (
 	"github.com/github/github-mcp-server/pkg/http/middleware"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/go-chi/chi/v5"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type InventoryFactoryFunc func(r *http.Request) *inventory.Inventory
+type GitHubMCPServerFactoryFunc func(ctx context.Context, r *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error)
 
 type HTTPMcpHandler struct {
-	config               *HTTPServerConfig
-	deps                 github.ToolDependencies
-	logger               *slog.Logger
-	t                    translations.TranslationHelperFunc
-	inventoryFactoryFunc InventoryFactoryFunc
+	config                 *HTTPServerConfig
+	deps                   github.ToolDependencies
+	logger                 *slog.Logger
+	t                      translations.TranslationHelperFunc
+	githubMcpServerFactory GitHubMCPServerFactoryFunc
+	inventoryFactoryFunc   InventoryFactoryFunc
+}
+
+type HTTPMcpHandlerOptions struct {
+	GitHubMcpServerFactory GitHubMCPServerFactoryFunc
+	InventoryFactory       InventoryFactoryFunc
+}
+
+type HTTPMcpHandlerOption func(*HTTPMcpHandlerOptions)
+
+func WithGitHubMCPServerFactory(f GitHubMCPServerFactoryFunc) HTTPMcpHandlerOption {
+	return func(o *HTTPMcpHandlerOptions) {
+		o.GitHubMcpServerFactory = f
+	}
+}
+
+func WithInventoryFactory(f InventoryFactoryFunc) HTTPMcpHandlerOption {
+	return func(o *HTTPMcpHandlerOptions) {
+		o.InventoryFactory = f
+	}
 }
 
 func NewHTTPMcpHandler(cfg *HTTPServerConfig,
 	deps github.ToolDependencies,
 	t translations.TranslationHelperFunc,
 	logger *slog.Logger,
-	inventoryFactory InventoryFactoryFunc) *HTTPMcpHandler {
+	options ...HTTPMcpHandlerOption) *HTTPMcpHandler {
+	opts := &HTTPMcpHandlerOptions{}
+	for _, o := range options {
+		o(opts)
+	}
+
+	githubMcpServerFactory := opts.GitHubMcpServerFactory
+	if githubMcpServerFactory == nil {
+		githubMcpServerFactory = DefaultGitHubMCPServerFactory
+	}
+
+	inventoryFactory := opts.InventoryFactory
+	if inventoryFactory == nil {
+		inventoryFactory = DefaultInventoryFactory(cfg, t, nil)
+	}
+
 	return &HTTPMcpHandler{
-		config:               cfg,
-		deps:                 deps,
-		logger:               logger,
-		t:                    t,
-		inventoryFactoryFunc: inventoryFactory,
+		config:                 cfg,
+		deps:                   deps,
+		logger:                 logger,
+		t:                      t,
+		githubMcpServerFactory: githubMcpServerFactory,
+		inventoryFactoryFunc:   inventoryFactory,
 	}
 }
 
-func (s *HTTPMcpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	inventory := s.inventoryFactoryFunc(r)
+func (h *HTTPMcpHandler) RegisterRoutes(r chi.Router) {
+	r.Mount("/", h)
+}
 
-	ghServer, err := github.NewMCPServer(&github.MCPServerConfig{
-		Version:           s.config.Version,
-		Host:              s.config.Host,
-		Translator:        s.t,
-		ContentWindowSize: s.config.ContentWindowSize,
-		Logger:            s.logger,
-		RepoAccessTTL:     s.config.RepoAccessCacheTTL,
-	}, s.deps, inventory)
+func (h *HTTPMcpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	inventory := h.inventoryFactoryFunc(r)
+
+	ghServer, err := h.githubMcpServerFactory(r.Context(), r, h.deps, inventory, &github.MCPServerConfig{
+		Version:           h.config.Version,
+		Translator:        h.t,
+		ContentWindowSize: h.config.ContentWindowSize,
+		Logger:            h.logger,
+		RepoAccessTTL:     h.config.RepoAccessCacheTTL,
+	})
+
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
@@ -59,6 +102,16 @@ func (s *HTTPMcpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 
 	middleware.ExtractUserToken()(mcpHandler).ServeHTTP(w, r)
+}
+
+func DefaultGitHubMCPServerFactory(ctx context.Context, _ *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error) {
+	return github.NewMCPServer(&github.MCPServerConfig{
+		Version:           cfg.Version,
+		Translator:        cfg.Translator,
+		ContentWindowSize: cfg.ContentWindowSize,
+		Logger:            cfg.Logger,
+		RepoAccessTTL:     cfg.RepoAccessTTL,
+	}, deps, inventory)
 }
 
 func DefaultInventoryFactory(cfg *HTTPServerConfig, t translations.TranslationHelperFunc, staticChecker inventory.FeatureFlagChecker) InventoryFactoryFunc {
