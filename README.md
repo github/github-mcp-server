@@ -345,8 +345,10 @@ The `github-mcp-server` binary includes a few CLI subcommands that are helpful f
 - `github-mcp-server tool-search "<query>"` searches tools by name, description, and input parameter names. Use `--max-results` to return more matches.
 Example:
 
+> **Note:** Color output requires a TTY. Use `docker run -t` (or `-it`) when running in Docker.
+
 ```bash
-docker run -i --rm ghcr.io/github/github-mcp-server tool-search "issue" --max-results 5
+docker run -it --rm ghcr.io/github/github-mcp-server tool-search "issue" --max-results 5
 github-mcp-server tool-search "issue" --max-results 5
 ```
 
