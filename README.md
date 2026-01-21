@@ -1059,6 +1059,14 @@ The following sets of tools are available:
   - `startSide`: For multi-line comments, the starting side of the diff that the comment applies to. LEFT indicates the previous state, RIGHT indicates the new state (string, optional)
   - `subjectType`: The level at which the comment is targeted (string, required)
 
+- **add_reply_to_pull_request_comment** - Add reply to a pull request comment
+  - **Required OAuth Scopes**: `repo`
+  - `body`: The text of the reply (string, required)
+  - `commentId`: The ID of the comment to reply to (string, required)
+  - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
 - **create_pull_request** - Open new pull request
   - **Required OAuth Scopes**: `repo`
   - `base`: Branch to merge into (string, required)
