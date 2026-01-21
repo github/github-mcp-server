@@ -4,8 +4,10 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/github/github-mcp-server/pkg/http/middleware"
@@ -78,6 +80,28 @@ func NewHTTPMcpHandler(cfg *HTTPServerConfig,
 
 func (h *HTTPMcpHandler) RegisterRoutes(r chi.Router) {
 	r.Mount("/", h)
+
+	// Mount readonly and toolset routes
+	r.With(withToolset).Mount("/x/{toolset}", h)
+	r.With(withReadonly, withToolset).Mount("/x/{toolset}/readonly", h)
+	r.With(withReadonly).Mount("/readonly", h)
+}
+
+// withReadonly is middleware that sets readonly mode in the request context
+func withReadonly(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := ghcontext.WithReadonly(r.Context(), true)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// withToolset is middleware that extracts the toolset from the URL and sets it in the request context
+func withToolset(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		toolset := chi.URLParam(r, "toolset")
+		ctx := ghcontext.WithToolset(r.Context(), toolset)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 func (h *HTTPMcpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -124,25 +148,38 @@ func DefaultInventoryFactory(cfg *HTTPServerConfig, t translations.TranslationHe
 			b = b.WithFeatureChecker(checker)
 		}
 
-		b = InventoryFiltersForRequestHeaders(r, b)
+		b = InventoryFiltersForRequest(r, b)
 		return b.Build()
 	}
 }
 
-// InventoryFiltersForRequestHeaders applies inventory filters based on HTTP request headers.
-// Whitespace is trimmed from comma-separated values; empty values are ignored.
-func InventoryFiltersForRequestHeaders(r *http.Request, builder *inventory.Builder) *inventory.Builder {
-	if r.Header.Get(headers.MCPReadOnlyHeader) != "" {
+// InventoryFiltersForRequest applies inventory filters from request context and headers
+// Whitespace is trimmed from comma-separated values; empty values are ignored
+// Route configuration (context) takes precedence over headers for toolsets
+func InventoryFiltersForRequest(r *http.Request, builder *inventory.Builder) *inventory.Builder {
+	ctx := r.Context()
+
+	// Enable readonly mode if set in context or via header
+	if ghcontext.IsReadonly(ctx) || relaxedParseBool(r.Header.Get(headers.MCPReadOnlyHeader)) {
 		builder = builder.WithReadOnly(true)
 	}
 
-	if toolsetsStr := r.Header.Get(headers.MCPToolsetsHeader); toolsetsStr != "" {
-		toolsets := parseCommaSeparatedHeader(toolsetsStr)
-		builder = builder.WithToolsets(toolsets)
+	// Parse request configuration
+	contextToolset := ghcontext.GetToolset(ctx)
+	headerToolsets := parseCommaSeparatedHeader(r.Header.Get(headers.MCPToolsetsHeader))
+	tools := parseCommaSeparatedHeader(r.Header.Get(headers.MCPToolsHeader))
+
+	// Apply toolset filtering (route wins, then header, then tools-only mode, else defaults)
+	switch {
+	case contextToolset != "":
+		builder = builder.WithToolsets([]string{contextToolset})
+	case len(headerToolsets) > 0:
+		builder = builder.WithToolsets(headerToolsets)
+	case len(tools) > 0:
+		builder = builder.WithToolsets([]string{})
 	}
 
-	if toolsStr := r.Header.Get(headers.MCPToolsHeader); toolsStr != "" {
-		tools := parseCommaSeparatedHeader(toolsStr)
+	if len(tools) > 0 {
 		builder = builder.WithTools(github.CleanTools(tools))
 	}
 
@@ -165,4 +202,13 @@ func parseCommaSeparatedHeader(value string) []string {
 		}
 	}
 	return result
+}
+
+// relaxedParseBool parses a string into a boolean value, treating various
+// common false values or empty strings as false, and everything else as true.
+// It is case-insensitive and trims whitespace.
+func relaxedParseBool(s string) bool {
+	s = strings.TrimSpace(strings.ToLower(s))
+	falseValues := []string{"", "false", "0", "no", "off", "n", "f"}
+	return !slices.Contains(falseValues, s)
 }
