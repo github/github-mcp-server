@@ -98,6 +98,49 @@ See [Remote Server Documentation](docs/remote-server.md) for full details on rem
 
 When no toolsets are specified, [default toolsets](#default-toolset) are used.
 
+#### Insiders Mode
+
+> **Try new features early!** The remote server offers an insiders version with early access to new features and experimental tools.
+
+<table>
+<tr><th>Using URL Path</th><th>Using Header</th></tr>
+<tr valign=top>
+<td>
+
+```json
+{
+  "servers": {
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/insiders"
+    }
+  }
+}
+```
+
+</td>
+<td>
+
+```json
+{
+  "servers": {
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "X-MCP-Insiders": "true"
+      }
+    }
+  }
+}
+```
+
+</td>
+</tr>
+</table>
+
+See [Remote Server Documentation](docs/remote-server.md#insiders-mode) for more details and examples.
+
 #### GitHub Enterprise
 
 ##### GitHub Enterprise Cloud with data residency (ghe.com)
@@ -478,6 +521,31 @@ To keep the default configuration and add additional toolsets:
 
 ```bash
 GITHUB_TOOLSETS="default,stargazers" ./github-mcp-server
+```
+
+### Insiders Mode
+
+The local GitHub MCP Server offers an insiders version with early access to new features and experimental tools.
+
+1. **Using Command Line Argument**:
+
+   ```bash
+   ./github-mcp-server --insider-mode
+   ```
+
+2. **Using Environment Variable**:
+
+   ```bash
+   GITHUB_INSIDER_MODE=true ./github-mcp-server
+   ```
+
+When using Docker:
+
+```bash
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_INSIDER_MODE=true \
+  ghcr.io/github/github-mcp-server
 ```
 
 ### Available Toolsets

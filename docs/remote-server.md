@@ -67,6 +67,9 @@ The Remote GitHub MCP server has optional headers equivalent to the Local server
 - `X-MCP-Lockdown`: Enables lockdown mode, hiding public issue details created by users without push access.
     - Equivalent to `GITHUB_LOCKDOWN_MODE` env var for Local server.
     - If this header is empty, "false", "f", "no", "n", "0", or "off" (ignoring whitespace and case), it will be interpreted as false. All other values are interpreted as true.
+- `X-MCP-Insiders`: Enables insiders mode for early access to new features.
+    - Equivalent to `GITHUB_INSIDER_MODE` env var or `--insider-mode` flag for Local server.
+    - If this header is empty, "false", "f", "no", "n", "0", or "off" (ignoring whitespace and case), it will be interpreted as false. All other values are interpreted as true.
 
 > **Looking for examples?** See the [Server Configuration Guide](./server-configuration.md) for common recipes like minimal setups, read-only mode, and combining tools with toolsets.
 
@@ -84,18 +87,49 @@ Example:
 }
 ```
 
+### Insiders Mode
+
+The remote GitHub MCP Server offers an insiders version with early access to new features and experimental tools. You can enable insiders mode in two ways:
+
+1. **Via URL path** - Append `/insiders` to the URL:
+
+   ```json
+   {
+       "type": "http",
+       "url": "https://api.githubcopilot.com/mcp/insiders"
+   }
+   ```
+
+2. **Via header** - Set the `X-MCP-Insiders` header to `true`:
+
+   ```json
+   {
+       "type": "http",
+       "url": "https://api.githubcopilot.com/mcp/",
+       "headers": {
+           "X-MCP-Insiders": "true"
+       }
+   }
+   ```
+
+Both methods can be combined with other path modifiers (like `/readonly`) and headers.
+
 ### URL Path Parameters
 
 The Remote GitHub MCP server supports the following URL path patterns:
 
 - `/` - Default toolset (see ["default" toolset](../README.md#default-toolset))
 - `/readonly` - Default toolset in read-only mode
+- `/insiders` - Default toolset with insiders mode enabled
+- `/insiders/readonly` - Default toolset with insiders mode in read-only mode
 - `/x/all` - All available toolsets
 - `/x/all/readonly` - All available toolsets in read-only mode
+- `/x/all/insiders` - All available toolsets with insiders mode enabled
 - `/x/{toolset}` - Single specific toolset
 - `/x/{toolset}/readonly` - Single specific toolset in read-only mode
+- `/x/{toolset}/insiders` - Single specific toolset with insiders mode enabled
 
-Note: `{toolset}` can only be a single toolset, not a comma-separated list. To combine multiple toolsets, use the `X-MCP-Toolsets` header instead.
+Note: `{toolset}` can only be a single toolset, not a comma-separated list. To combine multiple toolsets, use the `X-MCP-Toolsets` header instead. Path modifiers like `/readonly` and `/insiders` can be combined with the `X-MCP-Insiders` or `X-MCP-Readonly` headers.
 
 Example:
 
