@@ -185,7 +185,7 @@ func (h *AuthHandler) GetProtectedResourceData(r *http.Request, resourcePath str
 // GetEffectiveHostAndScheme returns the effective host and scheme for a request.
 // It checks X-Forwarded-Host and X-Forwarded-Proto headers first (set by proxies),
 // then falls back to the request's Host and TLS state.
-func GetEffectiveHostAndScheme(r *http.Request, cfg *Config) (host, scheme string) {
+func GetEffectiveHostAndScheme(r *http.Request, cfg *Config) (host, scheme string) { //nolint:revive // parameters are required by http.oauth.BuildResourceMetadataURL signature
 	// Check for forwarded headers first (typically set by reverse proxies)
 	if forwardedHost := r.Header.Get(headers.ForwardedHostHeader); forwardedHost != "" {
 		host = forwardedHost
