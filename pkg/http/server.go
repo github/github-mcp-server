@@ -89,9 +89,6 @@ func RunHTTPServer(cfg HTTPServerConfig) error {
 		cfg.LockdownMode,
 		repoAccessOpts,
 		t,
-		github.FeatureFlags{
-			LockdownMode: cfg.LockdownMode,
-		},
 		cfg.ContentWindowSize,
 		nil,
 	)

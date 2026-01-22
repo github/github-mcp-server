@@ -262,7 +262,6 @@ func NewRequestDeps(
 	lockdownMode bool,
 	repoAccessOpts []lockdown.RepoAccessOption,
 	t translations.TranslationHelperFunc,
-	flags FeatureFlags,
 	contentWindowSize int,
 	featureChecker inventory.FeatureFlagChecker,
 ) *RequestDeps {
@@ -272,7 +271,6 @@ func NewRequestDeps(
 		lockdownMode:      lockdownMode,
 		RepoAccessOpts:    repoAccessOpts,
 		T:                 t,
-		Flags:             flags,
 		ContentWindowSize: contentWindowSize,
 		featureChecker:    featureChecker,
 	}

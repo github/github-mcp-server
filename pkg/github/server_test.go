@@ -56,7 +56,7 @@ func (s stubDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAccessC
 	return s.repoAccessCache, nil
 }
 func (s stubDeps) GetT() translations.TranslationHelperFunc          { return s.t }
-func (s stubDeps) GetFlags() FeatureFlags                            { return s.flags }
+func (s stubDeps) GetFlags(ctx context.Context) FeatureFlags         { return s.flags }
 func (s stubDeps) GetContentWindowSize() int                         { return s.contentWindowSize }
 func (s stubDeps) IsFeatureEnabled(_ context.Context, _ string) bool { return false }
 
