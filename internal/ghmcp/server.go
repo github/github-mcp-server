@@ -124,7 +124,8 @@ func NewStdioMCPServer(cfg github.MCPServerConfig) (*mcp.Server, error) {
 		WithDeprecatedAliases(github.DeprecatedToolAliases).
 		WithReadOnly(cfg.ReadOnly).
 		WithToolsets(cfg.EnabledToolsets).
-		WithTools(github.CleanTools(cfg.EnabledTools))
+		WithTools(github.CleanTools(cfg.EnabledTools)).
+		WithServerInstructions()
 		// WithFeatureChecker(createFeatureChecker(cfg.EnabledFeatures))
 
 	// Apply token scope filtering if scopes are known (for PAT filtering)

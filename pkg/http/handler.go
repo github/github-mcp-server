@@ -125,6 +125,7 @@ func DefaultInventoryFactory(cfg *HTTPServerConfig, t translations.TranslationHe
 		}
 
 		b = InventoryFiltersForRequestHeaders(r, b)
+		b = b.WithServerInstructions()
 		return b.Build()
 	}
 }
