@@ -3,8 +3,163 @@ package github
 import (
 	"os"
 	"slices"
+	"sort"
 	"strings"
 )
+
+// =============================================================================
+// SPIKE: Tool-based instruction specificity rules
+// =============================================================================
+
+// InstructionRule associates an instruction with a set of tools.
+// Rules with more specific tool sets (supersets) take precedence over
+// rules with fewer tools when the same tools are involved.
+type InstructionRule struct {
+	// ID is a unique identifier for the rule (for debugging/logging)
+	ID string
+	// ToolNames is the set of tool names this rule applies to.
+	// The rule is active when ALL of these tools are present in the active set.
+	ToolNames map[string]bool
+	// Instruction is the instruction text for this rule.
+	Instruction string
+}
+
+// NewInstructionRule creates an InstructionRule from a list of tool names.
+func NewInstructionRule(id string, instruction string, toolNames ...string) InstructionRule {
+	tools := make(map[string]bool, len(toolNames))
+	for _, name := range toolNames {
+		tools[name] = true
+	}
+	return InstructionRule{
+		ID:          id,
+		ToolNames:   tools,
+		Instruction: instruction,
+	}
+}
+
+// InstructionResolver resolves which instructions apply based on the
+// most-specificity rule: when multiple rules match, rules that are
+// supersets of other matching rules shadow those smaller rules.
+type InstructionResolver struct {
+	rules []InstructionRule
+}
+
+// NewInstructionResolver creates a new resolver with the given rules.
+func NewInstructionResolver(rules []InstructionRule) *InstructionResolver {
+	return &InstructionResolver{rules: rules}
+}
+
+// isSubset returns true if a is a subset of b (all elements of a are in b).
+func isSubset(a, b map[string]bool) bool {
+	for key := range a {
+		if !b[key] {
+			return false
+		}
+	}
+	return true
+}
+
+// isProperSubset returns true if a is a proper subset of b (a ⊂ b, not equal).
+func isProperSubset(a, b map[string]bool) bool {
+	return len(a) < len(b) && isSubset(a, b)
+}
+
+// matchingRule represents a rule that matched the active tools.
+type matchingRule struct {
+	rule     InstructionRule
+	shadowed bool
+}
+
+// ResolveInstructions returns the instructions that apply to the given active tools,
+// using the most-specificity rule to eliminate shadowed rules.
+//
+// A rule is "shadowed" if another matching rule's ToolNames is a proper superset
+// of this rule's ToolNames. The idea is that the more specific rule (covering more
+// tools) should take precedence.
+func (r *InstructionResolver) ResolveInstructions(activeTools []string) []string {
+	// Build active tools set for O(1) lookup
+	activeSet := make(map[string]bool, len(activeTools))
+	for _, tool := range activeTools {
+		activeSet[tool] = true
+	}
+
+	// Find all rules where ALL required tools are present in activeSet
+	var matches []matchingRule
+	for _, rule := range r.rules {
+		if isSubset(rule.ToolNames, activeSet) {
+			matches = append(matches, matchingRule{rule: rule})
+		}
+	}
+
+	// Apply shadowing: mark rules as shadowed if another rule is a proper superset
+	for i := range matches {
+		for j := range matches {
+			if i == j {
+				continue
+			}
+			// If rule j's tools are a proper superset of rule i's tools,
+			// then rule i is shadowed by rule j
+			if isProperSubset(matches[i].rule.ToolNames, matches[j].rule.ToolNames) {
+				matches[i].shadowed = true
+				break // Once shadowed, no need to check further
+			}
+		}
+	}
+
+	// Collect non-shadowed instructions, sorted by rule ID for determinism
+	var result []string
+	for _, m := range matches {
+		if !m.shadowed {
+			result = append(result, m.rule.Instruction)
+		}
+	}
+
+	// Sort for deterministic output (by instruction content as a simple approach)
+	sort.Strings(result)
+
+	return result
+}
+
+// MatchingRuleIDs returns the IDs of rules that match and are not shadowed.
+// Useful for debugging/testing.
+func (r *InstructionResolver) MatchingRuleIDs(activeTools []string) []string {
+	activeSet := make(map[string]bool, len(activeTools))
+	for _, tool := range activeTools {
+		activeSet[tool] = true
+	}
+
+	var matches []matchingRule
+	for _, rule := range r.rules {
+		if isSubset(rule.ToolNames, activeSet) {
+			matches = append(matches, matchingRule{rule: rule})
+		}
+	}
+
+	for i := range matches {
+		for j := range matches {
+			if i == j {
+				continue
+			}
+			if isProperSubset(matches[i].rule.ToolNames, matches[j].rule.ToolNames) {
+				matches[i].shadowed = true
+				break
+			}
+		}
+	}
+
+	var ids []string
+	for _, m := range matches {
+		if !m.shadowed {
+			ids = append(ids, m.rule.ID)
+		}
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+// =============================================================================
+// END SPIKE
+// =============================================================================
 
 // GenerateInstructions creates server instructions based on enabled toolsets
 func GenerateInstructions(enabledToolsets []string) string {
