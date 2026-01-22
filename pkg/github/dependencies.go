@@ -87,7 +87,7 @@ type ToolDependencies interface {
 	GetT() translations.TranslationHelperFunc
 
 	// GetFlags returns feature flags
-	GetFlags() FeatureFlags
+	GetFlags(ctx context.Context) FeatureFlags
 
 	// GetContentWindowSize returns the content window size for log truncation
 	GetContentWindowSize() int
@@ -165,7 +165,7 @@ func (d BaseDeps) GetRepoAccessCache(_ context.Context) (*lockdown.RepoAccessCac
 func (d BaseDeps) GetT() translations.TranslationHelperFunc { return d.T }
 
 // GetFlags implements ToolDependencies.
-func (d BaseDeps) GetFlags() FeatureFlags { return d.Flags }
+func (d BaseDeps) GetFlags(_ context.Context) FeatureFlags { return d.Flags }
 
 // GetContentWindowSize implements ToolDependencies.
 func (d BaseDeps) GetContentWindowSize() int { return d.ContentWindowSize }
@@ -379,7 +379,11 @@ func (d *RequestDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAcc
 func (d *RequestDeps) GetT() translations.TranslationHelperFunc { return d.T }
 
 // GetFlags implements ToolDependencies.
-func (d *RequestDeps) GetFlags() FeatureFlags { return d.Flags }
+func (d *RequestDeps) GetFlags(ctx context.Context) FeatureFlags {
+	return FeatureFlags{
+		LockdownMode: ghcontext.IsLockdownMode(ctx),
+	}
+}
 
 // GetContentWindowSize implements ToolDependencies.
 func (d *RequestDeps) GetContentWindowSize() int { return d.ContentWindowSize }

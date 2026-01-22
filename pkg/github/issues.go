@@ -334,7 +334,7 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 	if err != nil {
 		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
 	}
-	flags := deps.GetFlags()
+	flags := deps.GetFlags(ctx)
 
 	issue, resp, err := client.Issues.Get(ctx, owner, repo, issueNumber)
 	if err != nil {
@@ -389,7 +389,7 @@ func GetIssueComments(ctx context.Context, client *github.Client, deps ToolDepen
 	if err != nil {
 		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
 	}
-	flags := deps.GetFlags()
+	flags := deps.GetFlags(ctx)
 
 	opts := &github.IssueListCommentsOptions{
 		ListOptions: github.ListOptions{
@@ -449,7 +449,7 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 	if err != nil {
 		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
 	}
-	featureFlags := deps.GetFlags()
+	featureFlags := deps.GetFlags(ctx)
 
 	opts := &github.IssueListOptions{
 		ListOptions: github.ListOptions{
