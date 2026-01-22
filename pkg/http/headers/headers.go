@@ -21,6 +21,11 @@ const (
 	// RealIPHeader is a standard HTTP Header used to indicate the real IP address of the client.
 	RealIPHeader = "X-Real-IP"
 
+	// ForwardedHostHeader is a standard HTTP Header for preserving the original Host header when proxying.
+	ForwardedHostHeader = "X-Forwarded-Host"
+	// ForwardedProtoHeader is a standard HTTP Header for preserving the original protocol when proxying.
+	ForwardedProtoHeader = "X-Forwarded-Proto"
+
 	// RequestHmacHeader is used to authenticate requests to the Raw API.
 	RequestHmacHeader = "Request-Hmac"
 

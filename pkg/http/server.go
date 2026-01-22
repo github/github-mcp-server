@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -27,6 +28,11 @@ type ServerConfig struct {
 
 	// Port to listen on (default: 8082)
 	Port int
+
+	// BaseURL is the publicly accessible URL of this server for OAuth resource metadata.
+	// Example: "https://mcp.example.com"
+	// If not set, the server will derive the URL from incoming request headers.
+	BaseURL string
 
 	// ExportTranslations indicates if we should export translations
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#i18n--overriding-descriptions
@@ -95,7 +101,18 @@ func RunHTTPServer(cfg ServerConfig) error {
 
 	r := chi.NewRouter()
 
-	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger)
+	// Register OAuth protected resource metadata endpoints
+	oauthCfg := &oauth.Config{
+		BaseURL: cfg.BaseURL,
+	}
+	oauthHandler, err := oauth.NewAuthHandler(oauthCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create OAuth handler: %w", err)
+	}
+	oauthHandler.RegisterRoutes(r)
+	logger.Info("OAuth protected resource endpoints registered", "baseURL", cfg.BaseURL)
+
+	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger, WithOAuthConfig(oauthCfg))
 	handler.RegisterRoutes(r)
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
