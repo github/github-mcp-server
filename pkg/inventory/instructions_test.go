@@ -40,7 +40,7 @@ func TestGenerateInstructions(t *testing.T) {
 				{
 					ID:          "test",
 					Description: "Test toolset",
-					InstructionsFunc: func(inv *Inventory) string {
+					InstructionsFunc: func(_ *Inventory) string {
 						return "Test instructions"
 					},
 				},
