@@ -6,52 +6,61 @@ import (
 	"testing"
 )
 
+// createTestInventory creates an inventory with the specified toolsets for testing.
+func createTestInventory(toolsets []ToolsetMetadata) *Inventory {
+	// Create tools for each toolset so they show up in AvailableToolsets()
+	var tools []ServerTool
+	for _, ts := range toolsets {
+		tools = append(tools, ServerTool{
+			Toolset: ts,
+		})
+	}
+
+	return NewBuilder().
+		SetTools(tools).
+		Build()
+}
+
 func TestGenerateInstructions(t *testing.T) {
 	tests := []struct {
-		name            string
-		enabledToolsets []ToolsetID
-		expectedEmpty   bool
+		name          string
+		toolsets      []ToolsetMetadata
+		expectedEmpty bool
 	}{
 		{
-			name:            "empty toolsets",
-			enabledToolsets: []ToolsetID{},
-			expectedEmpty:   false,
+			name:          "empty toolsets",
+			toolsets:      []ToolsetMetadata{},
+			expectedEmpty: false, // base instructions are always included
 		},
 		{
-			name:            "only context toolset",
-			enabledToolsets: []ToolsetID{"context"},
-			expectedEmpty:   false,
+			name: "toolset with instructions",
+			toolsets: []ToolsetMetadata{
+				{
+					ID:          "test",
+					Description: "Test toolset",
+					InstructionsFunc: func(inv *Inventory) string {
+						return "Test instructions"
+					},
+				},
+			},
+			expectedEmpty: false,
 		},
 		{
-			name:            "pull requests toolset",
-			enabledToolsets: []ToolsetID{"pull_requests"},
-			expectedEmpty:   false,
-		},
-		{
-			name:            "issues toolset",
-			enabledToolsets: []ToolsetID{"issues"},
-			expectedEmpty:   false,
-		},
-		{
-			name:            "discussions toolset",
-			enabledToolsets: []ToolsetID{"discussions"},
-			expectedEmpty:   false,
-		},
-		{
-			name:            "multiple toolsets (context + pull_requests)",
-			enabledToolsets: []ToolsetID{"context", "pull_requests"},
-			expectedEmpty:   false,
-		},
-		{
-			name:            "multiple toolsets (issues + pull_requests)",
-			enabledToolsets: []ToolsetID{"issues", "pull_requests"},
-			expectedEmpty:   false,
+			name: "toolset without instructions",
+			toolsets: []ToolsetMetadata{
+				{
+					ID:          "test",
+					Description: "Test toolset",
+				},
+			},
+			expectedEmpty: false, // base instructions still included
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := generateInstructions(tt.enabledToolsets)
+			inv := createTestInventory(tt.toolsets)
+			result := generateInstructions(inv)
 
 			if tt.expectedEmpty {
 				if result != "" {
@@ -70,25 +79,21 @@ func TestGenerateInstructionsWithDisableFlag(t *testing.T) {
 	tests := []struct {
 		name            string
 		disableEnvValue string
-		enabledToolsets []ToolsetID
 		expectedEmpty   bool
 	}{
 		{
 			name:            "DISABLE_INSTRUCTIONS=true returns empty",
 			disableEnvValue: "true",
-			enabledToolsets: []ToolsetID{"context", "issues", "pull_requests"},
 			expectedEmpty:   true,
 		},
 		{
 			name:            "DISABLE_INSTRUCTIONS=false returns normal instructions",
 			disableEnvValue: "false",
-			enabledToolsets: []ToolsetID{"context"},
 			expectedEmpty:   false,
 		},
 		{
 			name:            "DISABLE_INSTRUCTIONS unset returns normal instructions",
 			disableEnvValue: "",
-			enabledToolsets: []ToolsetID{"issues"},
 			expectedEmpty:   false,
 		},
 	}
@@ -112,7 +117,10 @@ func TestGenerateInstructionsWithDisableFlag(t *testing.T) {
 				os.Setenv("DISABLE_INSTRUCTIONS", tt.disableEnvValue)
 			}
 
-			result := generateInstructions(tt.enabledToolsets)
+			inv := createTestInventory([]ToolsetMetadata{
+				{ID: "test", Description: "Test"},
+			})
+			result := generateInstructions(inv)
 
 			if tt.expectedEmpty {
 				if result != "" {
@@ -127,59 +135,68 @@ func TestGenerateInstructionsWithDisableFlag(t *testing.T) {
 	}
 }
 
-func TestGetToolsetInstructions(t *testing.T) {
+func TestToolsetInstructionsFunc(t *testing.T) {
 	tests := []struct {
-		toolset              string
-		expectedEmpty        bool
-		enabledToolsets      []ToolsetID
+		name                 string
+		toolsets             []ToolsetMetadata
 		expectedToContain    string
 		notExpectedToContain string
 	}{
 		{
-			toolset:           "pull_requests",
-			expectedEmpty:     false,
-			enabledToolsets:   []ToolsetID{"pull_requests", "repos"},
-			expectedToContain: "pull_request_template.md",
+			name: "toolset with context-aware instructions includes extra text when dependency present",
+			toolsets: []ToolsetMetadata{
+				{ID: "repos", Description: "Repos"},
+				{
+					ID:          "pull_requests",
+					Description: "PRs",
+					InstructionsFunc: func(inv *Inventory) string {
+						instructions := "PR base instructions"
+						if inv.HasToolset("repos") {
+							instructions += " PR template instructions"
+						}
+						return instructions
+					},
+				},
+			},
+			expectedToContain: "PR template instructions",
 		},
 		{
-			toolset:              "pull_requests",
-			expectedEmpty:        false,
-			enabledToolsets:      []ToolsetID{"pull_requests"},
-			notExpectedToContain: "pull_request_template.md",
+			name: "toolset with context-aware instructions excludes extra text when dependency missing",
+			toolsets: []ToolsetMetadata{
+				{
+					ID:          "pull_requests",
+					Description: "PRs",
+					InstructionsFunc: func(inv *Inventory) string {
+						instructions := "PR base instructions"
+						if inv.HasToolset("repos") {
+							instructions += " PR template instructions"
+						}
+						return instructions
+					},
+				},
+			},
+			notExpectedToContain: "PR template instructions",
 		},
 		{
-			toolset:       "issues",
-			expectedEmpty: false,
-		},
-		{
-			toolset:       "discussions",
-			expectedEmpty: false,
-		},
-		{
-			toolset:       "nonexistent",
-			expectedEmpty: true,
+			name: "toolset without InstructionsFunc returns no toolset-specific instructions",
+			toolsets: []ToolsetMetadata{
+				{ID: "test", Description: "Test without instructions"},
+			},
+			notExpectedToContain: "## Test",
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.toolset, func(t *testing.T) {
-			result := getToolsetInstructions(ToolsetID(tt.toolset), tt.enabledToolsets)
-			if tt.expectedEmpty {
-				if result != "" {
-					t.Errorf("Expected empty result for toolset '%s', but got: %s", tt.toolset, result)
-				}
-			} else {
-				if result == "" {
-					t.Errorf("Expected non-empty result for toolset '%s', but got empty", tt.toolset)
-				}
-			}
+		t.Run(tt.name, func(t *testing.T) {
+			inv := createTestInventory(tt.toolsets)
+			result := generateInstructions(inv)
 
 			if tt.expectedToContain != "" && !strings.Contains(result, tt.expectedToContain) {
-				t.Errorf("Expected result to contain '%s' for toolset '%s', but it did not. Result: %s", tt.expectedToContain, tt.toolset, result)
+				t.Errorf("Expected result to contain '%s', but it did not. Result: %s", tt.expectedToContain, result)
 			}
 
 			if tt.notExpectedToContain != "" && strings.Contains(result, tt.notExpectedToContain) {
-				t.Errorf("Did not expect result to contain '%s' for toolset '%s', but it did. Result: %s", tt.notExpectedToContain, tt.toolset, result)
+				t.Errorf("Did not expect result to contain '%s', but it did. Result: %s", tt.notExpectedToContain, result)
 			}
 		})
 	}
