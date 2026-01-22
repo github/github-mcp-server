@@ -55,14 +55,14 @@ func TestInventoryFiltersForRequest(t *testing.T) {
 		{
 			name: "toolset from context filters to toolset",
 			contextSetup: func(ctx context.Context) context.Context {
-				return ghcontext.WithToolset(ctx, "repos")
+				return ghcontext.WithToolsets(ctx, []string{"repos"})
 			},
 			expectedTools: []string{"get_file_contents", "create_repository"},
 		},
 		{
 			name: "context toolset takes precedence over header",
 			contextSetup: func(ctx context.Context) context.Context {
-				return ghcontext.WithToolset(ctx, "repos")
+				return ghcontext.WithToolsets(ctx, []string{"repos"})
 			},
 			headers: map[string]string{
 				headers.MCPToolsetsHeader: "issues",
@@ -70,11 +70,12 @@ func TestInventoryFiltersForRequest(t *testing.T) {
 			expectedTools: []string{"get_file_contents", "create_repository"},
 		},
 		{
-			name:         "tools are additive with toolsets",
-			contextSetup: func(ctx context.Context) context.Context { return ctx },
+			name: "tools are additive with toolsets",
+			contextSetup: func(ctx context.Context) context.Context {
+				return ghcontext.WithToolsets(ctx, []string{"repos"})
+			},
 			headers: map[string]string{
-				headers.MCPToolsetsHeader: "repos",
-				headers.MCPToolsHeader:    "list_issues",
+				headers.MCPToolsHeader: "list_issues",
 			},
 			expectedTools: []string{"get_file_contents", "create_repository", "list_issues"},
 		},

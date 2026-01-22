@@ -4,8 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"slices"
-	"strings"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
@@ -99,7 +97,7 @@ func withReadonly(next http.Handler) http.Handler {
 func withToolset(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		toolset := chi.URLParam(r, "toolset")
-		ctx := ghcontext.WithToolset(r.Context(), toolset)
+		ctx := ghcontext.WithToolsets(r.Context(), []string{toolset})
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -143,7 +141,7 @@ func DefaultInventoryFactory(cfg *HTTPServerConfig, t translations.TranslationHe
 		b := github.NewInventory(t).WithDeprecatedAliases(github.DeprecatedToolAliases)
 
 		// Feature checker composition
-		headerFeatures := parseCommaSeparatedHeader(r.Header.Get(headers.MCPFeaturesHeader))
+		headerFeatures := headers.ParseCommaSeparated(r.Header.Get(headers.MCPFeaturesHeader))
 		if checker := ComposeFeatureChecker(headerFeatures, staticChecker); checker != nil {
 			b = b.WithFeatureChecker(checker)
 		}
@@ -153,62 +151,25 @@ func DefaultInventoryFactory(cfg *HTTPServerConfig, t translations.TranslationHe
 	}
 }
 
-// InventoryFiltersForRequest applies inventory filters from request context and headers
-// Whitespace is trimmed from comma-separated values; empty values are ignored
-// Route configuration (context) takes precedence over headers for toolsets
+// InventoryFiltersForRequest applies filters to the inventory builder
+// based on the request context and headers
 func InventoryFiltersForRequest(r *http.Request, builder *inventory.Builder) *inventory.Builder {
 	ctx := r.Context()
 
-	// Enable readonly mode if set in context or via header
-	if ghcontext.IsReadonly(ctx) || relaxedParseBool(r.Header.Get(headers.MCPReadOnlyHeader)) {
+	if ghcontext.IsReadonly(ctx) {
 		builder = builder.WithReadOnly(true)
 	}
 
-	// Parse request configuration
-	contextToolset := ghcontext.GetToolset(ctx)
-	headerToolsets := parseCommaSeparatedHeader(r.Header.Get(headers.MCPToolsetsHeader))
-	tools := parseCommaSeparatedHeader(r.Header.Get(headers.MCPToolsHeader))
-
-	// Apply toolset filtering (route wins, then header, then tools-only mode, else defaults)
-	switch {
-	case contextToolset != "":
-		builder = builder.WithToolsets([]string{contextToolset})
-	case len(headerToolsets) > 0:
-		builder = builder.WithToolsets(headerToolsets)
-	case len(tools) > 0:
-		builder = builder.WithToolsets([]string{})
+	if toolsets := ghcontext.GetToolsets(ctx); len(toolsets) > 0 {
+		builder = builder.WithToolsets(toolsets)
 	}
 
-	if len(tools) > 0 {
+	if tools := headers.ParseCommaSeparated(r.Header.Get(headers.MCPToolsHeader)); len(tools) > 0 {
+		if len(ghcontext.GetToolsets(ctx)) == 0 {
+			builder = builder.WithToolsets([]string{})
+		}
 		builder = builder.WithTools(github.CleanTools(tools))
 	}
 
 	return builder
-}
-
-// parseCommaSeparatedHeader splits a header value by comma, trims whitespace,
-// and filters out empty values.
-func parseCommaSeparatedHeader(value string) []string {
-	if value == "" {
-		return []string{}
-	}
-
-	parts := strings.Split(value, ",")
-	result := make([]string, 0, len(parts))
-	for _, p := range parts {
-		trimmed := strings.TrimSpace(p)
-		if trimmed != "" {
-			result = append(result, trimmed)
-		}
-	}
-	return result
-}
-
-// relaxedParseBool parses a string into a boolean value, treating various
-// common false values or empty strings as false, and everything else as true.
-// It is case-insensitive and trims whitespace.
-func relaxedParseBool(s string) bool {
-	s = strings.TrimSpace(strings.ToLower(s))
-	falseValues := []string{"", "false", "0", "no", "off", "n", "f"}
-	return !slices.Contains(falseValues, s)
 }

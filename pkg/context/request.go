@@ -18,18 +18,18 @@ func IsReadonly(ctx context.Context) bool {
 	return false
 }
 
-// toolsetCtxKey is a context key for the active toolset
-type toolsetCtxKey struct{}
+// toolsetsCtxKey is a context key for the active toolsets
+type toolsetsCtxKey struct{}
 
-// WithToolset adds the active toolset to the context
-func WithToolset(ctx context.Context, toolset string) context.Context {
-	return context.WithValue(ctx, toolsetCtxKey{}, toolset)
+// WithToolsets adds the active toolsets to the context
+func WithToolsets(ctx context.Context, toolsets []string) context.Context {
+	return context.WithValue(ctx, toolsetsCtxKey{}, toolsets)
 }
 
-// GetToolset retrieves the active toolset from the context
-func GetToolset(ctx context.Context) string {
-	if toolset, ok := ctx.Value(toolsetCtxKey{}).(string); ok {
-		return toolset
+// GetToolsets retrieves the active toolsets from the context
+func GetToolsets(ctx context.Context) []string {
+	if toolsets, ok := ctx.Value(toolsetsCtxKey{}).([]string); ok {
+		return toolsets
 	}
-	return ""
+	return nil
 }
