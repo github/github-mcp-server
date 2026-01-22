@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -16,6 +17,7 @@ import (
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/shurcooL/githubv4"
 )
 
 const (
@@ -1867,4 +1869,334 @@ func extractPaginationOptionsFromArgs(args map[string]any) (github.ListProjectsP
 	}
 
 	return opts, nil
+}
+
+func CreateProject(t translations.TranslationHelperFunc) inventory.ServerTool {
+	tool := NewTool(
+		ToolsetMetadataProjects,
+		mcp.Tool{
+			Name:        "create_project",
+			Description: t("TOOL_CREATE_PROJECT_DESCRIPTION", "Create a new GitHub Project (ProjectsV2). Returns the project ID and number."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_CREATE_PROJECT_USER_TITLE", "Create project"),
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "GitHub username or organization name",
+					},
+					"owner_type": {
+						Type:        "string",
+						Description: "Owner type",
+						Enum:        []any{"user", "org"},
+					},
+					"title": {
+						Type:        "string",
+						Description: "Project title",
+					},
+					"description": {
+						Type:        "string",
+						Description: "Project description (optional)",
+					},
+				},
+				Required: []string{"owner", "owner_type", "title"},
+			},
+		},
+		[]scopes.Scope{scopes.Project},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			ownerType, err := RequiredParam[string](args, "owner_type")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			title, err := RequiredParam[string](args, "title")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			gqlClient, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			ownerId, err := getOwnerNodeID(ctx, gqlClient, owner, ownerType)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to get owner ID: %v", err)), nil, nil
+			}
+
+			var mutation struct {
+				CreateProjectV2 struct {
+					ProjectV2 struct {
+						ID     string
+						Number int
+						Title  string
+						URL    string
+					}
+				} `graphql:"createProjectV2(input: $input)"`
+			}
+
+			input := githubv4.CreateProjectV2Input{
+				OwnerID: githubv4.ID(ownerId),
+				Title:   githubv4.String(title),
+			}
+
+			err = gqlClient.Mutate(ctx, &mutation, input, nil)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to create project: %v", err)), nil, nil
+			}
+
+			return MarshalledTextResult(mutation.CreateProjectV2.ProjectV2), nil, nil
+		},
+	)
+	tool.FeatureFlagEnable = FeatureFlagConsolidatedProjects
+	return tool
+}
+
+func CreateIterationField(t translations.TranslationHelperFunc) inventory.ServerTool {
+	tool := NewTool(
+		ToolsetMetadataProjects,
+		mcp.Tool{
+			Name:        "create_iteration_field",
+			Description: t("TOOL_CREATE_ITERATION_FIELD_DESCRIPTION", "Create an iteration field on a ProjectsV2 with weekly sprints. Returns field ID and iteration IDs."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_CREATE_ITERATION_FIELD_USER_TITLE", "Create iteration field"),
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "GitHub username or organization name",
+					},
+					"owner_type": {
+						Type:        "string",
+						Description: "Owner type",
+						Enum:        []any{"user", "org"},
+					},
+					"project_number": {
+						Type:        "number",
+						Description: "The project's number",
+					},
+					"field_name": {
+						Type:        "string",
+						Description: "Field name (e.g., 'Sprint', 'Iteration')",
+					},
+					"duration": {
+						Type:        "number",
+						Description: "Duration in days for each iteration (typically 7 for weekly)",
+					},
+					"start_date": {
+						Type:        "string",
+						Description: "Start date in YYYY-MM-DD format",
+					},
+					"iterations": {
+						Type:        "array",
+						Description: "Array of iteration definitions",
+						Items: &jsonschema.Schema{
+							Type: "object",
+							Properties: map[string]*jsonschema.Schema{
+								"title": {
+									Type: "string",
+								},
+								"startDate": {
+									Type: "string",
+								},
+								"duration": {
+									Type: "number",
+								},
+							},
+							Required: []string{"title", "startDate", "duration"},
+						},
+					},
+				},
+				Required: []string{"owner", "owner_type", "project_number", "field_name", "duration", "start_date", "iterations"},
+			},
+		},
+		[]scopes.Scope{scopes.Project},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			ownerType, err := RequiredParam[string](args, "owner_type")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			projectNumber, err := RequiredInt(args, "project_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			fieldName, err := RequiredParam[string](args, "field_name")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			duration, err := RequiredInt(args, "duration")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			startDateStr, err := RequiredParam[string](args, "start_date")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			// Handle iterations array
+			rawIterations, ok := args["iterations"].([]any)
+			if !ok {
+				return utils.NewToolResultError("iterations must be an array"), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			gqlClient, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			projectId, err := getProjectNodeID(ctx, client, owner, ownerType, projectNumber)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to get project ID: %v", err)), nil, nil
+			}
+
+			// Step 1: Create Field
+			var createMutation struct {
+				CreateProjectV2Field struct {
+					ProjectV2Field struct {
+						ProjectV2IterationField struct {
+							ID   string
+							Name string
+						} `graphql:"... on ProjectV2IterationField"`
+					}
+				} `graphql:"createProjectV2Field(input: $input)"`
+			}
+
+			createInput := githubv4.CreateProjectV2FieldInput{
+				ProjectID: githubv4.ID(projectId),
+				DataType:  githubv4.ProjectV2CustomFieldTypeIteration,
+				Name:      githubv4.String(fieldName),
+			}
+
+			err = gqlClient.Mutate(ctx, &createMutation, createInput, nil)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to create iteration field: %v", err)), nil, nil
+			}
+
+			fieldId := createMutation.CreateProjectV2Field.ProjectV2Field.ProjectV2IterationField.ID
+
+			// Step 2: Update Field Configuration
+			var updateMutation struct {
+				UpdateProjectV2Field struct {
+					ProjectV2Field struct {
+						ProjectV2IterationField struct {
+							ID            string
+							Name          string
+							Configuration struct {
+								Iterations []struct {
+									ID        string
+									Title     string
+									StartDate string
+									Duration  int
+								}
+							}
+						} `graphql:"... on ProjectV2IterationField"`
+					}
+				} `graphql:"updateProjectV2Field(input: $input)"`
+			}
+
+			var iterationsInput []githubv4.ProjectV2IterationFieldIterationInput
+			for _, item := range rawIterations {
+				iterMap, ok := item.(map[string]any)
+				if !ok { continue }
+				title, _ := iterMap["title"].(string)
+				sDate, _ := iterMap["startDate"].(string)
+				dur, _ := iterMap["duration"].(float64)
+				
+				parsedSDate, err := time.Parse("2006-01-02", sDate)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("failed to parse iteration startDate %s: %v", sDate, err)), nil, nil
+				}
+
+				iterationsInput = append(iterationsInput, githubv4.ProjectV2IterationFieldIterationInput{
+					Title:     githubv4.String(title),
+					StartDate: githubv4.Date{Time: parsedSDate},
+					Duration:  githubv4.Int(dur),
+				})
+			}
+
+			parsedStartDate, err := time.Parse("2006-01-02", startDateStr)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to parse start_date %s: %v", startDateStr, err)), nil, nil
+			}
+
+			configInput := githubv4.ProjectV2IterationFieldConfigurationInput{
+				Duration:  githubv4.Int(duration),
+				StartDate: githubv4.Date{Time: parsedStartDate},
+				Iterations: &iterationsInput,
+			}
+
+			updateInput := githubv4.UpdateProjectV2FieldInput{
+				ProjectID: githubv4.ID(projectId),
+				FieldID:   githubv4.ID(fieldId),
+				IterationConfiguration: &configInput,
+			}
+
+			err = gqlClient.Mutate(ctx, &updateMutation, updateInput, nil)
+			if err != nil {
+				return utils.NewToolResultError(fmt.Sprintf("failed to update iteration configuration: %v", err)), nil, nil
+			}
+
+			return MarshalledTextResult(updateMutation.UpdateProjectV2Field.ProjectV2Field.ProjectV2IterationField), nil, nil
+		},
+	)
+	tool.FeatureFlagEnable = FeatureFlagConsolidatedProjects
+	return tool
+}
+
+func getOwnerNodeID(ctx context.Context, client *githubv4.Client, owner string, ownerType string) (string, error) {
+	if ownerType == "org" {
+		var query struct {
+			Organization struct {
+				ID string
+			} `graphql:"organization(login: $login)"`
+		}
+		variables := map[string]interface{}{
+			"login": githubv4.String(owner),
+		}
+		err := client.Query(ctx, &query, variables)
+		return query.Organization.ID, err
+	} else {
+		var query struct {
+			User struct {
+				ID string
+			} `graphql:"user(login: $login)"`
+		}
+		variables := map[string]interface{}{
+			"login": githubv4.String(owner),
+		}
+		err := client.Query(ctx, &query, variables)
+		return query.User.ID, err
+	}
+}
+
+func getProjectNodeID(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int) (string, error) {
+	if ownerType == "org" {
+		project, _, err := client.Projects.GetOrganizationProject(ctx, owner, projectNumber)
+		if err != nil {
+			return "", err
+		}
+		return project.GetNodeID(), nil
+	} else {
+		project, _, err := client.Projects.GetUserProject(ctx, owner, projectNumber)
+		if err != nil {
+			return "", err
+		}
+		return project.GetNodeID(), nil
+	}
 }
