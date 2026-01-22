@@ -14,17 +14,12 @@ func WithRequestConfig(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		// Only set from headers if not already set in ctx
-		if !ghcontext.IsReadonly(ctx) {
-			if relaxedParseBool(r.Header.Get(headers.MCPReadOnlyHeader)) {
-				ctx = ghcontext.WithReadonly(ctx, true)
-			}
+		if relaxedParseBool(r.Header.Get(headers.MCPReadOnlyHeader)) {
+			ctx = ghcontext.WithReadonly(ctx, true)
 		}
 
-		if len(ghcontext.GetToolsets(ctx)) == 0 {
-			if toolsets := headers.ParseCommaSeparated(r.Header.Get(headers.MCPToolsetsHeader)); len(toolsets) > 0 {
-				ctx = ghcontext.WithToolsets(ctx, toolsets)
-			}
+		if toolsets := headers.ParseCommaSeparated(r.Header.Get(headers.MCPToolsetsHeader)); len(toolsets) > 0 {
+			ctx = ghcontext.WithToolsets(ctx, toolsets)
 		}
 
 		next.ServeHTTP(w, r.WithContext(ctx))
