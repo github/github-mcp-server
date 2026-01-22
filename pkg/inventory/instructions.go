@@ -1,4 +1,4 @@
-package github
+package inventory
 
 import (
 	"os"
@@ -6,8 +6,8 @@ import (
 	"strings"
 )
 
-// GenerateInstructions creates server instructions based on enabled toolsets
-func GenerateInstructions(enabledToolsets []string) string {
+// generateInstructions creates server instructions based on enabled toolsets
+func generateInstructions(enabledToolsets []ToolsetID) string {
 	// For testing - add a flag to disable instructions
 	if os.Getenv("DISABLE_INSTRUCTIONS") == "true" {
 		return "" // Baseline mode
@@ -16,7 +16,7 @@ func GenerateInstructions(enabledToolsets []string) string {
 	var instructions []string
 
 	// Core instruction - always included if context toolset enabled
-	if slices.Contains(enabledToolsets, "context") {
+	if slices.Contains(enabledToolsets, ToolsetID("context")) {
 		instructions = append(instructions, "Always call 'get_me' first to understand current user permissions and context.")
 	}
 
@@ -48,27 +48,27 @@ Tool usage guidance:
 }
 
 // getToolsetInstructions returns specific instructions for individual toolsets
-func getToolsetInstructions(toolset string, enabledToolsets []string) string {
+func getToolsetInstructions(toolset ToolsetID, enabledToolsets []ToolsetID) string {
 	switch toolset {
-	case "pull_requests":
+	case ToolsetID("pull_requests"):
 		pullRequestInstructions := `## Pull Requests
 
 PR review workflow: Always use 'pull_request_review_write' with method 'create' to create a pending review, then 'add_comment_to_pending_review' to add comments, and finally 'pull_request_review_write' with method 'submit_pending' to submit the review for complex reviews with line-specific comments.`
-		if slices.Contains(enabledToolsets, "repos") {
+		if slices.Contains(enabledToolsets, ToolsetID("repos")) {
 			pullRequestInstructions += `
 
 Before creating a pull request, search for pull request templates in the repository. Template files are called pull_request_template.md or they're located in '.github/PULL_REQUEST_TEMPLATE' directory. Use the template content to structure the PR description and then call create_pull_request tool.`
 		}
 		return pullRequestInstructions
-	case "issues":
+	case ToolsetID("issues"):
 		return `## Issues
 
 Check 'list_issue_types' first for organizations to use proper issue types. Use 'search_issues' before creating new issues to avoid duplicates. Always set 'state_reason' when closing issues.`
-	case "discussions":
+	case ToolsetID("discussions"):
 		return `## Discussions
 		
 Use 'list_discussion_categories' to understand available categories before creating discussions. Filter by category for better organization.`
-	case "projects":
+	case ToolsetID("projects"):
 		return `## Projects
 
 Workflow: 1) list_project_fields (get field IDs), 2) list_project_items (with pagination), 3) optional updates.

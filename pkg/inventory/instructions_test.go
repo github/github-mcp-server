@@ -1,4 +1,4 @@
-package github
+package inventory
 
 import (
 	"os"
@@ -9,49 +9,49 @@ import (
 func TestGenerateInstructions(t *testing.T) {
 	tests := []struct {
 		name            string
-		enabledToolsets []string
+		enabledToolsets []ToolsetID
 		expectedEmpty   bool
 	}{
 		{
 			name:            "empty toolsets",
-			enabledToolsets: []string{},
+			enabledToolsets: []ToolsetID{},
 			expectedEmpty:   false,
 		},
 		{
 			name:            "only context toolset",
-			enabledToolsets: []string{"context"},
+			enabledToolsets: []ToolsetID{"context"},
 			expectedEmpty:   false,
 		},
 		{
 			name:            "pull requests toolset",
-			enabledToolsets: []string{"pull_requests"},
+			enabledToolsets: []ToolsetID{"pull_requests"},
 			expectedEmpty:   false,
 		},
 		{
 			name:            "issues toolset",
-			enabledToolsets: []string{"issues"},
+			enabledToolsets: []ToolsetID{"issues"},
 			expectedEmpty:   false,
 		},
 		{
 			name:            "discussions toolset",
-			enabledToolsets: []string{"discussions"},
+			enabledToolsets: []ToolsetID{"discussions"},
 			expectedEmpty:   false,
 		},
 		{
 			name:            "multiple toolsets (context + pull_requests)",
-			enabledToolsets: []string{"context", "pull_requests"},
+			enabledToolsets: []ToolsetID{"context", "pull_requests"},
 			expectedEmpty:   false,
 		},
 		{
 			name:            "multiple toolsets (issues + pull_requests)",
-			enabledToolsets: []string{"issues", "pull_requests"},
+			enabledToolsets: []ToolsetID{"issues", "pull_requests"},
 			expectedEmpty:   false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := GenerateInstructions(tt.enabledToolsets)
+			result := generateInstructions(tt.enabledToolsets)
 
 			if tt.expectedEmpty {
 				if result != "" {
@@ -70,25 +70,25 @@ func TestGenerateInstructionsWithDisableFlag(t *testing.T) {
 	tests := []struct {
 		name            string
 		disableEnvValue string
-		enabledToolsets []string
+		enabledToolsets []ToolsetID
 		expectedEmpty   bool
 	}{
 		{
 			name:            "DISABLE_INSTRUCTIONS=true returns empty",
 			disableEnvValue: "true",
-			enabledToolsets: []string{"context", "issues", "pull_requests"},
+			enabledToolsets: []ToolsetID{"context", "issues", "pull_requests"},
 			expectedEmpty:   true,
 		},
 		{
 			name:            "DISABLE_INSTRUCTIONS=false returns normal instructions",
 			disableEnvValue: "false",
-			enabledToolsets: []string{"context"},
+			enabledToolsets: []ToolsetID{"context"},
 			expectedEmpty:   false,
 		},
 		{
 			name:            "DISABLE_INSTRUCTIONS unset returns normal instructions",
 			disableEnvValue: "",
-			enabledToolsets: []string{"issues"},
+			enabledToolsets: []ToolsetID{"issues"},
 			expectedEmpty:   false,
 		},
 	}
@@ -112,7 +112,7 @@ func TestGenerateInstructionsWithDisableFlag(t *testing.T) {
 				os.Setenv("DISABLE_INSTRUCTIONS", tt.disableEnvValue)
 			}
 
-			result := GenerateInstructions(tt.enabledToolsets)
+			result := generateInstructions(tt.enabledToolsets)
 
 			if tt.expectedEmpty {
 				if result != "" {
@@ -131,20 +131,20 @@ func TestGetToolsetInstructions(t *testing.T) {
 	tests := []struct {
 		toolset              string
 		expectedEmpty        bool
-		enabledToolsets      []string
+		enabledToolsets      []ToolsetID
 		expectedToContain    string
 		notExpectedToContain string
 	}{
 		{
 			toolset:           "pull_requests",
 			expectedEmpty:     false,
-			enabledToolsets:   []string{"pull_requests", "repos"},
+			enabledToolsets:   []ToolsetID{"pull_requests", "repos"},
 			expectedToContain: "pull_request_template.md",
 		},
 		{
 			toolset:              "pull_requests",
 			expectedEmpty:        false,
-			enabledToolsets:      []string{"pull_requests"},
+			enabledToolsets:      []ToolsetID{"pull_requests"},
 			notExpectedToContain: "pull_request_template.md",
 		},
 		{
@@ -163,7 +163,7 @@ func TestGetToolsetInstructions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.toolset, func(t *testing.T) {
-			result := getToolsetInstructions(tt.toolset, tt.enabledToolsets)
+			result := getToolsetInstructions(ToolsetID(tt.toolset), tt.enabledToolsets)
 			if tt.expectedEmpty {
 				if result != "" {
 					t.Errorf("Expected empty result for toolset '%s', but got: %s", tt.toolset, result)
