@@ -168,7 +168,7 @@ func (b *Builder) Build() *Inventory {
 	}
 
 	if b.generateInstructions {
-		r.instructions = generateInstructions(r.EnabledToolsetIDs())
+		r.instructions = generateInstructions(r)
 	}
 
 	return r
