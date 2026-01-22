@@ -58,7 +58,7 @@ type Inventory struct {
 	filters []ToolFilter
 	// unrecognizedToolsets holds toolset IDs that were requested but don't match any registered toolsets
 	unrecognizedToolsets []string
-	// server instructions hold high-lelvel instructions for agents to use the server effectively
+	// server instructions hold high-level instructions for agents to use the server effectively
 	instructions string
 }
 
