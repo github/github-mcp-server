@@ -54,6 +54,9 @@ type MCPServerConfig struct {
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
 
+	// Insider indicates if we should enable experimental features
+	InsiderMode bool
+
 	// Logger is used for logging within the server
 	Logger *slog.Logger
 	// RepoAccessTTL overrides the default TTL for repository access cache entries.
@@ -71,18 +74,9 @@ type MCPServerConfig struct {
 type MCPServerOption func(*mcp.ServerOptions)
 
 func NewMCPServer(cfg *MCPServerConfig, deps ToolDependencies, inventory *inventory.Inventory) (*mcp.Server, error) {
-	enabledToolsets := resolveEnabledToolsets(cfg)
-
-	// For instruction generation, we need actual toolset names (not nil).
-	// nil means "use defaults" in inventory, so expand it for instructions.
-	instructionToolsets := enabledToolsets
-	if instructionToolsets == nil {
-		instructionToolsets = GetDefaultToolsetIDs()
-	}
-
 	// Create the MCP server
 	serverOpts := &mcp.ServerOptions{
-		Instructions:      GenerateInstructions(instructionToolsets),
+		Instructions:      inventory.Instructions(),
 		Logger:            cfg.Logger,
 		CompletionHandler: CompletionsHandler(deps.GetClient),
 	}

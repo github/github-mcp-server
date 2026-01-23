@@ -67,8 +67,10 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	// We use NewEnterpriseClient unconditionally since we already parsed the API host
 	gqlHTTPClient := &http.Client{
 		Transport: &transport.BearerAuthTransport{
-			Transport: http.DefaultTransport,
-			Token:     cfg.Token,
+			Transport: &transport.GraphQLFeaturesTransport{
+				Transport: http.DefaultTransport,
+			},
+			Token: cfg.Token,
 		},
 	}
 
@@ -116,15 +118,20 @@ func NewStdioMCPServer(cfg github.MCPServerConfig) (*mcp.Server, error) {
 		clients.raw,
 		clients.repoAccess,
 		cfg.Translator,
-		github.FeatureFlags{LockdownMode: cfg.LockdownMode},
+		github.FeatureFlags{
+			LockdownMode: cfg.LockdownMode,
+			InsiderMode:  cfg.InsiderMode,
+		},
 		cfg.ContentWindowSize,
+		nil, // featureChecker,
 	)
 	// Build and register the tool/resource/prompt inventory
 	inventoryBuilder := github.NewInventory(cfg.Translator).
 		WithDeprecatedAliases(github.DeprecatedToolAliases).
 		WithReadOnly(cfg.ReadOnly).
 		WithToolsets(cfg.EnabledToolsets).
-		WithTools(github.CleanTools(cfg.EnabledTools))
+		WithTools(github.CleanTools(cfg.EnabledTools)).
+		WithServerInstructions()
 		// WithFeatureChecker(createFeatureChecker(cfg.EnabledFeatures))
 
 	// Apply token scope filtering if scopes are known (for PAT filtering)
@@ -132,7 +139,10 @@ func NewStdioMCPServer(cfg github.MCPServerConfig) (*mcp.Server, error) {
 		inventoryBuilder = inventoryBuilder.WithFilter(github.CreateToolScopeFilter(cfg.TokenScopes))
 	}
 
-	inventory := inventoryBuilder.Build()
+	inventory, err := inventoryBuilder.Build()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build inventory: %w", err)
+	}
 
 	ghServer, err := github.NewMCPServer(&cfg, deps, inventory)
 	if err != nil {
@@ -188,6 +198,9 @@ type StdioServerConfig struct {
 
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
+
+	// InsiderMode indicates if we should enable experimental features
+	InsiderMode bool
 
 	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
 	RepoAccessCacheTTL *time.Duration
@@ -245,6 +258,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		Translator:        t,
 		ContentWindowSize: cfg.ContentWindowSize,
 		LockdownMode:      cfg.LockdownMode,
+		InsiderMode:       cfg.InsiderMode,
 		Logger:            logger,
 		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
 		TokenScopes:       tokenScopes,

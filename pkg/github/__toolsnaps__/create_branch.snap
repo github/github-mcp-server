@@ -4,30 +4,30 @@
   },
   "description": "Create a new branch in a GitHub repository",
   "inputSchema": {
-    "type": "object",
+    "properties": {
+      "branch": {
+        "description": "Name for new branch",
+        "type": "string"
+      },
+      "from_branch": {
+        "description": "Source branch (defaults to repo default)",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
     "required": [
       "owner",
       "repo",
       "branch"
     ],
-    "properties": {
-      "branch": {
-        "type": "string",
-        "description": "Name for new branch"
-      },
-      "from_branch": {
-        "type": "string",
-        "description": "Source branch (defaults to repo default)"
-      },
-      "owner": {
-        "type": "string",
-        "description": "Repository owner"
-      },
-      "repo": {
-        "type": "string",
-        "description": "Repository name"
-      }
-    }
+    "type": "object"
   },
   "name": "create_branch"
 }
