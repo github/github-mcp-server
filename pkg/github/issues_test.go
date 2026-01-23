@@ -2086,6 +2086,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "base_ref")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "custom_instructions")
 	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo", "issue_number"})
 
 	// Helper function to create pointer to githubv4.String
@@ -2638,6 +2639,116 @@ func TestAssignCopilotToIssue(t *testing.T) {
 				),
 			),
 		},
+		{
+			name: "successful assignment with custom_instructions specified",
+			requestArgs: map[string]any{
+				"owner":               "owner",
+				"repo":                "repo",
+				"issue_number":        float64(123),
+				"custom_instructions": "Please ensure all code follows PEP 8 style guidelines and includes comprehensive docstrings",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							SuggestedActors struct {
+								Nodes []struct {
+									Bot struct {
+										ID       githubv4.ID
+										Login    githubv4.String
+										TypeName string `graphql:"__typename"`
+									} `graphql:"... on Bot"`
+								}
+								PageInfo struct {
+									HasNextPage bool
+									EndCursor   string
+								}
+							} `graphql:"suggestedActors(first: 100, after: $endCursor, capabilities: CAN_BE_ASSIGNED)"`
+						} `graphql:"repository(owner: $owner, name: $name)"`
+					}{},
+					map[string]any{
+						"owner":     githubv4.String("owner"),
+						"name":      githubv4.String("repo"),
+						"endCursor": (*githubv4.String)(nil),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"suggestedActors": map[string]any{
+								"nodes": []any{
+									map[string]any{
+										"id":         githubv4.ID("copilot-swe-agent-id"),
+										"login":      githubv4.String("copilot-swe-agent"),
+										"__typename": "Bot",
+									},
+								},
+							},
+						},
+					}),
+				),
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							ID    githubv4.ID
+							Issue struct {
+								ID        githubv4.ID
+								Assignees struct {
+									Nodes []struct {
+										ID githubv4.ID
+									}
+								} `graphql:"assignees(first: 100)"`
+							} `graphql:"issue(number: $number)"`
+						} `graphql:"repository(owner: $owner, name: $name)"`
+					}{},
+					map[string]any{
+						"owner":  githubv4.String("owner"),
+						"name":   githubv4.String("repo"),
+						"number": githubv4.Int(123),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"id": githubv4.ID("test-repo-id"),
+							"issue": map[string]any{
+								"id": githubv4.ID("test-issue-id"),
+								"assignees": map[string]any{
+									"nodes": []any{},
+								},
+							},
+						},
+					}),
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						UpdateIssue struct {
+							Issue struct {
+								ID     githubv4.ID
+								Number githubv4.Int
+								URL    githubv4.String
+							}
+						} `graphql:"updateIssue(input: $input)"`
+					}{},
+					UpdateIssueInput{
+						ID:          githubv4.ID("test-issue-id"),
+						AssigneeIDs: []githubv4.ID{githubv4.ID("copilot-swe-agent-id")},
+						AgentAssignment: &AgentAssignmentInput{
+							BaseRef:            nil,
+							CustomAgent:        ptrGitHubv4String(""),
+							CustomInstructions: ptrGitHubv4String("Please ensure all code follows PEP 8 style guidelines and includes comprehensive docstrings"),
+							TargetRepositoryID: githubv4.ID("test-repo-id"),
+						},
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"updateIssue": map[string]any{
+							"issue": map[string]any{
+								"id":     githubv4.ID("test-issue-id"),
+								"number": githubv4.Int(123),
+								"url":    githubv4.String("https://github.com/owner/repo/issues/123"),
+							},
+						},
+					}),
+				),
+			),
+		},
 	}
 
 	for _, tc := range tests {
@@ -2654,8 +2765,12 @@ func TestAssignCopilotToIssue(t *testing.T) {
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
+			// Disable polling in tests to avoid timeouts
+			ctx := ContextWithPollConfig(context.Background(), PollConfig{MaxAttempts: 0})
+			ctx = ContextWithDeps(ctx, deps)
+
 			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ctx, &request)
 			require.NoError(t, err)
 
 			textContent := getTextResult(t, result)
@@ -2667,7 +2782,16 @@ func TestAssignCopilotToIssue(t *testing.T) {
 			}
 
 			require.False(t, result.IsError, fmt.Sprintf("expected there to be no tool error, text was %s", textContent.Text))
-			require.Equal(t, textContent.Text, "successfully assigned copilot to issue")
+
+			// Verify the JSON response contains expected fields
+			var response map[string]any
+			err = json.Unmarshal([]byte(textContent.Text), &response)
+			require.NoError(t, err, "response should be valid JSON")
+			assert.Equal(t, float64(123), response["issue_number"])
+			assert.Equal(t, "https://github.com/owner/repo/issues/123", response["issue_url"])
+			assert.Equal(t, "owner", response["owner"])
+			assert.Equal(t, "repo", response["repo"])
+			assert.Contains(t, response["message"], "successfully assigned copilot to issue")
 		})
 	}
 }

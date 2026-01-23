@@ -98,6 +98,7 @@ func RunHTTPServer(cfg HTTPServerConfig) error {
 			LockdownMode: cfg.LockdownMode,
 		},
 		cfg.ContentWindowSize,
+		nil,
 	)
 
 	r := chi.NewRouter()
@@ -113,7 +114,7 @@ func RunHTTPServer(cfg HTTPServerConfig) error {
 	oauthHandler.RegisterRoutes(r)
 	logger.Info("OAuth protected resource endpoints registered", "baseURL", cfg.BaseURL)
 
-	handler := NewHTTPMcpHandler(&cfg, deps, t, logger, WithOAuthConfig(oauthCfg))
+	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger)
 	handler.RegisterRoutes(r)
 
 	addr := fmt.Sprintf(":%d", cfg.Port)

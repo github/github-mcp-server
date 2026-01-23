@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-	"strings"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/github/github-mcp-server/pkg/http/middleware"
@@ -16,10 +16,11 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-type InventoryFactoryFunc func(r *http.Request) *inventory.Inventory
-type GitHubMCPServerFactoryFunc func(ctx context.Context, r *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error)
+type InventoryFactoryFunc func(r *http.Request) (*inventory.Inventory, error)
+type GitHubMCPServerFactoryFunc func(r *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error)
 
 type HTTPMcpHandler struct {
+	ctx                    context.Context
 	config                 *HTTPServerConfig
 	deps                   github.ToolDependencies
 	logger                 *slog.Logger
@@ -55,7 +56,9 @@ func WithOAuthConfig(cfg *oauth.Config) HTTPMcpHandlerOption {
 	}
 }
 
-func NewHTTPMcpHandler(cfg *HTTPServerConfig,
+func NewHTTPMcpHandler(
+	ctx context.Context,
+	cfg *HTTPServerConfig,
 	deps github.ToolDependencies,
 	t translations.TranslationHelperFunc,
 	logger *slog.Logger,
@@ -76,6 +79,7 @@ func NewHTTPMcpHandler(cfg *HTTPServerConfig,
 	}
 
 	return &HTTPMcpHandler{
+		ctx:                    ctx,
 		config:                 cfg,
 		deps:                   deps,
 		logger:                 logger,
@@ -86,14 +90,43 @@ func NewHTTPMcpHandler(cfg *HTTPServerConfig,
 	}
 }
 
+// RegisterRoutes registers the routes for the MCP server
+// URL-based values take precedence over header-based values
 func (h *HTTPMcpHandler) RegisterRoutes(r chi.Router) {
+	r.Use(middleware.WithRequestConfig)
+
 	r.Mount("/", h)
+	// Mount readonly and toolset routes
+	r.With(withToolset).Mount("/x/{toolset}", h)
+	r.With(withReadonly, withToolset).Mount("/x/{toolset}/readonly", h)
+	r.With(withReadonly).Mount("/readonly", h)
+}
+
+// withReadonly is middleware that sets readonly mode in the request context
+func withReadonly(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := ghcontext.WithReadonly(r.Context(), true)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// withToolset is middleware that extracts the toolset from the URL and sets it in the request context
+func withToolset(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		toolset := chi.URLParam(r, "toolset")
+		ctx := ghcontext.WithToolsets(r.Context(), []string{toolset})
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 func (h *HTTPMcpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	inventory := h.inventoryFactoryFunc(r)
+	inventory, err := h.inventoryFactoryFunc(r)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
-	ghServer, err := h.githubMcpServerFactory(r.Context(), r, h.deps, inventory, &github.MCPServerConfig{
+	ghServer, err := h.githubMcpServerFactory(r, h.deps, inventory, &github.MCPServerConfig{
 		Version:           h.config.Version,
 		Translator:        h.t,
 		ContentWindowSize: h.config.ContentWindowSize,
@@ -114,8 +147,8 @@ func (h *HTTPMcpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	middleware.ExtractUserToken(h.oauthCfg)(mcpHandler).ServeHTTP(w, r)
 }
 
-func DefaultGitHubMCPServerFactory(ctx context.Context, _ *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error) {
-	return github.NewMCPServer(&github.MCPServerConfig{
+func DefaultGitHubMCPServerFactory(r *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error) {
+	return github.NewMCPServer(r.Context(), &github.MCPServerConfig{
 		Version:           cfg.Version,
 		Translator:        cfg.Translator,
 		ContentWindowSize: cfg.ContentWindowSize,
@@ -125,54 +158,41 @@ func DefaultGitHubMCPServerFactory(ctx context.Context, _ *http.Request, deps gi
 }
 
 func DefaultInventoryFactory(cfg *HTTPServerConfig, t translations.TranslationHelperFunc, staticChecker inventory.FeatureFlagChecker) InventoryFactoryFunc {
-	return func(r *http.Request) *inventory.Inventory {
+	return func(r *http.Request) (*inventory.Inventory, error) {
 		b := github.NewInventory(t).WithDeprecatedAliases(github.DeprecatedToolAliases)
 
 		// Feature checker composition
-		headerFeatures := parseCommaSeparatedHeader(r.Header.Get(headers.MCPFeaturesHeader))
+		headerFeatures := headers.ParseCommaSeparated(r.Header.Get(headers.MCPFeaturesHeader))
 		if checker := ComposeFeatureChecker(headerFeatures, staticChecker); checker != nil {
 			b = b.WithFeatureChecker(checker)
 		}
 
-		b = InventoryFiltersForRequestHeaders(r, b)
+		b = InventoryFiltersForRequest(r, b)
+		b.WithServerInstructions()
+
 		return b.Build()
 	}
 }
 
-// InventoryFiltersForRequestHeaders applies inventory filters based on HTTP request headers.
-// Whitespace is trimmed from comma-separated values; empty values are ignored.
-func InventoryFiltersForRequestHeaders(r *http.Request, builder *inventory.Builder) *inventory.Builder {
-	if r.Header.Get(headers.MCPReadOnlyHeader) != "" {
+// InventoryFiltersForRequest applies filters to the inventory builder
+// based on the request context and headers
+func InventoryFiltersForRequest(r *http.Request, builder *inventory.Builder) *inventory.Builder {
+	ctx := r.Context()
+
+	if ghcontext.IsReadonly(ctx) {
 		builder = builder.WithReadOnly(true)
 	}
 
-	if toolsetsStr := r.Header.Get(headers.MCPToolsetsHeader); toolsetsStr != "" {
-		toolsets := parseCommaSeparatedHeader(toolsetsStr)
+	if toolsets := ghcontext.GetToolsets(ctx); len(toolsets) > 0 {
 		builder = builder.WithToolsets(toolsets)
 	}
 
-	if toolsStr := r.Header.Get(headers.MCPToolsHeader); toolsStr != "" {
-		tools := parseCommaSeparatedHeader(toolsStr)
+	if tools := ghcontext.GetTools(ctx); len(tools) > 0 {
+		if len(ghcontext.GetToolsets(ctx)) == 0 {
+			builder = builder.WithToolsets([]string{})
+		}
 		builder = builder.WithTools(github.CleanTools(tools))
 	}
 
 	return builder
-}
-
-// parseCommaSeparatedHeader splits a header value by comma, trims whitespace,
-// and filters out empty values.
-func parseCommaSeparatedHeader(value string) []string {
-	if value == "" {
-		return []string{}
-	}
-
-	parts := strings.Split(value, ",")
-	result := make([]string, 0, len(parts))
-	for _, p := range parts {
-		trimmed := strings.TrimSpace(p)
-		if trimmed != "" {
-			result = append(result, trimmed)
-		}
-	}
-	return result
 }

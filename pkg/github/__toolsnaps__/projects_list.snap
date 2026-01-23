@@ -5,62 +5,61 @@
   },
   "description": "Tools for listing GitHub Projects resources.\nUse this tool to list projects for a user or organization, or list project fields and items for a specific project.\n",
   "inputSchema": {
-    "type": "object",
-    "required": [
-      "method",
-      "owner_type",
-      "owner"
-    ],
     "properties": {
       "after": {
-        "type": "string",
-        "description": "Forward pagination cursor from previous pageInfo.nextCursor."
+        "description": "Forward pagination cursor from previous pageInfo.nextCursor.",
+        "type": "string"
       },
       "before": {
-        "type": "string",
-        "description": "Backward pagination cursor from previous pageInfo.prevCursor (rare)."
+        "description": "Backward pagination cursor from previous pageInfo.prevCursor (rare).",
+        "type": "string"
       },
       "fields": {
-        "type": "array",
         "description": "Field IDs to include when listing project items (e.g. [\"102589\", \"985201\"]). CRITICAL: Always provide to get field values. Without this, only titles returned. Only used for 'list_project_items' method.",
         "items": {
           "type": "string"
-        }
+        },
+        "type": "array"
       },
       "method": {
-        "type": "string",
         "description": "The action to perform",
         "enum": [
           "list_projects",
           "list_project_fields",
           "list_project_items"
-        ]
+        ],
+        "type": "string"
       },
       "owner": {
-        "type": "string",
-        "description": "If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive."
+        "description": "The owner (user or organization login). The name is not case sensitive.",
+        "type": "string"
       },
       "owner_type": {
-        "type": "string",
-        "description": "Owner type",
+        "description": "Owner type (user or org). If not provided, will automatically try both.",
         "enum": [
           "user",
           "org"
-        ]
+        ],
+        "type": "string"
       },
       "per_page": {
-        "type": "number",
-        "description": "Results per page (max 50)"
+        "description": "Results per page (max 50)",
+        "type": "number"
       },
       "project_number": {
-        "type": "number",
-        "description": "The project's number. Required for 'list_project_fields' and 'list_project_items' methods."
+        "description": "The project's number. Required for 'list_project_fields' and 'list_project_items' methods.",
+        "type": "number"
       },
       "query": {
-        "type": "string",
-        "description": "Filter/query string. For list_projects: filter by title text and state (e.g. \"roadmap is:open\"). For list_project_items: advanced filtering using GitHub's project filtering syntax."
+        "description": "Filter/query string. For list_projects: filter by title text and state (e.g. \"roadmap is:open\"). For list_project_items: advanced filtering using GitHub's project filtering syntax.",
+        "type": "string"
       }
-    }
+    },
+    "required": [
+      "method",
+      "owner"
+    ],
+    "type": "object"
   },
   "name": "projects_list"
 }

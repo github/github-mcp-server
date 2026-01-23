@@ -131,3 +131,184 @@ func TestMalformedSnapshotJSON(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to parse snapshot JSON for dummy", "expected error about malformed snapshot JSON")
 }
+
+func TestSortJSONKeys(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "simple object",
+			input:    `{"z": 1, "a": 2, "m": 3}`,
+			expected: "{\n  \"a\": 2,\n  \"m\": 3,\n  \"z\": 1\n}",
+		},
+		{
+			name:     "nested object",
+			input:    `{"z": {"y": 1, "x": 2}, "a": 3}`,
+			expected: "{\n  \"a\": 3,\n  \"z\": {\n    \"x\": 2,\n    \"y\": 1\n  }\n}",
+		},
+		{
+			name:     "array with objects",
+			input:    `{"items": [{"z": 1, "a": 2}, {"y": 3, "b": 4}]}`,
+			expected: "{\n  \"items\": [\n    {\n      \"a\": 2,\n      \"z\": 1\n    },\n    {\n      \"b\": 4,\n      \"y\": 3\n    }\n  ]\n}",
+		},
+		{
+			name:     "deeply nested",
+			input:    `{"z": {"y": {"x": 1, "a": 2}, "b": 3}, "m": 4}`,
+			expected: "{\n  \"m\": 4,\n  \"z\": {\n    \"b\": 3,\n    \"y\": {\n      \"a\": 2,\n      \"x\": 1\n    }\n  }\n}",
+		},
+		{
+			name:     "properties field like in toolsnaps",
+			input:    `{"name": "test", "properties": {"repo": {"type": "string"}, "owner": {"type": "string"}, "page": {"type": "number"}}}`,
+			expected: "{\n  \"name\": \"test\",\n  \"properties\": {\n    \"owner\": {\n      \"type\": \"string\"\n    },\n    \"page\": {\n      \"type\": \"number\"\n    },\n    \"repo\": {\n      \"type\": \"string\"\n    }\n  }\n}",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := sortJSONKeys([]byte(tt.input))
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, string(result))
+		})
+	}
+}
+
+func TestSortJSONKeysIdempotent(t *testing.T) {
+	// Given a JSON string that's already sorted
+	input := `{"a": 1, "b": {"x": 2, "y": 3}, "c": [{"m": 4, "n": 5}]}`
+
+	// When we sort it once
+	sorted1, err := sortJSONKeys([]byte(input))
+	require.NoError(t, err)
+
+	// And sort it again
+	sorted2, err := sortJSONKeys(sorted1)
+	require.NoError(t, err)
+
+	// Then the results should be identical
+	assert.Equal(t, string(sorted1), string(sorted2))
+}
+
+func TestToolSnapKeysSorted(t *testing.T) {
+	withIsolatedWorkingDir(t)
+
+	// Given a tool with fields that could be in any order
+	type complexTool struct {
+		Name        string                 `json:"name"`
+		Description string                 `json:"description"`
+		Properties  map[string]interface{} `json:"properties"`
+		Annotations map[string]interface{} `json:"annotations"`
+	}
+
+	tool := complexTool{
+		Name:        "test_tool",
+		Description: "A test tool",
+		Properties: map[string]interface{}{
+			"zzz":   "last",
+			"aaa":   "first",
+			"mmm":   "middle",
+			"owner": map[string]interface{}{"type": "string", "description": "Owner"},
+			"repo":  map[string]interface{}{"type": "string", "description": "Repo"},
+		},
+		Annotations: map[string]interface{}{
+			"readOnly": true,
+			"title":    "Test",
+		},
+	}
+
+	// When we write the snapshot
+	t.Setenv("UPDATE_TOOLSNAPS", "true")
+	err := Test("complex", tool)
+	require.NoError(t, err)
+
+	// Then the snapshot file should have sorted keys
+	snapJSON, err := os.ReadFile("__toolsnaps__/complex.snap")
+	require.NoError(t, err)
+
+	// Verify that the JSON is properly sorted by checking key order
+	var parsed map[string]interface{}
+	err = json.Unmarshal(snapJSON, &parsed)
+	require.NoError(t, err)
+
+	// Check that properties are sorted
+	propsJSON, _ := json.MarshalIndent(parsed["properties"], "", "  ")
+	propsStr := string(propsJSON)
+	// The properties should have "aaa" before "mmm" before "zzz"
+	aaaIndex := -1
+	mmmIndex := -1
+	zzzIndex := -1
+	for i, line := range propsStr {
+		if line == 'a' && i+2 < len(propsStr) && propsStr[i:i+3] == "aaa" {
+			aaaIndex = i
+		}
+		if line == 'm' && i+2 < len(propsStr) && propsStr[i:i+3] == "mmm" {
+			mmmIndex = i
+		}
+		if line == 'z' && i+2 < len(propsStr) && propsStr[i:i+3] == "zzz" {
+			zzzIndex = i
+		}
+	}
+	assert.Greater(t, mmmIndex, aaaIndex, "mmm should come after aaa")
+	assert.Greater(t, zzzIndex, mmmIndex, "zzz should come after mmm")
+}
+
+func TestStructFieldOrderingSortedAlphabetically(t *testing.T) {
+	withIsolatedWorkingDir(t)
+
+	// Given a struct with fields defined in non-alphabetical order
+	// This test ensures that struct field order doesn't affect the JSON output
+	type toolWithNonAlphabeticalFields struct {
+		ZField string `json:"zField"` // Should appear last in JSON
+		AField string `json:"aField"` // Should appear first in JSON
+		MField string `json:"mField"` // Should appear in the middle
+	}
+
+	tool := toolWithNonAlphabeticalFields{
+		ZField: "z value",
+		AField: "a value",
+		MField: "m value",
+	}
+
+	// When we write the snapshot
+	t.Setenv("UPDATE_TOOLSNAPS", "true")
+	err := Test("struct_field_order", tool)
+	require.NoError(t, err)
+
+	// Then the snapshot file should have alphabetically sorted keys despite struct field order
+	snapJSON, err := os.ReadFile("__toolsnaps__/struct_field_order.snap")
+	require.NoError(t, err)
+
+	snapStr := string(snapJSON)
+
+	// Find the positions of each field in the JSON string
+	aFieldIndex := -1
+	mFieldIndex := -1
+	zFieldIndex := -1
+	for i := 0; i < len(snapStr)-7; i++ {
+		switch snapStr[i : i+6] {
+		case "aField":
+			aFieldIndex = i
+		case "mField":
+			mFieldIndex = i
+		case "zField":
+			zFieldIndex = i
+		}
+	}
+
+	// Verify alphabetical ordering in the JSON output
+	require.NotEqual(t, -1, aFieldIndex, "aField should be present")
+	require.NotEqual(t, -1, mFieldIndex, "mField should be present")
+	require.NotEqual(t, -1, zFieldIndex, "zField should be present")
+	assert.Less(t, aFieldIndex, mFieldIndex, "aField should appear before mField")
+	assert.Less(t, mFieldIndex, zFieldIndex, "mField should appear before zField")
+
+	// Also verify idempotency - running the test again should produce identical output
+	err = Test("struct_field_order", tool)
+	require.NoError(t, err)
+
+	snapJSON2, err := os.ReadFile("__toolsnaps__/struct_field_order.snap")
+	require.NoError(t, err)
+
+	assert.Equal(t, string(snapJSON), string(snapJSON2), "Multiple runs should produce identical output")
+}
