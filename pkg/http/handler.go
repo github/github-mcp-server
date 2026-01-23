@@ -77,6 +77,7 @@ func NewHTTPMcpHandler(cfg *HTTPServerConfig,
 }
 
 // RegisterRoutes registers the routes for the MCP server
+// URL-based values take precedence over header-based values
 func (h *HTTPMcpHandler) RegisterRoutes(r chi.Router) {
 	r.Use(middleware.WithRequestConfig)
 
