@@ -76,9 +76,11 @@ func NewHTTPMcpHandler(cfg *HTTPServerConfig,
 	}
 }
 
+// RegisterRoutes registers the routes for the MCP server
 func (h *HTTPMcpHandler) RegisterRoutes(r chi.Router) {
-	r.Mount("/", h)
+	r.Use(middleware.WithRequestConfig)
 
+	r.Mount("/", h)
 	// Mount readonly and toolset routes
 	r.With(withToolset).Mount("/x/{toolset}", h)
 	r.With(withReadonly, withToolset).Mount("/x/{toolset}/readonly", h)

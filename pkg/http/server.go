@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/github/github-mcp-server/pkg/github"
-	"github.com/github/github-mcp-server/pkg/http/middleware"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -99,7 +98,6 @@ func RunHTTPServer(cfg HTTPServerConfig) error {
 	r := chi.NewRouter()
 
 	handler := NewHTTPMcpHandler(&cfg, deps, t, logger)
-	r.Use(middleware.WithRequestConfig)
 	handler.RegisterRoutes(r)
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
