@@ -22,8 +22,8 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - name: Download dependencies
-        run: go mod download
+      - name: Tidy dependencies
+        run: go mod tidy -diff
 
       - name: Run unit tests
         run: script/test
