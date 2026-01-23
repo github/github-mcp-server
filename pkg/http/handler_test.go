@@ -11,6 +11,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func mockTool(name, toolsetID string, readOnly bool) inventory.ServerTool {
@@ -94,7 +95,8 @@ func TestInventoryFiltersForRequest(t *testing.T) {
 				WithToolsets([]string{"all"})
 
 			builder = InventoryFiltersForRequest(req, builder)
-			inv := builder.Build()
+			inv, err := builder.Build()
+			require.NoError(t, err)
 
 			available := inv.AvailableTools(context.Background())
 			toolNames := make([]string, len(available))
