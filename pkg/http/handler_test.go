@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
-	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -38,7 +37,6 @@ func TestInventoryFiltersForRequest(t *testing.T) {
 	tests := []struct {
 		name          string
 		contextSetup  func(context.Context) context.Context
-		headers       map[string]string
 		expectedTools []string
 	}{
 		{
@@ -61,14 +59,11 @@ func TestInventoryFiltersForRequest(t *testing.T) {
 			expectedTools: []string{"get_file_contents", "create_repository"},
 		},
 		{
-			name: "context toolset takes precedence over header",
+			name: "tools alone clears default toolsets",
 			contextSetup: func(ctx context.Context) context.Context {
-				return ghcontext.WithToolsets(ctx, []string{"repos"})
+				return ghcontext.WithTools(ctx, []string{"list_issues"})
 			},
-			headers: map[string]string{
-				headers.MCPToolsetsHeader: "issues",
-			},
-			expectedTools: []string{"get_file_contents", "create_repository"},
+			expectedTools: []string{"list_issues"},
 		},
 		{
 			name: "tools are additive with toolsets",
@@ -84,9 +79,6 @@ func TestInventoryFiltersForRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
-			for k, v := range tt.headers {
-				req.Header.Set(k, v)
-			}
 			req = req.WithContext(tt.contextSetup(req.Context()))
 
 			builder := inventory.NewBuilder().
