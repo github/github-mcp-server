@@ -5,34 +5,34 @@
   },
   "description": "Get the contents of a file or directory from a GitHub repository",
   "inputSchema": {
-    "type": "object",
+    "properties": {
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "path": {
+        "default": "/",
+        "description": "Path to file/directory",
+        "type": "string"
+      },
+      "ref": {
+        "description": "Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head`",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "sha": {
+        "description": "Accepts optional commit SHA. If specified, it will be used instead of ref",
+        "type": "string"
+      }
+    },
     "required": [
       "owner",
       "repo"
     ],
-    "properties": {
-      "owner": {
-        "type": "string",
-        "description": "Repository owner (username or organization)"
-      },
-      "path": {
-        "type": "string",
-        "description": "Path to file/directory",
-        "default": "/"
-      },
-      "ref": {
-        "type": "string",
-        "description": "Accepts optional git refs such as `refs/tags/{tag}`, `refs/heads/{branch}` or `refs/pull/{pr_number}/head`"
-      },
-      "repo": {
-        "type": "string",
-        "description": "Repository name"
-      },
-      "sha": {
-        "type": "string",
-        "description": "Accepts optional commit SHA. If specified, it will be used instead of ref"
-      }
-    }
+    "type": "object"
   },
   "name": "get_file_contents"
 }

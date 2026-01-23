@@ -12,7 +12,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v79/github"
+	gogithub "github.com/google/go-github/v79/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +21,7 @@ import (
 // stubDeps is a test helper that implements ToolDependencies with configurable behavior.
 // Use this when you need to test error paths or when you need closure-based client creation.
 type stubDeps struct {
-	clientFn    func(context.Context) (*github.Client, error)
+	clientFn    func(context.Context) (*gogithub.Client, error)
 	gqlClientFn func(context.Context) (*githubv4.Client, error)
 	rawClientFn func(context.Context) (*raw.Client, error)
 
@@ -31,7 +31,7 @@ type stubDeps struct {
 	contentWindowSize int
 }
 
-func (s stubDeps) GetClient(ctx context.Context) (*github.Client, error) {
+func (s stubDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
 	if s.clientFn != nil {
 		return s.clientFn(ctx)
 	}
@@ -55,19 +55,20 @@ func (s stubDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
 func (s stubDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAccessCache, error) {
 	return s.repoAccessCache, nil
 }
-func (s stubDeps) GetT() translations.TranslationHelperFunc { return s.t }
-func (s stubDeps) GetFlags() FeatureFlags                   { return s.flags }
-func (s stubDeps) GetContentWindowSize() int                { return s.contentWindowSize }
+func (s stubDeps) GetT() translations.TranslationHelperFunc          { return s.t }
+func (s stubDeps) GetFlags() FeatureFlags                            { return s.flags }
+func (s stubDeps) GetContentWindowSize() int                         { return s.contentWindowSize }
+func (s stubDeps) IsFeatureEnabled(_ context.Context, _ string) bool { return false }
 
 // Helper functions to create stub client functions for error testing
-func stubClientFnFromHTTP(httpClient *http.Client) func(context.Context) (*github.Client, error) {
-	return func(_ context.Context) (*github.Client, error) {
-		return github.NewClient(httpClient), nil
+func stubClientFnFromHTTP(httpClient *http.Client) func(context.Context) (*gogithub.Client, error) {
+	return func(_ context.Context) (*gogithub.Client, error) {
+		return gogithub.NewClient(httpClient), nil
 	}
 }
 
-func stubClientFnErr(errMsg string) func(context.Context) (*github.Client, error) {
-	return func(_ context.Context) (*github.Client, error) {
+func stubClientFnErr(errMsg string) func(context.Context) (*gogithub.Client, error) {
+	return func(_ context.Context) (*gogithub.Client, error) {
 		return nil, errors.New(errMsg)
 	}
 }
@@ -86,12 +87,13 @@ func stubRepoAccessCache(client *githubv4.Client, ttl time.Duration) *lockdown.R
 func stubFeatureFlags(enabledFlags map[string]bool) FeatureFlags {
 	return FeatureFlags{
 		LockdownMode: enabledFlags["lockdown-mode"],
+		InsiderMode:  enabledFlags["insider-mode"],
 	}
 }
 
 func badRequestHandler(msg string) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
-		structuredErrorResponse := github.ErrorResponse{
+		structuredErrorResponse := gogithub.ErrorResponse{
 			Message: msg,
 		}
 
@@ -124,10 +126,12 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 	deps := stubDeps{}
 
 	// Build inventory
-	inv := NewInventory(cfg.Translator).
+	inv, err := NewInventory(cfg.Translator).
 		WithDeprecatedAliases(DeprecatedToolAliases).
 		WithToolsets(cfg.EnabledToolsets).
 		Build()
+
+	require.NoError(t, err, "expected inventory build to succeed")
 
 	// Create the server
 	server, err := NewMCPServer(&cfg, deps, inv)

@@ -93,6 +93,7 @@ func RunHTTPServer(cfg HTTPServerConfig) error {
 			LockdownMode: cfg.LockdownMode,
 		},
 		cfg.ContentWindowSize,
+		nil,
 	)
 
 	r := chi.NewRouter()

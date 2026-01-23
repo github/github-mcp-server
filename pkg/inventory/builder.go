@@ -2,6 +2,7 @@ package inventory
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 )
@@ -33,12 +34,13 @@ type Builder struct {
 	deprecatedAliases map[string]string
 
 	// Configuration options (processed at Build time)
-	readOnly        bool
-	toolsetIDs      []string // raw input, processed at Build()
-	toolsetIDsIsNil bool     // tracks if nil was passed (nil = defaults)
-	additionalTools []string // raw input, processed at Build()
-	featureChecker  FeatureFlagChecker
-	filters         []ToolFilter // filters to apply to all tools
+	readOnly             bool
+	toolsetIDs           []string // raw input, processed at Build()
+	toolsetIDsIsNil      bool     // tracks if nil was passed (nil = defaults)
+	additionalTools      []string // raw input, processed at Build()
+	featureChecker       FeatureFlagChecker
+	filters              []ToolFilter // filters to apply to all tools
+	generateInstructions bool
 }
 
 // NewBuilder creates a new Builder.
@@ -83,6 +85,11 @@ func (b *Builder) WithReadOnly(readOnly bool) *Builder {
 	return b
 }
 
+func (b *Builder) WithServerInstructions() *Builder {
+	b.generateInstructions = true
+	return b
+}
+
 // WithToolsets specifies which toolsets should be enabled.
 // Special keywords:
 //   - "all": enables all toolsets
@@ -101,6 +108,7 @@ func (b *Builder) WithToolsets(toolsetIDs []string) *Builder {
 // WithTools specifies additional tools that bypass toolset filtering.
 // These tools are additive - they will be included even if their toolset is not enabled.
 // Read-only filtering still applies to these tools.
+// Input is cleaned (trimmed, deduplicated) during Build().
 // Deprecated tool aliases are automatically resolved to their canonical names during Build().
 // Returns self for chaining.
 func (b *Builder) WithTools(toolNames []string) *Builder {
@@ -127,11 +135,33 @@ func (b *Builder) WithFilter(filter ToolFilter) *Builder {
 	return b
 }
 
+// cleanTools trims whitespace and removes duplicates from tool names.
+// Empty strings after trimming are excluded.
+func cleanTools(tools []string) []string {
+	seen := make(map[string]bool)
+	var cleaned []string
+	for _, name := range tools {
+		trimmed := strings.TrimSpace(name)
+		if trimmed == "" {
+			continue
+		}
+		if !seen[trimmed] {
+			seen[trimmed] = true
+			cleaned = append(cleaned, trimmed)
+		}
+	}
+	return cleaned
+}
+
 // Build creates the final Inventory with all configuration applied.
 // This processes toolset filtering, tool name resolution, and sets up
 // the inventory for use. The returned Inventory is ready for use with
 // AvailableTools(), RegisterAll(), etc.
-func (b *Builder) Build() *Inventory {
+//
+// Build returns an error if any tools specified via WithTools() are not recognized
+// (i.e., they don't exist in the tool set and are not deprecated aliases).
+// This ensures invalid tool configurations fail fast at build time.
+func (b *Builder) Build() (*Inventory, error) {
 	r := &Inventory{
 		tools:             b.tools,
 		resourceTemplates: b.resourceTemplates,
@@ -145,10 +175,19 @@ func (b *Builder) Build() *Inventory {
 	// Process toolsets and pre-compute metadata in a single pass
 	r.enabledToolsets, r.unrecognizedToolsets, r.toolsetIDs, r.toolsetIDSet, r.defaultToolsetIDs, r.toolsetDescriptions = b.processToolsets()
 
-	// Process additional tools (resolve aliases)
+	// Build set of valid tool names for validation
+	validToolNames := make(map[string]bool, len(b.tools))
+	for i := range b.tools {
+		validToolNames[b.tools[i].Tool.Name] = true
+	}
+
+	// Process additional tools (clean, resolve aliases, and track unrecognized)
 	if len(b.additionalTools) > 0 {
-		r.additionalTools = make(map[string]bool, len(b.additionalTools))
-		for _, name := range b.additionalTools {
+		cleanedTools := cleanTools(b.additionalTools)
+
+		r.additionalTools = make(map[string]bool, len(cleanedTools))
+		var unrecognizedTools []string
+		for _, name := range cleanedTools {
 			// Always include the original name - this handles the case where
 			// the tool exists but is controlled by a feature flag that's OFF.
 			r.additionalTools[name] = true
@@ -157,11 +196,23 @@ func (b *Builder) Build() *Inventory {
 			// the new consolidated tool is available.
 			if canonical, isAlias := b.deprecatedAliases[name]; isAlias {
 				r.additionalTools[canonical] = true
+			} else if !validToolNames[name] {
+				// Not a valid tool and not a deprecated alias - track as unrecognized
+				unrecognizedTools = append(unrecognizedTools, name)
 			}
+		}
+
+		// Error out if there are unrecognized tools
+		if len(unrecognizedTools) > 0 {
+			return nil, fmt.Errorf("unrecognized tools: %s", strings.Join(unrecognizedTools, ", "))
 		}
 	}
 
-	return r
+	if b.generateInstructions {
+		r.instructions = generateInstructions(r)
+	}
+
+	return r, nil
 }
 
 // processToolsets processes the toolsetIDs configuration and returns:

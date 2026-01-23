@@ -15,7 +15,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-type InventoryFactoryFunc func(r *http.Request) *inventory.Inventory
+type InventoryFactoryFunc func(r *http.Request) (*inventory.Inventory, error)
 type GitHubMCPServerFactoryFunc func(ctx context.Context, r *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error)
 
 type HTTPMcpHandler struct {
@@ -106,7 +106,11 @@ func withToolset(next http.Handler) http.Handler {
 }
 
 func (h *HTTPMcpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	inventory := h.inventoryFactoryFunc(r)
+	inventory, err := h.inventoryFactoryFunc(r)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
 	ghServer, err := h.githubMcpServerFactory(r.Context(), r, h.deps, inventory, &github.MCPServerConfig{
 		Version:           h.config.Version,
@@ -140,7 +144,7 @@ func DefaultGitHubMCPServerFactory(ctx context.Context, _ *http.Request, deps gi
 }
 
 func DefaultInventoryFactory(cfg *HTTPServerConfig, t translations.TranslationHelperFunc, staticChecker inventory.FeatureFlagChecker) InventoryFactoryFunc {
-	return func(r *http.Request) *inventory.Inventory {
+	return func(r *http.Request) (*inventory.Inventory, error) {
 		b := github.NewInventory(t).WithDeprecatedAliases(github.DeprecatedToolAliases)
 
 		// Feature checker composition
@@ -150,6 +154,8 @@ func DefaultInventoryFactory(cfg *HTTPServerConfig, t translations.TranslationHe
 		}
 
 		b = InventoryFiltersForRequest(r, b)
+		b.WithServerInstructions()
+
 		return b.Build()
 	}
 }
