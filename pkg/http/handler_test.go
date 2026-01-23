@@ -73,10 +73,9 @@ func TestInventoryFiltersForRequest(t *testing.T) {
 		{
 			name: "tools are additive with toolsets",
 			contextSetup: func(ctx context.Context) context.Context {
-				return ghcontext.WithToolsets(ctx, []string{"repos"})
-			},
-			headers: map[string]string{
-				headers.MCPToolsHeader: "list_issues",
+				ctx = ghcontext.WithToolsets(ctx, []string{"repos"})
+				ctx = ghcontext.WithTools(ctx, []string{"list_issues"})
+				return ctx
 			},
 			expectedTools: []string{"get_file_contents", "create_repository", "list_issues"},
 		},

@@ -22,6 +22,10 @@ func WithRequestConfig(next http.Handler) http.Handler {
 			ctx = ghcontext.WithToolsets(ctx, toolsets)
 		}
 
+		if tools := headers.ParseCommaSeparated(r.Header.Get(headers.MCPToolsHeader)); len(tools) > 0 {
+			ctx = ghcontext.WithTools(ctx, tools)
+		}
+
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

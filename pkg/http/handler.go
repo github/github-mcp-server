@@ -173,7 +173,7 @@ func InventoryFiltersForRequest(r *http.Request, builder *inventory.Builder) *in
 		builder = builder.WithToolsets(toolsets)
 	}
 
-	if tools := headers.ParseCommaSeparated(r.Header.Get(headers.MCPToolsHeader)); len(tools) > 0 {
+	if tools := ghcontext.GetTools(ctx); len(tools) > 0 {
 		if len(ghcontext.GetToolsets(ctx)) == 0 {
 			builder = builder.WithToolsets([]string{})
 		}
