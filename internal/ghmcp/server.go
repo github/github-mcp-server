@@ -144,7 +144,7 @@ func NewStdioMCPServer(cfg github.MCPServerConfig) (*mcp.Server, error) {
 		return nil, fmt.Errorf("failed to build inventory: %w", err)
 	}
 
-	ghServer, err := github.NewMCPServer(&cfg, deps, inventory)
+	ghServer, err := github.NewMCPServer(context.Background(), &cfg, deps, inventory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub MCP server: %w", err)
 	}

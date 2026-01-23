@@ -98,7 +98,7 @@ func RunHTTPServer(cfg HTTPServerConfig) error {
 
 	r := chi.NewRouter()
 
-	handler := NewHTTPMcpHandler(&cfg, deps, t, logger)
+	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger)
 	handler.RegisterRoutes(r)
 
 	addr := fmt.Sprintf(":%d", cfg.Port)

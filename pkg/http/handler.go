@@ -16,9 +16,10 @@ import (
 )
 
 type InventoryFactoryFunc func(r *http.Request) (*inventory.Inventory, error)
-type GitHubMCPServerFactoryFunc func(ctx context.Context, r *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error)
+type GitHubMCPServerFactoryFunc func(r *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error)
 
 type HTTPMcpHandler struct {
+	ctx                    context.Context
 	config                 *HTTPServerConfig
 	deps                   github.ToolDependencies
 	logger                 *slog.Logger
@@ -46,7 +47,9 @@ func WithInventoryFactory(f InventoryFactoryFunc) HTTPMcpHandlerOption {
 	}
 }
 
-func NewHTTPMcpHandler(cfg *HTTPServerConfig,
+func NewHTTPMcpHandler(
+	ctx context.Context,
+	cfg *HTTPServerConfig,
 	deps github.ToolDependencies,
 	t translations.TranslationHelperFunc,
 	logger *slog.Logger,
@@ -67,6 +70,7 @@ func NewHTTPMcpHandler(cfg *HTTPServerConfig,
 	}
 
 	return &HTTPMcpHandler{
+		ctx:                    ctx,
 		config:                 cfg,
 		deps:                   deps,
 		logger:                 logger,
@@ -112,7 +116,7 @@ func (h *HTTPMcpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ghServer, err := h.githubMcpServerFactory(r.Context(), r, h.deps, inventory, &github.MCPServerConfig{
+	ghServer, err := h.githubMcpServerFactory(r, h.deps, inventory, &github.MCPServerConfig{
 		Version:           h.config.Version,
 		Translator:        h.t,
 		ContentWindowSize: h.config.ContentWindowSize,
@@ -133,8 +137,8 @@ func (h *HTTPMcpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	middleware.ExtractUserToken()(mcpHandler).ServeHTTP(w, r)
 }
 
-func DefaultGitHubMCPServerFactory(ctx context.Context, _ *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error) {
-	return github.NewMCPServer(&github.MCPServerConfig{
+func DefaultGitHubMCPServerFactory(r *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error) {
+	return github.NewMCPServer(r.Context(), &github.MCPServerConfig{
 		Version:           cfg.Version,
 		Translator:        cfg.Translator,
 		ContentWindowSize: cfg.ContentWindowSize,
