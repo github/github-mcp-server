@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"html"
 	"net/http"
+	"net/url"
 	"strings"
 	"text/template"
 
@@ -112,14 +113,16 @@ func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 }
 
 // routesForPattern generates route variants for a given pattern.
+// GitHub strips the /mcp prefix before forwarding, so we register both variants:
+// - With /mcp prefix: for direct access or when GitHub doesn't strip
+// - Without /mcp prefix: for when GitHub has stripped the prefix
 func (h *AuthHandler) routesForPattern(pattern string) []string {
-	routes := []string{
+	return []string{
 		pattern,
+		"/mcp" + pattern,
 		pattern + "/",
-		pattern + "/mcp",
-		pattern + "/mcp/",
+		"/mcp" + pattern + "/",
 	}
-	return routes
 }
 
 // handleProtectedResource handles requests for OAuth protected resource metadata.
@@ -153,26 +156,43 @@ func (h *AuthHandler) handleProtectedResource(w http.ResponseWriter, r *http.Req
 	_, _ = w.Write(buf.Bytes())
 }
 
+// GetEffectiveResourcePath returns the resource path for OAuth protected resource URLs.
+// It checks for the X-GitHub-Original-Path header set by copilot-api (CAPI), which contains
+// the exact path the client requested before the /mcp prefix was stripped.
+// If the header is not present (e.g., direct access or older CAPI versions), it falls back to
+// restoring the /mcp prefix.
+func GetEffectiveResourcePath(r *http.Request) string {
+	// Check for the original path header from copilot-api (preferred method)
+	if originalPath := r.Header.Get(headers.OriginalPathHeader); originalPath != "" {
+		return originalPath
+	}
+
+	// Fallback: copilot-api strips /mcp prefix, so we need to restore it for the external URL
+	if r.URL.Path == "/" {
+		return "/mcp"
+	}
+	return "/mcp" + r.URL.Path
+}
+
 // GetProtectedResourceData builds the OAuth protected resource data for a request.
 func (h *AuthHandler) GetProtectedResourceData(r *http.Request, resourcePath string) (*ProtectedResourceData, error) {
 	host, scheme := GetEffectiveHostAndScheme(r, h.cfg)
 
-	// Build the resource URL
-	var resourceURL string
+	// Build the base URL
+	baseURL := fmt.Sprintf("%s://%s", scheme, host)
 	if h.cfg.BaseURL != "" {
-		// Use configured base URL
-		baseURL := strings.TrimSuffix(h.cfg.BaseURL, "/")
-		if resourcePath == "/" {
-			resourceURL = baseURL + "/"
-		} else {
-			resourceURL = baseURL + "/" + resourcePath
-		}
+		baseURL = strings.TrimSuffix(h.cfg.BaseURL, "/")
+	}
+
+	// Build the resource URL using url.JoinPath for proper path handling
+	var resourceURL string
+	var err error
+	if resourcePath == "/" {
+		resourceURL = baseURL + "/"
 	} else {
-		// Derive from request
-		if resourcePath == "/" {
-			resourceURL = fmt.Sprintf("%s://%s/", scheme, host)
-		} else {
-			resourceURL = fmt.Sprintf("%s://%s/%s", scheme, host, resourcePath)
+		resourceURL, err = url.JoinPath(baseURL, resourcePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build resource URL: %w", err)
 		}
 	}
 
