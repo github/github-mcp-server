@@ -33,3 +33,19 @@ func GetToolsets(ctx context.Context) []string {
 	}
 	return nil
 }
+
+// toolsCtxKey is a context key for tools
+type toolsCtxKey struct{}
+
+// WithTools adds the tools to the context
+func WithTools(ctx context.Context, tools []string) context.Context {
+	return context.WithValue(ctx, toolsCtxKey{}, tools)
+}
+
+// GetTools retrieves the tools from the context
+func GetTools(ctx context.Context) []string {
+	if tools, ok := ctx.Value(toolsCtxKey{}).([]string); ok {
+		return tools
+	}
+	return nil
+}
