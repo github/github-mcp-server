@@ -30,7 +30,6 @@ type HTTPServerConfig struct {
 	Port int
 
 	// BaseURL is the publicly accessible URL of this server for OAuth resource metadata.
-	// Example: "https://mcp.example.com"
 	// If not set, the server will derive the URL from incoming request headers.
 	BaseURL string
 
