@@ -73,7 +73,7 @@ type MCPServerConfig struct {
 
 type MCPServerOption func(*mcp.ServerOptions)
 
-func NewMCPServer(cfg *MCPServerConfig, deps ToolDependencies, inventory *inventory.Inventory) (*mcp.Server, error) {
+func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependencies, inventory *inventory.Inventory) (*mcp.Server, error) {
 	// Create the MCP server
 	serverOpts := &mcp.ServerOptions{
 		Instructions:      inventory.Instructions(),
@@ -110,7 +110,7 @@ func NewMCPServer(cfg *MCPServerConfig, deps ToolDependencies, inventory *invent
 	// In dynamic mode with no explicit toolsets, this is a no-op since enabledToolsets
 	// is empty - users enable toolsets at runtime via the dynamic tools below (but can
 	// enable toolsets or tools explicitly that do need registration).
-	inventory.RegisterAll(context.Background(), ghServer, deps)
+	inventory.RegisterAll(ctx, ghServer, deps)
 
 	// Register dynamic toolset management tools (enable/disable) - these are separate
 	// meta-tools that control the inventory, not part of the inventory itself

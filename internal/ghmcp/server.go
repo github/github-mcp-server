@@ -100,7 +100,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	}, nil
 }
 
-func NewStdioMCPServer(cfg github.MCPServerConfig) (*mcp.Server, error) {
+func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Server, error) {
 	apiHost, err := utils.NewAPIHost(cfg.Host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
@@ -144,7 +144,7 @@ func NewStdioMCPServer(cfg github.MCPServerConfig) (*mcp.Server, error) {
 		return nil, fmt.Errorf("failed to build inventory: %w", err)
 	}
 
-	ghServer, err := github.NewMCPServer(&cfg, deps, inventory)
+	ghServer, err := github.NewMCPServer(ctx, &cfg, deps, inventory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub MCP server: %w", err)
 	}
@@ -246,7 +246,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		logger.Debug("skipping scope filtering for non-PAT token")
 	}
 
-	ghServer, err := NewStdioMCPServer(github.MCPServerConfig{
+	ghServer, err := NewStdioMCPServer(ctx, github.MCPServerConfig{
 		Version:           cfg.Version,
 		Host:              cfg.Host,
 		Token:             cfg.Token,
