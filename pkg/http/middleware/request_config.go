@@ -26,6 +26,10 @@ func WithRequestConfig(next http.Handler) http.Handler {
 			ctx = ghcontext.WithTools(ctx, tools)
 		}
 
+		if relaxedParseBool(r.Header.Get(headers.MCPLockdownHeader)) {
+			ctx = ghcontext.WithLockdownMode(ctx, true)
+		}
+
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

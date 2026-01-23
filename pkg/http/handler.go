@@ -106,10 +106,6 @@ func withToolset(next http.Handler) http.Handler {
 }
 
 func (h *HTTPMcpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if relaxedParseBool(r.Header.Get(headers.MCPLockdownHeader)) {
-		r = r.WithContext(ghcontext.WithLockdownMode(r.Context(), true))
-	}
-
 	inventory, err := h.inventoryFactoryFunc(r)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)

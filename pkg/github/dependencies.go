@@ -379,7 +379,7 @@ func (d *RequestDeps) GetT() translations.TranslationHelperFunc { return d.T }
 // GetFlags implements ToolDependencies.
 func (d *RequestDeps) GetFlags(ctx context.Context) FeatureFlags {
 	return FeatureFlags{
-		LockdownMode: ghcontext.IsLockdownMode(ctx),
+		LockdownMode: d.lockdownMode && ghcontext.IsLockdownMode(ctx),
 	}
 }
 
