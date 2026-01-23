@@ -156,17 +156,17 @@ func (h *AuthHandler) handleProtectedResource(w http.ResponseWriter, r *http.Req
 }
 
 // GetEffectiveResourcePath returns the resource path for OAuth protected resource URLs.
-// It checks for the X-GitHub-Original-Path header set by copilot-api (CAPI), which contains
+// It checks for the X-GitHub-Original-Path header set by GitHub, which contains
 // the exact path the client requested before the /mcp prefix was stripped.
-// If the header is not present (e.g., direct access or older CAPI versions), it falls back to
+// If the header is not present, it falls back to
 // restoring the /mcp prefix.
 func GetEffectiveResourcePath(r *http.Request) string {
-	// Check for the original path header from copilot-api (preferred method)
+	// Check for the original path header from GitHub (preferred method)
 	if originalPath := r.Header.Get(headers.OriginalPathHeader); originalPath != "" {
 		return originalPath
 	}
 
-	// Fallback: copilot-api strips /mcp prefix, so we need to restore it for the external URL
+	// Fallback: GitHub strips /mcp prefix, so we need to restore it for the external URL
 	if r.URL.Path == "/" {
 		return "/mcp"
 	}
