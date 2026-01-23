@@ -344,6 +344,48 @@ type StdioServerConfig struct {
 	RepoAccessCacheTTL *time.Duration
 }
 
+type HTTPServerConfig struct {
+	// Version of the server
+	Version string
+
+	// GitHub Host to target for API requests (e.g. github.com or github.enterprise.com)
+	Host string
+
+	// Port to listen on
+	Port int
+
+	// EnabledToolsets is a list of toolsets to enable
+	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration
+	EnabledToolsets []string
+
+	// EnabledTools is a list of specific tools to enable (additive to toolsets)
+	// When specified, these tools are registered in addition to any specified toolset tools
+	EnabledTools []string
+
+	// EnabledFeatures is a list of feature flags that are enabled
+	// Items with FeatureFlagEnable matching an entry in this list will be available
+	EnabledFeatures []string
+
+	// Whether to enable dynamic toolsets
+	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#dynamic-tool-discovery
+	DynamicToolsets bool
+
+	// ReadOnly indicates if we should only register read-only tools
+	ReadOnly bool
+
+	// Path to the log file if not stderr
+	LogFilePath string
+
+	// Content window size
+	ContentWindowSize int
+
+	// LockdownMode indicates if we should enable lockdown mode
+	LockdownMode bool
+
+	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
+	RepoAccessCacheTTL *time.Duration
+}
+
 // RunStdioServer is not concurrent safe.
 func RunStdioServer(cfg StdioServerConfig) error {
 	// Create app context
@@ -698,4 +740,142 @@ func fetchTokenScopesForHost(ctx context.Context, token, host string) ([]string,
 	})
 
 	return fetcher.FetchTokenScopes(ctx, token)
+}
+
+// extractTokenFromAuthHeader extracts a GitHub token from the Authorization header.
+// It supports "Bearer <token>" format.
+func extractTokenFromAuthHeader(req *http.Request) string {
+	authHeader := req.Header.Get("Authorization")
+	if authHeader == "" {
+		return ""
+	}
+
+	// Check for "Bearer " prefix
+	const bearerPrefix = "Bearer "
+	if strings.HasPrefix(authHeader, bearerPrefix) {
+		return strings.TrimPrefix(authHeader, bearerPrefix)
+	}
+
+	return ""
+}
+
+// RunHTTPServer starts the HTTP server for multi-client MCP connections.
+func RunHTTPServer(cfg HTTPServerConfig) error {
+	// Create app context
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	t, _ := translations.TranslationHelper()
+
+	// Set up logging
+	var slogHandler slog.Handler
+	var logOutput io.Writer
+	if cfg.LogFilePath != "" {
+		file, err := os.OpenFile(cfg.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+		if err != nil {
+			return fmt.Errorf("failed to open log file: %w", err)
+		}
+		defer file.Close()
+		logOutput = file
+		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelDebug})
+	} else {
+		logOutput = os.Stderr
+		slogHandler = slog.NewTextHandler(logOutput, &slog.HandlerOptions{Level: slog.LevelInfo})
+	}
+	logger := slog.New(slogHandler)
+	logger.Info("starting HTTP server",
+		"version", cfg.Version,
+		"host", cfg.Host,
+		"port", cfg.Port,
+		"dynamicToolsets", cfg.DynamicToolsets,
+		"readOnly", cfg.ReadOnly,
+		"lockdownEnabled", cfg.LockdownMode)
+
+	// Create HTTP handler with per-request server creation
+	handler := mcp.NewStreamableHTTPHandler(func(req *http.Request) *mcp.Server {
+		// Extract token from Authorization header
+		token := extractTokenFromAuthHeader(req)
+		if token == "" {
+			logger.Warn("request without valid Authorization header", "path", req.URL.Path)
+			return nil // This will cause a 400 Bad Request
+		}
+
+		// Fetch token scopes for scope-based tool filtering (PAT tokens only)
+		var tokenScopes []string
+		if strings.HasPrefix(token, "ghp_") {
+			fetchedScopes, err := fetchTokenScopesForHost(req.Context(), token, cfg.Host)
+			if err != nil {
+				logger.Warn("failed to fetch token scopes, continuing without scope filtering", "error", err)
+			} else {
+				tokenScopes = fetchedScopes
+				logger.Debug("token scopes fetched for filtering", "scopes", tokenScopes)
+			}
+		}
+
+		// Create a new server instance for this request with the extracted token
+		ghServer, err := NewMCPServer(MCPServerConfig{
+			Version:           cfg.Version,
+			Host:              cfg.Host,
+			Token:             token,
+			EnabledToolsets:   cfg.EnabledToolsets,
+			EnabledTools:      cfg.EnabledTools,
+			EnabledFeatures:   cfg.EnabledFeatures,
+			DynamicToolsets:   cfg.DynamicToolsets,
+			ReadOnly:          cfg.ReadOnly,
+			Translator:        t,
+			ContentWindowSize: cfg.ContentWindowSize,
+			LockdownMode:      cfg.LockdownMode,
+			Logger:            logger,
+			RepoAccessTTL:     cfg.RepoAccessCacheTTL,
+			TokenScopes:       tokenScopes,
+		})
+		if err != nil {
+			logger.Error("failed to create MCP server", "error", err)
+			return nil
+		}
+
+		return ghServer
+	}, &mcp.StreamableHTTPOptions{
+		Logger:         logger,
+		SessionTimeout: 30 * time.Second, // 30 second heartbeat interval
+	})
+
+	// Create HTTP server
+	addr := fmt.Sprintf(":%d", cfg.Port)
+	httpServer := &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+
+	// Start server in goroutine
+	errC := make(chan error, 1)
+	go func() {
+		logger.Info("HTTP server listening", "addr", addr)
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			errC <- fmt.Errorf("HTTP server error: %w", err)
+		}
+	}()
+
+	// Wait for shutdown signal
+	select {
+	case <-ctx.Done():
+		logger.Info("shutting down HTTP server", "signal", "context done")
+	case err := <-errC:
+		if err != nil {
+			logger.Error("HTTP server error", "error", err)
+			return err
+		}
+	}
+
+	// Graceful shutdown
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		logger.Error("error during HTTP server shutdown", "error", err)
+		return fmt.Errorf("HTTP server shutdown error: %w", err)
+	}
+
+	logger.Info("HTTP server stopped")
+	return nil
 }

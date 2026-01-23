@@ -89,6 +89,54 @@ var (
 			return ghmcp.RunStdioServer(stdioServerConfig)
 		},
 	}
+
+	httpCmd = &cobra.Command{
+		Use:   "http",
+		Short: "Start HTTP server",
+		Long:  `Start an HTTP server that supports multiple concurrent clients with per-request authentication.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			// Parse toolsets
+			var enabledToolsets []string
+			if viper.IsSet("toolsets") {
+				if err := viper.UnmarshalKey("toolsets", &enabledToolsets); err != nil {
+					return fmt.Errorf("failed to unmarshal toolsets: %w", err)
+				}
+			}
+
+			// Parse tools
+			var enabledTools []string
+			if viper.IsSet("tools") {
+				if err := viper.UnmarshalKey("tools", &enabledTools); err != nil {
+					return fmt.Errorf("failed to unmarshal tools: %w", err)
+				}
+			}
+
+			// Parse enabled features
+			var enabledFeatures []string
+			if viper.IsSet("features") {
+				if err := viper.UnmarshalKey("features", &enabledFeatures); err != nil {
+					return fmt.Errorf("failed to unmarshal features: %w", err)
+				}
+			}
+
+			ttl := viper.GetDuration("repo-access-cache-ttl")
+			httpServerConfig := ghmcp.HTTPServerConfig{
+				Version:            version,
+				Host:               viper.GetString("host"),
+				Port:               viper.GetInt("port"),
+				EnabledToolsets:    enabledToolsets,
+				EnabledTools:       enabledTools,
+				EnabledFeatures:    enabledFeatures,
+				DynamicToolsets:    viper.GetBool("dynamic_toolsets"),
+				ReadOnly:           viper.GetBool("read-only"),
+				LogFilePath:        viper.GetString("log-file"),
+				ContentWindowSize:  viper.GetInt("content-window-size"),
+				LockdownMode:       viper.GetBool("lockdown-mode"),
+				RepoAccessCacheTTL: &ttl,
+			}
+			return ghmcp.RunHTTPServer(httpServerConfig)
+		},
+	}
 )
 
 func init() {
@@ -127,8 +175,13 @@ func init() {
 	_ = viper.BindPFlag("insider-mode", rootCmd.PersistentFlags().Lookup("insider-mode"))
 	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
 
+	// Add HTTP-specific flags
+	httpCmd.Flags().Int("port", 8080, "Port to listen on for HTTP server")
+	_ = viper.BindPFlag("port", httpCmd.Flags().Lookup("port"))
+
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)
+	rootCmd.AddCommand(httpCmd)
 }
 
 func initConfig() {
