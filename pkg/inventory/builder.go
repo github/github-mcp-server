@@ -32,6 +32,7 @@ type Builder struct {
 	resourceTemplates []ServerResourceTemplate
 	prompts           []ServerPrompt
 	deprecatedAliases map[string]string
+	toolsetMetadata   []ToolsetMetadata // standalone toolset metadata for toolsets without registered tools (e.g., remote-only toolsets)
 
 	// Configuration options (processed at Build time)
 	readOnly        bool
@@ -65,6 +66,17 @@ func (b *Builder) SetResources(resources []ServerResourceTemplate) *Builder {
 // SetPrompts sets the prompts for the inventory. Returns self for chaining.
 func (b *Builder) SetPrompts(prompts []ServerPrompt) *Builder {
 	b.prompts = prompts
+	return b
+}
+
+// SetToolsetMetadata sets standalone toolset metadata for the inventory.
+// This is used for toolsets that may not have tools registered in this build
+// but should still be recognized (e.g., remote-only toolsets).
+// Any metadata provided here is added to metadata derived from registered tools/resources/prompts.
+// Toolsets with Default: true will be included in default toolsets even if
+// no tools use them. Returns self for chaining.
+func (b *Builder) SetToolsetMetadata(metadata []ToolsetMetadata) *Builder {
+	b.toolsetMetadata = metadata
 	return b
 }
 
@@ -246,6 +258,17 @@ func (b *Builder) processToolsets() (map[ToolsetID]bool, []string, []ToolsetID, 
 		}
 		if p.Toolset.Description != "" {
 			descriptions[p.Toolset.ID] = p.Toolset.Description
+		}
+	}
+	// Process standalone toolset metadata
+	for i := range b.toolsetMetadata {
+		m := &b.toolsetMetadata[i]
+		validIDs[m.ID] = true
+		if m.Default {
+			defaultIDs[m.ID] = true
+		}
+		if m.Description != "" {
+			descriptions[m.ID] = m.Description
 		}
 	}
 
