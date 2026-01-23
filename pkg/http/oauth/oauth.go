@@ -47,7 +47,6 @@ var SupportedScopes = []string{
 type Config struct {
 	// BaseURL is the publicly accessible URL where this server is hosted.
 	// This is used to construct the OAuth resource URL.
-	// Example: "https://mcp.example.com"
 	BaseURL string
 
 	// AuthorizationServer is the OAuth authorization server URL.
