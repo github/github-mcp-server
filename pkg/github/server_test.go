@@ -134,7 +134,7 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 	require.NoError(t, err, "expected inventory build to succeed")
 
 	// Create the server
-	server, err := NewMCPServer(&cfg, deps, inv)
+	server, err := NewMCPServer(t.Context(), &cfg, deps, inv)
 	require.NoError(t, err, "expected server creation to succeed")
 	require.NotNil(t, server, "expected server to be non-nil")
 
