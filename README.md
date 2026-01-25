@@ -310,16 +310,16 @@ Configure VS Code to connect to your HTTP server by adding the following to your
 
 ```json
 {
-	"servers": {
-		"github-http": {
+  "servers": {
+    "github-http": {
       "type": "http",
       "url": "http://your-mcp-server.example.com:8080",
       "headers": {
         "Authorization": "Bearer ${input:github_token}"
       }
     }
-	},
-	"inputs": [
+  },
+  "inputs": [
     {
       "type": "promptString",
       "id": "github_token",
