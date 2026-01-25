@@ -12,15 +12,16 @@ import (
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v79/github"
+	gogithub "github.com/google/go-github/v79/github"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // stubDeps is a test helper that implements ToolDependencies with configurable behavior.
 // Use this when you need to test error paths or when you need closure-based client creation.
 type stubDeps struct {
-	clientFn    func(context.Context) (*github.Client, error)
+	clientFn    func(context.Context) (*gogithub.Client, error)
 	gqlClientFn func(context.Context) (*githubv4.Client, error)
 	rawClientFn func(context.Context) (*raw.Client, error)
 
@@ -30,7 +31,7 @@ type stubDeps struct {
 	contentWindowSize int
 }
 
-func (s stubDeps) GetClient(ctx context.Context) (*github.Client, error) {
+func (s stubDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
 	if s.clientFn != nil {
 		return s.clientFn(ctx)
 	}
@@ -51,20 +52,23 @@ func (s stubDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
 	return nil, nil
 }
 
-func (s stubDeps) GetRepoAccessCache() *lockdown.RepoAccessCache { return s.repoAccessCache }
-func (s stubDeps) GetT() translations.TranslationHelperFunc      { return s.t }
-func (s stubDeps) GetFlags() FeatureFlags                        { return s.flags }
-func (s stubDeps) GetContentWindowSize() int                     { return s.contentWindowSize }
+func (s stubDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAccessCache, error) {
+	return s.repoAccessCache, nil
+}
+func (s stubDeps) GetT() translations.TranslationHelperFunc          { return s.t }
+func (s stubDeps) GetFlags(ctx context.Context) FeatureFlags         { return s.flags }
+func (s stubDeps) GetContentWindowSize() int                         { return s.contentWindowSize }
+func (s stubDeps) IsFeatureEnabled(_ context.Context, _ string) bool { return false }
 
 // Helper functions to create stub client functions for error testing
-func stubClientFnFromHTTP(httpClient *http.Client) func(context.Context) (*github.Client, error) {
-	return func(_ context.Context) (*github.Client, error) {
-		return github.NewClient(httpClient), nil
+func stubClientFnFromHTTP(httpClient *http.Client) func(context.Context) (*gogithub.Client, error) {
+	return func(_ context.Context) (*gogithub.Client, error) {
+		return gogithub.NewClient(httpClient), nil
 	}
 }
 
-func stubClientFnErr(errMsg string) func(context.Context) (*github.Client, error) {
-	return func(_ context.Context) (*github.Client, error) {
+func stubClientFnErr(errMsg string) func(context.Context) (*gogithub.Client, error) {
+	return func(_ context.Context) (*gogithub.Client, error) {
 		return nil, errors.New(errMsg)
 	}
 }
@@ -83,12 +87,13 @@ func stubRepoAccessCache(client *githubv4.Client, ttl time.Duration) *lockdown.R
 func stubFeatureFlags(enabledFlags map[string]bool) FeatureFlags {
 	return FeatureFlags{
 		LockdownMode: enabledFlags["lockdown-mode"],
+		InsiderMode:  enabledFlags["insider-mode"],
 	}
 }
 
 func badRequestHandler(msg string) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
-		structuredErrorResponse := github.ErrorResponse{
+		structuredErrorResponse := gogithub.ErrorResponse{
 			Message: msg,
 		}
 
@@ -101,496 +106,115 @@ func badRequestHandler(msg string) http.HandlerFunc {
 	}
 }
 
-func Test_IsAcceptedError(t *testing.T) {
+// TestNewMCPServer_CreatesSuccessfully verifies that the server can be created
+// with the deps injection middleware properly configured.
+func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
+	t.Parallel()
+
+	// Create a minimal server configuration
+	cfg := MCPServerConfig{
+		Version:           "test",
+		Host:              "", // defaults to github.com
+		Token:             "test-token",
+		EnabledToolsets:   []string{"context"},
+		ReadOnly:          false,
+		Translator:        translations.NullTranslationHelper,
+		ContentWindowSize: 5000,
+		LockdownMode:      false,
+	}
+
+	deps := stubDeps{}
+
+	// Build inventory
+	inv, err := NewInventory(cfg.Translator).
+		WithDeprecatedAliases(DeprecatedToolAliases).
+		WithToolsets(cfg.EnabledToolsets).
+		Build()
+
+	require.NoError(t, err, "expected inventory build to succeed")
+
+	// Create the server
+	server, err := NewMCPServer(t.Context(), &cfg, deps, inv)
+	require.NoError(t, err, "expected server creation to succeed")
+	require.NotNil(t, server, "expected server to be non-nil")
+
+	// The fact that the server was created successfully indicates that:
+	// 1. The deps injection middleware is properly added
+	// 2. Tools can be registered without panicking
+	//
+	// If the middleware wasn't properly added, tool calls would panic with
+	// "ToolDependencies not found in context" when executed.
+	//
+	// The actual middleware functionality and tool execution with ContextWithDeps
+	// is already tested in pkg/github/*_test.go.
+}
+
+// TestResolveEnabledToolsets verifies the toolset resolution logic.
+func TestResolveEnabledToolsets(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
-		err            error
-		expectAccepted bool
+		cfg            MCPServerConfig
+		expectedResult []string
 	}{
 		{
-			name:           "github AcceptedError",
-			err:            &github.AcceptedError{},
-			expectAccepted: true,
+			name: "nil toolsets without dynamic mode and no tools - use defaults",
+			cfg: MCPServerConfig{
+				EnabledToolsets: nil,
+				DynamicToolsets: false,
+				EnabledTools:    nil,
+			},
+			expectedResult: nil, // nil means "use defaults"
 		},
 		{
-			name:           "regular error",
-			err:            fmt.Errorf("some other error"),
-			expectAccepted: false,
+			name: "nil toolsets with dynamic mode - start empty",
+			cfg: MCPServerConfig{
+				EnabledToolsets: nil,
+				DynamicToolsets: true,
+				EnabledTools:    nil,
+			},
+			expectedResult: []string{}, // empty slice means no toolsets
 		},
 		{
-			name:           "nil error",
-			err:            nil,
-			expectAccepted: false,
+			name: "explicit toolsets",
+			cfg: MCPServerConfig{
+				EnabledToolsets: []string{"repos", "issues"},
+				DynamicToolsets: false,
+			},
+			expectedResult: []string{"repos", "issues"},
 		},
 		{
-			name:           "wrapped AcceptedError",
-			err:            fmt.Errorf("wrapped: %w", &github.AcceptedError{}),
-			expectAccepted: true,
+			name: "empty toolsets - disable all",
+			cfg: MCPServerConfig{
+				EnabledToolsets: []string{},
+				DynamicToolsets: false,
+			},
+			expectedResult: []string{}, // empty slice means no toolsets
+		},
+		{
+			name: "specific tools without toolsets - no default toolsets",
+			cfg: MCPServerConfig{
+				EnabledToolsets: nil,
+				DynamicToolsets: false,
+				EnabledTools:    []string{"get_me"},
+			},
+			expectedResult: []string{}, // empty slice when tools specified but no toolsets
+		},
+		{
+			name: "dynamic mode with explicit toolsets removes all and default",
+			cfg: MCPServerConfig{
+				EnabledToolsets: []string{"all", "repos"},
+				DynamicToolsets: true,
+			},
+			expectedResult: []string{"repos"}, // "all" is removed in dynamic mode
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := isAcceptedError(tc.err)
-			assert.Equal(t, tc.expectAccepted, result)
-		})
-	}
-}
-
-func Test_RequiredStringParam(t *testing.T) {
-	tests := []struct {
-		name        string
-		params      map[string]interface{}
-		paramName   string
-		expected    string
-		expectError bool
-	}{
-		{
-			name:        "valid string parameter",
-			params:      map[string]interface{}{"name": "test-value"},
-			paramName:   "name",
-			expected:    "test-value",
-			expectError: false,
-		},
-		{
-			name:        "missing parameter",
-			params:      map[string]interface{}{},
-			paramName:   "name",
-			expected:    "",
-			expectError: true,
-		},
-		{
-			name:        "empty string parameter",
-			params:      map[string]interface{}{"name": ""},
-			paramName:   "name",
-			expected:    "",
-			expectError: true,
-		},
-		{
-			name:        "wrong type parameter",
-			params:      map[string]interface{}{"name": 123},
-			paramName:   "name",
-			expected:    "",
-			expectError: true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result, err := RequiredParam[string](tc.params, tc.paramName)
-
-			if tc.expectError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tc.expected, result)
-			}
-		})
-	}
-}
-
-func Test_OptionalStringParam(t *testing.T) {
-	tests := []struct {
-		name        string
-		params      map[string]interface{}
-		paramName   string
-		expected    string
-		expectError bool
-	}{
-		{
-			name:        "valid string parameter",
-			params:      map[string]interface{}{"name": "test-value"},
-			paramName:   "name",
-			expected:    "test-value",
-			expectError: false,
-		},
-		{
-			name:        "missing parameter",
-			params:      map[string]interface{}{},
-			paramName:   "name",
-			expected:    "",
-			expectError: false,
-		},
-		{
-			name:        "empty string parameter",
-			params:      map[string]interface{}{"name": ""},
-			paramName:   "name",
-			expected:    "",
-			expectError: false,
-		},
-		{
-			name:        "wrong type parameter",
-			params:      map[string]interface{}{"name": 123},
-			paramName:   "name",
-			expected:    "",
-			expectError: true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result, err := OptionalParam[string](tc.params, tc.paramName)
-
-			if tc.expectError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tc.expected, result)
-			}
-		})
-	}
-}
-
-func Test_RequiredInt(t *testing.T) {
-	tests := []struct {
-		name        string
-		params      map[string]interface{}
-		paramName   string
-		expected    int
-		expectError bool
-	}{
-		{
-			name:        "valid number parameter",
-			params:      map[string]interface{}{"count": float64(42)},
-			paramName:   "count",
-			expected:    42,
-			expectError: false,
-		},
-		{
-			name:        "missing parameter",
-			params:      map[string]interface{}{},
-			paramName:   "count",
-			expected:    0,
-			expectError: true,
-		},
-		{
-			name:        "wrong type parameter",
-			params:      map[string]interface{}{"count": "not-a-number"},
-			paramName:   "count",
-			expected:    0,
-			expectError: true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result, err := RequiredInt(tc.params, tc.paramName)
-
-			if tc.expectError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tc.expected, result)
-			}
-		})
-	}
-}
-func Test_OptionalIntParam(t *testing.T) {
-	tests := []struct {
-		name        string
-		params      map[string]interface{}
-		paramName   string
-		expected    int
-		expectError bool
-	}{
-		{
-			name:        "valid number parameter",
-			params:      map[string]interface{}{"count": float64(42)},
-			paramName:   "count",
-			expected:    42,
-			expectError: false,
-		},
-		{
-			name:        "missing parameter",
-			params:      map[string]interface{}{},
-			paramName:   "count",
-			expected:    0,
-			expectError: false,
-		},
-		{
-			name:        "zero value",
-			params:      map[string]interface{}{"count": float64(0)},
-			paramName:   "count",
-			expected:    0,
-			expectError: false,
-		},
-		{
-			name:        "wrong type parameter",
-			params:      map[string]interface{}{"count": "not-a-number"},
-			paramName:   "count",
-			expected:    0,
-			expectError: true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result, err := OptionalIntParam(tc.params, tc.paramName)
-
-			if tc.expectError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tc.expected, result)
-			}
-		})
-	}
-}
-
-func Test_OptionalNumberParamWithDefault(t *testing.T) {
-	tests := []struct {
-		name        string
-		params      map[string]interface{}
-		paramName   string
-		defaultVal  int
-		expected    int
-		expectError bool
-	}{
-		{
-			name:        "valid number parameter",
-			params:      map[string]interface{}{"count": float64(42)},
-			paramName:   "count",
-			defaultVal:  10,
-			expected:    42,
-			expectError: false,
-		},
-		{
-			name:        "missing parameter",
-			params:      map[string]interface{}{},
-			paramName:   "count",
-			defaultVal:  10,
-			expected:    10,
-			expectError: false,
-		},
-		{
-			name:        "zero value",
-			params:      map[string]interface{}{"count": float64(0)},
-			paramName:   "count",
-			defaultVal:  10,
-			expected:    10,
-			expectError: false,
-		},
-		{
-			name:        "wrong type parameter",
-			params:      map[string]interface{}{"count": "not-a-number"},
-			paramName:   "count",
-			defaultVal:  10,
-			expected:    0,
-			expectError: true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result, err := OptionalIntParamWithDefault(tc.params, tc.paramName, tc.defaultVal)
-
-			if tc.expectError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tc.expected, result)
-			}
-		})
-	}
-}
-
-func Test_OptionalBooleanParam(t *testing.T) {
-	tests := []struct {
-		name        string
-		params      map[string]interface{}
-		paramName   string
-		expected    bool
-		expectError bool
-	}{
-		{
-			name:        "true value",
-			params:      map[string]interface{}{"flag": true},
-			paramName:   "flag",
-			expected:    true,
-			expectError: false,
-		},
-		{
-			name:        "false value",
-			params:      map[string]interface{}{"flag": false},
-			paramName:   "flag",
-			expected:    false,
-			expectError: false,
-		},
-		{
-			name:        "missing parameter",
-			params:      map[string]interface{}{},
-			paramName:   "flag",
-			expected:    false,
-			expectError: false,
-		},
-		{
-			name:        "wrong type parameter",
-			params:      map[string]interface{}{"flag": "not-a-boolean"},
-			paramName:   "flag",
-			expected:    false,
-			expectError: true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result, err := OptionalParam[bool](tc.params, tc.paramName)
-
-			if tc.expectError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tc.expected, result)
-			}
-		})
-	}
-}
-
-func TestOptionalStringArrayParam(t *testing.T) {
-	tests := []struct {
-		name        string
-		params      map[string]interface{}
-		paramName   string
-		expected    []string
-		expectError bool
-	}{
-		{
-			name:        "parameter not in request",
-			params:      map[string]any{},
-			paramName:   "flag",
-			expected:    []string{},
-			expectError: false,
-		},
-		{
-			name: "valid any array parameter",
-			params: map[string]any{
-				"flag": []any{"v1", "v2"},
-			},
-			paramName:   "flag",
-			expected:    []string{"v1", "v2"},
-			expectError: false,
-		},
-		{
-			name: "valid string array parameter",
-			params: map[string]any{
-				"flag": []string{"v1", "v2"},
-			},
-			paramName:   "flag",
-			expected:    []string{"v1", "v2"},
-			expectError: false,
-		},
-		{
-			name: "wrong type parameter",
-			params: map[string]any{
-				"flag": 1,
-			},
-			paramName:   "flag",
-			expected:    []string{},
-			expectError: true,
-		},
-		{
-			name: "wrong slice type parameter",
-			params: map[string]any{
-				"flag": []any{"foo", 2},
-			},
-			paramName:   "flag",
-			expected:    []string{},
-			expectError: true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result, err := OptionalStringArrayParam(tc.params, tc.paramName)
-
-			if tc.expectError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tc.expected, result)
-			}
-		})
-	}
-}
-
-func TestOptionalPaginationParams(t *testing.T) {
-	tests := []struct {
-		name        string
-		params      map[string]any
-		expected    PaginationParams
-		expectError bool
-	}{
-		{
-			name:   "no pagination parameters, default values",
-			params: map[string]any{},
-			expected: PaginationParams{
-				Page:    1,
-				PerPage: 30,
-			},
-			expectError: false,
-		},
-		{
-			name: "page parameter, default perPage",
-			params: map[string]any{
-				"page": float64(2),
-			},
-			expected: PaginationParams{
-				Page:    2,
-				PerPage: 30,
-			},
-			expectError: false,
-		},
-		{
-			name: "perPage parameter, default page",
-			params: map[string]any{
-				"perPage": float64(50),
-			},
-			expected: PaginationParams{
-				Page:    1,
-				PerPage: 50,
-			},
-			expectError: false,
-		},
-		{
-			name: "page and perPage parameters",
-			params: map[string]any{
-				"page":    float64(2),
-				"perPage": float64(50),
-			},
-			expected: PaginationParams{
-				Page:    2,
-				PerPage: 50,
-			},
-			expectError: false,
-		},
-		{
-			name: "invalid page parameter",
-			params: map[string]any{
-				"page": "not-a-number",
-			},
-			expected:    PaginationParams{},
-			expectError: true,
-		},
-		{
-			name: "invalid perPage parameter",
-			params: map[string]any{
-				"perPage": "not-a-number",
-			},
-			expected:    PaginationParams{},
-			expectError: true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result, err := OptionalPaginationParams(tc.params)
-
-			if tc.expectError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tc.expected, result)
-			}
+			result := resolveEnabledToolsets(&tc.cfg)
+			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
 }

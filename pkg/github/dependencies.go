@@ -3,12 +3,18 @@ package github
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
+	"os"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	"github.com/github/github-mcp-server/pkg/http/transport"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/pkg/utils"
 	gogithub "github.com/google/go-github/v79/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -20,6 +26,14 @@ type depsContextKey struct{}
 
 // ErrDepsNotInContext is returned when ToolDependencies is not found in context.
 var ErrDepsNotInContext = errors.New("ToolDependencies not found in context; use ContextWithDeps to inject")
+
+func InjectDepsMiddleware(deps ToolDependencies) mcp.Middleware {
+	return func(next mcp.MethodHandler) mcp.MethodHandler {
+		return func(ctx context.Context, method string, req mcp.Request) (result mcp.Result, err error) {
+			return next(ContextWithDeps(ctx, deps), method, req)
+		}
+	}
+}
 
 // ContextWithDeps returns a new context with the ToolDependencies stored in it.
 // This is used to inject dependencies at request time rather than at registration time,
@@ -67,16 +81,19 @@ type ToolDependencies interface {
 	GetRawClient(ctx context.Context) (*raw.Client, error)
 
 	// GetRepoAccessCache returns the lockdown mode repo access cache
-	GetRepoAccessCache() *lockdown.RepoAccessCache
+	GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAccessCache, error)
 
 	// GetT returns the translation helper function
 	GetT() translations.TranslationHelperFunc
 
 	// GetFlags returns feature flags
-	GetFlags() FeatureFlags
+	GetFlags(ctx context.Context) FeatureFlags
 
 	// GetContentWindowSize returns the content window size for log truncation
 	GetContentWindowSize() int
+
+	// IsFeatureEnabled checks if a feature flag is enabled.
+	IsFeatureEnabled(ctx context.Context, flagName string) bool
 }
 
 // BaseDeps is the standard implementation of ToolDependencies for the local server.
@@ -93,7 +110,13 @@ type BaseDeps struct {
 	T                 translations.TranslationHelperFunc
 	Flags             FeatureFlags
 	ContentWindowSize int
+
+	// Feature flag checker for runtime checks
+	featureChecker inventory.FeatureFlagChecker
 }
+
+// Compile-time assertion to verify that BaseDeps implements the ToolDependencies interface.
+var _ ToolDependencies = (*BaseDeps)(nil)
 
 // NewBaseDeps creates a BaseDeps with the provided clients and configuration.
 func NewBaseDeps(
@@ -104,6 +127,7 @@ func NewBaseDeps(
 	t translations.TranslationHelperFunc,
 	flags FeatureFlags,
 	contentWindowSize int,
+	featureChecker inventory.FeatureFlagChecker,
 ) *BaseDeps {
 	return &BaseDeps{
 		Client:            client,
@@ -113,6 +137,7 @@ func NewBaseDeps(
 		T:                 t,
 		Flags:             flags,
 		ContentWindowSize: contentWindowSize,
+		featureChecker:    featureChecker,
 	}
 }
 
@@ -132,16 +157,36 @@ func (d BaseDeps) GetRawClient(_ context.Context) (*raw.Client, error) {
 }
 
 // GetRepoAccessCache implements ToolDependencies.
-func (d BaseDeps) GetRepoAccessCache() *lockdown.RepoAccessCache { return d.RepoAccessCache }
+func (d BaseDeps) GetRepoAccessCache(_ context.Context) (*lockdown.RepoAccessCache, error) {
+	return d.RepoAccessCache, nil
+}
 
 // GetT implements ToolDependencies.
 func (d BaseDeps) GetT() translations.TranslationHelperFunc { return d.T }
 
 // GetFlags implements ToolDependencies.
-func (d BaseDeps) GetFlags() FeatureFlags { return d.Flags }
+func (d BaseDeps) GetFlags(_ context.Context) FeatureFlags { return d.Flags }
 
 // GetContentWindowSize implements ToolDependencies.
 func (d BaseDeps) GetContentWindowSize() int { return d.ContentWindowSize }
+
+// IsFeatureEnabled checks if a feature flag is enabled.
+// Returns false if the feature checker is nil, flag name is empty, or an error occurs.
+// This allows tools to conditionally change behavior based on feature flags.
+func (d BaseDeps) IsFeatureEnabled(ctx context.Context, flagName string) bool {
+	if d.featureChecker == nil || flagName == "" {
+		return false
+	}
+
+	enabled, err := d.featureChecker(ctx, flagName)
+	if err != nil {
+		// Log error but don't fail the tool - treat as disabled
+		fmt.Fprintf(os.Stderr, "Feature flag check error for %q: %v\n", flagName, err)
+		return false
+	}
+
+	return enabled
+}
 
 // NewTool creates a ServerTool that retrieves ToolDependencies from context at call time.
 // This avoids creating closures at registration time, which is important for performance
@@ -189,4 +234,170 @@ func NewToolFromHandler(
 	st.RequiredScopes = scopes.ToStringSlice(requiredScopes...)
 	st.AcceptedScopes = scopes.ExpandScopes(requiredScopes...)
 	return st
+}
+
+type RequestDeps struct {
+	Client          *gogithub.Client
+	GQLClient       *githubv4.Client
+	RawClient       *raw.Client
+	RepoAccessCache *lockdown.RepoAccessCache
+
+	// Static dependencies
+	apiHosts          utils.APIHostResolver
+	version           string
+	lockdownMode      bool
+	RepoAccessOpts    []lockdown.RepoAccessOption
+	T                 translations.TranslationHelperFunc
+	Flags             FeatureFlags
+	ContentWindowSize int
+
+	// Feature flag checker for runtime checks
+	featureChecker inventory.FeatureFlagChecker
+}
+
+// NewRequestDeps creates a RequestDeps with the provided clients and configuration.
+func NewRequestDeps(
+	apiHosts utils.APIHostResolver,
+	version string,
+	lockdownMode bool,
+	repoAccessOpts []lockdown.RepoAccessOption,
+	t translations.TranslationHelperFunc,
+	contentWindowSize int,
+	featureChecker inventory.FeatureFlagChecker,
+) *RequestDeps {
+	return &RequestDeps{
+		apiHosts:          apiHosts,
+		version:           version,
+		lockdownMode:      lockdownMode,
+		RepoAccessOpts:    repoAccessOpts,
+		T:                 t,
+		ContentWindowSize: contentWindowSize,
+		featureChecker:    featureChecker,
+	}
+}
+
+// GetClient implements ToolDependencies.
+func (d *RequestDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
+	if d.Client != nil {
+		return d.Client, nil
+	}
+
+	// extract the token from the context
+	token, _ := ghcontext.GetTokenInfo(ctx)
+
+	baseRestURL, err := d.apiHosts.BaseRESTURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get base REST URL: %w", err)
+	}
+	uploadURL, err := d.apiHosts.UploadURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get upload URL: %w", err)
+	}
+
+	// Construct REST client
+	restClient := gogithub.NewClient(nil).WithAuthToken(token)
+	restClient.UserAgent = fmt.Sprintf("github-mcp-server/%s", d.version)
+	restClient.BaseURL = baseRestURL
+	restClient.UploadURL = uploadURL
+	return restClient, nil
+}
+
+// GetGQLClient implements ToolDependencies.
+func (d *RequestDeps) GetGQLClient(ctx context.Context) (*githubv4.Client, error) {
+	if d.GQLClient != nil {
+		return d.GQLClient, nil
+	}
+
+	// extract the token from the context
+	token, _ := ghcontext.GetTokenInfo(ctx)
+
+	// Construct GraphQL client
+	// We use NewEnterpriseClient unconditionally since we already parsed the API host
+	gqlHTTPClient := &http.Client{
+		Transport: &transport.BearerAuthTransport{
+			Transport: http.DefaultTransport,
+			Token:     token,
+		},
+	}
+
+	graphqlURL, err := d.apiHosts.GraphqlURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get GraphQL URL: %w", err)
+	}
+
+	gqlClient := githubv4.NewEnterpriseClient(graphqlURL.String(), gqlHTTPClient)
+	d.GQLClient = gqlClient
+	return gqlClient, nil
+}
+
+// GetRawClient implements ToolDependencies.
+func (d *RequestDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
+	if d.RawClient != nil {
+		return d.RawClient, nil
+	}
+
+	client, err := d.GetClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	rawURL, err := d.apiHosts.RawURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Raw URL: %w", err)
+	}
+
+	rawClient := raw.NewClient(client, rawURL)
+	d.RawClient = rawClient
+
+	return rawClient, nil
+}
+
+// GetRepoAccessCache implements ToolDependencies.
+func (d *RequestDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAccessCache, error) {
+	if !d.lockdownMode {
+		return nil, nil
+	}
+
+	if d.RepoAccessCache != nil {
+		return d.RepoAccessCache, nil
+	}
+
+	gqlClient, err := d.GetGQLClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create repo access cache
+	instance := lockdown.GetInstance(gqlClient, d.RepoAccessOpts...)
+	d.RepoAccessCache = instance
+	return instance, nil
+}
+
+// GetT implements ToolDependencies.
+func (d *RequestDeps) GetT() translations.TranslationHelperFunc { return d.T }
+
+// GetFlags implements ToolDependencies.
+func (d *RequestDeps) GetFlags(ctx context.Context) FeatureFlags {
+	return FeatureFlags{
+		LockdownMode: d.lockdownMode && ghcontext.IsLockdownMode(ctx),
+	}
+}
+
+// GetContentWindowSize implements ToolDependencies.
+func (d *RequestDeps) GetContentWindowSize() int { return d.ContentWindowSize }
+
+// IsFeatureEnabled checks if a feature flag is enabled.
+func (d *RequestDeps) IsFeatureEnabled(ctx context.Context, flagName string) bool {
+	if d.featureChecker == nil || flagName == "" {
+		return false
+	}
+
+	enabled, err := d.featureChecker(ctx, flagName)
+	if err != nil {
+		// Log error but don't fail the tool - treat as disabled
+		fmt.Fprintf(os.Stderr, "Feature flag check error for %q: %v\n", flagName, err)
+		return false
+	}
+
+	return enabled
 }
