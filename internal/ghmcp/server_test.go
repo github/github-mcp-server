@@ -40,13 +40,3 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 	// The actual middleware functionality and tool execution with ContextWithDeps
 	// is already tested in pkg/github/*_test.go.
 }
-
-// Note: TestResolveEnabledToolsets was removed because the resolveEnabledToolsets
-// function was moved to the Inventory Builder (pkg/inventory/builder.go).
-// The same functionality is now tested in pkg/inventory/registry_test.go via:
-// - TestWithDynamicMode_NilToolsets
-// - TestWithDynamicMode_RemovesAllKeyword
-// - TestWithDynamicMode_RemovesDefaultKeyword
-// - TestWithDynamicMode_ExplicitToolsetsPreserved
-// - TestWithDynamicMode_WithAdditionalTools
-// - TestWithTools_NilToolsets_UsesEmptyToolsets
