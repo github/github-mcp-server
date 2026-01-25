@@ -15,7 +15,6 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/scopes"
@@ -101,7 +100,7 @@ Possible options:
 
 			switch method {
 			case "get":
-				result, err := GetPullRequest(ctx, client, deps.GetRepoAccessCache(), owner, repo, pullNumber, deps.GetFlags())
+				result, err := GetPullRequest(ctx, client, deps, owner, repo, pullNumber)
 				return result, nil, err
 			case "get_diff":
 				result, err := GetPullRequestDiff(ctx, client, owner, repo, pullNumber)
@@ -121,13 +120,13 @@ Possible options:
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				result, err := GetPullRequestReviewComments(ctx, gqlClient, deps.GetRepoAccessCache(), owner, repo, pullNumber, cursorPagination, deps.GetFlags())
+				result, err := GetPullRequestReviewComments(ctx, gqlClient, deps, owner, repo, pullNumber, cursorPagination)
 				return result, nil, err
 			case "get_reviews":
-				result, err := GetPullRequestReviews(ctx, client, deps.GetRepoAccessCache(), owner, repo, pullNumber, deps.GetFlags())
+				result, err := GetPullRequestReviews(ctx, client, deps, owner, repo, pullNumber)
 				return result, nil, err
 			case "get_comments":
-				result, err := GetIssueComments(ctx, client, deps.GetRepoAccessCache(), owner, repo, pullNumber, pagination, deps.GetFlags())
+				result, err := GetIssueComments(ctx, client, deps, owner, repo, pullNumber, pagination)
 				return result, nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
@@ -135,7 +134,13 @@ Possible options:
 		})
 }
 
-func GetPullRequest(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner, repo string, pullNumber int, ff FeatureFlags) (*mcp.CallToolResult, error) {
+func GetPullRequest(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
+	cache, err := deps.GetRepoAccessCache(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+	}
+	ff := deps.GetFlags(ctx)
+
 	pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -340,7 +345,13 @@ type pageInfoFragment struct {
 	EndCursor       githubv4.String
 }
 
-func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Client, cache *lockdown.RepoAccessCache, owner, repo string, pullNumber int, pagination CursorPaginationParams, ff FeatureFlags) (*mcp.CallToolResult, error) {
+func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination CursorPaginationParams) (*mcp.CallToolResult, error) {
+	cache, err := deps.GetRepoAccessCache(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+	}
+	ff := deps.GetFlags(ctx)
+
 	// Convert pagination parameters to GraphQL format
 	gqlParams, err := pagination.ToGraphQLParams()
 	if err != nil {
@@ -421,7 +432,13 @@ func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 	return utils.NewToolResultText(string(r)), nil
 }
 
-func GetPullRequestReviews(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner, repo string, pullNumber int, ff FeatureFlags) (*mcp.CallToolResult, error) {
+func GetPullRequestReviews(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
+	cache, err := deps.GetRepoAccessCache(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
+	}
+	ff := deps.GetFlags(ctx)
+
 	reviews, resp, err := client.PullRequests.ListReviews(ctx, owner, repo, pullNumber, nil)
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,

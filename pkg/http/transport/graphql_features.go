@@ -1,8 +1,10 @@
-package github
+package transport
 
 import (
 	"net/http"
 	"strings"
+
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 )
 
 // GraphQLFeaturesTransport is an http.RoundTripper that adds GraphQL-Features
@@ -39,7 +41,7 @@ func (t *GraphQLFeaturesTransport) RoundTrip(req *http.Request) (*http.Response,
 	req = req.Clone(req.Context())
 
 	// Check for GraphQL-Features in context and add header if present
-	if features := GetGraphQLFeatures(req.Context()); len(features) > 0 {
+	if features := ghcontext.GetGraphQLFeatures(req.Context()); len(features) > 0 {
 		req.Header.Set("GraphQL-Features", strings.Join(features, ", "))
 	}
 

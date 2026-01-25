@@ -9,6 +9,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/ghmcp"
 	"github.com/github/github-mcp-server/pkg/github"
+	ghhttp "github.com/github/github-mcp-server/pkg/http"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -89,6 +90,28 @@ var (
 			return ghmcp.RunStdioServer(stdioServerConfig)
 		},
 	}
+
+	httpCmd = &cobra.Command{
+		Use:   "http",
+		Short: "Start HTTP server",
+		Long:  `Start an HTTP server that listens for MCP requests over HTTP.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			ttl := viper.GetDuration("repo-access-cache-ttl")
+			httpConfig := ghhttp.HTTPServerConfig{
+				Version:              version,
+				Host:                 viper.GetString("host"),
+				Port:                 viper.GetInt("port"),
+				ExportTranslations:   viper.GetBool("export-translations"),
+				EnableCommandLogging: viper.GetBool("enable-command-logging"),
+				LogFilePath:          viper.GetString("log-file"),
+				ContentWindowSize:    viper.GetInt("content-window-size"),
+				LockdownMode:         viper.GetBool("lockdown-mode"),
+				RepoAccessCacheTTL:   &ttl,
+			}
+
+			return ghhttp.RunHTTPServer(httpConfig)
+		},
+	}
 )
 
 func init() {
@@ -111,6 +134,7 @@ func init() {
 	rootCmd.PersistentFlags().Bool("lockdown-mode", false, "Enable lockdown mode")
 	rootCmd.PersistentFlags().Bool("insider-mode", false, "Enable insider features")
 	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "Override the repo access cache TTL (e.g. 1m, 0s to disable)")
+	rootCmd.PersistentFlags().Int("port", 8082, "HTTP server port")
 
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
@@ -126,9 +150,11 @@ func init() {
 	_ = viper.BindPFlag("lockdown-mode", rootCmd.PersistentFlags().Lookup("lockdown-mode"))
 	_ = viper.BindPFlag("insider-mode", rootCmd.PersistentFlags().Lookup("insider-mode"))
 	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
+	_ = viper.BindPFlag("port", rootCmd.PersistentFlags().Lookup("port"))
 
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)
+	rootCmd.AddCommand(httpCmd)
 }
 
 func initConfig() {
