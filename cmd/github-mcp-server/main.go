@@ -132,6 +132,7 @@ var (
 				LogFilePath:        viper.GetString("log-file"),
 				ContentWindowSize:  viper.GetInt("content-window-size"),
 				LockdownMode:       viper.GetBool("lockdown-mode"),
+				InsiderMode:        viper.GetBool("insider-mode"),
 				RepoAccessCacheTTL: &ttl,
 			}
 			return ghmcp.RunHTTPServer(httpServerConfig)
