@@ -828,6 +828,7 @@ func RunHTTPServer(cfg HTTPServerConfig) error {
 			Logger:            logger,
 			RepoAccessTTL:     cfg.RepoAccessCacheTTL,
 			TokenScopes:       tokenScopes,
+			InsiderMode:       cfg.InsiderMode,
 		})
 		if err != nil {
 			logger.Error("failed to create MCP server", "error", err)
