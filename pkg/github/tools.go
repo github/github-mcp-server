@@ -28,10 +28,11 @@ var (
 		Icon:        "check-circle",
 	}
 	ToolsetMetadataContext = inventory.ToolsetMetadata{
-		ID:          "context",
-		Description: "Tools that provide context about the current user and GitHub context you are operating in",
-		Default:     true,
-		Icon:        "person",
+		ID:               "context",
+		Description:      "Tools that provide context about the current user and GitHub context you are operating in",
+		Default:          true,
+		Icon:             "person",
+		InstructionsFunc: generateContextToolsetInstructions,
 	}
 	ToolsetMetadataRepos = inventory.ToolsetMetadata{
 		ID:          "repos",
@@ -45,16 +46,18 @@ var (
 		Icon:        "git-branch",
 	}
 	ToolsetMetadataIssues = inventory.ToolsetMetadata{
-		ID:          "issues",
-		Description: "GitHub Issues related tools",
-		Default:     true,
-		Icon:        "issue-opened",
+		ID:               "issues",
+		Description:      "GitHub Issues related tools",
+		Default:          true,
+		Icon:             "issue-opened",
+		InstructionsFunc: generateIssuesToolsetInstructions,
 	}
 	ToolsetMetadataPullRequests = inventory.ToolsetMetadata{
-		ID:          "pull_requests",
-		Description: "GitHub Pull Request related tools",
-		Default:     true,
-		Icon:        "git-pull-request",
+		ID:               "pull_requests",
+		Description:      "GitHub Pull Request related tools",
+		Default:          true,
+		Icon:             "git-pull-request",
+		InstructionsFunc: generatePullRequestsToolsetInstructions,
 	}
 	ToolsetMetadataUsers = inventory.ToolsetMetadata{
 		ID:          "users",
@@ -93,9 +96,10 @@ var (
 		Icon:        "bell",
 	}
 	ToolsetMetadataDiscussions = inventory.ToolsetMetadata{
-		ID:          "discussions",
-		Description: "GitHub Discussions related tools",
-		Icon:        "comment-discussion",
+		ID:               "discussions",
+		Description:      "GitHub Discussions related tools",
+		Icon:             "comment-discussion",
+		InstructionsFunc: generateDiscussionsToolsetInstructions,
 	}
 	ToolsetMetadataGists = inventory.ToolsetMetadata{
 		ID:          "gists",
@@ -108,9 +112,10 @@ var (
 		Icon:        "shield",
 	}
 	ToolsetMetadataProjects = inventory.ToolsetMetadata{
-		ID:          "projects",
-		Description: "GitHub Projects related tools",
-		Icon:        "project",
+		ID:               "projects",
+		Description:      "GitHub Projects related tools",
+		Icon:             "project",
+		InstructionsFunc: generateProjectsToolsetInstructions,
 	}
 	ToolsetMetadataStargazers = inventory.ToolsetMetadata{
 		ID:          "stargazers",

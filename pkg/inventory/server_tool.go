@@ -31,6 +31,9 @@ type ToolsetMetadata struct {
 	// Use the base name without size suffix, e.g., "repo" not "repo-16".
 	// See https://primer.style/foundations/icons for available icons.
 	Icon string
+	// InstructionsFunc optionally returns instructions for this toolset.
+	// It receives the inventory so it can check what other toolsets are enabled.
+	InstructionsFunc func(inv *Inventory) string
 }
 
 // Icons returns MCP Icon objects for this toolset, or nil if no icon is set.
