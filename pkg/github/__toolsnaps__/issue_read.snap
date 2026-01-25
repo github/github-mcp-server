@@ -1,0 +1,52 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get issue details"
+  },
+  "description": "Get information about a specific issue in a GitHub repository.",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "method",
+      "owner",
+      "repo",
+      "issue_number"
+    ],
+    "properties": {
+      "issue_number": {
+        "type": "number",
+        "description": "The number of the issue"
+      },
+      "method": {
+        "type": "string",
+        "description": "The read operation to perform on a single issue.\nOptions are:\n1. get - Get details of a specific issue.\n2. get_comments - Get issue comments.\n3. get_sub_issues - Get sub-issues of the issue.\n4. get_labels - Get labels assigned to the issue.\n",
+        "enum": [
+          "get",
+          "get_comments",
+          "get_sub_issues",
+          "get_labels"
+        ]
+      },
+      "owner": {
+        "type": "string",
+        "description": "The owner of the repository"
+      },
+      "page": {
+        "type": "number",
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1
+      },
+      "perPage": {
+        "type": "number",
+        "description": "Results per page for pagination (min 1, max 100)",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "repo": {
+        "type": "string",
+        "description": "The name of the repository"
+      }
+    }
+  },
+  "name": "issue_read"
+}

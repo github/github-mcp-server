@@ -1,0 +1,30 @@
+name: AI Issue Assessment
+
+on:
+  issues:
+    types: [opened, labeled]
+
+jobs:
+  ai-issue-assessment:
+    if: >
+      (github.event.action == 'opened' && github.event.issue.labels[0] == null) ||
+      (github.event.action == 'labeled' && github.event.label.name == 'bug')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      models: read
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run AI assessment
+        uses: github/ai-assessment-comment-labeler@e3bedc38cfffa9179fe4cee8f7ecc93bffb3fee7 # v1.0.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ai_review_label: 'bug, enhancement'
+          issue_number: ${{ github.event.issue.number }}
+          issue_body: ${{ github.event.issue.body }}
+          prompts_directory: '.github/prompts'
+          labels_to_prompts_mapping: 'bug,bug-report-review.prompt.yml|default,default-issue-review.prompt.yml'

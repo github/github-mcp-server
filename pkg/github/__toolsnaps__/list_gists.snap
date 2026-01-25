@@ -1,0 +1,32 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "List Gists"
+  },
+  "description": "List gists for a user",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "page": {
+        "type": "number",
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1
+      },
+      "perPage": {
+        "type": "number",
+        "description": "Results per page for pagination (min 1, max 100)",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "since": {
+        "type": "string",
+        "description": "Only gists updated after this time (ISO 8601 timestamp)"
+      },
+      "username": {
+        "type": "string",
+        "description": "GitHub username (omit for authenticated user's gists)"
+      }
+    }
+  },
+  "name": "list_gists"
+}

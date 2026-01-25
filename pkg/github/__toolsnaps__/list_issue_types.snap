@@ -1,20 +1,20 @@
 {
   "annotations": {
-    "title": "List available issue types",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "List available issue types"
   },
   "description": "List supported issue types for repository owner (organization).",
   "inputSchema": {
-    "properties": {
-      "owner": {
-        "description": "The organization owner of the repository",
-        "type": "string"
-      }
-    },
+    "type": "object",
     "required": [
       "owner"
     ],
-    "type": "object"
+    "properties": {
+      "owner": {
+        "type": "string",
+        "description": "The organization owner of the repository"
+      }
+    }
   },
   "name": "list_issue_types"
 }

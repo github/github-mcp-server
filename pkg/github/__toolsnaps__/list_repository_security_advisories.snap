@@ -1,0 +1,52 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "List repository security advisories"
+  },
+  "description": "List repository security advisories for a GitHub repository.",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "properties": {
+      "direction": {
+        "type": "string",
+        "description": "Sort direction.",
+        "enum": [
+          "asc",
+          "desc"
+        ]
+      },
+      "owner": {
+        "type": "string",
+        "description": "The owner of the repository."
+      },
+      "repo": {
+        "type": "string",
+        "description": "The name of the repository."
+      },
+      "sort": {
+        "type": "string",
+        "description": "Sort field.",
+        "enum": [
+          "created",
+          "updated",
+          "published"
+        ]
+      },
+      "state": {
+        "type": "string",
+        "description": "Filter by advisory state.",
+        "enum": [
+          "triage",
+          "draft",
+          "published",
+          "closed"
+        ]
+      }
+    }
+  },
+  "name": "list_repository_security_advisories"
+}

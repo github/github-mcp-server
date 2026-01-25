@@ -1,50 +1,10 @@
 {
   "annotations": {
-    "title": "Push files to repository",
-    "readOnlyHint": false
+    "title": "Push files to repository"
   },
   "description": "Push multiple files to a GitHub repository in a single commit",
   "inputSchema": {
-    "properties": {
-      "branch": {
-        "description": "Branch to push to",
-        "type": "string"
-      },
-      "files": {
-        "description": "Array of file objects to push, each object with path (string) and content (string)",
-        "items": {
-          "additionalProperties": false,
-          "properties": {
-            "content": {
-              "description": "file content",
-              "type": "string"
-            },
-            "path": {
-              "description": "path to the file",
-              "type": "string"
-            }
-          },
-          "required": [
-            "path",
-            "content"
-          ],
-          "type": "object"
-        },
-        "type": "array"
-      },
-      "message": {
-        "description": "Commit message",
-        "type": "string"
-      },
-      "owner": {
-        "description": "Repository owner",
-        "type": "string"
-      },
-      "repo": {
-        "description": "Repository name",
-        "type": "string"
-      }
-    },
+    "type": "object",
     "required": [
       "owner",
       "repo",
@@ -52,7 +12,45 @@
       "files",
       "message"
     ],
-    "type": "object"
+    "properties": {
+      "branch": {
+        "type": "string",
+        "description": "Branch to push to"
+      },
+      "files": {
+        "type": "array",
+        "description": "Array of file objects to push, each object with path (string) and content (string)",
+        "items": {
+          "type": "object",
+          "required": [
+            "path",
+            "content"
+          ],
+          "properties": {
+            "content": {
+              "type": "string",
+              "description": "file content"
+            },
+            "path": {
+              "type": "string",
+              "description": "path to the file"
+            }
+          }
+        }
+      },
+      "message": {
+        "type": "string",
+        "description": "Commit message"
+      },
+      "owner": {
+        "type": "string",
+        "description": "Repository owner"
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      }
+    }
   },
   "name": "push_files"
 }

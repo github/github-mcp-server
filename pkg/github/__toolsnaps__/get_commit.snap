@@ -1,41 +1,46 @@
 {
   "annotations": {
-    "title": "Get commit details",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "Get commit details"
   },
   "description": "Get details for a commit from a GitHub repository",
   "inputSchema": {
-    "properties": {
-      "owner": {
-        "description": "Repository owner",
-        "type": "string"
-      },
-      "page": {
-        "description": "Page number for pagination (min 1)",
-        "minimum": 1,
-        "type": "number"
-      },
-      "perPage": {
-        "description": "Results per page for pagination (min 1, max 100)",
-        "maximum": 100,
-        "minimum": 1,
-        "type": "number"
-      },
-      "repo": {
-        "description": "Repository name",
-        "type": "string"
-      },
-      "sha": {
-        "description": "Commit SHA, branch name, or tag name",
-        "type": "string"
-      }
-    },
+    "type": "object",
     "required": [
       "owner",
       "repo",
       "sha"
     ],
-    "type": "object"
+    "properties": {
+      "include_diff": {
+        "type": "boolean",
+        "description": "Whether to include file diffs and stats in the response. Default is true.",
+        "default": true
+      },
+      "owner": {
+        "type": "string",
+        "description": "Repository owner"
+      },
+      "page": {
+        "type": "number",
+        "description": "Page number for pagination (min 1)",
+        "minimum": 1
+      },
+      "perPage": {
+        "type": "number",
+        "description": "Results per page for pagination (min 1, max 100)",
+        "minimum": 1,
+        "maximum": 100
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      },
+      "sha": {
+        "type": "string",
+        "description": "Commit SHA, branch name, or tag name"
+      }
+    }
   },
   "name": "get_commit"
 }

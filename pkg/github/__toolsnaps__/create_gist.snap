@@ -1,0 +1,33 @@
+{
+  "annotations": {
+    "title": "Create Gist"
+  },
+  "description": "Create a new gist",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "filename",
+      "content"
+    ],
+    "properties": {
+      "content": {
+        "type": "string",
+        "description": "Content for simple single-file gist creation"
+      },
+      "description": {
+        "type": "string",
+        "description": "Description of the gist"
+      },
+      "filename": {
+        "type": "string",
+        "description": "Filename for simple single-file gist creation"
+      },
+      "public": {
+        "type": "boolean",
+        "description": "Whether the gist is public",
+        "default": false
+      }
+    }
+  },
+  "name": "create_gist"
+}

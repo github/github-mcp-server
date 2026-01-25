@@ -1,0 +1,29 @@
+{
+  "annotations": {
+    "title": "Rerun failed jobs"
+  },
+  "description": "Re-run only the failed jobs in a workflow run",
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "owner",
+      "repo",
+      "run_id"
+    ],
+    "properties": {
+      "owner": {
+        "type": "string",
+        "description": "Repository owner"
+      },
+      "repo": {
+        "type": "string",
+        "description": "Repository name"
+      },
+      "run_id": {
+        "type": "number",
+        "description": "The unique identifier of the workflow run"
+      }
+    }
+  },
+  "name": "rerun_failed_jobs"
+}

@@ -16,6 +16,7 @@ We can't guarantee that every tool, feature, or pull request will be approved or
 
 To increase the chances your request is accepted:
 * Include real use cases or examples that demonstrate practical value
+* Please create an issue outlining the scenario and potential impact, so we can triage it promptly and prioritize accordingly.
 * If your request stalls, you can open a Discussion post and link to your issue or PR
 * We actively revisit requests that gain strong community engagement (👍s, comments, or evidence of real-world use)
 

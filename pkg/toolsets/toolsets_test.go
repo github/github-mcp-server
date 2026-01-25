@@ -134,7 +134,7 @@ func TestEnableToolsets(t *testing.T) {
 	tsg.AddToolset(toolset2)
 
 	// Test enabling multiple toolsets
-	err := tsg.EnableToolsets([]string{"toolset1", "toolset2"})
+	err := tsg.EnableToolsets([]string{"toolset1", "toolset2"}, &EnableToolsetsOptions{})
 	if err != nil {
 		t.Errorf("Expected no error when enabling toolsets, got: %v", err)
 	}
@@ -148,7 +148,19 @@ func TestEnableToolsets(t *testing.T) {
 	}
 
 	// Test with non-existent toolset in the list
-	err = tsg.EnableToolsets([]string{"toolset1", "non-existent"})
+	err = tsg.EnableToolsets([]string{"toolset1", "non-existent"}, nil)
+	if err != nil {
+		t.Errorf("Expected no error when ignoring unknown toolsets, got: %v", err)
+	}
+
+	err = tsg.EnableToolsets([]string{"toolset1", "non-existent"}, &EnableToolsetsOptions{
+		ErrorOnUnknown: false,
+	})
+	if err != nil {
+		t.Errorf("Expected no error when ignoring unknown toolsets, got: %v", err)
+	}
+
+	err = tsg.EnableToolsets([]string{"toolset1", "non-existent"}, &EnableToolsetsOptions{ErrorOnUnknown: true})
 	if err == nil {
 		t.Error("Expected error when enabling list with non-existent toolset")
 	}
@@ -157,14 +169,14 @@ func TestEnableToolsets(t *testing.T) {
 	}
 
 	// Test with empty list
-	err = tsg.EnableToolsets([]string{})
+	err = tsg.EnableToolsets([]string{}, &EnableToolsetsOptions{})
 	if err != nil {
 		t.Errorf("Expected no error with empty toolset list, got: %v", err)
 	}
 
 	// Test enabling everything through EnableToolsets
 	tsg = NewToolsetGroup(false)
-	err = tsg.EnableToolsets([]string{"all"})
+	err = tsg.EnableToolsets([]string{"all"}, &EnableToolsetsOptions{})
 	if err != nil {
 		t.Errorf("Expected no error when enabling 'all', got: %v", err)
 	}
@@ -187,14 +199,14 @@ func TestEnableEverything(t *testing.T) {
 	}
 
 	// Enable "all"
-	err := tsg.EnableToolsets([]string{"all"})
+	err := tsg.EnableToolsets([]string{"all"}, &EnableToolsetsOptions{})
 	if err != nil {
-		t.Errorf("Expected no error when enabling 'eall', got: %v", err)
+		t.Errorf("Expected no error when enabling 'all', got: %v", err)
 	}
 
 	// Verify everythingOn was set
 	if !tsg.everythingOn {
-		t.Error("Expected everythingOn to be true after enabling 'eall'")
+		t.Error("Expected everythingOn to be true after enabling 'all'")
 	}
 
 	// Verify the previously disabled toolset is now enabled
@@ -212,7 +224,7 @@ func TestIsEnabledWithEverythingOn(t *testing.T) {
 	tsg := NewToolsetGroup(false)
 
 	// Enable "all"
-	err := tsg.EnableToolsets([]string{"all"})
+	err := tsg.EnableToolsets([]string{"all"}, &EnableToolsetsOptions{})
 	if err != nil {
 		t.Errorf("Expected no error when enabling 'all', got: %v", err)
 	}
