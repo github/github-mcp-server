@@ -22,6 +22,9 @@ FROM gcr.io/distroless/base-debian12
 # Add required MCP server annotation
 LABEL io.modelcontextprotocol.server.name="io.github.github/github-mcp-server"
 
+# Expose port 8080 for HTTP mode
+EXPOSE 8080
+
 # Set the working directory
 WORKDIR /server
 # Copy the binary from the build stage
