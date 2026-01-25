@@ -131,33 +131,6 @@ func createGitHubClients(cfg MCPServerConfig, apiHost apiHost) (*githubClients, 
 	}, nil
 }
 
-// resolveEnabledToolsets determines which toolsets should be enabled based on config.
-// Returns nil for "use defaults", empty slice for "none", or explicit list.
-func resolveEnabledToolsets(cfg MCPServerConfig) []string {
-	enabledToolsets := cfg.EnabledToolsets
-
-	// In dynamic mode, remove "all" and "default" since users enable toolsets on demand
-	if cfg.DynamicToolsets && enabledToolsets != nil {
-		enabledToolsets = github.RemoveToolset(enabledToolsets, string(github.ToolsetMetadataAll.ID))
-		enabledToolsets = github.RemoveToolset(enabledToolsets, string(github.ToolsetMetadataDefault.ID))
-	}
-
-	if enabledToolsets != nil {
-		return enabledToolsets
-	}
-	if cfg.DynamicToolsets {
-		// Dynamic mode with no toolsets specified: start empty so users enable on demand
-		return []string{}
-	}
-	if len(cfg.EnabledTools) > 0 {
-		// When specific tools are requested but no toolsets, don't use default toolsets
-		// This matches the original behavior: --tools=X alone registers only X
-		return []string{}
-	}
-	// nil means "use defaults" in WithToolsets
-	return nil
-}
-
 func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	apiHost, err := parseAPIHost(cfg.Host)
 	if err != nil {
@@ -169,8 +142,6 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		return nil, fmt.Errorf("failed to create GitHub clients: %w", err)
 	}
 
-	enabledToolsets := resolveEnabledToolsets(cfg)
-
 	// Create feature checker
 	featureChecker := createFeatureChecker(cfg.EnabledFeatures)
 
@@ -178,8 +149,9 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	inventoryBuilder := github.NewInventory(cfg.Translator).
 		WithDeprecatedAliases(github.DeprecatedToolAliases).
 		WithReadOnly(cfg.ReadOnly).
-		WithToolsets(enabledToolsets).
+		WithToolsets(cfg.EnabledToolsets).
 		WithTools(cfg.EnabledTools).
+		WithDynamicMode(cfg.DynamicToolsets).
 		WithFeatureChecker(featureChecker).
 		WithServerInstructions()
 
