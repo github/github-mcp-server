@@ -406,11 +406,7 @@ services:
     volumes:
       - ./logs:/logs
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "http://localhost:8080"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+    # Configure health checks at your load balancer or orchestrator level.
 ```
 Then start with:
 ```bash
