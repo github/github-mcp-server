@@ -5,28 +5,28 @@
   },
   "description": "List gists for a user",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "page": {
-        "type": "number",
         "description": "Page number for pagination (min 1)",
-        "minimum": 1
+        "minimum": 1,
+        "type": "number"
       },
       "perPage": {
-        "type": "number",
         "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
         "minimum": 1,
-        "maximum": 100
+        "type": "number"
       },
       "since": {
-        "type": "string",
-        "description": "Only gists updated after this time (ISO 8601 timestamp)"
+        "description": "Only gists updated after this time (ISO 8601 timestamp)",
+        "type": "string"
       },
       "username": {
-        "type": "string",
-        "description": "GitHub username (omit for authenticated user's gists)"
+        "description": "GitHub username (omit for authenticated user's gists)",
+        "type": "string"
       }
-    }
+    },
+    "type": "object"
   },
   "name": "list_gists"
 }

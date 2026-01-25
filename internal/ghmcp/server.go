@@ -64,6 +64,9 @@ type MCPServerConfig struct {
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
 
+	// Insider indicates if we should enable experimental features
+	InsiderMode bool
+
 	// Logger is used for logging within the server
 	Logger *slog.Logger
 	// RepoAccessTTL overrides the default TTL for repository access cache entries.
@@ -96,8 +99,10 @@ func createGitHubClients(cfg MCPServerConfig, apiHost apiHost) (*githubClients, 
 	// We use NewEnterpriseClient unconditionally since we already parsed the API host
 	gqlHTTPClient := &http.Client{
 		Transport: &bearerAuthTransport{
-			transport: http.DefaultTransport,
-			token:     cfg.Token,
+			transport: &github.GraphQLFeaturesTransport{
+				Transport: http.DefaultTransport,
+			},
+			token: cfg.Token,
 		},
 	}
 	gqlClient := githubv4.NewEnterpriseClient(apiHost.graphqlURL.String(), gqlHTTPClient)
@@ -166,16 +171,31 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 
 	enabledToolsets := resolveEnabledToolsets(cfg)
 
-	// For instruction generation, we need actual toolset names (not nil).
-	// nil means "use defaults" in inventory, so expand it for instructions.
-	instructionToolsets := enabledToolsets
-	if instructionToolsets == nil {
-		instructionToolsets = github.GetDefaultToolsetIDs()
+	// Create feature checker
+	featureChecker := createFeatureChecker(cfg.EnabledFeatures)
+
+	// Build and register the tool/resource/prompt inventory
+	inventoryBuilder := github.NewInventory(cfg.Translator).
+		WithDeprecatedAliases(github.DeprecatedToolAliases).
+		WithReadOnly(cfg.ReadOnly).
+		WithToolsets(enabledToolsets).
+		WithTools(cfg.EnabledTools).
+		WithFeatureChecker(featureChecker).
+		WithServerInstructions()
+
+	// Apply token scope filtering if scopes are known (for PAT filtering)
+	if cfg.TokenScopes != nil {
+		inventoryBuilder = inventoryBuilder.WithFilter(github.CreateToolScopeFilter(cfg.TokenScopes))
+	}
+
+	inventory, err := inventoryBuilder.Build()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build inventory: %w", err)
 	}
 
 	// Create the MCP server
 	serverOpts := &mcp.ServerOptions{
-		Instructions: github.GenerateInstructions(instructionToolsets),
+		Instructions: inventory.Instructions(),
 		Logger:       cfg.Logger,
 		CompletionHandler: github.CompletionsHandler(func(_ context.Context) (*gogithub.Client, error) {
 			return clients.rest, nil
@@ -205,8 +225,12 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		clients.raw,
 		clients.repoAccess,
 		cfg.Translator,
-		github.FeatureFlags{LockdownMode: cfg.LockdownMode},
+		github.FeatureFlags{
+			LockdownMode: cfg.LockdownMode,
+			InsiderMode:  cfg.InsiderMode,
+		},
 		cfg.ContentWindowSize,
+		featureChecker,
 	)
 
 	// Inject dependencies into context for all tool handlers
@@ -215,21 +239,6 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 			return next(github.ContextWithDeps(ctx, deps), method, req)
 		}
 	})
-
-	// Build and register the tool/resource/prompt inventory
-	inventoryBuilder := github.NewInventory(cfg.Translator).
-		WithDeprecatedAliases(github.DeprecatedToolAliases).
-		WithReadOnly(cfg.ReadOnly).
-		WithToolsets(enabledToolsets).
-		WithTools(github.CleanTools(cfg.EnabledTools)).
-		WithFeatureChecker(createFeatureChecker(cfg.EnabledFeatures))
-
-	// Apply token scope filtering if scopes are known (for PAT filtering)
-	if cfg.TokenScopes != nil {
-		inventoryBuilder = inventoryBuilder.WithFilter(github.CreateToolScopeFilter(cfg.TokenScopes))
-	}
-
-	inventory := inventoryBuilder.Build()
 
 	if unrecognized := inventory.UnrecognizedToolsets(); len(unrecognized) > 0 {
 		fmt.Fprintf(os.Stderr, "Warning: unrecognized toolsets ignored: %s\n", strings.Join(unrecognized, ", "))
@@ -322,6 +331,9 @@ type StdioServerConfig struct {
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
 
+	// InsiderMode indicates if we should enable experimental features
+	InsiderMode bool
+
 	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
 	RepoAccessCacheTTL *time.Duration
 }
@@ -378,6 +390,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		Translator:        t,
 		ContentWindowSize: cfg.ContentWindowSize,
 		LockdownMode:      cfg.LockdownMode,
+		InsiderMode:       cfg.InsiderMode,
 		Logger:            logger,
 		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
 		TokenScopes:       tokenScopes,

@@ -58,6 +58,8 @@ type Inventory struct {
 	filters []ToolFilter
 	// unrecognizedToolsets holds toolset IDs that were requested but don't match any registered toolsets
 	unrecognizedToolsets []string
+	// server instructions hold high-level instructions for agents to use the server effectively
+	instructions string
 }
 
 // UnrecognizedToolsets returns toolset IDs that were passed to WithToolsets but don't
@@ -91,7 +93,7 @@ const (
 //   - MCPMethodToolsList: All available tools (no resources/prompts)
 //   - MCPMethodToolsCall: Only the named tool
 //   - MCPMethodResourcesList, MCPMethodResourcesTemplatesList: All available resources (no tools/prompts)
-//   - MCPMethodResourcesRead: Only the named resource template
+//   - MCPMethodResourcesRead: All resources (SDK handles URI template matching)
 //   - MCPMethodPromptsList: All available prompts (no tools/resources)
 //   - MCPMethodPromptsGet: Only the named prompt
 //   - Unknown methods: Empty (no items registered)
@@ -134,10 +136,8 @@ func (r *Inventory) ForMCPRequest(method string, itemName string) *Inventory {
 	case MCPMethodResourcesList, MCPMethodResourcesTemplatesList:
 		result.tools, result.prompts = nil, nil
 	case MCPMethodResourcesRead:
+		// Keep all resources registered - SDK handles URI template matching internally
 		result.tools, result.prompts = nil, nil
-		if itemName != "" {
-			result.resourceTemplates = r.filterResourcesByURI(itemName)
-		}
 	case MCPMethodPromptsList:
 		result.tools, result.resourceTemplates = nil, nil
 	case MCPMethodPromptsGet:
@@ -293,4 +293,8 @@ func (r *Inventory) AvailableToolsets(exclude ...ToolsetID) []ToolsetMetadata {
 		}
 	}
 	return result
+}
+
+func (r *Inventory) Instructions() string {
+	return r.instructions
 }

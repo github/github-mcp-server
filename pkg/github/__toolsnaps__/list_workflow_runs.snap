@@ -5,23 +5,16 @@
   },
   "description": "List workflow runs for a specific workflow",
   "inputSchema": {
-    "type": "object",
-    "required": [
-      "owner",
-      "repo",
-      "workflow_id"
-    ],
     "properties": {
       "actor": {
-        "type": "string",
-        "description": "Returns someone's workflow runs. Use the login for the user who created the workflow run."
+        "description": "Returns someone's workflow runs. Use the login for the user who created the workflow run.",
+        "type": "string"
       },
       "branch": {
-        "type": "string",
-        "description": "Returns workflow runs associated with a branch. Use the name of the branch."
+        "description": "Returns workflow runs associated with a branch. Use the name of the branch.",
+        "type": "string"
       },
       "event": {
-        "type": "string",
         "description": "Returns workflow runs for a specific event type",
         "enum": [
           "branch_protection_rule",
@@ -56,29 +49,29 @@
           "workflow_call",
           "workflow_dispatch",
           "workflow_run"
-        ]
+        ],
+        "type": "string"
       },
       "owner": {
-        "type": "string",
-        "description": "Repository owner"
+        "description": "Repository owner",
+        "type": "string"
       },
       "page": {
-        "type": "number",
         "description": "Page number for pagination (min 1)",
-        "minimum": 1
+        "minimum": 1,
+        "type": "number"
       },
       "perPage": {
-        "type": "number",
         "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
         "minimum": 1,
-        "maximum": 100
+        "type": "number"
       },
       "repo": {
-        "type": "string",
-        "description": "Repository name"
+        "description": "Repository name",
+        "type": "string"
       },
       "status": {
-        "type": "string",
         "description": "Returns workflow runs with the check run status",
         "enum": [
           "queued",
@@ -86,13 +79,20 @@
           "completed",
           "requested",
           "waiting"
-        ]
+        ],
+        "type": "string"
       },
       "workflow_id": {
-        "type": "string",
-        "description": "The workflow ID or workflow file name"
+        "description": "The workflow ID or workflow file name",
+        "type": "string"
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "workflow_id"
+    ],
+    "type": "object"
   },
   "name": "list_workflow_runs"
 }
