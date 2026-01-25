@@ -382,6 +382,9 @@ type HTTPServerConfig struct {
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
 
+	// InsiderMode indicates if we should enable experimental features
+	InsiderMode bool
+
 	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
 	RepoAccessCacheTTL *time.Duration
 }
