@@ -26,9 +26,13 @@ const (
 	DescriptionRepositoryName  = "Repository name"
 )
 
-// FeatureFlagConsolidatedActions is the feature flag that disables individual actions tools
-// in favor of the consolidated actions tools.
+// FeatureFlagConsolidatedActions is the legacy feature flag (deprecated, no longer used).
+// Kept for documentation purposes only.
 const FeatureFlagConsolidatedActions = "remote_mcp_consolidated_actions"
+
+// FeatureFlagHoldbackConsolidatedActions is the feature flag that, when enabled, reverts to
+// individual actions tools instead of the consolidated actions tools.
+const FeatureFlagHoldbackConsolidatedActions = "mcp_holdback_consolidated_actions"
 
 // Method constants for consolidated actions tools
 const (
@@ -117,7 +121,7 @@ func ListWorkflows(t translations.TranslationHelperFunc) inventory.ServerTool {
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedActions
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
 	return tool
 }
 
@@ -272,7 +276,7 @@ func ListWorkflowRuns(t translations.TranslationHelperFunc) inventory.ServerTool
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedActions
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
 	return tool
 }
 
@@ -385,7 +389,7 @@ func RunWorkflow(t translations.TranslationHelperFunc) inventory.ServerTool {
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedActions
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
 	return tool
 }
 
@@ -454,7 +458,7 @@ func GetWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerTool {
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedActions
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
 	return tool
 }
 
@@ -533,7 +537,7 @@ func GetWorkflowRunLogs(t translations.TranslationHelperFunc) inventory.ServerTo
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedActions
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
 	return tool
 }
 
@@ -634,7 +638,7 @@ func ListWorkflowJobs(t translations.TranslationHelperFunc) inventory.ServerTool
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedActions
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
 	return tool
 }
 
@@ -746,7 +750,7 @@ func GetJobLogs(t translations.TranslationHelperFunc) inventory.ServerTool {
 			return utils.NewToolResultError("Either job_id must be provided for single job logs, or run_id with failed_only=true for failed job logs"), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedActions
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
 	return tool
 }
 
@@ -976,7 +980,7 @@ func RerunWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerTool
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedActions
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
 	return tool
 }
 
@@ -1052,7 +1056,7 @@ func RerunFailedJobs(t translations.TranslationHelperFunc) inventory.ServerTool 
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedActions
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
 	return tool
 }
 
@@ -1130,7 +1134,7 @@ func CancelWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerToo
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedActions
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
 	return tool
 }
 
@@ -1211,7 +1215,7 @@ func ListWorkflowRunArtifacts(t translations.TranslationHelperFunc) inventory.Se
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedActions
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
 	return tool
 }
 
@@ -1289,7 +1293,7 @@ func DownloadWorkflowRunArtifact(t translations.TranslationHelperFunc) inventory
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedActions
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
 	return tool
 }
 
@@ -1366,7 +1370,7 @@ func DeleteWorkflowRunLogs(t translations.TranslationHelperFunc) inventory.Serve
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedActions
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
 	return tool
 }
 
@@ -1435,7 +1439,7 @@ func GetWorkflowRunUsage(t translations.TranslationHelperFunc) inventory.ServerT
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedActions
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
 	return tool
 }
 
@@ -1631,7 +1635,7 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 			}
 		},
 	)
-	tool.FeatureFlagEnable = FeatureFlagConsolidatedActions
+	tool.FeatureFlagDisable = FeatureFlagHoldbackConsolidatedActions
 	return tool
 }
 
@@ -1740,7 +1744,7 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 			}
 		},
 	)
-	tool.FeatureFlagEnable = FeatureFlagConsolidatedActions
+	tool.FeatureFlagDisable = FeatureFlagHoldbackConsolidatedActions
 	return tool
 }
 
@@ -1859,7 +1863,7 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 			}
 		},
 	)
-	tool.FeatureFlagEnable = FeatureFlagConsolidatedActions
+	tool.FeatureFlagDisable = FeatureFlagHoldbackConsolidatedActions
 	return tool
 }
 
@@ -1977,7 +1981,7 @@ For single job logs, provide job_id. For all failed jobs in a run, provide run_i
 			return utils.NewToolResultError("Either job_id must be provided for single job logs, or run_id with failed_only=true for failed job logs"), nil, nil
 		},
 	)
-	tool.FeatureFlagEnable = FeatureFlagConsolidatedActions
+	tool.FeatureFlagDisable = FeatureFlagHoldbackConsolidatedActions
 	return tool
 }
 

@@ -26,9 +26,13 @@ const (
 	MaxProjectsPerPage       = 50
 )
 
-// FeatureFlagConsolidatedProjects is the feature flag that disables individual project tools
-// in favor of the consolidated project tools.
+// FeatureFlagConsolidatedProjects is the legacy feature flag (deprecated, no longer used).
+// Kept for documentation purposes only.
 const FeatureFlagConsolidatedProjects = "remote_mcp_consolidated_projects"
+
+// FeatureFlagHoldbackConsolidatedProjects is the feature flag that, when enabled, reverts to
+// individual project tools instead of the consolidated project tools.
+const FeatureFlagHoldbackConsolidatedProjects = "mcp_holdback_consolidated_projects"
 
 // Method constants for consolidated project tools
 const (
@@ -159,7 +163,7 @@ func ListProjects(t translations.TranslationHelperFunc) inventory.ServerTool {
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedProjects
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
 	return tool
 }
 
@@ -250,7 +254,7 @@ func GetProject(t translations.TranslationHelperFunc) inventory.ServerTool {
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedProjects
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
 	return tool
 }
 
@@ -359,7 +363,7 @@ func ListProjectFields(t translations.TranslationHelperFunc) inventory.ServerToo
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedProjects
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
 	return tool
 }
 
@@ -454,7 +458,7 @@ func GetProjectField(t translations.TranslationHelperFunc) inventory.ServerTool 
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedProjects
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
 	return tool
 }
 
@@ -593,7 +597,7 @@ func ListProjectItems(t translations.TranslationHelperFunc) inventory.ServerTool
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedProjects
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
 	return tool
 }
 
@@ -702,7 +706,7 @@ func GetProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedProjects
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
 	return tool
 }
 
@@ -816,7 +820,7 @@ func AddProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedProjects
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
 	return tool
 }
 
@@ -931,7 +935,7 @@ func UpdateProjectItem(t translations.TranslationHelperFunc) inventory.ServerToo
 			return utils.NewToolResultText(string(r)), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedProjects
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
 	return tool
 }
 
@@ -1020,7 +1024,7 @@ func DeleteProjectItem(t translations.TranslationHelperFunc) inventory.ServerToo
 			return utils.NewToolResultText("project item successfully deleted"), nil, nil
 		},
 	)
-	tool.FeatureFlagDisable = FeatureFlagConsolidatedProjects
+	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
 	return tool
 }
 
@@ -1124,7 +1128,7 @@ Use this tool to list projects for a user or organization, or list project field
 			}
 		},
 	)
-	tool.FeatureFlagEnable = FeatureFlagConsolidatedProjects
+	tool.FeatureFlagDisable = FeatureFlagHoldbackConsolidatedProjects
 	return tool
 }
 
@@ -1236,7 +1240,7 @@ Use this tool to get details about individual projects, project fields, and proj
 			}
 		},
 	)
-	tool.FeatureFlagEnable = FeatureFlagConsolidatedProjects
+	tool.FeatureFlagDisable = FeatureFlagHoldbackConsolidatedProjects
 	return tool
 }
 
@@ -1357,7 +1361,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 		},
 	)
-	tool.FeatureFlagEnable = FeatureFlagConsolidatedProjects
+	tool.FeatureFlagDisable = FeatureFlagHoldbackConsolidatedProjects
 	return tool
 }
 
