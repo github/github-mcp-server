@@ -2,12 +2,18 @@ package http
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"testing"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/go-chi/chi/v5"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -96,6 +102,187 @@ func TestInventoryFiltersForRequest(t *testing.T) {
 			}
 
 			assert.ElementsMatch(t, tt.expectedTools, toolNames)
+		})
+	}
+}
+
+// testTools returns a set of mock tools across different toolsets with mixed read-only/write capabilities
+func testTools() []inventory.ServerTool {
+	return []inventory.ServerTool{
+		mockTool("get_file_contents", "repos", true),
+		mockTool("create_repository", "repos", false),
+		mockTool("list_issues", "issues", true),
+		mockTool("create_issue", "issues", false),
+		mockTool("list_pull_requests", "pull_requests", true),
+		mockTool("create_pull_request", "pull_requests", false),
+	}
+}
+
+// extractToolNames extracts tool names from an inventory
+func extractToolNames(inv *inventory.Inventory) []string {
+	available := inv.AvailableTools(context.Background())
+	names := make([]string, len(available))
+	for i, tool := range available {
+		names[i] = tool.Tool.Name
+	}
+	sort.Strings(names)
+	return names
+}
+
+func TestHTTPHandlerRoutes(t *testing.T) {
+	tools := testTools()
+
+	tests := []struct {
+		name          string
+		path          string
+		headers       map[string]string
+		expectedTools []string
+	}{
+		{
+			name:          "root path returns all tools",
+			path:          "/",
+			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "create_issue", "list_pull_requests", "create_pull_request"},
+		},
+		{
+			name:          "readonly path filters write tools",
+			path:          "/readonly",
+			expectedTools: []string{"get_file_contents", "list_issues", "list_pull_requests"},
+		},
+		{
+			name:          "toolset path filters to toolset",
+			path:          "/x/repos",
+			expectedTools: []string{"get_file_contents", "create_repository"},
+		},
+		{
+			name:          "toolset path with issues",
+			path:          "/x/issues",
+			expectedTools: []string{"list_issues", "create_issue"},
+		},
+		{
+			name:          "toolset readonly path filters to readonly tools in toolset",
+			path:          "/x/repos/readonly",
+			expectedTools: []string{"get_file_contents"},
+		},
+		{
+			name:          "toolset readonly path with issues",
+			path:          "/x/issues/readonly",
+			expectedTools: []string{"list_issues"},
+		},
+		{
+			name: "X-MCP-Tools header filters to specific tools",
+			path: "/",
+			headers: map[string]string{
+				headers.MCPToolsHeader: "list_issues",
+			},
+			expectedTools: []string{"list_issues"},
+		},
+		{
+			name: "X-MCP-Tools header with multiple tools",
+			path: "/",
+			headers: map[string]string{
+				headers.MCPToolsHeader: "list_issues,get_file_contents",
+			},
+			expectedTools: []string{"list_issues", "get_file_contents"},
+		},
+		{
+			name: "X-MCP-Tools header does not expose extra tools",
+			path: "/",
+			headers: map[string]string{
+				headers.MCPToolsHeader: "list_issues",
+			},
+			expectedTools: []string{"list_issues"},
+		},
+		{
+			name: "X-MCP-Readonly header filters write tools",
+			path: "/",
+			headers: map[string]string{
+				headers.MCPReadOnlyHeader: "true",
+			},
+			expectedTools: []string{"get_file_contents", "list_issues", "list_pull_requests"},
+		},
+		{
+			name: "X-MCP-Toolsets header filters to toolset",
+			path: "/",
+			headers: map[string]string{
+				headers.MCPToolsetsHeader: "repos",
+			},
+			expectedTools: []string{"get_file_contents", "create_repository"},
+		},
+		{
+			name: "URL toolset takes precedence over header toolset",
+			path: "/x/issues",
+			headers: map[string]string{
+				headers.MCPToolsetsHeader: "repos",
+			},
+			expectedTools: []string{"list_issues", "create_issue"},
+		},
+		{
+			name: "URL readonly takes precedence over header",
+			path: "/readonly",
+			headers: map[string]string{
+				headers.MCPReadOnlyHeader: "false",
+			},
+			expectedTools: []string{"get_file_contents", "list_issues", "list_pull_requests"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var capturedInventory *inventory.Inventory
+
+			// Create inventory factory that captures the built inventory
+			inventoryFactory := func(r *http.Request) (*inventory.Inventory, error) {
+				builder := inventory.NewBuilder().
+					SetTools(tools).
+					WithToolsets([]string{"all"})
+				builder = InventoryFiltersForRequest(r, builder)
+				inv, err := builder.Build()
+				if err != nil {
+					return nil, err
+				}
+				capturedInventory = inv
+				return inv, nil
+			}
+
+			// Create mock MCP server factory that just returns a minimal server
+			mcpServerFactory := func(_ *http.Request, _ github.ToolDependencies, _ *inventory.Inventory, _ *github.MCPServerConfig) (*mcp.Server, error) {
+				return mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil), nil
+			}
+
+			// Create handler with our factories
+			handler := NewHTTPMcpHandler(
+				context.Background(),
+				&HTTPServerConfig{Version: "test"},
+				nil, // deps not needed for this test
+				translations.NullTranslationHelper,
+				slog.Default(),
+				WithInventoryFactory(inventoryFactory),
+				WithGitHubMCPServerFactory(mcpServerFactory),
+			)
+
+			// Create router and register routes
+			r := chi.NewRouter()
+			handler.RegisterRoutes(r)
+
+			// Create request
+			req := httptest.NewRequest(http.MethodPost, tt.path, nil)
+			for k, v := range tt.headers {
+				req.Header.Set(k, v)
+			}
+
+			// Execute request
+			rr := httptest.NewRecorder()
+			r.ServeHTTP(rr, req)
+
+			// Verify the inventory was captured and has the expected tools
+			require.NotNil(t, capturedInventory, "inventory should have been created")
+
+			toolNames := extractToolNames(capturedInventory)
+			expectedSorted := make([]string, len(tt.expectedTools))
+			copy(expectedSorted, tt.expectedTools)
+			sort.Strings(expectedSorted)
+
+			assert.Equal(t, expectedSorted, toolNames, "tools should match expected")
 		})
 	}
 }
