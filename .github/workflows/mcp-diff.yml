@@ -20,7 +20,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run MCP Server Diff
-        uses: SamMorrowDrums/mcp-server-diff@v2
+        uses: SamMorrowDrums/mcp-server-diff@v2.2.0
         with:
           setup_go: "true"
           install_command: go mod download
