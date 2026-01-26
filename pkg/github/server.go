@@ -10,9 +10,9 @@ import (
 
 	gherrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/mcpresult"
 	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -205,8 +205,8 @@ func CompletionsHandler(getClient GetClientFn) func(ctx context.Context, req *mc
 func MarshalledTextResult(v any) *mcp.CallToolResult {
 	data, err := json.Marshal(v)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr("failed to marshal text result to json", err)
+		return mcpresult.NewErrorFromErr("failed to marshal text result to json", err)
 	}
 
-	return utils.NewToolResultText(string(data))
+	return mcpresult.NewText(string(data))
 }

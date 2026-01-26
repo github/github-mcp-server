@@ -6,17 +6,17 @@ import (
 	"net/http"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	"github.com/github/github-mcp-server/pkg/githubapi"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
-	"github.com/github/github-mcp-server/pkg/utils"
 )
 
 func ExtractUserToken(oauthCfg *oauth.Config) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			tokenType, token, err := utils.ParseAuthorizationHeader(r)
+			tokenType, token, err := githubapi.ParseAuthorizationHeader(r)
 			if err != nil {
 				// For missing Authorization header, return 401 with WWW-Authenticate header per MCP spec
-				if errors.Is(err, utils.ErrMissingAuthorizationHeader) {
+				if errors.Is(err, githubapi.ErrMissingAuthorizationHeader) {
 					sendAuthChallenge(w, r, oauthCfg)
 					return
 				}

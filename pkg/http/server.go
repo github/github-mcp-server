@@ -14,12 +14,12 @@ import (
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/githubapi"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -95,7 +95,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 	logger := slog.New(slogHandler)
 	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "lockdownEnabled", cfg.LockdownMode)
 
-	apiHost, err := utils.NewAPIHost(cfg.Host)
+	apiHost, err := githubapi.NewHost(cfg.Host)
 	if err != nil {
 		return fmt.Errorf("failed to parse API host: %w", err)
 	}

@@ -10,11 +10,11 @@ import (
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/githubapi"
 	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -276,7 +276,7 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 			// Create feature checker that reads from context (same as production)
 			featureChecker := createHTTPFeatureChecker()
 
-			apiHost, err := utils.NewAPIHost("https://api.github.com")
+			apiHost, err := githubapi.NewHost("https://api.github.com")
 			require.NoError(t, err)
 
 			// Create inventory factory that captures the built inventory

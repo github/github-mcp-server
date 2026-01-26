@@ -8,13 +8,13 @@ import (
 	"os"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	"github.com/github/github-mcp-server/pkg/githubapi"
 	"github.com/github/github-mcp-server/pkg/http/transport"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 	gogithub "github.com/google/go-github/v79/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -238,7 +238,7 @@ func NewToolFromHandler(
 
 type RequestDeps struct {
 	// Static dependencies
-	apiHosts          utils.APIHostResolver
+	apiHosts          githubapi.HostResolver
 	version           string
 	lockdownMode      bool
 	RepoAccessOpts    []lockdown.RepoAccessOption
@@ -251,7 +251,7 @@ type RequestDeps struct {
 
 // NewRequestDeps creates a RequestDeps with the provided clients and configuration.
 func NewRequestDeps(
-	apiHosts utils.APIHostResolver,
+	apiHosts githubapi.HostResolver,
 	version string,
 	lockdownMode bool,
 	repoAccessOpts []lockdown.RepoAccessOption,

@@ -11,9 +11,9 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/mcpresult"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -67,36 +67,36 @@ func ListNotifications(t translations.TranslationHelperFunc) inventory.ServerToo
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			filter, err := OptionalParam[string](args, "filter")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			since, err := OptionalParam[string](args, "since")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			before, err := OptionalParam[string](args, "before")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			owner, err := OptionalParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := OptionalParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			paginationParams, err := OptionalPaginationParams(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Build options
@@ -113,7 +113,7 @@ func ListNotifications(t translations.TranslationHelperFunc) inventory.ServerToo
 			if since != "" {
 				sinceTime, err := time.Parse(time.RFC3339, since)
 				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("invalid since time format, should be RFC3339/ISO8601: %v", err)), nil, nil
+					return mcpresult.NewError(fmt.Sprintf("invalid since time format, should be RFC3339/ISO8601: %v", err)), nil, nil
 				}
 				opts.Since = sinceTime
 			}
@@ -121,7 +121,7 @@ func ListNotifications(t translations.TranslationHelperFunc) inventory.ServerToo
 			if before != "" {
 				beforeTime, err := time.Parse(time.RFC3339, before)
 				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("invalid before time format, should be RFC3339/ISO8601: %v", err)), nil, nil
+					return mcpresult.NewError(fmt.Sprintf("invalid before time format, should be RFC3339/ISO8601: %v", err)), nil, nil
 				}
 				opts.Before = beforeTime
 			}
@@ -146,7 +146,7 @@ func ListNotifications(t translations.TranslationHelperFunc) inventory.ServerToo
 			if resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					return mcpresult.NewErrorFromErr("failed to read response body", err), nil, nil
 				}
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get notifications", resp, body), nil, nil
 			}
@@ -154,10 +154,10 @@ func ListNotifications(t translations.TranslationHelperFunc) inventory.ServerToo
 			// Marshal response to JSON
 			r, err := json.Marshal(notifications)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -193,17 +193,17 @@ func DismissNotification(t translations.TranslationHelperFunc) inventory.ServerT
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			threadID, err := RequiredParam[string](args, "threadID")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			state, err := RequiredParam[string](args, "state")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			var resp *github.Response
@@ -213,13 +213,13 @@ func DismissNotification(t translations.TranslationHelperFunc) inventory.ServerT
 				var threadIDInt int64
 				threadIDInt, err = strconv.ParseInt(threadID, 10, 64)
 				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("invalid threadID format: %v", err)), nil, nil
+					return mcpresult.NewError(fmt.Sprintf("invalid threadID format: %v", err)), nil, nil
 				}
 				resp, err = client.Activity.MarkThreadDone(ctx, threadIDInt)
 			case "read":
 				resp, err = client.Activity.MarkThreadRead(ctx, threadID)
 			default:
-				return utils.NewToolResultError("Invalid state. Must be one of: read, done."), nil, nil
+				return mcpresult.NewError("Invalid state. Must be one of: read, done."), nil, nil
 			}
 
 			if err != nil {
@@ -234,12 +234,12 @@ func DismissNotification(t translations.TranslationHelperFunc) inventory.ServerT
 			if resp.StatusCode != http.StatusResetContent && resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					return mcpresult.NewErrorFromErr("failed to read response body", err), nil, nil
 				}
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, fmt.Sprintf("failed to mark notification as %s", state), resp, body), nil, nil
 			}
 
-			return utils.NewToolResultText(fmt.Sprintf("Notification marked as %s", state)), nil, nil
+			return mcpresult.NewText(fmt.Sprintf("Notification marked as %s", state)), nil, nil
 		},
 	)
 }
@@ -277,28 +277,28 @@ func MarkAllNotificationsRead(t translations.TranslationHelperFunc) inventory.Se
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			lastReadAt, err := OptionalParam[string](args, "lastReadAt")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			owner, err := OptionalParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := OptionalParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			var lastReadTime time.Time
 			if lastReadAt != "" {
 				lastReadTime, err = time.Parse(time.RFC3339, lastReadAt)
 				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("invalid lastReadAt time format, should be RFC3339/ISO8601: %v", err)), nil, nil
+					return mcpresult.NewError(fmt.Sprintf("invalid lastReadAt time format, should be RFC3339/ISO8601: %v", err)), nil, nil
 				}
 			} else {
 				lastReadTime = time.Now()
@@ -326,12 +326,12 @@ func MarkAllNotificationsRead(t translations.TranslationHelperFunc) inventory.Se
 			if resp.StatusCode != http.StatusResetContent && resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					return mcpresult.NewErrorFromErr("failed to read response body", err), nil, nil
 				}
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to mark all notifications as read", resp, body), nil, nil
 			}
 
-			return utils.NewToolResultText("All notifications marked as read"), nil, nil
+			return mcpresult.NewText("All notifications marked as read"), nil, nil
 		},
 	)
 }
@@ -362,12 +362,12 @@ func GetNotificationDetails(t translations.TranslationHelperFunc) inventory.Serv
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			notificationID, err := RequiredParam[string](args, "notificationID")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			thread, resp, err := client.Activity.GetThread(ctx, notificationID)
@@ -383,17 +383,17 @@ func GetNotificationDetails(t translations.TranslationHelperFunc) inventory.Serv
 			if resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					return mcpresult.NewErrorFromErr("failed to read response body", err), nil, nil
 				}
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get notification details", resp, body), nil, nil
 			}
 
 			r, err := json.Marshal(thread)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -436,16 +436,16 @@ func ManageNotificationSubscription(t translations.TranslationHelperFunc) invent
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			notificationID, err := RequiredParam[string](args, "notificationID")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			action, err := RequiredParam[string](args, "action")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			var (
@@ -464,7 +464,7 @@ func ManageNotificationSubscription(t translations.TranslationHelperFunc) invent
 			case NotificationActionDelete:
 				resp, apiErr = client.Activity.DeleteThreadSubscription(ctx, notificationID)
 			default:
-				return utils.NewToolResultError("Invalid action. Must be one of: ignore, watch, delete."), nil, nil
+				return mcpresult.NewError("Invalid action. Must be one of: ignore, watch, delete."), nil, nil
 			}
 
 			if apiErr != nil {
@@ -483,14 +483,14 @@ func ManageNotificationSubscription(t translations.TranslationHelperFunc) invent
 
 			if action == NotificationActionDelete {
 				// Special case for delete as there is no response body
-				return utils.NewToolResultText("Notification subscription deleted"), nil, nil
+				return mcpresult.NewText("Notification subscription deleted"), nil, nil
 			}
 
 			r, err := json.Marshal(result)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to marshal response", err), nil, nil
 			}
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -536,20 +536,20 @@ func ManageRepositoryNotificationSubscription(t translations.TranslationHelperFu
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			action, err := RequiredParam[string](args, "action")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			var (
@@ -568,7 +568,7 @@ func ManageRepositoryNotificationSubscription(t translations.TranslationHelperFu
 			case RepositorySubscriptionActionDelete:
 				resp, apiErr = client.Activity.DeleteRepositorySubscription(ctx, owner, repo)
 			default:
-				return utils.NewToolResultError("Invalid action. Must be one of: ignore, watch, delete."), nil, nil
+				return mcpresult.NewError("Invalid action. Must be one of: ignore, watch, delete."), nil, nil
 			}
 
 			if apiErr != nil {
@@ -590,14 +590,14 @@ func ManageRepositoryNotificationSubscription(t translations.TranslationHelperFu
 
 			if action == RepositorySubscriptionActionDelete {
 				// Special case for delete as there is no response body
-				return utils.NewToolResultText("Repository subscription deleted"), nil, nil
+				return mcpresult.NewText("Repository subscription deleted"), nil, nil
 			}
 
 			r, err := json.Marshal(result)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to marshal response", err), nil, nil
 			}
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }

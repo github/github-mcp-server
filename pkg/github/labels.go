@@ -8,9 +8,9 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/mcpresult"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -50,17 +50,17 @@ func GetLabel(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			name, err := RequiredParam[string](args, "name")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			var query struct {
@@ -90,7 +90,7 @@ func GetLabel(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			if query.Repository.Label.Name == "" {
-				return utils.NewToolResultError(fmt.Sprintf("label '%s' not found in %s/%s", name, owner, repo)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("label '%s' not found in %s/%s", name, owner, repo)), nil, nil
 			}
 
 			label := map[string]any{
@@ -105,7 +105,7 @@ func GetLabel(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal label: %w", err)
 			}
 
-			return utils.NewToolResultText(string(out)), nil, nil
+			return mcpresult.NewText(string(out)), nil, nil
 		},
 	)
 }
@@ -148,12 +148,12 @@ func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetGQLClient(ctx)
@@ -204,7 +204,7 @@ func ListLabels(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal labels: %w", err)
 			}
 
-			return utils.NewToolResultText(string(out)), nil, nil
+			return mcpresult.NewText(string(out)), nil, nil
 		},
 	)
 }
@@ -261,23 +261,23 @@ func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// Get and validate required parameters
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			method = strings.ToLower(method)
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			name, err := RequiredParam[string](args, "name")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Get optional parameters
@@ -294,7 +294,7 @@ func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 			case "create":
 				// Validate required params for create
 				if color == "" {
-					return utils.NewToolResultError("color is required for create"), nil, nil
+					return mcpresult.NewError("color is required for create"), nil, nil
 				}
 
 				// Get repository ID
@@ -326,18 +326,18 @@ func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to create label", err), nil, nil
 				}
 
-				return utils.NewToolResultText(fmt.Sprintf("label '%s' created successfully", mutation.CreateLabel.Label.Name)), nil, nil
+				return mcpresult.NewText(fmt.Sprintf("label '%s' created successfully", mutation.CreateLabel.Label.Name)), nil, nil
 
 			case "update":
 				// Validate required params for update
 				if newName == "" && color == "" && description == "" {
-					return utils.NewToolResultError("at least one of new_name, color, or description must be provided for update"), nil, nil
+					return mcpresult.NewError("at least one of new_name, color, or description must be provided for update"), nil, nil
 				}
 
 				// Get the label ID
 				labelID, err := getLabelID(ctx, client, owner, repo, name)
 				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+					return mcpresult.NewError(err.Error()), nil, nil
 				}
 
 				input := githubv4.UpdateLabelInput{
@@ -369,13 +369,13 @@ func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to update label", err), nil, nil
 				}
 
-				return utils.NewToolResultText(fmt.Sprintf("label '%s' updated successfully", mutation.UpdateLabel.Label.Name)), nil, nil
+				return mcpresult.NewText(fmt.Sprintf("label '%s' updated successfully", mutation.UpdateLabel.Label.Name)), nil, nil
 
 			case "delete":
 				// Get the label ID
 				labelID, err := getLabelID(ctx, client, owner, repo, name)
 				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+					return mcpresult.NewError(err.Error()), nil, nil
 				}
 
 				input := githubv4.DeleteLabelInput{
@@ -392,10 +392,10 @@ func LabelWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to delete label", err), nil, nil
 				}
 
-				return utils.NewToolResultText(fmt.Sprintf("label '%s' deleted successfully", name)), nil, nil
+				return mcpresult.NewText(fmt.Sprintf("label '%s' deleted successfully", name)), nil, nil
 
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s. Supported methods are: create, update, delete", method)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("unknown method: %s. Supported methods are: create, update, delete", method)), nil, nil
 			}
 		},
 	)

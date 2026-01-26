@@ -9,9 +9,9 @@ import (
 	"strings"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	"github.com/github/github-mcp-server/pkg/githubapi"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/scopes"
-	"github.com/github/github-mcp-server/pkg/utils"
 )
 
 // WithScopeChallenge creates a new middleware that determines if an OAuth request contains sufficient scopes to
@@ -35,7 +35,7 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 			}
 
 			// Only check OAuth tokens - scope challenge allows OAuth apps to request additional scopes
-			if tokenInfo.TokenType != utils.TokenTypeOAuthAccessToken {
+			if tokenInfo.TokenType != githubapi.TokenTypeOAuthAccessToken {
 				next.ServeHTTP(w, r)
 				return
 			}

@@ -14,6 +14,7 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/githubapi"
 	"github.com/github/github-mcp-server/pkg/http/transport"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
@@ -21,7 +22,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 	gogithub "github.com/google/go-github/v79/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -37,7 +37,7 @@ type githubClients struct {
 }
 
 // createGitHubClients creates all the GitHub API clients needed by the server.
-func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolver) (*githubClients, error) {
+func createGitHubClients(cfg github.MCPServerConfig, apiHost githubapi.HostResolver) (*githubClients, error) {
 	restURL, err := apiHost.BaseRESTURL(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get base REST URL: %w", err)
@@ -102,7 +102,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 }
 
 func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Server, error) {
-	apiHost, err := utils.NewAPIHost(cfg.Host)
+	apiHost, err := githubapi.NewHost(cfg.Host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
 	}
@@ -361,7 +361,7 @@ func addUserAgentsMiddleware(cfg github.MCPServerConfig, restClient *gogithub.Cl
 // fetchTokenScopesForHost fetches the OAuth scopes for a token from the GitHub API.
 // It constructs the appropriate API host URL based on the configured host.
 func fetchTokenScopesForHost(ctx context.Context, token, host string) ([]string, error) {
-	apiHost, err := utils.NewAPIHost(host)
+	apiHost, err := githubapi.NewHost(host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
 	}

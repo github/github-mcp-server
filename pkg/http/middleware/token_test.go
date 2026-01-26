@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	"github.com/github/github-mcp-server/pkg/githubapi"
 	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,7 +23,7 @@ func TestExtractUserToken(t *testing.T) {
 		name               string
 		authHeader         string
 		expectedStatusCode int
-		expectedTokenType  utils.TokenType
+		expectedTokenType  githubapi.TokenType
 		expectedToken      string
 		expectTokenInfo    bool
 		expectWWWAuth      bool
@@ -41,7 +41,7 @@ func TestExtractUserToken(t *testing.T) {
 			name:               "personal access token (classic) with Bearer prefix",
 			authHeader:         "Bearer ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			expectedStatusCode: http.StatusOK,
-			expectedTokenType:  utils.TokenTypePersonalAccessToken,
+			expectedTokenType:  githubapi.TokenTypePersonalAccessToken,
 			expectedToken:      "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			expectTokenInfo:    true,
 		},
@@ -49,7 +49,7 @@ func TestExtractUserToken(t *testing.T) {
 			name:               "personal access token (classic) with bearer lowercase",
 			authHeader:         "bearer ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			expectedStatusCode: http.StatusOK,
-			expectedTokenType:  utils.TokenTypePersonalAccessToken,
+			expectedTokenType:  githubapi.TokenTypePersonalAccessToken,
 			expectedToken:      "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			expectTokenInfo:    true,
 		},
@@ -57,7 +57,7 @@ func TestExtractUserToken(t *testing.T) {
 			name:               "personal access token (classic) without Bearer prefix",
 			authHeader:         "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			expectedStatusCode: http.StatusOK,
-			expectedTokenType:  utils.TokenTypePersonalAccessToken,
+			expectedTokenType:  githubapi.TokenTypePersonalAccessToken,
 			expectedToken:      "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			expectTokenInfo:    true,
 		},
@@ -66,7 +66,7 @@ func TestExtractUserToken(t *testing.T) {
 			name:               "fine-grained personal access token with Bearer prefix",
 			authHeader:         "Bearer github_pat_xxxxxxxxxxxxxxxxxxxxxxx",
 			expectedStatusCode: http.StatusOK,
-			expectedTokenType:  utils.TokenTypeFineGrainedPersonalAccessToken,
+			expectedTokenType:  githubapi.TokenTypeFineGrainedPersonalAccessToken,
 			expectedToken:      "github_pat_xxxxxxxxxxxxxxxxxxxxxxx",
 			expectTokenInfo:    true,
 		},
@@ -74,7 +74,7 @@ func TestExtractUserToken(t *testing.T) {
 			name:               "fine-grained personal access token without Bearer prefix",
 			authHeader:         "github_pat_xxxxxxxxxxxxxxxxxxxxxxx",
 			expectedStatusCode: http.StatusOK,
-			expectedTokenType:  utils.TokenTypeFineGrainedPersonalAccessToken,
+			expectedTokenType:  githubapi.TokenTypeFineGrainedPersonalAccessToken,
 			expectedToken:      "github_pat_xxxxxxxxxxxxxxxxxxxxxxx",
 			expectTokenInfo:    true,
 		},
@@ -83,7 +83,7 @@ func TestExtractUserToken(t *testing.T) {
 			name:               "OAuth access token with Bearer prefix",
 			authHeader:         "Bearer gho_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			expectedStatusCode: http.StatusOK,
-			expectedTokenType:  utils.TokenTypeOAuthAccessToken,
+			expectedTokenType:  githubapi.TokenTypeOAuthAccessToken,
 			expectedToken:      "gho_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			expectTokenInfo:    true,
 		},
@@ -91,7 +91,7 @@ func TestExtractUserToken(t *testing.T) {
 			name:               "OAuth access token without Bearer prefix",
 			authHeader:         "gho_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			expectedStatusCode: http.StatusOK,
-			expectedTokenType:  utils.TokenTypeOAuthAccessToken,
+			expectedTokenType:  githubapi.TokenTypeOAuthAccessToken,
 			expectedToken:      "gho_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			expectTokenInfo:    true,
 		},
@@ -100,7 +100,7 @@ func TestExtractUserToken(t *testing.T) {
 			name:               "user-to-server GitHub App token with Bearer prefix",
 			authHeader:         "Bearer ghu_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			expectedStatusCode: http.StatusOK,
-			expectedTokenType:  utils.TokenTypeUserToServerGitHubAppToken,
+			expectedTokenType:  githubapi.TokenTypeUserToServerGitHubAppToken,
 			expectedToken:      "ghu_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			expectTokenInfo:    true,
 		},
@@ -108,7 +108,7 @@ func TestExtractUserToken(t *testing.T) {
 			name:               "user-to-server GitHub App token without Bearer prefix",
 			authHeader:         "ghu_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			expectedStatusCode: http.StatusOK,
-			expectedTokenType:  utils.TokenTypeUserToServerGitHubAppToken,
+			expectedTokenType:  githubapi.TokenTypeUserToServerGitHubAppToken,
 			expectedToken:      "ghu_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			expectTokenInfo:    true,
 		},
@@ -117,7 +117,7 @@ func TestExtractUserToken(t *testing.T) {
 			name:               "server-to-server GitHub App token with Bearer prefix",
 			authHeader:         "Bearer ghs_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			expectedStatusCode: http.StatusOK,
-			expectedTokenType:  utils.TokenTypeServerToServerGitHubAppToken,
+			expectedTokenType:  githubapi.TokenTypeServerToServerGitHubAppToken,
 			expectedToken:      "ghs_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			expectTokenInfo:    true,
 		},
@@ -125,7 +125,7 @@ func TestExtractUserToken(t *testing.T) {
 			name:               "server-to-server GitHub App token without Bearer prefix",
 			authHeader:         "ghs_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			expectedStatusCode: http.StatusOK,
-			expectedTokenType:  utils.TokenTypeServerToServerGitHubAppToken,
+			expectedTokenType:  githubapi.TokenTypeServerToServerGitHubAppToken,
 			expectedToken:      "ghs_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
 			expectTokenInfo:    true,
 		},
@@ -134,7 +134,7 @@ func TestExtractUserToken(t *testing.T) {
 			name:               "old-style personal access token (40 hex chars) with Bearer prefix",
 			authHeader:         "Bearer 0123456789abcdef0123456789abcdef01234567",
 			expectedStatusCode: http.StatusOK,
-			expectedTokenType:  utils.TokenTypePersonalAccessToken,
+			expectedTokenType:  githubapi.TokenTypePersonalAccessToken,
 			expectedToken:      "0123456789abcdef0123456789abcdef01234567",
 			expectTokenInfo:    true,
 		},
@@ -142,7 +142,7 @@ func TestExtractUserToken(t *testing.T) {
 			name:               "old-style personal access token (40 hex chars) without Bearer prefix",
 			authHeader:         "0123456789abcdef0123456789abcdef01234567",
 			expectedStatusCode: http.StatusOK,
-			expectedTokenType:  utils.TokenTypePersonalAccessToken,
+			expectedTokenType:  githubapi.TokenTypePersonalAccessToken,
 			expectedToken:      "0123456789abcdef0123456789abcdef01234567",
 			expectTokenInfo:    true,
 		},
@@ -229,7 +229,7 @@ func TestExtractUserToken_NilOAuthConfig(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 	require.True(t, tokenInfoCaptured)
 	require.NotNil(t, capturedTokenInfo)
-	assert.Equal(t, utils.TokenTypePersonalAccessToken, capturedTokenInfo.TokenType)
+	assert.Equal(t, githubapi.TokenTypePersonalAccessToken, capturedTokenInfo.TokenType)
 }
 
 func TestExtractUserToken_MissingAuthHeader_WWWAuthenticateFormat(t *testing.T) {
