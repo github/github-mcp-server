@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/github/github-mcp-server/internal/buildinfo"
 	"github.com/github/github-mcp-server/internal/ghmcp"
 	"github.com/github/github-mcp-server/internal/oauth"
 	"github.com/github/github-mcp-server/pkg/github"
@@ -72,9 +73,10 @@ var (
 			var oauthScopes []string
 			var prebuiltInventory *inventory.Inventory
 
-			// If no token provided, setup OAuth manager if configured
+			// If no token provided, setup OAuth manager
+			// Priority: 1. Explicit OAuth config, 2. Build-time credentials, 3. None
 			if token == "" {
-				oauthClientID := viper.GetString("oauth_client_id")
+				oauthClientID, oauthClientSecret := resolveOAuthCredentials()
 				if oauthClientID != "" {
 					// Get translation helper for inventory building
 					t, _ := translations.TranslationHelper()
@@ -87,7 +89,7 @@ var (
 					// Create OAuth manager for lazy authentication
 					oauthCfg := oauth.GetGitHubOAuthConfig(
 						oauthClientID,
-						viper.GetString("oauth_client_secret"),
+						oauthClientSecret,
 						oauthScopes,
 						viper.GetString("host"),
 						viper.GetInt("oauth_callback_port"),
@@ -273,4 +275,26 @@ func collectRequiredScopes(inv *inventory.Inventory) []string {
 	sort.Strings(scopes)
 
 	return scopes
+}
+
+// resolveOAuthCredentials returns OAuth client credentials using the following priority:
+// 1. Explicit configuration via flags/environment (--oauth-client-id, GITHUB_OAUTH_CLIENT_ID)
+// 2. Build-time baked credentials (for official releases)
+//
+// This allows developers to override with their own OAuth app while providing
+// a seamless "just works" experience for end users of official builds.
+func resolveOAuthCredentials() (clientID, clientSecret string) {
+	// Priority 1: Explicit user configuration
+	clientID = viper.GetString("oauth_client_id")
+	if clientID != "" {
+		return clientID, viper.GetString("oauth_client_secret")
+	}
+
+	// Priority 2: Build-time baked credentials
+	if buildinfo.HasOAuthCredentials() {
+		return buildinfo.OAuthClientID, buildinfo.OAuthClientSecret
+	}
+
+	// No OAuth credentials available
+	return "", ""
 }

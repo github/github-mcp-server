@@ -6,25 +6,79 @@ The GitHub MCP Server supports OAuth authentication for stdio mode, enabling int
 
 OAuth authentication allows users to authenticate with GitHub through their browser without pre-configuring a token. This is useful for:
 
+- **End users** who want authentication to "just work" without configuration
 - **Interactive sessions** where users want to authenticate on-demand
 - **Docker deployments** where tokens shouldn't be baked into images
 - **Multi-user scenarios** where each user authenticates individually
 
-## Configuration
+## How It Works
 
-### Required Environment Variables
+Official releases of the GitHub MCP Server include built-in OAuth credentials, providing a seamless authentication experience. When you run the server without a PAT configured, it will automatically prompt for OAuth authentication when a tool requires it.
+
+### Authentication Priority
+
+The server uses the following priority for authentication:
+
+1. **Personal Access Token** (GITHUB_PERSONAL_ACCESS_TOKEN) - Highest priority, explicit user choice
+2. **Explicit OAuth configuration** (--oauth-client-id flag/env) - Developer/power user override
+3. **Built-in OAuth credentials** - Default for official releases, "just works"
+4. **No authentication** - Warning displayed, tools will fail when called
+
+## Quick Start
+
+For most users, simply run the server without any configuration:
+
+```bash
+# Official releases include built-in OAuth - just run and authenticate when prompted
+./github-mcp-server stdio
+```
+
+The server will prompt for browser-based authentication when you first call a tool that requires GitHub access.
+
+## Developer Configuration
+
+Developers building from source or wanting to use their own OAuth app can provide credentials explicitly.
+
+### Environment Variables
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `GITHUB_OAUTH_CLIENT_ID` | OAuth app client ID | Yes |
+| `GITHUB_OAUTH_CLIENT_ID` | OAuth app client ID | For custom OAuth apps |
 | `GITHUB_OAUTH_CLIENT_SECRET` | OAuth app client secret | Recommended |
 
-### Optional Flags
+### Command Line Flags
 
 | Flag | Environment Variable | Description |
 |------|---------------------|-------------|
+| `--oauth-client-id` | `GITHUB_OAUTH_CLIENT_ID` | Override OAuth app client ID |
+| `--oauth-client-secret` | `GITHUB_OAUTH_CLIENT_SECRET` | Override OAuth app client secret |
 | `--oauth-callback-port` | `GITHUB_OAUTH_CALLBACK_PORT` | Fixed port for OAuth callback (required for Docker with `-p` flag) |
 | `--oauth-scopes` | `GITHUB_OAUTH_SCOPES` | Custom OAuth scopes (comma-separated) |
+
+### Building with Custom OAuth Credentials
+
+When building from source, you can bake in your own OAuth credentials:
+
+```bash
+# Build with custom OAuth credentials
+go build -ldflags="-X github.com/github/github-mcp-server/internal/buildinfo.OAuthClientID=your-client-id \
+  -X github.com/github/github-mcp-server/internal/buildinfo.OAuthClientSecret=your-client-secret" \
+  ./cmd/github-mcp-server
+
+# Or use environment variables during development
+export GITHUB_OAUTH_CLIENT_ID="your-client-id"
+export GITHUB_OAUTH_CLIENT_SECRET="your-client-secret"
+./github-mcp-server stdio
+```
+
+For Docker builds:
+
+```bash
+docker build \
+  --build-arg OAUTH_CLIENT_ID="your-client-id" \
+  --build-arg OAUTH_CLIENT_SECRET="your-client-secret" \
+  -t github-mcp-server .
+```
 
 ## Authentication Flows
 
@@ -52,18 +106,31 @@ Used when running in Docker or when a browser cannot be opened:
 
 ## Usage Examples
 
-### Local Binary
+### Local Binary (Official Release)
 
 ```bash
-# Set OAuth credentials
+# Official releases have built-in OAuth - just run!
+./github-mcp-server stdio
+# Authentication will be prompted when a tool is called
+```
+
+### Local Binary (Custom OAuth)
+
+```bash
+# Override with your own OAuth app
 export GITHUB_OAUTH_CLIENT_ID="your-client-id"
 export GITHUB_OAUTH_CLIENT_SECRET="your-client-secret"
-
-# Run without PAT - OAuth will trigger when tools are called
 ./github-mcp-server stdio
 ```
 
-### Docker (with Device Flow)
+### Docker (Official Image)
+
+```bash
+# Official images have built-in OAuth - just run!
+docker run -i --rm ghcr.io/github/github-mcp-server stdio
+```
+
+### Docker (with Custom OAuth)
 
 ```bash
 docker run -i --rm \
@@ -77,8 +144,6 @@ docker run -i --rm \
 ```bash
 docker run -i --rm \
   --network=host \
-  -e GITHUB_OAUTH_CLIENT_ID="your-client-id" \
-  -e GITHUB_OAUTH_CLIENT_SECRET="your-client-secret" \
   ghcr.io/github/github-mcp-server stdio --oauth-callback-port=8085
 ```
 
@@ -91,8 +156,6 @@ docker run -i --rm \
       "command": "docker",
       "args": [
         "run", "-i", "--rm",
-        "-e", "GITHUB_OAUTH_CLIENT_ID=your-client-id",
-        "-e", "GITHUB_OAUTH_CLIENT_SECRET=your-client-secret",
         "ghcr.io/github/github-mcp-server",
         "stdio"
       ],
