@@ -31,7 +31,7 @@ Tool usage guidance:
 	instructions = append(instructions, baseInstruction)
 
 	// Collect instructions from each enabled toolset
-	for _, toolset := range inv.AvailableToolsets() {
+	for _, toolset := range inv.EnabledToolsets() {
 		if toolset.InstructionsFunc != nil {
 			if toolsetInstructions := toolset.InstructionsFunc(inv); toolsetInstructions != "" {
 				instructions = append(instructions, toolsetInstructions)
