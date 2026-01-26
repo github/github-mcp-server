@@ -530,13 +530,13 @@ The local GitHub MCP Server offers an insiders version with early access to new 
 1. **Using Command Line Argument**:
 
    ```bash
-   ./github-mcp-server --insider-mode
+   ./github-mcp-server --insiders-mode
    ```
 
 2. **Using Environment Variable**:
 
    ```bash
-   GITHUB_INSIDER_MODE=true ./github-mcp-server
+   GITHUB_INSIDERS_MODE=true ./github-mcp-server
    ```
 
 When using Docker:
@@ -544,7 +544,7 @@ When using Docker:
 ```bash
 docker run -i --rm \
   -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
-  -e GITHUB_INSIDER_MODE=true \
+  -e GITHUB_INSIDERS_MODE=true \
   ghcr.io/github/github-mcp-server
 ```
 

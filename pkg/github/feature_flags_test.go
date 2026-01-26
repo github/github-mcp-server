@@ -45,7 +45,7 @@ func HelloWorldTool(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if deps.IsFeatureEnabled(ctx, RemoteMCPEnthusiasticGreeting) {
 				greeting += " Welcome to the future of MCP! 🎉"
 			}
-			if deps.GetFlags().InsiderMode {
+			if deps.GetFlags().InsidersMode {
 				greeting += " Experimental features are enabled! 🚀"
 			}
 
@@ -140,17 +140,17 @@ func TestHelloWorld_ConditionalBehavior_Config(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		insiderMode      bool
+		insidersMode     bool
 		expectedGreeting string
 	}{
 		{
 			name:             "Experimental disabled - default greeting",
-			insiderMode:      false,
+			insidersMode:     false,
 			expectedGreeting: "Hello, world!",
 		},
 		{
 			name:             "Experimental enabled - experimental greeting",
-			insiderMode:      true,
+			insidersMode:     true,
 			expectedGreeting: "Hello, world! Experimental features are enabled! 🚀",
 		},
 	}
@@ -163,7 +163,7 @@ func TestHelloWorld_ConditionalBehavior_Config(t *testing.T) {
 			deps := NewBaseDeps(
 				nil, nil, nil, nil,
 				translations.NullTranslationHelper,
-				FeatureFlags{InsiderMode: tt.insiderMode},
+				FeatureFlags{InsidersMode: tt.insidersMode},
 				0,
 				nil,
 			)

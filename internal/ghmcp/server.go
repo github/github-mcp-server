@@ -64,8 +64,8 @@ type MCPServerConfig struct {
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
 
-	// Insider indicates if we should enable experimental features
-	InsiderMode bool
+	// InsidersMode indicates if we should enable experimental features
+	InsidersMode bool
 
 	// Logger is used for logging within the server
 	Logger *slog.Logger
@@ -227,7 +227,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		cfg.Translator,
 		github.FeatureFlags{
 			LockdownMode: cfg.LockdownMode,
-			InsiderMode:  cfg.InsiderMode,
+			InsidersMode: cfg.InsidersMode,
 		},
 		cfg.ContentWindowSize,
 		featureChecker,
@@ -331,8 +331,8 @@ type StdioServerConfig struct {
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
 
-	// InsiderMode indicates if we should enable experimental features
-	InsiderMode bool
+	// InsidersMode indicates if we should enable experimental features
+	InsidersMode bool
 
 	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
 	RepoAccessCacheTTL *time.Duration
@@ -390,7 +390,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		Translator:        t,
 		ContentWindowSize: cfg.ContentWindowSize,
 		LockdownMode:      cfg.LockdownMode,
-		InsiderMode:       cfg.InsiderMode,
+		InsidersMode:      cfg.InsidersMode,
 		Logger:            logger,
 		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
 		TokenScopes:       tokenScopes,
