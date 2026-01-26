@@ -981,8 +981,8 @@ The following sets of tools are available:
   - `fields`: Specific list of field IDs to include in the response when getting a project item (e.g. ["102589", "985201", "169875"]). If not provided, only the title field is included. Only used for 'get_project_item' method. (string[], optional)
   - `item_id`: The item's ID. Required for 'get_project_item' method. (number, optional)
   - `method`: The method to execute (string, required)
-  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
-  - `owner_type`: Owner type (string, required)
+  - `owner`: The owner (user or organization login). The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (user or org). If not provided, will be automatically detected. (string, optional)
   - `project_number`: The project's number. (number, required)
 
 - **projects_list** - List GitHub Projects resources
@@ -992,20 +992,24 @@ The following sets of tools are available:
   - `before`: Backward pagination cursor from previous pageInfo.prevCursor (rare). (string, optional)
   - `fields`: Field IDs to include when listing project items (e.g. ["102589", "985201"]). CRITICAL: Always provide to get field values. Without this, only titles returned. Only used for 'list_project_items' method. (string[], optional)
   - `method`: The action to perform (string, required)
-  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
-  - `owner_type`: Owner type (string, required)
+  - `owner`: The owner (user or organization login). The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (user or org). If not provided, will automatically try both. (string, optional)
   - `per_page`: Results per page (max 50) (number, optional)
   - `project_number`: The project's number. Required for 'list_project_fields' and 'list_project_items' methods. (number, optional)
   - `query`: Filter/query string. For list_projects: filter by title text and state (e.g. "roadmap is:open"). For list_project_items: advanced filtering using GitHub's project filtering syntax. (string, optional)
 
 - **projects_write** - Modify GitHub Project items
   - **Required OAuth Scopes**: `project`
-  - `item_id`: The project item ID. Required for 'update_project_item' and 'delete_project_item' methods. For add_project_item, this is the numeric ID of the issue or pull request to add. (number, optional)
+  - `issue_number`: The issue number (use when item_type is 'issue' for 'add_project_item' method). Provide either issue_number or pull_request_number. (number, optional)
+  - `item_id`: The project item ID. Required for 'update_project_item' and 'delete_project_item' methods. (number, optional)
+  - `item_owner`: The owner (user or organization) of the repository containing the issue or pull request. Required for 'add_project_item' method. (string, optional)
+  - `item_repo`: The name of the repository containing the issue or pull request. Required for 'add_project_item' method. (string, optional)
   - `item_type`: The item's type, either issue or pull_request. Required for 'add_project_item' method. (string, optional)
   - `method`: The method to execute (string, required)
-  - `owner`: If owner_type == user it is the handle for the GitHub user account. If owner_type == org it is the name of the organization. The name is not case sensitive. (string, required)
-  - `owner_type`: Owner type (string, required)
+  - `owner`: The project owner (user or organization login). The name is not case sensitive. (string, required)
+  - `owner_type`: Owner type (user or org). If not provided, will be automatically detected. (string, optional)
   - `project_number`: The project's number. (number, required)
+  - `pull_request_number`: The pull request number (use when item_type is 'pull_request' for 'add_project_item' method). Provide either issue_number or pull_request_number. (number, optional)
   - `updated_field`: Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {"id": 123456, "value": "New Value"}. Required for 'update_project_item' method. (object, optional)
 
 </details>
