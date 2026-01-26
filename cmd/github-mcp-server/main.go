@@ -109,7 +109,6 @@ var (
 				Version:              version,
 				Host:                 viper.GetString("host"),
 				Token:                token,
-				OAuthManager:         oauthMgr,
 				OAuthScopes:          oauthScopes,
 				PrebuiltInventory:    prebuiltInventory,
 				EnabledToolsets:      enabledToolsets,
@@ -124,6 +123,11 @@ var (
 				LockdownMode:         viper.GetBool("lockdown-mode"),
 				InsiderMode:          viper.GetBool("insider-mode"),
 				RepoAccessCacheTTL:   &ttl,
+			}
+			// Only set OAuthManager if not nil - interface nil check requires this pattern
+			// to avoid a non-nil interface containing a nil pointer
+			if oauthMgr != nil {
+				stdioServerConfig.OAuthManager = oauthMgr
 			}
 			return ghmcp.RunStdioServer(stdioServerConfig)
 		},
