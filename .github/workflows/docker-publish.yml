@@ -16,11 +16,21 @@ on:
     branches: ["main", "next"]
   workflow_dispatch:
     inputs:
-        description:
-          required: false
-          description: "Description of the run."
-          type: string
-          default: "Manual run"
+      ref:
+        description: "Git ref to build (branch, tag, or SHA). Leave empty for default branch."
+        required: false
+        type: string
+        default: ""
+      tag:
+        description: "Custom image tag (e.g., 'test-oauth', 'pr-1836'). Required for manual runs."
+        required: false
+        type: string
+        default: ""
+      push:
+        description: "Push to registry"
+        required: false
+        type: boolean
+        default: true
 
 env:
   # Use docker.io for Docker Hub if empty
@@ -41,6 +51,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref || github.ref }}
 
       # Install the cosign tool except on PR
       # https://github.com/sigstore/cosign-installer
@@ -83,6 +95,8 @@ jobs:
             type=semver,pattern={{major}}
             type=sha
             type=edge
+            # Custom tag for manual workflow dispatch
+            type=raw,value=${{ inputs.tag }},enable=${{ inputs.tag != '' }}
             # Custom rule to prevent pre-releases from getting latest tag
             type=raw,value=latest,enable=${{ github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
 
@@ -104,14 +118,14 @@ jobs:
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
+          push: ${{ github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || inputs.push) }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64,linux/arm64
           build-args: |
-            VERSION=${{ github.ref_name }}
+            VERSION=${{ inputs.ref || github.ref_name }}
             OAUTH_CLIENT_ID=${{ secrets.OAUTH_CLIENT_ID }}
             OAUTH_CLIENT_SECRET=${{ secrets.OAUTH_CLIENT_SECRET }}
 
