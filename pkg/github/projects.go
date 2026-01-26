@@ -27,10 +27,6 @@ const (
 	MaxProjectsPerPage       = 50
 )
 
-// FeatureFlagConsolidatedProjects is the legacy feature flag (deprecated, no longer used).
-// Kept for documentation purposes only.
-const FeatureFlagConsolidatedProjects = "remote_mcp_consolidated_projects"
-
 // FeatureFlagHoldbackConsolidatedProjects is the feature flag that, when enabled, reverts to
 // individual project tools instead of the consolidated project tools.
 const FeatureFlagHoldbackConsolidatedProjects = "mcp_holdback_consolidated_projects"
