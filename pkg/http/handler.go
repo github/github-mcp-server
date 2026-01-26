@@ -138,13 +138,7 @@ func (h *HTTPMcpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func DefaultGitHubMCPServerFactory(r *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error) {
-	return github.NewMCPServer(r.Context(), &github.MCPServerConfig{
-		Version:           cfg.Version,
-		Translator:        cfg.Translator,
-		ContentWindowSize: cfg.ContentWindowSize,
-		Logger:            cfg.Logger,
-		RepoAccessTTL:     cfg.RepoAccessTTL,
-	}, deps, inventory)
+	return github.NewMCPServer(r.Context(), cfg, deps, inventory)
 }
 
 func DefaultInventoryFactory(cfg *HTTPServerConfig, t translations.TranslationHelperFunc, staticChecker inventory.FeatureFlagChecker) InventoryFactoryFunc {
