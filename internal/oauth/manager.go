@@ -124,9 +124,11 @@ func (m *Manager) startDeviceFlowWithElicitation(ctx context.Context, session *m
 		go func() {
 			elicitID, err := generateRandomToken()
 			if err != nil {
+				// Non-critical: use fallback ID if generation fails
 				elicitID = "fallback-id"
 			}
-			result, err := session.Elicit(ctx, &mcp.ElicitParams{
+			// Use pollCtx so elicitation is cancelled when polling completes or is cancelled
+			result, err := session.Elicit(pollCtx, &mcp.ElicitParams{
 				Mode:          "url",
 				URL:           deviceAuth.VerificationURI,
 				ElicitationID: elicitID,
@@ -209,7 +211,7 @@ func (m *Manager) startPKCEFlowWithElicitation(ctx context.Context, session *mcp
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		_ = server.Shutdown(shutdownCtx)
-		listener.Close()
+		_ = listener.Close() // Error intentionally ignored in cleanup
 	}
 
 	// Try to open browser - if it works, no elicitation needed
@@ -218,13 +220,18 @@ func (m *Manager) startPKCEFlowWithElicitation(ctx context.Context, session *mcp
 	// Channel to signal elicitation cancellation
 	elicitCancelChan := make(chan struct{}, 1)
 
+	// Create cancellable context for elicitation
+	elicitCtx, cancelElicit := context.WithCancel(ctx)
+	defer cancelElicit()
+
 	// Only elicit if browser failed to open (e.g., headless environment)
 	// and we need to show the user the URL manually
 	if browserErr != nil && session != nil {
 		// Run elicitation in goroutine so we can monitor callback in parallel
 		go func() {
-			elicitID, _ := generateRandomToken()
-			result, err := session.Elicit(ctx, &mcp.ElicitParams{
+			elicitID, _ := generateRandomToken() // Non-critical: empty ID is acceptable
+			// Use elicitCtx so elicitation is cancelled when auth completes
+			result, err := session.Elicit(elicitCtx, &mcp.ElicitParams{
 				Mode:          "url",
 				URL:           authURL,
 				ElicitationID: elicitID,

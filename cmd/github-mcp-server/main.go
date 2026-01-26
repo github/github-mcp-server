@@ -104,11 +104,6 @@ var (
 				}
 			}
 
-			// Extract token from OAuth manager if available
-			if oauthMgr != nil && token == "" {
-				token = oauthMgr.GetAccessToken()
-			}
-
 			ttl := viper.GetDuration("repo-access-cache-ttl")
 			stdioServerConfig := ghmcp.StdioServerConfig{
 				Version:              version,

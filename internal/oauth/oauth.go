@@ -54,12 +54,16 @@ type Config struct {
 	CallbackPort  int    // Fixed callback port (0 for random)
 }
 
-// Result contains the OAuth flow result
+// Result contains the OAuth flow result.
+//
+// Note: This implementation does not currently perform automatic token refresh.
+// GitHub OAuth tokens for OAuth Apps do not expire, but GitHub Apps tokens do.
+// Callers should handle re-authentication when API calls fail with auth errors.
 type Result struct {
 	AccessToken  string
-	RefreshToken string
+	RefreshToken string // Captured but not currently used for automatic refresh
 	TokenType    string
-	Expiry       time.Time
+	Expiry       time.Time // Zero value if token does not expire
 }
 
 // generatePKCEVerifier generates a PKCE code verifier
@@ -74,8 +78,16 @@ func generatePKCEVerifier() (string, error) {
 	return verifier, nil
 }
 
-// isRunningInDocker detects if the process is running inside a Docker container
+// isRunningInDocker detects if the process is running inside a Docker container.
+// This detection is used to determine whether to use device flow (no browser available)
+// or PKCE flow (browser can be opened). On non-Linux systems, this always returns false
+// since the detection relies on Linux-specific paths.
 func isRunningInDocker() bool {
+	// Docker detection only works on Linux where /proc filesystem exists
+	if runtime.GOOS != "linux" {
+		return false
+	}
+
 	// Check for .dockerenv file (most common indicator)
 	if _, err := os.Stat("/.dockerenv"); err == nil {
 		return true
