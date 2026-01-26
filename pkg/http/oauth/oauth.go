@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
-
 	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/go-chi/chi/v5"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
