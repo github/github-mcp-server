@@ -3,17 +3,16 @@
 package oauth
 
 import (
-	"bytes"
-	_ "embed"
 	"fmt"
-	"html"
 	"net/http"
 	"net/url"
 	"strings"
-	"text/template"
+
+	"github.com/modelcontextprotocol/go-sdk/auth"
 
 	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/go-chi/chi/v5"
+	"github.com/modelcontextprotocol/go-sdk/oauthex"
 )
 
 const (
@@ -23,9 +22,6 @@ const (
 	// DefaultAuthorizationServer is GitHub's OAuth authorization server.
 	DefaultAuthorizationServer = "https://github.com/login/oauth"
 )
-
-//go:embed protected_resource.json.tmpl
-var protectedResourceTemplate []byte
 
 // SupportedScopes lists all OAuth scopes that may be required by MCP tools.
 var SupportedScopes = []string{
@@ -66,8 +62,7 @@ type ProtectedResourceData struct {
 
 // AuthHandler handles OAuth-related HTTP endpoints.
 type AuthHandler struct {
-	cfg                       *Config
-	protectedResourceTemplate *template.Template
+	cfg *Config
 }
 
 // NewAuthHandler creates a new OAuth auth handler.
@@ -81,14 +76,8 @@ func NewAuthHandler(cfg *Config) (*AuthHandler, error) {
 		cfg.AuthorizationServer = DefaultAuthorizationServer
 	}
 
-	tmpl, err := template.New("protected-resource").Parse(string(protectedResourceTemplate))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse protected resource template: %w", err)
-	}
-
 	return &AuthHandler{
-		cfg:                       cfg,
-		protectedResourceTemplate: tmpl,
+		cfg: cfg,
 	}, nil
 }
 
@@ -96,6 +85,7 @@ func NewAuthHandler(cfg *Config) (*AuthHandler, error) {
 var routePatterns = []string{
 	"",          // Root: /.well-known/oauth-protected-resource
 	"/readonly", // Read-only mode
+	"/insiders", // Insiders mode
 	"/x/{toolset}",
 	"/x/{toolset}/readonly",
 }
@@ -105,9 +95,27 @@ func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 	for _, pattern := range routePatterns {
 		for _, route := range h.routesForPattern(pattern) {
 			path := OAuthProtectedResourcePrefix + route
-			r.Get(path, h.handleProtectedResource)
-			r.Options(path, h.handleProtectedResource) // CORS support
+
+			// Build metadata for this specific resource path
+			metadata := h.buildMetadata(route)
+			r.Handle(path, auth.ProtectedResourceMetadataHandler(metadata))
 		}
+	}
+}
+
+func (h *AuthHandler) buildMetadata(resourcePath string) *oauthex.ProtectedResourceMetadata {
+	baseURL := strings.TrimSuffix(h.cfg.BaseURL, "/")
+	resourceURL := baseURL
+	if resourcePath != "" && resourcePath != "/" {
+		resourceURL = baseURL + resourcePath
+	}
+
+	return &oauthex.ProtectedResourceMetadata{
+		Resource:               resourceURL,
+		AuthorizationServers:   []string{h.cfg.AuthorizationServer},
+		ResourceName:           "GitHub MCP Server",
+		ScopesSupported:        SupportedScopes,
+		BearerMethodsSupported: []string{"header"},
 	}
 }
 
@@ -122,37 +130,6 @@ func (h *AuthHandler) routesForPattern(pattern string) []string {
 		pattern + "/",
 		"/mcp" + pattern + "/",
 	}
-}
-
-// handleProtectedResource handles requests for OAuth protected resource metadata.
-func (h *AuthHandler) handleProtectedResource(w http.ResponseWriter, r *http.Request) {
-	// Extract the resource path from the URL
-	resourcePath := strings.TrimPrefix(r.URL.Path, OAuthProtectedResourcePrefix)
-	if resourcePath == "" || resourcePath == "/" {
-		resourcePath = "/"
-	} else {
-		resourcePath = strings.TrimPrefix(resourcePath, "/")
-	}
-
-	data, err := h.GetProtectedResourceData(r, html.EscapeString(resourcePath))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	var buf bytes.Buffer
-	if err := h.protectedResourceTemplate.Execute(&buf, data); err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	// Set CORS headers
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(buf.Bytes())
 }
 
 // GetEffectiveResourcePath returns the resource path for OAuth protected resource URLs.
