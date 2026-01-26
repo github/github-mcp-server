@@ -9,9 +9,9 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/mcpresult"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -61,23 +61,23 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			query, err := RequiredParam[string](args, "query")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			sort, err := OptionalParam[string](args, "sort")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			order, err := OptionalParam[string](args, "order")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			minimalOutput, err := OptionalBoolParamWithDefault(args, "minimal_output", true)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			opts := &github.SearchOptions{
 				Sort:  sort,
@@ -90,7 +90,7 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 			result, resp, err := client.Search.Repositories(ctx, query, opts)
 			if err != nil {
@@ -105,7 +105,7 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 			if resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					return mcpresult.NewErrorFromErr("failed to read response body", err), nil, nil
 				}
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to search repositories", resp, body), nil, nil
 			}
@@ -152,16 +152,16 @@ func SearchRepositories(t translations.TranslationHelperFunc) inventory.ServerTo
 
 				r, err = json.Marshal(minimalResult)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to marshal minimal response", err), nil, nil
+					return mcpresult.NewErrorFromErr("failed to marshal minimal response", err), nil, nil
 				}
 			} else {
 				r, err = json.Marshal(result)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to marshal full response", err), nil, nil
+					return mcpresult.NewErrorFromErr("failed to marshal full response", err), nil, nil
 				}
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -204,19 +204,19 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			query, err := RequiredParam[string](args, "query")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			sort, err := OptionalParam[string](args, "sort")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			order, err := OptionalParam[string](args, "order")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			opts := &github.SearchOptions{
@@ -230,7 +230,7 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			result, resp, err := client.Search.Code(ctx, query, opts)
@@ -246,17 +246,17 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					return mcpresult.NewErrorFromErr("failed to read response body", err), nil, nil
 				}
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to search code", resp, body), nil, nil
 			}
 
 			r, err := json.Marshal(result)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -264,19 +264,19 @@ func SearchCode(t translations.TranslationHelperFunc) inventory.ServerTool {
 func userOrOrgHandler(ctx context.Context, accountType string, deps ToolDependencies, args map[string]any) (*mcp.CallToolResult, any, error) {
 	query, err := RequiredParam[string](args, "query")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
+		return mcpresult.NewError(err.Error()), nil, nil
 	}
 	sort, err := OptionalParam[string](args, "sort")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
+		return mcpresult.NewError(err.Error()), nil, nil
 	}
 	order, err := OptionalParam[string](args, "order")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
+		return mcpresult.NewError(err.Error()), nil, nil
 	}
 	pagination, err := OptionalPaginationParams(args)
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
+		return mcpresult.NewError(err.Error()), nil, nil
 	}
 
 	opts := &github.SearchOptions{
@@ -290,7 +290,7 @@ func userOrOrgHandler(ctx context.Context, accountType string, deps ToolDependen
 
 	client, err := deps.GetClient(ctx)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+		return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 	}
 
 	searchQuery := query
@@ -310,7 +310,7 @@ func userOrOrgHandler(ctx context.Context, accountType string, deps ToolDependen
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+			return mcpresult.NewErrorFromErr("failed to read response body", err), nil, nil
 		}
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, fmt.Sprintf("failed to search %ss", accountType), resp, body), nil, nil
 	}
@@ -342,9 +342,9 @@ func userOrOrgHandler(ctx context.Context, accountType string, deps ToolDependen
 
 	r, err := json.Marshal(minimalResp)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+		return mcpresult.NewErrorFromErr("failed to marshal response", err), nil, nil
 	}
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 // SearchUsers creates a tool to search for GitHub users.

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/github/github-mcp-server/pkg/mcpresult"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
-	"github.com/github/github-mcp-server/pkg/utils"
 )
 
 // RemoteMCPEnthusiasticGreeting is a dummy test feature flag .
@@ -56,10 +56,10 @@ func HelloWorldTool(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			jsonBytes, err := json.Marshal(response)
 			if err != nil {
-				return utils.NewToolResultError("failed to marshal response"), nil, nil
+				return mcpresult.NewError("failed to marshal response"), nil, nil
 			}
 
-			return utils.NewToolResultText(string(jsonBytes)), nil, nil
+			return mcpresult.NewText(string(jsonBytes)), nil, nil
 		},
 	)
 }

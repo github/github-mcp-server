@@ -11,10 +11,10 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/mcpresult"
 	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -58,23 +58,23 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			sha, err := RequiredParam[string](args, "sha")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			includeDiff, err := OptionalBoolParamWithDefault(args, "include_diff", true)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			opts := &github.ListOptions{
@@ -112,7 +112,7 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -155,23 +155,23 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			sha, err := OptionalParam[string](args, "sha")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			author, err := OptionalParam[string](args, "author")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			// Set default perPage to 30 if not provided
 			perPage := pagination.PerPage
@@ -220,7 +220,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -255,15 +255,15 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			opts := &github.BranchListOptions{
@@ -307,7 +307,7 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -369,27 +369,27 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			path, err := RequiredParam[string](args, "path")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			content, err := RequiredParam[string](args, "content")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			message, err := RequiredParam[string](args, "message")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			branch, err := RequiredParam[string](args, "branch")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// json.Marshal encodes byte arrays with base64, which is required for the API.
@@ -405,7 +405,7 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 			// If SHA is provided, set it (for updates)
 			sha, err := OptionalParam[string](args, "sha")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			if sha != "" {
 				opts.SHA = github.Ptr(sha)
@@ -442,7 +442,7 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 						case http.StatusOK:
 							// SHA is stale - reject with current SHA so user can check diff
 							currentSHA := strings.Trim(resp.Header.Get("ETag"), `"`)
-							return utils.NewToolResultError(fmt.Sprintf(
+							return mcpresult.NewError(fmt.Sprintf(
 								"SHA mismatch: provided SHA %s is stale. Current file SHA is %s. "+
 									"Use get_file_contents or compare commits to review changes before updating.",
 								sha, currentSHA)), nil, nil
@@ -495,9 +495,9 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 
 			// Warn if file was updated without SHA validation (blind update)
 			if sha == "" && previousSHA != "" {
-				return utils.NewToolResultText(fmt.Sprintf(
+				return mcpresult.NewText(fmt.Sprintf(
 					"Warning: File updated without SHA validation. Previous file SHA was %s. "+
-						`Verify no unintended changes were overwritten: 
+						`Verify no unintended changes were overwritten:
 1. Extract the SHA of the local version using git ls-tree HEAD %s.
 2. Compare with the previous SHA above.
 3. Revert changes if shas do not match.
@@ -506,7 +506,7 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 					previousSHA, path, string(r))), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -553,23 +553,23 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			name, err := RequiredParam[string](args, "name")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			description, err := OptionalParam[string](args, "description")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			organization, err := OptionalParam[string](args, "organization")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			private, err := OptionalParam[bool](args, "private")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			autoInit, err := OptionalParam[bool](args, "autoInit")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			repo := &github.Repository{
@@ -612,7 +612,7 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -660,38 +660,38 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			path, err := OptionalParam[string](args, "path")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			path = strings.TrimPrefix(path, "/")
 
 			ref, err := OptionalParam[string](args, "ref")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			originalRef := ref
 
 			sha, err := OptionalParam[string](args, "sha")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError("failed to get GitHub client"), nil, nil
+				return mcpresult.NewError("failed to get GitHub client"), nil, nil
 			}
 
 			rawOpts, fallbackUsed, err := resolveGitReference(ctx, client, owner, repo, ref, sha)
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to resolve git reference: %s", err)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("failed to resolve git reference: %s", err)), nil, nil
 			}
 
 			if rawOpts.SHA != "" {
@@ -718,11 +718,11 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 				rawClient, err := deps.GetRawClient(ctx)
 				if err != nil {
-					return utils.NewToolResultError("failed to get GitHub raw content client"), nil, nil
+					return mcpresult.NewError("failed to get GitHub raw content client"), nil, nil
 				}
 				resp, err := rawClient.GetRawContent(ctx, owner, repo, path, rawOpts)
 				if err != nil {
-					return utils.NewToolResultError("failed to get raw repository content"), nil, nil
+					return mcpresult.NewError("failed to get raw repository content"), nil, nil
 				}
 				defer func() {
 					_ = resp.Body.Close()
@@ -776,9 +776,9 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						}
 						// Include SHA in the result metadata
 						if fileSHA != "" {
-							return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)", fileSHA)+successNote, result), nil, nil
+							return mcpresult.NewResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)", fileSHA)+successNote, result), nil, nil
 						}
-						return utils.NewToolResultResource("successfully downloaded text file"+successNote, result), nil, nil
+						return mcpresult.NewResource("successfully downloaded text file"+successNote, result), nil, nil
 					}
 
 					result := &mcp.ResourceContents{
@@ -788,9 +788,9 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 					}
 					// Include SHA in the result metadata
 					if fileSHA != "" {
-						return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)", fileSHA)+successNote, result), nil, nil
+						return mcpresult.NewResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)", fileSHA)+successNote, result), nil, nil
 					}
-					return utils.NewToolResultResource("successfully downloaded binary file"+successNote, result), nil, nil
+					return mcpresult.NewResource("successfully downloaded binary file"+successNote, result), nil, nil
 				}
 
 				// Raw API call failed
@@ -799,12 +799,12 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				// file content or file SHA is nil which means it's a directory
 				r, err := json.Marshal(dirContent)
 				if err != nil {
-					return utils.NewToolResultError("failed to marshal response"), nil, nil
+					return mcpresult.NewError("failed to marshal response"), nil, nil
 				}
-				return utils.NewToolResultText(string(r)), nil, nil
+				return mcpresult.NewText(string(r)), nil, nil
 			}
 
-			return utils.NewToolResultError("failed to get file contents"), nil, nil
+			return mcpresult.NewError("failed to get file contents"), nil, nil
 		},
 	)
 }
@@ -844,15 +844,15 @@ func ForkRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			org, err := OptionalParam[string](args, "organization")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			opts := &github.RepositoryCreateForkOptions{}
@@ -869,7 +869,7 @@ func ForkRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 				// Check if it's an acceptedError. An acceptedError indicates that the update is in progress,
 				// and it's not a real error.
 				if resp != nil && resp.StatusCode == http.StatusAccepted && isAcceptedError(err) {
-					return utils.NewToolResultText("Fork is in progress"), nil, nil
+					return mcpresult.NewText("Fork is in progress"), nil, nil
 				}
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to fork repository",
@@ -898,7 +898,7 @@ func ForkRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -951,23 +951,23 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			path, err := RequiredParam[string](args, "path")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			message, err := RequiredParam[string](args, "message")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			branch, err := RequiredParam[string](args, "branch")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -1088,7 +1088,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -1131,19 +1131,19 @@ func CreateBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			branch, err := RequiredParam[string](args, "branch")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			fromBranch, err := OptionalParam[string](args, "from_branch")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -1201,7 +1201,7 @@ func CreateBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -1262,25 +1262,25 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			branch, err := RequiredParam[string](args, "branch")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			message, err := RequiredParam[string](args, "message")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Parse files parameter - this should be an array of objects with path and content
 			filesObj, ok := args["files"].([]interface{})
 			if !ok {
-				return utils.NewToolResultError("files parameter must be an array of objects with path and content"), nil, nil
+				return mcpresult.NewError("files parameter must be an array of objects with path and content"), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -1320,7 +1320,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				if branchNotFound {
 					ref, err = createReferenceFromDefaultBranch(ctx, client, owner, repo, branch)
 					if err != nil {
-						return utils.NewToolResultError(fmt.Sprintf("failed to create branch from default: %v", err)), nil, nil
+						return mcpresult.NewError(fmt.Sprintf("failed to create branch from default: %v", err)), nil, nil
 					}
 				}
 
@@ -1341,7 +1341,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				// Repository is empty, need to initialize it first
 				ref, base, err = initializeRepository(ctx, client, owner, repo)
 				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("failed to initialize repository: %v", err)), nil, nil
+					return mcpresult.NewError(fmt.Sprintf("failed to initialize repository: %v", err)), nil, nil
 				}
 
 				defaultBranch := strings.TrimPrefix(*ref.Ref, "refs/heads/")
@@ -1349,7 +1349,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 					// Create the requested branch from the default branch
 					ref, err = createReferenceFromDefaultBranch(ctx, client, owner, repo, branch)
 					if err != nil {
-						return utils.NewToolResultError(fmt.Sprintf("failed to create branch from default: %v", err)), nil, nil
+						return mcpresult.NewError(fmt.Sprintf("failed to create branch from default: %v", err)), nil, nil
 					}
 				}
 
@@ -1362,17 +1362,17 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 			for _, file := range filesObj {
 				fileMap, ok := file.(map[string]interface{})
 				if !ok {
-					return utils.NewToolResultError("each file must be an object with path and content"), nil, nil
+					return mcpresult.NewError("each file must be an object with path and content"), nil, nil
 				}
 
 				path, ok := fileMap["path"].(string)
 				if !ok || path == "" {
-					return utils.NewToolResultError("each file must have a path"), nil, nil
+					return mcpresult.NewError("each file must have a path"), nil, nil
 				}
 
 				content, ok := fileMap["content"].(string)
 				if !ok {
-					return utils.NewToolResultError("each file must have content"), nil, nil
+					return mcpresult.NewError("each file must have content"), nil, nil
 				}
 
 				// Create a tree entry for the file
@@ -1435,7 +1435,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -1470,15 +1470,15 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			opts := &github.ListOptions{
@@ -1514,7 +1514,7 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -1553,15 +1553,15 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			tag, err := RequiredParam[string](args, "tag")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -1612,7 +1612,7 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -1647,15 +1647,15 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			opts := &github.ListOptions{
@@ -1687,7 +1687,7 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -1722,11 +1722,11 @@ func GetLatestRelease(t translations.TranslationHelperFunc) inventory.ServerTool
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -1753,7 +1753,7 @@ func GetLatestRelease(t translations.TranslationHelperFunc) inventory.ServerTool
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -1791,15 +1791,15 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			tag, err := RequiredParam[string](args, "tag")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -1830,7 +1830,7 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -1870,19 +1870,19 @@ func ListStarredRepositories(t translations.TranslationHelperFunc) inventory.Ser
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			username, err := OptionalParam[string](args, "username")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			sort, err := OptionalParam[string](args, "sort")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			direction, err := OptionalParam[string](args, "direction")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			opts := &github.ActivityListStarredOptions{
@@ -1962,7 +1962,7 @@ func ListStarredRepositories(t translations.TranslationHelperFunc) inventory.Ser
 				return nil, nil, fmt.Errorf("failed to marshal starred repositories: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -1998,11 +1998,11 @@ func StarRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -2028,7 +2028,7 @@ func StarRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to star repository", resp, body), nil, nil
 			}
 
-			return utils.NewToolResultText(fmt.Sprintf("Successfully starred repository %s/%s", owner, repo)), nil, nil
+			return mcpresult.NewText(fmt.Sprintf("Successfully starred repository %s/%s", owner, repo)), nil, nil
 		},
 	)
 }
@@ -2063,11 +2063,11 @@ func UnstarRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -2093,7 +2093,7 @@ func UnstarRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to unstar repository", resp, body), nil, nil
 			}
 
-			return utils.NewToolResultText(fmt.Sprintf("Successfully unstarred repository %s/%s", owner, repo)), nil, nil
+			return mcpresult.NewText(fmt.Sprintf("Successfully unstarred repository %s/%s", owner, repo)), nil, nil
 		},
 	)
 }

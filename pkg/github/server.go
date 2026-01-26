@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/github/github-mcp-server/pkg/mcpresult"
 	"github.com/github/github-mcp-server/pkg/octicons"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -435,8 +435,8 @@ func (p PaginationParams) ToGraphQLParams() (*GraphQLPaginationParams, error) {
 func MarshalledTextResult(v any) *mcp.CallToolResult {
 	data, err := json.Marshal(v)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr("failed to marshal text result to json", err)
+		return mcpresult.NewErrorFromErr("failed to marshal text result to json", err)
 	}
 
-	return utils.NewToolResultText(string(data))
+	return mcpresult.NewText(string(data))
 }

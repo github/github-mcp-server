@@ -10,9 +10,9 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/mcpresult"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -91,27 +91,27 @@ func ListProjects(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			ownerType, err := RequiredParam[string](args, "owner_type")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			queryStr, err := OptionalParam[string](args, "query")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			pagination, err := extractPaginationOptionsFromArgs(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			var resp *github.Response
@@ -157,7 +157,7 @@ func ListProjects(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
@@ -199,22 +199,22 @@ func GetProject(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			projectNumber, err := RequiredInt(args, "project_number")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			ownerType, err := RequiredParam[string](args, "owner_type")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			var resp *github.Response
@@ -248,7 +248,7 @@ func GetProject(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
@@ -302,27 +302,27 @@ func ListProjectFields(t translations.TranslationHelperFunc) inventory.ServerToo
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			ownerType, err := RequiredParam[string](args, "owner_type")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			projectNumber, err := RequiredInt(args, "project_number")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			pagination, err := extractPaginationOptionsFromArgs(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			var resp *github.Response
@@ -357,7 +357,7 @@ func ListProjectFields(t translations.TranslationHelperFunc) inventory.ServerToo
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
@@ -403,23 +403,23 @@ func GetProjectField(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			ownerType, err := RequiredParam[string](args, "owner_type")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			projectNumber, err := RequiredInt(args, "project_number")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			fieldID, err := RequiredBigInt(args, "field_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			var resp *github.Response
@@ -452,7 +452,7 @@ func GetProjectField(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
@@ -517,37 +517,37 @@ func ListProjectItems(t translations.TranslationHelperFunc) inventory.ServerTool
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			ownerType, err := RequiredParam[string](args, "owner_type")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			projectNumber, err := RequiredInt(args, "project_number")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			queryStr, err := OptionalParam[string](args, "query")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			fields, err := OptionalBigIntArrayParam(args, "fields")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			pagination, err := extractPaginationOptionsFromArgs(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			var resp *github.Response
@@ -591,7 +591,7 @@ func ListProjectItems(t translations.TranslationHelperFunc) inventory.ServerTool
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
@@ -644,30 +644,30 @@ func GetProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			ownerType, err := RequiredParam[string](args, "owner_type")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			projectNumber, err := RequiredInt(args, "project_number")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			itemID, err := RequiredBigInt(args, "item_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			fields, err := OptionalBigIntArrayParam(args, "fields")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			var resp *github.Response
@@ -700,7 +700,7 @@ func GetProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
@@ -751,32 +751,32 @@ func AddProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			ownerType, err := RequiredParam[string](args, "owner_type")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			projectNumber, err := RequiredInt(args, "project_number")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			itemID, err := RequiredBigInt(args, "item_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			itemType, err := RequiredParam[string](args, "item_type")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			if itemType != "issue" && itemType != "pull_request" {
-				return utils.NewToolResultError("item_type must be either 'issue' or 'pull_request'"), nil, nil
+				return mcpresult.NewError("item_type must be either 'issue' or 'pull_request'"), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			newItem := &github.AddProjectItemOptions{
@@ -814,7 +814,7 @@ func AddProjectItem(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
@@ -864,39 +864,39 @@ func UpdateProjectItem(t translations.TranslationHelperFunc) inventory.ServerToo
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			ownerType, err := RequiredParam[string](args, "owner_type")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			projectNumber, err := RequiredInt(args, "project_number")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			itemID, err := RequiredBigInt(args, "item_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			rawUpdatedField, exists := args["updated_field"]
 			if !exists {
-				return utils.NewToolResultError("missing required parameter: updated_field"), nil, nil
+				return mcpresult.NewError("missing required parameter: updated_field"), nil, nil
 			}
 
 			fieldValue, ok := rawUpdatedField.(map[string]any)
 			if !ok || fieldValue == nil {
-				return utils.NewToolResultError("field_value must be an object"), nil, nil
+				return mcpresult.NewError("field_value must be an object"), nil, nil
 			}
 
 			updatePayload, err := buildUpdateProjectItem(fieldValue)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			var resp *github.Response
@@ -929,7 +929,7 @@ func UpdateProjectItem(t translations.TranslationHelperFunc) inventory.ServerToo
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
@@ -976,23 +976,23 @@ func DeleteProjectItem(t translations.TranslationHelperFunc) inventory.ServerToo
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			ownerType, err := RequiredParam[string](args, "owner_type")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			projectNumber, err := RequiredInt(args, "project_number")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			itemID, err := RequiredBigInt(args, "item_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			var resp *github.Response
@@ -1018,7 +1018,7 @@ func DeleteProjectItem(t translations.TranslationHelperFunc) inventory.ServerToo
 				}
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, ProjectDeleteFailedError, resp, body), nil, nil
 			}
-			return utils.NewToolResultText("project item successfully deleted"), nil, nil
+			return mcpresult.NewText("project item successfully deleted"), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedProjects
@@ -1095,22 +1095,22 @@ Use this tool to list projects for a user or organization, or list project field
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			ownerType, err := OptionalParam[string](args, "owner_type")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			switch method {
@@ -1121,11 +1121,11 @@ Use this tool to list projects for a user or organization, or list project field
 				if ownerType == "" {
 					projectNumber, err := RequiredInt(args, "project_number")
 					if err != nil {
-						return utils.NewToolResultError(err.Error()), nil, nil
+						return mcpresult.NewError(err.Error()), nil, nil
 					}
 					ownerType, err = detectOwnerType(ctx, client, owner, projectNumber)
 					if err != nil {
-						return utils.NewToolResultError(err.Error()), nil, nil
+						return mcpresult.NewError(err.Error()), nil, nil
 					}
 				}
 				return listProjectFields(ctx, client, args, owner, ownerType)
@@ -1134,16 +1134,16 @@ Use this tool to list projects for a user or organization, or list project field
 				if ownerType == "" {
 					projectNumber, err := RequiredInt(args, "project_number")
 					if err != nil {
-						return utils.NewToolResultError(err.Error()), nil, nil
+						return mcpresult.NewError(err.Error()), nil, nil
 					}
 					ownerType, err = detectOwnerType(ctx, client, owner, projectNumber)
 					if err != nil {
-						return utils.NewToolResultError(err.Error()), nil, nil
+						return mcpresult.NewError(err.Error()), nil, nil
 					}
 				}
 				return listProjectItems(ctx, client, args, owner, ownerType)
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		},
 	)
@@ -1212,34 +1212,34 @@ Use this tool to get details about individual projects, project fields, and proj
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			ownerType, err := OptionalParam[string](args, "owner_type")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			projectNumber, err := RequiredInt(args, "project_number")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Detect owner type if not provided
 			if ownerType == "" {
 				ownerType, err = detectOwnerType(ctx, client, owner, projectNumber)
 				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+					return mcpresult.NewError(err.Error()), nil, nil
 				}
 			}
 
@@ -1249,21 +1249,21 @@ Use this tool to get details about individual projects, project fields, and proj
 			case projectsMethodGetProjectField:
 				fieldID, err := RequiredBigInt(args, "field_id")
 				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+					return mcpresult.NewError(err.Error()), nil, nil
 				}
 				return getProjectField(ctx, client, owner, ownerType, projectNumber, fieldID)
 			case projectsMethodGetProjectItem:
 				itemID, err := RequiredBigInt(args, "item_id")
 				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+					return mcpresult.NewError(err.Error()), nil, nil
 				}
 				fields, err := OptionalBigIntArrayParam(args, "fields")
 				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+					return mcpresult.NewError(err.Error()), nil, nil
 				}
 				return getProjectItem(ctx, client, owner, ownerType, projectNumber, itemID, fields)
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		},
 	)
@@ -1345,39 +1345,39 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			ownerType, err := OptionalParam[string](args, "owner_type")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			projectNumber, err := RequiredInt(args, "project_number")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Detect owner type if not provided
 			if ownerType == "" {
 				ownerType, err = detectOwnerType(ctx, client, owner, projectNumber)
 				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+					return mcpresult.NewError(err.Error()), nil, nil
 				}
 			}
 
@@ -1385,15 +1385,15 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 			case projectsMethodAddProjectItem:
 				itemType, err := RequiredParam[string](args, "item_type")
 				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+					return mcpresult.NewError(err.Error()), nil, nil
 				}
 				itemOwner, err := RequiredParam[string](args, "item_owner")
 				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+					return mcpresult.NewError(err.Error()), nil, nil
 				}
 				itemRepo, err := RequiredParam[string](args, "item_repo")
 				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+					return mcpresult.NewError(err.Error()), nil, nil
 				}
 
 				var itemNumber int
@@ -1401,40 +1401,40 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 				case "issue":
 					itemNumber, err = RequiredInt(args, "issue_number")
 					if err != nil {
-						return utils.NewToolResultError("issue_number is required when item_type is 'issue'"), nil, nil
+						return mcpresult.NewError("issue_number is required when item_type is 'issue'"), nil, nil
 					}
 				case "pull_request":
 					itemNumber, err = RequiredInt(args, "pull_request_number")
 					if err != nil {
-						return utils.NewToolResultError("pull_request_number is required when item_type is 'pull_request'"), nil, nil
+						return mcpresult.NewError("pull_request_number is required when item_type is 'pull_request'"), nil, nil
 					}
 				default:
-					return utils.NewToolResultError("item_type must be either 'issue' or 'pull_request'"), nil, nil
+					return mcpresult.NewError("item_type must be either 'issue' or 'pull_request'"), nil, nil
 				}
 
 				return addProjectItem(ctx, gqlClient, owner, ownerType, projectNumber, itemOwner, itemRepo, itemNumber, itemType)
 			case projectsMethodUpdateProjectItem:
 				itemID, err := RequiredBigInt(args, "item_id")
 				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+					return mcpresult.NewError(err.Error()), nil, nil
 				}
 				rawUpdatedField, exists := args["updated_field"]
 				if !exists {
-					return utils.NewToolResultError("missing required parameter: updated_field"), nil, nil
+					return mcpresult.NewError("missing required parameter: updated_field"), nil, nil
 				}
 				fieldValue, ok := rawUpdatedField.(map[string]any)
 				if !ok || fieldValue == nil {
-					return utils.NewToolResultError("updated_field must be an object"), nil, nil
+					return mcpresult.NewError("updated_field must be an object"), nil, nil
 				}
 				return updateProjectItem(ctx, client, owner, ownerType, projectNumber, itemID, fieldValue)
 			case projectsMethodDeleteProjectItem:
 				itemID, err := RequiredBigInt(args, "item_id")
 				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+					return mcpresult.NewError(err.Error()), nil, nil
 				}
 				return deleteProjectItem(ctx, client, owner, ownerType, projectNumber, itemID)
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		},
 	)
@@ -1447,12 +1447,12 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 func listProjects(ctx context.Context, client *github.Client, args map[string]any, owner, ownerType string) (*mcp.CallToolResult, any, error) {
 	queryStr, err := OptionalParam[string](args, "query")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
+		return mcpresult.NewError(err.Error()), nil, nil
 	}
 
 	pagination, err := extractPaginationOptionsFromArgs(args)
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
+		return mcpresult.NewError(err.Error()), nil, nil
 	}
 
 	var resp *github.Response
@@ -1513,7 +1513,7 @@ func listProjects(ctx context.Context, client *github.Client, args map[string]an
 			return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 		}
 
-		return utils.NewToolResultText(string(r)), nil, nil
+		return mcpresult.NewText(string(r)), nil, nil
 	}
 
 	return nil, nil, fmt.Errorf("unexpected state in listProjects")
@@ -1552,7 +1552,7 @@ func listProjectsFromBothOwnerTypes(ctx context.Context, client *github.Client, 
 	// If both failed, return error
 	if (userErr != nil || userResp == nil || userResp.StatusCode != http.StatusOK) &&
 		(orgErr != nil || orgResp == nil || orgResp.StatusCode != http.StatusOK) {
-		return utils.NewToolResultError(fmt.Sprintf("failed to list projects for owner '%s': not found as user or organization", owner)), nil, nil
+		return mcpresult.NewError(fmt.Sprintf("failed to list projects for owner '%s': not found as user or organization", owner)), nil, nil
 	}
 
 	response := map[string]any{
@@ -1568,18 +1568,18 @@ func listProjectsFromBothOwnerTypes(ctx context.Context, client *github.Client, 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 func listProjectFields(ctx context.Context, client *github.Client, args map[string]any, owner, ownerType string) (*mcp.CallToolResult, any, error) {
 	projectNumber, err := RequiredInt(args, "project_number")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
+		return mcpresult.NewError(err.Error()), nil, nil
 	}
 
 	pagination, err := extractPaginationOptionsFromArgs(args)
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
+		return mcpresult.NewError(err.Error()), nil, nil
 	}
 
 	var resp *github.Response
@@ -1614,28 +1614,28 @@ func listProjectFields(ctx context.Context, client *github.Client, args map[stri
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 func listProjectItems(ctx context.Context, client *github.Client, args map[string]any, owner, ownerType string) (*mcp.CallToolResult, any, error) {
 	projectNumber, err := RequiredInt(args, "project_number")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
+		return mcpresult.NewError(err.Error()), nil, nil
 	}
 
 	queryStr, err := OptionalParam[string](args, "query")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
+		return mcpresult.NewError(err.Error()), nil, nil
 	}
 
 	fields, err := OptionalBigIntArrayParam(args, "fields")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
+		return mcpresult.NewError(err.Error()), nil, nil
 	}
 
 	pagination, err := extractPaginationOptionsFromArgs(args)
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
+		return mcpresult.NewError(err.Error()), nil, nil
 	}
 
 	var resp *github.Response
@@ -1679,7 +1679,7 @@ func listProjectItems(ctx context.Context, client *github.Client, args map[strin
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 func getProject(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int) (*mcp.CallToolResult, any, error) {
@@ -1715,7 +1715,7 @@ func getProject(ctx context.Context, client *github.Client, owner, ownerType str
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 func getProjectField(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int, fieldID int64) (*mcp.CallToolResult, any, error) {
@@ -1750,7 +1750,7 @@ func getProjectField(ctx context.Context, client *github.Client, owner, ownerTyp
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 func getProjectItem(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int, itemID int64, fields []int64) (*mcp.CallToolResult, any, error) {
@@ -1793,13 +1793,13 @@ func getProjectItem(ctx context.Context, client *github.Client, owner, ownerType
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 func updateProjectItem(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int, itemID int64, fieldValue map[string]any) (*mcp.CallToolResult, any, error) {
 	updatePayload, err := buildUpdateProjectItem(fieldValue)
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
+		return mcpresult.NewError(err.Error()), nil, nil
 	}
 
 	var resp *github.Response
@@ -1832,7 +1832,7 @@ func updateProjectItem(ctx context.Context, client *github.Client, owner, ownerT
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 func deleteProjectItem(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int, itemID int64) (*mcp.CallToolResult, any, error) {
@@ -1861,13 +1861,13 @@ func deleteProjectItem(ctx context.Context, client *github.Client, owner, ownerT
 		}
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, ProjectDeleteFailedError, resp, body), nil, nil
 	}
-	return utils.NewToolResultText("project item successfully deleted"), nil, nil
+	return mcpresult.NewText("project item successfully deleted"), nil, nil
 }
 
 // addProjectItem adds an item to a project by resolving the issue/PR number to a node ID
 func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, itemOwner, itemRepo string, itemNumber int, itemType string) (*mcp.CallToolResult, any, error) {
 	if itemType != "issue" && itemType != "pull_request" {
-		return utils.NewToolResultError("item_type must be either 'issue' or 'pull_request'"), nil, nil
+		return mcpresult.NewError("item_type must be either 'issue' or 'pull_request'"), nil, nil
 	}
 
 	// Resolve the item number to a node ID
@@ -1879,7 +1879,7 @@ func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, owne
 		nodeID, err = resolvePullRequestNodeID(ctx, gqlClient, itemOwner, itemRepo, itemNumber)
 	}
 	if err != nil {
-		return utils.NewToolResultError(fmt.Sprintf("failed to resolve %s: %v", itemType, err)), nil, nil
+		return mcpresult.NewError(fmt.Sprintf("failed to resolve %s: %v", itemType, err)), nil, nil
 	}
 
 	// Use GraphQL to add the item to the project
@@ -1914,7 +1914,7 @@ func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, owne
 			"projectNumber": githubv4.Int(int32(projectNumber)), //nolint:gosec // Project numbers are small integers
 		})
 		if err != nil {
-			return utils.NewToolResultError(fmt.Sprintf("failed to get project ID: %v", err)), nil, nil
+			return mcpresult.NewError(fmt.Sprintf("failed to get project ID: %v", err)), nil, nil
 		}
 		projectID = projectIDQueryOrg.Organization.ProjectV2.ID
 	} else {
@@ -1923,7 +1923,7 @@ func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, owne
 			"projectNumber": githubv4.Int(int32(projectNumber)), //nolint:gosec // Project numbers are small integers
 		})
 		if err != nil {
-			return utils.NewToolResultError(fmt.Sprintf("failed to get project ID: %v", err)), nil, nil
+			return mcpresult.NewError(fmt.Sprintf("failed to get project ID: %v", err)), nil, nil
 		}
 		projectID = projectIDQuery.User.ProjectV2.ID
 	}
@@ -1936,7 +1936,7 @@ func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, owne
 
 	err = gqlClient.Mutate(ctx, &mutation, input, nil)
 	if err != nil {
-		return utils.NewToolResultError(fmt.Sprintf(ProjectAddFailedError+": %v", err)), nil, nil
+		return mcpresult.NewError(fmt.Sprintf(ProjectAddFailedError+": %v", err)), nil, nil
 	}
 
 	result := map[string]any{
@@ -1949,7 +1949,7 @@ func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, owne
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 type pageInfo struct {
