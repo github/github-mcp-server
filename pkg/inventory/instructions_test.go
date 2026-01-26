@@ -7,6 +7,7 @@ import (
 )
 
 // createTestInventory creates an inventory with the specified toolsets for testing.
+// All toolsets are enabled by default using WithToolsets([]string{"all"}).
 func createTestInventory(toolsets []ToolsetMetadata) *Inventory {
 	// Create tools for each toolset so they show up in AvailableToolsets()
 	var tools []ServerTool
@@ -18,6 +19,7 @@ func createTestInventory(toolsets []ToolsetMetadata) *Inventory {
 
 	inv, _ := NewBuilder().
 		SetTools(tools).
+		WithToolsets([]string{"all"}).
 		Build()
 
 	return inv
@@ -201,5 +203,63 @@ func TestToolsetInstructionsFunc(t *testing.T) {
 				t.Errorf("Did not expect result to contain '%s', but it did. Result: %s", tt.notExpectedToContain, result)
 			}
 		})
+	}
+}
+
+// TestGenerateInstructionsOnlyEnabledToolsets verifies that generateInstructions
+// only includes instructions from enabled toolsets, not all available toolsets.
+// This is a regression test for https://github.com/github/github-mcp-server/issues/1897
+func TestGenerateInstructionsOnlyEnabledToolsets(t *testing.T) {
+	// Create tools for multiple toolsets
+	reposToolset := ToolsetMetadata{
+		ID:          "repos",
+		Description: "Repository tools",
+		InstructionsFunc: func(_ *Inventory) string {
+			return "REPOS_INSTRUCTIONS"
+		},
+	}
+	issuesToolset := ToolsetMetadata{
+		ID:          "issues",
+		Description: "Issue tools",
+		InstructionsFunc: func(_ *Inventory) string {
+			return "ISSUES_INSTRUCTIONS"
+		},
+	}
+	prsToolset := ToolsetMetadata{
+		ID:          "pull_requests",
+		Description: "PR tools",
+		InstructionsFunc: func(_ *Inventory) string {
+			return "PRS_INSTRUCTIONS"
+		},
+	}
+
+	tools := []ServerTool{
+		{Toolset: reposToolset},
+		{Toolset: issuesToolset},
+		{Toolset: prsToolset},
+	}
+
+	// Build inventory with only "repos" toolset enabled
+	inv, err := NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"repos"}).
+		Build()
+	if err != nil {
+		t.Fatalf("Failed to build inventory: %v", err)
+	}
+
+	result := generateInstructions(inv)
+
+	// Should contain instructions from enabled toolset
+	if !strings.Contains(result, "REPOS_INSTRUCTIONS") {
+		t.Errorf("Expected instructions to contain 'REPOS_INSTRUCTIONS' for enabled toolset, but it did not. Result: %s", result)
+	}
+
+	// Should NOT contain instructions from non-enabled toolsets
+	if strings.Contains(result, "ISSUES_INSTRUCTIONS") {
+		t.Errorf("Did not expect instructions to contain 'ISSUES_INSTRUCTIONS' for disabled toolset, but it did. Result: %s", result)
+	}
+	if strings.Contains(result, "PRS_INSTRUCTIONS") {
+		t.Errorf("Did not expect instructions to contain 'PRS_INSTRUCTIONS' for disabled toolset, but it did. Result: %s", result)
 	}
 }
