@@ -88,17 +88,17 @@ jobs:
           tags: |
             type=schedule
             type=ref,event=branch
-            type=ref,event=tag
+            type=ref,event=tag,enable=${{ github.event_name != 'workflow_dispatch' }}
             type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
+            type=semver,pattern={{version}},enable=${{ github.event_name != 'workflow_dispatch' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name != 'workflow_dispatch' }}
+            type=semver,pattern={{major}},enable=${{ github.event_name != 'workflow_dispatch' }}
             type=sha
-            type=edge
+            type=edge,enable=${{ github.event_name != 'workflow_dispatch' }}
             # Custom tag for manual workflow dispatch
             type=raw,value=${{ inputs.tag }},enable=${{ inputs.tag != '' }}
             # Custom rule to prevent pre-releases from getting latest tag
-            type=raw,value=latest,enable=${{ github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
+            type=raw,value=latest,enable=${{ github.event_name != 'workflow_dispatch' && github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
 
       - name: Go Build Cache for Docker
         uses: actions/cache@v5
