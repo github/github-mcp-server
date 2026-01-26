@@ -26,10 +26,6 @@ const (
 	DescriptionRepositoryName  = "Repository name"
 )
 
-// FeatureFlagConsolidatedActions is the legacy feature flag (deprecated, no longer used).
-// Kept for documentation purposes only.
-const FeatureFlagConsolidatedActions = "remote_mcp_consolidated_actions"
-
 // FeatureFlagHoldbackConsolidatedActions is the feature flag that, when enabled, reverts to
 // individual actions tools instead of the consolidated actions tools.
 const FeatureFlagHoldbackConsolidatedActions = "mcp_holdback_consolidated_actions"
