@@ -34,12 +34,13 @@ type Builder struct {
 	deprecatedAliases map[string]string
 
 	// Configuration options (processed at Build time)
-	readOnly        bool
-	toolsetIDs      []string // raw input, processed at Build()
-	toolsetIDsIsNil bool     // tracks if nil was passed (nil = defaults)
-	additionalTools []string // raw input, processed at Build()
-	featureChecker  FeatureFlagChecker
-	filters         []ToolFilter // filters to apply to all tools
+	readOnly             bool
+	toolsetIDs           []string // raw input, processed at Build()
+	toolsetIDsIsNil      bool     // tracks if nil was passed (nil = defaults)
+	additionalTools      []string // raw input, processed at Build()
+	featureChecker       FeatureFlagChecker
+	filters              []ToolFilter // filters to apply to all tools
+	generateInstructions bool
 }
 
 // NewBuilder creates a new Builder.
@@ -81,6 +82,11 @@ func (b *Builder) WithDeprecatedAliases(aliases map[string]string) *Builder {
 // When true, write tools are filtered out. Returns self for chaining.
 func (b *Builder) WithReadOnly(readOnly bool) *Builder {
 	b.readOnly = readOnly
+	return b
+}
+
+func (b *Builder) WithServerInstructions() *Builder {
+	b.generateInstructions = true
 	return b
 }
 
@@ -200,6 +206,10 @@ func (b *Builder) Build() (*Inventory, error) {
 		if len(unrecognizedTools) > 0 {
 			return nil, fmt.Errorf("unrecognized tools: %s", strings.Join(unrecognizedTools, ", "))
 		}
+	}
+
+	if b.generateInstructions {
+		r.instructions = generateInstructions(r)
 	}
 
 	return r, nil
