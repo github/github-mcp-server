@@ -62,7 +62,6 @@ func TestNewAuthHandler(t *testing.T) {
 			require.NotNil(t, handler)
 
 			assert.Equal(t, tc.expectedAuthServer, handler.cfg.AuthorizationServer)
-			assert.NotNil(t, handler.protectedResourceTemplate)
 		})
 	}
 }
@@ -444,8 +443,10 @@ func TestHandleProtectedResource(t *testing.T) {
 		validateResponse   func(t *testing.T, body map[string]any)
 	}{
 		{
-			name:               "GET request returns protected resource metadata",
-			cfg:                &Config{},
+			name: "GET request returns protected resource metadata",
+			cfg: &Config{
+				BaseURL: "https://api.example.com",
+			},
 			path:               OAuthProtectedResourcePrefix,
 			host:               "api.example.com",
 			method:             http.MethodGet,
@@ -454,7 +455,7 @@ func TestHandleProtectedResource(t *testing.T) {
 			validateResponse: func(t *testing.T, body map[string]any) {
 				t.Helper()
 				assert.Equal(t, "GitHub MCP Server", body["resource_name"])
-				assert.Contains(t, body["resource"], "api.example.com")
+				assert.Equal(t, "https://api.example.com", body["resource"])
 
 				authServers, ok := body["authorization_servers"].([]any)
 				require.True(t, ok)
@@ -463,40 +464,47 @@ func TestHandleProtectedResource(t *testing.T) {
 			},
 		},
 		{
-			name:               "OPTIONS request for CORS",
-			cfg:                &Config{},
+			name: "OPTIONS request for CORS preflight",
+			cfg: &Config{
+				BaseURL: "https://api.example.com",
+			},
 			path:               OAuthProtectedResourcePrefix,
 			host:               "api.example.com",
 			method:             http.MethodOptions,
-			expectedStatusCode: http.StatusOK,
+			expectedStatusCode: http.StatusNoContent,
 		},
 		{
-			name:               "path with /mcp suffix",
-			cfg:                &Config{},
+			name: "path with /mcp suffix",
+			cfg: &Config{
+				BaseURL: "https://api.example.com",
+			},
 			path:               OAuthProtectedResourcePrefix + "/mcp",
 			host:               "api.example.com",
 			method:             http.MethodGet,
 			expectedStatusCode: http.StatusOK,
 			validateResponse: func(t *testing.T, body map[string]any) {
 				t.Helper()
-				assert.Contains(t, body["resource"], "/mcp")
+				assert.Equal(t, "https://api.example.com/mcp", body["resource"])
 			},
 		},
 		{
-			name:               "path with /readonly suffix",
-			cfg:                &Config{},
+			name: "path with /readonly suffix",
+			cfg: &Config{
+				BaseURL: "https://api.example.com",
+			},
 			path:               OAuthProtectedResourcePrefix + "/readonly",
 			host:               "api.example.com",
 			method:             http.MethodGet,
 			expectedStatusCode: http.StatusOK,
 			validateResponse: func(t *testing.T, body map[string]any) {
 				t.Helper()
-				assert.Contains(t, body["resource"], "/readonly")
+				assert.Equal(t, "https://api.example.com/readonly", body["resource"])
 			},
 		},
 		{
 			name: "custom authorization server in response",
 			cfg: &Config{
+				BaseURL:             "https://api.example.com",
 				AuthorizationServer: "https://custom.auth.example.com/oauth",
 			},
 			path:               OAuthProtectedResourcePrefix,
@@ -559,7 +567,9 @@ func TestHandleProtectedResource(t *testing.T) {
 func TestRegisterRoutes(t *testing.T) {
 	t.Parallel()
 
-	handler, err := NewAuthHandler(&Config{})
+	handler, err := NewAuthHandler(&Config{
+		BaseURL: "https://api.example.com",
+	})
 	require.NoError(t, err)
 
 	router := chi.NewRouter()
@@ -588,12 +598,12 @@ func TestRegisterRoutes(t *testing.T) {
 			router.ServeHTTP(rec, req)
 			assert.Equal(t, http.StatusOK, rec.Code, "GET %s should return 200", route)
 
-			// Test OPTIONS (CORS)
+			// Test OPTIONS (CORS preflight)
 			req = httptest.NewRequest(http.MethodOptions, route, nil)
 			req.Host = "api.example.com"
 			rec = httptest.NewRecorder()
 			router.ServeHTTP(rec, req)
-			assert.Equal(t, http.StatusOK, rec.Code, "OPTIONS %s should return 200", route)
+			assert.Equal(t, http.StatusNoContent, rec.Code, "OPTIONS %s should return 204", route)
 		})
 	}
 }
@@ -623,7 +633,9 @@ func TestSupportedScopes(t *testing.T) {
 func TestProtectedResourceResponseFormat(t *testing.T) {
 	t.Parallel()
 
-	handler, err := NewAuthHandler(&Config{})
+	handler, err := NewAuthHandler(&Config{
+		BaseURL: "https://api.example.com",
+	})
 	require.NoError(t, err)
 
 	router := chi.NewRouter()
