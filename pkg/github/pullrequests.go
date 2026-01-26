@@ -139,7 +139,7 @@ func GetPullRequest(ctx context.Context, client *github.Client, deps ToolDepende
 	if err != nil {
 		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
 	}
-	ff := deps.GetFlags()
+	ff := deps.GetFlags(ctx)
 
 	pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
 	if err != nil {
@@ -350,7 +350,7 @@ func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 	if err != nil {
 		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
 	}
-	ff := deps.GetFlags()
+	ff := deps.GetFlags(ctx)
 
 	// Convert pagination parameters to GraphQL format
 	gqlParams, err := pagination.ToGraphQLParams()
@@ -437,7 +437,7 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, deps Tool
 	if err != nil {
 		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
 	}
-	ff := deps.GetFlags()
+	ff := deps.GetFlags(ctx)
 
 	reviews, resp, err := client.PullRequests.ListReviews(ctx, owner, repo, pullNumber, nil)
 	if err != nil {

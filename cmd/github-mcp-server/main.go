@@ -96,6 +96,7 @@ var (
 		Short: "Start HTTP server",
 		Long:  `Start an HTTP server that listens for MCP requests over HTTP.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
+			ttl := viper.GetDuration("repo-access-cache-ttl")
 			httpConfig := ghhttp.HTTPServerConfig{
 				Version:              version,
 				Host:                 viper.GetString("host"),
@@ -104,6 +105,8 @@ var (
 				EnableCommandLogging: viper.GetBool("enable-command-logging"),
 				LogFilePath:          viper.GetString("log-file"),
 				ContentWindowSize:    viper.GetInt("content-window-size"),
+				LockdownMode:         viper.GetBool("lockdown-mode"),
+				RepoAccessCacheTTL:   &ttl,
 			}
 
 			return ghhttp.RunHTTPServer(httpConfig)

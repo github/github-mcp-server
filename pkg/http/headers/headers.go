@@ -32,6 +32,8 @@ const (
 	MCPToolsetsHeader = "X-MCP-Toolsets"
 	// MCPToolsHeader is a comma-separated list of MCP tools that the request is for.
 	MCPToolsHeader = "X-MCP-Tools"
+	// MCPLockdownHeader indicates whether lockdown mode is enabled.
+	MCPLockdownHeader = "X-MCP-Lockdown"
 	// MCPFeaturesHeader is a comma-separated list of feature flags to enable.
 	MCPFeaturesHeader = "X-MCP-Features"
 )
