@@ -10,7 +10,7 @@
 <summary><b>Storing Your PAT Securely</b></summary>
 <br>
 
-For security, avoid hardcoding your token. Set your PAT as an environment variable:
+To set your PAT as an environment variable:
 
 ```bash
 # Add to your shell profile (~/.bashrc, ~/.zshrc, etc.)
