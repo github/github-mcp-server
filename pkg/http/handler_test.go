@@ -252,7 +252,7 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 			// Create handler with our factories
 			handler := NewHTTPMcpHandler(
 				context.Background(),
-				&HTTPServerConfig{Version: "test"},
+				&ServerConfig{Version: "test"},
 				nil, // deps not needed for this test
 				translations.NullTranslationHelper,
 				slog.Default(),

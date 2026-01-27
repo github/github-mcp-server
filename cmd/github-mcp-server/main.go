@@ -97,7 +97,7 @@ var (
 		Long:  `Start an HTTP server that listens for MCP requests over HTTP.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			ttl := viper.GetDuration("repo-access-cache-ttl")
-			httpConfig := ghhttp.HTTPServerConfig{
+			httpConfig := ghhttp.ServerConfig{
 				Version:              version,
 				Host:                 viper.GetString("host"),
 				Port:                 viper.GetInt("port"),

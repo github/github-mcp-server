@@ -18,7 +18,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-type HTTPServerConfig struct {
+type ServerConfig struct {
 	// Version of the server
 	Version string
 
@@ -48,7 +48,7 @@ type HTTPServerConfig struct {
 	RepoAccessCacheTTL *time.Duration
 }
 
-func RunHTTPServer(cfg HTTPServerConfig) error {
+func RunHTTPServer(cfg ServerConfig) error {
 	// Create app context
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

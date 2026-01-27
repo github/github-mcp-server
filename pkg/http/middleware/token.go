@@ -24,7 +24,6 @@ var (
 	errMissingAuthorizationHeader     = fmt.Errorf("%w: missing required Authorization header", mark.ErrBadRequest)
 	errBadAuthorizationHeader         = fmt.Errorf("%w: Authorization header is badly formatted", mark.ErrBadRequest)
 	errUnsupportedAuthorizationHeader = fmt.Errorf("%w: unsupported Authorization header", mark.ErrBadRequest)
-	errMissingTokenInfoHeader         = fmt.Errorf("%w: missing required token info header", mark.ErrBadRequest)
 )
 
 var supportedThirdPartyTokenPrefixes = []string{
