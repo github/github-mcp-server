@@ -58,6 +58,8 @@ type Inventory struct {
 	filters []ToolFilter
 	// unrecognizedToolsets holds toolset IDs that were requested but don't match any registered toolsets
 	unrecognizedToolsets []string
+	// server instructions hold high-level instructions for agents to use the server effectively
+	instructions string
 }
 
 // UnrecognizedToolsets returns toolset IDs that were passed to WithToolsets but don't
@@ -291,4 +293,30 @@ func (r *Inventory) AvailableToolsets(exclude ...ToolsetID) []ToolsetMetadata {
 		}
 	}
 	return result
+}
+
+// EnabledToolsets returns the unique toolsets that are enabled based on current filters.
+// This is similar to AvailableToolsets but respects the enabledToolsets filter.
+// Returns toolsets in sorted order by toolset ID.
+func (r *Inventory) EnabledToolsets() []ToolsetMetadata {
+	// Get all available toolsets first (already sorted by ID)
+	allToolsets := r.AvailableToolsets()
+
+	// If no filter is set, all toolsets are enabled
+	if r.enabledToolsets == nil {
+		return allToolsets
+	}
+
+	// Filter to only enabled toolsets
+	var result []ToolsetMetadata
+	for _, ts := range allToolsets {
+		if r.enabledToolsets[ts.ID] {
+			result = append(result, ts)
+		}
+	}
+	return result
+}
+
+func (r *Inventory) Instructions() string {
+	return r.instructions
 }

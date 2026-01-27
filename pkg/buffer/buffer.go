@@ -1,11 +1,16 @@
 package buffer
 
 import (
-	"bufio"
+	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 )
+
+// maxLineSize is the maximum size for a single log line (10MB).
+// GitHub Actions logs can contain extremely long lines (base64 content, minified JS, etc.)
+const maxLineSize = 10 * 1024 * 1024
 
 // ProcessResponseAsRingBufferToEnd reads the body of an HTTP response line by line,
 // storing only the last maxJobLogLines lines using a ring buffer (sliding window).
@@ -25,6 +30,7 @@ import (
 //
 // The function uses a ring buffer to efficiently store only the last maxJobLogLines lines.
 // If the response contains more lines than maxJobLogLines, only the most recent lines are kept.
+// Lines exceeding maxLineSize are truncated with a marker.
 func ProcessResponseAsRingBufferToEnd(httpResp *http.Response, maxJobLogLines int) (string, int, *http.Response, error) {
 	if maxJobLogLines > 100000 {
 		maxJobLogLines = 100000
@@ -35,20 +41,74 @@ func ProcessResponseAsRingBufferToEnd(httpResp *http.Response, maxJobLogLines in
 	totalLines := 0
 	writeIndex := 0
 
-	scanner := bufio.NewScanner(httpResp.Body)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	const readBufferSize = 64 * 1024 // 64KB read buffer
+	const maxDisplayLength = 1000    // Keep first 1000 chars of truncated lines
 
-	for scanner.Scan() {
-		line := scanner.Text()
-		totalLines++
+	readBuf := make([]byte, readBufferSize)
+	var currentLine strings.Builder
+	lineTruncated := false
 
+	// storeLine saves the current line to the ring buffer and resets state
+	storeLine := func() {
+		line := currentLine.String()
+		if lineTruncated && len(line) > maxDisplayLength {
+			line = line[:maxDisplayLength]
+		}
+		if lineTruncated {
+			line += "... [TRUNCATED]"
+		}
 		lines[writeIndex] = line
 		validLines[writeIndex] = true
+		totalLines++
 		writeIndex = (writeIndex + 1) % maxJobLogLines
+		currentLine.Reset()
+		lineTruncated = false
 	}
 
-	if err := scanner.Err(); err != nil {
-		return "", 0, httpResp, fmt.Errorf("failed to read log content: %w", err)
+	// accumulate adds bytes to currentLine up to maxLineSize, sets lineTruncated if exceeded
+	accumulate := func(data []byte) {
+		if lineTruncated {
+			return
+		}
+		remaining := maxLineSize - currentLine.Len()
+		if remaining <= 0 {
+			lineTruncated = true
+			return
+		}
+		if remaining > len(data) {
+			remaining = len(data)
+		}
+		currentLine.Write(data[:remaining])
+		if currentLine.Len() >= maxLineSize {
+			lineTruncated = true
+		}
+	}
+
+	for {
+		n, err := httpResp.Body.Read(readBuf)
+		if n > 0 {
+			chunk := readBuf[:n]
+			for len(chunk) > 0 {
+				newlineIdx := bytes.IndexByte(chunk, '\n')
+				if newlineIdx < 0 {
+					accumulate(chunk)
+					break
+				}
+				accumulate(chunk[:newlineIdx])
+				storeLine()
+				chunk = chunk[newlineIdx+1:]
+			}
+		}
+
+		if err == io.EOF {
+			if currentLine.Len() > 0 {
+				storeLine()
+			}
+			break
+		}
+		if err != nil {
+			return "", 0, httpResp, fmt.Errorf("failed to read log content: %w", err)
+		}
 	}
 
 	var result []string

@@ -64,8 +64,8 @@ type MCPServerConfig struct {
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
 
-	// Insider indicates if we should enable experimental features
-	InsiderMode bool
+	// InsidersMode indicates if we should enable experimental features
+	InsidersMode bool
 
 	// Logger is used for logging within the server
 	Logger *slog.Logger
@@ -171,16 +171,31 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 
 	enabledToolsets := resolveEnabledToolsets(cfg)
 
-	// For instruction generation, we need actual toolset names (not nil).
-	// nil means "use defaults" in inventory, so expand it for instructions.
-	instructionToolsets := enabledToolsets
-	if instructionToolsets == nil {
-		instructionToolsets = github.GetDefaultToolsetIDs()
+	// Create feature checker
+	featureChecker := createFeatureChecker(cfg.EnabledFeatures)
+
+	// Build and register the tool/resource/prompt inventory
+	inventoryBuilder := github.NewInventory(cfg.Translator).
+		WithDeprecatedAliases(github.DeprecatedToolAliases).
+		WithReadOnly(cfg.ReadOnly).
+		WithToolsets(enabledToolsets).
+		WithTools(cfg.EnabledTools).
+		WithFeatureChecker(featureChecker).
+		WithServerInstructions()
+
+	// Apply token scope filtering if scopes are known (for PAT filtering)
+	if cfg.TokenScopes != nil {
+		inventoryBuilder = inventoryBuilder.WithFilter(github.CreateToolScopeFilter(cfg.TokenScopes))
+	}
+
+	inventory, err := inventoryBuilder.Build()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build inventory: %w", err)
 	}
 
 	// Create the MCP server
 	serverOpts := &mcp.ServerOptions{
-		Instructions: github.GenerateInstructions(instructionToolsets),
+		Instructions: inventory.Instructions(),
 		Logger:       cfg.Logger,
 		CompletionHandler: github.CompletionsHandler(func(_ context.Context) (*gogithub.Client, error) {
 			return clients.rest, nil
@@ -203,9 +218,6 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
 	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.rest, clients.gqlHTTP))
 
-	// Create feature checker
-	featureChecker := createFeatureChecker(cfg.EnabledFeatures)
-
 	// Create dependencies for tool handlers
 	deps := github.NewBaseDeps(
 		clients.rest,
@@ -215,7 +227,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		cfg.Translator,
 		github.FeatureFlags{
 			LockdownMode: cfg.LockdownMode,
-			InsiderMode:  cfg.InsiderMode,
+			InsidersMode: cfg.InsidersMode,
 		},
 		cfg.ContentWindowSize,
 		featureChecker,
@@ -227,24 +239,6 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 			return next(github.ContextWithDeps(ctx, deps), method, req)
 		}
 	})
-
-	// Build and register the tool/resource/prompt inventory
-	inventoryBuilder := github.NewInventory(cfg.Translator).
-		WithDeprecatedAliases(github.DeprecatedToolAliases).
-		WithReadOnly(cfg.ReadOnly).
-		WithToolsets(enabledToolsets).
-		WithTools(cfg.EnabledTools).
-		WithFeatureChecker(featureChecker)
-
-	// Apply token scope filtering if scopes are known (for PAT filtering)
-	if cfg.TokenScopes != nil {
-		inventoryBuilder = inventoryBuilder.WithFilter(github.CreateToolScopeFilter(cfg.TokenScopes))
-	}
-
-	inventory, err := inventoryBuilder.Build()
-	if err != nil {
-		return nil, fmt.Errorf("failed to build inventory: %w", err)
-	}
 
 	if unrecognized := inventory.UnrecognizedToolsets(); len(unrecognized) > 0 {
 		fmt.Fprintf(os.Stderr, "Warning: unrecognized toolsets ignored: %s\n", strings.Join(unrecognized, ", "))
@@ -337,8 +331,8 @@ type StdioServerConfig struct {
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
 
-	// InsiderMode indicates if we should enable experimental features
-	InsiderMode bool
+	// InsidersMode indicates if we should enable experimental features
+	InsidersMode bool
 
 	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
 	RepoAccessCacheTTL *time.Duration
@@ -396,7 +390,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		Translator:        t,
 		ContentWindowSize: cfg.ContentWindowSize,
 		LockdownMode:      cfg.LockdownMode,
-		InsiderMode:       cfg.InsiderMode,
+		InsidersMode:      cfg.InsidersMode,
 		Logger:            logger,
 		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
 		TokenScopes:       tokenScopes,
