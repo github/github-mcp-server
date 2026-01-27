@@ -238,6 +238,22 @@ To keep your GitHub PAT secure and reusable across different MCP hosts:
 
 </details>
 
+### Check PAT scopes
+
+- Required scopes per toolset: run [script/list-scopes](script/list-scopes) to print the scopes the server needs. Example:
+
+```bash
+script/list-scopes --toolsets=all --output=summary
+```
+
+- Scopes granted to a PAT: run [script/get-token-scopes](script/get-token-scopes) to read the `X-OAuth-Scopes` header for a token. Example:
+
+```bash
+script/get-token-scopes --token=ghp_yourtoken
+```
+
+Use both commands together to confirm your token covers the toolsets you plan to enable.
+
 ### GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)
 
 The flag `--gh-host` and the environment variable `GITHUB_HOST` can be used to set
