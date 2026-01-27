@@ -1311,7 +1311,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					},
 					"item_id": {
 						Type:        "number",
-						Description: "The project item ID. Required for 'update_project_item' and 'delete_project_item' methods. For add_project_item, this is the numeric ID of the issue or pull request to add.",
+						Description: "The project item ID. Required for 'update_project_item' and 'delete_project_item' methods.",
 					},
 					"item_type": {
 						Type:        "string",
@@ -1481,7 +1481,8 @@ func listProjects(ctx context.Context, client *github.Client, args map[string]an
 				"failed to list projects",
 				resp,
 				err,
-			), nil, nil
+			),
+			nil, nil
 		}
 	default:
 		projects, resp, err = client.Projects.ListUserProjects(ctx, owner, opts)
@@ -1490,7 +1491,8 @@ func listProjects(ctx context.Context, client *github.Client, args map[string]an
 				"failed to list projects",
 				resp,
 				err,
-			), nil, nil
+			),
+			nil, nil
 		}
 	}
 
@@ -1518,6 +1520,58 @@ func listProjects(ctx context.Context, client *github.Client, args map[string]an
 	}
 
 	return nil, nil, fmt.Errorf("unexpected state in listProjects")
+}
+
+// listProjectsFromBothOwnerTypes fetches projects from both user and org endpoints
+// when owner_type is not specified, combining the results with owner_type labels.
+func listProjectsFromBothOwnerTypes(ctx context.Context, client *github.Client, owner string, opts *github.ListProjectsOptions) (*mcp.CallToolResult, any, error) {
+	var minimalProjects []MinimalProject
+	var resp *github.Response
+
+	// Fetch user projects
+	userProjects, userResp, userErr := client.Projects.ListUserProjects(ctx, owner, opts)
+	if userErr == nil && userResp.StatusCode == http.StatusOK {
+		for _, project := range userProjects {
+			mp := convertToMinimalProject(project)
+			mp.OwnerType = "user"
+			minimalProjects = append(minimalProjects, *mp)
+		}
+		_ = userResp.Body.Close()
+	}
+
+	// Fetch org projects
+	orgProjects, orgResp, orgErr := client.Projects.ListOrganizationProjects(ctx, owner, opts)
+	if orgErr == nil && orgResp.StatusCode == http.StatusOK {
+		for _, project := range orgProjects {
+			mp := convertToMinimalProject(project)
+			mp.OwnerType = "org"
+			minimalProjects = append(minimalProjects, *mp)
+		}
+		resp = orgResp // Use org response for pagination info
+	} else if userResp != nil {
+		resp = userResp // Fallback to user response
+	}
+
+	// If both failed, return error
+	if (userErr != nil || userResp == nil || userResp.StatusCode != http.StatusOK) &&
+		(orgErr != nil || orgResp == nil || orgResp.StatusCode != http.StatusOK) {
+		return utils.NewToolResultError(fmt.Sprintf("failed to list projects for owner '%s': owner is neither a user nor an org with this project", owner)), nil, nil
+	}
+
+	response := map[string]any{
+		"projects": minimalProjects,
+		"note":     "Results include both user and org projects. Each project includes 'owner_type' field. Pagination is limited when owner_type is not specified - specify 'owner_type' for full pagination support.",
+	}
+	if resp != nil {
+		response["pageInfo"] = buildPageInfo(resp)
+		defer func() { _ = resp.Body.Close() }()
+	}
+
+	r, err := json.Marshal(response)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+	return utils.NewToolResultText(string(r)), nil, nil
 }
 
 func listProjectFields(ctx context.Context, client *github.Client, args map[string]any, owner, ownerType string) (*mcp.CallToolResult, any, error) {
@@ -1549,7 +1603,8 @@ func listProjectFields(ctx context.Context, client *github.Client, args map[stri
 			"failed to list project fields",
 			resp,
 			err,
-		), nil, nil
+		),
+		nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -1614,7 +1669,8 @@ func listProjectItems(ctx context.Context, client *github.Client, args map[strin
 			ProjectListFailedError,
 			resp,
 			err,
-		), nil, nil
+		),
+		nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -1646,7 +1702,8 @@ func getProject(ctx context.Context, client *github.Client, owner, ownerType str
 			"failed to get project",
 			resp,
 			err,
-		), nil, nil
+		),
+		nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -1683,7 +1740,8 @@ func getProjectField(ctx context.Context, client *github.Client, owner, ownerTyp
 			"failed to get project field",
 			resp,
 			err,
-		), nil, nil
+		),
+		nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -1725,7 +1783,8 @@ func getProjectItem(ctx context.Context, client *github.Client, owner, ownerType
 			"failed to get project item",
 			resp,
 			err,
-		), nil, nil
+		),
+		nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -1743,6 +1802,76 @@ func getProjectItem(ctx context.Context, client *github.Client, owner, ownerType
 	}
 
 	return utils.NewToolResultText(string(r)), nil, nil
+}
+
+func updateProjectItem(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int, itemID int64, fieldValue map[string]any) (*mcp.CallToolResult, any, error) {
+	updatePayload, err := buildUpdateProjectItem(fieldValue)
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+
+	var resp *github.Response
+	var updatedItem *github.ProjectV2Item
+
+	if ownerType == "org" {
+		updatedItem, resp, err = client.Projects.UpdateOrganizationProjectItem(ctx, owner, projectNumber, itemID, updatePayload)
+	} else {
+		updatedItem, resp, err = client.Projects.UpdateUserProjectItem(ctx, owner, projectNumber, itemID, updatePayload)
+	}
+
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			ProjectUpdateFailedError,
+			resp,
+			err,
+		),
+		nil, nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, ProjectUpdateFailedError, resp, body), nil, nil
+	}
+	r, err := json.Marshal(updatedItem)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return utils.NewToolResultText(string(r)), nil, nil
+}
+
+func deleteProjectItem(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int, itemID int64) (*mcp.CallToolResult, any, error) {
+	var resp *github.Response
+	var err error
+
+	if ownerType == "org" {
+		resp, err = client.Projects.DeleteOrganizationProjectItem(ctx, owner, projectNumber, itemID)
+	} else {
+		resp, err = client.Projects.DeleteUserProjectItem(ctx, owner, projectNumber, itemID)
+	}
+
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			ProjectDeleteFailedError,
+			resp,
+			err,
+		),
+		nil, nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusNoContent {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, ProjectDeleteFailedError, resp, body), nil, nil
+	}
+	return utils.NewToolResultText("project item successfully deleted"), nil, nil
 }
 
 // addProjectItem adds an item to a project by resolving the issue/PR number to a node ID
@@ -1817,7 +1946,7 @@ func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, owne
 
 	err = gqlClient.Mutate(ctx, &mutation, input, nil)
 	if err != nil {
-		return utils.NewToolResultError(fmt.Sprintf(ProjectAddFailedError+": %v", err)), nil, nil
+		return utils.NewToolResultError(fmt.Sprintf(ProjectAddFailedError+`: %v`, err)), nil, nil
 	}
 
 	result := map[string]any{
@@ -1831,74 +1960,6 @@ func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, owne
 	}
 
 	return utils.NewToolResultText(string(r)), nil, nil
-}
-
-func updateProjectItem(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int, itemID int64, fieldValue map[string]any) (*mcp.CallToolResult, any, error) {
-	updatePayload, err := buildUpdateProjectItem(fieldValue)
-	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
-	}
-
-	var resp *github.Response
-	var updatedItem *github.ProjectV2Item
-
-	if ownerType == "org" {
-		updatedItem, resp, err = client.Projects.UpdateOrganizationProjectItem(ctx, owner, projectNumber, itemID, updatePayload)
-	} else {
-		updatedItem, resp, err = client.Projects.UpdateUserProjectItem(ctx, owner, projectNumber, itemID, updatePayload)
-	}
-
-	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx,
-			ProjectUpdateFailedError,
-			resp,
-			err,
-		), nil, nil
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
-		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, ProjectUpdateFailedError, resp, body), nil, nil
-	}
-	r, err := json.Marshal(updatedItem)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-	}
-
-	return utils.NewToolResultText(string(r)), nil, nil
-}
-
-func deleteProjectItem(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int, itemID int64) (*mcp.CallToolResult, any, error) {
-	var resp *github.Response
-	var err error
-
-	if ownerType == "org" {
-		resp, err = client.Projects.DeleteOrganizationProjectItem(ctx, owner, projectNumber, itemID)
-	} else {
-		resp, err = client.Projects.DeleteUserProjectItem(ctx, owner, projectNumber, itemID)
-	}
-
-	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx,
-			ProjectDeleteFailedError,
-			resp,
-			err,
-		), nil, nil
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusNoContent {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
-		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, ProjectDeleteFailedError, resp, body), nil, nil
-	}
-	return utils.NewToolResultText("project item successfully deleted"), nil, nil
 }
 
 type pageInfo struct {
@@ -1960,7 +2021,7 @@ func buildUpdateProjectItem(input map[string]any) (*github.UpdateProjectItemOpti
 	}
 
 	payload := &github.UpdateProjectItemOptions{
-		Fields: []*github.UpdateProjectV2Field{{
+		Fields: []*github.UpdateProjectV2Field{{ 
 			ID:    fieldID,
 			Value: valueField,
 		}},
@@ -2011,6 +2072,80 @@ func extractPaginationOptionsFromArgs(args map[string]any) (github.ListProjectsP
 	}
 
 	return opts, nil
+}
+
+// resolveIssueNodeID resolves an issue number to its GraphQL node ID
+func resolveIssueNodeID(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueNumber int) (githubv4.ID, error) {
+	var query struct {
+		Repository struct {
+			Issue struct {
+				ID githubv4.ID
+			} `graphql:"issue(number: $issueNumber)"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
+
+	variables := map[string]any{
+		"owner":       githubv4.String(owner),
+		"repo":        githubv4.String(repo),
+		"issueNumber": githubv4.Int(int32(issueNumber)), //nolint:gosec // Issue numbers are small integers
+	}
+
+	err := gqlClient.Query(ctx, &query, variables)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve issue %s/%s#%d: %w", owner, repo, issueNumber, err)
+	}
+
+	return query.Repository.Issue.ID, nil
+}
+
+// resolvePullRequestNodeID resolves a pull request number to its GraphQL node ID
+func resolvePullRequestNodeID(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, prNumber int) (githubv4.ID, error) {
+	var query struct {
+		Repository struct {
+			PullRequest struct {
+				ID githubv4.ID
+			} `graphql:"pullRequest(number: $prNumber)"`
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}
+
+	variables := map[string]any{
+		"owner":    githubv4.String(owner),
+		"repo":     githubv4.String(repo),
+		"prNumber": githubv4.Int(int32(prNumber)), //nolint:gosec // PR numbers are small integers
+	}
+
+	err := gqlClient.Query(ctx, &query, variables)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve pull request %s/%s#%d: %w", owner, repo, prNumber, err)
+	}
+
+	return query.Repository.PullRequest.ID, nil
+}
+
+// detectOwnerType attempts to detect the owner type by trying both user and org
+// Returns the detected type ("user" or "org") and any error encountered
+func detectOwnerType(ctx context.Context, client *github.Client, owner string, projectNumber int) (string, error) {
+	// Try user first (more common for personal projects)
+	_, resp, err := client.Projects.GetUserProject(ctx, owner, projectNumber)
+	if err == nil && resp.StatusCode == http.StatusOK {
+		_ = resp.Body.Close()
+		return "user", nil
+	}
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+
+	// If not found (404) or other error, try org
+	_, resp, err = client.Projects.GetOrganizationProject(ctx, owner, projectNumber)
+	if err == nil && resp.StatusCode == http.StatusOK {
+		_ = resp.Body.Close()
+		return "org", nil
+	}
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+
+	return "", fmt.Errorf("could not determine owner type for %s with project %d: owner is neither a user nor an org with this project", owner, projectNumber)
 }
 
 func CreateProject(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -2220,43 +2355,31 @@ func CreateIterationField(t translations.TranslationHelperFunc) inventory.Server
 			}
 
 			createInput := githubv4.CreateProjectV2FieldInput{
-
 				ProjectID: githubv4.ID(projectId),
-
-				DataType: ProjectV2CustomFieldTypeIteration,
-
-				Name: githubv4.String(fieldName),
+				DataType:  githubv4.ProjectV2CustomFieldType("ITERATION"),
+				Name:      githubv4.String(fieldName),
 			}
 
 			err = gqlClient.Mutate(ctx, &createMutation, createInput, nil)
-
 			if err != nil {
-
 				return utils.NewToolResultError(fmt.Sprintf("failed to create iteration field: %v", err)), nil, nil
-
 			}
 
 			fieldId := createMutation.CreateProjectV2Field.ProjectV2Field.ProjectV2IterationField.ID
 
 			// Step 2: Update Field Configuration
-
 			var updateMutation struct {
 				UpdateProjectV2Field struct {
 					ProjectV2Field struct {
 						ProjectV2IterationField struct {
-							ID string
-
-							Name string
-
+							ID            string
+							Name          string
 							Configuration struct {
 								Iterations []struct {
-									ID string
-
-									Title string
-
+									ID        string
+									Title     string
 									StartDate string
-
-									Duration int
+									Duration  int
 								}
 							}
 						} `graphql:"... on ProjectV2IterationField"`
@@ -2265,68 +2388,45 @@ func CreateIterationField(t translations.TranslationHelperFunc) inventory.Server
 			}
 
 			var iterationsInput []ProjectV2IterationFieldIterationInput
-
 			for _, item := range rawIterations {
-
 				iterMap, ok := item.(map[string]any)
-
 				if !ok {
 					continue
 				}
-
 				title, _ := iterMap["title"].(string)
-
 				sDate, _ := iterMap["startDate"].(string)
-
 				dur, _ := iterMap["duration"].(float64)
 
 				parsedSDate, err := time.Parse("2006-01-02", sDate)
-
 				if err != nil {
-
 					return utils.NewToolResultError(fmt.Sprintf("failed to parse iteration startDate %s: %v", sDate, err)), nil, nil
-
 				}
 
 				iterationsInput = append(iterationsInput, ProjectV2IterationFieldIterationInput{
-
-					Title: githubv4.String(title),
-
+					Title:     githubv4.String(title),
 					StartDate: githubv4.Date{Time: parsedSDate},
-
-					Duration: githubv4.Int(dur),
+					Duration:  githubv4.Int(dur),
 				})
-
 			}
 
 			parsedStartDate, err := time.Parse("2006-01-02", startDateStr)
-
 			if err != nil {
-
 				return utils.NewToolResultError(fmt.Sprintf("failed to parse start_date %s: %v", startDateStr, err)), nil, nil
-
 			}
 
 			configInput := ProjectV2IterationFieldConfigurationInput{
-
-				Duration: githubv4.Int(duration),
-
-				StartDate: githubv4.Date{Time: parsedStartDate},
-
+				Duration:   githubv4.Int(duration),
+				StartDate:  githubv4.Date{Time: parsedStartDate},
 				Iterations: &iterationsInput,
 			}
 
 			updateInput := UpdateProjectV2FieldInput{
-
-				ProjectID: githubv4.ID(projectId),
-
-				FieldID: githubv4.ID(fieldId),
-
+				ProjectID:              githubv4.ID(projectId),
+				FieldID:                githubv4.ID(fieldId),
 				IterationConfiguration: &configInput,
 			}
 
 			err = gqlClient.Mutate(ctx, &updateMutation, updateInput, nil)
-
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("failed to update iteration configuration: %v", err)), nil, nil
 			}
@@ -2365,164 +2465,67 @@ func getOwnerNodeID(ctx context.Context, client *githubv4.Client, owner string, 
 }
 
 func getProjectNodeID(ctx context.Context, client *github.Client, owner, ownerType string, projectNumber int) (string, error) {
+
 	if ownerType == "org" {
+
 		project, _, err := client.Projects.GetOrganizationProject(ctx, owner, projectNumber)
+
 		if err != nil {
+
 			return "", err
+
 		}
+
 		return project.GetNodeID(), nil
+
 	} else {
+
 		project, _, err := client.Projects.GetUserProject(ctx, owner, projectNumber)
+
 		if err != nil {
+
 			return "", err
+
 		}
+
 		return project.GetNodeID(), nil
+
 	}
+
 }
 
-// listProjectsFromBothOwnerTypes fetches projects from both user and org endpoints
-// when owner_type is not specified, combining the results with owner_type labels.
-func listProjectsFromBothOwnerTypes(ctx context.Context, client *github.Client, owner string, opts *github.ListProjectsOptions) (*mcp.CallToolResult, any, error) {
-	var minimalProjects []MinimalProject
-	var resp *github.Response
 
-	// Fetch user projects
-	userProjects, userResp, userErr := client.Projects.ListUserProjects(ctx, owner, opts)
-	if userErr == nil && userResp.StatusCode == http.StatusOK {
-		for _, project := range userProjects {
-			mp := convertToMinimalProject(project)
-			mp.OwnerType = "user"
-			minimalProjects = append(minimalProjects, *mp)
-		}
-		_ = userResp.Body.Close()
-	}
-
-	// Fetch org projects
-	orgProjects, orgResp, orgErr := client.Projects.ListOrganizationProjects(ctx, owner, opts)
-	if orgErr == nil && orgResp.StatusCode == http.StatusOK {
-		for _, project := range orgProjects {
-			mp := convertToMinimalProject(project)
-			mp.OwnerType = "org"
-			minimalProjects = append(minimalProjects, *mp)
-		}
-		resp = orgResp // Use org response for pagination info
-	} else if userResp != nil {
-		resp = userResp // Fallback to user response
-	}
-
-	// If both failed, return error
-	if (userErr != nil || userResp == nil || userResp.StatusCode != http.StatusOK) &&
-		(orgErr != nil || orgResp == nil || orgResp.StatusCode != http.StatusOK) {
-		return utils.NewToolResultError(fmt.Sprintf("failed to list projects for owner '%s': not found as user or organization", owner)), nil, nil
-	}
-
-	response := map[string]any{
-		"projects": minimalProjects,
-		"note":     "Results include both user and org projects. Each project includes 'owner_type' field. Pagination is limited when owner_type is not specified - specify 'owner_type' for full pagination support.",
-	}
-	if resp != nil {
-		response["pageInfo"] = buildPageInfo(resp)
-		defer func() { _ = resp.Body.Close() }()
-	}
-
-	r, err := json.Marshal(response)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-	}
-	return utils.NewToolResultText(string(r)), nil, nil
-}
-
-// resolveIssueNodeID resolves an issue number to its GraphQL node ID
-func resolveIssueNodeID(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueNumber int) (githubv4.ID, error) {
-	var query struct {
-		Repository struct {
-			Issue struct {
-				ID githubv4.ID
-			} `graphql:"issue(number: $issueNumber)"`
-		} `graphql:"repository(owner: $owner, name: $repo)"`
-	}
-
-	variables := map[string]any{
-		"owner":       githubv4.String(owner),
-		"repo":        githubv4.String(repo),
-		"issueNumber": githubv4.Int(int32(issueNumber)), //nolint:gosec // Issue numbers are small integers
-	}
-
-	err := gqlClient.Query(ctx, &query, variables)
-	if err != nil {
-		return "", fmt.Errorf("failed to resolve issue %s/%s#%d: %w", owner, repo, issueNumber, err)
-	}
-
-	return query.Repository.Issue.ID, nil
-}
-
-// resolvePullRequestNodeID resolves a pull request number to its GraphQL node ID
-func resolvePullRequestNodeID(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, prNumber int) (githubv4.ID, error) {
-	var query struct {
-		Repository struct {
-			PullRequest struct {
-				ID githubv4.ID
-			} `graphql:"pullRequest(number: $prNumber)"`
-		} `graphql:"repository(owner: $owner, name: $repo)"`
-	}
-
-	variables := map[string]any{
-		"owner":    githubv4.String(owner),
-		"repo":     githubv4.String(repo),
-		"prNumber": githubv4.Int(int32(prNumber)), //nolint:gosec // PR numbers are small integers
-	}
-
-	err := gqlClient.Query(ctx, &query, variables)
-	if err != nil {
-		return "", fmt.Errorf("failed to resolve pull request %s/%s#%d: %w", owner, repo, prNumber, err)
-	}
-
-	return query.Repository.PullRequest.ID, nil
-}
-
-// local GraphQL types for ProjectV2 Iterations, as they are missing in shurcooL/githubv4
-const ProjectV2CustomFieldTypeIteration githubv4.ProjectV2CustomFieldType = "ITERATION"
-
-type ProjectV2IterationFieldIterationInput struct {
-	Title     githubv4.String `json:"title"`
-	StartDate githubv4.Date   `json:"startDate"`
-	Duration  githubv4.Int    `json:"duration"`
-}
-
-type ProjectV2IterationFieldConfigurationInput struct {
-	Duration   githubv4.Int                             `json:"duration"`
-	StartDate  githubv4.Date                            `json:"startDate"`
-	Iterations *[]ProjectV2IterationFieldIterationInput `json:"iterations,omitempty"`
-}
 
 type UpdateProjectV2FieldInput struct {
+
 	ProjectID              githubv4.ID                                `json:"projectId"`
+
 	FieldID                githubv4.ID                                `json:"fieldId"`
+
 	IterationConfiguration *ProjectV2IterationFieldConfigurationInput `json:"iterationConfiguration,omitempty"`
+
 }
 
-// detectOwnerType attempts to detect the owner type by trying both user and org
-// Returns the detected type ("user" or "org") and any error encountered
-func detectOwnerType(ctx context.Context, client *github.Client, owner string, projectNumber int) (string, error) {
-	// Try user first (more common for personal projects)
-	_, resp, err := client.Projects.GetUserProject(ctx, owner, projectNumber)
-	if err == nil && resp.StatusCode == http.StatusOK {
-		_ = resp.Body.Close()
-		return "user", nil
-	}
-	if resp != nil {
-		_ = resp.Body.Close()
-	}
 
-	// If not found (404) or other error, try org
-	_, resp, err = client.Projects.GetOrganizationProject(ctx, owner, projectNumber)
-	if err == nil && resp.StatusCode == http.StatusOK {
-		_ = resp.Body.Close()
-		return "org", nil
-	}
-	if resp != nil {
-		_ = resp.Body.Close()
-	}
 
-	return "", fmt.Errorf("could not determine owner type for %s with project %d: owner is neither a user nor an org with this project", owner, projectNumber)
+type ProjectV2IterationFieldConfigurationInput struct {
+
+	Duration   githubv4.Int                             `json:"duration"`
+
+	StartDate  githubv4.Date                            `json:"startDate"`
+
+	Iterations *[]ProjectV2IterationFieldIterationInput `json:"iterations"`
+
+}
+
+
+
+type ProjectV2IterationFieldIterationInput struct {
+
+	StartDate githubv4.Date   `json:"startDate"`
+
+	Duration  githubv4.Int    `json:"duration"`
+
+	Title     githubv4.String `json:"title"`
+
 }
