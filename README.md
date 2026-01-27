@@ -266,6 +266,215 @@ the hostname for GitHub Enterprise Server or GitHub Enterprise Cloud with data r
 }
 ```
 
+### HTTP Server Mode
+
+The GitHub MCP Server supports HTTP mode for serving multiple concurrent clients with per-request authentication. This is ideal for enterprise deployments where a centralized MCP server serves multiple users or applications.
+
+#### Starting the HTTP Server
+
+Start the HTTP server with the `http` command:
+
+```bash
+# Start HTTP server on default port (8080)
+github-mcp-server http
+
+# Start HTTP server on custom port
+github-mcp-server http --port 3000
+
+# With Docker
+docker run -p 8080:8080 ghcr.io/github/github-mcp-server http
+
+# With Docker on custom port
+docker run -p 3000:3000 ghcr.io/github/github-mcp-server http --port 3000
+```
+
+> **Note:** Unlike stdio mode, HTTP mode does not require a `GITHUB_PERSONAL_ACCESS_TOKEN` environment variable at startup. Instead, each client provides their token via the `Authorization` header.
+#### Authentication with Authorization Header
+
+Clients authenticate by including their GitHub Personal Access Token in the `Authorization` header of each request:
+
+```
+Authorization: Bearer ghp_your_github_token_here
+```
+
+This "Bring Your Own Token" (BYOT) approach enables:
+- **Multi-tenancy**: Different users can use their own tokens with proper permissions
+- **Security**: Tokens are never stored on the server
+- **Flexibility**: Users can revoke/rotate tokens independently
+
+#### Client Configuration Examples
+
+##### VS Code with GitHub Copilot
+
+Configure VS Code to connect to your HTTP server by adding the following to your VS Code MCP settings (`.vscode/settings.json` or user settings):
+
+```json
+{
+  "servers": {
+    "github-http": {
+      "type": "http",
+      "url": "http://your-mcp-server.example.com:8080",
+      "headers": {
+        "Authorization": "Bearer ${input:github_token}"
+      }
+    }
+  },
+  "inputs": [
+    {
+      "type": "promptString",
+      "id": "github_token",
+      "description": "GitHub Personal Access Token",
+      "password": true
+    }
+  ]
+}
+```
+
+VS Code will prompt for the `github_token` input when connecting.
+
+
+
+> **Security Note:** When using hardcoded tokens in configuration files, ensure proper file permissions (e.g., `chmod 600`) to protect your token.
+##### Other MCP Clients
+
+For other MCP clients that support HTTP transport, ensure they:
+1. Connect to the server's HTTP endpoint (e.g., `http://localhost:8080`)
+2. Include the `Authorization: Bearer <token>` header in all requests
+3. Use the MCP streamable HTTP transport protocol
+
+Example with curl for testing:
+
+```bash
+# Test server health (this should fail without proper MCP request structure)
+curl -H "Authorization: Bearer ghp_your_token" http://localhost:8080
+
+# Proper MCP client implementation required for actual tool calls
+```
+
+#### Docker Deployment
+
+##### Basic HTTP Server
+
+Run the HTTP server in Docker with port mapping:
+
+```bash
+docker run -d \
+  --name github-mcp-http \
+  -p 8080:8080 \
+  ghcr.io/github/github-mcp-server http
+```
+
+##### With Logging
+
+Enable file logging for debugging:
+
+```bash
+docker run -d \
+  --name github-mcp-http \
+  -p 8080:8080 \
+  -v $(pwd)/logs:/logs \
+  ghcr.io/github/github-mcp-server http --log-file /logs/server.log
+```
+
+##### With Custom Configuration
+
+Use additional flags for configuration:
+
+```bash
+docker run -d \
+  --name github-mcp-http \
+  -p 8080:8080 \
+  ghcr.io/github/github-mcp-server http \
+    --port 8080 \
+    --toolsets actions,issues,pull_requests \
+    --read-only \
+    --log-file /var/log/github-mcp.log
+```
+
+##### Production Deployment with Docker Compose
+
+Create a `docker-compose.yml` file:
+
+```yaml
+version: '3.8'
+services:
+  github-mcp-server:
+    image: ghcr.io/github/github-mcp-server
+    command: http --port 8080 --log-file /logs/server.log
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./logs:/logs
+    restart: unless-stopped
+    # Configure health checks at your load balancer or orchestrator level.
+```
+Then start with:
+```bash
+docker-compose up -d
+```
+
+#### GitHub Enterprise Support
+
+HTTP mode works with GitHub Enterprise Server and GitHub Enterprise Cloud with data residency:
+
+```bash
+# GitHub Enterprise Server
+docker run -d \
+  -p 8080:8080 \
+  ghcr.io/github/github-mcp-server http \
+    --gh-host https://github.yourcompany.com \
+    --port 8080
+
+# GitHub Enterprise Cloud with data residency
+docker run -d \
+  -p 8080:8080 \
+  ghcr.io/github/github-mcp-server http \
+    --gh-host https://octocorp.ghe.com \
+    --port 8080
+```
+
+Clients still provide their tokens via the `Authorization` header.
+
+#### Security Considerations
+
+When deploying the HTTP server:
+
+1. **Use HTTPS in Production**: Always use a reverse proxy (nginx, Caddy, etc.) to terminate TLS
+2. **Network Security**: 
+   - Bind to localhost (`127.0.0.1`) for local-only access
+   - Use firewalls to restrict access to trusted networks
+   - Consider VPN or IP allowlisting for remote deployments
+3. **Token Management**:
+   - Tokens are validated per-request and never stored
+   - Use fine-grained tokens with minimum required permissions
+   - Rotate tokens regularly
+4. **Rate Limiting**: Consider adding rate limiting at the reverse proxy level
+5. **Monitoring**: Enable logging to track usage and potential security issues
+
+#### Troubleshooting HTTP Mode
+
+**Server won't start:**
+- Check if port 8080 (or your custom port) is already in use
+- Ensure Docker port mapping is correct (`-p host_port:container_port`)
+
+**Client connection fails:**
+- Verify the server is running: `curl http://localhost:8080` (should return an error but connect)
+- Check firewall rules allow connections to the port
+- Verify the URL in client configuration matches the server address
+
+**Authentication errors:**
+- Ensure the `Authorization` header is properly formatted: `Bearer <token>`
+- Verify the GitHub token is valid and not expired
+- Check token has required permissions for the operations being performed
+
+**Enable debug logging:**
+```bash
+github-mcp-server http --log-file debug.log
+# Or with Docker:
+docker run -p 8080:8080 -v $(pwd):/logs \
+  ghcr.io/github/github-mcp-server http --log-file /logs/debug.log
+```
+
 ## Installation
 
 ### Install in GitHub Copilot on VS Code
