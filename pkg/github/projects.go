@@ -2220,31 +2220,43 @@ func CreateIterationField(t translations.TranslationHelperFunc) inventory.Server
 			}
 
 			createInput := githubv4.CreateProjectV2FieldInput{
+
 				ProjectID: githubv4.ID(projectId),
-				DataType:  githubv4.ProjectV2CustomFieldTypeIteration,
-				Name:      githubv4.String(fieldName),
+
+				DataType: ProjectV2CustomFieldTypeIteration,
+
+				Name: githubv4.String(fieldName),
 			}
 
 			err = gqlClient.Mutate(ctx, &createMutation, createInput, nil)
+
 			if err != nil {
+
 				return utils.NewToolResultError(fmt.Sprintf("failed to create iteration field: %v", err)), nil, nil
+
 			}
 
 			fieldId := createMutation.CreateProjectV2Field.ProjectV2Field.ProjectV2IterationField.ID
 
 			// Step 2: Update Field Configuration
+
 			var updateMutation struct {
 				UpdateProjectV2Field struct {
 					ProjectV2Field struct {
 						ProjectV2IterationField struct {
-							ID            string
-							Name          string
+							ID string
+
+							Name string
+
 							Configuration struct {
 								Iterations []struct {
-									ID        string
-									Title     string
+									ID string
+
+									Title string
+
 									StartDate string
-									Duration  int
+
+									Duration int
 								}
 							}
 						} `graphql:"... on ProjectV2IterationField"`
@@ -2252,44 +2264,69 @@ func CreateIterationField(t translations.TranslationHelperFunc) inventory.Server
 				} `graphql:"updateProjectV2Field(input: $input)"`
 			}
 
-			var iterationsInput []githubv4.ProjectV2IterationFieldIterationInput
+			var iterationsInput []ProjectV2IterationFieldIterationInput
+
 			for _, item := range rawIterations {
+
 				iterMap, ok := item.(map[string]any)
-				if !ok { continue }
-				title, _ := iterMap["title"].(string)
-				sDate, _ := iterMap["startDate"].(string)
-				dur, _ := iterMap["duration"].(float64)
-				
-				parsedSDate, err := time.Parse("2006-01-02", sDate)
-				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("failed to parse iteration startDate %s: %v", sDate, err)), nil, nil
+
+				if !ok {
+					continue
 				}
 
-				iterationsInput = append(iterationsInput, githubv4.ProjectV2IterationFieldIterationInput{
-					Title:     githubv4.String(title),
+				title, _ := iterMap["title"].(string)
+
+				sDate, _ := iterMap["startDate"].(string)
+
+				dur, _ := iterMap["duration"].(float64)
+
+				parsedSDate, err := time.Parse("2006-01-02", sDate)
+
+				if err != nil {
+
+					return utils.NewToolResultError(fmt.Sprintf("failed to parse iteration startDate %s: %v", sDate, err)), nil, nil
+
+				}
+
+				iterationsInput = append(iterationsInput, ProjectV2IterationFieldIterationInput{
+
+					Title: githubv4.String(title),
+
 					StartDate: githubv4.Date{Time: parsedSDate},
-					Duration:  githubv4.Int(dur),
+
+					Duration: githubv4.Int(dur),
 				})
+
 			}
 
 			parsedStartDate, err := time.Parse("2006-01-02", startDateStr)
+
 			if err != nil {
+
 				return utils.NewToolResultError(fmt.Sprintf("failed to parse start_date %s: %v", startDateStr, err)), nil, nil
+
 			}
 
-			configInput := githubv4.ProjectV2IterationFieldConfigurationInput{
-				Duration:  githubv4.Int(duration),
+			configInput := ProjectV2IterationFieldConfigurationInput{
+
+				Duration: githubv4.Int(duration),
+
 				StartDate: githubv4.Date{Time: parsedStartDate},
+
 				Iterations: &iterationsInput,
 			}
 
-			updateInput := githubv4.UpdateProjectV2FieldInput{
+			updateInput := UpdateProjectV2FieldInput{
+
 				ProjectID: githubv4.ID(projectId),
-				FieldID:   githubv4.ID(fieldId),
+
+				FieldID: githubv4.ID(fieldId),
+
 				IterationConfiguration: &configInput,
 			}
 
 			err = gqlClient.Mutate(ctx, &updateMutation, updateInput, nil)
+
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("failed to update iteration configuration: %v", err)), nil, nil
 			}
@@ -2441,6 +2478,27 @@ func resolvePullRequestNodeID(ctx context.Context, gqlClient *githubv4.Client, o
 	}
 
 	return query.Repository.PullRequest.ID, nil
+}
+
+// local GraphQL types for ProjectV2 Iterations, as they are missing in shurcooL/githubv4
+const ProjectV2CustomFieldTypeIteration githubv4.ProjectV2CustomFieldType = "ITERATION"
+
+type ProjectV2IterationFieldIterationInput struct {
+	Title     githubv4.String `json:"title"`
+	StartDate githubv4.Date   `json:"startDate"`
+	Duration  githubv4.Int    `json:"duration"`
+}
+
+type ProjectV2IterationFieldConfigurationInput struct {
+	Duration   githubv4.Int                             `json:"duration"`
+	StartDate  githubv4.Date                            `json:"startDate"`
+	Iterations *[]ProjectV2IterationFieldIterationInput `json:"iterations,omitempty"`
+}
+
+type UpdateProjectV2FieldInput struct {
+	ProjectID              githubv4.ID                                `json:"projectId"`
+	FieldID                githubv4.ID                                `json:"fieldId"`
+	IterationConfiguration *ProjectV2IterationFieldConfigurationInput `json:"iterationConfiguration,omitempty"`
 }
 
 // detectOwnerType attempts to detect the owner type by trying both user and org
