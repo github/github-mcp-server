@@ -1478,21 +1478,21 @@ func listProjects(ctx context.Context, client *github.Client, args map[string]an
 		projects, resp, err = client.Projects.ListOrganizationProjects(ctx, owner, opts)
 		if err != nil {
 			return ghErrors.NewGitHubAPIErrorResponse(ctx,
-				"failed to list projects",
-				resp,
-				err,
-			),
-			nil, nil
+					"failed to list projects",
+					resp,
+					err,
+				),
+				nil, nil
 		}
 	default:
 		projects, resp, err = client.Projects.ListUserProjects(ctx, owner, opts)
 		if err != nil {
 			return ghErrors.NewGitHubAPIErrorResponse(ctx,
-				"failed to list projects",
-				resp,
-				err,
-			),
-			nil, nil
+					"failed to list projects",
+					resp,
+					err,
+				),
+				nil, nil
 		}
 	}
 
@@ -1600,11 +1600,11 @@ func listProjectFields(ctx context.Context, client *github.Client, args map[stri
 
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
-			"failed to list project fields",
-			resp,
-			err,
-		),
-		nil, nil
+				"failed to list project fields",
+				resp,
+				err,
+			),
+			nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -1666,11 +1666,11 @@ func listProjectItems(ctx context.Context, client *github.Client, args map[strin
 
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
-			ProjectListFailedError,
-			resp,
-			err,
-		),
-		nil, nil
+				ProjectListFailedError,
+				resp,
+				err,
+			),
+			nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -1699,11 +1699,11 @@ func getProject(ctx context.Context, client *github.Client, owner, ownerType str
 	}
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
-			"failed to get project",
-			resp,
-			err,
-		),
-		nil, nil
+				"failed to get project",
+				resp,
+				err,
+			),
+			nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -1737,11 +1737,11 @@ func getProjectField(ctx context.Context, client *github.Client, owner, ownerTyp
 
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
-			"failed to get project field",
-			resp,
-			err,
-		),
-		nil, nil
+				"failed to get project field",
+				resp,
+				err,
+			),
+			nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -1780,11 +1780,11 @@ func getProjectItem(ctx context.Context, client *github.Client, owner, ownerType
 
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
-			"failed to get project item",
-			resp,
-			err,
-		),
-		nil, nil
+				"failed to get project item",
+				resp,
+				err,
+			),
+			nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -1821,11 +1821,11 @@ func updateProjectItem(ctx context.Context, client *github.Client, owner, ownerT
 
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
-			ProjectUpdateFailedError,
-			resp,
-			err,
-		),
-		nil, nil
+				ProjectUpdateFailedError,
+				resp,
+				err,
+			),
+			nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -1856,11 +1856,11 @@ func deleteProjectItem(ctx context.Context, client *github.Client, owner, ownerT
 
 	if err != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
-			ProjectDeleteFailedError,
-			resp,
-			err,
-		),
-		nil, nil
+				ProjectDeleteFailedError,
+				resp,
+				err,
+			),
+			nil, nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -2021,7 +2021,7 @@ func buildUpdateProjectItem(input map[string]any) (*github.UpdateProjectItemOpti
 	}
 
 	payload := &github.UpdateProjectItemOptions{
-		Fields: []*github.UpdateProjectV2Field{{ 
+		Fields: []*github.UpdateProjectV2Field{{
 			ID:    fieldID,
 			Value: valueField,
 		}},
@@ -2494,38 +2494,26 @@ func getProjectNodeID(ctx context.Context, client *github.Client, owner, ownerTy
 
 }
 
-
-
 type UpdateProjectV2FieldInput struct {
+	ProjectID githubv4.ID `json:"projectId"`
 
-	ProjectID              githubv4.ID                                `json:"projectId"`
-
-	FieldID                githubv4.ID                                `json:"fieldId"`
+	FieldID githubv4.ID `json:"fieldId"`
 
 	IterationConfiguration *ProjectV2IterationFieldConfigurationInput `json:"iterationConfiguration,omitempty"`
-
 }
-
-
 
 type ProjectV2IterationFieldConfigurationInput struct {
+	Duration githubv4.Int `json:"duration"`
 
-	Duration   githubv4.Int                             `json:"duration"`
-
-	StartDate  githubv4.Date                            `json:"startDate"`
+	StartDate githubv4.Date `json:"startDate"`
 
 	Iterations *[]ProjectV2IterationFieldIterationInput `json:"iterations"`
-
 }
 
-
-
 type ProjectV2IterationFieldIterationInput struct {
+	StartDate githubv4.Date `json:"startDate"`
 
-	StartDate githubv4.Date   `json:"startDate"`
+	Duration githubv4.Int `json:"duration"`
 
-	Duration  githubv4.Int    `json:"duration"`
-
-	Title     githubv4.String `json:"title"`
-
+	Title githubv4.String `json:"title"`
 }

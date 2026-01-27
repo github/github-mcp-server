@@ -11,7 +11,7 @@
         "type": "number"
       },
       "item_id": {
-        "description": "The project item ID. Required for 'update_project_item' and 'delete_project_item' methods. For add_project_item, this is the numeric ID of the issue or pull request to add.",
+        "description": "The project item ID. Required for 'update_project_item' and 'delete_project_item' methods.",
         "type": "number"
       },
       "item_owner": {
