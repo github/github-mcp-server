@@ -10,8 +10,8 @@ import (
 
 // KnownFeatureFlags are the feature flags that can be enabled via X-MCP-Features header.
 var KnownFeatureFlags = []string{
-	github.FeatureFlagConsolidatedProjects,
-	github.FeatureFlagConsolidatedActions,
+	github.FeatureFlagHoldbackConsolidatedProjects,
+	github.FeatureFlagHoldbackConsolidatedActions,
 }
 
 // ComposeFeatureChecker combines header-based feature flags with a static checker.

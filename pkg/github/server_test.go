@@ -87,7 +87,7 @@ func stubRepoAccessCache(client *githubv4.Client, ttl time.Duration) *lockdown.R
 func stubFeatureFlags(enabledFlags map[string]bool) FeatureFlags {
 	return FeatureFlags{
 		LockdownMode: enabledFlags["lockdown-mode"],
-		InsiderMode:  enabledFlags["insider-mode"],
+		InsidersMode: enabledFlags["insiders-mode"],
 	}
 }
 
@@ -121,6 +121,7 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 		Translator:        translations.NullTranslationHelper,
 		ContentWindowSize: 5000,
 		LockdownMode:      false,
+		InsidersMode:      false,
 	}
 
 	deps := stubDeps{}

@@ -54,8 +54,8 @@ type MCPServerConfig struct {
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
 
-	// Insider indicates if we should enable experimental features
-	InsiderMode bool
+	// InsidersMode indicates if we should enable experimental features
+	InsidersMode bool
 
 	// Logger is used for logging within the server
 	Logger *slog.Logger

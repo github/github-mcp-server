@@ -84,7 +84,7 @@ var (
 				LogFilePath:          viper.GetString("log-file"),
 				ContentWindowSize:    viper.GetInt("content-window-size"),
 				LockdownMode:         viper.GetBool("lockdown-mode"),
-				InsiderMode:          viper.GetBool("insider-mode"),
+				InsidersMode:         viper.GetBool("insiders"),
 				RepoAccessCacheTTL:   &ttl,
 			}
 			return ghmcp.RunStdioServer(stdioServerConfig)
@@ -132,7 +132,7 @@ func init() {
 	rootCmd.PersistentFlags().String("gh-host", "", "Specify the GitHub hostname (for GitHub Enterprise etc.)")
 	rootCmd.PersistentFlags().Int("content-window-size", 5000, "Specify the content window size")
 	rootCmd.PersistentFlags().Bool("lockdown-mode", false, "Enable lockdown mode")
-	rootCmd.PersistentFlags().Bool("insider-mode", false, "Enable insider features")
+	rootCmd.PersistentFlags().Bool("insiders", false, "Enable insiders features")
 	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "Override the repo access cache TTL (e.g. 1m, 0s to disable)")
 	rootCmd.PersistentFlags().Int("port", 8082, "HTTP server port")
 
@@ -148,7 +148,7 @@ func init() {
 	_ = viper.BindPFlag("host", rootCmd.PersistentFlags().Lookup("gh-host"))
 	_ = viper.BindPFlag("content-window-size", rootCmd.PersistentFlags().Lookup("content-window-size"))
 	_ = viper.BindPFlag("lockdown-mode", rootCmd.PersistentFlags().Lookup("lockdown-mode"))
-	_ = viper.BindPFlag("insider-mode", rootCmd.PersistentFlags().Lookup("insider-mode"))
+	_ = viper.BindPFlag("insiders", rootCmd.PersistentFlags().Lookup("insiders"))
 	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
 	_ = viper.BindPFlag("port", rootCmd.PersistentFlags().Lookup("port"))
 
