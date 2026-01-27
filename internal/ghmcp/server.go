@@ -15,6 +15,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/transport"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	mcplog "github.com/github/github-mcp-server/pkg/log"
 	"github.com/github/github-mcp-server/pkg/raw"
@@ -111,6 +112,9 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		return nil, fmt.Errorf("failed to create GitHub clients: %w", err)
 	}
 
+	// Create feature checker
+	featureChecker := createFeatureChecker(cfg.EnabledFeatures)
+
 	// Create dependencies for tool handlers
 	deps := github.NewBaseDeps(
 		clients.rest,
@@ -123,7 +127,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 			InsiderMode:  cfg.InsiderMode,
 		},
 		cfg.ContentWindowSize,
-		nil, // featureChecker,
+		featureChecker,
 	)
 	// Build and register the tool/resource/prompt inventory
 	inventoryBuilder := github.NewInventory(cfg.Translator).
@@ -306,6 +310,20 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	}
 
 	return nil
+}
+
+// createFeatureChecker returns a FeatureFlagChecker that checks if a flag name
+// is present in the provided list of enabled features. For the local server,
+// this is populated from the --features CLI flag.
+func createFeatureChecker(enabledFeatures []string) inventory.FeatureFlagChecker {
+	// Build a set for O(1) lookup
+	featureSet := make(map[string]bool, len(enabledFeatures))
+	for _, f := range enabledFeatures {
+		featureSet[f] = true
+	}
+	return func(_ context.Context, flagName string) (bool, error) {
+		return featureSet[flagName], nil
+	}
 }
 
 func addUserAgentsMiddleware(cfg github.MCPServerConfig, restClient *gogithub.Client, gqlHTTPClient *http.Client) func(next mcp.MethodHandler) mcp.MethodHandler {

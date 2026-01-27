@@ -134,20 +134,6 @@ func registerDynamicTools(server *mcp.Server, inventory *inventory.Inventory, de
 	}
 }
 
-// createFeatureChecker returns a FeatureFlagChecker that checks if a flag name
-// is present in the provided list of enabled features. For the local server,
-// this is populated from the --features CLI flag.
-func createFeatureChecker(enabledFeatures []string) inventory.FeatureFlagChecker {
-	// Build a set for O(1) lookup
-	featureSet := make(map[string]bool, len(enabledFeatures))
-	for _, f := range enabledFeatures {
-		featureSet[f] = true
-	}
-	return func(_ context.Context, flagName string) (bool, error) {
-		return featureSet[flagName], nil
-	}
-}
-
 // resolveEnabledToolsets determines which toolsets should be enabled based on config.
 // Returns nil for "use defaults", empty slice for "none", or explicit list.
 func resolveEnabledToolsets(cfg *MCPServerConfig) []string {
