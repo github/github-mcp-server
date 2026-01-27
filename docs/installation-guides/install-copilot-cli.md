@@ -27,7 +27,7 @@ You can configure the GitHub MCP server in Copilot CLI using either the interact
 
 Use the Copilot CLI to interactively add the MCP server:
 
-```
+```bash
 /mcp add
 ```
 
