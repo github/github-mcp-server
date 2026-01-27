@@ -48,79 +48,61 @@ func ProcessResponseAsRingBufferToEnd(httpResp *http.Response, maxJobLogLines in
 	var currentLine strings.Builder
 	lineTruncated := false
 
+	// storeLine saves the current line to the ring buffer and resets state
+	storeLine := func() {
+		line := currentLine.String()
+		if lineTruncated && len(line) > maxDisplayLength {
+			line = line[:maxDisplayLength]
+		}
+		if lineTruncated {
+			line += "... [TRUNCATED]"
+		}
+		lines[writeIndex] = line
+		validLines[writeIndex] = true
+		totalLines++
+		writeIndex = (writeIndex + 1) % maxJobLogLines
+		currentLine.Reset()
+		lineTruncated = false
+	}
+
+	// accumulate adds bytes to currentLine up to maxLineSize, sets lineTruncated if exceeded
+	accumulate := func(data []byte) {
+		if lineTruncated {
+			return
+		}
+		remaining := maxLineSize - currentLine.Len()
+		if remaining <= 0 {
+			lineTruncated = true
+			return
+		}
+		if remaining > len(data) {
+			remaining = len(data)
+		}
+		currentLine.Write(data[:remaining])
+		if currentLine.Len() >= maxLineSize {
+			lineTruncated = true
+		}
+	}
+
 	for {
 		n, err := httpResp.Body.Read(readBuf)
 		if n > 0 {
 			chunk := readBuf[:n]
 			for len(chunk) > 0 {
-				// Find the next newline in the chunk
 				newlineIdx := bytes.IndexByte(chunk, '\n')
-
-				if newlineIdx >= 0 {
-					// Found a newline - complete the current line
-					if !lineTruncated {
-						remaining := maxLineSize - currentLine.Len()
-						if remaining > newlineIdx {
-							remaining = newlineIdx
-						}
-						if remaining > 0 {
-							currentLine.Write(chunk[:remaining])
-						}
-						if currentLine.Len() >= maxLineSize {
-							lineTruncated = true
-						}
-					}
-
-					// Store the completed line
-					line := currentLine.String()
-					if lineTruncated {
-						// Only keep first maxDisplayLength chars for truncated lines
-						if len(line) > maxDisplayLength {
-							line = line[:maxDisplayLength]
-						}
-						line += "... [TRUNCATED]"
-					}
-					lines[writeIndex] = line
-					validLines[writeIndex] = true
-					totalLines++
-					writeIndex = (writeIndex + 1) % maxJobLogLines
-
-					// Reset for next line
-					currentLine.Reset()
-					lineTruncated = false
-					chunk = chunk[newlineIdx+1:]
-				} else {
-					// No newline in remaining chunk - accumulate if not truncated
-					if !lineTruncated {
-						remaining := maxLineSize - currentLine.Len()
-						if remaining > len(chunk) {
-							remaining = len(chunk)
-						}
-						if remaining > 0 {
-							currentLine.Write(chunk[:remaining])
-						}
-						if currentLine.Len() >= maxLineSize {
-							lineTruncated = true
-						}
-					}
+				if newlineIdx < 0 {
+					accumulate(chunk)
 					break
 				}
+				accumulate(chunk[:newlineIdx])
+				storeLine()
+				chunk = chunk[newlineIdx+1:]
 			}
 		}
 
 		if err == io.EOF {
-			// Handle final line without newline
 			if currentLine.Len() > 0 {
-				line := currentLine.String()
-				if lineTruncated {
-					if len(line) > maxDisplayLength {
-						line = line[:maxDisplayLength]
-					}
-					line += "... [TRUNCATED]"
-				}
-				lines[writeIndex] = line
-				validLines[writeIndex] = true
-				totalLines++
+				storeLine()
 			}
 			break
 		}

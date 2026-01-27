@@ -117,6 +117,39 @@ func TestProcessResponseAsRingBufferToEnd(t *testing.T) {
 		assert.NotContains(t, result, "TRUNCATED")
 	})
 
+	t.Run("empty response body", func(t *testing.T) {
+		resp := &http.Response{
+			Body: io.NopCloser(strings.NewReader("")),
+		}
+
+		result, totalLines, respOut, err := ProcessResponseAsRingBufferToEnd(resp, 10)
+		if respOut != nil && respOut.Body != nil {
+			defer respOut.Body.Close()
+		}
+		require.NoError(t, err)
+		assert.Equal(t, 0, totalLines)
+		assert.Equal(t, "", result)
+	})
+
+	t.Run("line at exactly maxLineSize boundary", func(t *testing.T) {
+		// Create a line at exactly maxLineSize (10MB) - should be truncated
+		exactLine := strings.Repeat("z", 10*1024*1024)
+		body := "before\n" + exactLine + "\nafter\n"
+		resp := &http.Response{
+			Body: io.NopCloser(strings.NewReader(body)),
+		}
+
+		result, totalLines, respOut, err := ProcessResponseAsRingBufferToEnd(resp, 10)
+		if respOut != nil && respOut.Body != nil {
+			defer respOut.Body.Close()
+		}
+		require.NoError(t, err)
+		assert.Equal(t, 3, totalLines)
+		assert.Contains(t, result, "before")
+		assert.Contains(t, result, "TRUNCATED")
+		assert.Contains(t, result, "after")
+	})
+
 	t.Run("ring buffer keeps truncated line when in last N", func(t *testing.T) {
 		// Long line followed by only 2 more lines, with ring buffer size 5
 		longLine := strings.Repeat("y", 11*1024*1024)
