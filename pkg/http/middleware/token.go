@@ -50,7 +50,13 @@ func ExtractUserToken(oauthCfg *oauth.Config) func(next http.Handler) http.Handl
 					sendAuthChallenge(w, r, oauthCfg)
 					return
 				}
-				// For other auth errors (bad format, unsupported), return 400
+				// For invalid token format, behavior depends on ValidateTokenFormat config:
+				// - When true: return 401 with WWW-Authenticate header (local server validates)
+				// - When false: return 400 Bad Request (CAPI/remote validates)
+				if oauthCfg != nil && oauthCfg.ValidateTokenFormat {
+					sendAuthChallenge(w, r, oauthCfg)
+					return
+				}
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}

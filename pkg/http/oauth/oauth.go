@@ -51,6 +51,12 @@ type Config struct {
 	// ResourcePath is the resource path suffix (e.g., "/mcp").
 	// If empty, defaults to "/"
 	ResourcePath string
+
+	// ValidateTokenFormat controls whether the token extraction middleware validates
+	// the token format and returns a 401 with WWW-Authenticate header for invalid tokens.
+	// When false (default), invalid tokens pass through for validation elsewhere (e.g., CAPI).
+	// When true, invalid tokens receive a 401 response with OAuth challenge headers.
+	ValidateTokenFormat bool
 }
 
 // ProtectedResourceData contains the data needed to build an OAuth protected resource response.
