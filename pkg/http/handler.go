@@ -91,11 +91,17 @@ func NewHTTPMcpHandler(
 func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Use(middleware.WithRequestConfig)
 
+	// Base routes
 	r.Mount("/", h)
-	// Mount readonly and toolset routes
-	r.With(withToolset).Mount("/x/{toolset}", h)
-	r.With(withReadonly, withToolset).Mount("/x/{toolset}/readonly", h)
 	r.With(withReadonly).Mount("/readonly", h)
+	r.With(withInsiders).Mount("/insiders", h)
+	r.With(withReadonly, withInsiders).Mount("/readonly/insiders", h)
+
+	// Toolset routes
+	r.With(withToolset).Mount("/x/{toolset}", h)
+	r.With(withToolset, withReadonly).Mount("/x/{toolset}/readonly", h)
+	r.With(withToolset, withInsiders).Mount("/x/{toolset}/insiders", h)
+	r.With(withToolset, withReadonly, withInsiders).Mount("/x/{toolset}/readonly/insiders", h)
 }
 
 // withReadonly is middleware that sets readonly mode in the request context
@@ -111,6 +117,14 @@ func withToolset(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		toolset := chi.URLParam(r, "toolset")
 		ctx := ghcontext.WithToolsets(r.Context(), []string{toolset})
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// withInsiders is middleware that sets insiders mode in the request context
+func withInsiders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := ghcontext.WithInsidersMode(r.Context(), true)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
