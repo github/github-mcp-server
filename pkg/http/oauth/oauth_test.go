@@ -185,30 +185,23 @@ func TestGetEffectiveResourcePath(t *testing.T) {
 		expectedPath string
 	}{
 		{
-			name: "root path",
+			name: "root path restores /mcp prefix",
 			setupRequest: func() *http.Request {
 				return httptest.NewRequest(http.MethodGet, "/", nil)
-			},
-			expectedPath: "/",
-		},
-		{
-			name: "mcp path",
-			setupRequest: func() *http.Request {
-				return httptest.NewRequest(http.MethodGet, "/mcp", nil)
 			},
 			expectedPath: "/mcp",
 		},
 		{
-			name: "readonly path",
+			name: "non-root path adds /mcp prefix",
 			setupRequest: func() *http.Request {
 				return httptest.NewRequest(http.MethodGet, "/readonly", nil)
 			},
-			expectedPath: "/readonly",
+			expectedPath: "/mcp/readonly",
 		},
 		{
-			name: "nested path",
+			name: "nested path adds /mcp prefix",
 			setupRequest: func() *http.Request {
-				return httptest.NewRequest(http.MethodGet, "/mcp/x/repos", nil)
+				return httptest.NewRequest(http.MethodGet, "/x/repos", nil)
 			},
 			expectedPath: "/mcp/x/repos",
 		},

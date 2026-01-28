@@ -132,10 +132,13 @@ func (h *AuthHandler) routesForPattern(pattern string) []string {
 }
 
 // GetEffectiveResourcePath returns the resource path for OAuth protected resource URLs.
-// It uses the request's URL path directly. For deployments where a prefix like /mcp
-// is stripped by a proxy, the proxy should set the BaseURL config appropriately.
+// Since proxies may strip the /mcp prefix before forwarding requests, this function
+// restores the prefix for the external-facing URL.
 func GetEffectiveResourcePath(r *http.Request) string {
-	return r.URL.Path
+	if r.URL.Path == "/" {
+		return "/mcp"
+	}
+	return "/mcp" + r.URL.Path
 }
 
 // GetProtectedResourceData builds the OAuth protected resource data for a request.
