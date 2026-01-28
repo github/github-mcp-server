@@ -2,6 +2,16 @@
 
 > This file follows the [agents.md](https://agents.md) convention for AI agent instructions.
 
+## AI Disclosure Requirement
+
+> **If you are using AI assistance to contribute to this repository, you must disclose it in the pull request or issue body.**
+
+Include a brief statement like:
+- "This PR was written with assistance from [agent name]."
+- "I used [tool] to help generate this code."
+
+This helps maintainers understand the context and apply appropriate review scrutiny.
+
 ## Project Overview
 
 This is the **GitHub MCP Server**, a Model Context Protocol (MCP) server that connects AI tools to GitHub's platform. It enables AI agents to manage repositories, issues, pull requests, workflows, and more through natural language.
