@@ -96,7 +96,7 @@ var (
 		Short: "Start HTTP server",
 		Long:  `Start an HTTP server that listens for MCP requests over HTTP.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			httpConfig := ghhttp.HTTPServerConfig{
+			httpConfig := ghhttp.ServerConfig{
 				Version:              version,
 				Host:                 viper.GetString("host"),
 				Port:                 viper.GetInt("port"),
