@@ -1319,6 +1319,7 @@ type PullRequestReviewWriteParams struct {
 	Body       string
 	Event      string
 	CommitID   *string
+	ThreadID   string
 }
 
 func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
