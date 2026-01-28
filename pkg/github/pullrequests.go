@@ -1409,6 +1409,12 @@ Available methods:
 			case "delete_pending":
 				result, err := DeletePendingPullRequestReview(ctx, client, params)
 				return result, nil, err
+			case "resolve_thread":
+				result, err := ResolveReviewThread(ctx, client, params.ThreadID, true)
+				return result, nil, err
+			case "unresolve_thread":
+				result, err := ResolveReviewThread(ctx, client, params.ThreadID, false)
+				return result, nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
 			}
