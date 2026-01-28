@@ -1332,7 +1332,7 @@ func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.Serv
 			"method": {
 				Type:        "string",
 				Description: `The write operation to perform on pull request review.`,
-				Enum:        []any{"create", "submit_pending", "delete_pending"},
+				Enum:        []any{"create", "submit_pending", "delete_pending", "resolve_thread", "unresolve_thread"},
 			},
 			"owner": {
 				Type:        "string",
@@ -1359,6 +1359,10 @@ func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.Serv
 				Type:        "string",
 				Description: "SHA of commit to review",
 			},
+			"threadId": {
+				Type:        "string",
+				Description: "The node ID of the review thread (e.g., PRRT_kwDOxxx). Required for resolve_thread and unresolve_thread methods. Get thread IDs from pull_request_read with method get_review_comments.",
+			},
 		},
 		Required: []string{"method", "owner", "repo", "pullNumber"},
 	}
@@ -1373,6 +1377,8 @@ Available methods:
 - create: Create a new review of a pull request. If "event" parameter is provided, the review is submitted. If "event" is omitted, a pending review is created.
 - submit_pending: Submit an existing pending review of a pull request. This requires that a pending review exists for the current user on the specified pull request. The "body" and "event" parameters are used when submitting the review.
 - delete_pending: Delete an existing pending review of a pull request. This requires that a pending review exists for the current user on the specified pull request.
+- resolve_thread: Resolve a review thread. Requires "threadId" parameter with the thread's node ID (e.g., PRRT_kwDOxxx).
+- unresolve_thread: Unresolve a previously resolved review thread. Requires "threadId" parameter.
 `),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_PULL_REQUEST_REVIEW_WRITE_USER_TITLE", "Write operations (create, submit, delete) on pull request reviews."),
