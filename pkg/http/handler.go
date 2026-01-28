@@ -9,6 +9,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/github/github-mcp-server/pkg/http/middleware"
+	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/go-chi/chi/v5"
@@ -26,11 +27,13 @@ type Handler struct {
 	t                      translations.TranslationHelperFunc
 	githubMcpServerFactory GitHubMCPServerFactoryFunc
 	inventoryFactoryFunc   InventoryFactoryFunc
+	oauthCfg               *oauth.Config
 }
 
 type HandlerOptions struct {
 	GitHubMcpServerFactory GitHubMCPServerFactoryFunc
 	InventoryFactory       InventoryFactoryFunc
+	OAuthConfig            *oauth.Config
 }
 
 type HandlerOption func(*HandlerOptions)
@@ -44,6 +47,12 @@ func WithGitHubMCPServerFactory(f GitHubMCPServerFactoryFunc) HandlerOption {
 func WithInventoryFactory(f InventoryFactoryFunc) HandlerOption {
 	return func(o *HandlerOptions) {
 		o.InventoryFactory = f
+	}
+}
+
+func WithOAuthConfig(cfg *oauth.Config) HandlerOption {
+	return func(o *HandlerOptions) {
+		o.OAuthConfig = cfg
 	}
 }
 
@@ -77,6 +86,7 @@ func NewHTTPMcpHandler(
 		t:                      t,
 		githubMcpServerFactory: githubMcpServerFactory,
 		inventoryFactoryFunc:   inventoryFactory,
+		oauthCfg:               opts.OAuthConfig,
 	}
 }
 
@@ -134,7 +144,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Stateless: true,
 	})
 
-	middleware.ExtractUserToken()(mcpHandler).ServeHTTP(w, r)
+	middleware.ExtractUserToken(h.oauthCfg)(mcpHandler).ServeHTTP(w, r)
 }
 
 func DefaultGitHubMCPServerFactory(r *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error) {
