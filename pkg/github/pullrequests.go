@@ -1638,6 +1638,60 @@ func DeletePendingPullRequestReview(ctx context.Context, client *githubv4.Client
 	return utils.NewToolResultText("pending pull request review successfully deleted"), nil
 }
 
+// ResolveReviewThread resolves or unresolves a PR review thread using GraphQL mutations.
+func ResolveReviewThread(ctx context.Context, client *githubv4.Client, threadID string, resolve bool) (*mcp.CallToolResult, error) {
+	if threadID == "" {
+		return utils.NewToolResultError("threadId is required for resolve_thread and unresolve_thread methods"), nil
+	}
+
+	if resolve {
+		var mutation struct {
+			ResolveReviewThread struct {
+				Thread struct {
+					ID         githubv4.ID
+					IsResolved githubv4.Boolean
+				}
+			} `graphql:"resolveReviewThread(input: $input)"`
+		}
+
+		input := githubv4.ResolveReviewThreadInput{
+			ThreadID: githubv4.ID(threadID),
+		}
+
+		if err := client.Mutate(ctx, &mutation, input, nil); err != nil {
+			return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+				"failed to resolve review thread",
+				err,
+			), nil
+		}
+
+		return utils.NewToolResultText("review thread resolved successfully"), nil
+	}
+
+	// Unresolve
+	var mutation struct {
+		UnresolveReviewThread struct {
+			Thread struct {
+				ID         githubv4.ID
+				IsResolved githubv4.Boolean
+			}
+		} `graphql:"unresolveReviewThread(input: $input)"`
+	}
+
+	input := githubv4.UnresolveReviewThreadInput{
+		ThreadID: githubv4.ID(threadID),
+	}
+
+	if err := client.Mutate(ctx, &mutation, input, nil); err != nil {
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+			"failed to unresolve review thread",
+			err,
+		), nil
+	}
+
+	return utils.NewToolResultText("review thread unresolved successfully"), nil
+}
+
 // AddCommentToPendingReview creates a tool to add a comment to a pull request review.
 func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
