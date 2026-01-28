@@ -1,10 +1,12 @@
-package github
+package transport
 
 import (
 	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,7 +70,7 @@ func TestGraphQLFeaturesTransport(t *testing.T) {
 			// Create a request
 			ctx := context.Background()
 			if tc.features != nil {
-				ctx = withGraphQLFeatures(ctx, tc.features...)
+				ctx = ghcontext.WithGraphQLFeatures(ctx, tc.features...)
 			}
 
 			req, err := http.NewRequestWithContext(ctx, http.MethodPost, server.URL, nil)
@@ -106,7 +108,7 @@ func TestGraphQLFeaturesTransport_NilTransport(t *testing.T) {
 	}
 
 	// Create a request with features
-	ctx := withGraphQLFeatures(context.Background(), "test_feature")
+	ctx := ghcontext.WithGraphQLFeatures(context.Background(), "test_feature")
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, server.URL, nil)
 	require.NoError(t, err)
 
@@ -134,7 +136,7 @@ func TestGraphQLFeaturesTransport_DoesNotMutateOriginalRequest(t *testing.T) {
 	}
 
 	// Create a request with features
-	ctx := withGraphQLFeatures(context.Background(), "test_feature")
+	ctx := ghcontext.WithGraphQLFeatures(context.Background(), "test_feature")
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, server.URL, nil)
 	require.NoError(t, err)
 
