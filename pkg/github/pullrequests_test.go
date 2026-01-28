@@ -709,6 +709,18 @@ func Test_MergePullRequest(t *testing.T) {
 		SHA:     github.Ptr("abcd1234efgh5678"),
 	}
 
+	// Setup mock files - no workflow files
+	mockNonWorkflowFiles := []*github.CommitFile{
+		{Filename: github.Ptr("src/main.go")},
+		{Filename: github.Ptr("README.md")},
+	}
+
+	// Setup mock files - with workflow files
+	mockWorkflowFiles := []*github.CommitFile{
+		{Filename: github.Ptr("src/main.go")},
+		{Filename: github.Ptr(".github/workflows/ci.yml")},
+	}
+
 	tests := []struct {
 		name                string
 		mockedClient        *http.Client
@@ -720,6 +732,7 @@ func Test_MergePullRequest(t *testing.T) {
 		{
 			name: "successful merge",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsFilesByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockNonWorkflowFiles),
 				PutReposPullsMergeByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]interface{}{
 					"commit_title":   "Merge PR #42",
 					"commit_message": "Merging awesome feature",
@@ -742,6 +755,7 @@ func Test_MergePullRequest(t *testing.T) {
 		{
 			name: "merge fails",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsFilesByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockNonWorkflowFiles),
 				PutReposPullsMergeByOwnerByRepoByPullNumber: func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusMethodNotAllowed)
 					_, _ = w.Write([]byte(`{"message": "Pull request cannot be merged"}`))
@@ -754,6 +768,36 @@ func Test_MergePullRequest(t *testing.T) {
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to merge pull request",
+		},
+		{
+			name: "merge blocked by workflow files",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsFilesByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockWorkflowFiles),
+			}),
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:    true,
+			expectedErrMsg: "workflow",
+		},
+		{
+			name: "merge with .github but not workflows directory proceeds",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsFilesByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, []*github.CommitFile{
+					{Filename: github.Ptr(".github/CODEOWNERS")},
+					{Filename: github.Ptr(".github/pull_request_template.md")},
+				}),
+				PutReposPullsMergeByOwnerByRepoByPullNumber: mockResponse(t, http.StatusOK, mockMergeResult),
+			}),
+			requestArgs: map[string]interface{}{
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			expectError:         false,
+			expectedMergeResult: mockMergeResult,
 		},
 	}
 
