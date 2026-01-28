@@ -45,5 +45,5 @@ jobs:
         run: |
           echo "Go version: $(go version)"
           echo "goimports: $(which goimports)"
-          echo "MCP Inspector: $(npx @modelcontextprotocol/inspector@0.7.0 --version)"
+          echo "MCP Inspector: $(which mcp-inspector || echo 'installed via npx')"
           echo "Server binary: $(ls -la github-mcp-server)"
