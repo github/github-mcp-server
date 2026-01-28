@@ -8,15 +8,25 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 	"time"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
 )
+
+// knownFeatureFlags are the feature flags that can be enabled via X-MCP-Features header.
+// Only these flags are accepted from headers.
+var knownFeatureFlags = []string{
+	github.FeatureFlagHoldbackConsolidatedProjects,
+	github.FeatureFlagHoldbackConsolidatedActions,
+}
 
 type ServerConfig struct {
 	// Version of the server
@@ -83,7 +93,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 		repoAccessOpts = append(repoAccessOpts, lockdown.WithTTL(*cfg.RepoAccessCacheTTL))
 	}
 
-	featureChecker := CreateHTTPFeatureChecker(nil)
+	featureChecker := createHTTPFeatureChecker()
 
 	deps := github.NewRequestDeps(
 		apiHost,
@@ -97,7 +107,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 
 	r := chi.NewRouter()
 
-	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger, WithHandlerFeatureChecker(featureChecker))
+	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger, WithFeatureChecker(featureChecker))
 	handler.RegisterRoutes(r)
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
@@ -129,4 +139,21 @@ func RunHTTPServer(cfg ServerConfig) error {
 
 	logger.Info("server stopped gracefully")
 	return nil
+}
+
+// createHTTPFeatureChecker creates a feature checker that reads header features from context
+// and validates them against the knownFeatureFlags whitelist
+func createHTTPFeatureChecker() inventory.FeatureFlagChecker {
+	// Pre-compute whitelist as set for O(1) lookup
+	knownSet := make(map[string]bool, len(knownFeatureFlags))
+	for _, f := range knownFeatureFlags {
+		knownSet[f] = true
+	}
+
+	return func(ctx context.Context, flag string) (bool, error) {
+		if knownSet[flag] && slices.Contains(ghcontext.GetHeaderFeatures(ctx), flag) {
+			return true, nil
+		}
+		return false, nil
+	}
 }

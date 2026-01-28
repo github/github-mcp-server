@@ -47,7 +47,7 @@ func WithInventoryFactory(f InventoryFactoryFunc) HandlerOption {
 	}
 }
 
-func WithHandlerFeatureChecker(checker inventory.FeatureFlagChecker) HandlerOption {
+func WithFeatureChecker(checker inventory.FeatureFlagChecker) HandlerOption {
 	return func(o *HandlerOptions) {
 		o.FeatureChecker = checker
 	}
