@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/mcpresult"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -339,7 +339,7 @@ func Test_GetFileContents(t *testing.T) {
 				"ref":   "refs/heads/main",
 			},
 			expectError:    false,
-			expectedResult: utils.NewToolResultError("Failed to get file contents. The path does not point to a file or directory, or the file does not exist in the repository."),
+			expectedResult: mcpresult.NewError("Failed to get file contents. The path does not point to a file or directory, or the file does not exist in the repository."),
 		},
 	}
 

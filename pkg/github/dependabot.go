@@ -9,9 +9,9 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/mcpresult"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -50,20 +50,20 @@ func GetDependabotAlert(t translations.TranslationHelperFunc) inventory.ServerTo
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			alertNumber, err := RequiredInt(args, "alertNumber")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, err
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, err
 			}
 
 			alert, resp, err := client.Dependabot.GetRepoAlert(ctx, owner, repo, alertNumber)
@@ -79,17 +79,17 @@ func GetDependabotAlert(t translations.TranslationHelperFunc) inventory.ServerTo
 			if resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, err
+					return mcpresult.NewErrorFromErr("failed to read response body", err), nil, err
 				}
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get alert", resp, body), nil, nil
 			}
 
 			r, err := json.Marshal(alert)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal alert", err), nil, err
+				return mcpresult.NewErrorFromErr("failed to marshal alert", err), nil, err
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -134,24 +134,24 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			state, err := OptionalParam[string](args, "state")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			severity, err := OptionalParam[string](args, "severity")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, err
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, err
 			}
 
 			alerts, resp, err := client.Dependabot.ListRepoAlerts(ctx, owner, repo, &github.ListAlertsOptions{
@@ -170,17 +170,17 @@ func ListDependabotAlerts(t translations.TranslationHelperFunc) inventory.Server
 			if resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, err
+					return mcpresult.NewErrorFromErr("failed to read response body", err), nil, err
 				}
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list alerts", resp, body), nil, nil
 			}
 
 			r, err := json.Marshal(alerts)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal alerts", err), nil, err
+				return mcpresult.NewErrorFromErr("failed to marshal alerts", err), nil, err
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }

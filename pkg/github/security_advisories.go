@@ -9,9 +9,9 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/mcpresult"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -93,57 +93,57 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventor
 
 			ghsaID, err := OptionalParam[string](args, "ghsaId")
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid ghsaId: %v", err)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("invalid ghsaId: %v", err)), nil, nil
 			}
 
 			typ, err := OptionalParam[string](args, "type")
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid type: %v", err)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("invalid type: %v", err)), nil, nil
 			}
 
 			cveID, err := OptionalParam[string](args, "cveId")
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid cveId: %v", err)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("invalid cveId: %v", err)), nil, nil
 			}
 
 			eco, err := OptionalParam[string](args, "ecosystem")
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid ecosystem: %v", err)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("invalid ecosystem: %v", err)), nil, nil
 			}
 
 			sev, err := OptionalParam[string](args, "severity")
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid severity: %v", err)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("invalid severity: %v", err)), nil, nil
 			}
 
 			cwes, err := OptionalStringArrayParam(args, "cwes")
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid cwes: %v", err)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("invalid cwes: %v", err)), nil, nil
 			}
 
 			isWithdrawn, err := OptionalParam[bool](args, "isWithdrawn")
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid isWithdrawn: %v", err)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("invalid isWithdrawn: %v", err)), nil, nil
 			}
 
 			affects, err := OptionalParam[string](args, "affects")
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid affects: %v", err)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("invalid affects: %v", err)), nil, nil
 			}
 
 			published, err := OptionalParam[string](args, "published")
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid published: %v", err)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("invalid published: %v", err)), nil, nil
 			}
 
 			updated, err := OptionalParam[string](args, "updated")
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid updated: %v", err)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("invalid updated: %v", err)), nil, nil
 			}
 
 			modified, err := OptionalParam[string](args, "modified")
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid modified: %v", err)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("invalid modified: %v", err)), nil, nil
 			}
 
 			opts := &github.ListGlobalSecurityAdvisoriesOptions{}
@@ -203,7 +203,7 @@ func ListGlobalSecurityAdvisories(t translations.TranslationHelperFunc) inventor
 				return nil, nil, fmt.Errorf("failed to marshal advisories: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -252,24 +252,24 @@ func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inve
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			direction, err := OptionalParam[string](args, "direction")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			sortField, err := OptionalParam[string](args, "sort")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			state, err := OptionalParam[string](args, "state")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -307,7 +307,7 @@ func ListRepositorySecurityAdvisories(t translations.TranslationHelperFunc) inve
 				return nil, nil, fmt.Errorf("failed to marshal advisories: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -342,7 +342,7 @@ func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.S
 
 			ghsaID, err := RequiredParam[string](args, "ghsaId")
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("invalid ghsaId: %v", err)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("invalid ghsaId: %v", err)), nil, nil
 			}
 
 			advisory, resp, err := client.SecurityAdvisories.GetGlobalSecurityAdvisories(ctx, ghsaID)
@@ -364,7 +364,7 @@ func GetGlobalSecurityAdvisory(t translations.TranslationHelperFunc) inventory.S
 				return nil, nil, fmt.Errorf("failed to marshal advisory: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }
@@ -409,19 +409,19 @@ func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) i
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			org, err := RequiredParam[string](args, "org")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			direction, err := OptionalParam[string](args, "direction")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			sortField, err := OptionalParam[string](args, "sort")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			state, err := OptionalParam[string](args, "state")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -459,7 +459,7 @@ func ListOrgRepositorySecurityAdvisories(t translations.TranslationHelperFunc) i
 				return nil, nil, fmt.Errorf("failed to marshal advisories: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }

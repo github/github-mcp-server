@@ -1,49 +1,27 @@
-package utils //nolint:revive //TODO: figure out a better name for this package
+// Package utils is deprecated: use pkg/mcpresult instead
+package utils //nolint:revive // vague package name
 
-import "github.com/modelcontextprotocol/go-sdk/mcp"
+import (
+	"github.com/github/github-mcp-server/pkg/mcpresult"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+)
 
+// Deprecated: use [mcpresult.NewText] instead.
 func NewToolResultText(message string) *mcp.CallToolResult {
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{
-				Text: message,
-			},
-		},
-	}
+	return mcpresult.NewText(message)
 }
 
+// Deprecated: use [mcpresult.NewError] instead.
 func NewToolResultError(message string) *mcp.CallToolResult {
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{
-				Text: message,
-			},
-		},
-		IsError: true,
-	}
+	return mcpresult.NewError(message)
 }
 
+// Deprecated: use [mcpresult.NewErrorFromErr] instead.
 func NewToolResultErrorFromErr(message string, err error) *mcp.CallToolResult {
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{
-				Text: message + ": " + err.Error(),
-			},
-		},
-		IsError: true,
-	}
+	return mcpresult.NewErrorFromErr(message, err)
 }
 
+// Deprecated: use [mcpresult.NewResource] instead.
 func NewToolResultResource(message string, contents *mcp.ResourceContents) *mcp.CallToolResult {
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{
-				Text: message,
-			},
-			&mcp.EmbeddedResource{
-				Resource: contents,
-			},
-		},
-		IsError: false,
-	}
+	return mcpresult.NewResource(message, contents)
 }

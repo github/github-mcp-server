@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/mcpresult"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -166,11 +166,11 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := OptionalParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			// when not provided, default to the .github repository
 			// this will query discussions at the organisation level
@@ -180,17 +180,17 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 			category, err := OptionalParam[string](args, "category")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			orderBy, err := OptionalParam[string](args, "orderBy")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			direction, err := OptionalParam[string](args, "direction")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Get pagination parameters and convert to GraphQL format
@@ -205,7 +205,7 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
 
 			var categoryID *githubv4.ID
@@ -239,7 +239,7 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 			discussionQuery := getQueryType(useOrdering, categoryID)
 			if err := client.Query(ctx, discussionQuery, vars); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Extract and convert all discussion nodes using the common interface
@@ -271,7 +271,7 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal discussions: %w", err)
 			}
-			return utils.NewToolResultText(string(out)), nil, nil
+			return mcpresult.NewText(string(out)), nil, nil
 		},
 	)
 }
@@ -314,11 +314,11 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 				DiscussionNumber int32
 			}
 			if err := mapstructure.Decode(args, &params); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
 
 			var q struct {
@@ -344,7 +344,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 				"discussionNumber": githubv4.Int(params.DiscussionNumber),
 			}
 			if err := client.Query(ctx, &q, vars); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			d := q.Repository.Discussion
 
@@ -375,7 +375,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal discussion: %w", err)
 			}
 
-			return utils.NewToolResultText(string(out)), nil, nil
+			return mcpresult.NewText(string(out)), nil, nil
 		},
 	)
 }
@@ -418,7 +418,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 				DiscussionNumber int32
 			}
 			if err := mapstructure.Decode(args, &params); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Get pagination parameters and convert to GraphQL format
@@ -444,7 +444,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 
 			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
 
 			var q struct {
@@ -477,7 +477,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 				vars["after"] = (*githubv4.String)(nil)
 			}
 			if err := client.Query(ctx, &q, vars); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			var comments []*github.IssueComment
@@ -502,7 +502,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 				return nil, nil, fmt.Errorf("failed to marshal comments: %w", err)
 			}
 
-			return utils.NewToolResultText(string(out)), nil, nil
+			return mcpresult.NewText(string(out)), nil, nil
 		},
 	)
 }
@@ -536,11 +536,11 @@ func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.Se
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := OptionalParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			// when not provided, default to the .github repository
 			// this will query discussion categories at the organisation level
@@ -550,7 +550,7 @@ func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.Se
 
 			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
 
 			var q struct {
@@ -576,7 +576,7 @@ func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.Se
 				"first": githubv4.Int(25),
 			}
 			if err := client.Query(ctx, &q, vars); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			var categories []map[string]string
@@ -603,7 +603,7 @@ func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.Se
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal discussion categories: %w", err)
 			}
-			return utils.NewToolResultText(string(out)), nil, nil
+			return mcpresult.NewText(string(out)), nil, nil
 		},
 	)
 }

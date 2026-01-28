@@ -16,11 +16,11 @@ import (
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
+	"github.com/github/github-mcp-server/pkg/mcpresult"
 	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 )
 
 // PullRequestRead creates a tool to get details of a specific pull request.
@@ -74,29 +74,29 @@ Possible options:
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			pullNumber, err := RequiredInt(args, "pullNumber")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			switch method {
@@ -115,11 +115,11 @@ Possible options:
 			case "get_review_comments":
 				gqlClient, err := deps.GetGQLClient(ctx)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
+					return mcpresult.NewErrorFromErr("failed to get GitHub GQL client", err), nil, nil
 				}
 				cursorPagination, err := OptionalCursorPaginationParams(args)
 				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+					return mcpresult.NewError(err.Error()), nil, nil
 				}
 				result, err := GetPullRequestReviewComments(ctx, gqlClient, deps.GetRepoAccessCache(), owner, repo, pullNumber, cursorPagination, deps.GetFlags())
 				return result, nil, err
@@ -130,7 +130,7 @@ Possible options:
 				result, err := GetIssueComments(ctx, client, deps.GetRepoAccessCache(), owner, repo, pullNumber, pagination, deps.GetFlags())
 				return result, nil, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		})
 }
@@ -176,7 +176,7 @@ func GetPullRequest(ctx context.Context, client *github.Client, cache *lockdown.
 			}
 
 			if !isSafeContent {
-				return utils.NewToolResultError("access to pull request is restricted by lockdown mode"), nil
+				return mcpresult.NewError("access to pull request is restricted by lockdown mode"), nil
 			}
 		}
 	}
@@ -186,7 +186,7 @@ func GetPullRequest(ctx context.Context, client *github.Client, cache *lockdown.
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return mcpresult.NewText(string(r)), nil
 }
 
 func GetPullRequestDiff(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
@@ -216,7 +216,7 @@ func GetPullRequestDiff(ctx context.Context, client *github.Client, owner, repo 
 	defer func() { _ = resp.Body.Close() }()
 
 	// Return the raw response
-	return utils.NewToolResultText(string(raw)), nil
+	return mcpresult.NewText(string(raw)), nil
 }
 
 func GetPullRequestStatus(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
@@ -262,7 +262,7 @@ func GetPullRequestStatus(ctx context.Context, client *github.Client, owner, rep
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return mcpresult.NewText(string(r)), nil
 }
 
 func GetPullRequestFiles(ctx context.Context, client *github.Client, owner, repo string, pullNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
@@ -293,7 +293,7 @@ func GetPullRequestFiles(ctx context.Context, client *github.Client, owner, repo
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return mcpresult.NewText(string(r)), nil
 }
 
 // GraphQL types for review threads query
@@ -344,7 +344,7 @@ func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 	// Convert pagination parameters to GraphQL format
 	gqlParams, err := pagination.ToGraphQLParams()
 	if err != nil {
-		return utils.NewToolResultError(fmt.Sprintf("invalid pagination parameters: %v", err)), nil
+		return mcpresult.NewError(fmt.Sprintf("invalid pagination parameters: %v", err)), nil
 	}
 
 	// Build variables for GraphQL query
@@ -418,7 +418,7 @@ func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return mcpresult.NewText(string(r)), nil
 }
 
 func GetPullRequestReviews(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner, repo string, pullNumber int, ff FeatureFlags) (*mcp.CallToolResult, error) {
@@ -465,7 +465,7 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, cache *lo
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return mcpresult.NewText(string(r)), nil
 }
 
 // CreatePullRequest creates a tool to create a new pull request.
@@ -524,38 +524,38 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			title, err := RequiredParam[string](args, "title")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			head, err := RequiredParam[string](args, "head")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			base, err := RequiredParam[string](args, "base")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			body, err := OptionalParam[string](args, "body")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			draft, err := OptionalParam[bool](args, "draft")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			maintainerCanModify, err := OptionalParam[bool](args, "maintainer_can_modify")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			newPR := &github.NewPullRequest{
@@ -573,7 +573,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 			pr, resp, err := client.PullRequests.Create(ctx, owner, repo, newPR)
 			if err != nil {
@@ -588,7 +588,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			if resp.StatusCode != http.StatusCreated {
 				bodyBytes, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					return mcpresult.NewErrorFromErr("failed to read response body", err), nil, nil
 				}
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create pull request", resp, bodyBytes), nil, nil
 			}
@@ -601,10 +601,10 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 
 			r, err := json.Marshal(minimalResponse)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		})
 }
 
@@ -676,15 +676,15 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			pullNumber, err := RequiredInt(args, "pullNumber")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			_, draftProvided := args["draft"]
@@ -692,7 +692,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			if draftProvided {
 				draftValue, err = OptionalParam[bool](args, "draft")
 				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+					return mcpresult.NewError(err.Error()), nil, nil
 				}
 			}
 
@@ -700,35 +700,35 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			restUpdateNeeded := false
 
 			if title, ok, err := OptionalParamOK[string](args, "title"); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			} else if ok {
 				update.Title = github.Ptr(title)
 				restUpdateNeeded = true
 			}
 
 			if body, ok, err := OptionalParamOK[string](args, "body"); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			} else if ok {
 				update.Body = github.Ptr(body)
 				restUpdateNeeded = true
 			}
 
 			if state, ok, err := OptionalParamOK[string](args, "state"); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			} else if ok {
 				update.State = github.Ptr(state)
 				restUpdateNeeded = true
 			}
 
 			if base, ok, err := OptionalParamOK[string](args, "base"); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			} else if ok {
 				update.Base = &github.PullRequestBranch{Ref: github.Ptr(base)}
 				restUpdateNeeded = true
 			}
 
 			if maintainerCanModify, ok, err := OptionalParamOK[bool](args, "maintainer_can_modify"); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			} else if ok {
 				update.MaintainerCanModify = github.Ptr(maintainerCanModify)
 				restUpdateNeeded = true
@@ -737,19 +737,19 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			// Handle reviewers separately
 			reviewers, err := OptionalStringArrayParam(args, "reviewers")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// If no updates, no draft change, and no reviewers, return error early
 			if !restUpdateNeeded && !draftProvided && len(reviewers) == 0 {
-				return utils.NewToolResultError("No update parameters provided."), nil, nil
+				return mcpresult.NewError("No update parameters provided."), nil, nil
 			}
 
 			// Handle REST API updates (title, body, state, base, maintainer_can_modify)
 			if restUpdateNeeded {
 				client, err := deps.GetClient(ctx)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+					return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 				}
 
 				_, resp, err := client.PullRequests.Edit(ctx, owner, repo, pullNumber, update)
@@ -765,7 +765,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				if resp.StatusCode != http.StatusOK {
 					bodyBytes, err := io.ReadAll(resp.Body)
 					if err != nil {
-						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+						return mcpresult.NewErrorFromErr("failed to read response body", err), nil, nil
 					}
 					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update pull request", resp, bodyBytes), nil, nil
 				}
@@ -775,7 +775,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			if draftProvided {
 				gqlClient, err := deps.GetGQLClient(ctx)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
+					return mcpresult.NewErrorFromErr("failed to get GitHub GraphQL client", err), nil, nil
 				}
 
 				var prQuery struct {
@@ -841,7 +841,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			if len(reviewers) > 0 {
 				client, err := deps.GetClient(ctx)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+					return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 				}
 
 				reviewersRequest := github.ReviewersRequest{
@@ -865,7 +865,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
 					bodyBytes, err := io.ReadAll(resp.Body)
 					if err != nil {
-						return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+						return mcpresult.NewErrorFromErr("failed to read response body", err), nil, nil
 					}
 					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to request reviewers", resp, bodyBytes), nil, nil
 				}
@@ -874,7 +874,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			// Get the final state of the PR to return
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			finalPR, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
@@ -895,10 +895,10 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 
 			r, err := json.Marshal(minimalResponse)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("Failed to marshal response", err), nil, nil
+				return mcpresult.NewErrorFromErr("Failed to marshal response", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		})
 }
 
@@ -958,35 +958,35 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			state, err := OptionalParam[string](args, "state")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			head, err := OptionalParam[string](args, "head")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			base, err := OptionalParam[string](args, "base")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			sort, err := OptionalParam[string](args, "sort")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			direction, err := OptionalParam[string](args, "direction")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			opts := &github.PullRequestListOptions{
@@ -1003,7 +1003,7 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 			prs, resp, err := client.PullRequests.List(ctx, owner, repo, opts)
 			if err != nil {
@@ -1018,7 +1018,7 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 			if resp.StatusCode != http.StatusOK {
 				bodyBytes, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					return mcpresult.NewErrorFromErr("failed to read response body", err), nil, nil
 				}
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list pull requests", resp, bodyBytes), nil, nil
 			}
@@ -1038,10 +1038,10 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 
 			r, err := json.Marshal(prs)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		})
 }
 
@@ -1095,27 +1095,27 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			pullNumber, err := RequiredInt(args, "pullNumber")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			commitTitle, err := OptionalParam[string](args, "commit_title")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			commitMessage, err := OptionalParam[string](args, "commit_message")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			mergeMethod, err := OptionalParam[string](args, "merge_method")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			options := &github.PullRequestOptions{
@@ -1125,7 +1125,7 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 			result, resp, err := client.PullRequests.Merge(ctx, owner, repo, pullNumber, commitMessage, options)
 			if err != nil {
@@ -1140,17 +1140,17 @@ func MergePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool
 			if resp.StatusCode != http.StatusOK {
 				bodyBytes, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					return mcpresult.NewErrorFromErr("failed to read response body", err), nil, nil
 				}
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to merge pull request", resp, bodyBytes), nil, nil
 			}
 
 			r, err := json.Marshal(result)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		})
 }
 
@@ -1256,19 +1256,19 @@ func UpdatePullRequestBranch(t translations.TranslationHelperFunc) inventory.Ser
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			pullNumber, err := RequiredInt(args, "pullNumber")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			expectedHeadSHA, err := OptionalParam[string](args, "expectedHeadSha")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			opts := &github.PullRequestBranchUpdateOptions{}
 			if expectedHeadSHA != "" {
@@ -1277,14 +1277,14 @@ func UpdatePullRequestBranch(t translations.TranslationHelperFunc) inventory.Ser
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 			result, resp, err := client.PullRequests.UpdateBranch(ctx, owner, repo, pullNumber, opts)
 			if err != nil {
 				// Check if it's an acceptedError. An acceptedError indicates that the update is in progress,
 				// and it's not a real error.
 				if resp != nil && resp.StatusCode == http.StatusAccepted && isAcceptedError(err) {
-					return utils.NewToolResultText("Pull request branch update is in progress"), nil, nil
+					return mcpresult.NewText("Pull request branch update is in progress"), nil, nil
 				}
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to update pull request branch",
@@ -1297,17 +1297,17 @@ func UpdatePullRequestBranch(t translations.TranslationHelperFunc) inventory.Ser
 			if resp.StatusCode != http.StatusAccepted {
 				bodyBytes, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					return mcpresult.NewErrorFromErr("failed to read response body", err), nil, nil
 				}
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to update pull request branch", resp, bodyBytes), nil, nil
 			}
 
 			r, err := json.Marshal(result)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		})
 }
 
@@ -1383,13 +1383,13 @@ Available methods:
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			var params PullRequestReviewWriteParams
 			if err := mapstructure.Decode(args, &params); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Given our owner, repo and PR number, lookup the GQL ID of the PR.
 			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
 
 			switch params.Method {
@@ -1403,7 +1403,7 @@ Available methods:
 				result, err := DeletePendingPullRequestReview(ctx, client, params)
 				return result, nil, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
 			}
 		})
 }
@@ -1454,16 +1454,16 @@ func CreatePullRequestReview(ctx context.Context, client *githubv4.Client, param
 		addPullRequestReviewInput,
 		nil,
 	); err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return mcpresult.NewError(err.Error()), nil
 	}
 
 	// Return nothing interesting, just indicate success for the time being.
 	// In future, we may want to return the review ID, but for the moment, we're not leaking
 	// API implementation details to the LLM.
 	if params.Event == "" {
-		return utils.NewToolResultText("pending pull request created"), nil
+		return mcpresult.NewText("pending pull request created"), nil
 	}
-	return utils.NewToolResultText("pull request review submitted successfully"), nil
+	return mcpresult.NewText("pull request review submitted successfully"), nil
 }
 
 func SubmitPendingPullRequestReview(ctx context.Context, client *githubv4.Client, params PullRequestReviewWriteParams) (*mcp.CallToolResult, error) {
@@ -1511,13 +1511,13 @@ func SubmitPendingPullRequestReview(ctx context.Context, client *githubv4.Client
 
 	// Validate there is one review and the state is pending
 	if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
-		return utils.NewToolResultError("No pending review found for the viewer"), nil
+		return mcpresult.NewError("No pending review found for the viewer"), nil
 	}
 
 	review := getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes[0]
 	if review.State != githubv4.PullRequestReviewStatePending {
 		errText := fmt.Sprintf("The latest review, found at %s is not pending", review.URL)
-		return utils.NewToolResultError(errText), nil
+		return mcpresult.NewError(errText), nil
 	}
 
 	// Prepare the mutation
@@ -1548,7 +1548,7 @@ func SubmitPendingPullRequestReview(ctx context.Context, client *githubv4.Client
 	// Return nothing interesting, just indicate success for the time being.
 	// In future, we may want to return the review ID, but for the moment, we're not leaking
 	// API implementation details to the LLM.
-	return utils.NewToolResultText("pending pull request review successfully submitted"), nil
+	return mcpresult.NewText("pending pull request review successfully submitted"), nil
 }
 
 func DeletePendingPullRequestReview(ctx context.Context, client *githubv4.Client, params PullRequestReviewWriteParams) (*mcp.CallToolResult, error) {
@@ -1596,13 +1596,13 @@ func DeletePendingPullRequestReview(ctx context.Context, client *githubv4.Client
 
 	// Validate there is one review and the state is pending
 	if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
-		return utils.NewToolResultError("No pending review found for the viewer"), nil
+		return mcpresult.NewError("No pending review found for the viewer"), nil
 	}
 
 	review := getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes[0]
 	if review.State != githubv4.PullRequestReviewStatePending {
 		errText := fmt.Sprintf("The latest review, found at %s is not pending", review.URL)
-		return utils.NewToolResultError(errText), nil
+		return mcpresult.NewError(errText), nil
 	}
 
 	// Prepare the mutation
@@ -1622,13 +1622,13 @@ func DeletePendingPullRequestReview(ctx context.Context, client *githubv4.Client
 		},
 		nil,
 	); err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return mcpresult.NewError(err.Error()), nil
 	}
 
 	// Return nothing interesting, just indicate success for the time being.
 	// In future, we may want to return the review ID, but for the moment, we're not leaking
 	// API implementation details to the LLM.
-	return utils.NewToolResultText("pending pull request review successfully deleted"), nil
+	return mcpresult.NewText("pending pull request review successfully deleted"), nil
 }
 
 // AddCommentToPendingReview creates a tool to add a comment to a pull request review.
@@ -1718,12 +1718,12 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 				StartSide   *string
 			}
 			if err := mapstructure.Decode(args, &params); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub GQL client", err), nil, nil
 			}
 
 			// First we'll get the current user
@@ -1770,13 +1770,13 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 
 			// Validate there is one review and the state is pending
 			if len(getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes) == 0 {
-				return utils.NewToolResultError("No pending review found for the viewer"), nil, nil
+				return mcpresult.NewError("No pending review found for the viewer"), nil, nil
 			}
 
 			review := getLatestReviewForViewerQuery.Repository.PullRequest.Reviews.Nodes[0]
 			if review.State != githubv4.PullRequestReviewStatePending {
 				errText := fmt.Sprintf("The latest review, found at %s is not pending", review.URL)
-				return utils.NewToolResultError(errText), nil, nil
+				return mcpresult.NewError(errText), nil, nil
 			}
 
 			// Then we can create a new review thread comment on the review.
@@ -1803,11 +1803,11 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 				},
 				nil,
 			); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			if addPullRequestReviewThreadMutation.AddPullRequestReviewThread.Thread.ID == nil {
-				return utils.NewToolResultError(`Failed to add comment to pending review. Possible reasons:
+				return mcpresult.NewError(`Failed to add comment to pending review. Possible reasons:
 	- The line number doesn't exist in the pull request diff
 	- The file path is incorrect
 	- The side (LEFT/RIGHT) is invalid for the specified line
@@ -1817,7 +1817,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 			// Return nothing interesting, just indicate success for the time being.
 			// In future, we may want to return the review ID, but for the moment, we're not leaking
 			// API implementation details to the LLM.
-			return utils.NewToolResultText("pull request review comment successfully added to pending review"), nil, nil
+			return mcpresult.NewText("pull request review comment successfully added to pending review"), nil, nil
 		})
 }
 
@@ -1860,22 +1860,22 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			pullNumber, err := RequiredInt(args, "pullNumber")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			_, resp, err := client.PullRequests.RequestReviewers(
@@ -1900,13 +1900,13 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 			if resp.StatusCode != http.StatusCreated {
 				bodyBytes, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					return mcpresult.NewErrorFromErr("failed to read response body", err), nil, nil
 				}
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to request copilot review", resp, bodyBytes), nil, nil
 			}
 
 			// Return nothing on success, as there's not much value in returning the Pull Request itself
-			return utils.NewToolResultText(""), nil, nil
+			return mcpresult.NewText(""), nil, nil
 		})
 }
 
