@@ -4,6 +4,7 @@ import (
 	"context"
 	"slices"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/inventory"
 )
@@ -14,26 +15,20 @@ var KnownFeatureFlags = []string{
 	github.FeatureFlagHoldbackConsolidatedActions,
 }
 
-// ComposeFeatureChecker combines header-based feature flags with a static checker.
-func ComposeFeatureChecker(headerFeatures []string, staticChecker inventory.FeatureFlagChecker) inventory.FeatureFlagChecker {
-	if len(headerFeatures) == 0 && staticChecker == nil {
-		return nil
-	}
-
-	// Only accept header features that are in the known list
-	headerSet := make(map[string]bool, len(headerFeatures))
-	for _, f := range headerFeatures {
-		if slices.Contains(KnownFeatureFlags, f) {
-			headerSet[f] = true
-		}
+// CreateHTTPFeatureChecker creates a feature checker that reads header features from context
+func CreateHTTPFeatureChecker(staticChecker inventory.FeatureFlagChecker) inventory.FeatureFlagChecker {
+	// Pre-compute whitelist as set for O(1) lookup
+	knownSet := make(map[string]bool, len(KnownFeatureFlags))
+	for _, f := range KnownFeatureFlags {
+		knownSet[f] = true
 	}
 
 	return func(ctx context.Context, flag string) (bool, error) {
-		// Header-based: static string matching
-		if headerSet[flag] {
+		// Check whitelist first, then header features
+		if knownSet[flag] && slices.Contains(ghcontext.GetHeaderFeatures(ctx), flag) {
 			return true, nil
 		}
-		// Static checker
+		// Fall back to static checker
 		if staticChecker != nil {
 			return staticChecker(ctx, flag)
 		}

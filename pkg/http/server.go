@@ -83,6 +83,8 @@ func RunHTTPServer(cfg ServerConfig) error {
 		repoAccessOpts = append(repoAccessOpts, lockdown.WithTTL(*cfg.RepoAccessCacheTTL))
 	}
 
+	featureChecker := CreateHTTPFeatureChecker(nil)
+
 	deps := github.NewRequestDeps(
 		apiHost,
 		cfg.Version,
@@ -90,12 +92,12 @@ func RunHTTPServer(cfg ServerConfig) error {
 		repoAccessOpts,
 		t,
 		cfg.ContentWindowSize,
-		nil,
+		featureChecker,
 	)
 
 	r := chi.NewRouter()
 
-	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger)
+	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger, WithHandlerFeatureChecker(featureChecker))
 	handler.RegisterRoutes(r)
 
 	addr := fmt.Sprintf(":%d", cfg.Port)

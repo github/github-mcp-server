@@ -7,7 +7,6 @@ import (
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
-	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/github/github-mcp-server/pkg/http/middleware"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -31,6 +30,7 @@ type Handler struct {
 type HandlerOptions struct {
 	GitHubMcpServerFactory GitHubMCPServerFactoryFunc
 	InventoryFactory       InventoryFactoryFunc
+	FeatureChecker         inventory.FeatureFlagChecker
 }
 
 type HandlerOption func(*HandlerOptions)
@@ -44,6 +44,12 @@ func WithGitHubMCPServerFactory(f GitHubMCPServerFactoryFunc) HandlerOption {
 func WithInventoryFactory(f InventoryFactoryFunc) HandlerOption {
 	return func(o *HandlerOptions) {
 		o.InventoryFactory = f
+	}
+}
+
+func WithHandlerFeatureChecker(checker inventory.FeatureFlagChecker) HandlerOption {
+	return func(o *HandlerOptions) {
+		o.FeatureChecker = checker
 	}
 }
 
@@ -66,7 +72,7 @@ func NewHTTPMcpHandler(
 
 	inventoryFactory := opts.InventoryFactory
 	if inventoryFactory == nil {
-		inventoryFactory = DefaultInventoryFactory(cfg, t, nil)
+		inventoryFactory = DefaultInventoryFactory(cfg, t, opts.FeatureChecker)
 	}
 
 	return &Handler{
@@ -141,15 +147,12 @@ func DefaultGitHubMCPServerFactory(r *http.Request, deps github.ToolDependencies
 	return github.NewMCPServer(r.Context(), cfg, deps, inventory)
 }
 
-func DefaultInventoryFactory(_ *ServerConfig, t translations.TranslationHelperFunc, staticChecker inventory.FeatureFlagChecker) InventoryFactoryFunc {
+// DefaultInventoryFactory creates the default inventory factory for HTTP mode
+func DefaultInventoryFactory(_ *ServerConfig, t translations.TranslationHelperFunc, featureChecker inventory.FeatureFlagChecker) InventoryFactoryFunc {
 	return func(r *http.Request) (*inventory.Inventory, error) {
-		b := github.NewInventory(t).WithDeprecatedAliases(github.DeprecatedToolAliases)
-
-		// Feature checker composition
-		headerFeatures := headers.ParseCommaSeparated(r.Header.Get(headers.MCPFeaturesHeader))
-		if checker := ComposeFeatureChecker(headerFeatures, staticChecker); checker != nil {
-			b = b.WithFeatureChecker(checker)
-		}
+		b := github.NewInventory(t).
+			WithDeprecatedAliases(github.DeprecatedToolAliases).
+			WithFeatureChecker(featureChecker)
 
 		b = InventoryFiltersForRequest(r, b)
 		b.WithServerInstructions()
