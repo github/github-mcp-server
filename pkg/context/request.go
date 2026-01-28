@@ -65,3 +65,35 @@ func IsLockdownMode(ctx context.Context) bool {
 	}
 	return false
 }
+
+// insidersCtxKey is a context key for insiders mode
+type insidersCtxKey struct{}
+
+// WithInsidersMode adds insiders mode state to the context
+func WithInsidersMode(ctx context.Context, enabled bool) context.Context {
+	return context.WithValue(ctx, insidersCtxKey{}, enabled)
+}
+
+// IsInsidersMode retrieves the insiders mode state from the context
+func IsInsidersMode(ctx context.Context) bool {
+	if enabled, ok := ctx.Value(insidersCtxKey{}).(bool); ok {
+		return enabled
+	}
+	return false
+}
+
+// headerFeaturesCtxKey is a context key for raw header feature flags
+type headerFeaturesCtxKey struct{}
+
+// WithHeaderFeatures stores the raw feature flags from the X-MCP-Features header into context
+func WithHeaderFeatures(ctx context.Context, features []string) context.Context {
+	return context.WithValue(ctx, headerFeaturesCtxKey{}, features)
+}
+
+// GetHeaderFeatures retrieves the raw feature flags from context
+func GetHeaderFeatures(ctx context.Context) []string {
+	if features, ok := ctx.Value(headerFeaturesCtxKey{}).([]string); ok {
+		return features
+	}
+	return nil
+}

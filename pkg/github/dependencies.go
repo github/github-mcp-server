@@ -248,7 +248,6 @@ type RequestDeps struct {
 	lockdownMode      bool
 	RepoAccessOpts    []lockdown.RepoAccessOption
 	T                 translations.TranslationHelperFunc
-	Flags             FeatureFlags
 	ContentWindowSize int
 
 	// Feature flag checker for runtime checks
@@ -380,6 +379,7 @@ func (d *RequestDeps) GetT() translations.TranslationHelperFunc { return d.T }
 func (d *RequestDeps) GetFlags(ctx context.Context) FeatureFlags {
 	return FeatureFlags{
 		LockdownMode: d.lockdownMode && ghcontext.IsLockdownMode(ctx),
+		InsidersMode: ghcontext.IsInsidersMode(ctx),
 	}
 }
 
