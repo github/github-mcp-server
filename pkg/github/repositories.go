@@ -2097,3 +2097,69 @@ func UnstarRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 		},
 	)
 }
+
+// DeleteRepository creates a tool to delete a GitHub repository.
+func DeleteRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataRepos,
+		mcp.Tool{
+			Name:        "delete_repository",
+			Description: t("TOOL_DELETE_REPOSITORY_DESCRIPTION", "Delete a GitHub repository"),
+			Annotations: &mcp.ToolAnnotations{
+				Title:           t("TOOL_DELETE_REPOSITORY_USER_TITLE", "Delete repository"),
+				ReadOnlyHint:    false,
+				DestructiveHint: github.Ptr(true),
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner (username or organization)",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+				},
+				Required: []string{"owner", "repo"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
+
+			resp, err := client.Repositories.Delete(ctx, owner, repo)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					fmt.Sprintf("failed to delete repository %s/%s", owner, repo),
+					resp,
+					err,
+				), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusNoContent {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to delete repository", resp, body), nil, nil
+			}
+
+			return utils.NewToolResultText(fmt.Sprintf("Successfully deleted repository %s/%s", owner, repo)), nil, nil
+		},
+	)
+}
