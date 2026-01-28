@@ -114,7 +114,7 @@ func RunHTTPServer(cfg HTTPServerConfig) error {
 	oauthHandler.RegisterRoutes(r)
 	logger.Info("OAuth protected resource endpoints registered", "baseURL", cfg.BaseURL)
 
-	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger)
+	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger, WithOAuthConfig(oauthCfg))
 	handler.RegisterRoutes(r)
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
