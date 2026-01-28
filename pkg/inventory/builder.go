@@ -41,6 +41,7 @@ type Builder struct {
 	featureChecker       FeatureFlagChecker
 	filters              []ToolFilter // filters to apply to all tools
 	generateInstructions bool
+	dynamicMode          bool // when true, "all" and "default" are stripped, empty toolsets is valid
 }
 
 // NewBuilder creates a new Builder.
@@ -116,6 +117,17 @@ func (b *Builder) WithTools(toolNames []string) *Builder {
 	return b
 }
 
+// WithDynamicMode enables dynamic toolset mode.
+// In this mode:
+//   - "all" and "default" keywords are removed from toolsetIDs
+//   - If no toolsets specified, starts with empty set (users enable on demand)
+//
+// Returns self for chaining.
+func (b *Builder) WithDynamicMode(enabled bool) *Builder {
+	b.dynamicMode = enabled
+	return b
+}
+
 // WithFeatureChecker sets the feature flag checker function.
 // The checker receives a context (for actor extraction) and feature flag name,
 // returns (enabled, error). If error occurs, it will be logged and treated as false.
@@ -133,6 +145,48 @@ func (b *Builder) WithFeatureChecker(checker FeatureFlagChecker) *Builder {
 func (b *Builder) WithFilter(filter ToolFilter) *Builder {
 	b.filters = append(b.filters, filter)
 	return b
+}
+
+// removeFromSlice removes all occurrences of value from slice.
+func removeFromSlice(slice []string, value string) []string {
+	result := make([]string, 0, len(slice))
+	for _, s := range slice {
+		if s != value {
+			result = append(result, s)
+		}
+	}
+	return result
+}
+
+// applyDynamicModePreprocessing modifies toolsetIDs based on dynamicMode and additionalTools.
+func (b *Builder) applyDynamicModePreprocessing() {
+	if b.dynamicMode && b.toolsetIDs != nil {
+		// In dynamic mode, remove "all" and "default" since users enable toolsets on demand
+		b.toolsetIDs = removeFromSlice(b.toolsetIDs, "all")
+		b.toolsetIDs = removeFromSlice(b.toolsetIDs, "default")
+	}
+
+	if b.toolsetIDs != nil {
+		// Explicit toolsets were provided (possibly modified by dynamic mode)
+		return
+	}
+
+	if b.dynamicMode {
+		// Dynamic mode with no toolsets specified: start empty so users enable on demand
+		b.toolsetIDs = []string{}
+		b.toolsetIDsIsNil = false
+		return
+	}
+
+	if len(b.additionalTools) > 0 {
+		// When specific tools are requested but no toolsets, don't use default toolsets
+		// --tools=X alone registers only X
+		b.toolsetIDs = []string{}
+		b.toolsetIDsIsNil = false
+		return
+	}
+
+	// Leave as nil (toolsetIDsIsNil = true) to use defaults in processToolsets()
 }
 
 // cleanTools trims whitespace and removes duplicates from tool names.
@@ -162,6 +216,9 @@ func cleanTools(tools []string) []string {
 // (i.e., they don't exist in the tool set and are not deprecated aliases).
 // This ensures invalid tool configurations fail fast at build time.
 func (b *Builder) Build() (*Inventory, error) {
+	// Apply dynamic mode preprocessing before processing toolsets
+	b.applyDynamicModePreprocessing()
+
 	r := &Inventory{
 		tools:             b.tools,
 		resourceTemplates: b.resourceTemplates,

@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -40,74 +39,4 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 	//
 	// The actual middleware functionality and tool execution with ContextWithDeps
 	// is already tested in pkg/github/*_test.go.
-}
-
-// TestResolveEnabledToolsets verifies the toolset resolution logic.
-func TestResolveEnabledToolsets(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name           string
-		cfg            MCPServerConfig
-		expectedResult []string
-	}{
-		{
-			name: "nil toolsets without dynamic mode and no tools - use defaults",
-			cfg: MCPServerConfig{
-				EnabledToolsets: nil,
-				DynamicToolsets: false,
-				EnabledTools:    nil,
-			},
-			expectedResult: nil, // nil means "use defaults"
-		},
-		{
-			name: "nil toolsets with dynamic mode - start empty",
-			cfg: MCPServerConfig{
-				EnabledToolsets: nil,
-				DynamicToolsets: true,
-				EnabledTools:    nil,
-			},
-			expectedResult: []string{}, // empty slice means no toolsets
-		},
-		{
-			name: "explicit toolsets",
-			cfg: MCPServerConfig{
-				EnabledToolsets: []string{"repos", "issues"},
-				DynamicToolsets: false,
-			},
-			expectedResult: []string{"repos", "issues"},
-		},
-		{
-			name: "empty toolsets - disable all",
-			cfg: MCPServerConfig{
-				EnabledToolsets: []string{},
-				DynamicToolsets: false,
-			},
-			expectedResult: []string{}, // empty slice means no toolsets
-		},
-		{
-			name: "specific tools without toolsets - no default toolsets",
-			cfg: MCPServerConfig{
-				EnabledToolsets: nil,
-				DynamicToolsets: false,
-				EnabledTools:    []string{"get_me"},
-			},
-			expectedResult: []string{}, // empty slice when tools specified but no toolsets
-		},
-		{
-			name: "dynamic mode with explicit toolsets removes all and default",
-			cfg: MCPServerConfig{
-				EnabledToolsets: []string{"all", "repos"},
-				DynamicToolsets: true,
-			},
-			expectedResult: []string{"repos"}, // "all" is removed in dynamic mode
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result := resolveEnabledToolsets(tc.cfg)
-			assert.Equal(t, tc.expectedResult, result)
-		})
-	}
 }

@@ -1832,3 +1832,153 @@ func TestWithTools_DeprecatedAliasAndFeatureFlag(t *testing.T) {
 		t.Errorf("Flag ON: Expected new_tool (via alias), got %s", availableOn[0].Tool.Name)
 	}
 }
+
+// Tests for WithDynamicMode
+func TestWithDynamicMode_NilToolsets(t *testing.T) {
+	tools := []ServerTool{
+		mockToolWithDefault("tool1", "default_toolset", true, true),
+		mockToolWithDefault("tool2", "other_toolset", true, false),
+	}
+
+	// Dynamic mode with nil toolsets should start with empty set
+	reg := mustBuild(t, NewBuilder().
+		SetTools(tools).
+		WithDynamicMode(true))
+
+	available := reg.AvailableTools(context.Background())
+	if len(available) != 0 {
+		t.Errorf("Dynamic mode with nil toolsets should start empty, got %d tools", len(available))
+	}
+}
+
+func TestWithDynamicMode_RemovesAllKeyword(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("tool1", "toolset1", true),
+		mockTool("tool2", "toolset2", true),
+	}
+
+	// Dynamic mode should remove "all" from toolsets
+	reg := mustBuild(t, NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"all", "toolset1"}).
+		WithDynamicMode(true))
+
+	available := reg.AvailableTools(context.Background())
+	if len(available) != 1 {
+		t.Errorf("Dynamic mode should have removed 'all', expected 1 tool, got %d", len(available))
+	}
+	if available[0].Tool.Name != "tool1" {
+		t.Errorf("Expected tool1, got %s", available[0].Tool.Name)
+	}
+}
+
+func TestWithDynamicMode_RemovesDefaultKeyword(t *testing.T) {
+	tools := []ServerTool{
+		mockToolWithDefault("tool1", "default_toolset", true, true),
+		mockTool("tool2", "explicit_toolset", true),
+	}
+
+	// Dynamic mode should remove "default" from toolsets
+	reg := mustBuild(t, NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"default", "explicit_toolset"}).
+		WithDynamicMode(true))
+
+	available := reg.AvailableTools(context.Background())
+	if len(available) != 1 {
+		t.Errorf("Dynamic mode should have removed 'default', expected 1 tool, got %d", len(available))
+	}
+	if available[0].Tool.Name != "tool2" {
+		t.Errorf("Expected tool2, got %s", available[0].Tool.Name)
+	}
+}
+
+func TestWithDynamicMode_ExplicitToolsetsPreserved(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("tool1", "toolset1", true),
+		mockTool("tool2", "toolset2", true),
+		mockTool("tool3", "toolset3", true),
+	}
+
+	// Dynamic mode should preserve explicit toolsets (not "all" or "default")
+	reg := mustBuild(t, NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"toolset1", "toolset3"}).
+		WithDynamicMode(true))
+
+	available := reg.AvailableTools(context.Background())
+	if len(available) != 2 {
+		t.Fatalf("Expected 2 tools, got %d", len(available))
+	}
+
+	toolNames := make(map[string]bool)
+	for _, tool := range available {
+		toolNames[tool.Tool.Name] = true
+	}
+	if !toolNames["tool1"] || !toolNames["tool3"] {
+		t.Errorf("Expected tool1 and tool3, got %v", toolNames)
+	}
+}
+
+func TestWithDynamicMode_False(t *testing.T) {
+	tools := []ServerTool{
+		mockToolWithDefault("tool1", "default_toolset", true, true),
+		mockTool("tool2", "other_toolset", true),
+	}
+
+	// Dynamic mode false should use default behavior (nil -> use defaults)
+	reg := mustBuild(t, NewBuilder().
+		SetTools(tools).
+		WithDynamicMode(false))
+
+	available := reg.AvailableTools(context.Background())
+	// Should use defaults, which includes default_toolset
+	if len(available) != 1 {
+		t.Errorf("Expected 1 tool from default toolset, got %d", len(available))
+	}
+	if available[0].Tool.Name != "tool1" {
+		t.Errorf("Expected tool1 from default toolset, got %s", available[0].Tool.Name)
+	}
+}
+
+func TestWithDynamicMode_WithAdditionalTools(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("tool1", "toolset1", true),
+		mockTool("tool2", "toolset2", true),
+	}
+
+	// Dynamic mode with additional tools should allow those tools
+	reg := mustBuild(t, NewBuilder().
+		SetTools(tools).
+		WithDynamicMode(true).
+		WithTools([]string{"tool2"}))
+
+	available := reg.AvailableTools(context.Background())
+	if len(available) != 1 {
+		t.Fatalf("Expected 1 additional tool, got %d", len(available))
+	}
+	if available[0].Tool.Name != "tool2" {
+		t.Errorf("Expected tool2, got %s", available[0].Tool.Name)
+	}
+}
+
+func TestWithTools_NilToolsets_UsesEmptyToolsets(t *testing.T) {
+	tools := []ServerTool{
+		mockToolWithDefault("tool1", "default_toolset", true, true),
+		mockTool("tool2", "other_toolset", true),
+	}
+
+	// When specific tools are requested but no toolsets, should not use defaults
+	reg := mustBuild(t, NewBuilder().
+		SetTools(tools).
+		WithTools([]string{"tool2"}))
+
+	available := reg.AvailableTools(context.Background())
+	// Only the explicitly requested tool, not the default toolset
+	if len(available) != 1 {
+		t.Errorf("Expected 1 tool (only explicitly requested), got %d", len(available))
+	}
+	if available[0].Tool.Name != "tool2" {
+		t.Errorf("Expected tool2, got %s", available[0].Tool.Name)
+	}
+}
