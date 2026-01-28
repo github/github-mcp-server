@@ -185,38 +185,32 @@ func TestGetEffectiveResourcePath(t *testing.T) {
 		expectedPath string
 	}{
 		{
-			name: "root path without original path header",
+			name: "root path",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest(http.MethodGet, "/", nil)
-				return req
+				return httptest.NewRequest(http.MethodGet, "/", nil)
+			},
+			expectedPath: "/",
+		},
+		{
+			name: "mcp path",
+			setupRequest: func() *http.Request {
+				return httptest.NewRequest(http.MethodGet, "/mcp", nil)
 			},
 			expectedPath: "/mcp",
 		},
 		{
-			name: "non-root path without original path header",
+			name: "readonly path",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest(http.MethodGet, "/readonly", nil)
-				return req
+				return httptest.NewRequest(http.MethodGet, "/readonly", nil)
 			},
-			expectedPath: "/mcp/readonly",
+			expectedPath: "/readonly",
 		},
 		{
-			name: "with X-GitHub-Original-Path header",
+			name: "nested path",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest(http.MethodGet, "/readonly", nil)
-				req.Header.Set(headers.OriginalPathHeader, "/mcp/x/repos/readonly")
-				return req
+				return httptest.NewRequest(http.MethodGet, "/mcp/x/repos", nil)
 			},
-			expectedPath: "/mcp/x/repos/readonly",
-		},
-		{
-			name: "original path header takes precedence",
-			setupRequest: func() *http.Request {
-				req := httptest.NewRequest(http.MethodGet, "/something-else", nil)
-				req.Header.Set(headers.OriginalPathHeader, "/mcp/custom/path")
-				return req
-			},
-			expectedPath: "/mcp/custom/path",
+			expectedPath: "/mcp/x/repos",
 		},
 	}
 

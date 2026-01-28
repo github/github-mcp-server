@@ -132,21 +132,10 @@ func (h *AuthHandler) routesForPattern(pattern string) []string {
 }
 
 // GetEffectiveResourcePath returns the resource path for OAuth protected resource URLs.
-// It checks for the X-GitHub-Original-Path header set by GitHub, which contains
-// the exact path the client requested before the /mcp prefix was stripped.
-// If the header is not present, it falls back to
-// restoring the /mcp prefix.
+// It uses the request's URL path directly. For deployments where a prefix like /mcp
+// is stripped by a proxy, the proxy should set the BaseURL config appropriately.
 func GetEffectiveResourcePath(r *http.Request) string {
-	// Check for the original path header from GitHub (preferred method)
-	if originalPath := r.Header.Get(headers.OriginalPathHeader); originalPath != "" {
-		return originalPath
-	}
-
-	// Fallback: GitHub strips /mcp prefix, so we need to restore it for the external URL
-	if r.URL.Path == "/" {
-		return "/mcp"
-	}
-	return "/mcp" + r.URL.Path
+	return r.URL.Path
 }
 
 // GetProtectedResourceData builds the OAuth protected resource data for a request.
