@@ -1,0 +1,51 @@
+# https://docs.github.com/en/copilot/customizing-copilot/customizing-the-development-environment-for-copilot-coding-agent
+name: "Copilot Setup Steps"
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Download Go dependencies
+        run: go mod download
+
+      - name: Build server
+        run: go build -v ./cmd/github-mcp-server
+
+      - name: Install goimports
+        run: go install golang.org/x/tools/cmd/goimports@latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install MCP Inspector
+        run: npm install -g @modelcontextprotocol/inspector@0.7.0
+
+      - name: Verify tools
+        run: |
+          echo "Go version: $(go version)"
+          echo "goimports: $(which goimports)"
+          echo "MCP Inspector: $(npx @modelcontextprotocol/inspector@0.7.0 --version)"
+          echo "Server binary: $(ls -la github-mcp-server)"
