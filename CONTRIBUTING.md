@@ -56,3 +56,18 @@ Here are a few things you can do that will increase the likelihood of your pull 
 - [How to Contribute to Open Source](https://opensource.guide/how-to-contribute/)
 - [Using Pull Requests](https://help.github.com/articles/about-pull-requests/)
 - [GitHub Help](https://help.github.com)
+
+## AI Contributions
+
+We welcome contributions that use AI assistance. However, **if you are using any kind of AI assistance** (e.g., GitHub Copilot, Claude, ChatGPT, or other AI agents), **you must disclose this in your pull request or issue**.
+
+Include a brief statement describing:
+- Which AI tool(s) you used
+- The extent of AI assistance (e.g., "code generation", "documentation help", "debugging suggestions")
+
+Example disclosures:
+> This PR was written with assistance from GitHub Copilot.
+
+> I used Claude to help draft the initial implementation, which I then reviewed and modified.
+
+This transparency helps maintainers understand context and apply appropriate review. Trivial fixes (typos, formatting) don't require disclosure.
