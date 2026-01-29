@@ -3,13 +3,13 @@
 package oauth
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/go-chi/chi/v5"
+	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 )
 
@@ -95,34 +95,21 @@ func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 
 func (h *AuthHandler) metadataHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// CORS headers for browser-based clients
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		if r.Method != http.MethodGet {
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			return
-		}
-
 		resourcePath := resolveResourcePath(
 			strings.TrimPrefix(r.URL.Path, OAuthProtectedResourcePrefix),
 			h.cfg.ResourcePath,
 		)
 		resourceURL := h.buildResourceURL(r, resourcePath)
 
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(&oauthex.ProtectedResourceMetadata{
+		metadata := &oauthex.ProtectedResourceMetadata{
 			Resource:               resourceURL,
 			AuthorizationServers:   []string{h.cfg.AuthorizationServer},
 			ResourceName:           "GitHub MCP Server",
 			ScopesSupported:        SupportedScopes,
 			BearerMethodsSupported: []string{"header"},
-		})
+		}
+
+		auth.ProtectedResourceMetadataHandler(metadata).ServeHTTP(w, r)
 	})
 }
 
