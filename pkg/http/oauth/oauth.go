@@ -3,14 +3,13 @@
 package oauth
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/go-chi/chi/v5"
-	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
 )
 
@@ -48,15 +47,10 @@ type Config struct {
 	// Defaults to GitHub's OAuth server if not specified.
 	AuthorizationServer string
 
-	// ResourcePath is the resource path suffix (e.g., "/mcp").
-	// If empty, defaults to "/"
+	// ResourcePath is the externally visible base path for the MCP server (e.g., "/mcp").
+	// This is used to restore the original path when a proxy strips a base path before forwarding.
+	// If empty, requests are treated as already using the external path.
 	ResourcePath string
-}
-
-// ProtectedResourceData contains the data needed to build an OAuth protected resource response.
-type ProtectedResourceData struct {
-	ResourceURL         string
-	AuthorizationServer string
 }
 
 // AuthHandler handles OAuth-related HTTP endpoints.
@@ -94,28 +88,42 @@ func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 	for _, pattern := range routePatterns {
 		for _, route := range h.routesForPattern(pattern) {
 			path := OAuthProtectedResourcePrefix + route
-
-			// Build metadata for this specific resource path
-			metadata := h.buildMetadata(route)
-			r.Handle(path, auth.ProtectedResourceMetadataHandler(metadata))
+			r.Handle(path, h.metadataHandler())
 		}
 	}
 }
 
-func (h *AuthHandler) buildMetadata(resourcePath string) *oauthex.ProtectedResourceMetadata {
-	baseURL := strings.TrimSuffix(h.cfg.BaseURL, "/")
-	resourceURL := baseURL
-	if resourcePath != "" && resourcePath != "/" {
-		resourceURL = baseURL + resourcePath
-	}
+func (h *AuthHandler) metadataHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// CORS headers for browser-based clients
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
-	return &oauthex.ProtectedResourceMetadata{
-		Resource:               resourceURL,
-		AuthorizationServers:   []string{h.cfg.AuthorizationServer},
-		ResourceName:           "GitHub MCP Server",
-		ScopesSupported:        SupportedScopes,
-		BearerMethodsSupported: []string{"header"},
-	}
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+
+		resourcePath := resolveResourcePath(
+			strings.TrimPrefix(r.URL.Path, OAuthProtectedResourcePrefix),
+			h.cfg.ResourcePath,
+		)
+		resourceURL := h.buildResourceURL(r, resourcePath)
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(&oauthex.ProtectedResourceMetadata{
+			Resource:               resourceURL,
+			AuthorizationServers:   []string{h.cfg.AuthorizationServer},
+			ResourceName:           "GitHub MCP Server",
+			ScopesSupported:        SupportedScopes,
+			BearerMethodsSupported: []string{"header"},
+		})
+	})
 }
 
 // routesForPattern generates route variants for a given pattern.
@@ -123,90 +131,122 @@ func (h *AuthHandler) buildMetadata(resourcePath string) *oauthex.ProtectedResou
 // - With /mcp prefix: for direct access or when GitHub doesn't strip
 // - Without /mcp prefix: for when GitHub has stripped the prefix
 func (h *AuthHandler) routesForPattern(pattern string) []string {
-	return []string{
-		pattern,
-		"/mcp" + pattern,
-		pattern + "/",
-		"/mcp" + pattern + "/",
+	basePaths := []string{""}
+	if basePath := normalizeBasePath(h.cfg.ResourcePath); basePath != "" {
+		basePaths = append(basePaths, basePath)
+	} else {
+		basePaths = append(basePaths, "/mcp")
 	}
+
+	routes := make([]string, 0, len(basePaths)*2)
+	for _, basePath := range basePaths {
+		routes = append(routes, joinRoute(basePath, pattern))
+		routes = append(routes, joinRoute(basePath, pattern)+"/")
+	}
+
+	return routes
 }
 
-// GetEffectiveResourcePath returns the resource path for OAuth protected resource URLs.
-// Since proxies may strip the /mcp prefix before forwarding requests, this function
-// restores the prefix for the external-facing URL.
-func GetEffectiveResourcePath(r *http.Request) string {
-	if r.URL.Path == "/" {
-		return "/mcp"
+// resolveResourcePath returns the externally visible resource path,
+// restoring the configured base path when proxies strip it before forwarding.
+func resolveResourcePath(path, basePath string) string {
+	if path == "" {
+		path = "/"
 	}
-	return "/mcp" + r.URL.Path
+	base := normalizeBasePath(basePath)
+	if base == "" {
+		return path
+	}
+	if path == "/" {
+		return base
+	}
+	if path == base || strings.HasPrefix(path, base+"/") {
+		return path
+	}
+	return base + path
 }
 
-// GetProtectedResourceData builds the OAuth protected resource data for a request.
-func (h *AuthHandler) GetProtectedResourceData(r *http.Request, resourcePath string) (*ProtectedResourceData, error) {
+// ResolveResourcePath returns the externally visible resource path for a request.
+// Exported for use by middleware.
+func ResolveResourcePath(r *http.Request, cfg *Config) string {
+	basePath := ""
+	if cfg != nil {
+		basePath = cfg.ResourcePath
+	}
+	return resolveResourcePath(r.URL.Path, basePath)
+}
+
+// buildResourceURL constructs the full resource URL for OAuth metadata.
+func (h *AuthHandler) buildResourceURL(r *http.Request, resourcePath string) string {
 	host, scheme := GetEffectiveHostAndScheme(r, h.cfg)
-
-	// Build the base URL
 	baseURL := fmt.Sprintf("%s://%s", scheme, host)
 	if h.cfg.BaseURL != "" {
 		baseURL = strings.TrimSuffix(h.cfg.BaseURL, "/")
 	}
-
-	// Build the resource URL using url.JoinPath for proper path handling
-	var resourceURL string
-	var err error
-	if resourcePath == "/" {
-		resourceURL = baseURL + "/"
-	} else {
-		resourceURL, err = url.JoinPath(baseURL, resourcePath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to build resource URL: %w", err)
-		}
+	if resourcePath == "" {
+		resourcePath = "/"
 	}
-
-	return &ProtectedResourceData{
-		ResourceURL:         resourceURL,
-		AuthorizationServer: h.cfg.AuthorizationServer,
-	}, nil
+	if !strings.HasPrefix(resourcePath, "/") {
+		resourcePath = "/" + resourcePath
+	}
+	return baseURL + resourcePath
 }
 
 // GetEffectiveHostAndScheme returns the effective host and scheme for a request.
-// It checks X-Forwarded-Host and X-Forwarded-Proto headers first (set by proxies),
-// then falls back to the request's Host and TLS state.
-func GetEffectiveHostAndScheme(r *http.Request, cfg *Config) (host, scheme string) { //nolint:revive // parameters are required by http.oauth.BuildResourceMetadataURL signature
-	// Check for forwarded headers first (typically set by reverse proxies)
-	if forwardedHost := r.Header.Get(headers.ForwardedHostHeader); forwardedHost != "" {
-		host = forwardedHost
+func GetEffectiveHostAndScheme(r *http.Request, cfg *Config) (host, scheme string) { //nolint:revive
+	if fh := r.Header.Get(headers.ForwardedHostHeader); fh != "" {
+		host = fh
 	} else {
 		host = r.Host
 	}
-
-	// Determine scheme
-	switch {
-	case r.Header.Get(headers.ForwardedProtoHeader) != "":
-		scheme = strings.ToLower(r.Header.Get(headers.ForwardedProtoHeader))
-	case r.TLS != nil:
-		scheme = "https"
-	default:
-		// Default to HTTPS in production scenarios
-		scheme = "https"
+	if host == "" {
+		host = "localhost"
 	}
-
-	return host, scheme
+	if fp := r.Header.Get(headers.ForwardedProtoHeader); fp != "" {
+		scheme = strings.ToLower(fp)
+	} else {
+		scheme = "https" // Default to HTTPS
+	}
+	return
 }
 
 // BuildResourceMetadataURL constructs the full URL to the OAuth protected resource metadata endpoint.
 func BuildResourceMetadataURL(r *http.Request, cfg *Config, resourcePath string) string {
 	host, scheme := GetEffectiveHostAndScheme(r, cfg)
-
-	if cfg != nil && cfg.BaseURL != "" {
-		baseURL := strings.TrimSuffix(cfg.BaseURL, "/")
-		return baseURL + OAuthProtectedResourcePrefix + "/" + strings.TrimPrefix(resourcePath, "/")
-	}
-
-	path := OAuthProtectedResourcePrefix
+	suffix := ""
 	if resourcePath != "" && resourcePath != "/" {
-		path = path + "/" + strings.TrimPrefix(resourcePath, "/")
+		if !strings.HasPrefix(resourcePath, "/") {
+			suffix = "/" + resourcePath
+		} else {
+			suffix = resourcePath
+		}
 	}
+	if cfg != nil && cfg.BaseURL != "" {
+		return strings.TrimSuffix(cfg.BaseURL, "/") + OAuthProtectedResourcePrefix + suffix
+	}
+	return fmt.Sprintf("%s://%s%s%s", scheme, host, OAuthProtectedResourcePrefix, suffix)
+}
 
-	return fmt.Sprintf("%s://%s%s", scheme, host, path)
+func normalizeBasePath(path string) string {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" || trimmed == "/" {
+		return ""
+	}
+	if !strings.HasPrefix(trimmed, "/") {
+		trimmed = "/" + trimmed
+	}
+	return strings.TrimSuffix(trimmed, "/")
+}
+
+func joinRoute(basePath, pattern string) string {
+	if basePath == "" {
+		return pattern
+	}
+	if pattern == "" {
+		return basePath
+	}
+	if strings.HasSuffix(basePath, "/") {
+		return strings.TrimSuffix(basePath, "/") + pattern
+	}
+	return basePath + pattern
 }

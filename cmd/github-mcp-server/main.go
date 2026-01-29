@@ -102,6 +102,7 @@ var (
 				Host:                 viper.GetString("host"),
 				Port:                 viper.GetInt("port"),
 				BaseURL:              viper.GetString("base-url"),
+				ResourcePath:         viper.GetString("resource-path"),
 				ExportTranslations:   viper.GetBool("export-translations"),
 				EnableCommandLogging: viper.GetBool("enable-command-logging"),
 				LogFilePath:          viper.GetString("log-file"),
@@ -137,6 +138,7 @@ func init() {
 	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "Override the repo access cache TTL (e.g. 1m, 0s to disable)")
 	rootCmd.PersistentFlags().Int("port", 8082, "HTTP server port")
 	rootCmd.PersistentFlags().String("base-url", "", "Base URL where this server is publicly accessible (for OAuth resource metadata)")
+	rootCmd.PersistentFlags().String("resource-path", "", "Externally visible base path for the HTTP server (for OAuth resource metadata)")
 
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
@@ -154,6 +156,7 @@ func init() {
 	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
 	_ = viper.BindPFlag("port", rootCmd.PersistentFlags().Lookup("port"))
 	_ = viper.BindPFlag("base-url", rootCmd.PersistentFlags().Lookup("base-url"))
+	_ = viper.BindPFlag("resource-path", rootCmd.PersistentFlags().Lookup("resource-path"))
 
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)

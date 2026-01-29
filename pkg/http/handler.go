@@ -93,13 +93,16 @@ func NewHTTPMcpHandler(
 // RegisterRoutes registers the routes for the MCP server
 // URL-based values take precedence over header-based values
 func (h *Handler) RegisterRoutes(r chi.Router) {
-	r.Use(middleware.WithRequestConfig)
+	mcpRouter := chi.NewRouter()
+	mcpRouter.Use(middleware.WithRequestConfig)
 
-	r.Mount("/", h)
+	mcpRouter.Mount("/", h)
 	// Mount readonly and toolset routes
-	r.With(withToolset).Mount("/x/{toolset}", h)
-	r.With(withReadonly, withToolset).Mount("/x/{toolset}/readonly", h)
-	r.With(withReadonly).Mount("/readonly", h)
+	mcpRouter.With(withToolset).Mount("/x/{toolset}", h)
+	mcpRouter.With(withReadonly, withToolset).Mount("/x/{toolset}/readonly", h)
+	mcpRouter.With(withReadonly).Mount("/readonly", h)
+
+	r.Mount("/", mcpRouter)
 }
 
 // withReadonly is middleware that sets readonly mode in the request context

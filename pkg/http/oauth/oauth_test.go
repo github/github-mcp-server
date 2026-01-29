@@ -176,34 +176,62 @@ func TestGetEffectiveHostAndScheme(t *testing.T) {
 	}
 }
 
-func TestGetEffectiveResourcePath(t *testing.T) {
+func TestResolveResourcePath(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name         string
+		cfg          *Config
 		setupRequest func() *http.Request
 		expectedPath string
 	}{
 		{
-			name: "root path restores /mcp prefix",
+			name: "no base path uses request path",
+			cfg:  &Config{},
+			setupRequest: func() *http.Request {
+				return httptest.NewRequest(http.MethodGet, "/x/repos", nil)
+			},
+			expectedPath: "/x/repos",
+		},
+		{
+			name: "base path restored for root",
+			cfg: &Config{
+				ResourcePath: "/mcp",
+			},
 			setupRequest: func() *http.Request {
 				return httptest.NewRequest(http.MethodGet, "/", nil)
 			},
 			expectedPath: "/mcp",
 		},
 		{
-			name: "non-root path adds /mcp prefix",
+			name: "base path restored for nested",
+			cfg: &Config{
+				ResourcePath: "/mcp",
+			},
 			setupRequest: func() *http.Request {
 				return httptest.NewRequest(http.MethodGet, "/readonly", nil)
 			},
 			expectedPath: "/mcp/readonly",
 		},
 		{
-			name: "nested path adds /mcp prefix",
+			name: "base path preserved when already present",
+			cfg: &Config{
+				ResourcePath: "/mcp",
+			},
+			setupRequest: func() *http.Request {
+				return httptest.NewRequest(http.MethodGet, "/mcp/readonly/", nil)
+			},
+			expectedPath: "/mcp/readonly/",
+		},
+		{
+			name: "custom base path restored",
+			cfg: &Config{
+				ResourcePath: "/api",
+			},
 			setupRequest: func() *http.Request {
 				return httptest.NewRequest(http.MethodGet, "/x/repos", nil)
 			},
-			expectedPath: "/mcp/x/repos",
+			expectedPath: "/api/x/repos",
 		},
 	}
 
@@ -212,123 +240,9 @@ func TestGetEffectiveResourcePath(t *testing.T) {
 			t.Parallel()
 
 			req := tc.setupRequest()
-			path := GetEffectiveResourcePath(req)
+			path := ResolveResourcePath(req, tc.cfg)
 
 			assert.Equal(t, tc.expectedPath, path)
-		})
-	}
-}
-
-func TestGetProtectedResourceData(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name                string
-		cfg                 *Config
-		setupRequest        func() *http.Request
-		resourcePath        string
-		expectedResourceURL string
-		expectedAuthServer  string
-		expectError         bool
-	}{
-		{
-			name: "basic request with root resource path",
-			cfg:  &Config{},
-			setupRequest: func() *http.Request {
-				req := httptest.NewRequest(http.MethodGet, "/", nil)
-				req.Host = "api.example.com"
-				return req
-			},
-			resourcePath:        "/",
-			expectedResourceURL: "https://api.example.com/",
-			expectedAuthServer:  DefaultAuthorizationServer,
-		},
-		{
-			name: "basic request with custom resource path",
-			cfg:  &Config{},
-			setupRequest: func() *http.Request {
-				req := httptest.NewRequest(http.MethodGet, "/mcp", nil)
-				req.Host = "api.example.com"
-				return req
-			},
-			resourcePath:        "/mcp",
-			expectedResourceURL: "https://api.example.com/mcp",
-			expectedAuthServer:  DefaultAuthorizationServer,
-		},
-		{
-			name: "with custom base URL",
-			cfg: &Config{
-				BaseURL: "https://custom.example.com",
-			},
-			setupRequest: func() *http.Request {
-				req := httptest.NewRequest(http.MethodGet, "/mcp", nil)
-				req.Host = "api.example.com"
-				return req
-			},
-			resourcePath:        "/mcp",
-			expectedResourceURL: "https://custom.example.com/mcp",
-			expectedAuthServer:  DefaultAuthorizationServer,
-		},
-		{
-			name: "with custom authorization server",
-			cfg: &Config{
-				AuthorizationServer: "https://auth.example.com/oauth",
-			},
-			setupRequest: func() *http.Request {
-				req := httptest.NewRequest(http.MethodGet, "/mcp", nil)
-				req.Host = "api.example.com"
-				return req
-			},
-			resourcePath:        "/mcp",
-			expectedResourceURL: "https://api.example.com/mcp",
-			expectedAuthServer:  "https://auth.example.com/oauth",
-		},
-		{
-			name: "base URL with trailing slash is trimmed",
-			cfg: &Config{
-				BaseURL: "https://custom.example.com/",
-			},
-			setupRequest: func() *http.Request {
-				req := httptest.NewRequest(http.MethodGet, "/mcp", nil)
-				req.Host = "api.example.com"
-				return req
-			},
-			resourcePath:        "/mcp",
-			expectedResourceURL: "https://custom.example.com/mcp",
-			expectedAuthServer:  DefaultAuthorizationServer,
-		},
-		{
-			name: "nested resource path",
-			cfg:  &Config{},
-			setupRequest: func() *http.Request {
-				req := httptest.NewRequest(http.MethodGet, "/mcp/x/repos", nil)
-				req.Host = "api.example.com"
-				return req
-			},
-			resourcePath:        "/mcp/x/repos",
-			expectedResourceURL: "https://api.example.com/mcp/x/repos",
-			expectedAuthServer:  DefaultAuthorizationServer,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			handler, err := NewAuthHandler(tc.cfg)
-			require.NoError(t, err)
-
-			req := tc.setupRequest()
-			data, err := handler.GetProtectedResourceData(req, tc.resourcePath)
-
-			if tc.expectError {
-				require.Error(t, err)
-				return
-			}
-
-			require.NoError(t, err)
-			assert.Equal(t, tc.expectedResourceURL, data.ResourceURL)
-			assert.Equal(t, tc.expectedAuthServer, data.AuthorizationServer)
 		})
 	}
 }
@@ -353,6 +267,17 @@ func TestBuildResourceMetadataURL(t *testing.T) {
 			},
 			resourcePath: "/",
 			expectedURL:  "https://api.example.com/.well-known/oauth-protected-resource",
+		},
+		{
+			name: "resource path preserves trailing slash",
+			cfg:  &Config{},
+			setupRequest: func() *http.Request {
+				req := httptest.NewRequest(http.MethodGet, "/mcp/", nil)
+				req.Host = "api.example.com"
+				return req
+			},
+			resourcePath: "/mcp/",
+			expectedURL:  "https://api.example.com/.well-known/oauth-protected-resource/mcp/",
 		},
 		{
 			name: "with custom resource path",
@@ -442,7 +367,7 @@ func TestHandleProtectedResource(t *testing.T) {
 			validateResponse: func(t *testing.T, body map[string]any) {
 				t.Helper()
 				assert.Equal(t, "GitHub MCP Server", body["resource_name"])
-				assert.Equal(t, "https://api.example.com", body["resource"])
+				assert.Equal(t, "https://api.example.com/", body["resource"])
 
 				authServers, ok := body["authorization_servers"].([]any)
 				require.True(t, ok)
@@ -486,6 +411,20 @@ func TestHandleProtectedResource(t *testing.T) {
 			validateResponse: func(t *testing.T, body map[string]any) {
 				t.Helper()
 				assert.Equal(t, "https://api.example.com/readonly", body["resource"])
+			},
+		},
+		{
+			name: "path with trailing slash",
+			cfg: &Config{
+				BaseURL: "https://api.example.com",
+			},
+			path:               OAuthProtectedResourcePrefix + "/mcp/",
+			host:               "api.example.com",
+			method:             http.MethodGet,
+			expectedStatusCode: http.StatusOK,
+			validateResponse: func(t *testing.T, body map[string]any) {
+				t.Helper()
+				assert.Equal(t, "https://api.example.com/mcp/", body["resource"])
 			},
 		},
 		{
