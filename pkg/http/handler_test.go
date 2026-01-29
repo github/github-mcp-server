@@ -129,7 +129,7 @@ func testTools() []inventory.ServerTool {
 }
 
 // extractToolNames extracts tool names from an inventory
-func extractToolNames(inv *inventory.Inventory, ctx context.Context) []string {
+func extractToolNames(ctx context.Context, inv *inventory.Inventory) []string {
 	available := inv.AvailableTools(ctx)
 	names := make([]string, len(available))
 	for i, tool := range available {
@@ -309,7 +309,7 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 			// Verify the inventory was captured and has the expected tools
 			require.NotNil(t, capturedInventory, "inventory should have been created")
 
-			toolNames := extractToolNames(capturedInventory, capturedCtx)
+			toolNames := extractToolNames(capturedCtx, capturedInventory)
 			expectedSorted := make([]string, len(tt.expectedTools))
 			copy(expectedSorted, tt.expectedTools)
 			sort.Strings(expectedSorted)
