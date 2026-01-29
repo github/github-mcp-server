@@ -37,7 +37,8 @@ func ExtractUserToken(oauthCfg *oauth.Config) func(next http.Handler) http.Handl
 // sendAuthChallenge sends a 401 Unauthorized response with WWW-Authenticate header
 // containing the OAuth protected resource metadata URL as per RFC 6750 and MCP spec.
 func sendAuthChallenge(w http.ResponseWriter, r *http.Request, oauthCfg *oauth.Config) {
-	resourceMetadataURL := oauth.BuildResourceMetadataURL(r, oauthCfg, "mcp")
+	resourcePath := oauth.ResolveResourcePath(r, oauthCfg)
+	resourceMetadataURL := oauth.BuildResourceMetadataURL(r, oauthCfg, resourcePath)
 	w.Header().Set("WWW-Authenticate", fmt.Sprintf(`Bearer resource_metadata=%q`, resourceMetadataURL))
 	http.Error(w, "Unauthorized", http.StatusUnauthorized)
 }

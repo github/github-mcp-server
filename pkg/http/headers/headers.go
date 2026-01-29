@@ -26,10 +26,6 @@ const (
 	// ForwardedProtoHeader is a standard HTTP Header for preserving the original protocol when proxying.
 	ForwardedProtoHeader = "X-Forwarded-Proto"
 
-	// OriginalPathHeader is set to preserve the original request path
-	// before the /mcp prefix was stripped during proxying.
-	OriginalPathHeader = "X-GitHub-Original-Path"
-
 	// RequestHmacHeader is used to authenticate requests to the Raw API.
 	RequestHmacHeader = "Request-Hmac"
 

@@ -35,6 +35,10 @@ type ServerConfig struct {
 	// If not set, the server will derive the URL from incoming request headers.
 	BaseURL string
 
+	// ResourcePath is the externally visible base path for this server (e.g., "/mcp").
+	// This is used to restore the original path when a proxy strips a base path before forwarding.
+	ResourcePath string
+
 	// ExportTranslations indicates if we should export translations
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#i18n--overriding-descriptions
 	ExportTranslations bool
@@ -108,8 +112,9 @@ func RunHTTPServer(cfg ServerConfig) error {
 
 	// Register OAuth protected resource metadata endpoints
 	oauthCfg := &oauth.Config{
-		BaseURL:  cfg.BaseURL,
-		ApiHosts: apiHost,
+		BaseURL:      cfg.BaseURL,
+		ApiHosts:     apiHost,
+		ResourcePath: cfg.ResourcePath,
 	}
 
 	r := chi.NewRouter()
