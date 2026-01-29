@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/http/middleware"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -113,11 +114,20 @@ func RunHTTPServer(cfg ServerConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to create OAuth handler: %w", err)
 	}
-	oauthHandler.RegisterRoutes(r)
-	logger.Info("OAuth protected resource endpoints registered", "baseURL", cfg.BaseURL)
 
 	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger, WithOAuthConfig(oauthCfg))
-	handler.RegisterRoutes(r)
+
+	// MCP routes with middleware
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.WithRequestConfig)
+		handler.RegisterRoutes(r)
+	})
+
+	// OAuth routes without MCP middleware
+	r.Group(func(r chi.Router) {
+		oauthHandler.RegisterRoutes(r)
+	})
+	logger.Info("OAuth protected resource endpoints registered", "baseURL", cfg.BaseURL)
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	httpSvr := http.Server{
