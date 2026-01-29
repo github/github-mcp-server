@@ -13,7 +13,9 @@ import (
 
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
@@ -98,21 +100,39 @@ func RunHTTPServer(cfg ServerConfig) error {
 		nil,
 	)
 
-	r := chi.NewRouter()
+	// Initialize the global tool scope map
+	err = initGlobalToolScopeMap(t)
+	if err != nil {
+		return fmt.Errorf("failed to initialize tool scope map: %w", err)
+	}
 
 	// Register OAuth protected resource metadata endpoints
 	oauthCfg := &oauth.Config{
-		BaseURL: cfg.BaseURL,
+		BaseURL:  cfg.BaseURL,
+		ApiHosts: apiHost,
 	}
+
+	r := chi.NewRouter()
+	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger, WithOAuthConfig(oauthCfg))
 	oauthHandler, err := oauth.NewAuthHandler(oauthCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create OAuth handler: %w", err)
 	}
-	oauthHandler.RegisterRoutes(r)
-	logger.Info("OAuth protected resource endpoints registered", "baseURL", cfg.BaseURL)
 
-	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger, WithOAuthConfig(oauthCfg))
-	handler.RegisterRoutes(r)
+	r.Group(func(r chi.Router) {
+		// Register Middleware First, needs to be before route registration
+		handler.RegisterMiddleware(r)
+
+		// Register MCP server routes
+		handler.RegisterRoutes(r)
+		logger.Info("MCP server routes registered")
+	})
+
+	r.Group(func(r chi.Router) {
+		// Register OAuth protected resource metadata endpoints
+		oauthHandler.RegisterRoutes(r)
+		logger.Info("OAuth protected resource endpoints registered", "baseURL", cfg.BaseURL)
+	})
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	httpSvr := http.Server{
@@ -142,5 +162,21 @@ func RunHTTPServer(cfg ServerConfig) error {
 	}
 
 	logger.Info("server stopped gracefully")
+	return nil
+}
+
+func initGlobalToolScopeMap(t translations.TranslationHelperFunc) error {
+	// Build inventory with all tools to extract scope information
+	inv, err := inventory.NewBuilder().
+		SetTools(github.AllTools(t)).
+		Build()
+
+	if err != nil {
+		return fmt.Errorf("failed to build inventory for tool scope map: %w", err)
+	}
+
+	// Initialize the global scope map
+	scopes.SetToolScopeMapFromInventory(inv)
+
 	return nil
 }

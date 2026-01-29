@@ -135,7 +135,6 @@ func init() {
 	rootCmd.PersistentFlags().Bool("lockdown-mode", false, "Enable lockdown mode")
 	rootCmd.PersistentFlags().Bool("insiders", false, "Enable insiders features")
 	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "Override the repo access cache TTL (e.g. 1m, 0s to disable)")
-	rootCmd.PersistentFlags().Int("port", 8082, "HTTP server port")
 
 	// Add port flag to http command
 	httpCmd.PersistentFlags().Int("port", 8082, "HTTP server port")

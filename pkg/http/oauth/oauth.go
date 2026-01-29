@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/github/github-mcp-server/pkg/http/headers"
+	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
@@ -40,6 +41,8 @@ var SupportedScopes = []string{
 
 // Config holds the OAuth configuration for the MCP server.
 type Config struct {
+	ApiHosts utils.APIHostResolver
+
 	// BaseURL is the publicly accessible URL where this server is hosted.
 	// This is used to construct the OAuth resource URL.
 	BaseURL string

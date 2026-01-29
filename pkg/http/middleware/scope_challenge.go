@@ -12,14 +12,15 @@ import (
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/utils"
 )
 
 // FetchScopesFromGitHubAPI fetches the OAuth scopes from the GitHub API by making
 // a HEAD request and reading the X-OAuth-Scopes header. This is used as a fallback
 // when scopes are not provided in the token info header.
-func FetchScopesFromGitHubAPI(ctx context.Context, token string, apiUrls *utils.APIHost) ([]string, error) {
-	baseUrl, err := apiUrls.BaseRESTURL(ctx)
+func FetchScopesFromGitHubAPI(ctx context.Context, token string, apiHost utils.APIHostResolver) ([]string, error) {
+	baseUrl, err := apiHost.BaseRESTURL(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +57,7 @@ func FetchScopesFromGitHubAPI(ctx context.Context, token string, apiUrls *utils.
 
 // WithScopeChallenge creates a new middleware that determines if an OAuth request contains sufficient scopes to
 // complete the request and returns a scope challenge if not.
-func WithScopeChallenge(oauthCfg *oauth.Config, apiUrls *utils.APIHost) func(http.Handler) http.Handler {
+func WithScopeChallenge(oauthCfg *oauth.Config) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -135,7 +136,7 @@ func WithScopeChallenge(oauthCfg *oauth.Config, apiUrls *utils.APIHost) func(htt
 			}
 
 			// Get OAuth scopes from GitHub API
-			activeScopes, err := FetchScopesFromGitHubAPI(ctx, tokenInfo.Token, apiUrls)
+			activeScopes, err := FetchScopesFromGitHubAPI(ctx, tokenInfo.Token, oauthCfg.ApiHosts)
 
 			// Check if user has the required scopes
 			if toolScopeInfo.HasAcceptedScope(activeScopes...) {

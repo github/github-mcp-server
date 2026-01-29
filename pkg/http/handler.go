@@ -90,11 +90,19 @@ func NewHTTPMcpHandler(
 	}
 }
 
+func (h *Handler) RegisterMiddleware(r chi.Router) {
+	r.Use(
+		middleware.ExtractUserToken(h.oauthCfg),
+		middleware.WithRequestConfig,
+		middleware.WithScopeChallenge(h.oauthCfg),
+	)
+
+	r.Use(middleware.WithScopeChallenge(h.oauthCfg))
+}
+
 // RegisterRoutes registers the routes for the MCP server
 // URL-based values take precedence over header-based values
 func (h *Handler) RegisterRoutes(r chi.Router) {
-	r.Use(middleware.WithRequestConfig)
-
 	r.Mount("/", h)
 	// Mount readonly and toolset routes
 	r.With(withToolset).Mount("/x/{toolset}", h)
@@ -144,7 +152,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Stateless: true,
 	})
 
-	middleware.ExtractUserToken(h.oauthCfg)(mcpHandler).ServeHTTP(w, r)
+	mcpHandler.ServeHTTP(w, r)
 }
 
 func DefaultGitHubMCPServerFactory(r *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error) {
