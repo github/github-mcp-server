@@ -1,0 +1,55 @@
+{
+  "comment": "Recommended toolsets for OwlBan Group GitHub MCP Server",
+  "default_toolsets": [
+    "context",
+    "repos",
+    "issues",
+    "pull_requests",
+    "users"
+  ],
+  "owlban_recommended": [
+    "context",
+    "repos",
+    "issues",
+    "pull_requests",
+    "actions",
+    "code_security",
+    "users",
+    "orgs"
+  ],
+  "owlban_development": [
+    "context",
+    "repos",
+    "issues",
+    "pull_requests",
+    "actions",
+    "code_security",
+    "dependabot",
+    "git",
+    "projects",
+    "users",
+    "orgs"
+  ],
+  "owlban_full_access": [
+    "all"
+  ],
+  "descriptions": {
+    "context": "User context and authentication info",
+    "repos": "Repository operations (read/write)",
+    "issues": "Issue management and tracking",
+    "pull_requests": "Pull request operations",
+    "actions": "GitHub Actions workflows and CI/CD",
+    "code_security": "Security scanning and alerts",
+    "dependabot": "Dependency management",
+    "git": "Low-level Git operations",
+    "projects": "GitHub Projects boards",
+    "users": "User profile and information",
+    "orgs": "Organization management",
+    "all": "All available toolsets"
+  },
+  "usage_examples": {
+    "docker": "docker run -e GITHUB_TOOLSETS=\"context,repos,issues\" ...",
+    "env_var": "export GITHUB_TOOLSETS=\"context,repos,issues\"",
+    "binary": "./github-mcp-server --toolsets context,repos,issues"
+  }
+}
