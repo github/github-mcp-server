@@ -283,7 +283,11 @@ func (d *RequestDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
 	}
 
 	// extract the token from the context
-	token, _ := ghcontext.GetTokenInfo(ctx)
+	tokenInfo, ok := ghcontext.GetTokenInfo(ctx)
+	if !ok {
+		return nil, fmt.Errorf("no token info in context")
+	}
+	token := tokenInfo.Token
 
 	baseRestURL, err := d.apiHosts.BaseRESTURL(ctx)
 	if err != nil {
@@ -309,7 +313,11 @@ func (d *RequestDeps) GetGQLClient(ctx context.Context) (*githubv4.Client, error
 	}
 
 	// extract the token from the context
-	token, _ := ghcontext.GetTokenInfo(ctx)
+	tokenInfo, ok := ghcontext.GetTokenInfo(ctx)
+	if !ok {
+		return nil, fmt.Errorf("no token info in context")
+	}
+	token := tokenInfo.Token
 
 	// Construct GraphQL client
 	// We use NewEnterpriseClient unconditionally since we already parsed the API host

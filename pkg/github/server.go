@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	gherrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/octicons"
@@ -73,10 +74,10 @@ type MCPServerConfig struct {
 
 type MCPServerOption func(*mcp.ServerOptions)
 
-func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependencies, inventory *inventory.Inventory) (*mcp.Server, error) {
+func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependencies, inv *inventory.Inventory) (*mcp.Server, error) {
 	// Create the MCP server
 	serverOpts := &mcp.ServerOptions{
-		Instructions:      inventory.Instructions(),
+		Instructions:      inv.Instructions(),
 		Logger:            cfg.Logger,
 		CompletionHandler: CompletionsHandler(deps.GetClient),
 	}
@@ -102,20 +103,25 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
 	ghServer.AddReceivingMiddleware(InjectDepsMiddleware(deps))
 
-	if unrecognized := inventory.UnrecognizedToolsets(); len(unrecognized) > 0 {
+	if unrecognized := inv.UnrecognizedToolsets(); len(unrecognized) > 0 {
 		cfg.Logger.Warn("Warning: unrecognized toolsets ignored", "toolsets", strings.Join(unrecognized, ", "))
+	}
+
+	invToUse := inv
+	if methodInfo, ok := ghcontext.MCPMethod(ctx); ok && methodInfo != nil {
+		invToUse = inv.ForMCPRequest(methodInfo.Method, methodInfo.ItemName)
 	}
 
 	// Register GitHub tools/resources/prompts from the inventory.
 	// In dynamic mode with no explicit toolsets, this is a no-op since enabledToolsets
 	// is empty - users enable toolsets at runtime via the dynamic tools below (but can
 	// enable toolsets or tools explicitly that do need registration).
-	inventory.RegisterAll(ctx, ghServer, deps)
+	invToUse.RegisterAll(ctx, ghServer, deps)
 
 	// Register dynamic toolset management tools (enable/disable) - these are separate
 	// meta-tools that control the inventory, not part of the inventory itself
 	if cfg.DynamicToolsets {
-		registerDynamicTools(ghServer, inventory, deps, cfg.Translator)
+		registerDynamicTools(ghServer, invToUse, deps, cfg.Translator)
 	}
 
 	return ghServer, nil
