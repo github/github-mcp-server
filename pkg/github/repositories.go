@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -147,6 +148,14 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 						Type:        "string",
 						Description: "Author username or email address to filter commits by",
 					},
+					"since": {
+						Type:        "string",
+						Description: "Only show commits after this date (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ)",
+					},
+					"until": {
+						Type:        "string",
+						Description: "Only show commits before this date (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ)",
+					},
 				},
 				Required: []string{"owner", "repo"},
 			}),
@@ -169,6 +178,27 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			sinceStr, err := OptionalParam[string](args, "since")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			untilStr, err := OptionalParam[string](args, "until")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			var sinceTime, untilTime time.Time
+			if sinceStr != "" {
+				sinceTime, err = time.Parse(time.RFC3339, sinceStr)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("invalid 'since' date format, expected ISO 8601 (YYYY-MM-DDTHH:MM:SSZ): %s", err.Error())), nil, nil
+				}
+			}
+			if untilStr != "" {
+				untilTime, err = time.Parse(time.RFC3339, untilStr)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("invalid 'until' date format, expected ISO 8601 (YYYY-MM-DDTHH:MM:SSZ): %s", err.Error())), nil, nil
+				}
+			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -181,6 +211,8 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			opts := &github.CommitsListOptions{
 				SHA:    sha,
 				Author: author,
+				Since:  sinceTime,
+				Until:  untilTime,
 				ListOptions: github.ListOptions{
 					Page:    pagination.Page,
 					PerPage: perPage,
