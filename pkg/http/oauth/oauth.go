@@ -192,7 +192,11 @@ func GetEffectiveHostAndScheme(r *http.Request, cfg *Config) (host, scheme strin
 	if fp := r.Header.Get(headers.ForwardedProtoHeader); fp != "" {
 		scheme = strings.ToLower(fp)
 	} else {
-		scheme = "https" // Default to HTTPS
+		if r.TLS != nil {
+			scheme = "https"
+		} else {
+			scheme = "http"
+		}
 	}
 	return
 }
