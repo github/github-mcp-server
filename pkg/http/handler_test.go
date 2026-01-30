@@ -33,6 +33,13 @@ func mockTool(name, toolsetID string, readOnly bool) inventory.ServerTool {
 	}
 }
 
+func mockToolWithFeatureFlag(name, toolsetID string, readOnly bool, enableFlag, disableFlag string) inventory.ServerTool {
+	tool := mockTool(name, toolsetID, readOnly)
+	tool.FeatureFlagEnable = enableFlag
+	tool.FeatureFlagDisable = disableFlag
+	return tool
+}
+
 func TestInventoryFiltersForRequest(t *testing.T) {
 	tools := []inventory.ServerTool{
 		mockTool("get_file_contents", "repos", true),
@@ -116,12 +123,15 @@ func testTools() []inventory.ServerTool {
 		mockTool("create_issue", "issues", false),
 		mockTool("list_pull_requests", "pull_requests", true),
 		mockTool("create_pull_request", "pull_requests", false),
+		// Feature-flagged tools for testing X-MCP-Features header
+		mockToolWithFeatureFlag("needs_holdback", "repos", true, "mcp_holdback_consolidated_projects", ""),
+		mockToolWithFeatureFlag("hidden_by_holdback", "repos", true, "", "mcp_holdback_consolidated_projects"),
 	}
 }
 
 // extractToolNames extracts tool names from an inventory
-func extractToolNames(inv *inventory.Inventory) []string {
-	available := inv.AvailableTools(context.Background())
+func extractToolNames(ctx context.Context, inv *inventory.Inventory) []string {
+	available := inv.AvailableTools(ctx)
 	names := make([]string, len(available))
 	for i, tool := range available {
 		names[i] = tool.Tool.Name
@@ -142,17 +152,17 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 		{
 			name:          "root path returns all tools",
 			path:          "/",
-			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "create_issue", "list_pull_requests", "create_pull_request"},
+			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "create_issue", "list_pull_requests", "create_pull_request", "hidden_by_holdback"},
 		},
 		{
 			name:          "readonly path filters write tools",
 			path:          "/readonly",
-			expectedTools: []string{"get_file_contents", "list_issues", "list_pull_requests"},
+			expectedTools: []string{"get_file_contents", "list_issues", "list_pull_requests", "hidden_by_holdback"},
 		},
 		{
 			name:          "toolset path filters to toolset",
 			path:          "/x/repos",
-			expectedTools: []string{"get_file_contents", "create_repository"},
+			expectedTools: []string{"get_file_contents", "create_repository", "hidden_by_holdback"},
 		},
 		{
 			name:          "toolset path with issues",
@@ -162,7 +172,7 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 		{
 			name:          "toolset readonly path filters to readonly tools in toolset",
 			path:          "/x/repos/readonly",
-			expectedTools: []string{"get_file_contents"},
+			expectedTools: []string{"get_file_contents", "hidden_by_holdback"},
 		},
 		{
 			name:          "toolset readonly path with issues",
@@ -199,7 +209,7 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 			headers: map[string]string{
 				headers.MCPReadOnlyHeader: "true",
 			},
-			expectedTools: []string{"get_file_contents", "list_issues", "list_pull_requests"},
+			expectedTools: []string{"get_file_contents", "list_issues", "list_pull_requests", "hidden_by_holdback"},
 		},
 		{
 			name: "X-MCP-Toolsets header filters to toolset",
@@ -207,7 +217,7 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 			headers: map[string]string{
 				headers.MCPToolsetsHeader: "repos",
 			},
-			expectedTools: []string{"get_file_contents", "create_repository"},
+			expectedTools: []string{"get_file_contents", "create_repository", "hidden_by_holdback"},
 		},
 		{
 			name: "URL toolset takes precedence over header toolset",
@@ -223,19 +233,41 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 			headers: map[string]string{
 				headers.MCPReadOnlyHeader: "false",
 			},
-			expectedTools: []string{"get_file_contents", "list_issues", "list_pull_requests"},
+			expectedTools: []string{"get_file_contents", "list_issues", "list_pull_requests", "hidden_by_holdback"},
+		},
+		{
+			name: "X-MCP-Features header enables flagged tool",
+			path: "/",
+			headers: map[string]string{
+				headers.MCPFeaturesHeader: "mcp_holdback_consolidated_projects",
+			},
+			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "create_issue", "list_pull_requests", "create_pull_request", "needs_holdback"},
+		},
+		{
+			name: "X-MCP-Features header with unknown flag is ignored",
+			path: "/",
+			headers: map[string]string{
+				headers.MCPFeaturesHeader: "unknown_flag",
+			},
+			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "create_issue", "list_pull_requests", "create_pull_request", "hidden_by_holdback"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var capturedInventory *inventory.Inventory
+			var capturedCtx context.Context
+
+			// Create feature checker that reads from context (same as production)
+			featureChecker := createHTTPFeatureChecker()
 
 			// Create inventory factory that captures the built inventory
 			inventoryFactory := func(r *http.Request) (*inventory.Inventory, error) {
+				capturedCtx = r.Context()
 				builder := inventory.NewBuilder().
 					SetTools(tools).
-					WithToolsets([]string{"all"})
+					WithToolsets([]string{"all"}).
+					WithFeatureChecker(featureChecker)
 				builder = InventoryFiltersForRequest(r, builder)
 				inv, err := builder.Build()
 				if err != nil {
@@ -279,7 +311,7 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 			// Verify the inventory was captured and has the expected tools
 			require.NotNil(t, capturedInventory, "inventory should have been created")
 
-			toolNames := extractToolNames(capturedInventory)
+			toolNames := extractToolNames(capturedCtx, capturedInventory)
 			expectedSorted := make([]string, len(tt.expectedTools))
 			copy(expectedSorted, tt.expectedTools)
 			sort.Strings(expectedSorted)

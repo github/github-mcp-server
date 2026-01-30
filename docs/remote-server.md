@@ -121,13 +121,15 @@ The Remote GitHub MCP server supports the following URL path patterns:
 - `/` - Default toolset (see ["default" toolset](../README.md#default-toolset))
 - `/readonly` - Default toolset in read-only mode
 - `/insiders` - Default toolset with insiders mode enabled
-- `/insiders/readonly` - Default toolset with insiders mode in read-only mode
+- `/readonly/insiders` - Default toolset in read-only mode with insiders mode enabled
 - `/x/all` - All available toolsets
 - `/x/all/readonly` - All available toolsets in read-only mode
 - `/x/all/insiders` - All available toolsets with insiders mode enabled
+- `/x/all/readonly/insiders` - All available toolsets in read-only mode with insiders mode enabled
 - `/x/{toolset}` - Single specific toolset
 - `/x/{toolset}/readonly` - Single specific toolset in read-only mode
 - `/x/{toolset}/insiders` - Single specific toolset with insiders mode enabled
+- `/x/{toolset}/readonly/insiders` - Single specific toolset in read-only mode with insiders mode enabled
 
 Note: `{toolset}` can only be a single toolset, not a comma-separated list. To combine multiple toolsets, use the `X-MCP-Toolsets` header instead. Path modifiers like `/readonly` and `/insiders` can be combined with the `X-MCP-Insiders` or `X-MCP-Readonly` headers.
 
