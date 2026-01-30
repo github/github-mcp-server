@@ -366,9 +366,7 @@ func fetchTokenScopesForHost(ctx context.Context, token, host string) ([]string,
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
 	}
 
-	fetcher := scopes.NewFetcher(scopes.FetcherOptions{
-		APIHost: apiHost,
-	})
+	fetcher := scopes.NewFetcher(apiHost, scopes.FetcherOptions{})
 
 	return fetcher.FetchTokenScopes(ctx, token)
 }

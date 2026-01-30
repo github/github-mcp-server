@@ -131,16 +131,14 @@ func RunHTTPServer(cfg ServerConfig) error {
 		ResourcePath: cfg.ResourcePath,
 	}
 
-	severOptions := []HandlerOption{}
+	serverOptions := []HandlerOption{}
 	if cfg.ScopeChallenge {
-		scopeFetcher := scopes.NewFetcher(scopes.FetcherOptions{
-			APIHost: apiHost,
-		})
-		severOptions = append(severOptions, WithScopeFetcher(scopeFetcher))
+		scopeFetcher := scopes.NewFetcher(apiHost, scopes.FetcherOptions{})
+		serverOptions = append(serverOptions, WithScopeFetcher(scopeFetcher))
 	}
 
 	r := chi.NewRouter()
-	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger, apiHost, append(severOptions, WithFeatureChecker(featureChecker), WithOAuthConfig(oauthCfg))...)
+	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger, apiHost, append(serverOptions, WithFeatureChecker(featureChecker), WithOAuthConfig(oauthCfg))...)
 	oauthHandler, err := oauth.NewAuthHandler(oauthCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create OAuth handler: %w", err)

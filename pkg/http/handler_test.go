@@ -276,7 +276,8 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 			// Create feature checker that reads from context (same as production)
 			featureChecker := createHTTPFeatureChecker()
 
-			apiHost := utils.NewDefaultAPIHostResolver()
+			apiHost, err := utils.NewAPIHost("https://api.github.com")
+			require.NoError(t, err)
 
 			// Create inventory factory that captures the built inventory
 			inventoryFactory := func(r *http.Request) (*inventory.Inventory, error) {

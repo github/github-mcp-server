@@ -93,9 +93,7 @@ func NewHTTPMcpHandler(
 
 	scopeFetcher := opts.ScopeFetcher
 	if scopeFetcher == nil {
-		scopeFetcher = scopes.NewFetcher(scopes.FetcherOptions{
-			APIHost: apiHost,
-		})
+		scopeFetcher = scopes.NewFetcher(apiHost, scopes.FetcherOptions{})
 	}
 
 	inventoryFactory := opts.InventoryFactory
@@ -121,6 +119,7 @@ func (h *Handler) RegisterMiddleware(r chi.Router) {
 	r.Use(
 		middleware.ExtractUserToken(h.oauthCfg),
 		middleware.WithRequestConfig,
+		middleware.WithMCPParse(),
 	)
 
 	if h.config.ScopeChallenge {

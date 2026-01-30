@@ -40,15 +40,10 @@ type Fetcher struct {
 }
 
 // NewFetcher creates a new scope fetcher with the given options.
-func NewFetcher(opts FetcherOptions) *Fetcher {
+func NewFetcher(apiHost utils.APIHostResolver, opts FetcherOptions) *Fetcher {
 	client := opts.HTTPClient
 	if client == nil {
 		client = &http.Client{Timeout: DefaultFetchTimeout}
-	}
-
-	apiHost := opts.APIHost
-	if apiHost == nil {
-		apiHost = utils.NewDefaultAPIHostResolver()
 	}
 
 	return &Fetcher{
@@ -126,11 +121,16 @@ func ParseScopeHeader(header string) []string {
 // FetchTokenScopes is a convenience function that creates a default fetcher
 // and fetches the token scopes.
 func FetchTokenScopes(ctx context.Context, token string) ([]string, error) {
-	return NewFetcher(FetcherOptions{}).FetchTokenScopes(ctx, token)
+	apiHost, err := utils.NewAPIHost("https://api.github.com/")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create default API host: %w", err)
+	}
+
+	return NewFetcher(apiHost, FetcherOptions{}).FetchTokenScopes(ctx, token)
 }
 
 // FetchTokenScopesWithHost is a convenience function that creates a fetcher
 // for a specific API host and fetches the token scopes.
 func FetchTokenScopesWithHost(ctx context.Context, token string, apiHost utils.APIHostResolver) ([]string, error) {
-	return NewFetcher(FetcherOptions{APIHost: apiHost}).FetchTokenScopes(ctx, token)
+	return NewFetcher(apiHost, FetcherOptions{}).FetchTokenScopes(ctx, token)
 }
