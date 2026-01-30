@@ -211,7 +211,7 @@ func DefaultInventoryFactory(cfg *ServerConfig, t translations.TranslationHelper
 		b = InventoryFiltersForRequest(r, b)
 
 		if cfg.ScopeChallenge {
-			b = b.WithFilter(ScopeChallengeFilter(r, scopeFetcher))
+			b = ScopeChallengeFilter(b, r, scopeFetcher)
 		}
 
 		b.WithServerInstructions()
@@ -243,12 +243,12 @@ func InventoryFiltersForRequest(r *http.Request, builder *inventory.Builder) *in
 	return builder
 }
 
-func ScopeChallengeFilter(r *http.Request, fetcher scopes.FetcherInterface) inventory.ToolFilter {
+func ScopeChallengeFilter(b *inventory.Builder, r *http.Request, fetcher scopes.FetcherInterface) *inventory.Builder {
 	ctx := r.Context()
 
 	tokenInfo, ok := ghcontext.GetTokenInfo(ctx)
 	if !ok || tokenInfo == nil {
-		return nil
+		return b
 	}
 
 	// Fetch token scopes for scope-based tool filtering (PAT tokens only)
@@ -257,11 +257,11 @@ func ScopeChallengeFilter(r *http.Request, fetcher scopes.FetcherInterface) inve
 	if tokenInfo.TokenType == utils.TokenTypePersonalAccessToken {
 		scopesList, err := fetcher.FetchTokenScopes(ctx, tokenInfo.Token)
 		if err != nil {
-			return nil
+			return b
 		}
 
-		return github.CreateToolScopeFilter(scopesList)
+		return b.WithFilter(github.CreateToolScopeFilter(scopesList))
 	}
 
-	return nil
+	return b
 }
