@@ -51,6 +51,12 @@ type Config struct {
 	// This is used to restore the original path when a proxy strips a base path before forwarding.
 	// If empty, requests are treated as already using the external path.
 	ResourcePath string
+
+	// ValidateTokenFormat controls whether the token extraction middleware validates
+	// the token format and returns a 401 with WWW-Authenticate header for invalid tokens.
+	// When false (default), invalid tokens pass through for validation elsewhere (e.g., CAPI).
+	// When true, invalid tokens receive a 401 response with OAuth challenge headers.
+	ValidateTokenFormat bool
 }
 
 // AuthHandler handles OAuth-related HTTP endpoints.
