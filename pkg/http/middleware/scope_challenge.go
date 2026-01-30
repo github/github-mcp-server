@@ -20,12 +20,12 @@ import (
 // a HEAD request and reading the X-OAuth-Scopes header. This is used as a fallback
 // when scopes are not provided in the token info header.
 func FetchScopesFromGitHubAPI(ctx context.Context, token string, apiHost utils.APIHostResolver) ([]string, error) {
-	baseUrl, err := apiHost.BaseRESTURL(ctx)
+	baseURL, err := apiHost.BaseRESTURL(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, strings.TrimSuffix(baseUrl.String(), "/")+"/user", http.NoBody)
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, strings.TrimSuffix(baseURL.String(), "/")+"/user", http.NoBody)
 	if err != nil {
 		return nil, err
 	}

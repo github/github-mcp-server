@@ -12,9 +12,10 @@ type tokenCtx string
 var tokenCtxKey tokenCtx = "tokenctx"
 
 type TokenInfo struct {
-	Token     string
-	TokenType utils.TokenType
-	Scopes    []string
+	Token         string
+	TokenType     utils.TokenType
+	ScopesFetched bool
+	Scopes        []string
 }
 
 // WithTokenInfo adds TokenInfo to the context
@@ -22,12 +23,11 @@ func WithTokenInfo(ctx context.Context, tokenInfo *TokenInfo) context.Context {
 	return context.WithValue(ctx, tokenCtxKey, tokenInfo)
 }
 
-func SetTokenScopes(ctx context.Context, scopes []string) context.Context {
+func SetTokenScopes(ctx context.Context, scopes []string) {
 	if tokenInfo, ok := GetTokenInfo(ctx); ok {
 		tokenInfo.Scopes = scopes
-		return WithTokenInfo(ctx, tokenInfo)
+		tokenInfo.ScopesFetched = true
 	}
-	return ctx
 }
 
 // GetTokenInfo retrieves the authentication token from the context

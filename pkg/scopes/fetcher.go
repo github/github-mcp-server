@@ -67,13 +67,13 @@ func NewFetcher(opts FetcherOptions) *Fetcher {
 // Note: Fine-grained PATs don't return the X-OAuth-Scopes header, so an empty
 // slice is returned for those tokens.
 func (f *Fetcher) FetchTokenScopes(ctx context.Context, token string) ([]string, error) {
-	apiHostUrl, err := f.apiHost.BaseRESTURL(ctx)
+	apiHostURL, err := f.apiHost.BaseRESTURL(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get API host URL: %w", err)
 	}
 
 	// Use a lightweight endpoint that requires authentication
-	endpoint, err := url.JoinPath(apiHostUrl.String(), "/")
+	endpoint, err := url.JoinPath(apiHostURL.String(), "/")
 	if err != nil {
 		return nil, fmt.Errorf("failed to construct API URL: %w", err)
 	}

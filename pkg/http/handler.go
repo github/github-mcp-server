@@ -209,10 +209,7 @@ func DefaultInventoryFactory(cfg *ServerConfig, t translations.TranslationHelper
 			WithFeatureChecker(featureChecker)
 
 		b = InventoryFiltersForRequest(r, b)
-
-		if cfg.ScopeChallenge {
-			b = ScopeChallengeFilter(b, r, scopeFetcher)
-		}
+		b = PATScopeFilter(b, r, scopeFetcher)
 
 		b.WithServerInstructions()
 
@@ -243,7 +240,7 @@ func InventoryFiltersForRequest(r *http.Request, builder *inventory.Builder) *in
 	return builder
 }
 
-func ScopeChallengeFilter(b *inventory.Builder, r *http.Request, fetcher scopes.FetcherInterface) *inventory.Builder {
+func PATScopeFilter(b *inventory.Builder, r *http.Request, fetcher scopes.FetcherInterface) *inventory.Builder {
 	ctx := r.Context()
 
 	tokenInfo, ok := ghcontext.GetTokenInfo(ctx)
@@ -259,6 +256,9 @@ func ScopeChallengeFilter(b *inventory.Builder, r *http.Request, fetcher scopes.
 		if err != nil {
 			return b
 		}
+
+		// Store fetched scopes in context for downstream use
+		ghcontext.SetTokenScopes(ctx, scopesList)
 
 		return b.WithFilter(github.CreateToolScopeFilter(scopesList))
 	}

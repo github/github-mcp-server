@@ -117,7 +117,7 @@ func WithMCPParse() func(http.Handler) http.Handler {
 			}
 
 			// Store the parsed info in context
-			ctx = ghcontext.ContextWithMCPMethodInfo(ctx, methodInfo)
+			ctx = ghcontext.WithMCPMethodInfo(ctx, methodInfo)
 
 			next.ServeHTTP(w, r.WithContext(ctx))
 		}

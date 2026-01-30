@@ -25,8 +25,8 @@ type MCPMethodInfo struct {
 	Arguments map[string]any
 }
 
-// ContextWithMCPMethodInfo stores the MCPMethodInfo in the context.
-func ContextWithMCPMethodInfo(ctx context.Context, info *MCPMethodInfo) context.Context {
+// WithMCPMethodInfo stores the MCPMethodInfo in the context.
+func WithMCPMethodInfo(ctx context.Context, info *MCPMethodInfo) context.Context {
 	return context.WithValue(ctx, mcpMethodInfoCtxKey, info)
 }
 

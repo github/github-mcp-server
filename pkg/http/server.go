@@ -128,7 +128,6 @@ func RunHTTPServer(cfg ServerConfig) error {
 	// Register OAuth protected resource metadata endpoints
 	oauthCfg := &oauth.Config{
 		BaseURL:      cfg.BaseURL,
-		ApiHosts:     apiHost,
 		ResourcePath: cfg.ResourcePath,
 	}
 

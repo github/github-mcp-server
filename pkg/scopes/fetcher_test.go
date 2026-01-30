@@ -16,16 +16,16 @@ type testApiHostResolver struct {
 	baseURL string
 }
 
-func (t testApiHostResolver) BaseRESTURL(ctx context.Context) (*url.URL, error) {
+func (t testApiHostResolver) BaseRESTURL(_ context.Context) (*url.URL, error) {
 	return url.Parse(t.baseURL)
 }
-func (t testApiHostResolver) GraphqlURL(ctx context.Context) (*url.URL, error) {
+func (t testApiHostResolver) GraphqlURL(_ context.Context) (*url.URL, error) {
 	return nil, nil
 }
-func (t testApiHostResolver) UploadURL(ctx context.Context) (*url.URL, error) {
+func (t testApiHostResolver) UploadURL(_ context.Context) (*url.URL, error) {
 	return nil, nil
 }
-func (t testApiHostResolver) RawURL(ctx context.Context) (*url.URL, error) {
+func (t testApiHostResolver) RawURL(_ context.Context) (*url.URL, error) {
 	return nil, nil
 }
 
