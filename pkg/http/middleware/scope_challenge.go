@@ -2,58 +2,17 @@ package middleware
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
-	"time"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/utils"
 )
-
-// FetchScopesFromGitHubAPI fetches the OAuth scopes from the GitHub API by making
-// a HEAD request and reading the X-OAuth-Scopes header. This is used as a fallback
-// when scopes are not provided in the token info header.
-func FetchScopesFromGitHubAPI(ctx context.Context, token string, apiHost utils.APIHostResolver) ([]string, error) {
-	baseURL, err := apiHost.BaseRESTURL(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, strings.TrimSuffix(baseURL.String(), "/")+"/user", http.NoBody)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	scopeHeader := resp.Header.Get("X-OAuth-Scopes")
-	if scopeHeader == "" {
-		return []string{}, nil
-	}
-
-	// Parse comma-separated scopes and trim whitespace
-	rawScopes := strings.Split(scopeHeader, ",")
-	parsedScopes := make([]string, 0, len(rawScopes))
-	for _, s := range rawScopes {
-		trimmed := strings.TrimSpace(s)
-		if trimmed != "" {
-			parsedScopes = append(parsedScopes, trimmed)
-		}
-	}
-	return parsedScopes, nil
-}
 
 // WithScopeChallenge creates a new middleware that determines if an OAuth request contains sufficient scopes to
 // complete the request and returns a scope challenge if not.
@@ -141,6 +100,9 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 				next.ServeHTTP(w, r)
 				return
 			}
+
+			// Store active scopes in context for downstream use
+			ghcontext.SetTokenScopes(ctx, activeScopes)
 
 			// Check if user has the required scopes
 			if toolScopeInfo.HasAcceptedScope(activeScopes...) {
