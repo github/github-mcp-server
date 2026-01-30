@@ -202,7 +202,7 @@ func DefaultGitHubMCPServerFactory(r *http.Request, deps github.ToolDependencies
 }
 
 // DefaultInventoryFactory creates the default inventory factory for HTTP mode
-func DefaultInventoryFactory(cfg *ServerConfig, t translations.TranslationHelperFunc, featureChecker inventory.FeatureFlagChecker, scopeFetcher scopes.FetcherInterface) InventoryFactoryFunc {
+func DefaultInventoryFactory(_ *ServerConfig, t translations.TranslationHelperFunc, featureChecker inventory.FeatureFlagChecker, scopeFetcher scopes.FetcherInterface) InventoryFactoryFunc {
 	return func(r *http.Request) (*inventory.Inventory, error) {
 		b := github.NewInventory(t).
 			WithDeprecatedAliases(github.DeprecatedToolAliases).

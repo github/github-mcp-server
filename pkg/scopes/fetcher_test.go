@@ -12,20 +12,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type testApiHostResolver struct {
+type testAPIHostResolver struct {
 	baseURL string
 }
 
-func (t testApiHostResolver) BaseRESTURL(_ context.Context) (*url.URL, error) {
+func (t testAPIHostResolver) BaseRESTURL(_ context.Context) (*url.URL, error) {
 	return url.Parse(t.baseURL)
 }
-func (t testApiHostResolver) GraphqlURL(_ context.Context) (*url.URL, error) {
+func (t testAPIHostResolver) GraphqlURL(_ context.Context) (*url.URL, error) {
 	return nil, nil
 }
-func (t testApiHostResolver) UploadURL(_ context.Context) (*url.URL, error) {
+func (t testAPIHostResolver) UploadURL(_ context.Context) (*url.URL, error) {
 	return nil, nil
 }
-func (t testApiHostResolver) RawURL(_ context.Context) (*url.URL, error) {
+func (t testAPIHostResolver) RawURL(_ context.Context) (*url.URL, error) {
 	return nil, nil
 }
 
@@ -166,7 +166,7 @@ func TestFetcher_FetchTokenScopes(t *testing.T) {
 			defer server.Close()
 
 			fetcher := NewFetcher(FetcherOptions{
-				APIHost: testApiHostResolver{baseURL: server.URL},
+				APIHost: testAPIHostResolver{baseURL: server.URL},
 			})
 
 			scopes, err := fetcher.FetchTokenScopes(context.Background(), "test-token")
@@ -209,7 +209,7 @@ func TestFetcher_CustomHTTPClient(t *testing.T) {
 
 func TestFetcher_CustomAPIHost(t *testing.T) {
 	fetcher := NewFetcher(FetcherOptions{
-		APIHost: testApiHostResolver{baseURL: "https://api.github.enterprise.com"},
+		APIHost: testAPIHostResolver{baseURL: "https://api.github.enterprise.com"},
 	})
 
 	apiURL, err := fetcher.apiHost.BaseRESTURL(context.Background())
@@ -225,7 +225,7 @@ func TestFetcher_ContextCancellation(t *testing.T) {
 	defer server.Close()
 
 	fetcher := NewFetcher(FetcherOptions{
-		APIHost: testApiHostResolver{baseURL: server.URL},
+		APIHost: testAPIHostResolver{baseURL: server.URL},
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
