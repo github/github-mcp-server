@@ -8,7 +8,7 @@ Quick setup guide for the GitHub MCP server in GitHub Copilot across different I
 - **MCP Servers in Copilot Policy**: Organizations assigning Copilot seats must enable this policy for all MCP access in Copilot for VS Code and Copilot Coding Agent – all other Copilot IDEs will migrate to this policy in the coming months
 - **Editor Preview Policy**: Organizations assigning Copilot seats must enable this policy for OAuth access while the Remote GitHub MCP Server is in public preview
 
-> **Note:** All Copilot IDEs now support the remote GitHub MCP server. VS Code offers OAuth authentication, while Visual Studio, JetBrains IDEs, Xcode, and Eclipse currently use PAT authentication with OAuth support coming soon.
+> **Note:** All Copilot IDEs now support the remote GitHub MCP server with OAuth authentication for interactive sessions. VS Code, Visual Studio, and JetBrains IDEs support OAuth authentication, while Xcode and Eclipse currently use PAT authentication with OAuth support coming soon.
 
 ## Visual Studio
 
@@ -82,9 +82,26 @@ Agent mode and MCP support available in public preview across IntelliJ IDEA, PyC
 
 The remote GitHub MCP server is hosted by GitHub and provides automatic updates with no local setup required.
 
-> **Note**: OAuth authentication for the remote GitHub server is not yet supported in JetBrains IDEs. You must use a Personal Access Token (PAT).
+> **Note**: OAuth authentication with interactive sessions is now supported in JetBrains IDEs (version 2025.2+ with GitHub Copilot plugin v1.5.53+). PAT authentication remains available as an alternative.
 
-#### Configuration Steps
+#### OAuth Configuration (Recommended)
+1. Install/update the GitHub Copilot plugin to v1.5.53 or later
+2. Click **GitHub Copilot icon in the status bar** → **Edit Settings** → **Model Context Protocol** → **Configure**
+3. Add configuration:
+```json
+{
+  "servers": {
+    "github": {
+      "url": "https://api.githubcopilot.com/mcp/"
+    }
+  }
+}
+```
+4. Press `Ctrl + S` or `Command + S` to save, or close the `mcp.json` file. The configuration should take effect immediately.
+5. When prompted, authenticate via OAuth using your GitHub account for secure, interactive session access.
+
+#### PAT Configuration (Alternative)
+If you prefer to use a Personal Access Token instead of OAuth:
 1. Install/update the GitHub Copilot plugin
 2. Click **GitHub Copilot icon in the status bar** → **Edit Settings** → **Model Context Protocol** → **Configure**
 3. Add configuration:
