@@ -39,6 +39,8 @@ const (
 	MCPToolsHeader = "X-MCP-Tools"
 	// MCPLockdownHeader indicates whether lockdown mode is enabled.
 	MCPLockdownHeader = "X-MCP-Lockdown"
+	// MCPInsidersHeader indicates whether insiders mode is enabled for early access features.
+	MCPInsidersHeader = "X-MCP-Insiders"
 	// MCPFeaturesHeader is a comma-separated list of feature flags to enable.
 	MCPFeaturesHeader = "X-MCP-Features"
 )

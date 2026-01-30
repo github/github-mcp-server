@@ -7,7 +7,6 @@ import (
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
-	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/github/github-mcp-server/pkg/http/middleware"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -39,6 +38,7 @@ type HandlerOptions struct {
 	InventoryFactory       InventoryFactoryFunc
 	OAuthConfig            *oauth.Config
 	ScopeFetcher           scopes.FetcherInterface
+	FeatureChecker         inventory.FeatureFlagChecker
 }
 
 type HandlerOption func(*HandlerOptions)
@@ -67,6 +67,12 @@ func WithOAuthConfig(cfg *oauth.Config) HandlerOption {
 	}
 }
 
+func WithFeatureChecker(checker inventory.FeatureFlagChecker) HandlerOption {
+	return func(o *HandlerOptions) {
+		o.FeatureChecker = checker
+	}
+}
+
 func NewHTTPMcpHandler(
 	ctx context.Context,
 	cfg *ServerConfig,
@@ -85,16 +91,16 @@ func NewHTTPMcpHandler(
 		githubMcpServerFactory = DefaultGitHubMCPServerFactory
 	}
 
-	inventoryFactory := opts.InventoryFactory
-	if inventoryFactory == nil {
-		inventoryFactory = DefaultInventoryFactory(cfg, t, nil, opts.ScopeFetcher)
-	}
-
 	scopeFetcher := opts.ScopeFetcher
 	if scopeFetcher == nil {
 		scopeFetcher = scopes.NewFetcher(scopes.FetcherOptions{
 			APIHost: apiHost,
 		})
+	}
+
+	inventoryFactory := opts.InventoryFactory
+	if inventoryFactory == nil {
+		inventoryFactory = DefaultInventoryFactory(cfg, t, opts.FeatureChecker, scopeFetcher)
 	}
 
 	return &Handler{
@@ -125,11 +131,17 @@ func (h *Handler) RegisterMiddleware(r chi.Router) {
 // RegisterRoutes registers the routes for the MCP server
 // URL-based values take precedence over header-based values
 func (h *Handler) RegisterRoutes(r chi.Router) {
+	// Base routes
 	r.Mount("/", h)
-	// Mount readonly and toolset routes
-	r.With(withToolset).Mount("/x/{toolset}", h)
-	r.With(withReadonly, withToolset).Mount("/x/{toolset}/readonly", h)
 	r.With(withReadonly).Mount("/readonly", h)
+	r.With(withInsiders).Mount("/insiders", h)
+	r.With(withReadonly, withInsiders).Mount("/readonly/insiders", h)
+
+	// Toolset routes
+	r.With(withToolset).Mount("/x/{toolset}", h)
+	r.With(withToolset, withReadonly).Mount("/x/{toolset}/readonly", h)
+	r.With(withToolset, withInsiders).Mount("/x/{toolset}/insiders", h)
+	r.With(withToolset, withReadonly, withInsiders).Mount("/x/{toolset}/readonly/insiders", h)
 }
 
 // withReadonly is middleware that sets readonly mode in the request context
@@ -145,6 +157,14 @@ func withToolset(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		toolset := chi.URLParam(r, "toolset")
 		ctx := ghcontext.WithToolsets(r.Context(), []string{toolset})
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// withInsiders is middleware that sets insiders mode in the request context
+func withInsiders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := ghcontext.WithInsidersMode(r.Context(), true)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -181,15 +201,12 @@ func DefaultGitHubMCPServerFactory(r *http.Request, deps github.ToolDependencies
 	return github.NewMCPServer(r.Context(), cfg, deps, inventory)
 }
 
-func DefaultInventoryFactory(cfg *ServerConfig, t translations.TranslationHelperFunc, staticChecker inventory.FeatureFlagChecker, scopeFetcher scopes.FetcherInterface) InventoryFactoryFunc {
+// DefaultInventoryFactory creates the default inventory factory for HTTP mode
+func DefaultInventoryFactory(cfg *ServerConfig, t translations.TranslationHelperFunc, featureChecker inventory.FeatureFlagChecker, scopeFetcher scopes.FetcherInterface) InventoryFactoryFunc {
 	return func(r *http.Request) (*inventory.Inventory, error) {
-		b := github.NewInventory(t).WithDeprecatedAliases(github.DeprecatedToolAliases)
-
-		// Feature checker composition
-		headerFeatures := headers.ParseCommaSeparated(r.Header.Get(headers.MCPFeaturesHeader))
-		if checker := ComposeFeatureChecker(headerFeatures, staticChecker); checker != nil {
-			b = b.WithFeatureChecker(checker)
-		}
+		b := github.NewInventory(t).
+			WithDeprecatedAliases(github.DeprecatedToolAliases).
+			WithFeatureChecker(featureChecker)
 
 		b = InventoryFiltersForRequest(r, b)
 

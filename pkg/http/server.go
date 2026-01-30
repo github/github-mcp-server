@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"syscall"
 	"time"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -20,6 +22,13 @@ import (
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
 )
+
+// knownFeatureFlags are the feature flags that can be enabled via X-MCP-Features header.
+// Only these flags are accepted from headers.
+var knownFeatureFlags = []string{
+	github.FeatureFlagHoldbackConsolidatedProjects,
+	github.FeatureFlagHoldbackConsolidatedActions,
+}
 
 type ServerConfig struct {
 	// Version of the server
@@ -98,6 +107,8 @@ func RunHTTPServer(cfg ServerConfig) error {
 		repoAccessOpts = append(repoAccessOpts, lockdown.WithTTL(*cfg.RepoAccessCacheTTL))
 	}
 
+	featureChecker := createHTTPFeatureChecker()
+
 	deps := github.NewRequestDeps(
 		apiHost,
 		cfg.Version,
@@ -105,7 +116,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 		repoAccessOpts,
 		t,
 		cfg.ContentWindowSize,
-		nil,
+		featureChecker,
 	)
 
 	// Initialize the global tool scope map
@@ -130,7 +141,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 	}
 
 	r := chi.NewRouter()
-	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger, apiHost, append(severOptions, WithOAuthConfig(oauthCfg))...)
+	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger, apiHost, append(severOptions, WithFeatureChecker(featureChecker), WithOAuthConfig(oauthCfg))...)
 	oauthHandler, err := oauth.NewAuthHandler(oauthCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create OAuth handler: %w", err)
@@ -142,14 +153,14 @@ func RunHTTPServer(cfg ServerConfig) error {
 
 		// Register MCP server routes
 		handler.RegisterRoutes(r)
-		logger.Info("MCP server routes registered")
 	})
+	logger.Info("MCP endpoints registered", "baseURL", cfg.BaseURL)
 
 	r.Group(func(r chi.Router) {
 		// Register OAuth protected resource metadata endpoints
 		oauthHandler.RegisterRoutes(r)
-		logger.Info("OAuth protected resource endpoints registered", "baseURL", cfg.BaseURL)
 	})
+	logger.Info("OAuth protected resource endpoints registered", "baseURL", cfg.BaseURL)
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	httpSvr := http.Server{
@@ -196,4 +207,21 @@ func initGlobalToolScopeMap(t translations.TranslationHelperFunc) error {
 	scopes.SetToolScopeMapFromInventory(inv)
 
 	return nil
+}
+
+// createHTTPFeatureChecker creates a feature checker that reads header features from context
+// and validates them against the knownFeatureFlags whitelist
+func createHTTPFeatureChecker() inventory.FeatureFlagChecker {
+	// Pre-compute whitelist as set for O(1) lookup
+	knownSet := make(map[string]bool, len(knownFeatureFlags))
+	for _, f := range knownFeatureFlags {
+		knownSet[f] = true
+	}
+
+	return func(ctx context.Context, flag string) (bool, error) {
+		if knownSet[flag] && slices.Contains(ghcontext.GetHeaderFeatures(ctx), flag) {
+			return true, nil
+		}
+		return false, nil
+	}
 }

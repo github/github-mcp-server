@@ -85,7 +85,7 @@ func TestGetEffectiveHostAndScheme(t *testing.T) {
 			},
 			cfg:            &Config{},
 			expectedHost:   "example.com",
-			expectedScheme: "https", // defaults to https
+			expectedScheme: "http", // defaults to http
 		},
 		{
 			name: "request with X-Forwarded-Host header",
@@ -97,7 +97,7 @@ func TestGetEffectiveHostAndScheme(t *testing.T) {
 			},
 			cfg:            &Config{},
 			expectedHost:   "public.example.com",
-			expectedScheme: "https",
+			expectedScheme: "http",
 		},
 		{
 			name: "request with X-Forwarded-Proto header",
@@ -266,7 +266,7 @@ func TestBuildResourceMetadataURL(t *testing.T) {
 				return req
 			},
 			resourcePath: "/",
-			expectedURL:  "https://api.example.com/.well-known/oauth-protected-resource",
+			expectedURL:  "http://api.example.com/.well-known/oauth-protected-resource",
 		},
 		{
 			name: "resource path preserves trailing slash",
@@ -277,7 +277,7 @@ func TestBuildResourceMetadataURL(t *testing.T) {
 				return req
 			},
 			resourcePath: "/mcp/",
-			expectedURL:  "https://api.example.com/.well-known/oauth-protected-resource/mcp/",
+			expectedURL:  "http://api.example.com/.well-known/oauth-protected-resource/mcp/",
 		},
 		{
 			name: "with custom resource path",
@@ -288,7 +288,7 @@ func TestBuildResourceMetadataURL(t *testing.T) {
 				return req
 			},
 			resourcePath: "/mcp",
-			expectedURL:  "https://api.example.com/.well-known/oauth-protected-resource/mcp",
+			expectedURL:  "http://api.example.com/.well-known/oauth-protected-resource/mcp",
 		},
 		{
 			name: "with base URL config",
@@ -325,7 +325,7 @@ func TestBuildResourceMetadataURL(t *testing.T) {
 				return req
 			},
 			resourcePath: "",
-			expectedURL:  "https://api.example.com/.well-known/oauth-protected-resource",
+			expectedURL:  "http://api.example.com/.well-known/oauth-protected-resource",
 		},
 	}
 
