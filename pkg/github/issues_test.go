@@ -3847,3 +3847,491 @@ func Test_ListIssueTypes(t *testing.T) {
 		})
 	}
 }
+
+func Test_GetBlockedBy(t *testing.T) {
+	// Verify tool definition once
+	serverTool := IssueDependencyRead(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "issue_dependency_read", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number"})
+
+	// Setup mock dependencies for success case
+	mockDependencies := []IssueDependency{
+		{
+			ID:      123,
+			Number:  10,
+			Title:   "Blocking Issue 1",
+			State:   "open",
+			HTMLURL: "https://github.com/owner/repo/issues/10",
+		},
+		{
+			ID:      456,
+			Number:  20,
+			Title:   "Blocking Issue 2",
+			State:   "closed",
+			HTMLURL: "https://github.com/owner/repo/issues/20",
+		},
+	}
+
+	tests := []struct {
+		name                 string
+		mockedClient         *http.Client
+		requestArgs          map[string]interface{}
+		expectError          bool
+		expectedDependencies []IssueDependency
+		expectedErrMsg       string
+	}{
+		{
+			name: "successful get blocked by",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockDependencies),
+			}),
+			requestArgs: map[string]interface{}{
+				"method":       "get_blocked_by",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectError:          false,
+			expectedDependencies: mockDependencies,
+		},
+		{
+			name: "successful get blocked by with pagination",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumber: expectQueryParams(t, map[string]string{
+					"page":     "2",
+					"per_page": "10",
+				}).andThen(mockResponse(t, http.StatusOK, mockDependencies)),
+			}),
+			requestArgs: map[string]interface{}{
+				"method":       "get_blocked_by",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+				"page":         float64(2),
+				"perPage":      float64(10),
+			},
+			expectError:          false,
+			expectedDependencies: mockDependencies,
+		},
+		{
+			name: "empty dependencies list",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, []IssueDependency{}),
+			}),
+			requestArgs: map[string]interface{}{
+				"method":       "get_blocked_by",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectError:          false,
+			expectedDependencies: []IssueDependency{},
+		},
+		{
+			name: "issue not found",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
+			}),
+			requestArgs: map[string]interface{}{
+				"method":       "get_blocked_by",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(999),
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to get issue dependencies",
+		},
+		{
+			name: "insufficient permissions",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusForbidden, `{"message": "Must have read access to repository"}`),
+			}),
+			requestArgs: map[string]interface{}{
+				"method":       "get_blocked_by",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to get issue dependencies",
+		},
+		{
+			name:         "missing required parameter owner",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]interface{}{
+				"method":       "get_blocked_by",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectError:    false,
+			expectedErrMsg: "missing required parameter: owner",
+		},
+		{
+			name:         "missing required parameter issue_number",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]interface{}{
+				"method": "get_blocked_by",
+				"owner":  "owner",
+				"repo":   "repo",
+			},
+			expectError:    false,
+			expectedErrMsg: "missing required parameter: issue_number",
+		},
+		{
+			name:         "unknown method",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]interface{}{
+				"method":       "invalid_method",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectError:    false,
+			expectedErrMsg: "unknown method: invalid_method",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			// Verify results
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			if tc.expectedErrMsg != "" {
+				require.NotNil(t, result)
+				textContent := getTextResult(t, result)
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Parse the result and get the text content if no error
+			textContent := getTextResult(t, result)
+
+			// Unmarshal and verify the result
+			var returnedDependencies []IssueDependency
+			err = json.Unmarshal([]byte(textContent.Text), &returnedDependencies)
+			require.NoError(t, err)
+			require.Equal(t, len(tc.expectedDependencies), len(returnedDependencies))
+			for i, expected := range tc.expectedDependencies {
+				assert.Equal(t, expected.ID, returnedDependencies[i].ID)
+				assert.Equal(t, expected.Number, returnedDependencies[i].Number)
+				assert.Equal(t, expected.Title, returnedDependencies[i].Title)
+				assert.Equal(t, expected.State, returnedDependencies[i].State)
+				assert.Equal(t, expected.HTMLURL, returnedDependencies[i].HTMLURL)
+			}
+		})
+	}
+}
+
+func Test_AddBlockedBy(t *testing.T) {
+	// Verify tool definition once
+	serverTool := IssueDependencyWrite(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "issue_dependency_write", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "method")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "blocking_issue_id")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"method", "owner", "repo", "issue_number", "blocking_issue_id"})
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedErrMsg string
+	}{
+		{
+			name: "successful add blocked by",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, `{"message": "Dependency relationship created successfully"}`),
+			}),
+			requestArgs: map[string]interface{}{
+				"method":            "add",
+				"owner":             "owner",
+				"repo":              "repo",
+				"issue_number":      float64(42),
+				"blocking_issue_id": float64(123),
+			},
+			expectError: false,
+		},
+		{
+			name: "issue not found",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
+			}),
+			requestArgs: map[string]interface{}{
+				"method":            "add",
+				"owner":             "owner",
+				"repo":              "repo",
+				"issue_number":      float64(999),
+				"blocking_issue_id": float64(123),
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to add issue dependency",
+		},
+		{
+			name: "blocking issue not found",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Blocking issue not found"}`),
+			}),
+			requestArgs: map[string]interface{}{
+				"method":            "add",
+				"owner":             "owner",
+				"repo":              "repo",
+				"issue_number":      float64(42),
+				"blocking_issue_id": float64(999),
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to add issue dependency",
+		},
+		{
+			name: "validation failed - self blocking",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusUnprocessableEntity, `{"message": "Validation failed", "errors": [{"message": "Issue cannot block itself"}]}`),
+			}),
+			requestArgs: map[string]interface{}{
+				"method":            "add",
+				"owner":             "owner",
+				"repo":              "repo",
+				"issue_number":      float64(42),
+				"blocking_issue_id": float64(42),
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to add issue dependency",
+		},
+		{
+			name: "insufficient permissions",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusForbidden, `{"message": "Must have write access to repository"}`),
+			}),
+			requestArgs: map[string]interface{}{
+				"method":            "add",
+				"owner":             "owner",
+				"repo":              "repo",
+				"issue_number":      float64(42),
+				"blocking_issue_id": float64(123),
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to add issue dependency",
+		},
+		{
+			name:         "missing required parameter owner",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]interface{}{
+				"method":            "add",
+				"repo":              "repo",
+				"issue_number":      float64(42),
+				"blocking_issue_id": float64(123),
+			},
+			expectError:    false,
+			expectedErrMsg: "missing required parameter: owner",
+		},
+		{
+			name:         "missing required parameter blocking_issue_id",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]interface{}{
+				"method":       "add",
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(42),
+			},
+			expectError:    false,
+			expectedErrMsg: "missing required parameter: blocking_issue_id",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			// Verify results
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			if tc.expectedErrMsg != "" {
+				require.NotNil(t, result)
+				textContent := getTextResult(t, result)
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Parse the result and verify success message
+			textContent := getTextResult(t, result)
+			assert.Contains(t, textContent.Text, "Dependency relationship created successfully")
+		})
+	}
+}
+
+func Test_RemoveBlockedBy(t *testing.T) {
+	// Verify tool definition once (using same tool as AddBlockedBy)
+	serverTool := IssueDependencyWrite(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedErrMsg string
+	}{
+		{
+			name: "successful remove blocked by",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumberByIssueID: mockResponse(t, http.StatusNoContent, ""),
+			}),
+			requestArgs: map[string]interface{}{
+				"method":            "remove",
+				"owner":             "owner",
+				"repo":              "repo",
+				"issue_number":      float64(42),
+				"blocking_issue_id": float64(123),
+			},
+			expectError: false,
+		},
+		{
+			name: "dependency not found",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumberByIssueID: mockResponse(t, http.StatusNotFound, `{"message": "Dependency not found"}`),
+			}),
+			requestArgs: map[string]interface{}{
+				"method":            "remove",
+				"owner":             "owner",
+				"repo":              "repo",
+				"issue_number":      float64(42),
+				"blocking_issue_id": float64(999),
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to remove issue dependency",
+		},
+		{
+			name: "issue not found",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumberByIssueID: mockResponse(t, http.StatusNotFound, `{"message": "Issue not found"}`),
+			}),
+			requestArgs: map[string]interface{}{
+				"method":            "remove",
+				"owner":             "owner",
+				"repo":              "repo",
+				"issue_number":      float64(999),
+				"blocking_issue_id": float64(123),
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to remove issue dependency",
+		},
+		{
+			name: "insufficient permissions",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumberByIssueID: mockResponse(t, http.StatusForbidden, `{"message": "Must have write access to repository"}`),
+			}),
+			requestArgs: map[string]interface{}{
+				"method":            "remove",
+				"owner":             "owner",
+				"repo":              "repo",
+				"issue_number":      float64(42),
+				"blocking_issue_id": float64(123),
+			},
+			expectError:    false,
+			expectedErrMsg: "failed to remove issue dependency",
+		},
+		{
+			name:         "unknown method",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]interface{}{
+				"method":            "invalid_method",
+				"owner":             "owner",
+				"repo":              "repo",
+				"issue_number":      float64(42),
+				"blocking_issue_id": float64(123),
+			},
+			expectError:    false,
+			expectedErrMsg: "unknown method: invalid_method",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			// Verify results
+			if tc.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				return
+			}
+
+			if tc.expectedErrMsg != "" {
+				require.NotNil(t, result)
+				textContent := getTextResult(t, result)
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+
+			// Parse the result and verify success message
+			textContent := getTextResult(t, result)
+			assert.Contains(t, textContent.Text, "Dependency relationship removed successfully")
+		})
+	}
+
+	// Verify that we're testing the same tool for both add and remove
+	assert.Equal(t, "issue_dependency_write", tool.Name)
+}

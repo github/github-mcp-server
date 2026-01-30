@@ -62,6 +62,11 @@ const (
 	DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber         = "DELETE /repos/{owner}/{repo}/issues/{issue_number}/sub_issue"
 	PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber = "PATCH /repos/{owner}/{repo}/issues/{issue_number}/sub_issues/priority"
 
+	// Issue dependency endpoints
+	GetReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumber              = "GET /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by"
+	PostReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumber             = "POST /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by"
+	DeleteReposIssuesDependenciesBlockedByByOwnerByRepoByIssueNumberByIssueID  = "DELETE /repos/{owner}/{repo}/issues/{issue_number}/dependencies/blocked_by/{issue_id}"
+
 	// Pull request endpoints
 	GetReposPullsByOwnerByRepo                                = "GET /repos/{owner}/{repo}/pulls"
 	GetReposPullsByOwnerByRepoByPullNumber                    = "GET /repos/{owner}/{repo}/pulls/{pull_number}"

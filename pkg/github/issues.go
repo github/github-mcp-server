@@ -913,6 +913,284 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 	return utils.NewToolResultText(string(r)), nil
 }
 
+// IssueDependency represents a dependency relationship between issues.
+type IssueDependency struct {
+	ID        int64  `json:"id"`
+	Number    int    `json:"number"`
+	Title     string `json:"title"`
+	State     string `json:"state"`
+	HTMLURL   string `json:"html_url"`
+	CreatedAt string `json:"created_at,omitempty"`
+	UpdatedAt string `json:"updated_at,omitempty"`
+}
+
+// IssueDependencyRead creates a tool to read issue dependency information.
+func IssueDependencyRead(t translations.TranslationHelperFunc) inventory.ServerTool {
+	schema := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"method": {
+				Type: "string",
+				Description: `The read operation to perform on issue dependencies.
+Options are:
+- 'get_blocked_by' - Get the list of issues that block this issue.
+`,
+				Enum: []any{"get_blocked_by"},
+			},
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"issue_number": {
+				Type:        "number",
+				Description: "The number of the issue",
+			},
+		},
+		Required: []string{"method", "owner", "repo", "issue_number"},
+	}
+	WithPagination(schema)
+
+	return NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "issue_dependency_read",
+			Description: t("TOOL_ISSUE_DEPENDENCY_READ_DESCRIPTION", "Get information about issue dependencies, such as which issues block this issue."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_ISSUE_DEPENDENCY_READ_USER_TITLE", "Get issue dependencies"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: schema,
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			method, err := RequiredParam[string](args, "method")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			issueNumber, err := RequiredInt(args, "issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			pagination, err := OptionalPaginationParams(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			switch strings.ToLower(method) {
+			case "get_blocked_by":
+				result, err := GetBlockedBy(ctx, client, owner, repo, issueNumber, pagination)
+				return result, nil, err
+			default:
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+			}
+		})
+}
+
+// GetBlockedBy retrieves the list of issues that block the specified issue.
+func GetBlockedBy(ctx context.Context, client *github.Client, owner, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+	url := fmt.Sprintf("repos/%s/%s/issues/%d/dependencies/blocked_by", owner, repo, issueNumber)
+
+	req, err := client.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Add pagination query parameters
+	q := req.URL.Query()
+	if pagination.Page > 0 {
+		q.Set("page", fmt.Sprintf("%d", pagination.Page))
+	}
+	if pagination.PerPage > 0 {
+		q.Set("per_page", fmt.Sprintf("%d", pagination.PerPage))
+	}
+	req.URL.RawQuery = q.Encode()
+
+	var dependencies []IssueDependency
+	resp, err := client.Do(ctx, req, &dependencies)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to get issue dependencies", resp, err), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get issue dependencies", resp, body), nil
+	}
+
+	r, err := json.Marshal(dependencies)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return utils.NewToolResultText(string(r)), nil
+}
+
+// IssueDependencyWrite creates a tool to manage issue dependency relationships.
+func IssueDependencyWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "issue_dependency_write",
+			Description: t("TOOL_ISSUE_DEPENDENCY_WRITE_DESCRIPTION", "Manage issue dependencies by adding or removing 'blocked by' relationships between issues."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_ISSUE_DEPENDENCY_WRITE_USER_TITLE", "Manage issue dependencies"),
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"method": {
+						Type: "string",
+						Description: `The action to perform on issue dependencies.
+Options are:
+- 'add' - Add a 'blocked by' relationship, indicating this issue is blocked by another issue.
+- 'remove' - Remove a 'blocked by' relationship.
+`,
+						Enum: []any{"add", "remove"},
+					},
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"issue_number": {
+						Type:        "number",
+						Description: "The number of the issue that is blocked",
+					},
+					"blocking_issue_id": {
+						Type:        "number",
+						Description: "The ID (not number) of the issue that blocks this issue",
+					},
+				},
+				Required: []string{"method", "owner", "repo", "issue_number", "blocking_issue_id"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			method, err := RequiredParam[string](args, "method")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			issueNumber, err := RequiredInt(args, "issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			blockingIssueID, err := RequiredInt(args, "blocking_issue_id")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			switch strings.ToLower(method) {
+			case "add":
+				result, err := AddBlockedBy(ctx, client, owner, repo, issueNumber, blockingIssueID)
+				return result, nil, err
+			case "remove":
+				result, err := RemoveBlockedBy(ctx, client, owner, repo, issueNumber, blockingIssueID)
+				return result, nil, err
+			default:
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+			}
+		})
+}
+
+// AddBlockedBy adds a 'blocked by' relationship to an issue.
+func AddBlockedBy(ctx context.Context, client *github.Client, owner, repo string, issueNumber, blockingIssueID int) (*mcp.CallToolResult, error) {
+	url := fmt.Sprintf("repos/%s/%s/issues/%d/dependencies/blocked_by", owner, repo, issueNumber)
+
+	body := struct {
+		IssueID int64 `json:"issue_id"`
+	}{
+		IssueID: int64(blockingIssueID),
+	}
+
+	req, err := client.NewRequest("POST", url, body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := client.Do(ctx, req, nil)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add issue dependency", resp, err), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusCreated {
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add issue dependency", resp, respBody), nil
+	}
+
+	return utils.NewToolResultText(`{"message": "Dependency relationship created successfully"}`), nil
+}
+
+// RemoveBlockedBy removes a 'blocked by' relationship from an issue.
+func RemoveBlockedBy(ctx context.Context, client *github.Client, owner, repo string, issueNumber, blockingIssueID int) (*mcp.CallToolResult, error) {
+	url := fmt.Sprintf("repos/%s/%s/issues/%d/dependencies/blocked_by/%d", owner, repo, issueNumber, blockingIssueID)
+
+	req, err := client.NewRequest("DELETE", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := client.Do(ctx, req, nil)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to remove issue dependency", resp, err), nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	// DELETE typically returns 204 No Content on success
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to remove issue dependency", resp, respBody), nil
+	}
+
+	return utils.NewToolResultText(`{"message": "Dependency relationship removed successfully"}`), nil
+}
+
 // SearchIssues creates a tool to search for issues.
 func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
