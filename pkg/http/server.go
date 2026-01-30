@@ -14,6 +14,7 @@ import (
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -37,6 +38,14 @@ type ServerConfig struct {
 
 	// Port to listen on (default: 8082)
 	Port int
+
+	// BaseURL is the publicly accessible URL of this server for OAuth resource metadata.
+	// If not set, the server will derive the URL from incoming request headers.
+	BaseURL string
+
+	// ResourcePath is the externally visible base path for this server (e.g., "/mcp").
+	// This is used to restore the original path when a proxy strips a base path before forwarding.
+	ResourcePath string
 
 	// ExportTranslations indicates if we should export translations
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#i18n--overriding-descriptions
@@ -107,8 +116,30 @@ func RunHTTPServer(cfg ServerConfig) error {
 
 	r := chi.NewRouter()
 
-	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger, WithFeatureChecker(featureChecker))
-	handler.RegisterRoutes(r)
+	// Register OAuth protected resource metadata endpoints
+	oauthCfg := &oauth.Config{
+		BaseURL:      cfg.BaseURL,
+		ResourcePath: cfg.ResourcePath,
+	}
+	oauthHandler, err := oauth.NewAuthHandler(oauthCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create OAuth handler: %w", err)
+	}
+
+	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger, WithFeatureChecker(featureChecker), WithOAuthConfig(oauthCfg))
+
+	// MCP routes with middleware
+	r.Group(func(r chi.Router) {
+		handler.RegisterMiddleware(r)
+		handler.RegisterRoutes(r)
+	})
+	logger.Info("MCP endpoints registered", "baseURL", cfg.BaseURL)
+
+	// OAuth routes without MCP middleware
+	r.Group(func(r chi.Router) {
+		oauthHandler.RegisterRoutes(r)
+	})
+	logger.Info("OAuth protected resource endpoints registered", "baseURL", cfg.BaseURL)
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	httpSvr := http.Server{

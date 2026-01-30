@@ -8,6 +8,7 @@ import (
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/middleware"
+	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/go-chi/chi/v5"
@@ -25,11 +26,13 @@ type Handler struct {
 	t                      translations.TranslationHelperFunc
 	githubMcpServerFactory GitHubMCPServerFactoryFunc
 	inventoryFactoryFunc   InventoryFactoryFunc
+	oauthCfg               *oauth.Config
 }
 
 type HandlerOptions struct {
 	GitHubMcpServerFactory GitHubMCPServerFactoryFunc
 	InventoryFactory       InventoryFactoryFunc
+	OAuthConfig            *oauth.Config
 	FeatureChecker         inventory.FeatureFlagChecker
 }
 
@@ -44,6 +47,12 @@ func WithGitHubMCPServerFactory(f GitHubMCPServerFactoryFunc) HandlerOption {
 func WithInventoryFactory(f InventoryFactoryFunc) HandlerOption {
 	return func(o *HandlerOptions) {
 		o.InventoryFactory = f
+	}
+}
+
+func WithOAuthConfig(cfg *oauth.Config) HandlerOption {
+	return func(o *HandlerOptions) {
+		o.OAuthConfig = cfg
 	}
 }
 
@@ -83,14 +92,20 @@ func NewHTTPMcpHandler(
 		t:                      t,
 		githubMcpServerFactory: githubMcpServerFactory,
 		inventoryFactoryFunc:   inventoryFactory,
+		oauthCfg:               opts.OAuthConfig,
 	}
+}
+
+func (h *Handler) RegisterMiddleware(r chi.Router) {
+	r.Use(
+		middleware.ExtractUserToken(h.oauthCfg),
+		middleware.WithRequestConfig,
+	)
 }
 
 // RegisterRoutes registers the routes for the MCP server
 // URL-based values take precedence over header-based values
 func (h *Handler) RegisterRoutes(r chi.Router) {
-	r.Use(middleware.WithRequestConfig)
-
 	// Base routes
 	r.Mount("/", h)
 	r.With(withReadonly).Mount("/readonly", h)
@@ -154,7 +169,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Stateless: true,
 	})
 
-	middleware.ExtractUserToken()(mcpHandler).ServeHTTP(w, r)
+	mcpHandler.ServeHTTP(w, r)
 }
 
 func DefaultGitHubMCPServerFactory(r *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error) {

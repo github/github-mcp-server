@@ -10,6 +10,7 @@ import (
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	httpheaders "github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/github/github-mcp-server/pkg/http/mark"
+	"github.com/github/github-mcp-server/pkg/http/oauth"
 )
 
 type authType int
@@ -39,14 +40,14 @@ var supportedThirdPartyTokenPrefixes = []string{
 // were 40 characters long and only contained the characters a-f and 0-9.
 var oldPatternRegexp = regexp.MustCompile(`\A[a-f0-9]{40}\z`)
 
-func ExtractUserToken() func(next http.Handler) http.Handler {
+func ExtractUserToken(oauthCfg *oauth.Config) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			_, token, err := parseAuthorizationHeader(r)
 			if err != nil {
 				// For missing Authorization header, return 401 with WWW-Authenticate header per MCP spec
 				if errors.Is(err, errMissingAuthorizationHeader) {
-					// 	sendAuthChallenge(w, r, cfg, obsv)
+					sendAuthChallenge(w, r, oauthCfg)
 					return
 				}
 				// For other auth errors (bad format, unsupported), return 400
@@ -62,6 +63,16 @@ func ExtractUserToken() func(next http.Handler) http.Handler {
 		})
 	}
 }
+
+// sendAuthChallenge sends a 401 Unauthorized response with WWW-Authenticate header
+// containing the OAuth protected resource metadata URL as per RFC 6750 and MCP spec.
+func sendAuthChallenge(w http.ResponseWriter, r *http.Request, oauthCfg *oauth.Config) {
+	resourcePath := oauth.ResolveResourcePath(r, oauthCfg)
+	resourceMetadataURL := oauth.BuildResourceMetadataURL(r, oauthCfg, resourcePath)
+	w.Header().Set("WWW-Authenticate", fmt.Sprintf(`Bearer resource_metadata=%q`, resourceMetadataURL))
+	http.Error(w, "Unauthorized", http.StatusUnauthorized)
+}
+
 func parseAuthorizationHeader(req *http.Request) (authType authType, token string, _ error) {
 	authHeader := req.Header.Get(httpheaders.AuthorizationHeader)
 	if authHeader == "" {
