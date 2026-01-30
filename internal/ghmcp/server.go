@@ -366,13 +366,8 @@ func fetchTokenScopesForHost(ctx context.Context, token, host string) ([]string,
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
 	}
 
-	baseRestURL, err := apiHost.BaseRESTURL(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get base REST URL: %w", err)
-	}
-
 	fetcher := scopes.NewFetcher(scopes.FetcherOptions{
-		APIHost: baseRestURL.String(),
+		APIHost: apiHost,
 	})
 
 	return fetcher.FetchTokenScopes(ctx, token)

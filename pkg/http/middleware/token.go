@@ -26,7 +26,10 @@ func ExtractUserToken(oauthCfg *oauth.Config) func(next http.Handler) http.Handl
 			}
 
 			ctx := r.Context()
-			ctx = ghcontext.WithTokenInfo(ctx, token, tokenType)
+			ctx = ghcontext.WithTokenInfo(ctx, &ghcontext.TokenInfo{
+				Token:     token,
+				TokenType: tokenType,
+			})
 			r = r.WithContext(ctx)
 
 			next.ServeHTTP(w, r)

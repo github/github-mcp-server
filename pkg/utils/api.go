@@ -25,6 +25,15 @@ type APIHost struct {
 
 var _ APIHostResolver = APIHost{}
 
+func NewDefaultAPIHostResolver() APIHostResolver {
+	a, err := newDotcomHost()
+	if err != nil {
+		// This should never happen
+		panic(fmt.Sprintf("failed to create default API host resolver: %v", err))
+	}
+	return a
+}
+
 func NewAPIHost(s string) (APIHostResolver, error) {
 	a, err := parseAPIHost(s)
 

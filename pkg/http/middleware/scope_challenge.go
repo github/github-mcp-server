@@ -57,7 +57,7 @@ func FetchScopesFromGitHubAPI(ctx context.Context, token string, apiHost utils.A
 
 // WithScopeChallenge creates a new middleware that determines if an OAuth request contains sufficient scopes to
 // complete the request and returns a scope challenge if not.
-func WithScopeChallenge(oauthCfg *oauth.Config) func(http.Handler) http.Handler {
+func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInterface) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -136,7 +136,11 @@ func WithScopeChallenge(oauthCfg *oauth.Config) func(http.Handler) http.Handler 
 			}
 
 			// Get OAuth scopes from GitHub API
-			activeScopes, err := FetchScopesFromGitHubAPI(ctx, tokenInfo.Token, oauthCfg.ApiHosts)
+			activeScopes, err := scopeFetcher.FetchTokenScopes(ctx, tokenInfo.Token)
+			if err != nil {
+				next.ServeHTTP(w, r)
+				return
+			}
 
 			// Check if user has the required scopes
 			if toolScopeInfo.HasAcceptedScope(activeScopes...) {

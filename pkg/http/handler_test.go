@@ -12,7 +12,9 @@ import (
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -31,6 +33,20 @@ func mockTool(name, toolsetID string, readOnly bool) inventory.ServerTool {
 		},
 	}
 }
+
+type allScopesFetcher struct{}
+
+func (f allScopesFetcher) FetchTokenScopes(_ context.Context, _ string) ([]string, error) {
+	return []string{
+		string(scopes.Repo),
+		string(scopes.WriteOrg),
+		string(scopes.User),
+		string(scopes.Gist),
+		string(scopes.Notifications),
+	}, nil
+}
+
+var _ scopes.FetcherInterface = allScopesFetcher{}
 
 func TestInventoryFiltersForRequest(t *testing.T) {
 	tools := []inventory.ServerTool{
@@ -230,6 +246,8 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var capturedInventory *inventory.Inventory
 
+			apiHost := utils.NewDefaultAPIHostResolver()
+
 			// Create inventory factory that captures the built inventory
 			inventoryFactory := func(r *http.Request) (*inventory.Inventory, error) {
 				builder := inventory.NewBuilder().
@@ -249,6 +267,8 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 				return mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0.0.1"}, nil), nil
 			}
 
+			allScopesFetcher := allScopesFetcher{}
+
 			// Create handler with our factories
 			handler := NewHTTPMcpHandler(
 				context.Background(),
@@ -256,16 +276,23 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 				nil, // deps not needed for this test
 				translations.NullTranslationHelper,
 				slog.Default(),
+				apiHost,
 				WithInventoryFactory(inventoryFactory),
 				WithGitHubMCPServerFactory(mcpServerFactory),
+				WithScopeFetcher(allScopesFetcher),
 			)
 
 			// Create router and register routes
 			r := chi.NewRouter()
+			handler.RegisterMiddleware(r)
 			handler.RegisterRoutes(r)
 
 			// Create request
 			req := httptest.NewRequest(http.MethodPost, tt.path, nil)
+
+			// Ensure we're setting Authorization header for token context
+			req.Header.Set(headers.AuthorizationHeader, "Bearer ghp_testtoken")
+
 			for k, v := range tt.headers {
 				req.Header.Set(k, v)
 			}

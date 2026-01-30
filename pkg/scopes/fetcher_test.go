@@ -4,12 +4,30 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type testApiHostResolver struct {
+	baseURL string
+}
+
+func (t testApiHostResolver) BaseRESTURL(ctx context.Context) (*url.URL, error) {
+	return url.Parse(t.baseURL)
+}
+func (t testApiHostResolver) GraphqlURL(ctx context.Context) (*url.URL, error) {
+	return nil, nil
+}
+func (t testApiHostResolver) UploadURL(ctx context.Context) (*url.URL, error) {
+	return nil, nil
+}
+func (t testApiHostResolver) RawURL(ctx context.Context) (*url.URL, error) {
+	return nil, nil
+}
 
 func TestParseScopeHeader(t *testing.T) {
 	tests := []struct {
@@ -148,7 +166,7 @@ func TestFetcher_FetchTokenScopes(t *testing.T) {
 			defer server.Close()
 
 			fetcher := NewFetcher(FetcherOptions{
-				APIHost: server.URL,
+				APIHost: testApiHostResolver{baseURL: server.URL},
 			})
 
 			scopes, err := fetcher.FetchTokenScopes(context.Background(), "test-token")
@@ -170,7 +188,9 @@ func TestFetcher_DefaultOptions(t *testing.T) {
 	fetcher := NewFetcher(FetcherOptions{})
 
 	// Verify default API host is set
-	assert.Equal(t, "https://api.github.com", fetcher.apiHost)
+	apiURL, err := fetcher.apiHost.BaseRESTURL(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "https://api.github.com/", apiURL.String())
 
 	// Verify default HTTP client is set with timeout
 	assert.NotNil(t, fetcher.client)
@@ -189,10 +209,12 @@ func TestFetcher_CustomHTTPClient(t *testing.T) {
 
 func TestFetcher_CustomAPIHost(t *testing.T) {
 	fetcher := NewFetcher(FetcherOptions{
-		APIHost: "https://api.github.enterprise.com",
+		APIHost: testApiHostResolver{baseURL: "https://api.github.enterprise.com"},
 	})
 
-	assert.Equal(t, "https://api.github.enterprise.com", fetcher.apiHost)
+	apiURL, err := fetcher.apiHost.BaseRESTURL(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "https://api.github.enterprise.com", apiURL.String())
 }
 
 func TestFetcher_ContextCancellation(t *testing.T) {
@@ -203,7 +225,7 @@ func TestFetcher_ContextCancellation(t *testing.T) {
 	defer server.Close()
 
 	fetcher := NewFetcher(FetcherOptions{
-		APIHost: server.URL,
+		APIHost: testApiHostResolver{baseURL: server.URL},
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())

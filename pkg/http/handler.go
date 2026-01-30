@@ -11,7 +11,9 @@ import (
 	"github.com/github/github-mcp-server/pkg/http/middleware"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -24,19 +26,28 @@ type Handler struct {
 	config                 *ServerConfig
 	deps                   github.ToolDependencies
 	logger                 *slog.Logger
+	apiHosts               utils.APIHostResolver
 	t                      translations.TranslationHelperFunc
 	githubMcpServerFactory GitHubMCPServerFactoryFunc
 	inventoryFactoryFunc   InventoryFactoryFunc
 	oauthCfg               *oauth.Config
+	scopeFetcher           scopes.FetcherInterface
 }
 
 type HandlerOptions struct {
 	GitHubMcpServerFactory GitHubMCPServerFactoryFunc
 	InventoryFactory       InventoryFactoryFunc
 	OAuthConfig            *oauth.Config
+	ScopeFetcher           scopes.FetcherInterface
 }
 
 type HandlerOption func(*HandlerOptions)
+
+func WithScopeFetcher(f scopes.FetcherInterface) HandlerOption {
+	return func(o *HandlerOptions) {
+		o.ScopeFetcher = f
+	}
+}
 
 func WithGitHubMCPServerFactory(f GitHubMCPServerFactoryFunc) HandlerOption {
 	return func(o *HandlerOptions) {
@@ -62,6 +73,7 @@ func NewHTTPMcpHandler(
 	deps github.ToolDependencies,
 	t translations.TranslationHelperFunc,
 	logger *slog.Logger,
+	apiHost utils.APIHostResolver,
 	options ...HandlerOption) *Handler {
 	opts := &HandlerOptions{}
 	for _, o := range options {
@@ -75,7 +87,14 @@ func NewHTTPMcpHandler(
 
 	inventoryFactory := opts.InventoryFactory
 	if inventoryFactory == nil {
-		inventoryFactory = DefaultInventoryFactory(cfg, t, nil)
+		inventoryFactory = DefaultInventoryFactory(cfg, t, nil, opts.ScopeFetcher)
+	}
+
+	scopeFetcher := opts.ScopeFetcher
+	if scopeFetcher == nil {
+		scopeFetcher = scopes.NewFetcher(scopes.FetcherOptions{
+			APIHost: apiHost,
+		})
 	}
 
 	return &Handler{
@@ -83,10 +102,12 @@ func NewHTTPMcpHandler(
 		config:                 cfg,
 		deps:                   deps,
 		logger:                 logger,
+		apiHosts:               apiHost,
 		t:                      t,
 		githubMcpServerFactory: githubMcpServerFactory,
 		inventoryFactoryFunc:   inventoryFactory,
 		oauthCfg:               opts.OAuthConfig,
+		scopeFetcher:           scopeFetcher,
 	}
 }
 
@@ -94,10 +115,11 @@ func (h *Handler) RegisterMiddleware(r chi.Router) {
 	r.Use(
 		middleware.ExtractUserToken(h.oauthCfg),
 		middleware.WithRequestConfig,
-		middleware.WithScopeChallenge(h.oauthCfg),
 	)
 
-	r.Use(middleware.WithScopeChallenge(h.oauthCfg))
+	if h.config.ScopeChallenge {
+		r.Use(middleware.WithScopeChallenge(h.oauthCfg, h.scopeFetcher))
+	}
 }
 
 // RegisterRoutes registers the routes for the MCP server
@@ -159,7 +181,7 @@ func DefaultGitHubMCPServerFactory(r *http.Request, deps github.ToolDependencies
 	return github.NewMCPServer(r.Context(), cfg, deps, inventory)
 }
 
-func DefaultInventoryFactory(_ *ServerConfig, t translations.TranslationHelperFunc, staticChecker inventory.FeatureFlagChecker) InventoryFactoryFunc {
+func DefaultInventoryFactory(cfg *ServerConfig, t translations.TranslationHelperFunc, staticChecker inventory.FeatureFlagChecker, scopeFetcher scopes.FetcherInterface) InventoryFactoryFunc {
 	return func(r *http.Request) (*inventory.Inventory, error) {
 		b := github.NewInventory(t).WithDeprecatedAliases(github.DeprecatedToolAliases)
 
@@ -170,6 +192,11 @@ func DefaultInventoryFactory(_ *ServerConfig, t translations.TranslationHelperFu
 		}
 
 		b = InventoryFiltersForRequest(r, b)
+
+		if cfg.ScopeChallenge {
+			b = b.WithFilter(ScopeChallengeFilter(r, scopeFetcher))
+		}
+
 		b.WithServerInstructions()
 
 		return b.Build()
@@ -197,4 +224,27 @@ func InventoryFiltersForRequest(r *http.Request, builder *inventory.Builder) *in
 	}
 
 	return builder
+}
+
+func ScopeChallengeFilter(r *http.Request, fetcher scopes.FetcherInterface) inventory.ToolFilter {
+	ctx := r.Context()
+
+	tokenInfo, ok := ghcontext.GetTokenInfo(ctx)
+	if !ok || tokenInfo == nil {
+		return nil
+	}
+
+	// Fetch token scopes for scope-based tool filtering (PAT tokens only)
+	// Only classic PATs (ghp_ prefix) return OAuth scopes via X-OAuth-Scopes header.
+	// Fine-grained PATs and other token types don't support this, so we skip filtering.
+	if tokenInfo.TokenType == utils.TokenTypePersonalAccessToken {
+		scopesList, err := fetcher.FetchTokenScopes(ctx, tokenInfo.Token)
+		if err != nil {
+			return nil
+		}
+
+		return github.CreateToolScopeFilter(scopesList)
+	}
+
+	return nil
 }

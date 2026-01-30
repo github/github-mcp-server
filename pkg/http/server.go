@@ -57,6 +57,10 @@ type ServerConfig struct {
 
 	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
 	RepoAccessCacheTTL *time.Duration
+
+	// ScopeChallenge indicates if we should return OAuth scope challenges, and if we should perform
+	// tool filtering based on token scopes.
+	ScopeChallenge bool
 }
 
 func RunHTTPServer(cfg ServerConfig) error {
@@ -117,8 +121,16 @@ func RunHTTPServer(cfg ServerConfig) error {
 		ResourcePath: cfg.ResourcePath,
 	}
 
+	severOptions := []HandlerOption{}
+	if cfg.ScopeChallenge {
+		scopeFetcher := scopes.NewFetcher(scopes.FetcherOptions{
+			APIHost: apiHost,
+		})
+		severOptions = append(severOptions, WithScopeFetcher(scopeFetcher))
+	}
+
 	r := chi.NewRouter()
-	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger, WithOAuthConfig(oauthCfg))
+	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger, apiHost, append(severOptions, WithOAuthConfig(oauthCfg))...)
 	oauthHandler, err := oauth.NewAuthHandler(oauthCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create OAuth handler: %w", err)

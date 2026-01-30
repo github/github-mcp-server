@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/github/github-mcp-server/pkg/utils"
 )
 
 // OAuthScopesHeader is the HTTP response header containing the token's OAuth scopes.
@@ -23,14 +25,18 @@ type FetcherOptions struct {
 
 	// APIHost is the GitHub API host (e.g., "https://api.github.com").
 	// Defaults to "https://api.github.com" if empty.
-	APIHost string
+	APIHost utils.APIHostResolver
+}
+
+type FetcherInterface interface {
+	FetchTokenScopes(ctx context.Context, token string) ([]string, error)
 }
 
 // Fetcher retrieves token scopes from GitHub's API.
 // It uses an HTTP HEAD request to minimize bandwidth since we only need headers.
 type Fetcher struct {
 	client  *http.Client
-	apiHost string
+	apiHost utils.APIHostResolver
 }
 
 // NewFetcher creates a new scope fetcher with the given options.
@@ -41,8 +47,8 @@ func NewFetcher(opts FetcherOptions) *Fetcher {
 	}
 
 	apiHost := opts.APIHost
-	if apiHost == "" {
-		apiHost = "https://api.github.com"
+	if apiHost == nil {
+		apiHost = utils.NewDefaultAPIHostResolver()
 	}
 
 	return &Fetcher{
@@ -61,8 +67,13 @@ func NewFetcher(opts FetcherOptions) *Fetcher {
 // Note: Fine-grained PATs don't return the X-OAuth-Scopes header, so an empty
 // slice is returned for those tokens.
 func (f *Fetcher) FetchTokenScopes(ctx context.Context, token string) ([]string, error) {
+	apiHostUrl, err := f.apiHost.BaseRESTURL(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get API host URL: %w", err)
+	}
+
 	// Use a lightweight endpoint that requires authentication
-	endpoint, err := url.JoinPath(f.apiHost, "/")
+	endpoint, err := url.JoinPath(apiHostUrl.String(), "/")
 	if err != nil {
 		return nil, fmt.Errorf("failed to construct API URL: %w", err)
 	}
@@ -120,6 +131,6 @@ func FetchTokenScopes(ctx context.Context, token string) ([]string, error) {
 
 // FetchTokenScopesWithHost is a convenience function that creates a fetcher
 // for a specific API host and fetches the token scopes.
-func FetchTokenScopesWithHost(ctx context.Context, token, apiHost string) ([]string, error) {
+func FetchTokenScopesWithHost(ctx context.Context, token string, apiHost utils.APIHostResolver) ([]string, error) {
 	return NewFetcher(FetcherOptions{APIHost: apiHost}).FetchTokenScopes(ctx, token)
 }
