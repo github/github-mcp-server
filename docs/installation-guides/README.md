@@ -3,6 +3,7 @@
 This directory contains detailed installation instructions for the GitHub MCP Server across different host applications and IDEs. Choose the guide that matches your development environment.
 
 ## Installation Guides by Host Application
+- **[Copilot CLI](install-copilot-cli.md)** - Installation guide for GitHub Copilot CLI
 - **[GitHub Copilot in other IDEs](install-other-copilot-ides.md)** - Installation for JetBrains, Visual Studio, Eclipse, and Xcode with GitHub Copilot
 - **[Antigravity](install-antigravity.md)** - Installation for Google Antigravity IDE
 - **[Claude Applications](install-claude.md)** - Installation guide for Claude Web, Claude Desktop and Claude Code CLI
@@ -15,6 +16,7 @@ This directory contains detailed installation instructions for the GitHub MCP Se
 
 | Host Application | Local GitHub MCP Support | Remote GitHub MCP Support | Prerequisites | Difficulty |
 |-----------------|---------------|----------------|---------------|------------|
+| Copilot CLI | ✅ | ✅ PAT + ❌ No OAuth | Docker or Go build, GitHub PAT | Easy |
 | Copilot in VS Code | ✅ | ✅ Full (OAuth + PAT) | Local: Docker or Go build, GitHub PAT<br>Remote: VS Code 1.101+ | Easy |
 | Copilot Coding Agent | ✅ | ✅ Full (on by default; no auth needed) | Any _paid_ copilot license | Default on |
 | Copilot in Visual Studio | ✅ | ✅ Full (OAuth + PAT) | Local: Docker or Go build, GitHub PAT<br>Remote: Visual Studio 17.14+ | Easy |
