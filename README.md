@@ -441,8 +441,8 @@ When deploying the HTTP server:
 
 1. **Use HTTPS in Production**: Always use a reverse proxy (nginx, Caddy, etc.) to terminate TLS
 2. **Network Security**: 
-   - Bind to localhost (`127.0.0.1`) for local-only access
-   - Use firewalls to restrict access to trusted networks
+   - The HTTP server listens on all interfaces; restrict exposure using your deployment configuration (Docker port mappings, reverse proxy bind address, and host firewalls)
+   - For local-only access, publish the container/host port only on localhost (for Docker: `-p 127.0.0.1:8080:8080`) or bind your reverse proxy to `127.0.0.1`
    - Consider VPN or IP allowlisting for remote deployments
 3. **Token Management**:
    - Tokens are validated per-request and never stored
