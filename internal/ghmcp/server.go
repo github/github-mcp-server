@@ -747,8 +747,8 @@ func extractTokenFromAuthHeader(req *http.Request) string {
 		return ""
 	}
 
-	// Split into scheme and credentials, and compare scheme case-insensitively.
-	parts := strings.SplitN(authHeader, " ", 2)
+	// Split into scheme and credentials on general whitespace, and compare scheme case-insensitively.
+	parts := strings.Fields(authHeader)
 	if len(parts) != 2 {
 		return ""
 	}
