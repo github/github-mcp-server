@@ -1,6 +1,7 @@
 package ghmcp
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -108,6 +109,139 @@ func TestResolveEnabledToolsets(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			result := resolveEnabledToolsets(tc.cfg)
 			assert.Equal(t, tc.expectedResult, result)
+		})
+	}
+}
+
+func Test_extractTokenFromAuthHeader(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string // description of this test case
+		// Named input parameters for target function.
+		req  *http.Request
+		want string
+	}{
+		{
+			name: "valid bearer token",
+			req: &http.Request{
+				Header: http.Header{
+					"Authorization": []string{"Bearer ghp_1234567890abcdef"},
+				},
+			},
+			want: "ghp_1234567890abcdef",
+		},
+		{
+			name: "bearer token with extra whitespace",
+			req: &http.Request{
+				Header: http.Header{
+					"Authorization": []string{"  Bearer   ghp_token123  "},
+				},
+			},
+			want: "ghp_token123",
+		},
+		{
+			name: "case insensitive bearer",
+			req: &http.Request{
+				Header: http.Header{
+					"Authorization": []string{"bearer ghp_lowercase"},
+				},
+			},
+			want: "ghp_lowercase",
+		},
+		{
+			name: "mixed case bearer",
+			req: &http.Request{
+				Header: http.Header{
+					"Authorization": []string{"BeArEr ghp_mixedcase"},
+				},
+			},
+			want: "ghp_mixedcase",
+		},
+		{
+			name: "no authorization header",
+			req: &http.Request{
+				Header: http.Header{},
+			},
+			want: "",
+		},
+		{
+			name: "empty authorization header",
+			req: &http.Request{
+				Header: http.Header{
+					"Authorization": []string{""},
+				},
+			},
+			want: "",
+		},
+		{
+			name: "whitespace only authorization header",
+			req: &http.Request{
+				Header: http.Header{
+					"Authorization": []string{"   "},
+				},
+			},
+			want: "",
+		},
+		{
+			name: "missing token after bearer",
+			req: &http.Request{
+				Header: http.Header{
+					"Authorization": []string{"Bearer"},
+				},
+			},
+			want: "",
+		},
+		{
+			name: "bearer with only whitespace token",
+			req: &http.Request{
+				Header: http.Header{
+					"Authorization": []string{"Bearer   "},
+				},
+			},
+			want: "",
+		},
+		{
+			name: "non-bearer scheme",
+			req: &http.Request{
+				Header: http.Header{
+					"Authorization": []string{"Basic dXNlcjpwYXNz"},
+				},
+			},
+			want: "",
+		},
+		{
+			name: "no space between bearer and token",
+			req: &http.Request{
+				Header: http.Header{
+					"Authorization": []string{"Bearerghp_token"},
+				},
+			},
+			want: "",
+		},
+		{
+			name: "token only without scheme",
+			req: &http.Request{
+				Header: http.Header{
+					"Authorization": []string{"ghp_token_only"},
+				},
+			},
+			want: "",
+		},
+		{
+			name: "multiple spaces between bearer and token",
+			req: &http.Request{
+				Header: http.Header{
+					"Authorization": []string{"Bearer     ghp_multispace"},
+				},
+			},
+			want: "ghp_multispace",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractTokenFromAuthHeader(tt.req)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
