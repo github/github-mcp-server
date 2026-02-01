@@ -742,18 +742,27 @@ func fetchTokenScopesForHost(ctx context.Context, token, host string) ([]string,
 // extractTokenFromAuthHeader extracts a GitHub token from the Authorization header.
 // It supports "Bearer <token>" format.
 func extractTokenFromAuthHeader(req *http.Request) string {
-	authHeader := req.Header.Get("Authorization")
+	authHeader := strings.TrimSpace(req.Header.Get("Authorization"))
 	if authHeader == "" {
 		return ""
 	}
 
-	// Check for "Bearer " prefix
-	const bearerPrefix = "Bearer "
-	if strings.HasPrefix(authHeader, bearerPrefix) {
-		return strings.TrimPrefix(authHeader, bearerPrefix)
+	// Split into scheme and credentials, and compare scheme case-insensitively.
+	parts := strings.SplitN(authHeader, " ", 2)
+	if len(parts) != 2 {
+		return ""
 	}
 
-	return ""
+	if !strings.EqualFold(parts[0], "Bearer") {
+		return ""
+	}
+
+	token := strings.TrimSpace(parts[1])
+	if token == "" {
+		return ""
+	}
+
+	return token
 }
 
 // RunHTTPServer starts the HTTP server for multi-client MCP connections.
