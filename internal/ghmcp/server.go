@@ -376,8 +376,8 @@ type HTTPServerConfig struct {
 	// LockdownMode indicates if we should enable lockdown mode
 	LockdownMode bool
 
-	// InsiderMode indicates if we should enable experimental features
-	InsiderMode bool
+	// InsidersMode indicates if we should enable experimental features
+	InsidersMode bool
 
 	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
 	RepoAccessCacheTTL *time.Duration
@@ -834,7 +834,7 @@ func RunHTTPServer(cfg HTTPServerConfig) error {
 			Logger:            logger,
 			RepoAccessTTL:     cfg.RepoAccessCacheTTL,
 			TokenScopes:       tokenScopes,
-			InsiderMode:       cfg.InsiderMode,
+			InsidersMode:      cfg.InsidersMode,
 		})
 		if err != nil {
 			logger.Error("failed to create MCP server", "error", err)
