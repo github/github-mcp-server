@@ -914,7 +914,7 @@ The following sets of tools are available:
 
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/organization-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/organization-light.png"><img src="pkg/octicons/icons/organization-light.png" width="20" height="20" alt="organization"></picture> Organizations</summary>
 
-- **get_org_audit_log** - Get Organization Audit Log
+- **search_org_audit_logs** - Search Organization Audit Logs
   - **Required OAuth Scopes**: `admin:org`
   - `after`: Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs. (string, optional)
   - `include`: Events to include. Default value is 'all'. (string, optional)
