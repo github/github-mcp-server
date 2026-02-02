@@ -33,6 +33,7 @@ jobs:
           cache-dependency-path: ui/package-lock.json
 
       - name: Build UI
+        shell: bash
         run: script/build-ui
 
       - name: Set up Go
@@ -44,6 +45,7 @@ jobs:
         run: go mod tidy -diff
 
       - name: Run unit tests
+        shell: bash
         run: script/test
 
       - name: Build
