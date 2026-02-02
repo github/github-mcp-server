@@ -802,6 +802,11 @@ The following sets of tools are available:
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
+- **create_issue_ui** - Create issue form
+  - **Required OAuth Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
 - **get_label** - Get a specific label from a repository.
   - **Required OAuth Scopes**: `repo`
   - `name`: Label name. (string, required)
