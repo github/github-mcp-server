@@ -33,153 +33,235 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Build PR UI
-        working-directory: pr
-        run: |
-          cd ui
-          npm ci
-          npm run build
-          mkdir -p dist
-          mv dist/src/apps/get-me/index.html dist/get-me.html 2>/dev/null || true
-          mv dist/src/apps/create-issue/index.html dist/create-issue.html 2>/dev/null || true
-
-      - name: Build base UI
-        working-directory: base
-        continue-on-error: true
-        id: base-build
-        run: |
-          if [ -d "ui" ]; then
-            cd ui
-            npm ci
-            npm run build
-            mkdir -p dist
-            mv dist/src/apps/get-me/index.html dist/get-me.html 2>/dev/null || true
-            mv dist/src/apps/create-issue/index.html dist/create-issue.html 2>/dev/null || true
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Generate diff report
+      - name: Analyze React components
         id: diff
-        run: |
-          echo "# UI Components Diff Report" > diff-report.md
-          echo "" >> diff-report.md
-          
-          # Check if base has UI
-          if [ "${{ steps.base-build.outputs.exists }}" != "true" ]; then
-            echo "🆕 **New UI components introduced in this PR**" >> diff-report.md
-            echo "" >> diff-report.md
-            echo "| App | Size |" >> diff-report.md
-            echo "|-----|------|" >> diff-report.md
-            for file in pr/ui/dist/*.html; do
-              if [ -f "$file" ]; then
-                name=$(basename "$file")
-                size=$(wc -c < "$file" | xargs)
-                size_kb=$(echo "scale=1; $size / 1024" | bc)
-                echo "| $name | ${size_kb}KB |" >> diff-report.md
-              fi
-            done
-            echo "" >> diff-report.md
-            echo "has_changes=true" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-          
-          # Compare files
-          has_changes=false
-          
-          echo "## Bundle Size Comparison" >> diff-report.md
-          echo "" >> diff-report.md
-          echo "| App | Base | PR | Delta |" >> diff-report.md
-          echo "|-----|------|----|----|" >> diff-report.md
-          
-          # Get all unique HTML files
-          all_files=$(ls base/ui/dist/*.html pr/ui/dist/*.html 2>/dev/null | xargs -n1 basename | sort -u)
-          
-          for name in $all_files; do
-            base_file="base/ui/dist/$name"
-            pr_file="pr/ui/dist/$name"
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
             
-            if [ -f "$base_file" ] && [ -f "$pr_file" ]; then
-              base_size=$(wc -c < "$base_file" | xargs)
-              pr_size=$(wc -c < "$pr_file" | xargs)
-              delta=$((pr_size - base_size))
-              base_kb=$(echo "scale=1; $base_size / 1024" | bc)
-              pr_kb=$(echo "scale=1; $pr_size / 1024" | bc)
+            // Extract component info from a TSX file
+            function analyzeComponent(content, filePath) {
+              const info = {
+                name: path.basename(filePath, path.extname(filePath)),
+                exports: [],
+                props: [],
+                hooks: [],
+                imports: { primer: [], react: [], local: [] },
+                stateVars: [],
+                effects: 0,
+              };
               
-              if [ $delta -gt 0 ]; then
-                delta_kb=$(echo "scale=1; $delta / 1024" | bc)
-                delta_str="+${delta_kb}KB 📈"
-                has_changes=true
-              elif [ $delta -lt 0 ]; then
-                delta_kb=$(echo "scale=1; ${delta#-} / 1024" | bc)
-                delta_str="-${delta_kb}KB 📉"
-                has_changes=true
-              else
-                delta_str="No change"
-              fi
+              // Extract exported components (function ComponentName or export function)
+              const exportMatches = content.matchAll(/export\s+(?:default\s+)?function\s+(\w+)|function\s+(\w+)\s*\(/g);
+              for (const m of exportMatches) {
+                const name = m[1] || m[2];
+                if (name && /^[A-Z]/.test(name)) info.exports.push(name);
+              }
               
-              echo "| $name | ${base_kb}KB | ${pr_kb}KB | $delta_str |" >> diff-report.md
-            elif [ -f "$pr_file" ]; then
-              pr_size=$(wc -c < "$pr_file" | xargs)
-              pr_kb=$(echo "scale=1; $pr_size / 1024" | bc)
-              echo "| $name | - | ${pr_kb}KB | 🆕 New |" >> diff-report.md
-              has_changes=true
-            elif [ -f "$base_file" ]; then
-              base_size=$(wc -c < "$base_file" | xargs)
-              base_kb=$(echo "scale=1; $base_size / 1024" | bc)
-              echo "| $name | ${base_kb}KB | - | 🗑️ Removed |" >> diff-report.md
-              has_changes=true
-            fi
-          done
-          
-          echo "" >> diff-report.md
-          
-          # Check for component changes by comparing the embedded component names
-          echo "## Component Analysis" >> diff-report.md
-          echo "" >> diff-report.md
-          
-          for name in $all_files; do
-            base_file="base/ui/dist/$name"
-            pr_file="pr/ui/dist/$name"
+              // Extract interface props
+              const propsMatch = content.matchAll(/interface\s+(\w*Props)\s*\{([^}]+)\}/g);
+              for (const m of propsMatch) {
+                const propsContent = m[2];
+                const propNames = propsContent.matchAll(/(\w+)\s*[?:]?\s*:/g);
+                for (const p of propNames) {
+                  if (p[1] && !info.props.includes(p[1])) info.props.push(p[1]);
+                }
+              }
+              
+              // Extract hooks usage
+              const hookMatches = content.matchAll(/\b(use[A-Z]\w+)\s*\(/g);
+              const seenHooks = new Set();
+              for (const m of hookMatches) {
+                if (!seenHooks.has(m[1])) {
+                  seenHooks.add(m[1]);
+                  info.hooks.push(m[1]);
+                }
+              }
+              
+              // Extract useState variables
+              const stateMatches = content.matchAll(/\[\s*(\w+)\s*,\s*set\w+\s*\]\s*=\s*useState/g);
+              for (const m of stateMatches) {
+                info.stateVars.push(m[1]);
+              }
+              
+              // Count useEffect calls
+              info.effects = (content.match(/useEffect\s*\(/g) || []).length;
+              
+              // Extract Primer imports
+              const primerMatch = content.match(/@primer\/react['"]\s*;?\s*$/m) || 
+                                  content.match(/from\s+['"]@primer\/react['"]/);
+              if (primerMatch) {
+                const importLine = content.match(/import\s*\{([^}]+)\}\s*from\s*['"]@primer\/react['"]/);
+                if (importLine) {
+                  info.imports.primer = importLine[1].split(',').map(s => s.trim()).filter(Boolean);
+                }
+              }
+              
+              // Extract React imports
+              const reactMatch = content.match(/import\s*\{([^}]+)\}\s*from\s*['"]react['"]/);
+              if (reactMatch) {
+                info.imports.react = reactMatch[1].split(',').map(s => s.trim()).filter(Boolean);
+              }
+              
+              // Extract local component imports
+              const localMatches = content.matchAll(/import\s*\{([^}]+)\}\s*from\s*['"]\.\.?\//g);
+              for (const m of localMatches) {
+                const imports = m[1].split(',').map(s => s.trim()).filter(Boolean);
+                info.imports.local.push(...imports);
+              }
+              
+              return info;
+            }
             
-            if [ -f "$base_file" ] && [ -f "$pr_file" ]; then
-              # Extract data-component attributes (React component hints)
-              base_components=$(grep -oE 'data-component="[^"]*"' "$base_file" 2>/dev/null | sort -u | wc -l || echo "0")
-              pr_components=$(grep -oE 'data-component="[^"]*"' "$pr_file" 2>/dev/null | sort -u | wc -l || echo "0")
+            // Recursively find all TSX files
+            function findTsxFiles(dir) {
+              const files = [];
+              if (!fs.existsSync(dir)) return files;
               
-              # Extract form field IDs
-              base_fields=$(grep -oE 'id="[^"]*"' "$base_file" 2>/dev/null | sort -u | wc -l || echo "0")
-              pr_fields=$(grep -oE 'id="[^"]*"' "$pr_file" 2>/dev/null | sort -u | wc -l || echo "0")
+              for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory() && entry.name !== 'node_modules') {
+                  files.push(...findTsxFiles(fullPath));
+                } else if (entry.name.endsWith('.tsx')) {
+                  files.push(fullPath);
+                }
+              }
+              return files;
+            }
+            
+            // Get relative path for display
+            function relPath(fullPath, base) {
+              return fullPath.replace(base + '/', '');
+            }
+            
+            const baseDir = 'base/ui/src';
+            const prDir = 'pr/ui/src';
+            
+            const baseFiles = findTsxFiles(baseDir);
+            const prFiles = findTsxFiles(prDir);
+            
+            const baseComponents = new Map();
+            const prComponents = new Map();
+            
+            for (const f of baseFiles) {
+              const rel = relPath(f, baseDir);
+              const content = fs.readFileSync(f, 'utf8');
+              baseComponents.set(rel, analyzeComponent(content, f));
+            }
+            
+            for (const f of prFiles) {
+              const rel = relPath(f, prDir);
+              const content = fs.readFileSync(f, 'utf8');
+              prComponents.set(rel, analyzeComponent(content, f));
+            }
+            
+            // Generate report
+            let report = '# UI Components Diff Report\n\n';
+            let hasChanges = false;
+            
+            // New components
+            const newFiles = [...prComponents.keys()].filter(k => !baseComponents.has(k));
+            if (newFiles.length > 0) {
+              hasChanges = true;
+              report += '## 🆕 New Components\n\n';
+              for (const f of newFiles) {
+                const info = prComponents.get(f);
+                report += `### \`${f}\`\n`;
+                if (info.exports.length) report += `- **Exports:** ${info.exports.join(', ')}\n`;
+                if (info.props.length) report += `- **Props:** ${info.props.join(', ')}\n`;
+                if (info.hooks.length) report += `- **Hooks:** ${info.hooks.join(', ')}\n`;
+                if (info.stateVars.length) report += `- **State:** ${info.stateVars.join(', ')}\n`;
+                if (info.imports.primer.length) report += `- **Primer components:** ${info.imports.primer.join(', ')}\n`;
+                report += '\n';
+              }
+            }
+            
+            // Removed components
+            const removedFiles = [...baseComponents.keys()].filter(k => !prComponents.has(k));
+            if (removedFiles.length > 0) {
+              hasChanges = true;
+              report += '## 🗑️ Removed Components\n\n';
+              for (const f of removedFiles) {
+                report += `- \`${f}\`\n`;
+              }
+              report += '\n';
+            }
+            
+            // Modified components
+            const modifiedFiles = [...prComponents.keys()].filter(k => baseComponents.has(k));
+            const changes = [];
+            
+            for (const f of modifiedFiles) {
+              const base = baseComponents.get(f);
+              const pr = prComponents.get(f);
+              const diff = { file: f, changes: [] };
               
-              # Check for title changes
-              base_title=$(grep -oP '(?<=<title>)[^<]*' "$base_file" 2>/dev/null || echo "")
-              pr_title=$(grep -oP '(?<=<title>)[^<]*' "$pr_file" 2>/dev/null || echo "")
+              // Compare exports
+              const newExports = pr.exports.filter(e => !base.exports.includes(e));
+              const removedExports = base.exports.filter(e => !pr.exports.includes(e));
+              if (newExports.length) diff.changes.push(`Added exports: ${newExports.join(', ')}`);
+              if (removedExports.length) diff.changes.push(`Removed exports: ${removedExports.join(', ')}`);
               
-              if [ "$base_title" != "$pr_title" ] || [ "$base_fields" != "$pr_fields" ]; then
-                echo "### $name" >> diff-report.md
-                if [ "$base_title" != "$pr_title" ]; then
-                  echo "- **Title changed:** \`$base_title\` → \`$pr_title\`" >> diff-report.md
-                  has_changes=true
-                fi
-                if [ "$base_fields" != "$pr_fields" ]; then
-                  echo "- **Form fields:** $base_fields → $pr_fields" >> diff-report.md
-                  has_changes=true
-                fi
-                echo "" >> diff-report.md
-              fi
-            fi
-          done
-          
-          if [ "$has_changes" = "true" ]; then
-            echo "has_changes=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_changes=false" >> $GITHUB_OUTPUT
-            echo "✅ No significant UI changes detected." >> diff-report.md
-          fi
-          
-          # Output to step summary
-          cat diff-report.md >> $GITHUB_STEP_SUMMARY
+              // Compare props
+              const newProps = pr.props.filter(p => !base.props.includes(p));
+              const removedProps = base.props.filter(p => !pr.props.includes(p));
+              if (newProps.length) diff.changes.push(`Added props: ${newProps.join(', ')}`);
+              if (removedProps.length) diff.changes.push(`Removed props: ${removedProps.join(', ')}`);
+              
+              // Compare hooks
+              const newHooks = pr.hooks.filter(h => !base.hooks.includes(h));
+              const removedHooks = base.hooks.filter(h => !pr.hooks.includes(h));
+              if (newHooks.length) diff.changes.push(`Added hooks: ${newHooks.join(', ')}`);
+              if (removedHooks.length) diff.changes.push(`Removed hooks: ${removedHooks.join(', ')}`);
+              
+              // Compare state
+              const newState = pr.stateVars.filter(s => !base.stateVars.includes(s));
+              const removedState = base.stateVars.filter(s => !pr.stateVars.includes(s));
+              if (newState.length) diff.changes.push(`Added state: ${newState.join(', ')}`);
+              if (removedState.length) diff.changes.push(`Removed state: ${removedState.join(', ')}`);
+              
+              // Compare effects
+              if (pr.effects !== base.effects) {
+                diff.changes.push(`Effects: ${base.effects} → ${pr.effects}`);
+              }
+              
+              // Compare Primer imports
+              const newPrimer = pr.imports.primer.filter(p => !base.imports.primer.includes(p));
+              const removedPrimer = base.imports.primer.filter(p => !pr.imports.primer.includes(p));
+              if (newPrimer.length) diff.changes.push(`Added Primer: ${newPrimer.join(', ')}`);
+              if (removedPrimer.length) diff.changes.push(`Removed Primer: ${removedPrimer.join(', ')}`);
+              
+              if (diff.changes.length > 0) {
+                changes.push(diff);
+              }
+            }
+            
+            if (changes.length > 0) {
+              hasChanges = true;
+              report += '## ✏️ Modified Components\n\n';
+              for (const diff of changes) {
+                report += `### \`${diff.file}\`\n`;
+                for (const change of diff.changes) {
+                  report += `- ${change}\n`;
+                }
+                report += '\n';
+              }
+            }
+            
+            if (!hasChanges) {
+              report += '✅ No significant React component changes detected.\n';
+            }
+            
+            // Write report
+            fs.writeFileSync('diff-report.md', report);
+            
+            // Output to step summary
+            const summary = process.env.GITHUB_STEP_SUMMARY;
+            fs.appendFileSync(summary, report);
+            
+            core.setOutput('has_changes', hasChanges ? 'true' : 'false');
 
       - name: Check if already commented
         if: steps.diff.outputs.has_changes == 'true'
@@ -195,7 +277,7 @@ jobs:
             
             const existingComment = comments.find(comment => 
               comment.user.login === 'github-actions[bot]' &&
-              comment.body.includes('## UI Components Diff Report')
+              comment.body.includes('# UI Components Diff Report')
             );
             
             if (existingComment) {
@@ -211,12 +293,9 @@ jobs:
             const report = fs.readFileSync('diff-report.md', 'utf8');
             const commentId = '${{ steps.check_comment.outputs.comment_id }}';
             
-            const body = `## UI Components Diff Report
-            
-            ${report}
-            
+            const body = `${report}
             ---
-            <sub>🤖 This comment is automatically updated when UI files change.</sub>`;
+            <sub>🤖 This comment is automatically updated when UI component files change.</sub>`;
             
             if (commentId) {
               await github.rest.issues.updateComment({
