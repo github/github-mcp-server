@@ -1,0 +1,34 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "List milestones"
+  },
+  "description": "List milestones for a repository.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "state": {
+        "description": "Filter by state (open, closed, all). Default: open",
+        "enum": [
+          "open",
+          "closed",
+          "all"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "type": "object"
+  },
+  "name": "list_milestones"
+}

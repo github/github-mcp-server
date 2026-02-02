@@ -8,7 +8,8 @@ import (
 
 // RegisterUIResources registers MCP App UI resources with the server.
 // These are static resources (not templates) that serve HTML content for
-// MCP App-enabled tools.
+// MCP App-enabled tools. The HTML is built from React/Primer components
+// in the ui/ directory using `script/build-ui`.
 func RegisterUIResources(s *mcp.Server) {
 	// Register the get_me UI resource
 	s.AddResource(
@@ -19,6 +20,7 @@ func RegisterUIResources(s *mcp.Server) {
 			MIMEType:    "text/html",
 		},
 		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+			html := MustGetUIAsset("get-me.html")
 			return &mcp.ReadResourceResult{
 				// MCP Apps UI metadata - CSP configuration to allow loading GitHub avatars
 				// See: https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx
@@ -34,7 +36,7 @@ func RegisterUIResources(s *mcp.Server) {
 					{
 						URI:      GetMeUIResourceURI,
 						MIMEType: "text/html",
-						Text:     GetMeUIHTML,
+						Text:     html,
 					},
 				},
 			}, nil
@@ -50,12 +52,13 @@ func RegisterUIResources(s *mcp.Server) {
 			MIMEType:    "text/html",
 		},
 		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+			html := MustGetUIAsset("create-issue.html")
 			return &mcp.ReadResourceResult{
 				Contents: []*mcp.ResourceContents{
 					{
 						URI:      IssueWriteUIResourceURI,
 						MIMEType: "text/html",
-						Text:     IssueWriteUIHTML,
+						Text:     html,
 					},
 				},
 			}, nil

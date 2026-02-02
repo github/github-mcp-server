@@ -23,3 +23,11 @@ e2e.test
 
 .history
 conformance-report/
+
+# UI build artifacts
+ui/dist/
+ui/node_modules/
+
+# Embedded UI assets are committed (built from ui/)
+
+pkg/github/ui_dist/
