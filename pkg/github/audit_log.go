@@ -17,14 +17,14 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func GetOrgAuditLog(t translations.TranslationHelperFunc) inventory.ServerTool {
+func SearchOrgAuditLogs(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataOrgs,
 		mcp.Tool{
-			Name:        "get_org_audit_log",
-			Description: t("TOOL_GET_ORG_AUDIT_LOG_DESCRIPTION", "Get audit log for a GitHub organization"),
+			Name:        "search_org_audit_logs",
+			Description: t("TOOL_SEARCH_ORG_AUDIT_LOGS_DESCRIPTION", "Search audit logs for a GitHub organization"),
 			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_GET_ORG_AUDIT_LOG_USER_TITLE", "Get Organization Audit Log"),
+				Title:        t("TOOL_SEARCH_ORG_AUDIT_LOGS_USER_TITLE", "Search Organization Audit Logs"),
 				ReadOnlyHint: true,
 			},
 			InputSchema: WithCursorPagination(&jsonschema.Schema{
