@@ -1,0 +1,235 @@
+name: UI Components Diff
+
+on:
+  pull_request:
+    paths:
+      - 'ui/**'
+      - 'pkg/github/ui_embed.go'
+      - 'pkg/github/ui_resources.go'
+      - 'pkg/github/issues_ui.go'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  ui-diff:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out PR code
+        uses: actions/checkout@v6
+        with:
+          path: pr
+
+      - name: Check out base branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.base_ref }}
+          path: base
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build PR UI
+        working-directory: pr
+        run: |
+          cd ui
+          npm ci
+          npm run build
+          mkdir -p dist
+          mv dist/src/apps/get-me/index.html dist/get-me.html 2>/dev/null || true
+          mv dist/src/apps/create-issue/index.html dist/create-issue.html 2>/dev/null || true
+
+      - name: Build base UI
+        working-directory: base
+        continue-on-error: true
+        id: base-build
+        run: |
+          if [ -d "ui" ]; then
+            cd ui
+            npm ci
+            npm run build
+            mkdir -p dist
+            mv dist/src/apps/get-me/index.html dist/get-me.html 2>/dev/null || true
+            mv dist/src/apps/create-issue/index.html dist/create-issue.html 2>/dev/null || true
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate diff report
+        id: diff
+        run: |
+          echo "# UI Components Diff Report" > diff-report.md
+          echo "" >> diff-report.md
+          
+          # Check if base has UI
+          if [ "${{ steps.base-build.outputs.exists }}" != "true" ]; then
+            echo "🆕 **New UI components introduced in this PR**" >> diff-report.md
+            echo "" >> diff-report.md
+            echo "| App | Size |" >> diff-report.md
+            echo "|-----|------|" >> diff-report.md
+            for file in pr/ui/dist/*.html; do
+              if [ -f "$file" ]; then
+                name=$(basename "$file")
+                size=$(wc -c < "$file" | xargs)
+                size_kb=$(echo "scale=1; $size / 1024" | bc)
+                echo "| $name | ${size_kb}KB |" >> diff-report.md
+              fi
+            done
+            echo "" >> diff-report.md
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Compare files
+          has_changes=false
+          
+          echo "## Bundle Size Comparison" >> diff-report.md
+          echo "" >> diff-report.md
+          echo "| App | Base | PR | Delta |" >> diff-report.md
+          echo "|-----|------|----|----|" >> diff-report.md
+          
+          # Get all unique HTML files
+          all_files=$(ls base/ui/dist/*.html pr/ui/dist/*.html 2>/dev/null | xargs -n1 basename | sort -u)
+          
+          for name in $all_files; do
+            base_file="base/ui/dist/$name"
+            pr_file="pr/ui/dist/$name"
+            
+            if [ -f "$base_file" ] && [ -f "$pr_file" ]; then
+              base_size=$(wc -c < "$base_file" | xargs)
+              pr_size=$(wc -c < "$pr_file" | xargs)
+              delta=$((pr_size - base_size))
+              base_kb=$(echo "scale=1; $base_size / 1024" | bc)
+              pr_kb=$(echo "scale=1; $pr_size / 1024" | bc)
+              
+              if [ $delta -gt 0 ]; then
+                delta_kb=$(echo "scale=1; $delta / 1024" | bc)
+                delta_str="+${delta_kb}KB 📈"
+                has_changes=true
+              elif [ $delta -lt 0 ]; then
+                delta_kb=$(echo "scale=1; ${delta#-} / 1024" | bc)
+                delta_str="-${delta_kb}KB 📉"
+                has_changes=true
+              else
+                delta_str="No change"
+              fi
+              
+              echo "| $name | ${base_kb}KB | ${pr_kb}KB | $delta_str |" >> diff-report.md
+            elif [ -f "$pr_file" ]; then
+              pr_size=$(wc -c < "$pr_file" | xargs)
+              pr_kb=$(echo "scale=1; $pr_size / 1024" | bc)
+              echo "| $name | - | ${pr_kb}KB | 🆕 New |" >> diff-report.md
+              has_changes=true
+            elif [ -f "$base_file" ]; then
+              base_size=$(wc -c < "$base_file" | xargs)
+              base_kb=$(echo "scale=1; $base_size / 1024" | bc)
+              echo "| $name | ${base_kb}KB | - | 🗑️ Removed |" >> diff-report.md
+              has_changes=true
+            fi
+          done
+          
+          echo "" >> diff-report.md
+          
+          # Check for component changes by comparing the embedded component names
+          echo "## Component Analysis" >> diff-report.md
+          echo "" >> diff-report.md
+          
+          for name in $all_files; do
+            base_file="base/ui/dist/$name"
+            pr_file="pr/ui/dist/$name"
+            
+            if [ -f "$base_file" ] && [ -f "$pr_file" ]; then
+              # Extract data-component attributes (React component hints)
+              base_components=$(grep -oE 'data-component="[^"]*"' "$base_file" 2>/dev/null | sort -u | wc -l || echo "0")
+              pr_components=$(grep -oE 'data-component="[^"]*"' "$pr_file" 2>/dev/null | sort -u | wc -l || echo "0")
+              
+              # Extract form field IDs
+              base_fields=$(grep -oE 'id="[^"]*"' "$base_file" 2>/dev/null | sort -u | wc -l || echo "0")
+              pr_fields=$(grep -oE 'id="[^"]*"' "$pr_file" 2>/dev/null | sort -u | wc -l || echo "0")
+              
+              # Check for title changes
+              base_title=$(grep -oP '(?<=<title>)[^<]*' "$base_file" 2>/dev/null || echo "")
+              pr_title=$(grep -oP '(?<=<title>)[^<]*' "$pr_file" 2>/dev/null || echo "")
+              
+              if [ "$base_title" != "$pr_title" ] || [ "$base_fields" != "$pr_fields" ]; then
+                echo "### $name" >> diff-report.md
+                if [ "$base_title" != "$pr_title" ]; then
+                  echo "- **Title changed:** \`$base_title\` → \`$pr_title\`" >> diff-report.md
+                  has_changes=true
+                fi
+                if [ "$base_fields" != "$pr_fields" ]; then
+                  echo "- **Form fields:** $base_fields → $pr_fields" >> diff-report.md
+                  has_changes=true
+                fi
+                echo "" >> diff-report.md
+              fi
+            fi
+          done
+          
+          if [ "$has_changes" = "true" ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "✅ No significant UI changes detected." >> diff-report.md
+          fi
+          
+          # Output to step summary
+          cat diff-report.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Check if already commented
+        if: steps.diff.outputs.has_changes == 'true'
+        id: check_comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+            
+            const existingComment = comments.find(comment => 
+              comment.user.login === 'github-actions[bot]' &&
+              comment.body.includes('## UI Components Diff Report')
+            );
+            
+            if (existingComment) {
+              core.setOutput('comment_id', existingComment.id);
+            }
+
+      - name: Post or update PR comment
+        if: steps.diff.outputs.has_changes == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('diff-report.md', 'utf8');
+            const commentId = '${{ steps.check_comment.outputs.comment_id }}';
+            
+            const body = `## UI Components Diff Report
+            
+            ${report}
+            
+            ---
+            <sub>🤖 This comment is automatically updated when UI files change.</sub>`;
+            
+            if (commentId) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: parseInt(commentId),
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
