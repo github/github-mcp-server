@@ -804,8 +804,14 @@ The following sets of tools are available:
 
 - **create_issue_ui** - Create issue form
   - **Required OAuth Scopes**: `repo`
-  - `owner`: Repository owner (string, required)
+  - `assignees`: Pre-select assignees by username. Use list_assignees to get valid usernames for the repository. (string[], optional)
+  - `body`: Pre-fill the issue body content (supports GitHub Flavored Markdown) (string, optional)
+  - `labels`: Pre-select labels by name. Use list_label to get valid label names for the repository. (string[], optional)
+  - `milestone`: Pre-select milestone by number. Use list_milestones to get valid milestone numbers for the repository. (number, optional)
+  - `owner`: Repository owner (user or organization) (string, required)
   - `repo`: Repository name (string, required)
+  - `title`: Pre-fill the issue title (string, optional)
+  - `type`: Pre-select issue type by name. Use list_issue_types to get valid types for the organization. (string, optional)
 
 - **get_label** - Get a specific label from a repository.
   - **Required OAuth Scopes**: `repo`
