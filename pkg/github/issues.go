@@ -619,6 +619,182 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 		})
 }
 
+// ListAssignees creates a tool to list available assignees for a repository.
+func ListAssignees(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "list_assignees",
+			Description: t("TOOL_LIST_ASSIGNEES_DESCRIPTION", "List available assignees for a repository. Returns users who can be assigned to issues."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_LIST_ASSIGNEES_USER_TITLE", "List assignable users"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+				},
+				Required: []string{"owner", "repo"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			// Fetch all assignees with pagination
+			opts := &github.ListOptions{PerPage: 100}
+			var allAssignees []*github.User
+
+			for {
+				assignees, resp, err := client.Issues.ListAssignees(ctx, owner, repo, opts)
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list assignees", resp, err), nil, nil
+				}
+				allAssignees = append(allAssignees, assignees...)
+				if resp.NextPage == 0 {
+					break
+				}
+				opts.Page = resp.NextPage
+			}
+
+			// Build minimal response
+			result := make([]map[string]string, len(allAssignees))
+			for i, u := range allAssignees {
+				result[i] = map[string]string{
+					"login":      u.GetLogin(),
+					"avatar_url": u.GetAvatarURL(),
+				}
+			}
+
+			out, err := json.Marshal(map[string]any{
+				"assignees":  result,
+				"totalCount": len(result),
+			})
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal assignees", err), nil, nil
+			}
+
+			return utils.NewToolResultText(string(out)), nil, nil
+		})
+}
+
+// ListMilestones creates a tool to list milestones for a repository.
+func ListMilestones(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "list_milestones",
+			Description: t("TOOL_LIST_MILESTONES_DESCRIPTION", "List milestones for a repository."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_LIST_MILESTONES_USER_TITLE", "List milestones"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"state": {
+						Type:        "string",
+						Enum:        []any{"open", "closed", "all"},
+						Description: "Filter by state (open, closed, all). Default: open",
+					},
+				},
+				Required: []string{"owner", "repo"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			state, _ := OptionalParam[string](args, "state")
+			if state == "" {
+				state = "open"
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			opts := &github.MilestoneListOptions{
+				State:       state,
+				ListOptions: github.ListOptions{PerPage: 100},
+			}
+
+			var allMilestones []*github.Milestone
+			for {
+				milestones, resp, err := client.Issues.ListMilestones(ctx, owner, repo, opts)
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list milestones", resp, err), nil, nil
+				}
+				allMilestones = append(allMilestones, milestones...)
+				if resp.NextPage == 0 {
+					break
+				}
+				opts.Page = resp.NextPage
+			}
+
+			// Build minimal response
+			result := make([]map[string]any, len(allMilestones))
+			for i, m := range allMilestones {
+				result[i] = map[string]any{
+					"number":      m.GetNumber(),
+					"title":       m.GetTitle(),
+					"description": m.GetDescription(),
+					"state":       m.GetState(),
+					"open_issues": m.GetOpenIssues(),
+					"due_on":      m.GetDueOn().Format("2006-01-02"),
+				}
+			}
+
+			out, err := json.Marshal(map[string]any{
+				"milestones": result,
+				"totalCount": len(result),
+			})
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal milestones", err), nil, nil
+			}
+
+			return utils.NewToolResultText(string(out)), nil, nil
+		})
+}
+
 // AddIssueComment creates a tool to add a comment to an issue.
 func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(

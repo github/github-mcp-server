@@ -25,6 +25,16 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v6
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Build UI
+        run: script/build-ui
+
       - name: Set up Go
         uses: actions/setup-go@v6
         with:

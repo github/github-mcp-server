@@ -848,6 +848,11 @@ The following sets of tools are available:
   - `title`: Issue title (string, optional)
   - `type`: Type of this issue. Only use if the repository has issue types configured. Use list_issue_types tool to get valid type values for the organization. If the repository doesn't support issue types, omit this parameter. (string, optional)
 
+- **list_assignees** - List assignable users
+  - **Required OAuth Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
 - **list_issue_types** - List available issue types
   - **Required OAuth Scopes**: `read:org`
   - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `write:org`
@@ -864,6 +869,12 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
   - `since`: Filter by date (ISO 8601 timestamp) (string, optional)
   - `state`: Filter by state, by default both open and closed issues are returned when not provided (string, optional)
+
+- **list_milestones** - List milestones
+  - **Required OAuth Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+  - `state`: Filter by state (open, closed, all). Default: open (string, optional)
 
 - **search_issues** - Search issues
   - **Required OAuth Scopes**: `repo`

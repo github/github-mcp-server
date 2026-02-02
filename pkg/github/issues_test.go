@@ -3847,3 +3847,189 @@ func Test_ListIssueTypes(t *testing.T) {
 		})
 	}
 }
+
+func Test_ListAssignees(t *testing.T) {
+	// Verify tool definition
+	serverTool := ListAssignees(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "list_assignees", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo"})
+	assert.True(t, tool.Annotations.ReadOnlyHint, "list_assignees should be read-only")
+
+	// Setup mock assignees
+	mockAssignees := []*github.User{
+		{Login: github.Ptr("user1"), AvatarURL: github.Ptr("https://avatars.githubusercontent.com/u/1")},
+		{Login: github.Ptr("user2"), AvatarURL: github.Ptr("https://avatars.githubusercontent.com/u/2")},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedErrMsg string
+	}{
+		{
+			name: "successful assignees listing",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /repos/owner/repo/assignees": mockResponse(t, http.StatusOK, mockAssignees),
+			}),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			expectError: false,
+		},
+		{
+			name: "missing owner parameter",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /repos/owner/repo/assignees": mockResponse(t, http.StatusOK, mockAssignees),
+			}),
+			requestArgs: map[string]interface{}{
+				"repo": "repo",
+			},
+			expectError:    true,
+			expectedErrMsg: "missing required parameter: owner",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			// Verify results
+			if tc.expectError {
+				if err != nil {
+					assert.Contains(t, err.Error(), tc.expectedErrMsg)
+					return
+				}
+				require.NotNil(t, result)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			require.False(t, result.IsError)
+			textContent := getTextResult(t, result)
+
+			var response map[string]interface{}
+			err = json.Unmarshal([]byte(textContent.Text), &response)
+			require.NoError(t, err)
+			assert.Contains(t, response, "assignees")
+			assert.Contains(t, response, "totalCount")
+		})
+	}
+}
+
+func Test_ListMilestones(t *testing.T) {
+	// Verify tool definition
+	serverTool := ListMilestones(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "list_milestones", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "state")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo"})
+	assert.True(t, tool.Annotations.ReadOnlyHint, "list_milestones should be read-only")
+
+	// Setup mock milestones
+	dueOn := time.Date(2024, 12, 31, 0, 0, 0, 0, time.UTC)
+	mockMilestones := []*github.Milestone{
+		{Number: github.Ptr(1), Title: github.Ptr("v1.0"), Description: github.Ptr("First release"), State: github.Ptr("open"), OpenIssues: github.Ptr(5), DueOn: &github.Timestamp{Time: dueOn}},
+		{Number: github.Ptr(2), Title: github.Ptr("v2.0"), Description: github.Ptr("Second release"), State: github.Ptr("open"), OpenIssues: github.Ptr(3), DueOn: &github.Timestamp{Time: dueOn}},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedErrMsg string
+	}{
+		{
+			name: "successful milestones listing",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /repos/owner/repo/milestones": mockResponse(t, http.StatusOK, mockMilestones),
+			}),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+			},
+			expectError: false,
+		},
+		{
+			name: "missing owner parameter",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /repos/owner/repo/milestones": mockResponse(t, http.StatusOK, mockMilestones),
+			}),
+			requestArgs: map[string]interface{}{
+				"repo": "repo",
+			},
+			expectError:    true,
+			expectedErrMsg: "missing required parameter: owner",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			// Verify results
+			if tc.expectError {
+				if err != nil {
+					assert.Contains(t, err.Error(), tc.expectedErrMsg)
+					return
+				}
+				require.NotNil(t, result)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			require.False(t, result.IsError)
+			textContent := getTextResult(t, result)
+
+			var response map[string]interface{}
+			err = json.Unmarshal([]byte(textContent.Text), &response)
+			require.NoError(t, err)
+			assert.Contains(t, response, "milestones")
+			assert.Contains(t, response, "totalCount")
+		})
+	}
+}
