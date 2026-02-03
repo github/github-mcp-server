@@ -1,0 +1,29 @@
+{
+  "accounts": [
+    {
+      "name": "work",
+      "token": "${GITHUB_WORK_TOKEN}",
+      "matcher": {
+        "type": "org",
+        "values": ["my-company", "my-company-org"]
+      }
+    },
+    {
+      "name": "personal",
+      "token": "${GITHUB_PERSONAL_TOKEN}",
+      "matcher": {
+        "type": "org",
+        "values": ["drtootsie", "my-personal-org"]
+      },
+      "default": true
+    },
+    {
+      "name": "specific-repos",
+      "token": "${GITHUB_SPECIFIC_TOKEN}",
+      "matcher": {
+        "type": "repo_pattern",
+        "values": ["some-org/specific-repo", "other-org/*"]
+      }
+    }
+  ]
+}
