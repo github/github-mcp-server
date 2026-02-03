@@ -2176,3 +2176,176 @@ func GetIssueDependencies(ctx context.Context, client *github.Client, cache *loc
 
 	return utils.NewToolResultText(string(r)), nil
 }
+
+// DependencyWrite creates a tool to manage dependencies between issues.
+func DependencyWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "dependency_write",
+			Description: t("TOOL_DEPENDENCY_WRITE_DESCRIPTION", "Add or remove dependency relationships between issues in a GitHub repository."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_DEPENDENCY_WRITE_USER_TITLE", "Manage issue dependencies"),
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"method": {
+						Type: "string",
+						Description: `The action to perform on issue dependencies.
+Options are:
+- 'add' - add a dependency relationship (mark an issue as blocked by another issue).
+- 'remove' - remove a dependency relationship.
+				`,
+						Enum: []any{"add", "remove"},
+					},
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"issue_number": {
+						Type:        "number",
+						Description: "The number of the issue",
+					},
+					"dependency_issue_number": {
+						Type:        "number",
+						Description: "The number of the issue that blocks this issue (for 'add') or the dependency ID (for 'remove')",
+					},
+				},
+				Required: []string{"method", "owner", "repo", "issue_number", "dependency_issue_number"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			method, err := RequiredParam[string](args, "method")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			issueNumber, err := RequiredInt(args, "issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			dependencyIssueNumber, err := RequiredInt(args, "dependency_issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			switch method {
+			case "add":
+				result, err := AddIssueDependency(ctx, client, owner, repo, issueNumber, dependencyIssueNumber)
+				return result, nil, err
+			case "remove":
+				result, err := RemoveIssueDependency(ctx, client, owner, repo, issueNumber, dependencyIssueNumber)
+				return result, nil, err
+			default:
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+			}
+		})
+}
+
+// AddIssueDependency adds a dependency relationship between two issues.
+// The issue specified by issueNumber will be blocked by the issue specified by dependencyIssueNumber.
+func AddIssueDependency(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, dependencyIssueNumber int) (*mcp.CallToolResult, error) {
+	url := fmt.Sprintf("repos/%s/%s/issues/%d/dependencies", owner, repo, issueNumber)
+	
+	body := map[string]interface{}{
+		"dependency_issue_id": dependencyIssueNumber,
+	}
+	
+	req, err := client.NewRequest("POST", url, body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	var dependency IssueDependency
+	resp, err := client.Do(ctx, req, &dependency)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to add issue dependency",
+			resp,
+			err,
+		), nil
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add issue dependency", resp, body), nil
+	}
+
+	r, err := json.Marshal(map[string]interface{}{
+		"success": true,
+		"message": fmt.Sprintf("Issue #%d is now blocked by issue #%d", issueNumber, dependencyIssueNumber),
+		"dependency": dependency,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return utils.NewToolResultText(string(r)), nil
+}
+
+// RemoveIssueDependency removes a dependency relationship between two issues.
+func RemoveIssueDependency(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, dependencyID int) (*mcp.CallToolResult, error) {
+	url := fmt.Sprintf("repos/%s/%s/issues/%d/dependencies/%d", owner, repo, issueNumber, dependencyID)
+	
+	req, err := client.NewRequest("DELETE", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := client.Do(ctx, req, nil)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to remove issue dependency",
+			resp,
+			err,
+		), nil
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to remove issue dependency", resp, body), nil
+	}
+
+	r, err := json.Marshal(map[string]interface{}{
+		"success": true,
+		"message": fmt.Sprintf("Dependency removed from issue #%d", issueNumber),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return utils.NewToolResultText(string(r)), nil
+}
