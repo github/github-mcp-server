@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/github/github-mcp-server/pkg/accounts"
 	"github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -33,8 +34,13 @@ type MCPServerConfig struct {
 	// GitHub Host to target for API requests (e.g. github.com or github.enterprise.com)
 	Host string
 
-	// GitHub Token to authenticate with the GitHub API
+	// GitHub Token to authenticate with the GitHub API (for single-account mode)
+	// Deprecated: Use AccountsConfig for multi-account support
 	Token string
+
+	// AccountsConfig provides multi-account configuration and routing
+	// When set, Token is ignored and accounts are selected dynamically based on repository context
+	AccountsConfig *accounts.Config
 
 	// EnabledToolsets is a list of toolsets to enable
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration
@@ -87,11 +93,40 @@ type githubClients struct {
 	repoAccess *lockdown.RepoAccessCache
 }
 
-// createGitHubClients creates all the GitHub API clients needed by the server.
-func createGitHubClients(cfg MCPServerConfig, apiHost apiHost) (*githubClients, error) {
+// normalizeAccountsConfig ensures AccountsConfig is set, creating a default single-account
+// config from Token if needed (for backward compatibility).
+func normalizeAccountsConfig(cfg *MCPServerConfig) error {
+	if cfg.AccountsConfig != nil {
+		// Multi-account config provided, validate it
+		return cfg.AccountsConfig.Validate()
+	}
+
+	// Backward compatibility: create single-account config from Token
+	if cfg.Token == "" {
+		return fmt.Errorf("either Token or AccountsConfig must be provided")
+	}
+
+	cfg.AccountsConfig = &accounts.Config{
+		Accounts: []accounts.Account{
+			{
+				Name:  "default",
+				Token: cfg.Token,
+				Matcher: accounts.AccountMatcher{
+					Type: "all",
+				},
+				Default: true,
+			},
+		},
+	}
+
+	return cfg.AccountsConfig.Validate()
+}
+
+// createGitHubClients creates all the GitHub API clients needed by the server for a specific token.
+func createGitHubClients(version string, token string, lockdownMode bool, repoAccessTTL *time.Duration, logger *slog.Logger, apiHost apiHost) (*githubClients, error) {
 	// Construct REST client
-	restClient := gogithub.NewClient(nil).WithAuthToken(cfg.Token)
-	restClient.UserAgent = fmt.Sprintf("github-mcp-server/%s", cfg.Version)
+	restClient := gogithub.NewClient(nil).WithAuthToken(token)
+	restClient.UserAgent = fmt.Sprintf("github-mcp-server/%s", version)
 	restClient.BaseURL = apiHost.baseRESTURL
 	restClient.UploadURL = apiHost.uploadURL
 
@@ -102,7 +137,7 @@ func createGitHubClients(cfg MCPServerConfig, apiHost apiHost) (*githubClients, 
 			transport: &github.GraphQLFeaturesTransport{
 				Transport: http.DefaultTransport,
 			},
-			token: cfg.Token,
+			token: token,
 		},
 	}
 	gqlClient := githubv4.NewEnterpriseClient(apiHost.graphqlURL.String(), gqlHTTPClient)
@@ -112,12 +147,12 @@ func createGitHubClients(cfg MCPServerConfig, apiHost apiHost) (*githubClients, 
 
 	// Set up repo access cache for lockdown mode
 	var repoAccessCache *lockdown.RepoAccessCache
-	if cfg.LockdownMode {
+	if lockdownMode {
 		opts := []lockdown.RepoAccessOption{
-			lockdown.WithLogger(cfg.Logger.With("component", "lockdown")),
+			lockdown.WithLogger(logger.With("component", "lockdown")),
 		}
-		if cfg.RepoAccessTTL != nil {
-			opts = append(opts, lockdown.WithTTL(*cfg.RepoAccessTTL))
+		if repoAccessTTL != nil {
+			opts = append(opts, lockdown.WithTTL(*repoAccessTTL))
 		}
 		repoAccessCache = lockdown.GetInstance(gqlClient, opts...)
 	}
@@ -159,12 +194,23 @@ func resolveEnabledToolsets(cfg MCPServerConfig) []string {
 }
 
 func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
+	// Normalize accounts config (handles backward compatibility for single Token)
+	if err := normalizeAccountsConfig(&cfg); err != nil {
+		return nil, fmt.Errorf("failed to normalize accounts config: %w", err)
+	}
+
 	apiHost, err := parseAPIHost(cfg.Host)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
 	}
 
-	clients, err := createGitHubClients(cfg, apiHost)
+	// Use default account's token for client creation
+	defaultAccount := cfg.AccountsConfig.GetDefaultAccount()
+	if defaultAccount == nil {
+		return nil, fmt.Errorf("no default account found")
+	}
+
+	clients, err := createGitHubClients(cfg.Version, defaultAccount.Token, cfg.LockdownMode, cfg.RepoAccessTTL, cfg.Logger, apiHost)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub clients: %w", err)
 	}
@@ -293,8 +339,12 @@ type StdioServerConfig struct {
 	// GitHub Host to target for API requests (e.g. github.com or github.enterprise.com)
 	Host string
 
-	// GitHub Token to authenticate with the GitHub API
+	// GitHub Token to authenticate with the GitHub API (for single-account mode)
+	// Deprecated: Use AccountsConfig for multi-account support
 	Token string
+
+	// AccountsConfig provides multi-account configuration
+	AccountsConfig *accounts.Config
 
 	// EnabledToolsets is a list of toolsets to enable
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration
@@ -382,6 +432,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		Version:           cfg.Version,
 		Host:              cfg.Host,
 		Token:             cfg.Token,
+		AccountsConfig:    cfg.AccountsConfig,
 		EnabledToolsets:   cfg.EnabledToolsets,
 		EnabledTools:      cfg.EnabledTools,
 		EnabledFeatures:   cfg.EnabledFeatures,
