@@ -28,10 +28,11 @@ var (
 		Icon:        "check-circle",
 	}
 	ToolsetMetadataContext = inventory.ToolsetMetadata{
-		ID:          "context",
-		Description: "Tools that provide context about the current user and GitHub context you are operating in",
-		Default:     true,
-		Icon:        "person",
+		ID:               "context",
+		Description:      "Tools that provide context about the current user and GitHub context you are operating in",
+		Default:          true,
+		Icon:             "person",
+		InstructionsFunc: generateContextToolsetInstructions,
 	}
 	ToolsetMetadataRepos = inventory.ToolsetMetadata{
 		ID:          "repos",
@@ -45,16 +46,18 @@ var (
 		Icon:        "git-branch",
 	}
 	ToolsetMetadataIssues = inventory.ToolsetMetadata{
-		ID:          "issues",
-		Description: "GitHub Issues related tools",
-		Default:     true,
-		Icon:        "issue-opened",
+		ID:               "issues",
+		Description:      "GitHub Issues related tools",
+		Default:          true,
+		Icon:             "issue-opened",
+		InstructionsFunc: generateIssuesToolsetInstructions,
 	}
 	ToolsetMetadataPullRequests = inventory.ToolsetMetadata{
-		ID:          "pull_requests",
-		Description: "GitHub Pull Request related tools",
-		Default:     true,
-		Icon:        "git-pull-request",
+		ID:               "pull_requests",
+		Description:      "GitHub Pull Request related tools",
+		Default:          true,
+		Icon:             "git-pull-request",
+		InstructionsFunc: generatePullRequestsToolsetInstructions,
 	}
 	ToolsetMetadataUsers = inventory.ToolsetMetadata{
 		ID:          "users",
@@ -93,9 +96,10 @@ var (
 		Icon:        "bell",
 	}
 	ToolsetMetadataDiscussions = inventory.ToolsetMetadata{
-		ID:          "discussions",
-		Description: "GitHub Discussions related tools",
-		Icon:        "comment-discussion",
+		ID:               "discussions",
+		Description:      "GitHub Discussions related tools",
+		Icon:             "comment-discussion",
+		InstructionsFunc: generateDiscussionsToolsetInstructions,
 	}
 	ToolsetMetadataGists = inventory.ToolsetMetadata{
 		ID:          "gists",
@@ -108,9 +112,10 @@ var (
 		Icon:        "shield",
 	}
 	ToolsetMetadataProjects = inventory.ToolsetMetadata{
-		ID:          "projects",
-		Description: "GitHub Projects related tools",
-		Icon:        "project",
+		ID:               "projects",
+		Description:      "GitHub Projects related tools",
+		Icon:             "project",
+		InstructionsFunc: generateProjectsToolsetInstructions,
 	}
 	ToolsetMetadataStargazers = inventory.ToolsetMetadata{
 		ID:          "stargazers",
@@ -264,6 +269,11 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		DeleteProjectItem(t),
 		UpdateProjectItem(t),
 
+		// Consolidated project tools (enabled via feature flag)
+		ProjectsList(t),
+		ProjectsGet(t),
+		ProjectsWrite(t),
+
 		// Label tools
 		GetLabel(t),
 		GetLabelForLabelsToolset(t),
@@ -289,7 +299,8 @@ func ToStringPtr(s string) *string {
 // GenerateToolsetsHelp generates the help text for the toolsets flag
 func GenerateToolsetsHelp() string {
 	// Get toolset group to derive defaults and available toolsets
-	r := NewInventory(stubTranslator).Build()
+	// Build() can only fail if WithTools specifies invalid tools - not used here
+	r, _ := NewInventory(stubTranslator).Build()
 
 	// Format default tools from metadata using strings.Builder
 	var defaultBuf strings.Builder
@@ -371,7 +382,8 @@ func AddDefaultToolset(result []string) []string {
 	result = RemoveToolset(result, string(ToolsetMetadataDefault.ID))
 
 	// Get default toolset IDs from the Inventory
-	r := NewInventory(stubTranslator).Build()
+	// Build() can only fail if WithTools specifies invalid tools - not used here
+	r, _ := NewInventory(stubTranslator).Build()
 	for _, id := range r.DefaultToolsetIDs() {
 		if !seen[string(id)] {
 			result = append(result, string(id))
@@ -423,7 +435,8 @@ func CleanTools(toolNames []string) []string {
 // GetDefaultToolsetIDs returns the IDs of toolsets marked as Default.
 // This is a convenience function that builds an inventory to determine defaults.
 func GetDefaultToolsetIDs() []string {
-	r := NewInventory(stubTranslator).Build()
+	// Build() can only fail if WithTools specifies invalid tools - not used here
+	r, _ := NewInventory(stubTranslator).Build()
 	ids := r.DefaultToolsetIDs()
 	result := make([]string, len(ids))
 	for i, id := range ids {

@@ -31,6 +31,9 @@ type ToolsetMetadata struct {
 	// Use the base name without size suffix, e.g., "repo" not "repo-16".
 	// See https://primer.style/foundations/icons for available icons.
 	Icon string
+	// InstructionsFunc optionally returns instructions for this toolset.
+	// It receives the inventory so it can check what other toolsets are enabled.
+	InstructionsFunc func(inv *Inventory) string
 }
 
 // Icons returns MCP Icon objects for this toolset, or nil if no icon is set.
@@ -70,6 +73,15 @@ type ServerTool struct {
 	// The context carries request-scoped information for the consumer to use.
 	// Returns (enabled, error). On error, the tool should be treated as disabled.
 	Enabled func(ctx context.Context) (bool, error)
+
+	// RequiredScopes specifies the minimum OAuth scopes required for this tool.
+	// These are the scopes that must be present for the tool to function.
+	RequiredScopes []string
+
+	// AcceptedScopes specifies all OAuth scopes that can be used with this tool.
+	// This includes the required scopes plus any higher-level scopes that provide
+	// the necessary permissions due to scope hierarchy.
+	AcceptedScopes []string
 }
 
 // IsReadOnly returns true if this tool is marked as read-only via annotations.

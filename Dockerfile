@@ -1,4 +1,4 @@
-FROM golang:1.25.4-alpine AS build
+FROM golang:1.25.6-alpine AS build
 ARG VERSION="dev"
 
 # Set the working directory
@@ -14,7 +14,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=bind,target=. \
     CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION} -X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    -o /bin/github-mcp-server cmd/github-mcp-server/main.go
+    -o /bin/github-mcp-server ./cmd/github-mcp-server
 
 # Make a stage to run the app
 FROM gcr.io/distroless/base-debian12
