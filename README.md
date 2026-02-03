@@ -802,6 +802,18 @@ The following sets of tools are available:
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
+- **dependency_write** - Manage issue dependencies
+  - **Required OAuth Scopes**: `repo`
+  - `dependency_issue_number`: The number of the issue that blocks this issue (for 'add') or the dependency ID (for 'remove') (number, required)
+  - `issue_number`: The number of the issue (number, required)
+  - `method`: The action to perform on issue dependencies.
+    Options are:
+    - 'add' - add a dependency relationship (mark an issue as blocked by another issue).
+    - 'remove' - remove a dependency relationship.
+    				 (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
 - **get_label** - Get a specific label from a repository.
   - **Required OAuth Scopes**: `repo`
   - `name`: Label name. (string, required)
@@ -817,6 +829,7 @@ The following sets of tools are available:
     2. get_comments - Get issue comments.
     3. get_sub_issues - Get sub-issues of the issue.
     4. get_labels - Get labels assigned to the issue.
+    5. get_dependencies - Get issue dependencies (blocked by/blocking relationships).
      (string, required)
   - `owner`: The owner of the repository (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)

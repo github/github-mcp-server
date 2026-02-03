@@ -325,7 +325,7 @@ Options are:
 				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
 				return result, nil, err
 			case "get_dependencies":
-				result, err := GetIssueDependencies(ctx, client, deps.GetRepoAccessCache(), owner, repo, issueNumber)
+				result, err := GetIssueDependencies(ctx, client, owner, repo, issueNumber)
 				return result, nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
@@ -2142,7 +2142,7 @@ type IssueDependencies struct {
 
 // GetIssueDependencies retrieves dependency information for an issue.
 // Returns both "depends_on" (issues blocking this issue) and "blocking" (issues blocked by this issue).
-func GetIssueDependencies(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
+func GetIssueDependencies(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
 	url := fmt.Sprintf("repos/%s/%s/issues/%d/dependencies", owner, repo, issueNumber)
 	req, err := client.NewRequest("GET", url, nil)
 	if err != nil {
@@ -2269,11 +2269,11 @@ Options are:
 // The issue specified by issueNumber will be blocked by the issue specified by dependencyIssueNumber.
 func AddIssueDependency(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, dependencyIssueNumber int) (*mcp.CallToolResult, error) {
 	url := fmt.Sprintf("repos/%s/%s/issues/%d/dependencies", owner, repo, issueNumber)
-	
+
 	body := map[string]interface{}{
 		"dependency_issue_id": dependencyIssueNumber,
 	}
-	
+
 	req, err := client.NewRequest("POST", url, body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -2300,8 +2300,8 @@ func AddIssueDependency(ctx context.Context, client *github.Client, owner string
 	}
 
 	r, err := json.Marshal(map[string]interface{}{
-		"success": true,
-		"message": fmt.Sprintf("Issue #%d is now blocked by issue #%d", issueNumber, dependencyIssueNumber),
+		"success":    true,
+		"message":    fmt.Sprintf("Issue #%d is now blocked by issue #%d", issueNumber, dependencyIssueNumber),
 		"dependency": dependency,
 	})
 	if err != nil {
@@ -2314,7 +2314,7 @@ func AddIssueDependency(ctx context.Context, client *github.Client, owner string
 // RemoveIssueDependency removes a dependency relationship between two issues.
 func RemoveIssueDependency(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, dependencyID int) (*mcp.CallToolResult, error) {
 	url := fmt.Sprintf("repos/%s/%s/issues/%d/dependencies/%d", owner, repo, issueNumber, dependencyID)
-	
+
 	req, err := client.NewRequest("DELETE", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
