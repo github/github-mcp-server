@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
 )
@@ -1831,4 +1832,52 @@ func TestWithTools_DeprecatedAliasAndFeatureFlag(t *testing.T) {
 	if availableOn[0].Tool.Name != "new_tool" {
 		t.Errorf("Flag ON: Expected new_tool (via alias), got %s", availableOn[0].Tool.Name)
 	}
+}
+
+func TestWithInsidersMode(t *testing.T) {
+	// Create a tool with a jsonschema.Schema that has show_ui
+	toolWithShowUI := NewServerToolFromHandler(
+		mcp.Tool{
+			Name: "test_tool",
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"show_ui": {
+						Type:        "boolean",
+						Description: "Show UI",
+					},
+					"owner": {
+						Type:        "string",
+						Description: "Owner",
+					},
+				},
+			},
+		},
+		testToolsetMetadata("test"),
+		func(_ any) mcp.ToolHandler {
+			return func(_ context.Context, _ *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+				return nil, nil
+			}
+		},
+	)
+
+	tools := []ServerTool{toolWithShowUI}
+
+	// Test with insiders mode disabled - show_ui should be stripped
+	regNoInsiders := mustBuild(t, NewBuilder().SetTools(tools).WithInsidersMode(false))
+	toolsNoInsiders := regNoInsiders.AllTools()
+	require.Len(t, toolsNoInsiders, 1)
+	schema, ok := toolsNoInsiders[0].Tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "Schema should be *jsonschema.Schema")
+	require.Nil(t, schema.Properties["show_ui"], "show_ui should be stripped when insiders mode is disabled")
+	require.NotNil(t, schema.Properties["owner"], "owner should still exist")
+
+	// Test with insiders mode enabled - show_ui should remain
+	regWithInsiders := mustBuild(t, NewBuilder().SetTools(tools).WithInsidersMode(true))
+	toolsWithInsiders := regWithInsiders.AllTools()
+	require.Len(t, toolsWithInsiders, 1)
+	schemaInsiders, ok := toolsWithInsiders[0].Tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "Schema should be *jsonschema.Schema")
+	require.NotNil(t, schemaInsiders.Properties["show_ui"], "show_ui should remain when insiders mode is enabled")
+	require.NotNil(t, schemaInsiders.Properties["owner"], "owner should still exist")
 }
