@@ -84,12 +84,14 @@ function SuccessView({
   repo,
   submittedTitle,
   submittedLabels,
+  isUpdate,
 }: {
   issue: IssueResult;
   owner: string;
   repo: string;
   submittedTitle: string;
   submittedLabels: LabelItem[];
+  isUpdate: boolean;
 }) {
   const issueUrl = issue.html_url || issue.url || issue.URL || "#";
 
@@ -115,7 +117,9 @@ function SuccessView({
         <Box sx={{ color: "success.fg" }}>
           <CheckCircleIcon size={16} />
         </Box>
-        <Text sx={{ fontWeight: "semibold" }}>Issue created successfully</Text>
+        <Text sx={{ fontWeight: "semibold" }}>
+          {isUpdate ? "Issue updated successfully" : "Issue created successfully"}
+        </Text>
       </Box>
 
       <Box
@@ -214,8 +218,13 @@ function CreateIssueApp() {
   const [repoFilter, setRepoFilter] = useState("");
 
   const { app, error: appError, toolInput, callTool } = useMcpApp({
-    appName: "github-mcp-server-create-issue",
+    appName: "github-mcp-server-issue-write",
   });
+
+  // Get method and issue_number from toolInput
+  const method = (toolInput?.method as string) || "create";
+  const issueNumber = toolInput?.issue_number as number | undefined;
+  const isUpdateMode = method === "update" && issueNumber !== undefined;
 
   // Initialize from toolInput or selected repo
   const owner = selectedRepo?.owner || (toolInput?.owner as string) || "";
@@ -417,10 +426,105 @@ function CreateIssueApp() {
     type: boolean;
   }>({ title: false, body: false, labels: false, assignees: false, milestone: false, type: false });
 
+  // Track if we've loaded existing issue data for update mode
+  const existingIssueLoaded = useRef(false);
+
   // Reset prefill tracking when toolInput changes (new invocation)
   useEffect(() => {
     prefillApplied.current = { title: false, body: false, labels: false, assignees: false, milestone: false, type: false };
+    existingIssueLoaded.current = false;
   }, [toolInput]);
+
+  // Load existing issue data when in update mode
+  useEffect(() => {
+    if (!isUpdateMode || !owner || !repo || !issueNumber || !app || existingIssueLoaded.current) {
+      return;
+    }
+
+    const loadExistingIssue = async () => {
+      try {
+        console.log("Loading existing issue:", owner, repo, issueNumber);
+        const result = await callTool("issue_read", {
+          method: "get",
+          owner,
+          repo,
+          issue_number: issueNumber,
+        });
+
+        if (result && !result.isError && result.content) {
+          const textContent = result.content.find(
+            (c: { type: string }) => c.type === "text"
+          );
+          if (textContent?.text) {
+            const issueData = JSON.parse(textContent.text);
+            console.log("Loaded issue data:", issueData);
+
+            // Pre-fill title and body
+            if (issueData.title && !prefillApplied.current.title) {
+              setTitle(issueData.title);
+              prefillApplied.current.title = true;
+            }
+            if (issueData.body && !prefillApplied.current.body) {
+              setBody(issueData.body);
+              prefillApplied.current.body = true;
+            }
+
+            // Pre-fill labels (wait for available labels to be loaded)
+            if (issueData.labels && Array.isArray(issueData.labels)) {
+              const labelNames = issueData.labels.map((l: { name?: string } | string) =>
+                typeof l === 'string' ? l : l.name
+              ).filter(Boolean);
+              if (labelNames.length > 0 && availableLabels.length > 0 && !prefillApplied.current.labels) {
+                const matchedLabels = availableLabels.filter((l) =>
+                  labelNames.includes(l.text)
+                );
+                if (matchedLabels.length > 0) {
+                  setSelectedLabels(matchedLabels);
+                  prefillApplied.current.labels = true;
+                }
+              }
+            }
+
+            // Pre-fill assignees
+            if (issueData.assignees && Array.isArray(issueData.assignees)) {
+              const assigneeLogins = issueData.assignees.map((a: { login?: string } | string) =>
+                typeof a === 'string' ? a : a.login
+              ).filter(Boolean);
+              if (assigneeLogins.length > 0 && availableAssignees.length > 0 && !prefillApplied.current.assignees) {
+                const matchedAssignees = availableAssignees.filter((a) =>
+                  assigneeLogins.includes(a.text)
+                );
+                if (matchedAssignees.length > 0) {
+                  setSelectedAssignees(matchedAssignees);
+                  prefillApplied.current.assignees = true;
+                }
+              }
+            }
+
+            // Pre-fill milestone
+            if (issueData.milestone && availableMilestones.length > 0 && !prefillApplied.current.milestone) {
+              const milestoneNumber = typeof issueData.milestone === 'object' 
+                ? issueData.milestone.number 
+                : issueData.milestone;
+              const matchedMilestone = availableMilestones.find(
+                (m) => m.number === milestoneNumber
+              );
+              if (matchedMilestone) {
+                setSelectedMilestone(matchedMilestone);
+                prefillApplied.current.milestone = true;
+              }
+            }
+
+            existingIssueLoaded.current = true;
+          }
+        }
+      } catch (e) {
+        console.error("Error loading existing issue:", e);
+      }
+    };
+
+    loadExistingIssue();
+  }, [isUpdateMode, owner, repo, issueNumber, app, callTool, availableLabels, availableAssignees, availableMilestones]);
 
   // Pre-fill title and body immediately (don't wait for data loading)
   useEffect(() => {
@@ -519,12 +623,17 @@ function CreateIssueApp() {
 
     try {
       const params: Record<string, unknown> = {
-        method: "create",
+        method: isUpdateMode ? "update" : "create",
         owner,
         repo,
         title: title.trim(),
         body: body.trim(),
+        show_ui: false, // Execute the action directly, don't show UI again
       };
+
+      if (isUpdateMode && issueNumber) {
+        params.issue_number = issueNumber;
+      }
 
       if (selectedLabels.length > 0) {
         params.labels = selectedLabels.map((l) => l.text);
@@ -609,6 +718,7 @@ function CreateIssueApp() {
         repo={repo}
         submittedTitle={title}
         submittedLabels={selectedLabels}
+        isUpdate={isUpdateMode}
       />
     );
   }
@@ -970,10 +1080,10 @@ function CreateIssueApp() {
         {isSubmitting ? (
           <>
             <Spinner size="small" sx={{ mr: 2 }} />
-            Creating...
+            {isUpdateMode ? "Updating..." : "Creating..."}
           </>
         ) : (
-          "Create issue"
+          isUpdateMode ? "Update issue" : "Create issue"
         )}
       </Button>
     </Box>

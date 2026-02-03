@@ -1,8 +1,17 @@
 {
+  "_meta": {
+    "ui": {
+      "resourceUri": "ui://github-mcp-server/issue-write",
+      "visibility": [
+        "model",
+        "app"
+      ]
+    }
+  },
   "annotations": {
     "title": "Create or update issue."
   },
-  "description": "Create a new or update an existing issue in a GitHub repository.",
+  "description": "Create a new or update an existing issue in a GitHub repository.\n\nWhen show_ui is true, an interactive form is displayed for the user to fill in issue details. Use show_ui when:\n- Creating a new issue and you want user input on the details\n- The user hasn't specified all required fields (title, body, etc.)\n- Interactive feedback would be valuable\n\nWhen show_ui is false or omitted, the issue is created/updated directly with the provided parameters.",
   "inputSchema": {
     "properties": {
       "assignees": {
@@ -50,6 +59,10 @@
       "repo": {
         "description": "Repository name",
         "type": "string"
+      },
+      "show_ui": {
+        "description": "If true, show an interactive form for the user to fill in issue details. If false or omitted, create/update the issue directly with the provided parameters. Use show_ui when you want user input or when not all fields are specified.",
+        "type": "boolean"
       },
       "state": {
         "description": "New state",
