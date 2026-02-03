@@ -17,7 +17,7 @@ npm run build
 echo "Organizing output..."
 mkdir -p dist
 mv dist/src/apps/get-me/index.html dist/get-me.html 2>/dev/null || true
-mv dist/src/apps/create-issue/index.html dist/create-issue.html 2>/dev/null || true
+mv dist/src/apps/issue-write/index.html dist/issue-write.html 2>/dev/null || true
 rm -rf dist/src 2>/dev/null || true
 
 # Copy to Go embed location

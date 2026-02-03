@@ -1170,19 +1170,40 @@ func SearchIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 }
 
 // IssueWrite creates a tool to create a new or update an existing issue in a GitHub repository.
+// IssueWriteUIResourceURI is the URI for the issue_write tool's MCP App UI resource.
+const IssueWriteUIResourceURI = "ui://github-mcp-server/issue-write"
+
 func IssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
-			Name:        "issue_write",
-			Description: t("TOOL_ISSUE_WRITE_DESCRIPTION", "Create a new or update an existing issue in a GitHub repository."),
+			Name: "issue_write",
+			Description: t("TOOL_ISSUE_WRITE_DESCRIPTION", `Create a new or update an existing issue in a GitHub repository.
+
+When show_ui is true, an interactive form is displayed for the user to fill in issue details. Use show_ui when:
+- Creating a new issue and you want user input on the details
+- The user hasn't specified all required fields (title, body, etc.)
+- Interactive feedback would be valuable
+
+When show_ui is false or omitted, the issue is created/updated directly with the provided parameters.`),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_ISSUE_WRITE_USER_TITLE", "Create or update issue."),
 				ReadOnlyHint: false,
 			},
+			// MCP Apps UI metadata - links this tool to its UI resource
+			Meta: mcp.Meta{
+				"ui": map[string]any{
+					"resourceUri": IssueWriteUIResourceURI,
+					"visibility":  []string{"model", "app"},
+				},
+			},
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
 				Properties: map[string]*jsonschema.Schema{
+					"show_ui": {
+						Type:        "boolean",
+						Description: "If true, show an interactive form for the user to fill in issue details. If false or omitted, create/update the issue directly with the provided parameters. Use show_ui when you want user input or when not all fields are specified.",
+					},
 					"method": {
 						Type: "string",
 						Description: `Write operation to perform on a single issue.
@@ -1267,6 +1288,26 @@ Options are:
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+
+			// Check if UI mode is requested
+			showUI, err := OptionalParam[bool](args, "show_ui")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// If show_ui is true, return a message indicating the UI should be shown
+			// The host will detect the UI metadata and display the form
+			if showUI {
+				if method == "update" {
+					issueNumber, numErr := RequiredInt(args, "issue_number")
+					if numErr != nil {
+						return utils.NewToolResultError("issue_number is required for update method"), nil, nil
+					}
+					return utils.NewToolResultText(fmt.Sprintf("Ready to update issue #%d in %s/%s. The interactive form will be displayed.", issueNumber, owner, repo)), nil, nil
+				}
+				return utils.NewToolResultText(fmt.Sprintf("Ready to create an issue in %s/%s. The interactive form will be displayed.", owner, repo)), nil, nil
+			}
+
 			title, err := OptionalParam[string](args, "title")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil

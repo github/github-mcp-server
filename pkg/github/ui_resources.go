@@ -48,11 +48,11 @@ func RegisterUIResources(s *mcp.Server) {
 		&mcp.Resource{
 			URI:         IssueWriteUIResourceURI,
 			Name:        "issue_write_ui",
-			Description: "MCP App UI for creating GitHub issues",
+			Description: "MCP App UI for creating and updating GitHub issues",
 			MIMEType:    "text/html",
 		},
 		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-			html := MustGetUIAsset("create-issue.html")
+			html := MustGetUIAsset("issue-write.html")
 			return &mcp.ReadResourceResult{
 				Contents: []*mcp.ResourceContents{
 					{
