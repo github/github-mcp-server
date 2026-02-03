@@ -802,17 +802,6 @@ The following sets of tools are available:
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
-- **create_issue_ui** - Create issue form
-  - **Required OAuth Scopes**: `repo`
-  - `assignees`: Pre-select assignees by username. Use list_assignees to get valid usernames for the repository. (string[], optional)
-  - `body`: Pre-fill the issue body content (supports GitHub Flavored Markdown) (string, optional)
-  - `labels`: Pre-select labels by name. Use list_label to get valid label names for the repository. (string[], optional)
-  - `milestone`: Pre-select milestone by number. Use list_milestones to get valid milestone numbers for the repository. (number, optional)
-  - `owner`: Repository owner (user or organization) (string, required)
-  - `repo`: Repository name (string, required)
-  - `title`: Pre-fill the issue title (string, optional)
-  - `type`: Pre-select issue type by name. Use list_issue_types to get valid types for the organization. (string, optional)
-
 - **get_label** - Get a specific label from a repository.
   - **Required OAuth Scopes**: `repo`
   - `name`: Label name. (string, required)
@@ -1057,14 +1046,14 @@ The following sets of tools are available:
 
 - **create_pull_request** - Open new pull request
   - **Required OAuth Scopes**: `repo`
-  - `base`: Branch to merge into (string, required)
+  - `base`: Branch to merge into (string, optional)
   - `body`: PR description (string, optional)
   - `draft`: Create as draft PR (boolean, optional)
-  - `head`: Branch containing changes (string, required)
+  - `head`: Branch containing changes (string, optional)
   - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
-  - `title`: PR title (string, required)
+  - `title`: PR title (string, optional)
 
 - **list_pull_requests** - List pull requests
   - **Required OAuth Scopes**: `repo`
