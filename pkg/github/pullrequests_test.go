@@ -1462,8 +1462,8 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 		{
 			name: "successful check runs fetch",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				GetReposPullsByOwnerByRepoByPullNumber:       mockResponse(t, http.StatusOK, mockPR),
-				GetReposCommitsCheckRunsByOwnerByRepoByRef:   mockResponse(t, http.StatusOK, mockCheckRuns),
+				GetReposPullsByOwnerByRepoByPullNumber:     mockResponse(t, http.StatusOK, mockPR),
+				GetReposCommitsCheckRunsByOwnerByRepoByRef: mockResponse(t, http.StatusOK, mockCheckRuns),
 			}),
 			requestArgs: map[string]interface{}{
 				"method":     "get_check_runs",
