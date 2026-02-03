@@ -178,33 +178,29 @@ func (r *Inventory) AvailablePrompts(ctx context.Context) []ServerPrompt {
 
 // filterToolsByName returns tools matching the given name, checking deprecated aliases.
 // Uses linear scan - optimized for single-lookup per-request scenarios (ForMCPRequest).
+// Returns ALL tools matching the name to support feature-flagged tool variants
+// (e.g., GetJobLogs and ActionsGetJobLogs both use name "get_job_logs" but are
+// controlled by different feature flags).
 func (r *Inventory) filterToolsByName(name string) []ServerTool {
-	// First check for exact match
+	var result []ServerTool
+	// Check for exact matches - multiple tools may share the same name with different feature flags
 	for i := range r.tools {
 		if r.tools[i].Tool.Name == name {
-			return []ServerTool{r.tools[i]}
+			result = append(result, r.tools[i])
 		}
+	}
+	if len(result) > 0 {
+		return result
 	}
 	// Check if name is a deprecated alias
 	if canonical, isAlias := r.deprecatedAliases[name]; isAlias {
 		for i := range r.tools {
 			if r.tools[i].Tool.Name == canonical {
-				return []ServerTool{r.tools[i]}
+				result = append(result, r.tools[i])
 			}
 		}
 	}
-	return []ServerTool{}
-}
-
-// filterResourcesByURI returns resource templates matching the given URI pattern.
-// Uses linear scan - optimized for single-lookup per-request scenarios (ForMCPRequest).
-func (r *Inventory) filterResourcesByURI(uri string) []ServerResourceTemplate {
-	for i := range r.resourceTemplates {
-		if r.resourceTemplates[i].Template.URITemplate == uri {
-			return []ServerResourceTemplate{r.resourceTemplates[i]}
-		}
-	}
-	return []ServerResourceTemplate{}
+	return result
 }
 
 // filterPromptsByName returns prompts matching the given name.

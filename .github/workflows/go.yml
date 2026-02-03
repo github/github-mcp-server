@@ -14,6 +14,14 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
+      - name: Force git to use LF
+        # This step is required on Windows to work around go mod tidy -diff issues caused by CRLF line endings.
+        # TODO: replace with a checkout option when https://github.com/actions/checkout/issues/226 is implemented
+        if: runner.os == 'Windows'
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
       - name: Check out code
         uses: actions/checkout@v6
 
@@ -22,8 +30,8 @@ jobs:
         with:
           go-version-file: "go.mod"
 
-      - name: Download dependencies
-        run: go mod download
+      - name: Tidy dependencies
+        run: go mod tidy -diff
 
       - name: Run unit tests
         run: script/test

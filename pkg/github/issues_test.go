@@ -17,7 +17,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -181,12 +180,9 @@ func Test_GetIssue(t *testing.T) {
 	}{
 		{
 			name: "successful issue retrieval",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
-					mockIssue,
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "get",
 				"owner":        "owner2",
@@ -197,12 +193,9 @@ func Test_GetIssue(t *testing.T) {
 		},
 		{
 			name: "issue not found",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusNotFound, `{"message": "Issue not found"}`),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Issue not found"}`),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "get",
 				"owner":        "owner",
@@ -214,12 +207,9 @@ func Test_GetIssue(t *testing.T) {
 		},
 		{
 			name: "lockdown enabled - private repository",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
-					mockIssue2,
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue2),
+			}),
 			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
 					struct {
@@ -261,12 +251,9 @@ func Test_GetIssue(t *testing.T) {
 		},
 		{
 			name: "lockdown enabled - user lacks push access",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposIssuesByOwnerByRepoByIssueNumber,
-					mockIssue,
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
+			}),
 			gqlHTTPClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
 					struct {
@@ -406,12 +393,9 @@ func Test_AddIssueComment(t *testing.T) {
 	}{
 		{
 			name: "successful comment creation",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PostReposIssuesCommentsByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusCreated, mockComment),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesCommentsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockComment),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":        "owner",
 				"repo":         "repo",
@@ -423,15 +407,12 @@ func Test_AddIssueComment(t *testing.T) {
 		},
 		{
 			name: "comment creation fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PostReposIssuesCommentsByOwnerByRepoByIssueNumber,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusUnprocessableEntity)
-						_, _ = w.Write([]byte(`{"message": "Invalid request"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesCommentsByOwnerByRepoByIssueNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusUnprocessableEntity)
+					_, _ = w.Write([]byte(`{"message": "Invalid request"}`))
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner":        "owner",
 				"repo":         "repo",
@@ -546,23 +527,20 @@ func Test_SearchIssues(t *testing.T) {
 	}{
 		{
 			name: "successful issues search with all parameters",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchIssues,
-					expectQueryParams(
-						t,
-						map[string]string{
-							"q":        "is:issue repo:owner/repo is:open",
-							"sort":     "created",
-							"order":    "desc",
-							"page":     "1",
-							"per_page": "30",
-						},
-					).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: expectQueryParams(
+					t,
+					map[string]string{
+						"q":        "is:issue repo:owner/repo is:open",
+						"sort":     "created",
+						"order":    "desc",
+						"page":     "1",
+						"per_page": "30",
+					},
+				).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"query":   "repo:owner/repo is:open",
 				"sort":    "created",
@@ -575,23 +553,20 @@ func Test_SearchIssues(t *testing.T) {
 		},
 		{
 			name: "issues search with owner and repo parameters",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchIssues,
-					expectQueryParams(
-						t,
-						map[string]string{
-							"q":        "repo:test-owner/test-repo is:issue is:open",
-							"sort":     "created",
-							"order":    "asc",
-							"page":     "1",
-							"per_page": "30",
-						},
-					).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: expectQueryParams(
+					t,
+					map[string]string{
+						"q":        "repo:test-owner/test-repo is:issue is:open",
+						"sort":     "created",
+						"order":    "asc",
+						"page":     "1",
+						"per_page": "30",
+					},
+				).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"query": "is:open",
 				"owner": "test-owner",
@@ -604,21 +579,18 @@ func Test_SearchIssues(t *testing.T) {
 		},
 		{
 			name: "issues search with only owner parameter (should ignore it)",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchIssues,
-					expectQueryParams(
-						t,
-						map[string]string{
-							"q":        "is:issue bug",
-							"page":     "1",
-							"per_page": "30",
-						},
-					).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: expectQueryParams(
+					t,
+					map[string]string{
+						"q":        "is:issue bug",
+						"page":     "1",
+						"per_page": "30",
+					},
+				).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"query": "bug",
 				"owner": "test-owner",
@@ -628,21 +600,18 @@ func Test_SearchIssues(t *testing.T) {
 		},
 		{
 			name: "issues search with only repo parameter (should ignore it)",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchIssues,
-					expectQueryParams(
-						t,
-						map[string]string{
-							"q":        "is:issue feature",
-							"page":     "1",
-							"per_page": "30",
-						},
-					).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: expectQueryParams(
+					t,
+					map[string]string{
+						"q":        "is:issue feature",
+						"page":     "1",
+						"per_page": "30",
+					},
+				).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"query": "feature",
 				"repo":  "test-repo",
@@ -652,12 +621,9 @@ func Test_SearchIssues(t *testing.T) {
 		},
 		{
 			name: "issues search with minimal parameters",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetSearchIssues,
-					mockSearchResult,
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: mockResponse(t, http.StatusOK, mockSearchResult),
+			}),
 			requestArgs: map[string]interface{}{
 				"query": "is:issue repo:owner/repo is:open",
 			},
@@ -666,21 +632,18 @@ func Test_SearchIssues(t *testing.T) {
 		},
 		{
 			name: "query with existing is:issue filter - no duplication",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchIssues,
-					expectQueryParams(
-						t,
-						map[string]string{
-							"q":        "repo:github/github-mcp-server is:issue is:open (label:critical OR label:urgent)",
-							"page":     "1",
-							"per_page": "30",
-						},
-					).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: expectQueryParams(
+					t,
+					map[string]string{
+						"q":        "repo:github/github-mcp-server is:issue is:open (label:critical OR label:urgent)",
+						"page":     "1",
+						"per_page": "30",
+					},
+				).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"query": "repo:github/github-mcp-server is:issue is:open (label:critical OR label:urgent)",
 			},
@@ -689,21 +652,18 @@ func Test_SearchIssues(t *testing.T) {
 		},
 		{
 			name: "query with existing repo: filter and conflicting owner/repo params - uses query filter",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchIssues,
-					expectQueryParams(
-						t,
-						map[string]string{
-							"q":        "is:issue repo:github/github-mcp-server critical",
-							"page":     "1",
-							"per_page": "30",
-						},
-					).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: expectQueryParams(
+					t,
+					map[string]string{
+						"q":        "is:issue repo:github/github-mcp-server critical",
+						"page":     "1",
+						"per_page": "30",
+					},
+				).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"query": "repo:github/github-mcp-server critical",
 				"owner": "different-owner",
@@ -714,21 +674,18 @@ func Test_SearchIssues(t *testing.T) {
 		},
 		{
 			name: "query with both is: and repo: filters already present",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchIssues,
-					expectQueryParams(
-						t,
-						map[string]string{
-							"q":        "is:issue repo:octocat/Hello-World bug",
-							"page":     "1",
-							"per_page": "30",
-						},
-					).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: expectQueryParams(
+					t,
+					map[string]string{
+						"q":        "is:issue repo:octocat/Hello-World bug",
+						"page":     "1",
+						"per_page": "30",
+					},
+				).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"query": "is:issue repo:octocat/Hello-World bug",
 			},
@@ -737,21 +694,18 @@ func Test_SearchIssues(t *testing.T) {
 		},
 		{
 			name: "complex query with multiple OR operators and existing filters",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchIssues,
-					expectQueryParams(
-						t,
-						map[string]string{
-							"q":        "repo:github/github-mcp-server is:issue (label:critical OR label:urgent OR label:high-priority OR label:blocker)",
-							"page":     "1",
-							"per_page": "30",
-						},
-					).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: expectQueryParams(
+					t,
+					map[string]string{
+						"q":        "repo:github/github-mcp-server is:issue (label:critical OR label:urgent OR label:high-priority OR label:blocker)",
+						"page":     "1",
+						"per_page": "30",
+					},
+				).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"query": "repo:github/github-mcp-server is:issue (label:critical OR label:urgent OR label:high-priority OR label:blocker)",
 			},
@@ -760,15 +714,12 @@ func Test_SearchIssues(t *testing.T) {
 		},
 		{
 			name: "search issues fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchIssues,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusBadRequest)
-						_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchIssues: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"query": "invalid:query",
 			},
@@ -868,21 +819,18 @@ func Test_CreateIssue(t *testing.T) {
 	}{
 		{
 			name: "successful issue creation with all fields",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PostReposIssuesByOwnerByRepo,
-					expectRequestBody(t, map[string]any{
-						"title":     "Test Issue",
-						"body":      "This is a test issue",
-						"labels":    []any{"bug", "help wanted"},
-						"assignees": []any{"user1", "user2"},
-						"milestone": float64(5),
-						"type":      "Bug",
-					}).andThen(
-						mockResponse(t, http.StatusCreated, mockIssue),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesByOwnerByRepo: expectRequestBody(t, map[string]any{
+					"title":     "Test Issue",
+					"body":      "This is a test issue",
+					"labels":    []any{"bug", "help wanted"},
+					"assignees": []any{"user1", "user2"},
+					"milestone": float64(5),
+					"type":      "Bug",
+				}).andThen(
+					mockResponse(t, http.StatusCreated, mockIssue),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":    "create",
 				"owner":     "owner",
@@ -899,17 +847,14 @@ func Test_CreateIssue(t *testing.T) {
 		},
 		{
 			name: "successful issue creation with minimal fields",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PostReposIssuesByOwnerByRepo,
-					mockResponse(t, http.StatusCreated, &github.Issue{
-						Number:  github.Ptr(124),
-						Title:   github.Ptr("Minimal Issue"),
-						HTMLURL: github.Ptr("https://github.com/owner/repo/issues/124"),
-						State:   github.Ptr("open"),
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesByOwnerByRepo: mockResponse(t, http.StatusCreated, &github.Issue{
+					Number:  github.Ptr(124),
+					Title:   github.Ptr("Minimal Issue"),
+					HTMLURL: github.Ptr("https://github.com/owner/repo/issues/124"),
+					State:   github.Ptr("open"),
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":    "create",
 				"owner":     "owner",
@@ -927,15 +872,12 @@ func Test_CreateIssue(t *testing.T) {
 		},
 		{
 			name: "issue creation fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PostReposIssuesByOwnerByRepo,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusUnprocessableEntity)
-						_, _ = w.Write([]byte(`{"message": "Validation failed"}`))
-					}),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesByOwnerByRepo: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusUnprocessableEntity)
+					_, _ = w.Write([]byte(`{"message": "Validation failed"}`))
+				}),
+			}),
 			requestArgs: map[string]interface{}{
 				"method": "create",
 				"owner":  "owner",
@@ -1427,17 +1369,14 @@ func Test_UpdateIssue(t *testing.T) {
 	}{
 		{
 			name: "partial update of non-state fields only",
-			mockedRESTClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
-					expectRequestBody(t, map[string]interface{}{
-						"title": "Updated Title",
-						"body":  "Updated Description",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockUpdatedIssue),
-					),
+			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]interface{}{
+					"title": "Updated Title",
+					"body":  "Updated Description",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockUpdatedIssue),
 				),
-			),
+			}),
 			mockedGQLClient: githubv4mock.NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"method":       "update",
@@ -1452,15 +1391,12 @@ func Test_UpdateIssue(t *testing.T) {
 		},
 		{
 			name: "issue not found when updating non-state fields only",
-			mockedRESTClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusNotFound)
-						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
-					}),
-				),
-			),
+			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				}),
+			}),
 			mockedGQLClient: githubv4mock.NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"method":       "update",
@@ -1474,12 +1410,9 @@ func Test_UpdateIssue(t *testing.T) {
 		},
 		{
 			name: "close issue as duplicate",
-			mockedRESTClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
-					mockBaseIssue,
-				),
-			),
+			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockBaseIssue),
+			}),
 			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
 					struct {
@@ -1534,12 +1467,9 @@ func Test_UpdateIssue(t *testing.T) {
 		},
 		{
 			name: "reopen issue",
-			mockedRESTClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
-					mockBaseIssue,
-				),
-			),
+			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockBaseIssue),
+			}),
 			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
 					struct {
@@ -1586,12 +1516,9 @@ func Test_UpdateIssue(t *testing.T) {
 		},
 		{
 			name: "main issue not found when trying to close it",
-			mockedRESTClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
-					mockBaseIssue,
-				),
-			),
+			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockBaseIssue),
+			}),
 			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
 					struct {
@@ -1622,12 +1549,9 @@ func Test_UpdateIssue(t *testing.T) {
 		},
 		{
 			name: "duplicate issue not found when closing as duplicate",
-			mockedRESTClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
-					mockBaseIssue,
-				),
-			),
+			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockBaseIssue),
+			}),
 			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
 					struct {
@@ -1663,31 +1587,28 @@ func Test_UpdateIssue(t *testing.T) {
 		},
 		{
 			name: "close as duplicate with combined non-state updates",
-			mockedRESTClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PatchReposIssuesByOwnerByRepoByIssueNumber,
-					expectRequestBody(t, map[string]interface{}{
-						"title":     "Updated Title",
-						"body":      "Updated Description",
-						"labels":    []any{"bug", "priority"},
-						"assignees": []any{"assignee1", "assignee2"},
-						"milestone": float64(5),
-						"type":      "Bug",
-					}).andThen(
-						mockResponse(t, http.StatusOK, &github.Issue{
-							Number:    github.Ptr(123),
-							Title:     github.Ptr("Updated Title"),
-							Body:      github.Ptr("Updated Description"),
-							Labels:    []*github.Label{{Name: github.Ptr("bug")}, {Name: github.Ptr("priority")}},
-							Assignees: []*github.User{{Login: github.Ptr("assignee1")}, {Login: github.Ptr("assignee2")}},
-							Milestone: &github.Milestone{Number: github.Ptr(5)},
-							Type:      &github.IssueType{Name: github.Ptr("Bug")},
-							State:     github.Ptr("open"), // Still open after REST update
-							HTMLURL:   github.Ptr("https://github.com/owner/repo/issues/123"),
-						}),
-					),
+			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]interface{}{
+					"title":     "Updated Title",
+					"body":      "Updated Description",
+					"labels":    []any{"bug", "priority"},
+					"assignees": []any{"assignee1", "assignee2"},
+					"milestone": float64(5),
+					"type":      "Bug",
+				}).andThen(
+					mockResponse(t, http.StatusOK, &github.Issue{
+						Number:    github.Ptr(123),
+						Title:     github.Ptr("Updated Title"),
+						Body:      github.Ptr("Updated Description"),
+						Labels:    []*github.Label{{Name: github.Ptr("bug")}, {Name: github.Ptr("priority")}},
+						Assignees: []*github.User{{Login: github.Ptr("assignee1")}, {Login: github.Ptr("assignee2")}},
+						Milestone: &github.Milestone{Number: github.Ptr(5)},
+						Type:      &github.IssueType{Name: github.Ptr("Bug")},
+						State:     github.Ptr("open"), // Still open after REST update
+						HTMLURL:   github.Ptr("https://github.com/owner/repo/issues/123"),
+					}),
 				),
-			),
+			}),
 			mockedGQLClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
 					struct {
@@ -1748,7 +1669,7 @@ func Test_UpdateIssue(t *testing.T) {
 		},
 		{
 			name:             "duplicate_of without duplicate state_reason should fail",
-			mockedRESTClient: mock.NewMockedHTTPClient(),
+			mockedRESTClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			mockedGQLClient:  githubv4mock.NewMockedHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"method":       "update",
@@ -1910,12 +1831,9 @@ func Test_GetIssueComments(t *testing.T) {
 	}{
 		{
 			name: "successful comments retrieval",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposIssuesCommentsByOwnerByRepoByIssueNumber,
-					mockComments,
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesCommentsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockComments),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "get_comments",
 				"owner":        "owner",
@@ -1927,17 +1845,14 @@ func Test_GetIssueComments(t *testing.T) {
 		},
 		{
 			name: "successful comments retrieval with pagination",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposIssuesCommentsByOwnerByRepoByIssueNumber,
-					expectQueryParams(t, map[string]string{
-						"page":     "2",
-						"per_page": "10",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockComments),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesCommentsByOwnerByRepoByIssueNumber: expectQueryParams(t, map[string]string{
+					"page":     "2",
+					"per_page": "10",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockComments),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "get_comments",
 				"owner":        "owner",
@@ -1951,12 +1866,9 @@ func Test_GetIssueComments(t *testing.T) {
 		},
 		{
 			name: "issue not found",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposIssuesCommentsByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusNotFound, `{"message": "Issue not found"}`),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesCommentsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Issue not found"}`),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "get_comments",
 				"owner":        "owner",
@@ -1968,23 +1880,20 @@ func Test_GetIssueComments(t *testing.T) {
 		},
 		{
 			name: "lockdown enabled filters comments without push access",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposIssuesCommentsByOwnerByRepoByIssueNumber,
-					[]*github.IssueComment{
-						{
-							ID:   github.Ptr(int64(789)),
-							Body: github.Ptr("Maintainer comment"),
-							User: &github.User{Login: github.Ptr("maintainer")},
-						},
-						{
-							ID:   github.Ptr(int64(790)),
-							Body: github.Ptr("External user comment"),
-							User: &github.User{Login: github.Ptr("testuser")},
-						},
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesCommentsByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, []*github.IssueComment{
+					{
+						ID:   github.Ptr(int64(789)),
+						Body: github.Ptr("Maintainer comment"),
+						User: &github.User{Login: github.Ptr("maintainer")},
 					},
-				),
-			),
+					{
+						ID:   github.Ptr(int64(790)),
+						Body: github.Ptr("External user comment"),
+						User: &github.User{Login: github.Ptr("testuser")},
+					},
+				}),
+			}),
 			gqlHTTPClient: newRepoAccessHTTPClient(),
 			requestArgs: map[string]interface{}{
 				"method":       "get_comments",
@@ -2175,8 +2084,16 @@ func TestAssignCopilotToIssue(t *testing.T) {
 	assert.NotEmpty(t, tool.Description)
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
 	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
-	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issueNumber")
-	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo", "issueNumber"})
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "issue_number")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "base_ref")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "custom_instructions")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo", "issue_number"})
+
+	// Helper function to create pointer to githubv4.String
+	ptrGitHubv4String := func(s string) *githubv4.String {
+		v := githubv4.String(s)
+		return &v
+	}
 
 	var pageOfFakeBots = func(n int) []struct{} {
 		// We don't _really_ need real bots here, just objects that count as entries for the page
@@ -2197,9 +2114,9 @@ func TestAssignCopilotToIssue(t *testing.T) {
 		{
 			name: "successful assignment when there are no existing assignees",
 			requestArgs: map[string]any{
-				"owner":       "owner",
-				"repo":        "repo",
-				"issueNumber": float64(123),
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
@@ -2242,6 +2159,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 				githubv4mock.NewQueryMatcher(
 					struct {
 						Repository struct {
+							ID    githubv4.ID
 							Issue struct {
 								ID        githubv4.ID
 								Assignees struct {
@@ -2259,6 +2177,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 					},
 					githubv4mock.DataResponse(map[string]any{
 						"repository": map[string]any{
+							"id": githubv4.ID("test-repo-id"),
 							"issue": map[string]any{
 								"id": githubv4.ID("test-issue-id"),
 								"assignees": map[string]any{
@@ -2270,25 +2189,43 @@ func TestAssignCopilotToIssue(t *testing.T) {
 				),
 				githubv4mock.NewMutationMatcher(
 					struct {
-						ReplaceActorsForAssignable struct {
-							Typename string `graphql:"__typename"`
-						} `graphql:"replaceActorsForAssignable(input: $input)"`
+						UpdateIssue struct {
+							Issue struct {
+								ID     githubv4.ID
+								Number githubv4.Int
+								URL    githubv4.String
+							}
+						} `graphql:"updateIssue(input: $input)"`
 					}{},
-					ReplaceActorsForAssignableInput{
-						AssignableID: githubv4.ID("test-issue-id"),
-						ActorIDs:     []githubv4.ID{githubv4.ID("copilot-swe-agent-id")},
+					UpdateIssueInput{
+						ID:          githubv4.ID("test-issue-id"),
+						AssigneeIDs: []githubv4.ID{githubv4.ID("copilot-swe-agent-id")},
+						AgentAssignment: &AgentAssignmentInput{
+							BaseRef:            nil,
+							CustomAgent:        ptrGitHubv4String(""),
+							CustomInstructions: ptrGitHubv4String(""),
+							TargetRepositoryID: githubv4.ID("test-repo-id"),
+						},
 					},
 					nil,
-					githubv4mock.DataResponse(map[string]any{}),
+					githubv4mock.DataResponse(map[string]any{
+						"updateIssue": map[string]any{
+							"issue": map[string]any{
+								"id":     githubv4.ID("test-issue-id"),
+								"number": githubv4.Int(123),
+								"url":    githubv4.String("https://github.com/owner/repo/issues/123"),
+							},
+						},
+					}),
 				),
 			),
 		},
 		{
 			name: "successful assignment when there are existing assignees",
 			requestArgs: map[string]any{
-				"owner":       "owner",
-				"repo":        "repo",
-				"issueNumber": float64(123),
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
@@ -2331,6 +2268,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 				githubv4mock.NewQueryMatcher(
 					struct {
 						Repository struct {
+							ID    githubv4.ID
 							Issue struct {
 								ID        githubv4.ID
 								Assignees struct {
@@ -2348,6 +2286,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 					},
 					githubv4mock.DataResponse(map[string]any{
 						"repository": map[string]any{
+							"id": githubv4.ID("test-repo-id"),
 							"issue": map[string]any{
 								"id": githubv4.ID("test-issue-id"),
 								"assignees": map[string]any{
@@ -2366,29 +2305,47 @@ func TestAssignCopilotToIssue(t *testing.T) {
 				),
 				githubv4mock.NewMutationMatcher(
 					struct {
-						ReplaceActorsForAssignable struct {
-							Typename string `graphql:"__typename"`
-						} `graphql:"replaceActorsForAssignable(input: $input)"`
+						UpdateIssue struct {
+							Issue struct {
+								ID     githubv4.ID
+								Number githubv4.Int
+								URL    githubv4.String
+							}
+						} `graphql:"updateIssue(input: $input)"`
 					}{},
-					ReplaceActorsForAssignableInput{
-						AssignableID: githubv4.ID("test-issue-id"),
-						ActorIDs: []githubv4.ID{
+					UpdateIssueInput{
+						ID: githubv4.ID("test-issue-id"),
+						AssigneeIDs: []githubv4.ID{
 							githubv4.ID("existing-assignee-id"),
 							githubv4.ID("existing-assignee-id-2"),
 							githubv4.ID("copilot-swe-agent-id"),
 						},
+						AgentAssignment: &AgentAssignmentInput{
+							BaseRef:            nil,
+							CustomAgent:        ptrGitHubv4String(""),
+							CustomInstructions: ptrGitHubv4String(""),
+							TargetRepositoryID: githubv4.ID("test-repo-id"),
+						},
 					},
 					nil,
-					githubv4mock.DataResponse(map[string]any{}),
+					githubv4mock.DataResponse(map[string]any{
+						"updateIssue": map[string]any{
+							"issue": map[string]any{
+								"id":     githubv4.ID("test-issue-id"),
+								"number": githubv4.Int(123),
+								"url":    githubv4.String("https://github.com/owner/repo/issues/123"),
+							},
+						},
+					}),
 				),
 			),
 		},
 		{
 			name: "copilot bot not on first page of suggested actors",
 			requestArgs: map[string]any{
-				"owner":       "owner",
-				"repo":        "repo",
-				"issueNumber": float64(123),
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				// First page of suggested actors
@@ -2468,6 +2425,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 				githubv4mock.NewQueryMatcher(
 					struct {
 						Repository struct {
+							ID    githubv4.ID
 							Issue struct {
 								ID        githubv4.ID
 								Assignees struct {
@@ -2485,6 +2443,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 					},
 					githubv4mock.DataResponse(map[string]any{
 						"repository": map[string]any{
+							"id": githubv4.ID("test-repo-id"),
 							"issue": map[string]any{
 								"id": githubv4.ID("test-issue-id"),
 								"assignees": map[string]any{
@@ -2496,25 +2455,43 @@ func TestAssignCopilotToIssue(t *testing.T) {
 				),
 				githubv4mock.NewMutationMatcher(
 					struct {
-						ReplaceActorsForAssignable struct {
-							Typename string `graphql:"__typename"`
-						} `graphql:"replaceActorsForAssignable(input: $input)"`
+						UpdateIssue struct {
+							Issue struct {
+								ID     githubv4.ID
+								Number githubv4.Int
+								URL    githubv4.String
+							}
+						} `graphql:"updateIssue(input: $input)"`
 					}{},
-					ReplaceActorsForAssignableInput{
-						AssignableID: githubv4.ID("test-issue-id"),
-						ActorIDs:     []githubv4.ID{githubv4.ID("copilot-swe-agent-id")},
+					UpdateIssueInput{
+						ID:          githubv4.ID("test-issue-id"),
+						AssigneeIDs: []githubv4.ID{githubv4.ID("copilot-swe-agent-id")},
+						AgentAssignment: &AgentAssignmentInput{
+							BaseRef:            nil,
+							CustomAgent:        ptrGitHubv4String(""),
+							CustomInstructions: ptrGitHubv4String(""),
+							TargetRepositoryID: githubv4.ID("test-repo-id"),
+						},
 					},
 					nil,
-					githubv4mock.DataResponse(map[string]any{}),
+					githubv4mock.DataResponse(map[string]any{
+						"updateIssue": map[string]any{
+							"issue": map[string]any{
+								"id":     githubv4.ID("test-issue-id"),
+								"number": githubv4.Int(123),
+								"url":    githubv4.String("https://github.com/owner/repo/issues/123"),
+							},
+						},
+					}),
 				),
 			),
 		},
 		{
 			name: "copilot not a suggested actor",
 			requestArgs: map[string]any{
-				"owner":       "owner",
-				"repo":        "repo",
-				"issueNumber": float64(123),
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
 			},
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
@@ -2552,6 +2529,226 @@ func TestAssignCopilotToIssue(t *testing.T) {
 			expectToolError:    true,
 			expectedToolErrMsg: "copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot for more information.",
 		},
+		{
+			name: "successful assignment with base_ref specified",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(123),
+				"base_ref":     "feature-branch",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							SuggestedActors struct {
+								Nodes []struct {
+									Bot struct {
+										ID       githubv4.ID
+										Login    githubv4.String
+										TypeName string `graphql:"__typename"`
+									} `graphql:"... on Bot"`
+								}
+								PageInfo struct {
+									HasNextPage bool
+									EndCursor   string
+								}
+							} `graphql:"suggestedActors(first: 100, after: $endCursor, capabilities: CAN_BE_ASSIGNED)"`
+						} `graphql:"repository(owner: $owner, name: $name)"`
+					}{},
+					map[string]any{
+						"owner":     githubv4.String("owner"),
+						"name":      githubv4.String("repo"),
+						"endCursor": (*githubv4.String)(nil),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"suggestedActors": map[string]any{
+								"nodes": []any{
+									map[string]any{
+										"id":         githubv4.ID("copilot-swe-agent-id"),
+										"login":      githubv4.String("copilot-swe-agent"),
+										"__typename": "Bot",
+									},
+								},
+							},
+						},
+					}),
+				),
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							ID    githubv4.ID
+							Issue struct {
+								ID        githubv4.ID
+								Assignees struct {
+									Nodes []struct {
+										ID githubv4.ID
+									}
+								} `graphql:"assignees(first: 100)"`
+							} `graphql:"issue(number: $number)"`
+						} `graphql:"repository(owner: $owner, name: $name)"`
+					}{},
+					map[string]any{
+						"owner":  githubv4.String("owner"),
+						"name":   githubv4.String("repo"),
+						"number": githubv4.Int(123),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"id": githubv4.ID("test-repo-id"),
+							"issue": map[string]any{
+								"id": githubv4.ID("test-issue-id"),
+								"assignees": map[string]any{
+									"nodes": []any{},
+								},
+							},
+						},
+					}),
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						UpdateIssue struct {
+							Issue struct {
+								ID     githubv4.ID
+								Number githubv4.Int
+								URL    githubv4.String
+							}
+						} `graphql:"updateIssue(input: $input)"`
+					}{},
+					UpdateIssueInput{
+						ID:          githubv4.ID("test-issue-id"),
+						AssigneeIDs: []githubv4.ID{githubv4.ID("copilot-swe-agent-id")},
+						AgentAssignment: &AgentAssignmentInput{
+							BaseRef:            ptrGitHubv4String("feature-branch"),
+							CustomAgent:        ptrGitHubv4String(""),
+							CustomInstructions: ptrGitHubv4String(""),
+							TargetRepositoryID: githubv4.ID("test-repo-id"),
+						},
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"updateIssue": map[string]any{
+							"issue": map[string]any{
+								"id":     githubv4.ID("test-issue-id"),
+								"number": githubv4.Int(123),
+								"url":    githubv4.String("https://github.com/owner/repo/issues/123"),
+							},
+						},
+					}),
+				),
+			),
+		},
+		{
+			name: "successful assignment with custom_instructions specified",
+			requestArgs: map[string]any{
+				"owner":               "owner",
+				"repo":                "repo",
+				"issue_number":        float64(123),
+				"custom_instructions": "Please ensure all code follows PEP 8 style guidelines and includes comprehensive docstrings",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							SuggestedActors struct {
+								Nodes []struct {
+									Bot struct {
+										ID       githubv4.ID
+										Login    githubv4.String
+										TypeName string `graphql:"__typename"`
+									} `graphql:"... on Bot"`
+								}
+								PageInfo struct {
+									HasNextPage bool
+									EndCursor   string
+								}
+							} `graphql:"suggestedActors(first: 100, after: $endCursor, capabilities: CAN_BE_ASSIGNED)"`
+						} `graphql:"repository(owner: $owner, name: $name)"`
+					}{},
+					map[string]any{
+						"owner":     githubv4.String("owner"),
+						"name":      githubv4.String("repo"),
+						"endCursor": (*githubv4.String)(nil),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"suggestedActors": map[string]any{
+								"nodes": []any{
+									map[string]any{
+										"id":         githubv4.ID("copilot-swe-agent-id"),
+										"login":      githubv4.String("copilot-swe-agent"),
+										"__typename": "Bot",
+									},
+								},
+							},
+						},
+					}),
+				),
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							ID    githubv4.ID
+							Issue struct {
+								ID        githubv4.ID
+								Assignees struct {
+									Nodes []struct {
+										ID githubv4.ID
+									}
+								} `graphql:"assignees(first: 100)"`
+							} `graphql:"issue(number: $number)"`
+						} `graphql:"repository(owner: $owner, name: $name)"`
+					}{},
+					map[string]any{
+						"owner":  githubv4.String("owner"),
+						"name":   githubv4.String("repo"),
+						"number": githubv4.Int(123),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"id": githubv4.ID("test-repo-id"),
+							"issue": map[string]any{
+								"id": githubv4.ID("test-issue-id"),
+								"assignees": map[string]any{
+									"nodes": []any{},
+								},
+							},
+						},
+					}),
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						UpdateIssue struct {
+							Issue struct {
+								ID     githubv4.ID
+								Number githubv4.Int
+								URL    githubv4.String
+							}
+						} `graphql:"updateIssue(input: $input)"`
+					}{},
+					UpdateIssueInput{
+						ID:          githubv4.ID("test-issue-id"),
+						AssigneeIDs: []githubv4.ID{githubv4.ID("copilot-swe-agent-id")},
+						AgentAssignment: &AgentAssignmentInput{
+							BaseRef:            nil,
+							CustomAgent:        ptrGitHubv4String(""),
+							CustomInstructions: ptrGitHubv4String("Please ensure all code follows PEP 8 style guidelines and includes comprehensive docstrings"),
+							TargetRepositoryID: githubv4.ID("test-repo-id"),
+						},
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"updateIssue": map[string]any{
+							"issue": map[string]any{
+								"id":     githubv4.ID("test-issue-id"),
+								"number": githubv4.Int(123),
+								"url":    githubv4.String("https://github.com/owner/repo/issues/123"),
+							},
+						},
+					}),
+				),
+			),
+		},
 	}
 
 	for _, tc := range tests {
@@ -2568,8 +2765,12 @@ func TestAssignCopilotToIssue(t *testing.T) {
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
+			// Disable polling in tests to avoid timeouts
+			ctx := ContextWithPollConfig(context.Background(), PollConfig{MaxAttempts: 0})
+			ctx = ContextWithDeps(ctx, deps)
+
 			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ctx, &request)
 			require.NoError(t, err)
 
 			textContent := getTextResult(t, result)
@@ -2581,7 +2782,16 @@ func TestAssignCopilotToIssue(t *testing.T) {
 			}
 
 			require.False(t, result.IsError, fmt.Sprintf("expected there to be no tool error, text was %s", textContent.Text))
-			require.Equal(t, textContent.Text, "successfully assigned copilot to issue")
+
+			// Verify the JSON response contains expected fields
+			var response map[string]any
+			err = json.Unmarshal([]byte(textContent.Text), &response)
+			require.NoError(t, err, "response should be valid JSON")
+			assert.Equal(t, float64(123), response["issue_number"])
+			assert.Equal(t, "https://github.com/owner/repo/issues/123", response["issue_url"])
+			assert.Equal(t, "owner", response["owner"])
+			assert.Equal(t, "repo", response["repo"])
+			assert.Contains(t, response["message"], "successfully assigned copilot to issue")
 		})
 	}
 }
@@ -2631,12 +2841,9 @@ func Test_AddSubIssue(t *testing.T) {
 	}{
 		{
 			name: "successful sub-issue addition with all parameters",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusCreated, mockIssue),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockIssue),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":         "add",
 				"owner":          "owner",
@@ -2650,12 +2857,9 @@ func Test_AddSubIssue(t *testing.T) {
 		},
 		{
 			name: "successful sub-issue addition with minimal parameters",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusCreated, mockIssue),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockIssue),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "add",
 				"owner":        "owner",
@@ -2668,12 +2872,9 @@ func Test_AddSubIssue(t *testing.T) {
 		},
 		{
 			name: "successful sub-issue addition with replace_parent false",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusCreated, mockIssue),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusCreated, mockIssue),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":         "add",
 				"owner":          "owner",
@@ -2687,12 +2888,9 @@ func Test_AddSubIssue(t *testing.T) {
 		},
 		{
 			name: "parent issue not found",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusNotFound, `{"message": "Parent issue not found"}`),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Parent issue not found"}`),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "add",
 				"owner":        "owner",
@@ -2705,12 +2903,9 @@ func Test_AddSubIssue(t *testing.T) {
 		},
 		{
 			name: "sub-issue not found",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusNotFound, `{"message": "Sub-issue not found"}`),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Sub-issue not found"}`),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "add",
 				"owner":        "owner",
@@ -2723,12 +2918,9 @@ func Test_AddSubIssue(t *testing.T) {
 		},
 		{
 			name: "validation failed - sub-issue cannot be parent of itself",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusUnprocessableEntity, `{"message": "Validation failed", "errors": [{"message": "Sub-issue cannot be a parent of itself"}]}`),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusUnprocessableEntity, `{"message": "Validation failed", "errors": [{"message": "Sub-issue cannot be a parent of itself"}]}`),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "add",
 				"owner":        "owner",
@@ -2741,12 +2933,9 @@ func Test_AddSubIssue(t *testing.T) {
 		},
 		{
 			name: "insufficient permissions",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusForbidden, `{"message": "Must have write access to repository"}`),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PostReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusForbidden, `{"message": "Must have write access to repository"}`),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "add",
 				"owner":        "owner",
@@ -2759,9 +2948,7 @@ func Test_AddSubIssue(t *testing.T) {
 		},
 		{
 			name:         "missing required parameter owner",
-			mockedClient: mock.NewMockedHTTPClient(
-			// No mocked requests needed since validation fails before HTTP call
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"method":       "add",
 				"repo":         "repo",
@@ -2773,9 +2960,7 @@ func Test_AddSubIssue(t *testing.T) {
 		},
 		{
 			name:         "missing required parameter sub_issue_id",
-			mockedClient: mock.NewMockedHTTPClient(
-			// No mocked requests needed since validation fails before HTTP call
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"method":       "add",
 				"owner":        "owner",
@@ -2895,12 +3080,9 @@ func Test_GetSubIssues(t *testing.T) {
 	}{
 		{
 			name: "successful sub-issues listing with minimal parameters",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber,
-					mockSubIssues,
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockSubIssues),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "get_sub_issues",
 				"owner":        "owner",
@@ -2912,17 +3094,14 @@ func Test_GetSubIssues(t *testing.T) {
 		},
 		{
 			name: "successful sub-issues listing with pagination",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber,
-					expectQueryParams(t, map[string]string{
-						"page":     "2",
-						"per_page": "10",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockSubIssues),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber: expectQueryParams(t, map[string]string{
+					"page":     "2",
+					"per_page": "10",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockSubIssues),
 				),
-			),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "get_sub_issues",
 				"owner":        "owner",
@@ -2936,12 +3115,9 @@ func Test_GetSubIssues(t *testing.T) {
 		},
 		{
 			name: "successful sub-issues listing with empty result",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatch(
-					mock.GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber,
-					[]*github.Issue{},
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, []*github.Issue{}),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "get_sub_issues",
 				"owner":        "owner",
@@ -2953,12 +3129,9 @@ func Test_GetSubIssues(t *testing.T) {
 		},
 		{
 			name: "parent issue not found",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "get_sub_issues",
 				"owner":        "owner",
@@ -2970,12 +3143,9 @@ func Test_GetSubIssues(t *testing.T) {
 		},
 		{
 			name: "repository not found",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "get_sub_issues",
 				"owner":        "nonexistent",
@@ -2987,12 +3157,9 @@ func Test_GetSubIssues(t *testing.T) {
 		},
 		{
 			name: "sub-issues feature gone/deprecated",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusGone, `{"message": "This feature has been deprecated"}`),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposIssuesSubIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusGone, `{"message": "This feature has been deprecated"}`),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "get_sub_issues",
 				"owner":        "owner",
@@ -3004,9 +3171,7 @@ func Test_GetSubIssues(t *testing.T) {
 		},
 		{
 			name:         "missing required parameter owner",
-			mockedClient: mock.NewMockedHTTPClient(
-			// No mocked requests needed since validation fails before HTTP call
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"method":       "get_sub_issues",
 				"repo":         "repo",
@@ -3017,9 +3182,7 @@ func Test_GetSubIssues(t *testing.T) {
 		},
 		{
 			name:         "missing required parameter issue_number",
-			mockedClient: mock.NewMockedHTTPClient(
-			// No mocked requests needed since validation fails before HTTP call
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"method": "get_sub_issues",
 				"owner":  "owner",
@@ -3135,12 +3298,9 @@ func Test_RemoveSubIssue(t *testing.T) {
 	}{
 		{
 			name: "successful sub-issue removal",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusOK, mockIssue),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "remove",
 				"owner":        "owner",
@@ -3153,12 +3313,9 @@ func Test_RemoveSubIssue(t *testing.T) {
 		},
 		{
 			name: "parent issue not found",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "remove",
 				"owner":        "owner",
@@ -3171,12 +3328,9 @@ func Test_RemoveSubIssue(t *testing.T) {
 		},
 		{
 			name: "sub-issue not found",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusNotFound, `{"message": "Sub-issue not found"}`),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Sub-issue not found"}`),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "remove",
 				"owner":        "owner",
@@ -3189,12 +3343,9 @@ func Test_RemoveSubIssue(t *testing.T) {
 		},
 		{
 			name: "bad request - invalid sub_issue_id",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusBadRequest, `{"message": "Invalid sub_issue_id"}`),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusBadRequest, `{"message": "Invalid sub_issue_id"}`),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "remove",
 				"owner":        "owner",
@@ -3207,12 +3358,9 @@ func Test_RemoveSubIssue(t *testing.T) {
 		},
 		{
 			name: "repository not found",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "remove",
 				"owner":        "nonexistent",
@@ -3225,12 +3373,9 @@ func Test_RemoveSubIssue(t *testing.T) {
 		},
 		{
 			name: "insufficient permissions",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusForbidden, `{"message": "Must have write access to repository"}`),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				DeleteReposIssuesSubIssueByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusForbidden, `{"message": "Must have write access to repository"}`),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "remove",
 				"owner":        "owner",
@@ -3243,9 +3388,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 		},
 		{
 			name:         "missing required parameter owner",
-			mockedClient: mock.NewMockedHTTPClient(
-			// No mocked requests needed since validation fails before HTTP call
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"method":       "remove",
 				"repo":         "repo",
@@ -3257,9 +3400,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 		},
 		{
 			name:         "missing required parameter sub_issue_id",
-			mockedClient: mock.NewMockedHTTPClient(
-			// No mocked requests needed since validation fails before HTTP call
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"method":       "remove",
 				"owner":        "owner",
@@ -3365,12 +3506,9 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 	}{
 		{
 			name: "successful reprioritization with after_id",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusOK, mockIssue),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "reprioritize",
 				"owner":        "owner",
@@ -3384,12 +3522,9 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 		},
 		{
 			name: "successful reprioritization with before_id",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusOK, mockIssue),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockIssue),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "reprioritize",
 				"owner":        "owner",
@@ -3403,9 +3538,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 		},
 		{
 			name:         "validation error - neither after_id nor before_id specified",
-			mockedClient: mock.NewMockedHTTPClient(
-			// No mocked requests needed since validation fails before HTTP call
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"method":       "reprioritize",
 				"owner":        "owner",
@@ -3418,9 +3551,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 		},
 		{
 			name:         "validation error - both after_id and before_id specified",
-			mockedClient: mock.NewMockedHTTPClient(
-			// No mocked requests needed since validation fails before HTTP call
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"method":       "reprioritize",
 				"owner":        "owner",
@@ -3435,12 +3566,9 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 		},
 		{
 			name: "parent issue not found",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Not Found"}`),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "reprioritize",
 				"owner":        "owner",
@@ -3454,12 +3582,9 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 		},
 		{
 			name: "sub-issue not found",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusNotFound, `{"message": "Sub-issue not found"}`),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusNotFound, `{"message": "Sub-issue not found"}`),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "reprioritize",
 				"owner":        "owner",
@@ -3473,12 +3598,9 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 		},
 		{
 			name: "validation failed - positioning sub-issue not found",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusUnprocessableEntity, `{"message": "Validation failed", "errors": [{"message": "Positioning sub-issue not found"}]}`),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusUnprocessableEntity, `{"message": "Validation failed", "errors": [{"message": "Positioning sub-issue not found"}]}`),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "reprioritize",
 				"owner":        "owner",
@@ -3492,12 +3614,9 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 		},
 		{
 			name: "insufficient permissions",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusForbidden, `{"message": "Must have write access to repository"}`),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusForbidden, `{"message": "Must have write access to repository"}`),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "reprioritize",
 				"owner":        "owner",
@@ -3511,12 +3630,9 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 		},
 		{
 			name: "service unavailable",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber,
-					mockResponse(t, http.StatusServiceUnavailable, `{"message": "Service Unavailable"}`),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesSubIssuesPriorityByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusServiceUnavailable, `{"message": "Service Unavailable"}`),
+			}),
 			requestArgs: map[string]interface{}{
 				"method":       "reprioritize",
 				"owner":        "owner",
@@ -3530,9 +3646,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 		},
 		{
 			name:         "missing required parameter owner",
-			mockedClient: mock.NewMockedHTTPClient(
-			// No mocked requests needed since validation fails before HTTP call
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"method":       "reprioritize",
 				"repo":         "repo",
@@ -3545,9 +3659,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 		},
 		{
 			name:         "missing required parameter sub_issue_id",
-			mockedClient: mock.NewMockedHTTPClient(
-			// No mocked requests needed since validation fails before HTTP call
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
 			requestArgs: map[string]interface{}{
 				"method":       "reprioritize",
 				"owner":        "owner",
@@ -3645,15 +3757,9 @@ func Test_ListIssueTypes(t *testing.T) {
 	}{
 		{
 			name: "successful issue types retrieval",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{
-						Pattern: "/orgs/testorg/issue-types",
-						Method:  "GET",
-					},
-					mockResponse(t, http.StatusOK, mockIssueTypes),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /orgs/testorg/issue-types": mockResponse(t, http.StatusOK, mockIssueTypes),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "testorg",
 			},
@@ -3662,15 +3768,9 @@ func Test_ListIssueTypes(t *testing.T) {
 		},
 		{
 			name: "organization not found",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{
-						Pattern: "/orgs/nonexistent/issue-types",
-						Method:  "GET",
-					},
-					mockResponse(t, http.StatusNotFound, `{"message": "Organization not found"}`),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /orgs/nonexistent/issue-types": mockResponse(t, http.StatusNotFound, `{"message": "Organization not found"}`),
+			}),
 			requestArgs: map[string]interface{}{
 				"owner": "nonexistent",
 			},
@@ -3679,15 +3779,9 @@ func Test_ListIssueTypes(t *testing.T) {
 		},
 		{
 			name: "missing owner parameter",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.EndpointPattern{
-						Pattern: "/orgs/testorg/issue-types",
-						Method:  "GET",
-					},
-					mockResponse(t, http.StatusOK, mockIssueTypes),
-				),
-			),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				"GET /orgs/testorg/issue-types": mockResponse(t, http.StatusOK, mockIssueTypes),
+			}),
 			requestArgs:    map[string]interface{}{},
 			expectError:    false, // This should be handled by parameter validation, error returned in result
 			expectedErrMsg: "missing required parameter: owner",

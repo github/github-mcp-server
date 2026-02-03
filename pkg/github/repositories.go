@@ -12,7 +12,7 @@ import (
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/octicons"
-	"github.com/github/github-mcp-server/pkg/raw"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
@@ -54,6 +54,7 @@ func GetCommit(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "sha"},
 			}),
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -150,6 +151,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			}),
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -249,6 +251,7 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			}),
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -362,6 +365,7 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 				Required: []string{"owner", "repo", "path", "content", "message", "branch"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -545,6 +549,7 @@ func CreateRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 				Required: []string{"name"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			name, err := RequiredParam[string](args, "name")
 			if err != nil {
@@ -651,6 +656,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Required: []string{"owner", "repo"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -834,6 +840,7 @@ func ForkRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -940,6 +947,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "path", "message", "branch"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1119,6 +1127,7 @@ func CreateBranch(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "branch"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1249,6 +1258,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "branch", "files", "message"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1279,28 +1289,74 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			// Get the reference for the branch
+			var repositoryIsEmpty bool
+			var branchNotFound bool
 			ref, resp, err := client.Git.GetRef(ctx, owner, repo, "refs/heads/"+branch)
 			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get branch reference",
-					resp,
-					err,
-				), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
+				ghErr, isGhErr := err.(*github.ErrorResponse)
+				if isGhErr {
+					if ghErr.Response.StatusCode == http.StatusConflict && ghErr.Message == "Git Repository is empty." {
+						repositoryIsEmpty = true
+					} else if ghErr.Response.StatusCode == http.StatusNotFound {
+						branchNotFound = true
+					}
+				}
 
-			// Get the commit object that the branch points to
-			baseCommit, resp, err := client.Git.GetCommit(ctx, owner, repo, *ref.Object.SHA)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to get base commit",
-					resp,
-					err,
-				), nil, nil
+				if !repositoryIsEmpty && !branchNotFound {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx,
+						"failed to get branch reference",
+						resp,
+						err,
+					), nil, nil
+				}
 			}
-			defer func() { _ = resp.Body.Close() }()
+			// Only close resp if it's not nil and not an error case where resp might be nil
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
 
-			// Create tree entries for all files
+			var baseCommit *github.Commit
+			if !repositoryIsEmpty {
+				if branchNotFound {
+					ref, err = createReferenceFromDefaultBranch(ctx, client, owner, repo, branch)
+					if err != nil {
+						return utils.NewToolResultError(fmt.Sprintf("failed to create branch from default: %v", err)), nil, nil
+					}
+				}
+
+				// Get the commit object that the branch points to
+				baseCommit, resp, err = client.Git.GetCommit(ctx, owner, repo, *ref.Object.SHA)
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx,
+						"failed to get base commit",
+						resp,
+						err,
+					), nil, nil
+				}
+				if resp != nil && resp.Body != nil {
+					defer func() { _ = resp.Body.Close() }()
+				}
+			} else {
+				var base *github.Commit
+				// Repository is empty, need to initialize it first
+				ref, base, err = initializeRepository(ctx, client, owner, repo)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("failed to initialize repository: %v", err)), nil, nil
+				}
+
+				defaultBranch := strings.TrimPrefix(*ref.Ref, "refs/heads/")
+				if branch != defaultBranch {
+					// Create the requested branch from the default branch
+					ref, err = createReferenceFromDefaultBranch(ctx, client, owner, repo, branch)
+					if err != nil {
+						return utils.NewToolResultError(fmt.Sprintf("failed to create branch from default: %v", err)), nil, nil
+					}
+				}
+
+				baseCommit = base
+			}
+
+			// Create tree entries for all files (or remaining files if empty repo)
 			var entries []*github.TreeEntry
 
 			for _, file := range filesObj {
@@ -1328,7 +1384,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 				})
 			}
 
-			// Create a new tree with the file entries
+			// Create a new tree with the file entries (baseCommit is now guaranteed to exist)
 			newTree, resp, err := client.Git.CreateTree(ctx, owner, repo, *baseCommit.Tree.SHA, entries)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -1337,9 +1393,11 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 					err,
 				), nil, nil
 			}
-			defer func() { _ = resp.Body.Close() }()
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
 
-			// Create a new commit
+			// Create a new commit (baseCommit always has a value now)
 			commit := github.Commit{
 				Message: github.Ptr(message),
 				Tree:    newTree,
@@ -1353,7 +1411,9 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 					err,
 				), nil, nil
 			}
-			defer func() { _ = resp.Body.Close() }()
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
 
 			// Update the reference to point to the new commit
 			ref.Object.SHA = newCommit.SHA
@@ -1406,6 +1466,7 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			}),
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1488,6 +1549,7 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo", "tag"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1581,6 +1643,7 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			}),
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1655,6 +1718,7 @@ func GetLatestRelease(t translations.TranslationHelperFunc) inventory.ServerTool
 				Required: []string{"owner", "repo"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1723,6 +1787,7 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 				Required: []string{"owner", "repo", "tag"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -1770,244 +1835,6 @@ func GetReleaseByTag(t translations.TranslationHelperFunc) inventory.ServerTool 
 	)
 }
 
-// matchFiles searches for files in the Git tree that match the given path.
-// It's used when GetContents fails or returns unexpected results.
-func matchFiles(ctx context.Context, client *github.Client, owner, repo, ref, path string, rawOpts *raw.ContentOpts, rawAPIResponseCode int) (*mcp.CallToolResult, any, error) {
-	// Step 1: Get Git Tree recursively
-	tree, response, err := client.Git.GetTree(ctx, owner, repo, ref, true)
-	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx,
-			"failed to get git tree",
-			response,
-			err,
-		), nil, nil
-	}
-	defer func() { _ = response.Body.Close() }()
-
-	// Step 2: Filter tree for matching paths
-	const maxMatchingFiles = 3
-	matchingFiles := filterPaths(tree.Entries, path, maxMatchingFiles)
-	if len(matchingFiles) > 0 {
-		matchingFilesJSON, err := json.Marshal(matchingFiles)
-		if err != nil {
-			return utils.NewToolResultError(fmt.Sprintf("failed to marshal matching files: %s", err)), nil, nil
-		}
-		resolvedRefs, err := json.Marshal(rawOpts)
-		if err != nil {
-			return utils.NewToolResultError(fmt.Sprintf("failed to marshal resolved refs: %s", err)), nil, nil
-		}
-		if rawAPIResponseCode > 0 {
-			return utils.NewToolResultText(fmt.Sprintf("Resolved potential matches in the repository tree (resolved refs: %s, matching files: %s), but the content API returned an unexpected status code %d.", string(resolvedRefs), string(matchingFilesJSON), rawAPIResponseCode)), nil, nil
-		}
-		return utils.NewToolResultText(fmt.Sprintf("Resolved potential matches in the repository tree (resolved refs: %s, matching files: %s).", string(resolvedRefs), string(matchingFilesJSON))), nil, nil
-	}
-	return utils.NewToolResultError("Failed to get file contents. The path does not point to a file or directory, or the file does not exist in the repository."), nil, nil
-}
-
-// filterPaths filters the entries in a GitHub tree to find paths that
-// match the given suffix.
-// maxResults limits the number of results returned to first maxResults entries,
-// a maxResults of -1 means no limit.
-// It returns a slice of strings containing the matching paths.
-// Directories are returned with a trailing slash.
-func filterPaths(entries []*github.TreeEntry, path string, maxResults int) []string {
-	// Remove trailing slash for matching purposes, but flag whether we
-	// only want directories.
-	dirOnly := false
-	if strings.HasSuffix(path, "/") {
-		dirOnly = true
-		path = strings.TrimSuffix(path, "/")
-	}
-
-	matchedPaths := []string{}
-	for _, entry := range entries {
-		if len(matchedPaths) == maxResults {
-			break // Limit the number of results to maxResults
-		}
-		if dirOnly && entry.GetType() != "tree" {
-			continue // Skip non-directory entries if dirOnly is true
-		}
-		entryPath := entry.GetPath()
-		if entryPath == "" {
-			continue // Skip empty paths
-		}
-		if strings.HasSuffix(entryPath, path) {
-			if entry.GetType() == "tree" {
-				entryPath += "/" // Return directories with a trailing slash
-			}
-			matchedPaths = append(matchedPaths, entryPath)
-		}
-	}
-	return matchedPaths
-}
-
-// looksLikeSHA returns true if the string appears to be a Git commit SHA.
-// A SHA is a 40-character hexadecimal string.
-func looksLikeSHA(s string) bool {
-	if len(s) != 40 {
-		return false
-	}
-	for _, c := range s {
-		if (c < '0' || c > '9') && (c < 'a' || c > 'f') && (c < 'A' || c > 'F') {
-			return false
-		}
-	}
-	return true
-}
-
-// resolveGitReference takes a user-provided ref and sha and resolves them into a
-// definitive commit SHA and its corresponding fully-qualified reference.
-//
-// The resolution logic follows a clear priority:
-//
-//  1. If a specific commit `sha` is provided, it takes precedence and is used directly,
-//     and all reference resolution is skipped.
-//
-//     1a. If `sha` is empty but `ref` looks like a commit SHA (40 hexadecimal characters),
-//     it is returned as-is without any API calls or reference resolution.
-//
-//  2. If no `sha` is provided and `ref` does not look like a SHA, the function resolves
-//     the `ref` string into a fully-qualified format (e.g., "refs/heads/main") by trying
-//     the following steps in order:
-//     a). **Empty Ref:** If `ref` is empty, the repository's default branch is used.
-//     b). **Fully-Qualified:** If `ref` already starts with "refs/", it's considered fully
-//     qualified and used as-is.
-//     c). **Partially-Qualified:** If `ref` starts with "heads/" or "tags/", it is
-//     prefixed with "refs/" to make it fully-qualified.
-//     d). **Short Name:** Otherwise, the `ref` is treated as a short name. The function
-//     first attempts to resolve it as a branch ("refs/heads/<ref>"). If that
-//     returns a 404 Not Found error, it then attempts to resolve it as a tag
-//     ("refs/tags/<ref>").
-//
-//  3. **Final Lookup:** Once a fully-qualified ref is determined, a final API call
-//     is made to fetch that reference's definitive commit SHA.
-//
-// Any unexpected (non-404) errors during the resolution process are returned
-// immediately. All API errors are logged with rich context to aid diagnostics.
-func resolveGitReference(ctx context.Context, githubClient *github.Client, owner, repo, ref, sha string) (*raw.ContentOpts, bool, error) {
-	// 1) If SHA explicitly provided, it's the highest priority.
-	if sha != "" {
-		return &raw.ContentOpts{Ref: "", SHA: sha}, false, nil
-	}
-
-	// 1a) If sha is empty but ref looks like a SHA, return it without changes
-	if looksLikeSHA(ref) {
-		return &raw.ContentOpts{Ref: "", SHA: ref}, false, nil
-	}
-
-	originalRef := ref // Keep original ref for clearer error messages down the line.
-
-	// 2) If no SHA is provided, we try to resolve the ref into a fully-qualified format.
-	var reference *github.Reference
-	var resp *github.Response
-	var err error
-	var fallbackUsed bool
-
-	switch {
-	case originalRef == "":
-		// 2a) If ref is empty, determine the default branch.
-		reference, err = resolveDefaultBranch(ctx, githubClient, owner, repo)
-		if err != nil {
-			return nil, false, err // Error is already wrapped in resolveDefaultBranch.
-		}
-		ref = reference.GetRef()
-	case strings.HasPrefix(originalRef, "refs/"):
-		// 2b) Already fully qualified. The reference will be fetched at the end.
-	case strings.HasPrefix(originalRef, "heads/") || strings.HasPrefix(originalRef, "tags/"):
-		// 2c) Partially qualified. Make it fully qualified.
-		ref = "refs/" + originalRef
-	default:
-		// 2d) It's a short name, so we try to resolve it to either a branch or a tag.
-		branchRef := "refs/heads/" + originalRef
-		reference, resp, err = githubClient.Git.GetRef(ctx, owner, repo, branchRef)
-
-		if err == nil {
-			ref = branchRef // It's a branch.
-		} else {
-			// The branch lookup failed. Check if it was a 404 Not Found error.
-			ghErr, isGhErr := err.(*github.ErrorResponse)
-			if isGhErr && ghErr.Response.StatusCode == http.StatusNotFound {
-				tagRef := "refs/tags/" + originalRef
-				reference, resp, err = githubClient.Git.GetRef(ctx, owner, repo, tagRef)
-				if err == nil {
-					ref = tagRef // It's a tag.
-				} else {
-					// The tag lookup also failed. Check if it was a 404 Not Found error.
-					ghErr2, isGhErr2 := err.(*github.ErrorResponse)
-					if isGhErr2 && ghErr2.Response.StatusCode == http.StatusNotFound {
-						if originalRef == "main" {
-							reference, err = resolveDefaultBranch(ctx, githubClient, owner, repo)
-							if err != nil {
-								return nil, false, err // Error is already wrapped in resolveDefaultBranch.
-							}
-							// Update ref to the actual default branch ref so the note can be generated
-							ref = reference.GetRef()
-							fallbackUsed = true
-							break
-						}
-						return nil, false, fmt.Errorf("could not resolve ref %q as a branch or a tag", originalRef)
-					}
-
-					// The tag lookup failed for a different reason.
-					_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get reference (tag)", resp, err)
-					return nil, false, fmt.Errorf("failed to get reference for tag '%s': %w", originalRef, err)
-				}
-			} else {
-				// The branch lookup failed for a different reason.
-				_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get reference (branch)", resp, err)
-				return nil, false, fmt.Errorf("failed to get reference for branch '%s': %w", originalRef, err)
-			}
-		}
-	}
-
-	if reference == nil {
-		reference, resp, err = githubClient.Git.GetRef(ctx, owner, repo, ref)
-		if err != nil {
-			if ref == "refs/heads/main" {
-				reference, err = resolveDefaultBranch(ctx, githubClient, owner, repo)
-				if err != nil {
-					return nil, false, err // Error is already wrapped in resolveDefaultBranch.
-				}
-				// Update ref to the actual default branch ref so the note can be generated
-				ref = reference.GetRef()
-				fallbackUsed = true
-			} else {
-				_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get final reference", resp, err)
-				return nil, false, fmt.Errorf("failed to get final reference for %q: %w", ref, err)
-			}
-		}
-	}
-
-	sha = reference.GetObject().GetSHA()
-	return &raw.ContentOpts{Ref: ref, SHA: sha}, fallbackUsed, nil
-}
-
-func resolveDefaultBranch(ctx context.Context, githubClient *github.Client, owner, repo string) (*github.Reference, error) {
-	repoInfo, resp, err := githubClient.Repositories.Get(ctx, owner, repo)
-	if err != nil {
-		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get repository info", resp, err)
-		return nil, fmt.Errorf("failed to get repository info: %w", err)
-	}
-
-	if resp != nil && resp.Body != nil {
-		_ = resp.Body.Close()
-	}
-
-	defaultBranch := repoInfo.GetDefaultBranch()
-
-	defaultRef, resp, err := githubClient.Git.GetRef(ctx, owner, repo, "heads/"+defaultBranch)
-	if err != nil {
-		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get default branch reference", resp, err)
-		return nil, fmt.Errorf("failed to get default branch reference: %w", err)
-	}
-
-	if resp != nil && resp.Body != nil {
-		defer func() { _ = resp.Body.Close() }()
-	}
-
-	return defaultRef, nil
-}
-
 // ListStarredRepositories creates a tool to list starred repositories for the authenticated user or a specified user.
 func ListStarredRepositories(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
@@ -2039,6 +1866,7 @@ func ListStarredRepositories(t translations.TranslationHelperFunc) inventory.Ser
 				},
 			}),
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			username, err := OptionalParam[string](args, "username")
 			if err != nil {
@@ -2166,6 +1994,7 @@ func StarRepository(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Required: []string{"owner", "repo"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
@@ -2230,6 +2059,7 @@ func UnstarRepository(t translations.TranslationHelperFunc) inventory.ServerTool
 				Required: []string{"owner", "repo"},
 			},
 		},
+		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {

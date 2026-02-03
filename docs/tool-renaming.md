@@ -46,15 +46,23 @@ Will get `issue_read` and `get_file_contents` tools registered, with no errors.
 <!-- START AUTOMATED ALIASES -->
 | Old Name | New Name |
 |----------|----------|
+| `add_project_item` | `projects_write` |
 | `cancel_workflow_run` | `actions_run_trigger` |
+| `delete_project_item` | `projects_write` |
 | `delete_workflow_run_logs` | `actions_run_trigger` |
 | `download_workflow_run_artifact` | `actions_get` |
+| `get_project` | `projects_get` |
+| `get_project_field` | `projects_get` |
+| `get_project_item` | `projects_get` |
 | `get_workflow` | `actions_get` |
 | `get_workflow_job` | `actions_get` |
 | `get_workflow_job_logs` | `actions_get` |
 | `get_workflow_run` | `actions_get` |
 | `get_workflow_run_logs` | `actions_get` |
 | `get_workflow_run_usage` | `actions_get` |
+| `list_project_fields` | `projects_list` |
+| `list_project_items` | `projects_list` |
+| `list_projects` | `projects_list` |
 | `list_workflow_jobs` | `actions_list` |
 | `list_workflow_run_artifacts` | `actions_list` |
 | `list_workflow_runs` | `actions_list` |
@@ -62,4 +70,5 @@ Will get `issue_read` and `get_file_contents` tools registered, with no errors.
 | `rerun_failed_jobs` | `actions_run_trigger` |
 | `rerun_workflow_run` | `actions_run_trigger` |
 | `run_workflow` | `actions_run_trigger` |
+| `update_project_item` | `projects_write` |
 <!-- END AUTOMATED ALIASES -->

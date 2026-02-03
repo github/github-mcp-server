@@ -3,10 +3,13 @@ package github
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/raw"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v79/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -76,6 +79,9 @@ type ToolDependencies interface {
 
 	// GetContentWindowSize returns the content window size for log truncation
 	GetContentWindowSize() int
+
+	// IsFeatureEnabled checks if a feature flag is enabled.
+	IsFeatureEnabled(ctx context.Context, flagName string) bool
 }
 
 // BaseDeps is the standard implementation of ToolDependencies for the local server.
@@ -92,7 +98,13 @@ type BaseDeps struct {
 	T                 translations.TranslationHelperFunc
 	Flags             FeatureFlags
 	ContentWindowSize int
+
+	// Feature flag checker for runtime checks
+	featureChecker inventory.FeatureFlagChecker
 }
+
+// Compile-time assertion to verify that BaseDeps implements the ToolDependencies interface.
+var _ ToolDependencies = (*BaseDeps)(nil)
 
 // NewBaseDeps creates a BaseDeps with the provided clients and configuration.
 func NewBaseDeps(
@@ -103,6 +115,7 @@ func NewBaseDeps(
 	t translations.TranslationHelperFunc,
 	flags FeatureFlags,
 	contentWindowSize int,
+	featureChecker inventory.FeatureFlagChecker,
 ) *BaseDeps {
 	return &BaseDeps{
 		Client:            client,
@@ -112,6 +125,7 @@ func NewBaseDeps(
 		T:                 t,
 		Flags:             flags,
 		ContentWindowSize: contentWindowSize,
+		featureChecker:    featureChecker,
 	}
 }
 
@@ -142,17 +156,47 @@ func (d BaseDeps) GetFlags() FeatureFlags { return d.Flags }
 // GetContentWindowSize implements ToolDependencies.
 func (d BaseDeps) GetContentWindowSize() int { return d.ContentWindowSize }
 
+// IsFeatureEnabled checks if a feature flag is enabled.
+// Returns false if the feature checker is nil, flag name is empty, or an error occurs.
+// This allows tools to conditionally change behavior based on feature flags.
+func (d BaseDeps) IsFeatureEnabled(ctx context.Context, flagName string) bool {
+	if d.featureChecker == nil || flagName == "" {
+		return false
+	}
+
+	enabled, err := d.featureChecker(ctx, flagName)
+	if err != nil {
+		// Log error but don't fail the tool - treat as disabled
+		fmt.Fprintf(os.Stderr, "Feature flag check error for %q: %v\n", flagName, err)
+		return false
+	}
+
+	return enabled
+}
+
 // NewTool creates a ServerTool that retrieves ToolDependencies from context at call time.
 // This avoids creating closures at registration time, which is important for performance
 // in servers that create a new server instance per request (like the remote server).
 //
 // The handler function receives deps extracted from context via MustDepsFromContext.
 // Ensure ContextWithDeps is called to inject deps before any tool handlers are invoked.
-func NewTool[In, Out any](toolset inventory.ToolsetMetadata, tool mcp.Tool, handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error)) inventory.ServerTool {
-	return inventory.NewServerToolWithContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error) {
+//
+// requiredScopes specifies the minimum OAuth scopes needed for this tool.
+// AcceptedScopes are automatically derived using the scope hierarchy (e.g., if
+// public_repo is required, repo is also accepted since repo grants public_repo).
+func NewTool[In, Out any](
+	toolset inventory.ToolsetMetadata,
+	tool mcp.Tool,
+	requiredScopes []scopes.Scope,
+	handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error),
+) inventory.ServerTool {
+	st := inventory.NewServerToolWithContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest, args In) (*mcp.CallToolResult, Out, error) {
 		deps := MustDepsFromContext(ctx)
 		return handler(ctx, deps, req, args)
 	})
+	st.RequiredScopes = scopes.ToStringSlice(requiredScopes...)
+	st.AcceptedScopes = scopes.ExpandScopes(requiredScopes...)
+	return st
 }
 
 // NewToolFromHandler creates a ServerTool that retrieves ToolDependencies from context at call time.
@@ -160,9 +204,20 @@ func NewTool[In, Out any](toolset inventory.ToolsetMetadata, tool mcp.Tool, hand
 //
 // The handler function receives deps extracted from context via MustDepsFromContext.
 // Ensure ContextWithDeps is called to inject deps before any tool handlers are invoked.
-func NewToolFromHandler(toolset inventory.ToolsetMetadata, tool mcp.Tool, handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest) (*mcp.CallToolResult, error)) inventory.ServerTool {
-	return inventory.NewServerToolWithRawContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+//
+// requiredScopes specifies the minimum OAuth scopes needed for this tool.
+// AcceptedScopes are automatically derived using the scope hierarchy.
+func NewToolFromHandler(
+	toolset inventory.ToolsetMetadata,
+	tool mcp.Tool,
+	requiredScopes []scopes.Scope,
+	handler func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest) (*mcp.CallToolResult, error),
+) inventory.ServerTool {
+	st := inventory.NewServerToolWithRawContextHandler(tool, toolset, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		deps := MustDepsFromContext(ctx)
 		return handler(ctx, deps, req)
 	})
+	st.RequiredScopes = scopes.ToStringSlice(requiredScopes...)
+	st.AcceptedScopes = scopes.ExpandScopes(requiredScopes...)
+	return st
 }
