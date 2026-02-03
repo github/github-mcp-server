@@ -1,4 +1,4 @@
-import { StrictMode } from "react";
+import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { Avatar, Box, Text, Link, Heading, Spinner } from "@primer/react";
 import {
@@ -8,6 +8,7 @@ import {
   MailIcon,
   PeopleIcon,
   RepoIcon,
+  PersonIcon,
 } from "@primer/octicons-react";
 import { AppProvider } from "../../components/AppProvider";
 import { useMcpApp } from "../../hooks/useMcpApp";
@@ -28,6 +29,39 @@ interface UserData {
   };
 }
 
+function AvatarWithFallback({ src, login, size }: { src?: string; login: string; size: number }) {
+  const [imgError, setImgError] = useState(false);
+  
+  if (!src || imgError) {
+    return (
+      <Box
+        sx={{
+          width: size,
+          height: size,
+          borderRadius: "50%",
+          bg: "accent.subtle",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          mr: 3,
+          flexShrink: 0,
+        }}
+      >
+        <PersonIcon size={size * 0.6} />
+      </Box>
+    );
+  }
+
+  return (
+    <Avatar 
+      src={src} 
+      size={size} 
+      sx={{ mr: 3 }} 
+      onError={() => setImgError(true)}
+    />
+  );
+}
+
 function UserCard({ user }: { user: UserData }) {
   const d = user.details || {};
 
@@ -43,9 +77,7 @@ function UserCard({ user }: { user: UserData }) {
     >
       {/* Header with avatar and name */}
       <Box display="flex" alignItems="center" mb={3} pb={3} borderBottomWidth={1} borderBottomStyle="solid" borderBottomColor="border.default">
-        {user.avatar_url && (
-          <Avatar src={user.avatar_url} size={48} sx={{ mr: 3 }} />
-        )}
+        <AvatarWithFallback src={user.avatar_url} login={user.login} size={48} />
         <Box>
           <Heading as="h2" sx={{ fontSize: 2, mb: 0 }}>
             {d.name || user.login}
