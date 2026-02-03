@@ -485,57 +485,75 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, deps Tool
 	return utils.NewToolResultText(string(r)), nil
 }
 
+// PullRequestWriteUIResourceURI is the URI for the create_pull_request tool's MCP App UI resource.
+const PullRequestWriteUIResourceURI = "ui://github-mcp-server/pr-write"
+
 // CreatePullRequest creates a tool to create a new pull request.
 func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool {
-	schema := &jsonschema.Schema{
-		Type: "object",
-		Properties: map[string]*jsonschema.Schema{
-			"owner": {
-				Type:        "string",
-				Description: "Repository owner",
-			},
-			"repo": {
-				Type:        "string",
-				Description: "Repository name",
-			},
-			"title": {
-				Type:        "string",
-				Description: "PR title",
-			},
-			"body": {
-				Type:        "string",
-				Description: "PR description",
-			},
-			"head": {
-				Type:        "string",
-				Description: "Branch containing changes",
-			},
-			"base": {
-				Type:        "string",
-				Description: "Branch to merge into",
-			},
-			"draft": {
-				Type:        "boolean",
-				Description: "Create as draft PR",
-			},
-			"maintainer_can_modify": {
-				Type:        "boolean",
-				Description: "Allow maintainer edits",
-			},
-		},
-		Required: []string{"owner", "repo", "title", "head", "base"},
-	}
-
 	return NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
-			Name:        "create_pull_request",
-			Description: t("TOOL_CREATE_PULL_REQUEST_DESCRIPTION", "Create a new pull request in a GitHub repository."),
+			Name: "create_pull_request",
+			Description: t("TOOL_CREATE_PULL_REQUEST_DESCRIPTION", `Create a new pull request in a GitHub repository.
+
+When show_ui is true, an interactive form is displayed for the user to fill in PR details. Use show_ui when:
+- Creating a new PR and you want user input on the details
+- The user hasn't specified all required fields (title, head, base, etc.)
+- Interactive feedback would be valuable (branch selection, reviewers, labels)
+
+When show_ui is false or omitted, the PR is created directly with the provided parameters.`),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_CREATE_PULL_REQUEST_USER_TITLE", "Open new pull request"),
 				ReadOnlyHint: false,
 			},
-			InputSchema: schema,
+			Meta: mcp.Meta{
+				"ui": map[string]any{
+					"resourceUri": PullRequestWriteUIResourceURI,
+					"visibility":  []string{"model", "app"},
+				},
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"show_ui": {
+						Type:        "boolean",
+						Description: "If true, show an interactive form for the user to fill in PR details. If false or omitted, create the PR directly with the provided parameters.",
+					},
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"title": {
+						Type:        "string",
+						Description: "PR title",
+					},
+					"body": {
+						Type:        "string",
+						Description: "PR description",
+					},
+					"head": {
+						Type:        "string",
+						Description: "Branch containing changes",
+					},
+					"base": {
+						Type:        "string",
+						Description: "Branch to merge into",
+					},
+					"draft": {
+						Type:        "boolean",
+						Description: "Create as draft PR",
+					},
+					"maintainer_can_modify": {
+						Type:        "boolean",
+						Description: "Allow maintainer edits",
+					},
+				},
+				Required: []string{"owner", "repo"},
+			},
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
@@ -547,6 +565,19 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+
+			// Check if UI mode is requested
+			showUI, err := OptionalParam[bool](args, "show_ui")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// If show_ui is true and insiders mode is enabled, return a message indicating the UI should be shown
+			if showUI && deps.GetFlags().InsidersMode {
+				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. The interactive form will be displayed.", owner, repo)), nil, nil
+			}
+
+			// When not using UI, title/head/base are required
 			title, err := RequiredParam[string](args, "title")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil

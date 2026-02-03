@@ -2031,6 +2031,7 @@ func Test_CreatePullRequest(t *testing.T) {
 	assert.Equal(t, "create_pull_request", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "show_ui")
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
 	assert.Contains(t, schema.Properties, "title")
@@ -2039,7 +2040,7 @@ func Test_CreatePullRequest(t *testing.T) {
 	assert.Contains(t, schema.Properties, "base")
 	assert.Contains(t, schema.Properties, "draft")
 	assert.Contains(t, schema.Properties, "maintainer_can_modify")
-	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "title", "head", "base"})
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
 
 	// Setup mock PR for success case
 	mockPR := &github.PullRequest{

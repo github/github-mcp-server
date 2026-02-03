@@ -1085,21 +1085,22 @@ function CreateIssueApp() {
       )}
 
       {/* Submit button */}
-      <Button
-        variant="primary"
-        onClick={handleSubmit}
-        disabled={isSubmitting || !title.trim()}
-        sx={{ width: "100%" }}
-      >
-        {isSubmitting ? (
-          <>
-            <Spinner size="small" sx={{ mr: 2 }} />
-            {isUpdateMode ? "Updating..." : "Creating..."}
-          </>
-        ) : (
-          isUpdateMode ? "Update issue" : "Create issue"
-        )}
-      </Button>
+      <Box display="flex" justifyContent="flex-end" gap={2}>
+        <Button
+          variant="primary"
+          onClick={handleSubmit}
+          disabled={isSubmitting || !title.trim()}
+        >
+          {isSubmitting ? (
+            <>
+              <Spinner size="small" sx={{ mr: 1 }} />
+              {isUpdateMode ? "Updating..." : "Creating..."}
+            </>
+          ) : (
+            isUpdateMode ? "Update issue" : "Create issue"
+          )}
+        </Button>
+      </Box>
     </Box>
   );
 }

@@ -1190,7 +1190,6 @@ When show_ui is false or omitted, the issue is created/updated directly with the
 				Title:        t("TOOL_ISSUE_WRITE_USER_TITLE", "Create or update issue."),
 				ReadOnlyHint: false,
 			},
-			// MCP Apps UI metadata - links this tool to its UI resource
 			Meta: mcp.Meta{
 				"ui": map[string]any{
 					"resourceUri": IssueWriteUIResourceURI,
@@ -1202,7 +1201,7 @@ When show_ui is false or omitted, the issue is created/updated directly with the
 				Properties: map[string]*jsonschema.Schema{
 					"show_ui": {
 						Type:        "boolean",
-						Description: "If true, show an interactive form for the user to fill in issue details. If false or omitted, create/update the issue directly with the provided parameters. Use show_ui when you want user input or when not all fields are specified.",
+						Description: "If true, show an interactive form for the user to fill in issue details. If false or omitted, create/update the issue directly with the provided parameters.",
 					},
 					"method": {
 						Type: "string",
@@ -1295,9 +1294,9 @@ Options are:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// If show_ui is true, return a message indicating the UI should be shown
+			// If show_ui is true and insiders mode is enabled, return a message indicating the UI should be shown
 			// The host will detect the UI metadata and display the form
-			if showUI {
+			if showUI && deps.GetFlags().InsidersMode {
 				if method == "update" {
 					issueNumber, numErr := RequiredInt(args, "issue_number")
 					if numErr != nil {

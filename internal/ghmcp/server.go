@@ -115,6 +115,51 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 	// Create feature checker
 	featureChecker := createFeatureChecker(cfg.EnabledFeatures)
 
+	// Build and register the tool/resource/prompt inventory
+	inventoryBuilder := github.NewInventory(cfg.Translator).
+		WithDeprecatedAliases(github.DeprecatedToolAliases).
+		WithReadOnly(cfg.ReadOnly).
+		WithToolsets(enabledToolsets).
+		WithTools(cfg.EnabledTools).
+		WithFeatureChecker(featureChecker).
+		WithInsidersMode(cfg.InsidersMode).
+		WithServerInstructions()
+
+	// Apply token scope filtering if scopes are known (for PAT filtering)
+	if cfg.TokenScopes != nil {
+		inventoryBuilder = inventoryBuilder.WithFilter(github.CreateToolScopeFilter(cfg.TokenScopes))
+	}
+
+	inventory, err := inventoryBuilder.Build()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build inventory: %w", err)
+	}
+
+	// Create the MCP server
+	serverOpts := &mcp.ServerOptions{
+		Instructions: inventory.Instructions(),
+		Logger:       cfg.Logger,
+		CompletionHandler: github.CompletionsHandler(func(_ context.Context) (*gogithub.Client, error) {
+			return clients.rest, nil
+		}),
+	}
+
+	// In dynamic mode, explicitly advertise capabilities since tools/resources/prompts
+	// may be enabled at runtime even if none are registered initially.
+	if cfg.DynamicToolsets {
+		serverOpts.Capabilities = &mcp.ServerCapabilities{
+			Tools:     &mcp.ToolCapabilities{},
+			Resources: &mcp.ResourceCapabilities{},
+			Prompts:   &mcp.PromptCapabilities{},
+		}
+	}
+
+	ghServer := github.NewServer(cfg.Version, serverOpts)
+
+	// Add middlewares
+	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
+	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.rest, clients.gqlHTTP))
+
 	// Create dependencies for tool handlers
 	deps := github.NewBaseDeps(
 		clients.rest,
@@ -143,9 +188,21 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		inventoryBuilder = inventoryBuilder.WithFilter(github.CreateToolScopeFilter(cfg.TokenScopes))
 	}
 
-	inventory, err := inventoryBuilder.Build()
-	if err != nil {
-		return nil, fmt.Errorf("failed to build inventory: %w", err)
+	// Register GitHub tools/resources/prompts from the inventory.
+	// In dynamic mode with no explicit toolsets, this is a no-op since enabledToolsets
+	// is empty - users enable toolsets at runtime via the dynamic tools below (but can
+	// enable toolsets or tools explicitly that do need registration).
+	inventory.RegisterAll(context.Background(), ghServer, deps)
+
+	// Register MCP App UI resources (static resources for tool UI) - insiders only
+	if cfg.InsidersMode {
+		github.RegisterUIResources(ghServer)
+	}
+
+	// Register dynamic toolset management tools (enable/disable) - these are separate
+	// meta-tools that control the inventory, not part of the inventory itself
+	if cfg.DynamicToolsets {
+		registerDynamicTools(ghServer, inventory, deps, cfg.Translator)
 	}
 
 	ghServer, err := github.NewMCPServer(ctx, &cfg, deps, inventory)
