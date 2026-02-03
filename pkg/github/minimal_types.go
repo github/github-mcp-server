@@ -259,3 +259,42 @@ func convertToMinimalBranch(branch *github.Branch) MinimalBranch {
 		Protected: branch.GetProtected(),
 	}
 }
+
+// MinimalCheckRun is the trimmed output type for check run objects.
+type MinimalCheckRun struct {
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	Status      string `json:"status"`
+	Conclusion  string `json:"conclusion,omitempty"`
+	HTMLURL     string `json:"html_url,omitempty"`
+	DetailsURL  string `json:"details_url,omitempty"`
+	StartedAt   string `json:"started_at,omitempty"`
+	CompletedAt string `json:"completed_at,omitempty"`
+}
+
+// MinimalCheckRunsResult is the trimmed output type for check runs list results.
+type MinimalCheckRunsResult struct {
+	TotalCount int               `json:"total_count"`
+	CheckRuns  []MinimalCheckRun `json:"check_runs"`
+}
+
+// convertToMinimalCheckRun converts a GitHub API CheckRun to MinimalCheckRun
+func convertToMinimalCheckRun(checkRun *github.CheckRun) MinimalCheckRun {
+	minimalCheckRun := MinimalCheckRun{
+		ID:         checkRun.GetID(),
+		Name:       checkRun.GetName(),
+		Status:     checkRun.GetStatus(),
+		Conclusion: checkRun.GetConclusion(),
+		HTMLURL:    checkRun.GetHTMLURL(),
+		DetailsURL: checkRun.GetDetailsURL(),
+	}
+
+	if checkRun.StartedAt != nil {
+		minimalCheckRun.StartedAt = checkRun.StartedAt.Format("2006-01-02T15:04:05Z")
+	}
+	if checkRun.CompletedAt != nil {
+		minimalCheckRun.CompletedAt = checkRun.CompletedAt.Format("2006-01-02T15:04:05Z")
+	}
+
+	return minimalCheckRun
+}
