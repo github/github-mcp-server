@@ -26,12 +26,6 @@ const (
 	DescriptionRepositoryName  = "Repository name"
 )
 
-=======
-// FeatureFlagHoldbackConsolidatedActions is the feature flag that, when enabled, reverts to
-// individual actions tools instead of the consolidated actions tools.
-const FeatureFlagHoldbackConsolidatedActions = "mcp_holdback_consolidated_actions"
-
->>>>>>> fb53abdbe2f734f5d4e2b686bdac448e8e043048
 // Method constants for consolidated actions tools
 const (
 	actionsMethodListWorkflows            = "list_workflows"
