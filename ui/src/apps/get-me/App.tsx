@@ -115,7 +115,7 @@ function UserCard({ user }: { user: UserData }) {
       </Box>
 
       {/* Stats */}
-      <Box display="flex" gap={4} mt={3} pt={3} borderTopWidth={1} borderTopStyle="solid" borderTopColor="border.default">
+      <Box display="flex" justifyContent="space-around" mt={3} pt={3} borderTopWidth={1} borderTopStyle="solid" borderTopColor="border.default">
         <Box sx={{ textAlign: "center" }}>
           <Text sx={{ fontWeight: "bold", fontSize: 2, display: "block" }}>
             <RepoIcon size={16} /> {d.public_repos ?? 0}

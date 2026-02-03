@@ -9,7 +9,7 @@ import {
   Link,
   Spinner,
   FormControl,
-  Token,
+  CounterLabel,
   ActionMenu,
   ActionList,
   Label,
@@ -107,14 +107,13 @@ function SuccessView({
       <Box
         display="flex"
         alignItems="center"
-        gap={3}
         mb={3}
         pb={3}
         borderBottomWidth={1}
         borderBottomStyle="solid"
         borderBottomColor="border.default"
       >
-        <Box sx={{ color: "success.fg" }}>
+        <Box sx={{ color: "success.fg", flexShrink: 0, mr: 2 }}>
           <CheckCircleIcon size={16} />
         </Box>
         <Text sx={{ fontWeight: "semibold" }}>
@@ -870,13 +869,13 @@ function CreateIssueApp() {
       </Box>
 
       {/* Metadata section */}
-      <Box display="flex" gap={2} mb={3} sx={{ flexWrap: "nowrap", "& > *": { flexShrink: 0 } }}>
+      <Box display="flex" gap={1} mb={3} sx={{ flexWrap: "nowrap", overflow: "hidden" }}>
         {/* Labels dropdown */}
         <ActionMenu>
           <ActionMenu.Button size="small" leadingVisual={TagIcon}>
-            Labels{" "}
+            Labels
             {selectedLabels.length > 0 && (
-              <Token text={String(selectedLabels.length)} size="small" />
+              <CounterLabel sx={{ ml: 1 }}>{selectedLabels.length}</CounterLabel>
             )}
           </ActionMenu.Button>
           <ActionMenu.Overlay width="medium">
@@ -930,9 +929,9 @@ function CreateIssueApp() {
         {/* Assignees dropdown */}
         <ActionMenu>
           <ActionMenu.Button size="small" leadingVisual={PersonIcon}>
-            Assignees{" "}
+            Assignees
             {selectedAssignees.length > 0 && (
-              <Token text={String(selectedAssignees.length)} size="small" />
+              <CounterLabel sx={{ ml: 1 }}>{selectedAssignees.length}</CounterLabel>
             )}
           </ActionMenu.Button>
           <ActionMenu.Overlay width="medium">
