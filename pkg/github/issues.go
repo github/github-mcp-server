@@ -244,8 +244,9 @@ Options are:
 2. get_comments - Get issue comments.
 3. get_sub_issues - Get sub-issues of the issue.
 4. get_labels - Get labels assigned to the issue.
+5. get_dependencies - Get issue dependencies (blocked by/blocking relationships).
 `,
-				Enum: []any{"get", "get_comments", "get_sub_issues", "get_labels"},
+				Enum: []any{"get", "get_comments", "get_sub_issues", "get_labels", "get_dependencies"},
 			},
 			"owner": {
 				Type:        "string",
@@ -322,6 +323,9 @@ Options are:
 				return result, nil, err
 			case "get_labels":
 				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
+				return result, nil, err
+			case "get_dependencies":
+				result, err := GetIssueDependencies(ctx, client, deps.GetRepoAccessCache(), owner, repo, issueNumber)
 				return result, nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
@@ -2111,4 +2115,64 @@ func GetGraphQLFeatures(ctx context.Context) []string {
 		return features
 	}
 	return nil
+}
+
+// IssueDependency represents a dependency relationship between issues
+type IssueDependency struct {
+	ID         int64  `json:"id"`
+	NodeID     string `json:"node_id"`
+	Number     int    `json:"number"`
+	Title      string `json:"title"`
+	State      string `json:"state"`
+	Repository struct {
+		Name     string `json:"name"`
+		FullName string `json:"full_name"`
+		Owner    struct {
+			Login string `json:"login"`
+		} `json:"owner"`
+	} `json:"repository"`
+	HTMLURL string `json:"html_url"`
+}
+
+// IssueDependencies represents the complete dependency information for an issue
+type IssueDependencies struct {
+	DependsOn []IssueDependency `json:"depends_on"` // Issues this issue depends on (blocked by)
+	Blocking  []IssueDependency `json:"blocking"`   // Issues that depend on this issue
+}
+
+// GetIssueDependencies retrieves dependency information for an issue.
+// Returns both "depends_on" (issues blocking this issue) and "blocking" (issues blocked by this issue).
+func GetIssueDependencies(ctx context.Context, client *github.Client, cache *lockdown.RepoAccessCache, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
+	url := fmt.Sprintf("repos/%s/%s/issues/%d/dependencies", owner, repo, issueNumber)
+	req, err := client.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	var dependencies IssueDependencies
+	resp, err := client.Do(ctx, req, &dependencies)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to get issue dependencies",
+			resp,
+			err,
+		), nil
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get issue dependencies", resp, body), nil
+	}
+
+	r, err := json.Marshal(dependencies)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return utils.NewToolResultText(string(r)), nil
 }
