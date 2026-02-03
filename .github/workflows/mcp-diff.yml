@@ -20,7 +20,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run MCP Server Diff
-        uses: SamMorrowDrums/mcp-server-diff@v2
+        uses: SamMorrowDrums/mcp-server-diff@v2.3.5
         with:
           setup_go: "true"
           install_command: go mod download
@@ -35,8 +35,10 @@ jobs:
               {"name": "read-only+dynamic", "args": "--read-only --dynamic-toolsets"},
               {"name": "toolsets-repos", "args": "--toolsets=repos"},
               {"name": "toolsets-issues", "args": "--toolsets=issues"},
+              {"name": "toolsets-context", "args": "--toolsets=context"},
               {"name": "toolsets-pull_requests", "args": "--toolsets=pull_requests"},
               {"name": "toolsets-repos,issues", "args": "--toolsets=repos,issues"},
+              {"name": "toolsets-issues,context", "args": "--toolsets=issues,context"},
               {"name": "toolsets-all", "args": "--toolsets=all"},
               {"name": "tools-get_me", "args": "--tools=get_me"},
               {"name": "tools-get_me,list_issues", "args": "--tools=get_me,list_issues"},

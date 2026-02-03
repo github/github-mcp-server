@@ -295,6 +295,28 @@ func (r *Inventory) AvailableToolsets(exclude ...ToolsetID) []ToolsetMetadata {
 	return result
 }
 
+// EnabledToolsets returns the unique toolsets that are enabled based on current filters.
+// This is similar to AvailableToolsets but respects the enabledToolsets filter.
+// Returns toolsets in sorted order by toolset ID.
+func (r *Inventory) EnabledToolsets() []ToolsetMetadata {
+	// Get all available toolsets first (already sorted by ID)
+	allToolsets := r.AvailableToolsets()
+
+	// If no filter is set, all toolsets are enabled
+	if r.enabledToolsets == nil {
+		return allToolsets
+	}
+
+	// Filter to only enabled toolsets
+	var result []ToolsetMetadata
+	for _, ts := range allToolsets {
+		if r.enabledToolsets[ts.ID] {
+			result = append(result, ts)
+		}
+	}
+	return result
+}
+
 func (r *Inventory) Instructions() string {
 	return r.instructions
 }

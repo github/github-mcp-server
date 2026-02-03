@@ -68,7 +68,7 @@ The Remote GitHub MCP server has optional headers equivalent to the Local server
     - Equivalent to `GITHUB_LOCKDOWN_MODE` env var for Local server.
     - If this header is empty, "false", "f", "no", "n", "0", or "off" (ignoring whitespace and case), it will be interpreted as false. All other values are interpreted as true.
 - `X-MCP-Insiders`: Enables insiders mode for early access to new features.
-    - Equivalent to `GITHUB_INSIDER_MODE` env var or `--insider-mode` flag for Local server.
+    - Equivalent to `GITHUB_INSIDERS` env var or `--insiders` flag for Local server.
     - If this header is empty, "false", "f", "no", "n", "0", or "off" (ignoring whitespace and case), it will be interpreted as false. All other values are interpreted as true.
 
 > **Looking for examples?** See the [Server Configuration Guide](./server-configuration.md) for common recipes like minimal setups, read-only mode, and combining tools with toolsets.
