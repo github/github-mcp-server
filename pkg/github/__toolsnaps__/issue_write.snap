@@ -61,7 +61,7 @@
         "type": "string"
       },
       "show_ui": {
-        "description": "If true, show an interactive form for the user to fill in issue details. If false or omitted, create/update the issue directly with the provided parameters. Use show_ui when you want user input or when not all fields are specified.",
+        "description": "If true, show an interactive form for the user to fill in issue details. If false or omitted, create/update the issue directly with the provided parameters.",
         "type": "boolean"
       },
       "state": {

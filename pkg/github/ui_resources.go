@@ -64,4 +64,26 @@ func RegisterUIResources(s *mcp.Server) {
 			}, nil
 		},
 	)
+
+	// Register the create_pull_request UI resource
+	s.AddResource(
+		&mcp.Resource{
+			URI:         PullRequestWriteUIResourceURI,
+			Name:        "pr_write_ui",
+			Description: "MCP App UI for creating GitHub pull requests",
+			MIMEType:    "text/html",
+		},
+		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+			html := MustGetUIAsset("pr-write.html")
+			return &mcp.ReadResourceResult{
+				Contents: []*mcp.ResourceContents{
+					{
+						URI:      PullRequestWriteUIResourceURI,
+						MIMEType: "text/html",
+						Text:     html,
+					},
+				},
+			}, nil
+		},
+	)
 }

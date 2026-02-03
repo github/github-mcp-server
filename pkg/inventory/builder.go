@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/google/jsonschema-go/jsonschema"
 )
 
 // ToolFilter is a function that determines if a tool should be included.
@@ -41,6 +43,7 @@ type Builder struct {
 	featureChecker       FeatureFlagChecker
 	filters              []ToolFilter // filters to apply to all tools
 	generateInstructions bool
+	insidersMode         bool
 }
 
 // NewBuilder creates a new Builder.
@@ -135,6 +138,15 @@ func (b *Builder) WithFilter(filter ToolFilter) *Builder {
 	return b
 }
 
+// WithInsidersMode enables or disables insiders mode features.
+// When insiders mode is disabled (default), UI-related parameters like "show_ui"
+// are removed from tool schemas to hide experimental features.
+// Returns self for chaining.
+func (b *Builder) WithInsidersMode(enabled bool) *Builder {
+	b.insidersMode = enabled
+	return b
+}
+
 // cleanTools trims whitespace and removes duplicates from tool names.
 // Empty strings after trimming are excluded.
 func cleanTools(tools []string) []string {
@@ -162,8 +174,14 @@ func cleanTools(tools []string) []string {
 // (i.e., they don't exist in the tool set and are not deprecated aliases).
 // This ensures invalid tool configurations fail fast at build time.
 func (b *Builder) Build() (*Inventory, error) {
+	// When insiders mode is disabled, strip show_ui parameters from tool schemas
+	tools := b.tools
+	if !b.insidersMode {
+		tools = stripInsidersParameters(b.tools)
+	}
+
 	r := &Inventory{
-		tools:             b.tools,
+		tools:             tools,
 		resourceTemplates: b.resourceTemplates,
 		prompts:           b.prompts,
 		deprecatedAliases: b.deprecatedAliases,
@@ -325,4 +343,61 @@ func (b *Builder) processToolsets() (map[ToolsetID]bool, []string, []ToolsetID, 
 		enabledToolsets[id] = true
 	}
 	return enabledToolsets, unrecognized, allToolsetIDs, validIDs, defaultToolsetIDList, descriptions
+}
+
+// stripInsidersParameters removes insiders-only parameters from tool schemas.
+// This creates shallow copies of tools that have insiders parameters to avoid
+// mutating the original tool definitions.
+func stripInsidersParameters(tools []ServerTool) []ServerTool {
+	result := make([]ServerTool, len(tools))
+	for i, tool := range tools {
+		if modified, ok := removeInsidersParameters(tool.Tool.InputSchema); ok {
+			// Make a shallow copy of the tool
+			toolCopy := tool
+			toolCopy.Tool.InputSchema = modified
+			result[i] = toolCopy
+		} else {
+			result[i] = tool
+		}
+	}
+	return result
+}
+
+// insidersParameters lists the parameter names that are insiders-only
+var insidersParameters = map[string]bool{
+	"show_ui": true,
+}
+
+// removeInsidersParameters removes insiders-only parameters from a schema.
+// Returns the modified schema and true if any changes were made.
+// Handles *jsonschema.Schema type used by most tools.
+func removeInsidersParameters(schema any) (any, bool) {
+	// Handle *jsonschema.Schema (the most common case)
+	if js, ok := schema.(*jsonschema.Schema); ok && js != nil {
+		if js.Properties == nil {
+			return schema, false
+		}
+		hasInsidersParam := false
+		for name := range js.Properties {
+			if insidersParameters[name] {
+				hasInsidersParam = true
+				break
+			}
+		}
+		if !hasInsidersParam {
+			return schema, false
+		}
+		// Create a new schema with insiders parameters removed
+		newProps := make(map[string]*jsonschema.Schema, len(js.Properties))
+		for name, prop := range js.Properties {
+			if !insidersParameters[name] {
+				newProps[name] = prop
+			}
+		}
+		newSchema := *js // shallow copy
+		newSchema.Properties = newProps
+		return &newSchema, true
+	}
+	// For other types (json.RawMessage, map[string]any, etc.), leave unchanged
+	return schema, false
 }

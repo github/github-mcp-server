@@ -181,6 +181,7 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		WithToolsets(enabledToolsets).
 		WithTools(cfg.EnabledTools).
 		WithFeatureChecker(featureChecker).
+		WithInsidersMode(cfg.InsidersMode).
 		WithServerInstructions()
 
 	// Apply token scope filtering if scopes are known (for PAT filtering)
@@ -250,8 +251,10 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	// enable toolsets or tools explicitly that do need registration).
 	inventory.RegisterAll(context.Background(), ghServer, deps)
 
-	// Register MCP App UI resources (static resources for tool UI)
-	github.RegisterUIResources(ghServer)
+	// Register MCP App UI resources (static resources for tool UI) - insiders only
+	if cfg.InsidersMode {
+		github.RegisterUIResources(ghServer)
+	}
 
 	// Register dynamic toolset management tools (enable/disable) - these are separate
 	// meta-tools that control the inventory, not part of the inventory itself

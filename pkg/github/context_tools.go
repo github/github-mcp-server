@@ -54,7 +54,6 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// Use json.RawMessage to ensure "properties" is included even when empty.
 			// OpenAI strict mode requires the properties field to be present.
 			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
-			// MCP Apps UI metadata - links this tool to its UI resource
 			Meta: mcp.Meta{
 				"ui": map[string]any{
 					"resourceUri": GetMeUIResourceURI,
