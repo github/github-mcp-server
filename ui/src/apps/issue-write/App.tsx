@@ -426,18 +426,24 @@ function CreateIssueApp() {
     type: boolean;
   }>({ title: false, body: false, labels: false, assignees: false, milestone: false, type: false });
 
-  // Track if we've loaded existing issue data for update mode
-  const existingIssueLoaded = useRef(false);
+  // Store existing issue data for matching when available lists load
+  interface ExistingIssueData {
+    labels: string[];
+    assignees: string[];
+    milestoneNumber: number | null;
+    issueType: string | null;
+  }
+  const [existingIssueData, setExistingIssueData] = useState<ExistingIssueData | null>(null);
 
   // Reset prefill tracking when toolInput changes (new invocation)
   useEffect(() => {
     prefillApplied.current = { title: false, body: false, labels: false, assignees: false, milestone: false, type: false };
-    existingIssueLoaded.current = false;
+    setExistingIssueData(null);
   }, [toolInput]);
 
   // Load existing issue data when in update mode
   useEffect(() => {
-    if (!isUpdateMode || !owner || !repo || !issueNumber || !app || existingIssueLoaded.current) {
+    if (!isUpdateMode || !owner || !repo || !issueNumber || !app || existingIssueData !== null) {
       return;
     }
 
@@ -459,7 +465,7 @@ function CreateIssueApp() {
             const issueData = JSON.parse(textContent.text);
             console.log("Loaded issue data:", issueData);
 
-            // Pre-fill title and body
+            // Pre-fill title and body immediately
             if (issueData.title && !prefillApplied.current.title) {
               setTitle(issueData.title);
               prefillApplied.current.title = true;
@@ -469,53 +475,22 @@ function CreateIssueApp() {
               prefillApplied.current.body = true;
             }
 
-            // Pre-fill labels (wait for available labels to be loaded)
-            if (issueData.labels && Array.isArray(issueData.labels)) {
-              const labelNames = issueData.labels.map((l: { name?: string } | string) =>
-                typeof l === 'string' ? l : l.name
-              ).filter(Boolean);
-              if (labelNames.length > 0 && availableLabels.length > 0 && !prefillApplied.current.labels) {
-                const matchedLabels = availableLabels.filter((l) =>
-                  labelNames.includes(l.text)
-                );
-                if (matchedLabels.length > 0) {
-                  setSelectedLabels(matchedLabels);
-                  prefillApplied.current.labels = true;
-                }
-              }
-            }
+            // Extract data for deferred matching when available lists load
+            const labelNames = (issueData.labels || [])
+              .map((l: { name?: string } | string) => typeof l === 'string' ? l : l.name)
+              .filter(Boolean) as string[];
+            
+            const assigneeLogins = (issueData.assignees || [])
+              .map((a: { login?: string } | string) => typeof a === 'string' ? a : a.login)
+              .filter(Boolean) as string[];
+            
+            const milestoneNumber = issueData.milestone 
+              ? (typeof issueData.milestone === 'object' ? issueData.milestone.number : issueData.milestone)
+              : null;
+            
+            const issueType = issueData.issue_type?.name || issueData.type || null;
 
-            // Pre-fill assignees
-            if (issueData.assignees && Array.isArray(issueData.assignees)) {
-              const assigneeLogins = issueData.assignees.map((a: { login?: string } | string) =>
-                typeof a === 'string' ? a : a.login
-              ).filter(Boolean);
-              if (assigneeLogins.length > 0 && availableAssignees.length > 0 && !prefillApplied.current.assignees) {
-                const matchedAssignees = availableAssignees.filter((a) =>
-                  assigneeLogins.includes(a.text)
-                );
-                if (matchedAssignees.length > 0) {
-                  setSelectedAssignees(matchedAssignees);
-                  prefillApplied.current.assignees = true;
-                }
-              }
-            }
-
-            // Pre-fill milestone
-            if (issueData.milestone && availableMilestones.length > 0 && !prefillApplied.current.milestone) {
-              const milestoneNumber = typeof issueData.milestone === 'object' 
-                ? issueData.milestone.number 
-                : issueData.milestone;
-              const matchedMilestone = availableMilestones.find(
-                (m) => m.number === milestoneNumber
-              );
-              if (matchedMilestone) {
-                setSelectedMilestone(matchedMilestone);
-                prefillApplied.current.milestone = true;
-              }
-            }
-
-            existingIssueLoaded.current = true;
+            setExistingIssueData({ labels: labelNames, assignees: assigneeLogins, milestoneNumber, issueType });
           }
         }
       } catch (e) {
@@ -524,7 +499,47 @@ function CreateIssueApp() {
     };
 
     loadExistingIssue();
-  }, [isUpdateMode, owner, repo, issueNumber, app, callTool, availableLabels, availableAssignees, availableMilestones]);
+  }, [isUpdateMode, owner, repo, issueNumber, app, callTool, existingIssueData]);
+
+  // Apply existing labels when available labels load
+  useEffect(() => {
+    if (!existingIssueData?.labels.length || !availableLabels.length || prefillApplied.current.labels) return;
+    const matched = availableLabels.filter((l) => existingIssueData.labels.includes(l.text));
+    if (matched.length > 0) {
+      setSelectedLabels(matched);
+      prefillApplied.current.labels = true;
+    }
+  }, [existingIssueData, availableLabels]);
+
+  // Apply existing assignees when available assignees load
+  useEffect(() => {
+    if (!existingIssueData?.assignees.length || !availableAssignees.length || prefillApplied.current.assignees) return;
+    const matched = availableAssignees.filter((a) => existingIssueData.assignees.includes(a.text));
+    if (matched.length > 0) {
+      setSelectedAssignees(matched);
+      prefillApplied.current.assignees = true;
+    }
+  }, [existingIssueData, availableAssignees]);
+
+  // Apply existing milestone when available milestones load
+  useEffect(() => {
+    if (!existingIssueData?.milestoneNumber || !availableMilestones.length || prefillApplied.current.milestone) return;
+    const matched = availableMilestones.find((m) => m.number === existingIssueData.milestoneNumber);
+    if (matched) {
+      setSelectedMilestone(matched);
+      prefillApplied.current.milestone = true;
+    }
+  }, [existingIssueData, availableMilestones]);
+
+  // Apply existing issue type when available issue types load
+  useEffect(() => {
+    if (!existingIssueData?.issueType || !availableIssueTypes.length || prefillApplied.current.type) return;
+    const matched = availableIssueTypes.find((t) => t.text === existingIssueData.issueType);
+    if (matched) {
+      setSelectedIssueType(matched);
+      prefillApplied.current.type = true;
+    }
+  }, [existingIssueData, availableIssueTypes]);
 
   // Pre-fill title and body immediately (don't wait for data loading)
   useEffect(() => {
@@ -855,7 +870,7 @@ function CreateIssueApp() {
       </Box>
 
       {/* Metadata section */}
-      <Box display="flex" gap={3} mb={3} flexWrap="wrap" sx={{ "& > *": { flex: "1 1 auto" } }}>
+      <Box display="flex" gap={2} mb={3} sx={{ flexWrap: "nowrap", "& > *": { flexShrink: 0 } }}>
         {/* Labels dropdown */}
         <ActionMenu>
           <ActionMenu.Button size="small" leadingVisual={TagIcon}>
