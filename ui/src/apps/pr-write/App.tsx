@@ -9,19 +9,14 @@ import {
   Link,
   Spinner,
   FormControl,
-  CounterLabel,
   ActionMenu,
   ActionList,
-  Label,
   Checkbox,
 } from "@primer/react";
 import {
   GitPullRequestIcon,
   CheckCircleIcon,
-  TagIcon,
-  PersonIcon,
   RepoIcon,
-  MilestoneIcon,
   LockIcon,
   GitBranchIcon,
 } from "@primer/octicons-react";
@@ -38,24 +33,6 @@ interface PRResult {
   URL?: string;
 }
 
-interface LabelItem {
-  id: string;
-  text: string;
-  color: string;
-}
-
-interface UserItem {
-  id: string;
-  text: string;
-}
-
-interface MilestoneItem {
-  id: string;
-  number: number;
-  text: string;
-  description: string;
-}
-
 interface RepositoryItem {
   id: string;
   owner: string;
@@ -67,14 +44,6 @@ interface RepositoryItem {
 interface BranchItem {
   name: string;
   protected: boolean;
-}
-
-function getContrastColor(hexColor: string): string {
-  const r = parseInt(hexColor.substring(0, 2), 16);
-  const g = parseInt(hexColor.substring(2, 4), 16);
-  const b = parseInt(hexColor.substring(4, 6), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.5 ? "#000000" : "#ffffff";
 }
 
 function SuccessView({
@@ -178,23 +147,6 @@ function CreatePRApp() {
   // Options
   const [isDraft, setIsDraft] = useState(false);
   const [maintainerCanModify, setMaintainerCanModify] = useState(true);
-
-  // Labels state
-  const [availableLabels, setAvailableLabels] = useState<LabelItem[]>([]);
-  const [selectedLabels, setSelectedLabels] = useState<LabelItem[]>([]);
-  const [labelsLoading, setLabelsLoading] = useState(false);
-  const [labelsFilter, setLabelsFilter] = useState("");
-
-  // Reviewers state
-  const [availableReviewers, setAvailableReviewers] = useState<UserItem[]>([]);
-  const [selectedReviewers, setSelectedReviewers] = useState<UserItem[]>([]);
-  const [reviewersLoading, setReviewersLoading] = useState(false);
-  const [reviewersFilter, setReviewersFilter] = useState("");
-
-  // Milestone state
-  const [availableMilestones, setAvailableMilestones] = useState<MilestoneItem[]>([]);
-  const [selectedMilestone, setSelectedMilestone] = useState<MilestoneItem | null>(null);
-  const [milestonesLoading, setMilestonesLoading] = useState(false);
 
   // Repository state
   const [selectedRepo, setSelectedRepo] = useState<RepositoryItem | null>(null);
@@ -302,72 +254,7 @@ function CreatePRApp() {
       }
     };
 
-    const loadLabels = async () => {
-      setLabelsLoading(true);
-      try {
-        const result = await callTool("list_label", { owner, repo });
-        if (result && !result.isError && result.content) {
-          const textContent = result.content.find((c: { type: string }) => c.type === "text");
-          if (textContent && "text" in textContent) {
-            const data = JSON.parse(textContent.text as string);
-            setAvailableLabels((data.labels || []).map(
-              (l: { name: string; color: string; id: string }) => ({ id: l.id || l.name, text: l.name, color: l.color })
-            ));
-          }
-        }
-      } catch (e) {
-        console.error("Failed to load labels:", e);
-      } finally {
-        setLabelsLoading(false);
-      }
-    };
-
-    const loadReviewers = async () => {
-      setReviewersLoading(true);
-      try {
-        const result = await callTool("list_assignees", { owner, repo });
-        if (result && !result.isError && result.content) {
-          const textContent = result.content.find((c: { type: string }) => c.type === "text");
-          if (textContent && "text" in textContent) {
-            const data = JSON.parse(textContent.text as string);
-            setAvailableReviewers((data.assignees || []).map(
-              (a: { login: string }) => ({ id: a.login, text: a.login })
-            ));
-          }
-        }
-      } catch (e) {
-        console.error("Failed to load reviewers:", e);
-      } finally {
-        setReviewersLoading(false);
-      }
-    };
-
-    const loadMilestones = async () => {
-      setMilestonesLoading(true);
-      try {
-        const result = await callTool("list_milestones", { owner, repo });
-        if (result && !result.isError && result.content) {
-          const textContent = result.content.find((c: { type: string }) => c.type === "text");
-          if (textContent && "text" in textContent) {
-            const data = JSON.parse(textContent.text as string);
-            setAvailableMilestones((data.milestones || []).map(
-              (m: { number: number; title: string; description: string }) => ({
-                id: String(m.number), number: m.number, text: m.title, description: m.description || ""
-              })
-            ));
-          }
-        }
-      } catch (e) {
-        console.error("Failed to load milestones:", e);
-      } finally {
-        setMilestonesLoading(false);
-      }
-    };
-
     loadBranches();
-    loadLabels();
-    loadReviewers();
-    loadMilestones();
   }, [owner, repo, app, callTool, baseBranch]);
 
   // Filters
@@ -380,16 +267,6 @@ function CreatePRApp() {
     if (!headFilter.trim()) return availableBranches;
     return availableBranches.filter((b) => b.name.toLowerCase().includes(headFilter.toLowerCase()));
   }, [availableBranches, headFilter]);
-
-  const filteredLabels = useMemo(() => {
-    if (!labelsFilter.trim()) return availableLabels;
-    return availableLabels.filter((l) => l.text.toLowerCase().includes(labelsFilter.toLowerCase()));
-  }, [availableLabels, labelsFilter]);
-
-  const filteredReviewers = useMemo(() => {
-    if (!reviewersFilter.trim()) return availableReviewers;
-    return availableReviewers.filter((r) => r.text.toLowerCase().includes(reviewersFilter.toLowerCase()));
-  }, [availableReviewers, reviewersFilter]);
 
   const handleSubmit = useCallback(async () => {
     if (!title.trim()) { setError("Title is required"); return; }
@@ -513,12 +390,6 @@ function CreatePRApp() {
                         setAvailableBranches([]);
                         setBaseBranch("");
                         setHeadBranch("");
-                        setAvailableLabels([]);
-                        setSelectedLabels([]);
-                        setAvailableReviewers([]);
-                        setSelectedReviewers([]);
-                        setAvailableMilestones([]);
-                        setSelectedMilestone(null);
                       }}
                     >
                       <ActionList.LeadingVisual>
@@ -649,127 +520,6 @@ function CreatePRApp() {
           <MarkdownEditor value={body} onChange={setBody} placeholder="Add a description..." />
         </Box>
 
-        {/* Metadata section */}
-        <Box display="flex" gap={1} mb={3} sx={{ flexWrap: "nowrap", overflow: "hidden" }}>
-          {/* Reviewers */}
-          <ActionMenu>
-            <ActionMenu.Button size="small" leadingVisual={PersonIcon}>
-              Reviewers
-              {selectedReviewers.length > 0 && <CounterLabel sx={{ ml: 1 }}>{selectedReviewers.length}</CounterLabel>}
-            </ActionMenu.Button>
-            <ActionMenu.Overlay width="medium">
-              <Box p={2} borderBottomWidth={1} borderBottomStyle="solid" borderBottomColor="border.default">
-                <TextInput
-                  placeholder="Search people"
-                  value={reviewersFilter}
-                  onChange={(e) => setReviewersFilter(e.target.value)}
-                  size="small"
-                  block
-                />
-              </Box>
-              <ActionList selectionVariant="multiple">
-                {reviewersLoading ? (
-                  <ActionList.Item disabled><Spinner size="small" /> Loading...</ActionList.Item>
-                ) : filteredReviewers.length === 0 ? (
-                  <ActionList.Item disabled>No reviewers available</ActionList.Item>
-                ) : (
-                  filteredReviewers.map((reviewer) => (
-                    <ActionList.Item
-                      key={reviewer.id}
-                      selected={selectedReviewers.some((r) => r.id === reviewer.id)}
-                      onSelect={() => {
-                        setSelectedReviewers((prev) =>
-                          prev.some((r) => r.id === reviewer.id)
-                            ? prev.filter((r) => r.id !== reviewer.id)
-                            : [...prev, reviewer]
-                        );
-                      }}
-                    >
-                      {reviewer.text}
-                    </ActionList.Item>
-                  ))
-                )}
-              </ActionList>
-            </ActionMenu.Overlay>
-          </ActionMenu>
-
-          {/* Labels */}
-          <ActionMenu>
-            <ActionMenu.Button size="small" leadingVisual={TagIcon}>
-              Labels
-              {selectedLabels.length > 0 && <CounterLabel sx={{ ml: 1 }}>{selectedLabels.length}</CounterLabel>}
-            </ActionMenu.Button>
-            <ActionMenu.Overlay width="medium">
-              <Box p={2} borderBottomWidth={1} borderBottomStyle="solid" borderBottomColor="border.default">
-                <TextInput
-                  placeholder="Filter labels"
-                  value={labelsFilter}
-                  onChange={(e) => setLabelsFilter(e.target.value)}
-                  size="small"
-                  block
-                />
-              </Box>
-              <ActionList selectionVariant="multiple">
-                {labelsLoading ? (
-                  <ActionList.Item disabled><Spinner size="small" /> Loading...</ActionList.Item>
-                ) : filteredLabels.length === 0 ? (
-                  <ActionList.Item disabled>No labels available</ActionList.Item>
-                ) : (
-                  filteredLabels.map((label) => (
-                    <ActionList.Item
-                      key={label.id}
-                      selected={selectedLabels.some((l) => l.id === label.id)}
-                      onSelect={() => {
-                        setSelectedLabels((prev) =>
-                          prev.some((l) => l.id === label.id)
-                            ? prev.filter((l) => l.id !== label.id)
-                            : [...prev, label]
-                        );
-                      }}
-                    >
-                      <ActionList.LeadingVisual>
-                        <Box sx={{ width: 14, height: 14, borderRadius: "50%", backgroundColor: `#${label.color}` }} />
-                      </ActionList.LeadingVisual>
-                      {label.text}
-                    </ActionList.Item>
-                  ))
-                )}
-              </ActionList>
-            </ActionMenu.Overlay>
-          </ActionMenu>
-
-          {/* Milestones */}
-          <ActionMenu>
-            <ActionMenu.Button size="small" leadingVisual={MilestoneIcon}>
-              {selectedMilestone ? selectedMilestone.text : "Milestone"}
-            </ActionMenu.Button>
-            <ActionMenu.Overlay width="medium">
-              <ActionList selectionVariant="single">
-                <ActionList.Item selected={!selectedMilestone} onSelect={() => setSelectedMilestone(null)}>
-                  No milestone
-                </ActionList.Item>
-                <ActionList.Divider />
-                {milestonesLoading ? (
-                  <ActionList.Item disabled><Spinner size="small" /> Loading...</ActionList.Item>
-                ) : availableMilestones.length === 0 ? (
-                  <ActionList.Item disabled>No milestones available</ActionList.Item>
-                ) : (
-                  availableMilestones.map((milestone) => (
-                    <ActionList.Item
-                      key={milestone.id}
-                      selected={selectedMilestone?.id === milestone.id}
-                      onSelect={() => setSelectedMilestone(milestone)}
-                    >
-                      <ActionList.LeadingVisual><MilestoneIcon /></ActionList.LeadingVisual>
-                      {milestone.text}
-                    </ActionList.Item>
-                  ))
-                )}
-              </ActionList>
-            </ActionMenu.Overlay>
-          </ActionMenu>
-        </Box>
-
         {/* Options */}
         <Box mb={3} display="flex" gap={4}>
           <FormControl>
@@ -781,17 +531,6 @@ function CreatePRApp() {
             <FormControl.Label sx={{ fontWeight: "normal", ml: 1 }}>Allow maintainer edits</FormControl.Label>
           </FormControl>
         </Box>
-
-        {/* Selected labels display */}
-        {selectedLabels.length > 0 && (
-          <Box display="flex" gap={1} mb={3} flexWrap="wrap">
-            {selectedLabels.map((label) => (
-              <Label key={label.id} sx={{ backgroundColor: `#${label.color}`, color: getContrastColor(label.color) }}>
-                {label.text}
-              </Label>
-            ))}
-          </Box>
-        )}
 
         {/* Submit button */}
         <Box display="flex" justifyContent="flex-end" gap={2}>

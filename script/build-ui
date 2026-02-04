@@ -13,18 +13,5 @@ fi
 echo "Building UI..."
 npm run build
 
-# Move files to expected locations
-echo "Organizing output..."
-mkdir -p dist
-mv dist/src/apps/get-me/index.html dist/get-me.html 2>/dev/null || true
-mv dist/src/apps/issue-write/index.html dist/issue-write.html 2>/dev/null || true
-mv dist/src/apps/pr-write/index.html dist/pr-write.html 2>/dev/null || true
-rm -rf dist/src 2>/dev/null || true
-
-# Copy to Go embed location
-echo "Copying to pkg/github/ui_dist/..."
-mkdir -p ../pkg/github/ui_dist
-cp dist/*.html ../pkg/github/ui_dist/
-
 echo "UI build complete. Output:"
-ls -la dist/
+ls -la ../pkg/github/ui_dist/*.html
