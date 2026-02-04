@@ -20,6 +20,7 @@ bin/
 github-mcp-server
 mcpcurl
 e2e.test
+*.test
 
 .history
 conformance-report/
