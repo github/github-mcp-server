@@ -568,8 +568,8 @@ func Test_GetFileContents_WithDisabledEmbeddedResourcesFlag(t *testing.T) {
 					assert.Equal(t, tc.expectedMimeType, content.MIMEType)
 					assert.NotNil(t, content.Meta)
 					assert.NotNil(t, content.Annotations)
-					// Verify data is base64 encoded
-					assert.NotEmpty(t, content.Data)
+					// Verify data contains raw binary (SDK handles base64 encoding during JSON marshaling)
+					assert.Equal(t, mockBinaryContent, content.Data)
 				}
 			} else {
 				// When flag is disabled, should use EmbeddedResource (default)
