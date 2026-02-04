@@ -6,7 +6,8 @@ COPY ui/ ./
 RUN npm run build && \
     mkdir -p /ui/out && \
     mv dist/src/apps/get-me/index.html /ui/out/get-me.html && \
-    mv dist/src/apps/create-issue/index.html /ui/out/create-issue.html
+    mv dist/src/apps/issue-write/index.html /ui/out/issue-write.html && \
+    mv dist/src/apps/pr-write/index.html /ui/out/pr-write.html
 
 FROM golang:1.25.6-alpine AS build
 ARG VERSION="dev"
