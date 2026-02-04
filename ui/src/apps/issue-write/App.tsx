@@ -22,7 +22,6 @@ import {
   RepoIcon,
   MilestoneIcon,
   LockIcon,
-  TriangleDownIcon,
 } from "@primer/octicons-react";
 import { AppProvider } from "../../components/AppProvider";
 import { useMcpApp } from "../../hooks/useMcpApp";
