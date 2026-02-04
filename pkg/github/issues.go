@@ -244,8 +244,9 @@ Options are:
 2. get_comments - Get issue comments.
 3. get_sub_issues - Get sub-issues of the issue.
 4. get_labels - Get labels assigned to the issue.
+5. get_dependencies - Get issue dependencies (blocked by/blocking relationships).
 `,
-				Enum: []any{"get", "get_comments", "get_sub_issues", "get_labels"},
+				Enum: []any{"get", "get_comments", "get_sub_issues", "get_labels", "get_dependencies"},
 			},
 			"owner": {
 				Type:        "string",
@@ -322,6 +323,9 @@ Options are:
 				return result, nil, err
 			case "get_labels":
 				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
+				return result, nil, err
+			case "get_dependencies":
+				result, err := GetIssueDependencies(ctx, client, owner, repo, issueNumber)
 				return result, nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
@@ -2111,4 +2115,237 @@ func GetGraphQLFeatures(ctx context.Context) []string {
 		return features
 	}
 	return nil
+}
+
+// IssueDependency represents a dependency relationship between issues
+type IssueDependency struct {
+	ID         int64  `json:"id"`
+	NodeID     string `json:"node_id"`
+	Number     int    `json:"number"`
+	Title      string `json:"title"`
+	State      string `json:"state"`
+	Repository struct {
+		Name     string `json:"name"`
+		FullName string `json:"full_name"`
+		Owner    struct {
+			Login string `json:"login"`
+		} `json:"owner"`
+	} `json:"repository"`
+	HTMLURL string `json:"html_url"`
+}
+
+// IssueDependencies represents the complete dependency information for an issue
+type IssueDependencies struct {
+	DependsOn []IssueDependency `json:"depends_on"` // Issues this issue depends on (blocked by)
+	Blocking  []IssueDependency `json:"blocking"`   // Issues that depend on this issue
+}
+
+// GetIssueDependencies retrieves dependency information for an issue.
+// Returns both "depends_on" (issues blocking this issue) and "blocking" (issues blocked by this issue).
+func GetIssueDependencies(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
+	url := fmt.Sprintf("repos/%s/%s/issues/%d/dependencies", owner, repo, issueNumber)
+	req, err := client.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	var dependencies IssueDependencies
+	resp, err := client.Do(ctx, req, &dependencies)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to get issue dependencies",
+			resp,
+			err,
+		), nil
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get issue dependencies", resp, body), nil
+	}
+
+	r, err := json.Marshal(dependencies)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return utils.NewToolResultText(string(r)), nil
+}
+
+// DependencyWrite creates a tool to manage dependencies between issues.
+func DependencyWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "dependency_write",
+			Description: t("TOOL_DEPENDENCY_WRITE_DESCRIPTION", "Add or remove dependency relationships between issues in a GitHub repository."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_DEPENDENCY_WRITE_USER_TITLE", "Manage issue dependencies"),
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"method": {
+						Type: "string",
+						Description: `The action to perform on issue dependencies.
+Options are:
+- 'add' - add a dependency relationship (mark an issue as blocked by another issue).
+- 'remove' - remove a dependency relationship.
+				`,
+						Enum: []any{"add", "remove"},
+					},
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"issue_number": {
+						Type:        "number",
+						Description: "The number of the issue",
+					},
+					"dependency_issue_number": {
+						Type:        "number",
+						Description: "The number of the issue that blocks this issue (for 'add') or the dependency ID (for 'remove')",
+					},
+				},
+				Required: []string{"method", "owner", "repo", "issue_number", "dependency_issue_number"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			method, err := RequiredParam[string](args, "method")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			issueNumber, err := RequiredInt(args, "issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			dependencyIssueNumber, err := RequiredInt(args, "dependency_issue_number")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			switch method {
+			case "add":
+				result, err := AddIssueDependency(ctx, client, owner, repo, issueNumber, dependencyIssueNumber)
+				return result, nil, err
+			case "remove":
+				result, err := RemoveIssueDependency(ctx, client, owner, repo, issueNumber, dependencyIssueNumber)
+				return result, nil, err
+			default:
+				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+			}
+		})
+}
+
+// AddIssueDependency adds a dependency relationship between two issues.
+// The issue specified by issueNumber will be blocked by the issue specified by dependencyIssueNumber.
+func AddIssueDependency(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, dependencyIssueNumber int) (*mcp.CallToolResult, error) {
+	url := fmt.Sprintf("repos/%s/%s/issues/%d/dependencies", owner, repo, issueNumber)
+
+	body := map[string]interface{}{
+		"dependency_issue_id": dependencyIssueNumber,
+	}
+
+	req, err := client.NewRequest("POST", url, body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	var dependency IssueDependency
+	resp, err := client.Do(ctx, req, &dependency)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to add issue dependency",
+			resp,
+			err,
+		), nil
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add issue dependency", resp, body), nil
+	}
+
+	r, err := json.Marshal(map[string]interface{}{
+		"success":    true,
+		"message":    fmt.Sprintf("Issue #%d is now blocked by issue #%d", issueNumber, dependencyIssueNumber),
+		"dependency": dependency,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return utils.NewToolResultText(string(r)), nil
+}
+
+// RemoveIssueDependency removes a dependency relationship between two issues.
+func RemoveIssueDependency(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, dependencyID int) (*mcp.CallToolResult, error) {
+	url := fmt.Sprintf("repos/%s/%s/issues/%d/dependencies/%d", owner, repo, issueNumber, dependencyID)
+
+	req, err := client.NewRequest("DELETE", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := client.Do(ctx, req, nil)
+	if err != nil {
+		return ghErrors.NewGitHubAPIErrorResponse(ctx,
+			"failed to remove issue dependency",
+			resp,
+			err,
+		), nil
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %w", err)
+		}
+		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to remove issue dependency", resp, body), nil
+	}
+
+	r, err := json.Marshal(map[string]interface{}{
+		"success": true,
+		"message": fmt.Sprintf("Dependency removed from issue #%d", issueNumber),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return utils.NewToolResultText(string(r)), nil
 }
