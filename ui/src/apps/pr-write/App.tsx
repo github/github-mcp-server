@@ -396,6 +396,7 @@ function CreatePRApp() {
     if (!owner || !repo) { setError("Repository information not available"); return; }
     if (!baseBranch) { setError("Base branch is required"); return; }
     if (!headBranch) { setError("Head branch is required"); return; }
+    if (baseBranch === headBranch) { setError("Base and head branches cannot be the same"); return; }
 
     setIsSubmitting(true);
     setError(null);
