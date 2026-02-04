@@ -27,7 +27,7 @@ var (
 	errUnsupportedAuthorizationHeader = fmt.Errorf("%w: unsupported Authorization header", mark.ErrBadRequest)
 )
 
-var supportedThirdPartyTokenPrefixes = []string{
+var supportedGitHubPrefixes = []string{
 	"ghp_",        // Personal access token (classic)
 	"github_pat_", // Fine-grained personal access token
 	"gho_",        // OAuth access token
@@ -98,7 +98,7 @@ func parseAuthorizationHeader(req *http.Request) (authType authType, token strin
 		return authTypeIDE, token, nil
 	}
 
-	for _, prefix := range supportedThirdPartyTokenPrefixes {
+	for _, prefix := range supportedGitHubPrefixes {
 		if strings.HasPrefix(token, prefix) {
 			return authTypeGhToken, token, nil
 		}
