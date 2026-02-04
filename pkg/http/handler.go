@@ -169,22 +169,38 @@ func withInsiders(next http.Handler) http.Handler {
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	inventory, err := h.inventoryFactoryFunc(r)
+	inv, err := h.inventoryFactoryFunc(r)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	ghServer, err := h.githubMcpServerFactory(r, h.deps, inventory, &github.MCPServerConfig{
+	invToUse := inv
+	if methodInfo, ok := ghcontext.MCPMethod(r.Context()); ok && methodInfo != nil {
+		invToUse = inv.ForMCPRequest(methodInfo.Method, methodInfo.ItemName)
+	}
+
+	ghServer, err := h.githubMcpServerFactory(r, h.deps, invToUse, &github.MCPServerConfig{
 		Version:           h.config.Version,
 		Translator:        h.t,
 		ContentWindowSize: h.config.ContentWindowSize,
 		Logger:            h.logger,
 		RepoAccessTTL:     h.config.RepoAccessCacheTTL,
+		// Explicitly set empty capabilities. inv.ForMCPRequest currently returns nothing for Initialize.
+		ServerOptions: []github.MCPServerOption{
+			func(so *mcp.ServerOptions) {
+				so.Capabilities = &mcp.ServerCapabilities{
+					Tools:     &mcp.ToolCapabilities{},
+					Resources: &mcp.ResourceCapabilities{},
+					Prompts:   &mcp.PromptCapabilities{},
+				}
+			},
+		},
 	})
 
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	mcpHandler := mcp.NewStreamableHTTPHandler(func(_ *http.Request) *mcp.Server {
