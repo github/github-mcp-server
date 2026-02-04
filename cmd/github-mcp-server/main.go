@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/github/github-mcp-server/internal/ghmcp"
+	"github.com/github/github-mcp-server/pkg/accounts"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -32,9 +34,21 @@ var (
 		Short: "Start stdio server",
 		Long:  `Start a server that communicates via standard input/output streams using JSON-RPC messages.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
+			// Load accounts config if specified
+			var accountsConfig *accounts.Config
+			accountsConfigPath := viper.GetString("accounts-config")
+			if accountsConfigPath != "" {
+				cfg, err := loadAccountsConfig(accountsConfigPath)
+				if err != nil {
+					return fmt.Errorf("failed to load accounts config: %w", err)
+				}
+				accountsConfig = cfg
+			}
+
+			// For backward compatibility, still check for single token if no accounts config
 			token := viper.GetString("personal_access_token")
-			if token == "" {
-				return errors.New("GITHUB_PERSONAL_ACCESS_TOKEN not set")
+			if accountsConfig == nil && token == "" {
+				return errors.New("either GITHUB_PERSONAL_ACCESS_TOKEN or --accounts-config must be set")
 			}
 
 			// If you're wondering why we're not using viper.GetStringSlice("toolsets"),
@@ -73,6 +87,7 @@ var (
 				Version:              version,
 				Host:                 viper.GetString("host"),
 				Token:                token,
+				AccountsConfig:       accountsConfig,
 				EnabledToolsets:      enabledToolsets,
 				EnabledTools:         enabledTools,
 				EnabledFeatures:      enabledFeatures,
@@ -111,6 +126,7 @@ func init() {
 	rootCmd.PersistentFlags().Bool("lockdown-mode", false, "Enable lockdown mode")
 	rootCmd.PersistentFlags().Bool("insiders", false, "Enable insiders features")
 	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "Override the repo access cache TTL (e.g. 1m, 0s to disable)")
+	rootCmd.PersistentFlags().String("accounts-config", "", "Path to JSON file with multi-account configuration")
 
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
@@ -126,6 +142,7 @@ func init() {
 	_ = viper.BindPFlag("lockdown-mode", rootCmd.PersistentFlags().Lookup("lockdown-mode"))
 	_ = viper.BindPFlag("insiders", rootCmd.PersistentFlags().Lookup("insiders"))
 	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
+	_ = viper.BindPFlag("accounts-config", rootCmd.PersistentFlags().Lookup("accounts-config"))
 
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)
@@ -152,4 +169,25 @@ func wordSepNormalizeFunc(_ *pflag.FlagSet, name string) pflag.NormalizedName {
 		name = strings.ReplaceAll(name, sep, to)
 	}
 	return pflag.NormalizedName(name)
+}
+
+// loadAccountsConfig reads and parses the accounts configuration from a JSON file.
+// It also expands environment variables in token values (e.g., ${GITHUB_WORK_TOKEN}).
+func loadAccountsConfig(path string) (*accounts.Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	var config accounts.Config
+	if err := json.Unmarshal(data, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %w", err)
+	}
+
+	// Expand environment variables in tokens
+	for i := range config.Accounts {
+		config.Accounts[i].Token = os.ExpandEnv(config.Accounts[i].Token)
+	}
+
+	return &config, nil
 }
