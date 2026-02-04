@@ -199,12 +199,15 @@ func InventoryFiltersForRequest(r *http.Request, builder *inventory.Builder) *in
 		builder = builder.WithReadOnly(true)
 	}
 
-	if toolsets := ghcontext.GetToolsets(ctx); len(toolsets) > 0 {
-		builder = builder.WithToolsets(toolsets)
+	toolsets := ghcontext.GetToolsets(ctx)
+	tools := ghcontext.GetTools(ctx)
+
+	if len(toolsets) > 0 {
+		builder = builder.WithToolsets(github.ResolvedEnabledToolsets(false, toolsets, tools)) // No dynamic toolsets in HTTP mode
 	}
 
-	if tools := ghcontext.GetTools(ctx); len(tools) > 0 {
-		if len(ghcontext.GetToolsets(ctx)) == 0 {
+	if len(tools) > 0 {
+		if len(toolsets) == 0 {
 			builder = builder.WithToolsets([]string{})
 		}
 		builder = builder.WithTools(github.CleanTools(tools))
