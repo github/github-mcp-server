@@ -115,51 +115,6 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 	// Create feature checker
 	featureChecker := createFeatureChecker(cfg.EnabledFeatures)
 
-	// Build and register the tool/resource/prompt inventory
-	inventoryBuilder := github.NewInventory(cfg.Translator).
-		WithDeprecatedAliases(github.DeprecatedToolAliases).
-		WithReadOnly(cfg.ReadOnly).
-		WithToolsets(enabledToolsets).
-		WithTools(cfg.EnabledTools).
-		WithFeatureChecker(featureChecker).
-		WithInsidersMode(cfg.InsidersMode).
-		WithServerInstructions()
-
-	// Apply token scope filtering if scopes are known (for PAT filtering)
-	if cfg.TokenScopes != nil {
-		inventoryBuilder = inventoryBuilder.WithFilter(github.CreateToolScopeFilter(cfg.TokenScopes))
-	}
-
-	inventory, err := inventoryBuilder.Build()
-	if err != nil {
-		return nil, fmt.Errorf("failed to build inventory: %w", err)
-	}
-
-	// Create the MCP server
-	serverOpts := &mcp.ServerOptions{
-		Instructions: inventory.Instructions(),
-		Logger:       cfg.Logger,
-		CompletionHandler: github.CompletionsHandler(func(_ context.Context) (*gogithub.Client, error) {
-			return clients.rest, nil
-		}),
-	}
-
-	// In dynamic mode, explicitly advertise capabilities since tools/resources/prompts
-	// may be enabled at runtime even if none are registered initially.
-	if cfg.DynamicToolsets {
-		serverOpts.Capabilities = &mcp.ServerCapabilities{
-			Tools:     &mcp.ToolCapabilities{},
-			Resources: &mcp.ResourceCapabilities{},
-			Prompts:   &mcp.PromptCapabilities{},
-		}
-	}
-
-	ghServer := github.NewServer(cfg.Version, serverOpts)
-
-	// Add middlewares
-	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
-	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.rest, clients.gqlHTTP))
-
 	// Create dependencies for tool handlers
 	deps := github.NewBaseDeps(
 		clients.rest,
@@ -188,26 +143,19 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		inventoryBuilder = inventoryBuilder.WithFilter(github.CreateToolScopeFilter(cfg.TokenScopes))
 	}
 
-	// Register GitHub tools/resources/prompts from the inventory.
-	// In dynamic mode with no explicit toolsets, this is a no-op since enabledToolsets
-	// is empty - users enable toolsets at runtime via the dynamic tools below (but can
-	// enable toolsets or tools explicitly that do need registration).
-	inventory.RegisterAll(context.Background(), ghServer, deps)
-
-	// Register MCP App UI resources (static resources for tool UI) - insiders only
-	if cfg.InsidersMode {
-		github.RegisterUIResources(ghServer)
-	}
-
-	// Register dynamic toolset management tools (enable/disable) - these are separate
-	// meta-tools that control the inventory, not part of the inventory itself
-	if cfg.DynamicToolsets {
-		registerDynamicTools(ghServer, inventory, deps, cfg.Translator)
+	inventory, err := inventoryBuilder.Build()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build inventory: %w", err)
 	}
 
 	ghServer, err := github.NewMCPServer(ctx, &cfg, deps, inventory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub MCP server: %w", err)
+	}
+
+	// Register MCP App UI resources (static resources for tool UI) - insiders only
+	if cfg.InsidersMode {
+		github.RegisterUIResources(ghServer)
 	}
 
 	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.rest, clients.gqlHTTP))
@@ -378,198 +326,8 @@ func createFeatureChecker(enabledFeatures []string) inventory.FeatureFlagChecker
 	for _, f := range enabledFeatures {
 		featureSet[f] = true
 	}
-
-	gqlURL, err := url.Parse("https://api.github.com/graphql")
-	if err != nil {
-		return apiHost{}, fmt.Errorf("failed to parse dotcom GraphQL URL: %w", err)
-	}
-
-	uploadURL, err := url.Parse("https://uploads.github.com")
-	if err != nil {
-		return apiHost{}, fmt.Errorf("failed to parse dotcom Upload URL: %w", err)
-	}
-
-	rawURL, err := url.Parse("https://raw.githubusercontent.com/")
-	if err != nil {
-		return apiHost{}, fmt.Errorf("failed to parse dotcom Raw URL: %w", err)
-	}
-
-	return apiHost{
-		baseRESTURL: baseRestURL,
-		graphqlURL:  gqlURL,
-		uploadURL:   uploadURL,
-		rawURL:      rawURL,
-	}, nil
-}
-
-func newGHECHost(hostname string) (apiHost, error) {
-	u, err := url.Parse(hostname)
-	if err != nil {
-		return apiHost{}, fmt.Errorf("failed to parse GHEC URL: %w", err)
-	}
-
-	// Unsecured GHEC would be an error
-	if u.Scheme == "http" {
-		return apiHost{}, fmt.Errorf("GHEC URL must be HTTPS")
-	}
-
-	restURL, err := url.Parse(fmt.Sprintf("https://api.%s/", u.Hostname()))
-	if err != nil {
-		return apiHost{}, fmt.Errorf("failed to parse GHEC REST URL: %w", err)
-	}
-
-	gqlURL, err := url.Parse(fmt.Sprintf("https://api.%s/graphql", u.Hostname()))
-	if err != nil {
-		return apiHost{}, fmt.Errorf("failed to parse GHEC GraphQL URL: %w", err)
-	}
-
-	uploadURL, err := url.Parse(fmt.Sprintf("https://uploads.%s/", u.Hostname()))
-	if err != nil {
-		return apiHost{}, fmt.Errorf("failed to parse GHEC Upload URL: %w", err)
-	}
-
-	rawURL, err := url.Parse(fmt.Sprintf("https://raw.%s/", u.Hostname()))
-	if err != nil {
-		return apiHost{}, fmt.Errorf("failed to parse GHEC Raw URL: %w", err)
-	}
-
-	return apiHost{
-		baseRESTURL: restURL,
-		graphqlURL:  gqlURL,
-		uploadURL:   uploadURL,
-		rawURL:      rawURL,
-	}, nil
-}
-
-func newGHESHost(hostname string) (apiHost, error) {
-	u, err := url.Parse(hostname)
-	if err != nil {
-		return apiHost{}, fmt.Errorf("failed to parse GHES URL: %w", err)
-	}
-
-	restURL, err := url.Parse(fmt.Sprintf("%s://%s/api/v3/", u.Scheme, u.Hostname()))
-	if err != nil {
-		return apiHost{}, fmt.Errorf("failed to parse GHES REST URL: %w", err)
-	}
-
-	gqlURL, err := url.Parse(fmt.Sprintf("%s://%s/api/graphql", u.Scheme, u.Hostname()))
-	if err != nil {
-		return apiHost{}, fmt.Errorf("failed to parse GHES GraphQL URL: %w", err)
-	}
-
-	// Check if subdomain isolation is enabled
-	// See https://docs.github.com/en/enterprise-server@3.17/admin/configuring-settings/hardening-security-for-your-enterprise/enabling-subdomain-isolation#about-subdomain-isolation
-	hasSubdomainIsolation := checkSubdomainIsolation(u.Scheme, u.Hostname())
-
-	var uploadURL *url.URL
-	if hasSubdomainIsolation {
-		// With subdomain isolation: https://uploads.hostname/
-		uploadURL, err = url.Parse(fmt.Sprintf("%s://uploads.%s/", u.Scheme, u.Hostname()))
-	} else {
-		// Without subdomain isolation: https://hostname/api/uploads/
-		uploadURL, err = url.Parse(fmt.Sprintf("%s://%s/api/uploads/", u.Scheme, u.Hostname()))
-	}
-	if err != nil {
-		return apiHost{}, fmt.Errorf("failed to parse GHES Upload URL: %w", err)
-	}
-
-	var rawURL *url.URL
-	if hasSubdomainIsolation {
-		// With subdomain isolation: https://raw.hostname/
-		rawURL, err = url.Parse(fmt.Sprintf("%s://raw.%s/", u.Scheme, u.Hostname()))
-	} else {
-		// Without subdomain isolation: https://hostname/raw/
-		rawURL, err = url.Parse(fmt.Sprintf("%s://%s/raw/", u.Scheme, u.Hostname()))
-	}
-	if err != nil {
-		return apiHost{}, fmt.Errorf("failed to parse GHES Raw URL: %w", err)
-	}
-
-	return apiHost{
-		baseRESTURL: restURL,
-		graphqlURL:  gqlURL,
-		uploadURL:   uploadURL,
-		rawURL:      rawURL,
-	}, nil
-}
-
-// checkSubdomainIsolation detects if GitHub Enterprise Server has subdomain isolation enabled
-// by attempting to ping the raw.<host>/_ping endpoint on the subdomain. The raw subdomain must always exist for subdomain isolation.
-func checkSubdomainIsolation(scheme, hostname string) bool {
-	subdomainURL := fmt.Sprintf("%s://raw.%s/_ping", scheme, hostname)
-
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-		// Don't follow redirects - we just want to check if the endpoint exists
-		//nolint:revive // parameters are required by http.Client.CheckRedirect signature
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
-	resp, err := client.Get(subdomainURL)
-	if err != nil {
-		return false
-	}
-	defer resp.Body.Close()
-
-	return resp.StatusCode == http.StatusOK
-}
-
-// Note that this does not handle ports yet, so development environments are out.
-func parseAPIHost(s string) (apiHost, error) {
-	if s == "" {
-		return newDotcomHost()
-	}
-
-	u, err := url.Parse(s)
-	if err != nil {
-		return apiHost{}, fmt.Errorf("could not parse host as URL: %s", s)
-	}
-
-	if u.Scheme == "" {
-		return apiHost{}, fmt.Errorf("host must have a scheme (http or https): %s", s)
-	}
-
-	if strings.HasSuffix(u.Hostname(), "github.com") {
-		return newDotcomHost()
-	}
-
-	if strings.HasSuffix(u.Hostname(), "ghe.com") {
-		return newGHECHost(s)
-	}
-
-	return newGHESHost(s)
-}
-
-type userAgentTransport struct {
-	transport http.RoundTripper
-	agent     string
-}
-
-func (t *userAgentTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req = req.Clone(req.Context())
-	req.Header.Set("User-Agent", t.agent)
-	return t.transport.RoundTrip(req)
-}
-
-type bearerAuthTransport struct {
-	transport http.RoundTripper
-	token     string
-}
-
-func (t *bearerAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req = req.Clone(req.Context())
-	req.Header.Set("Authorization", "Bearer "+t.token)
-	return t.transport.RoundTrip(req)
-}
-
-func addGitHubAPIErrorToContext(next mcp.MethodHandler) mcp.MethodHandler {
-	return func(ctx context.Context, method string, req mcp.Request) (result mcp.Result, err error) {
-		// Ensure the context is cleared of any previous errors
-		// as context isn't propagated through middleware
-		ctx = errors.ContextWithGitHubErrors(ctx)
-		return next(ctx, method, req)
+	return func(_ context.Context, flagName string) (bool, error) {
+		return featureSet[flagName], nil
 	}
 }
 

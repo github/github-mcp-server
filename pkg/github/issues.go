@@ -1278,7 +1278,7 @@ Options are:
 			}
 
 			// When insiders mode is enabled, show UI - the host will detect the UI metadata and display the form
-			if deps.GetFlags().InsidersMode {
+			if deps.GetFlags(ctx).InsidersMode {
 				if method == "update" {
 					issueNumber, numErr := RequiredInt(args, "issue_number")
 					if numErr != nil {

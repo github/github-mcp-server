@@ -556,7 +556,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			}
 
 			// When insiders mode is enabled, show UI - the host will detect the UI metadata and display the form
-			if deps.GetFlags().InsidersMode {
+			if deps.GetFlags(ctx).InsidersMode {
 				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. The interactive form will be displayed.", owner, repo)), nil, nil
 			}
 
