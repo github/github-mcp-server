@@ -287,8 +287,7 @@ function CreatePRApp() {
         head: headBranch,
         base: baseBranch,
         draft: isDraft,
-        maintainer_can_modify: maintainerCanModify,
-        show_ui: false,
+        maintainer_can_modify: maintainerCanModify
       });
 
       if (result.isError) {
