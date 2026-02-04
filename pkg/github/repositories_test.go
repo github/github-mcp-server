@@ -403,6 +403,183 @@ func Test_GetFileContents(t *testing.T) {
 	}
 }
 
+func Test_GetFileContents_WithDisabledEmbeddedResourcesFlag(t *testing.T) {
+	// Verify that when MCP_DISABLE_EMBEDDED_RESOURCES flag is enabled,
+	// file contents are returned as TextContent/ImageContent instead of EmbeddedResource
+	serverTool := GetFileContents(translations.NullTranslationHelper)
+
+	mockRawContent := []byte("# Test Content\n\nSample text.")
+	mockBinaryContent := []byte{0x89, 0x50, 0x4E, 0x47} // PNG header
+
+	tests := []struct {
+		name              string
+		mockedClient      *http.Client
+		requestArgs       map[string]interface{}
+		flagEnabled       bool
+		expectTextContent bool // true for TextContent, false for ImageContent
+		expectedText      string
+		expectedMimeType  string
+	}{
+		{
+			name: "text file with flag enabled",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposGitRefByOwnerByRepoByRef: mockResponse(t, http.StatusOK, "{\"ref\": \"refs/heads/main\", \"object\": {\"sha\": \"\"}}"),
+				GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
+				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					fileContent := &github.RepositoryContent{
+						Name: github.Ptr("test.md"),
+						Path: github.Ptr("test.md"),
+						SHA:  github.Ptr("abc123"),
+						Type: github.Ptr("file"),
+					}
+					contentBytes, _ := json.Marshal(fileContent)
+					_, _ = w.Write(contentBytes)
+				},
+				GetRawReposContentsByOwnerByRepoByBranchByPath: func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "text/markdown")
+					_, _ = w.Write(mockRawContent)
+				},
+			}),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+				"path":  "test.md",
+				"ref":   "refs/heads/main",
+			},
+			flagEnabled:       true,
+			expectTextContent: true,
+			expectedText:      string(mockRawContent),
+			expectedMimeType:  "text/markdown",
+		},
+		{
+			name: "binary file with flag enabled",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposGitRefByOwnerByRepoByRef: mockResponse(t, http.StatusOK, "{\"ref\": \"refs/heads/main\", \"object\": {\"sha\": \"\"}}"),
+				GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
+				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					fileContent := &github.RepositoryContent{
+						Name: github.Ptr("image.png"),
+						Path: github.Ptr("image.png"),
+						SHA:  github.Ptr("def456"),
+						Type: github.Ptr("file"),
+					}
+					contentBytes, _ := json.Marshal(fileContent)
+					_, _ = w.Write(contentBytes)
+				},
+				GetRawReposContentsByOwnerByRepoByBranchByPath: func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "image/png")
+					_, _ = w.Write(mockBinaryContent)
+				},
+			}),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+				"path":  "image.png",
+				"ref":   "refs/heads/main",
+			},
+			flagEnabled:       true,
+			expectTextContent: false,
+			expectedMimeType:  "image/png",
+		},
+		{
+			name: "text file with flag disabled (default behavior)",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposGitRefByOwnerByRepoByRef: mockResponse(t, http.StatusOK, "{\"ref\": \"refs/heads/main\", \"object\": {\"sha\": \"\"}}"),
+				GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
+				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					fileContent := &github.RepositoryContent{
+						Name: github.Ptr("test.md"),
+						Path: github.Ptr("test.md"),
+						SHA:  github.Ptr("abc123"),
+						Type: github.Ptr("file"),
+					}
+					contentBytes, _ := json.Marshal(fileContent)
+					_, _ = w.Write(contentBytes)
+				},
+				GetRawReposContentsByOwnerByRepoByBranchByPath: func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "text/markdown")
+					_, _ = w.Write(mockRawContent)
+				},
+			}),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+				"path":  "test.md",
+				"ref":   "refs/heads/main",
+			},
+			flagEnabled: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup client with mock
+			client := github.NewClient(tc.mockedClient)
+			mockRawClient := raw.NewClient(client, &url.URL{Scheme: "https", Host: "raw.example.com", Path: "/"})
+			
+			// Create feature flag checker
+			featureChecker := func(_ context.Context, flagName string) (bool, error) {
+				if flagName == FeatureFlagDisableEmbeddedResources {
+					return tc.flagEnabled, nil
+				}
+				return false, nil
+			}
+
+			deps := BaseDeps{
+				Client:         client,
+				RawClient:      mockRawClient,
+				featureChecker: featureChecker,
+			}
+			handler := serverTool.Handler(deps)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+
+			// Verify results
+			require.Len(t, result.Content, 2, "Expected 2 content items")
+			assert.False(t, result.IsError)
+
+			// First item should always be the message text
+			textContent, ok := result.Content[0].(*mcp.TextContent)
+			require.True(t, ok, "First content should be TextContent")
+			assert.Contains(t, textContent.Text, "successfully downloaded")
+
+			if tc.flagEnabled {
+				// When flag is enabled, second item should be TextContent or ImageContent
+				if tc.expectTextContent {
+					// Expecting TextContent for text files
+					content, ok := result.Content[1].(*mcp.TextContent)
+					require.True(t, ok, "Expected TextContent for text file with flag enabled, got %T", result.Content[1])
+					assert.Equal(t, tc.expectedText, content.Text)
+					assert.NotNil(t, content.Meta)
+					assert.Equal(t, tc.expectedMimeType, content.Meta["mimeType"])
+					assert.NotNil(t, content.Annotations)
+				} else {
+					// Expecting ImageContent for binary files
+					content, ok := result.Content[1].(*mcp.ImageContent)
+					require.True(t, ok, "Expected ImageContent for binary file with flag enabled, got %T", result.Content[1])
+					assert.Equal(t, tc.expectedMimeType, content.MIMEType)
+					assert.NotNil(t, content.Meta)
+					assert.NotNil(t, content.Annotations)
+					// Verify data is base64 encoded
+					assert.NotEmpty(t, content.Data)
+				}
+			} else {
+				// When flag is disabled, should use EmbeddedResource (default)
+				_, ok := result.Content[1].(*mcp.EmbeddedResource)
+				assert.True(t, ok, "Expected EmbeddedResource when flag is disabled, got %T", result.Content[1])
+			}
+		})
+	}
+}
+
 func Test_ForkRepository(t *testing.T) {
 	// Verify tool definition once
 	serverTool := ForkRepository(translations.NullTranslationHelper)
