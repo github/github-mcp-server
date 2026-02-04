@@ -17,14 +17,16 @@ import (
 //
 // Usage:
 //
+//	import "github.com/github/github-mcp-server/pkg/http/transport"
+//
 //	httpClient := &http.Client{
-//	    Transport: &github.GraphQLFeaturesTransport{
+//	    Transport: &transport.GraphQLFeaturesTransport{
 //	        Transport: http.DefaultTransport,
 //	    },
 //	}
 //	gqlClient := githubv4.NewClient(httpClient)
 //
-// Then use withGraphQLFeatures(ctx, "feature_name") when calling GraphQL operations.
+// Then use ghcontext.WithGraphQLFeatures(ctx, "feature_name") when calling GraphQL operations.
 type GraphQLFeaturesTransport struct {
 	// Transport is the underlying HTTP transport. If nil, http.DefaultTransport is used.
 	Transport http.RoundTripper

@@ -140,13 +140,11 @@ func registerDynamicTools(server *mcp.Server, inventory *inventory.Inventory, de
 	}
 }
 
-// resolveEnabledToolsets determines which toolsets should be enabled based on config.
+// ResolvedEnabledToolsets determines which toolsets should be enabled based on config.
 // Returns nil for "use defaults", empty slice for "none", or explicit list.
-func resolveEnabledToolsets(cfg *MCPServerConfig) []string {
-	enabledToolsets := cfg.EnabledToolsets
-
+func ResolvedEnabledToolsets(dynamicToolsets bool, enabledToolsets []string, enabledTools []string) []string {
 	// In dynamic mode, remove "all" and "default" since users enable toolsets on demand
-	if cfg.DynamicToolsets && enabledToolsets != nil {
+	if dynamicToolsets && enabledToolsets != nil {
 		enabledToolsets = RemoveToolset(enabledToolsets, string(ToolsetMetadataAll.ID))
 		enabledToolsets = RemoveToolset(enabledToolsets, string(ToolsetMetadataDefault.ID))
 	}
@@ -154,11 +152,11 @@ func resolveEnabledToolsets(cfg *MCPServerConfig) []string {
 	if enabledToolsets != nil {
 		return enabledToolsets
 	}
-	if cfg.DynamicToolsets {
+	if dynamicToolsets {
 		// Dynamic mode with no toolsets specified: start empty so users enable on demand
 		return []string{}
 	}
-	if len(cfg.EnabledTools) > 0 {
+	if len(enabledTools) > 0 {
 		// When specific tools are requested but no toolsets, don't use default toolsets
 		// This matches the original behavior: --tools=X alone registers only X
 		return []string{}

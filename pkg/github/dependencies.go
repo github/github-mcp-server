@@ -320,10 +320,14 @@ func (d *RequestDeps) GetGQLClient(ctx context.Context) (*githubv4.Client, error
 
 	// Construct GraphQL client
 	// We use NewEnterpriseClient unconditionally since we already parsed the API host
+	// Wrap transport with GraphQLFeaturesTransport to inject feature flags from context,
+	// matching the transport chain used by the remote server.
 	gqlHTTPClient := &http.Client{
 		Transport: &transport.BearerAuthTransport{
-			Transport: http.DefaultTransport,
-			Token:     token,
+			Transport: &transport.GraphQLFeaturesTransport{
+				Transport: http.DefaultTransport,
+			},
+			Token: token,
 		},
 	}
 

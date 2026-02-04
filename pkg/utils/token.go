@@ -22,7 +22,7 @@ const (
 	TokenTypeIDEToken
 )
 
-var supportedThirdPartyTokenPrefixes = map[string]TokenType{
+var supportedGitHubPrefixes = map[string]TokenType{
 	"ghp_":        TokenTypePersonalAccessToken,            // Personal access token (classic)
 	"github_pat_": TokenTypeFineGrainedPersonalAccessToken, // Fine-grained personal access token
 	"gho_":        TokenTypeOAuthAccessToken,               // OAuth access token
@@ -67,7 +67,7 @@ func ParseAuthorizationHeader(req *http.Request) (tokenType TokenType, token str
 		return TokenTypeIDEToken, token, nil
 	}
 
-	for prefix, tokenType := range supportedThirdPartyTokenPrefixes {
+	for prefix, tokenType := range supportedGitHubPrefixes {
 		if strings.HasPrefix(token, prefix) {
 			return tokenType, token, nil
 		}

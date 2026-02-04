@@ -214,7 +214,7 @@ func TestResolveEnabledToolsets(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := resolveEnabledToolsets(&tc.cfg)
+			result := ResolvedEnabledToolsets(tc.cfg.DynamicToolsets, tc.cfg.EnabledToolsets, tc.cfg.EnabledTools)
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
