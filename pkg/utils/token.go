@@ -19,7 +19,6 @@ const (
 	TokenTypeOAuthAccessToken
 	TokenTypeUserToServerGitHubAppToken
 	TokenTypeServerToServerGitHubAppToken
-	TokenTypeIDEToken
 )
 
 var supportedGitHubPrefixes = map[string]TokenType{
@@ -59,12 +58,6 @@ func ParseAuthorizationHeader(req *http.Request) (tokenType TokenType, token str
 		} else {
 			token = authHeader
 		}
-	}
-
-	// Do a naïve check for a colon in the token - currently, only the IDE token has a colon in it.
-	// ex: tid=1;exp=25145314523;chat=1:<hmac>
-	if strings.Contains(token, ":") {
-		return TokenTypeIDEToken, token, nil
 	}
 
 	for prefix, tokenType := range supportedGitHubPrefixes {
