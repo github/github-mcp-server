@@ -12,6 +12,9 @@ on:
       - 'ui/**'
       - '.github/workflows/ui-e2e.yml'
 
+permissions:
+  contents: read
+
 jobs:
   test:
     name: Playwright E2E Tests
