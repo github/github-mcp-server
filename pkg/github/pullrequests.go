@@ -916,11 +916,11 @@ func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventor
 				Description: "Repository name",
 			},
 			"pullNumber": {
-				Type:        "string",
+				Type:        "number",
 				Description: "Pull request number",
 			},
 			"commentId": {
-				Type:        "string",
+				Type:        "number",
 				Description: "The ID of the comment to reply to",
 			},
 			"body": {
