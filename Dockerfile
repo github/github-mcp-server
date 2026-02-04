@@ -1,13 +1,11 @@
 FROM node:20-alpine AS ui-build
-WORKDIR /ui
-COPY ui/package*.json ./
-RUN npm ci
-COPY ui/ ./
-RUN npm run build && \
-    mkdir -p /ui/out && \
-    mv dist/src/apps/get-me/index.html /ui/out/get-me.html && \
-    mv dist/src/apps/issue-write/index.html /ui/out/issue-write.html && \
-    mv dist/src/apps/pr-write/index.html /ui/out/pr-write.html
+WORKDIR /app
+COPY ui/package*.json ./ui/
+RUN cd ui && npm ci
+COPY ui/ ./ui/
+# Create output directory and build - vite outputs directly to pkg/github/ui_dist/
+RUN mkdir -p ./pkg/github/ui_dist && \
+    cd ui && npm run build
 
 FROM golang:1.25.6-alpine AS build
 ARG VERSION="dev"
@@ -23,7 +21,7 @@ RUN --mount=type=cache,target=/var/cache/apk \
 COPY . .
 
 # Copy built UI assets over the placeholder
-COPY --from=ui-build /ui/out/* ./pkg/github/ui_dist/
+COPY --from=ui-build /app/pkg/github/ui_dist/* ./pkg/github/ui_dist/
 
 # Build the server
 RUN --mount=type=cache,target=/go/pkg/mod \
