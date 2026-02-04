@@ -181,7 +181,6 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 		WithToolsets(enabledToolsets).
 		WithTools(cfg.EnabledTools).
 		WithFeatureChecker(featureChecker).
-		WithInsidersMode(cfg.InsidersMode).
 		WithServerInstructions()
 
 	// Apply token scope filtering if scopes are known (for PAT filtering)

@@ -1159,15 +1159,8 @@ func IssueWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 	return NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
-			Name: "issue_write",
-			Description: t("TOOL_ISSUE_WRITE_DESCRIPTION", `Create a new or update an existing issue in a GitHub repository.
-
-When show_ui is true, an interactive form is displayed for the user to fill in issue details. Use show_ui when:
-- Creating a new issue and you want user input on the details
-- The user hasn't specified all required fields (title, body, etc.)
-- Interactive feedback would be valuable
-
-When show_ui is false or omitted, the issue is created/updated directly with the provided parameters.`),
+			Name:        "issue_write",
+			Description: t("TOOL_ISSUE_WRITE_DESCRIPTION", "Create a new or update an existing issue in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_ISSUE_WRITE_USER_TITLE", "Create or update issue."),
 				ReadOnlyHint: false,
@@ -1181,10 +1174,6 @@ When show_ui is false or omitted, the issue is created/updated directly with the
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
 				Properties: map[string]*jsonschema.Schema{
-					"show_ui": {
-						Type:        "boolean",
-						Description: "If true, show an interactive form for the user to fill in issue details. If false or omitted, create/update the issue directly with the provided parameters.",
-					},
 					"method": {
 						Type: "string",
 						Description: `Write operation to perform on a single issue.
@@ -1270,15 +1259,8 @@ Options are:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Check if UI mode is requested
-			showUI, err := OptionalParam[bool](args, "show_ui")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			// If show_ui is true and insiders mode is enabled, return a message indicating the UI should be shown
-			// The host will detect the UI metadata and display the form
-			if showUI && deps.GetFlags().InsidersMode {
+			// When insiders mode is enabled, show UI - the host will detect the UI metadata and display the form
+			if deps.GetFlags().InsidersMode {
 				if method == "update" {
 					issueNumber, numErr := RequiredInt(args, "issue_number")
 					if numErr != nil {
