@@ -36,35 +36,31 @@ func NewToolResultErrorFromErr(message string, err error) *mcp.CallToolResult {
 	}
 }
 
-func NewToolResultResource(message string, contents *mcp.ResourceContents) *mcp.CallToolResult {
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{
-			&mcp.TextContent{
-				Text: message,
-			},
-			&mcp.EmbeddedResource{
-				Resource: contents,
-			},
-		},
-		IsError: false,
-	}
-}
-
-// NewToolResultResourceWithFlag returns a CallToolResult with either an embedded resource
+// NewToolResultResource returns a CallToolResult with either an embedded resource
 // or regular content based on the disableEmbeddedResources flag.
 // When disableEmbeddedResources is true, text content is returned as TextContent and
 // binary content is returned as ImageContent, providing better client compatibility.
-func NewToolResultResourceWithFlag(message string, contents *mcp.ResourceContents, disableEmbeddedResources bool) *mcp.CallToolResult {
+func NewToolResultResource(message string, contents *mcp.ResourceContents, disableEmbeddedResources bool) *mcp.CallToolResult {
 	if !disableEmbeddedResources {
 		// Default behavior - return as embedded resource
-		return NewToolResultResource(message, contents)
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: message,
+				},
+				&mcp.EmbeddedResource{
+					Resource: contents,
+				},
+			},
+			IsError: false,
+		}
 	}
 
 	// When flag is enabled, return as regular content
 	var content mcp.Content
 	switch {
 	case contents.Text != "":
-		// Text content - use TextContent with mime type in annotations
+		// Text content - use TextContent with MIME type in metadata
 		content = &mcp.TextContent{
 			Text: contents.Text,
 			Annotations: &mcp.Annotations{
@@ -76,7 +72,7 @@ func NewToolResultResourceWithFlag(message string, contents *mcp.ResourceContent
 			},
 		}
 	case len(contents.Blob) > 0:
-		// Binary content - use ImageContent with base64 data
+		// Binary content - use ImageContent with raw binary data
 		// Note: MCP SDK will handle base64 encoding during JSON marshaling
 		content = &mcp.ImageContent{
 			Data:     contents.Blob,
@@ -90,7 +86,17 @@ func NewToolResultResourceWithFlag(message string, contents *mcp.ResourceContent
 		}
 	default:
 		// Fallback to embedded resource if neither text nor blob
-		return NewToolResultResource(message, contents)
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: message,
+				},
+				&mcp.EmbeddedResource{
+					Resource: contents,
+				},
+			},
+			IsError: false,
+		}
 	}
 
 	return &mcp.CallToolResult{

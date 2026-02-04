@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewToolResultResourceWithFlag_DisabledFlag(t *testing.T) {
+func TestNewToolResultResource_DisabledFlag(t *testing.T) {
 	// When flag is disabled, should return embedded resource (default behavior)
 	contents := &mcp.ResourceContents{
 		URI:      "test://file.txt",
@@ -16,7 +16,7 @@ func TestNewToolResultResourceWithFlag_DisabledFlag(t *testing.T) {
 		MIMEType: "text/plain",
 	}
 
-	result := NewToolResultResourceWithFlag("Test message", contents, false)
+	result := NewToolResultResource("Test message", contents, false)
 
 	require.NotNil(t, result)
 	require.Len(t, result.Content, 2)
@@ -35,7 +35,7 @@ func TestNewToolResultResourceWithFlag_DisabledFlag(t *testing.T) {
 	assert.Equal(t, contents.MIMEType, embeddedResource.Resource.MIMEType)
 }
 
-func TestNewToolResultResourceWithFlag_EnabledFlag_TextContent(t *testing.T) {
+func TestNewToolResultResource_EnabledFlag_TextContent(t *testing.T) {
 	// When flag is enabled with text content, should return TextContent
 	contents := &mcp.ResourceContents{
 		URI:      "test://file.txt",
@@ -43,7 +43,7 @@ func TestNewToolResultResourceWithFlag_EnabledFlag_TextContent(t *testing.T) {
 		MIMEType: "text/plain",
 	}
 
-	result := NewToolResultResourceWithFlag("Test message", contents, true)
+	result := NewToolResultResource("Test message", contents, true)
 
 	require.NotNil(t, result)
 	require.Len(t, result.Content, 2)
@@ -65,7 +65,7 @@ func TestNewToolResultResourceWithFlag_EnabledFlag_TextContent(t *testing.T) {
 	assert.Contains(t, textContent.Annotations.Audience, mcp.Role("user"))
 }
 
-func TestNewToolResultResourceWithFlag_EnabledFlag_BinaryContent(t *testing.T) {
+func TestNewToolResultResource_EnabledFlag_BinaryContent(t *testing.T) {
 	// When flag is enabled with binary content, should return ImageContent
 	binaryData := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A} // PNG header
 	contents := &mcp.ResourceContents{
@@ -74,7 +74,7 @@ func TestNewToolResultResourceWithFlag_EnabledFlag_BinaryContent(t *testing.T) {
 		MIMEType: "image/png",
 	}
 
-	result := NewToolResultResourceWithFlag("Binary message", contents, true)
+	result := NewToolResultResource("Binary message", contents, true)
 
 	require.NotNil(t, result)
 	require.Len(t, result.Content, 2)
@@ -98,14 +98,14 @@ func TestNewToolResultResourceWithFlag_EnabledFlag_BinaryContent(t *testing.T) {
 	assert.Contains(t, imageContent.Annotations.Audience, mcp.Role("user"))
 }
 
-func TestNewToolResultResourceWithFlag_EnabledFlag_EmptyContent(t *testing.T) {
+func TestNewToolResultResource_EnabledFlag_EmptyContent(t *testing.T) {
 	// When flag is enabled but neither text nor blob exists, should fallback to embedded resource
 	contents := &mcp.ResourceContents{
 		URI:      "test://empty",
 		MIMEType: "application/octet-stream",
 	}
 
-	result := NewToolResultResourceWithFlag("Empty message", contents, true)
+	result := NewToolResultResource("Empty message", contents, true)
 
 	require.NotNil(t, result)
 	require.Len(t, result.Content, 2)

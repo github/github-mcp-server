@@ -351,43 +351,13 @@ The GitHub MCP Server supports runtime feature flags that can modify tool behavi
 
 ### MCP_DISABLE_EMBEDDED_RESOURCES
 
-**Purpose:** Improves compatibility with MCP clients that don't fully support embedded resources.
-
 When enabled, the `get_file_contents` tool returns file content as standard MCP content types instead of embedded resources:
 - **Text files**: Returned as `TextContent` with MIME type in metadata
-- **Binary files**: Returned as `ImageContent` with base64-encoded data
-
-**When to use:** Enable this flag if your MCP client has issues displaying or accessing file contents retrieved via `get_file_contents`.
+- **Binary files**: Returned as `ImageContent` with raw binary data
 
 **Configuration:**
 
-<table>
-<tr><th>Remote Server</th><th>Local Server</th></tr>
-<tr valign="top">
-<td>
-
-**Coming soon:** Remote server support for this flag will be available in the next release.
-
-</td>
-<td>
-
-Feature flags are checked at runtime via the feature flag checker. Configuration method depends on your deployment:
-
-**For custom integrations:**
-```go
-featureChecker := func(ctx context.Context, flagName string) (bool, error) {
-    if flagName == "MCP_DISABLE_EMBEDDED_RESOURCES" {
-        return true, nil // Enable the flag
-    }
-    return false, nil
-}
-```
-
-</td>
-</tr>
-</table>
-
-> **Note:** This feature flag does not affect other tools, only `get_file_contents`. The default behavior (embedded resources) is maintained when the flag is not enabled, ensuring backward compatibility.
+Feature flags are checked at runtime via the feature flag checker passed to `BaseDeps`. You can configure this through environment variables or command-line arguments depending on your deployment setup.
 
 ---
 
