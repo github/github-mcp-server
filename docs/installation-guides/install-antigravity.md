@@ -102,6 +102,14 @@ If you prefer running the server locally with Docker:
 
 ## Troubleshooting
 
+### File contents not displaying properly
+
+If you experience issues with the `get_file_contents` tool not displaying file contents correctly, this may be due to limited embedded resource support in some versions of Antigravity.
+
+**Solution:** The remote GitHub MCP Server will soon support the `MCP_DISABLE_EMBEDDED_RESOURCES` feature flag to improve compatibility. This flag makes file contents return as standard MCP content types that work better across different clients.
+
+For updates on this feature, see the [Server Configuration Guide](../server-configuration.md#feature-flags).
+
 ### "Error: serverUrl or command must be specified"
 
 Make sure you're using `serverUrl` (not `url`) for the remote server configuration. Antigravity requires `serverUrl` for HTTP-based MCP servers.

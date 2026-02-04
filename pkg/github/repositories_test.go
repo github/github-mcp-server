@@ -519,7 +519,7 @@ func Test_GetFileContents_WithDisabledEmbeddedResourcesFlag(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
 			mockRawClient := raw.NewClient(client, &url.URL{Scheme: "https", Host: "raw.example.com", Path: "/"})
-			
+
 			// Create feature flag checker
 			featureChecker := func(_ context.Context, flagName string) (bool, error) {
 				if flagName == FeatureFlagDisableEmbeddedResources {
