@@ -28,6 +28,5 @@ conformance-report/
 ui/dist/
 ui/node_modules/
 
-# Embedded UI assets are committed (built from ui/)
-
+# Embedded UI assets (built from ui/)
 pkg/github/ui_dist/
