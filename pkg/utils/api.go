@@ -102,7 +102,7 @@ func newGHECHost(hostname string) (APIHost, error) {
 		return APIHost{}, fmt.Errorf("failed to parse GHEC GraphQL URL: %w", err)
 	}
 
-	uploadURL, err := url.Parse(fmt.Sprintf("https://uploads.%s", u.Hostname()))
+	uploadURL, err := url.Parse(fmt.Sprintf("https://uploads.%s/", u.Hostname()))
 	if err != nil {
 		return APIHost{}, fmt.Errorf("failed to parse GHEC Upload URL: %w", err)
 	}
