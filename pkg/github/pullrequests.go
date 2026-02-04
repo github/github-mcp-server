@@ -279,7 +279,7 @@ func GetPullRequestCheckRuns(ctx context.Context, client *github.Client, owner, 
 			err,
 		), nil
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
@@ -305,7 +305,7 @@ func GetPullRequestCheckRuns(ctx context.Context, client *github.Client, owner, 
 			err,
 		), nil
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
