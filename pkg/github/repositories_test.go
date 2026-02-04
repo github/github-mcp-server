@@ -826,6 +826,8 @@ func Test_ListCommits(t *testing.T) {
 	assert.Contains(t, schema.Properties, "repo")
 	assert.Contains(t, schema.Properties, "sha")
 	assert.Contains(t, schema.Properties, "author")
+	assert.Contains(t, schema.Properties, "since")
+	assert.Contains(t, schema.Properties, "until")
 	assert.Contains(t, schema.Properties, "page")
 	assert.Contains(t, schema.Properties, "perPage")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
@@ -964,6 +966,49 @@ func Test_ListCommits(t *testing.T) {
 			},
 			expectError:     false,
 			expectedCommits: mockCommits,
+		},
+		{
+			name: "successful commits fetch with since and until",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposCommitsByOwnerByRepo: expectQueryParams(t, map[string]string{
+					"since":    "2025-01-01T00:00:00Z",
+					"until":    "2025-01-31T23:59:59Z",
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockCommits),
+				),
+			}),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+				"since": "2025-01-01T00:00:00Z",
+				"until": "2025-01-31T23:59:59Z",
+			},
+			expectError:     false,
+			expectedCommits: mockCommits,
+		},
+		{
+			name:         "invalid since date format",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+				"since": "not-a-date",
+			},
+			expectError:    true,
+			expectedErrMsg: "invalid 'since' date format",
+		},
+		{
+			name:         "invalid until date format",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+				"until": "2025/01/01",
+			},
+			expectError:    true,
+			expectedErrMsg: "invalid 'until' date format",
 		},
 		{
 			name: "commits fetch fails",
