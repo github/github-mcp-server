@@ -493,15 +493,8 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 	return NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
-			Name: "create_pull_request",
-			Description: t("TOOL_CREATE_PULL_REQUEST_DESCRIPTION", `Create a new pull request in a GitHub repository.
-
-When show_ui is true, an interactive form is displayed for the user to fill in PR details. Use show_ui when:
-- Creating a new PR and you want user input on the details
-- The user hasn't specified all required fields (title, head, base, etc.)
-- Interactive feedback would be valuable (branch selection, reviewers, labels)
-
-When show_ui is false or omitted, the PR is created directly with the provided parameters.`),
+			Name:        "create_pull_request",
+			Description: t("TOOL_CREATE_PULL_REQUEST_DESCRIPTION", "Create a new pull request in a GitHub repository."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_CREATE_PULL_REQUEST_USER_TITLE", "Open new pull request"),
 				ReadOnlyHint: false,
@@ -515,10 +508,6 @@ When show_ui is false or omitted, the PR is created directly with the provided p
 			InputSchema: &jsonschema.Schema{
 				Type: "object",
 				Properties: map[string]*jsonschema.Schema{
-					"show_ui": {
-						Type:        "boolean",
-						Description: "If true, show an interactive form for the user to fill in PR details. If false or omitted, create the PR directly with the provided parameters.",
-					},
 					"owner": {
 						Type:        "string",
 						Description: "Repository owner",
@@ -566,14 +555,8 @@ When show_ui is false or omitted, the PR is created directly with the provided p
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Check if UI mode is requested
-			showUI, err := OptionalParam[bool](args, "show_ui")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			// If show_ui is true and insiders mode is enabled, return a message indicating the UI should be shown
-			if showUI && deps.GetFlags().InsidersMode {
+			// When insiders mode is enabled, show UI - the host will detect the UI metadata and display the form
+			if deps.GetFlags().InsidersMode {
 				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. The interactive form will be displayed.", owner, repo)), nil, nil
 			}
 

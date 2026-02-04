@@ -2031,7 +2031,6 @@ func Test_CreatePullRequest(t *testing.T) {
 	assert.Equal(t, "create_pull_request", tool.Name)
 	assert.NotEmpty(t, tool.Description)
 	schema := tool.InputSchema.(*jsonschema.Schema)
-	assert.Contains(t, schema.Properties, "show_ui")
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
 	assert.Contains(t, schema.Properties, "title")
