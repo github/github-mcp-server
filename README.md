@@ -1223,6 +1223,8 @@ The following sets of tools are available:
   - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: Repository name (string, required)
   - `sha`: Commit SHA, branch or tag name to list commits of. If not provided, uses the default branch of the repository. If a commit SHA is provided, will list commits up to that SHA. (string, optional)
+  - `since`: Only show commits after this date (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ) (string, optional)
+  - `until`: Only show commits before this date (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ) (string, optional)
 
 - **list_releases** - List releases
   - **Required OAuth Scopes**: `repo`
