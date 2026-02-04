@@ -1516,7 +1516,7 @@ func SubmitPendingPullRequestReview(ctx context.Context, client *githubv4.Client
 		"prNum":  githubv4.Int(params.PullNumber),
 	}
 
-	if err := client.Query(context.Background(), &getLatestReviewForViewerQuery, vars); err != nil {
+	if err := client.Query(ctx, &getLatestReviewForViewerQuery, vars); err != nil {
 		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
 			"failed to get latest review for current user",
 			err,
@@ -1601,7 +1601,7 @@ func DeletePendingPullRequestReview(ctx context.Context, client *githubv4.Client
 		"prNum":  githubv4.Int(params.PullNumber),
 	}
 
-	if err := client.Query(context.Background(), &getLatestReviewForViewerQuery, vars); err != nil {
+	if err := client.Query(ctx, &getLatestReviewForViewerQuery, vars); err != nil {
 		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
 			"failed to get latest review for current user",
 			err,
@@ -1775,7 +1775,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 				"prNum":  githubv4.Int(params.PullNumber),
 			}
 
-			if err := client.Query(context.Background(), &getLatestReviewForViewerQuery, vars); err != nil {
+			if err := client.Query(ctx, &getLatestReviewForViewerQuery, vars); err != nil {
 				return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
 					"failed to get latest review for current user",
 					err,
