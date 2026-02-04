@@ -640,8 +640,7 @@ function CreateIssueApp() {
         owner,
         repo,
         title: title.trim(),
-        body: body.trim(),
-        show_ui: false, // Execute the action directly, don't show UI again
+        body: body.trim()
       };
 
       if (isUpdateMode && issueNumber) {
