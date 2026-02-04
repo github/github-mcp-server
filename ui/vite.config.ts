@@ -6,17 +6,19 @@ import { resolve } from "path";
 // Get the app to build from environment variable
 const app = process.env.APP;
 
-if (!app) {
-  throw new Error("APP environment variable must be set");
-}
+// In dev mode (no APP specified), serve all apps
+const isDev = !app;
 
 export default defineConfig({
-  plugins: [react(), viteSingleFile()],
-  build: {
-    outDir: "dist",
-    emptyOutDir: false,
-    rollupOptions: {
-      input: resolve(__dirname, `src/apps/${app}/index.html`),
-    },
-  },
+  plugins: isDev ? [react()] : [react(), viteSingleFile()],
+  root: isDev ? resolve(__dirname, "src/apps") : undefined,
+  build: isDev
+    ? {}
+    : {
+        outDir: "dist",
+        emptyOutDir: false,
+        rollupOptions: {
+          input: resolve(__dirname, `src/apps/${app}/index.html`),
+        },
+      },
 });

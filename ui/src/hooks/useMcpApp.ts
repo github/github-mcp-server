@@ -1,5 +1,6 @@
 import { useApp as useExtApp } from "@modelcontextprotocol/ext-apps/react";
-import type { App, CallToolResult } from "@modelcontextprotocol/ext-apps";
+import type { App } from "@modelcontextprotocol/ext-apps";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { useState, useCallback } from "react";
 
 interface UseMcpAppOptions {

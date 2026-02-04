@@ -11,7 +11,10 @@
     "build:pr-write": "cross-env APP=pr-write vite build",
     "dev": "npm run build",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report"
   },
   "dependencies": {
     "@github/markdown-toolbar-element": "^2.2.3",
@@ -24,6 +27,7 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.1",
     "@types/node": "^25.2.0",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
