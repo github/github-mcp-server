@@ -7,7 +7,7 @@ import { resolve } from "path";
 const app = process.env.APP;
 
 if (!app) {
-  throw new Error("APP environment variable must be set (get-me or create-issue)");
+  throw new Error("APP environment variable must be set");
 }
 
 export default defineConfig({
