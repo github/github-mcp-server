@@ -1,7 +1,6 @@
 package utils //nolint:revive //TODO: figure out a better name for this package
 
 import (
-	"encoding/base64"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -90,9 +89,8 @@ func TestNewToolResultResourceWithFlag_EnabledFlag_BinaryContent(t *testing.T) {
 	imageContent, ok := result.Content[1].(*mcp.ImageContent)
 	require.True(t, ok, "Expected ImageContent but got %T", result.Content[1])
 
-	// Data should be base64 encoded
-	expectedBase64 := base64.StdEncoding.EncodeToString(binaryData)
-	assert.Equal(t, []byte(expectedBase64), imageContent.Data)
+	// Data should be raw binary (SDK handles base64 encoding during JSON marshaling)
+	assert.Equal(t, binaryData, imageContent.Data)
 	assert.Equal(t, "image/png", imageContent.MIMEType)
 	assert.NotNil(t, imageContent.Meta)
 	assert.Equal(t, "test://image.png", imageContent.Meta["uri"])

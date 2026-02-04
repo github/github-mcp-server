@@ -1,8 +1,6 @@
 package utils //nolint:revive //TODO: figure out a better name for this package
 
 import (
-	"encoding/base64"
-
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -79,8 +77,9 @@ func NewToolResultResourceWithFlag(message string, contents *mcp.ResourceContent
 		}
 	case len(contents.Blob) > 0:
 		// Binary content - use ImageContent with base64 data
+		// Note: MCP SDK will handle base64 encoding during JSON marshaling
 		content = &mcp.ImageContent{
-			Data:     []byte(base64.StdEncoding.EncodeToString(contents.Blob)),
+			Data:     contents.Blob,
 			MIMEType: contents.MIMEType,
 			Meta: mcp.Meta{
 				"uri": contents.URI,
