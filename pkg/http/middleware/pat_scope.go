@@ -9,8 +9,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/utils"
 )
 
-// WithScopeChallenge creates a new middleware that determines if an OAuth request contains sufficient scopes to
-// complete the request and returns a scope challenge if not.
+// WithPATScopes is a middleware that fetches and stores scopes for classic Personal Access Tokens (PATs) in the request context.
 func WithPATScopes(logger *slog.Logger, scopeFetcher scopes.FetcherInterface) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
