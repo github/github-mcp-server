@@ -473,23 +473,33 @@ function CreateIssueApp() {
               prefillApplied.current.body = true;
             }
 
-            // Extract data for deferred matching when available lists load
-            const labelNames = (issueData.labels || [])
-              .map((l: { name?: string } | string) => typeof l === 'string' ? l : l.name)
-              .filter(Boolean) as string[];
-            
+            // Pre-fill assignees immediately from issue data
             const assigneeLogins = (issueData.assignees || [])
               .map((a: { login?: string } | string) => typeof a === 'string' ? a : a.login)
+              .filter(Boolean) as string[];
+            if (assigneeLogins.length > 0 && !prefillApplied.current.assignees) {
+              setSelectedAssignees(assigneeLogins.map(login => ({ id: login, text: login })));
+              prefillApplied.current.assignees = true;
+            }
+
+            // Pre-fill issue type immediately from issue data
+            const issueTypeName = issueData.type?.name || (typeof issueData.type === 'string' ? issueData.type : null);
+            if (issueTypeName && !prefillApplied.current.type) {
+              setSelectedIssueType({ id: issueTypeName, text: issueTypeName });
+              prefillApplied.current.type = true;
+            }
+
+            // Extract data for deferred matching when available lists load (for labels and milestones)
+            const labelNames = (issueData.labels || [])
+              .map((l: { name?: string } | string) => typeof l === 'string' ? l : l.name)
               .filter(Boolean) as string[];
             
             const milestoneNumber = issueData.milestone 
               ? (typeof issueData.milestone === 'object' ? issueData.milestone.number : issueData.milestone)
               : null;
-            
-            // Issue type can be an object with name or just a string
-            const issueType = issueData.type?.name || (typeof issueData.type === 'string' ? issueData.type : null);
 
-            setExistingIssueData({ labels: labelNames, assignees: assigneeLogins, milestoneNumber, issueType });
+            console.log("Setting existingIssueData:", { labels: labelNames, assignees: assigneeLogins, milestoneNumber, issueType: issueTypeName });
+            setExistingIssueData({ labels: labelNames, assignees: assigneeLogins, milestoneNumber, issueType: issueTypeName });
           }
         }
       } catch (e) {
@@ -510,35 +520,15 @@ function CreateIssueApp() {
     }
   }, [existingIssueData, availableLabels]);
 
-  // Apply existing assignees when available assignees load
-  useEffect(() => {
-    if (!existingIssueData?.assignees.length || !availableAssignees.length || prefillApplied.current.assignees) return;
-    const matched = availableAssignees.filter((a) => existingIssueData.assignees.includes(a.text));
-    if (matched.length > 0) {
-      setSelectedAssignees(matched);
-      prefillApplied.current.assignees = true;
-    }
-  }, [existingIssueData, availableAssignees]);
-
   // Apply existing milestone when available milestones load
   useEffect(() => {
     if (!existingIssueData?.milestoneNumber || !availableMilestones.length || prefillApplied.current.milestone) return;
     const matched = availableMilestones.find((m) => m.number === existingIssueData.milestoneNumber);
     if (matched) {
       setSelectedMilestone(matched);
-      prefillApplied.current.milestone = true;
     }
+    prefillApplied.current.milestone = true;
   }, [existingIssueData, availableMilestones]);
-
-  // Apply existing issue type when available issue types load
-  useEffect(() => {
-    if (!existingIssueData?.issueType || !availableIssueTypes.length || prefillApplied.current.type) return;
-    const matched = availableIssueTypes.find((t) => t.text === existingIssueData.issueType);
-    if (matched) {
-      setSelectedIssueType(matched);
-      prefillApplied.current.type = true;
-    }
-  }, [existingIssueData, availableIssueTypes]);
 
   // Pre-fill title and body immediately (don't wait for data loading)
   useEffect(() => {
