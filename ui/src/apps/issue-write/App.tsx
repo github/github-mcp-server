@@ -478,14 +478,18 @@ function CreateIssueApp() {
             const assigneeLogins = (issueData.assignees || [])
               .map((a: { login?: string } | string) => typeof a === 'string' ? a : a.login)
               .filter(Boolean) as string[];
+            console.log("Assignees from issue data:", issueData.assignees, "-> logins:", assigneeLogins, "prefillApplied:", prefillApplied.current.assignees);
             if (assigneeLogins.length > 0 && !prefillApplied.current.assignees) {
+              console.log("Setting selectedAssignees to:", assigneeLogins.map(login => ({ id: login, text: login })));
               setSelectedAssignees(assigneeLogins.map(login => ({ id: login, text: login })));
               prefillApplied.current.assignees = true;
             }
 
             // Pre-fill issue type immediately from issue data
             const issueTypeName = issueData.type?.name || (typeof issueData.type === 'string' ? issueData.type : null);
+            console.log("Issue type from issue data:", issueData.type, "-> name:", issueTypeName, "prefillApplied:", prefillApplied.current.type);
             if (issueTypeName && !prefillApplied.current.type) {
+              console.log("Setting selectedIssueType to:", { id: issueTypeName, text: issueTypeName });
               setSelectedIssueType({ id: issueTypeName, text: issueTypeName });
               prefillApplied.current.type = true;
             }
@@ -652,7 +656,15 @@ function CreateIssueApp() {
         params.type = selectedIssueType.text;
       }
 
+      console.log("Submitting issue_write with params:", JSON.stringify(params, null, 2));
+      console.log("selectedLabels:", selectedLabels);
+      console.log("selectedAssignees:", selectedAssignees);
       const result = await callTool("issue_write", params);
+      console.log("issue_write result:", result);
+      console.log("issue_write result.content:", result.content);
+      if (result.content?.[0]?.text) {
+        console.log("issue_write result text:", result.content[0].text);
+      }
 
       if (result.isError) {
         const textContent = result.content?.find(
@@ -863,7 +875,7 @@ function CreateIssueApp() {
       </Box>
 
       {/* Metadata section */}
-      <Box display="flex" gap={3} mb={3} sx={{ flexWrap: "wrap" }}>
+      <Box display="flex" gap={4} mb={3} sx={{ flexWrap: "wrap" }}>
         {/* Labels dropdown */}
         <ActionMenu>
           <ActionMenu.Button size="small" leadingVisual={TagIcon}>
