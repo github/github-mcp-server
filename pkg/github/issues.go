@@ -602,8 +602,10 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 }
 
 // ListAssignees creates a tool to list available assignees for a repository.
+// This tool is only available when insiders mode is enabled as it's a helper
+// for the MCP Apps UI.
 func ListAssignees(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	st := NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "list_assignees",
@@ -679,11 +681,15 @@ func ListAssignees(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			return utils.NewToolResultText(string(out)), nil, nil
 		})
+	st.InsidersOnly = true
+	return st
 }
 
 // ListMilestones creates a tool to list milestones for a repository.
+// This tool is only available when insiders mode is enabled as it's a helper
+// for the MCP Apps UI.
 func ListMilestones(t translations.TranslationHelperFunc) inventory.ServerTool {
-	return NewTool(
+	st := NewTool(
 		ToolsetMetadataIssues,
 		mcp.Tool{
 			Name:        "list_milestones",
@@ -775,6 +781,8 @@ func ListMilestones(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			return utils.NewToolResultText(string(out)), nil, nil
 		})
+	st.InsidersOnly = true
+	return st
 }
 
 // AddIssueComment creates a tool to add a comment to an issue.
