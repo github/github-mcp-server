@@ -10,7 +10,9 @@ import (
 	"github.com/github/github-mcp-server/pkg/http/middleware"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -23,20 +25,29 @@ type Handler struct {
 	config                 *ServerConfig
 	deps                   github.ToolDependencies
 	logger                 *slog.Logger
+	apiHosts               utils.APIHostResolver
 	t                      translations.TranslationHelperFunc
 	githubMcpServerFactory GitHubMCPServerFactoryFunc
 	inventoryFactoryFunc   InventoryFactoryFunc
 	oauthCfg               *oauth.Config
+	scopeFetcher           scopes.FetcherInterface
 }
 
 type HandlerOptions struct {
 	GitHubMcpServerFactory GitHubMCPServerFactoryFunc
 	InventoryFactory       InventoryFactoryFunc
 	OAuthConfig            *oauth.Config
+	ScopeFetcher           scopes.FetcherInterface
 	FeatureChecker         inventory.FeatureFlagChecker
 }
 
 type HandlerOption func(*HandlerOptions)
+
+func WithScopeFetcher(f scopes.FetcherInterface) HandlerOption {
+	return func(o *HandlerOptions) {
+		o.ScopeFetcher = f
+	}
+}
 
 func WithGitHubMCPServerFactory(f GitHubMCPServerFactoryFunc) HandlerOption {
 	return func(o *HandlerOptions) {
@@ -68,6 +79,7 @@ func NewHTTPMcpHandler(
 	deps github.ToolDependencies,
 	t translations.TranslationHelperFunc,
 	logger *slog.Logger,
+	apiHost utils.APIHostResolver,
 	options ...HandlerOption) *Handler {
 	opts := &HandlerOptions{}
 	for _, o := range options {
@@ -79,9 +91,14 @@ func NewHTTPMcpHandler(
 		githubMcpServerFactory = DefaultGitHubMCPServerFactory
 	}
 
+	scopeFetcher := opts.ScopeFetcher
+	if scopeFetcher == nil {
+		scopeFetcher = scopes.NewFetcher(apiHost, scopes.FetcherOptions{})
+	}
+
 	inventoryFactory := opts.InventoryFactory
 	if inventoryFactory == nil {
-		inventoryFactory = DefaultInventoryFactory(cfg, t, opts.FeatureChecker)
+		inventoryFactory = DefaultInventoryFactory(cfg, t, opts.FeatureChecker, scopeFetcher)
 	}
 
 	return &Handler{
@@ -89,10 +106,12 @@ func NewHTTPMcpHandler(
 		config:                 cfg,
 		deps:                   deps,
 		logger:                 logger,
+		apiHosts:               apiHost,
 		t:                      t,
 		githubMcpServerFactory: githubMcpServerFactory,
 		inventoryFactoryFunc:   inventoryFactory,
 		oauthCfg:               opts.OAuthConfig,
+		scopeFetcher:           scopeFetcher,
 	}
 }
 
@@ -100,7 +119,12 @@ func (h *Handler) RegisterMiddleware(r chi.Router) {
 	r.Use(
 		middleware.ExtractUserToken(h.oauthCfg),
 		middleware.WithRequestConfig,
+		middleware.WithMCPParse(),
 	)
+
+	if h.config.ScopeChallenge {
+		r.Use(middleware.WithScopeChallenge(h.oauthCfg, h.scopeFetcher))
+	}
 }
 
 // RegisterRoutes registers the routes for the MCP server
@@ -145,22 +169,38 @@ func withInsiders(next http.Handler) http.Handler {
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	inventory, err := h.inventoryFactoryFunc(r)
+	inv, err := h.inventoryFactoryFunc(r)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	ghServer, err := h.githubMcpServerFactory(r, h.deps, inventory, &github.MCPServerConfig{
+	invToUse := inv
+	if methodInfo, ok := ghcontext.MCPMethod(r.Context()); ok && methodInfo != nil {
+		invToUse = inv.ForMCPRequest(methodInfo.Method, methodInfo.ItemName)
+	}
+
+	ghServer, err := h.githubMcpServerFactory(r, h.deps, invToUse, &github.MCPServerConfig{
 		Version:           h.config.Version,
 		Translator:        h.t,
 		ContentWindowSize: h.config.ContentWindowSize,
 		Logger:            h.logger,
 		RepoAccessTTL:     h.config.RepoAccessCacheTTL,
+		// Explicitly set empty capabilities. inv.ForMCPRequest currently returns nothing for Initialize.
+		ServerOptions: []github.MCPServerOption{
+			func(so *mcp.ServerOptions) {
+				so.Capabilities = &mcp.ServerCapabilities{
+					Tools:     &mcp.ToolCapabilities{},
+					Resources: &mcp.ResourceCapabilities{},
+					Prompts:   &mcp.PromptCapabilities{},
+				}
+			},
+		},
 	})
 
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	mcpHandler := mcp.NewStreamableHTTPHandler(func(_ *http.Request) *mcp.Server {
@@ -177,13 +217,15 @@ func DefaultGitHubMCPServerFactory(r *http.Request, deps github.ToolDependencies
 }
 
 // DefaultInventoryFactory creates the default inventory factory for HTTP mode
-func DefaultInventoryFactory(_ *ServerConfig, t translations.TranslationHelperFunc, featureChecker inventory.FeatureFlagChecker) InventoryFactoryFunc {
+func DefaultInventoryFactory(_ *ServerConfig, t translations.TranslationHelperFunc, featureChecker inventory.FeatureFlagChecker, scopeFetcher scopes.FetcherInterface) InventoryFactoryFunc {
 	return func(r *http.Request) (*inventory.Inventory, error) {
 		b := github.NewInventory(t).
 			WithDeprecatedAliases(github.DeprecatedToolAliases).
 			WithFeatureChecker(featureChecker)
 
 		b = InventoryFiltersForRequest(r, b)
+		b = PATScopeFilter(b, r, scopeFetcher)
+
 		b.WithServerInstructions()
 
 		return b.Build()
@@ -214,4 +256,30 @@ func InventoryFiltersForRequest(r *http.Request, builder *inventory.Builder) *in
 	}
 
 	return builder
+}
+
+func PATScopeFilter(b *inventory.Builder, r *http.Request, fetcher scopes.FetcherInterface) *inventory.Builder {
+	ctx := r.Context()
+
+	tokenInfo, ok := ghcontext.GetTokenInfo(ctx)
+	if !ok || tokenInfo == nil {
+		return b
+	}
+
+	// Fetch token scopes for scope-based tool filtering (PAT tokens only)
+	// Only classic PATs (ghp_ prefix) return OAuth scopes via X-OAuth-Scopes header.
+	// Fine-grained PATs and other token types don't support this, so we skip filtering.
+	if tokenInfo.TokenType == utils.TokenTypePersonalAccessToken {
+		scopesList, err := fetcher.FetchTokenScopes(ctx, tokenInfo.Token)
+		if err != nil {
+			return b
+		}
+
+		// Store fetched scopes in context for downstream use
+		ghcontext.SetTokenScopes(ctx, scopesList)
+
+		return b.WithFilter(github.CreateToolScopeFilter(scopesList))
+	}
+
+	return b
 }

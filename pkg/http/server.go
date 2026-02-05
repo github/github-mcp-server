@@ -17,6 +17,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
@@ -65,6 +66,10 @@ type ServerConfig struct {
 
 	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
 	RepoAccessCacheTTL *time.Duration
+
+	// ScopeChallenge indicates if we should return OAuth scope challenges, and if we should perform
+	// tool filtering based on token scopes.
+	ScopeChallenge bool
 }
 
 func RunHTTPServer(cfg ServerConfig) error {
@@ -114,29 +119,42 @@ func RunHTTPServer(cfg ServerConfig) error {
 		featureChecker,
 	)
 
-	r := chi.NewRouter()
+	// Initialize the global tool scope map
+	err = initGlobalToolScopeMap(t)
+	if err != nil {
+		return fmt.Errorf("failed to initialize tool scope map: %w", err)
+	}
 
 	// Register OAuth protected resource metadata endpoints
 	oauthCfg := &oauth.Config{
 		BaseURL:      cfg.BaseURL,
 		ResourcePath: cfg.ResourcePath,
 	}
+
+	serverOptions := []HandlerOption{}
+	if cfg.ScopeChallenge {
+		scopeFetcher := scopes.NewFetcher(apiHost, scopes.FetcherOptions{})
+		serverOptions = append(serverOptions, WithScopeFetcher(scopeFetcher))
+	}
+
+	r := chi.NewRouter()
+	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger, apiHost, append(serverOptions, WithFeatureChecker(featureChecker), WithOAuthConfig(oauthCfg))...)
 	oauthHandler, err := oauth.NewAuthHandler(oauthCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create OAuth handler: %w", err)
 	}
 
-	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger, WithFeatureChecker(featureChecker), WithOAuthConfig(oauthCfg))
-
-	// MCP routes with middleware
 	r.Group(func(r chi.Router) {
+		// Register Middleware First, needs to be before route registration
 		handler.RegisterMiddleware(r)
+
+		// Register MCP server routes
 		handler.RegisterRoutes(r)
 	})
 	logger.Info("MCP endpoints registered", "baseURL", cfg.BaseURL)
 
-	// OAuth routes without MCP middleware
 	r.Group(func(r chi.Router) {
+		// Register OAuth protected resource metadata endpoints
 		oauthHandler.RegisterRoutes(r)
 	})
 	logger.Info("OAuth protected resource endpoints registered", "baseURL", cfg.BaseURL)
@@ -169,6 +187,22 @@ func RunHTTPServer(cfg ServerConfig) error {
 	}
 
 	logger.Info("server stopped gracefully")
+	return nil
+}
+
+func initGlobalToolScopeMap(t translations.TranslationHelperFunc) error {
+	// Build inventory with all tools to extract scope information
+	inv, err := inventory.NewBuilder().
+		SetTools(github.AllTools(t)).
+		Build()
+
+	if err != nil {
+		return fmt.Errorf("failed to build inventory for tool scope map: %w", err)
+	}
+
+	// Initialize the global scope map
+	scopes.SetToolScopeMapFromInventory(inv)
+
 	return nil
 }
 
