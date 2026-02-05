@@ -273,14 +273,14 @@ func PATScopeFilter(b *inventory.Builder, r *http.Request, fetcher scopes.Fetche
 	if tokenInfo.TokenType == utils.TokenTypePersonalAccessToken {
 		if tokenInfo.ScopesFetched {
 			return b.WithFilter(github.CreateToolScopeFilter(tokenInfo.Scopes))
-		} else {
-			scopesList, err := fetcher.FetchTokenScopes(ctx, tokenInfo.Token)
-			if err != nil {
-				return b
-			}
-
-			return b.WithFilter(github.CreateToolScopeFilter(scopesList))
 		}
+
+		scopesList, err := fetcher.FetchTokenScopes(ctx, tokenInfo.Token)
+		if err != nil {
+			return b
+		}
+
+		return b.WithFilter(github.CreateToolScopeFilter(scopesList))
 	}
 
 	return b
