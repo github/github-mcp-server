@@ -120,6 +120,7 @@ func (h *Handler) RegisterMiddleware(r chi.Router) {
 		middleware.ExtractUserToken(h.oauthCfg),
 		middleware.WithRequestConfig,
 		middleware.WithMCPParse(),
+		middleware.WithPATScopes(h.logger, h.scopeFetcher),
 	)
 
 	if h.config.ScopeChallenge {
@@ -266,19 +267,20 @@ func PATScopeFilter(b *inventory.Builder, r *http.Request, fetcher scopes.Fetche
 		return b
 	}
 
-	// Fetch token scopes for scope-based tool filtering (PAT tokens only)
+	// Scopes should have already been fetched by the WithPATScopes middleware.
 	// Only classic PATs (ghp_ prefix) return OAuth scopes via X-OAuth-Scopes header.
 	// Fine-grained PATs and other token types don't support this, so we skip filtering.
 	if tokenInfo.TokenType == utils.TokenTypePersonalAccessToken {
-		scopesList, err := fetcher.FetchTokenScopes(ctx, tokenInfo.Token)
-		if err != nil {
-			return b
+		if tokenInfo.ScopesFetched {
+			return b.WithFilter(github.CreateToolScopeFilter(tokenInfo.Scopes))
+		} else {
+			scopesList, err := fetcher.FetchTokenScopes(ctx, tokenInfo.Token)
+			if err != nil {
+				return b
+			}
+
+			return b.WithFilter(github.CreateToolScopeFilter(scopesList))
 		}
-
-		// Store fetched scopes in context for downstream use
-		ghcontext.SetTokenScopes(ctx, scopesList)
-
-		return b.WithFilter(github.CreateToolScopeFilter(scopesList))
 	}
 
 	return b

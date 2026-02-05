@@ -102,7 +102,10 @@ func WithScopeChallenge(oauthCfg *oauth.Config, scopeFetcher scopes.FetcherInter
 			}
 
 			// Store active scopes in context for downstream use
-			ghcontext.SetTokenScopes(ctx, activeScopes)
+			tokenInfo.Scopes = activeScopes
+			tokenInfo.ScopesFetched = true
+			ctx = ghcontext.WithTokenInfo(ctx, tokenInfo)
+			r = r.WithContext(ctx)
 
 			// Check if user has the required scopes
 			if toolScopeInfo.HasAcceptedScope(activeScopes...) {

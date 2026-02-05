@@ -23,13 +23,6 @@ func WithTokenInfo(ctx context.Context, tokenInfo *TokenInfo) context.Context {
 	return context.WithValue(ctx, tokenCtxKey, tokenInfo)
 }
 
-func SetTokenScopes(ctx context.Context, scopes []string) {
-	if tokenInfo, ok := GetTokenInfo(ctx); ok {
-		tokenInfo.Scopes = scopes
-		tokenInfo.ScopesFetched = true
-	}
-}
-
 // GetTokenInfo retrieves the authentication token from the context
 func GetTokenInfo(ctx context.Context) (*TokenInfo, bool) {
 	if tokenInfo, ok := ctx.Value(tokenCtxKey).(*TokenInfo); ok {
