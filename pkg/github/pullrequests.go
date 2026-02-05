@@ -538,23 +538,25 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// When insiders mode is enabled, show UI - the host will detect the UI metadata and display the form
-			if deps.GetFlags().InsidersMode {
+			// Check if required params for PR creation are provided
+			title, _ := OptionalParam[string](args, "title")
+			head, _ := OptionalParam[string](args, "head")
+			base, _ := OptionalParam[string](args, "base")
+
+			// When insiders mode is enabled and required params are missing, show UI
+			if deps.GetFlags().InsidersMode && (title == "" || head == "" || base == "") {
 				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. The interactive form will be displayed.", owner, repo)), nil, nil
 			}
 
-			// When not using UI, title/head/base are required
-			title, err := RequiredParam[string](args, "title")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			// When creating PR, title/head/base are required
+			if title == "" {
+				return utils.NewToolResultError("title is required"), nil, nil
 			}
-			head, err := RequiredParam[string](args, "head")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if head == "" {
+				return utils.NewToolResultError("head is required"), nil, nil
 			}
-			base, err := RequiredParam[string](args, "base")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if base == "" {
+				return utils.NewToolResultError("base is required"), nil, nil
 			}
 
 			body, err := OptionalParam[string](args, "body")

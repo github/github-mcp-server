@@ -259,9 +259,9 @@ function CreateIssueApp() {
         console.log("Repository search result:", result);
         if (result && !result.isError && result.content) {
           const textContent = result.content.find(
-            (c: { type: string }) => c.type === "text"
+            (c) => c.type === "text"
           );
-          if (textContent?.text) {
+          if (textContent && textContent.type === "text" && textContent.text) {
             const data = JSON.parse(textContent.text);
             console.log("Parsed repository data:", data);
             const repos = (data.repositories || data.items || []).map(
@@ -457,9 +457,9 @@ function CreateIssueApp() {
 
         if (result && !result.isError && result.content) {
           const textContent = result.content.find(
-            (c: { type: string }) => c.type === "text"
+            (c) => c.type === "text"
           );
-          if (textContent?.text) {
+          if (textContent && textContent.type === "text" && textContent.text) {
             const issueData = JSON.parse(textContent.text);
             console.log("Loaded issue data:", issueData);
 
@@ -754,15 +754,18 @@ function CreateIssueApp() {
         borderBottomWidth={1}
         borderBottomStyle="solid"
         borderBottomColor="border.default"
+        sx={{ minWidth: 0, overflow: "hidden" }}
       >
-        <ActionMenu>
-          <ActionMenu.Button
-            size="small"
-            leadingVisual={selectedRepo?.isPrivate ? LockIcon : RepoIcon}
-          >
-            {selectedRepo ? selectedRepo.fullName : "Select repository"}
-          </ActionMenu.Button>
-          <ActionMenu.Overlay width="large">
+        <Box sx={{ minWidth: 0, maxWidth: "100%" }}>
+          <ActionMenu>
+            <ActionMenu.Button
+              size="small"
+              leadingVisual={selectedRepo?.isPrivate ? LockIcon : RepoIcon}
+              sx={{ maxWidth: "100%", overflow: "hidden", "& > span:last-child": { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }}
+            >
+              {selectedRepo ? selectedRepo.fullName : "Select repository"}
+            </ActionMenu.Button>
+          <ActionMenu.Overlay width="medium">
             <ActionList selectionVariant="single">
               <Box px={3} py={2}>
                 <TextInput
@@ -828,6 +831,7 @@ function CreateIssueApp() {
             </ActionList>
           </ActionMenu.Overlay>
         </ActionMenu>
+        </Box>
       </Box>
 
       {/* Error banner */}
@@ -867,7 +871,7 @@ function CreateIssueApp() {
       </Box>
 
       {/* Metadata section */}
-      <Box display="flex" gap={1} mb={3} sx={{ flexWrap: "nowrap", overflow: "hidden" }}>
+      <Box display="flex" gap={3} mb={3} sx={{ flexWrap: "wrap" }}>
         {/* Labels dropdown */}
         <ActionMenu>
           <ActionMenu.Button size="small" leadingVisual={TagIcon}>

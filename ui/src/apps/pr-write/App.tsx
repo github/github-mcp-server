@@ -12,6 +12,7 @@ import {
   ActionMenu,
   ActionList,
   Checkbox,
+  ButtonGroup,
 } from "@primer/react";
 import {
   GitPullRequestIcon,
@@ -19,6 +20,7 @@ import {
   RepoIcon,
   LockIcon,
   GitBranchIcon,
+  TriangleDownIcon,
 } from "@primer/octicons-react";
 import { AppProvider } from "../../components/AppProvider";
 import { useMcpApp } from "../../hooks/useMcpApp";
@@ -199,8 +201,8 @@ function CreatePRApp() {
       try {
         const result = await callTool("search_repositories", { query: repoFilter, perPage: 10 });
         if (result && !result.isError && result.content) {
-          const textContent = result.content.find((c: { type: string }) => c.type === "text");
-          if (textContent?.text) {
+          const textContent = result.content.find((c) => c.type === "text");
+          if (textContent && textContent.type === "text" && textContent.text) {
             const data = JSON.parse(textContent.text);
             const repos = (data.repositories || data.items || []).map(
               (r: { id?: number; owner?: { login?: string } | string; name?: string; full_name?: string; private?: boolean }) => ({
@@ -291,11 +293,12 @@ function CreatePRApp() {
       });
 
       if (result.isError) {
-        const errorText = result.content?.find((c: { type: string }) => c.type === "text");
-        setError(errorText?.text || "Failed to create pull request");
+        const errorText = result.content?.find((c) => c.type === "text");
+        const errorMessage = errorText && errorText.type === "text" ? errorText.text : "Failed to create pull request";
+        setError(errorMessage);
       } else {
-        const textContent = result.content?.find((c: { type: string }) => c.type === "text");
-        if (textContent?.text) {
+        const textContent = result.content?.find((c) => c.type === "text");
+        if (textContent && textContent.type === "text" && textContent.text) {
           const prData = JSON.parse(textContent.text);
           setSuccessPR(prData);
         }
@@ -353,15 +356,18 @@ function CreatePRApp() {
           borderBottomWidth={1}
           borderBottomStyle="solid"
           borderBottomColor="border.default"
+          sx={{ minWidth: 0, overflow: "hidden" }}
         >
-          <ActionMenu>
-            <ActionMenu.Button
-              size="small"
-              leadingVisual={selectedRepo?.isPrivate ? LockIcon : RepoIcon}
-            >
-              {selectedRepo ? selectedRepo.fullName : "Select repository"}
-            </ActionMenu.Button>
-            <ActionMenu.Overlay width="large">
+          <Box sx={{ minWidth: 0, maxWidth: "100%" }}>
+            <ActionMenu>
+              <ActionMenu.Button
+                size="small"
+                leadingVisual={selectedRepo?.isPrivate ? LockIcon : RepoIcon}
+                sx={{ maxWidth: "100%", overflow: "hidden", "& > span:last-child": { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }}
+              >
+                {selectedRepo ? selectedRepo.fullName : "Select repository"}
+              </ActionMenu.Button>
+            <ActionMenu.Overlay width="medium">
               <ActionList selectionVariant="single">
                 <Box px={3} py={2}>
                   <TextInput
@@ -412,14 +418,15 @@ function CreatePRApp() {
               </ActionList>
             </ActionMenu.Overlay>
           </ActionMenu>
+          </Box>
         </Box>
 
         {/* Branch selectors */}
-        <Box display="flex" gap={3} mb={3} alignItems="flex-end">
-          <Box flex={1}>
+        <Box display="flex" gap={2} mb={3} alignItems="flex-end" sx={{ minWidth: 0, flexWrap: "wrap" }}>
+          <Box sx={{ flex: "1 1 120px", minWidth: 0 }}>
             <Text sx={{ fontSize: 0, color: "fg.muted", mb: 1, display: "block" }}>base</Text>
             <ActionMenu>
-              <ActionMenu.Button size="small" leadingVisual={GitBranchIcon} sx={{ width: "100%" }}>
+              <ActionMenu.Button size="small" leadingVisual={GitBranchIcon} sx={{ width: "100%", "& > span": { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }}>
                 {baseBranch || "Select base"}
               </ActionMenu.Button>
               <ActionMenu.Overlay width="medium">
@@ -455,12 +462,12 @@ function CreatePRApp() {
             </ActionMenu>
           </Box>
 
-          <Text sx={{ color: "fg.muted", pb: 1, px: 1 }}>←</Text>
+          <Text sx={{ color: "fg.muted", pb: 1, px: 1, flexShrink: 0 }}>←</Text>
 
-          <Box flex={1}>
+          <Box sx={{ flex: "1 1 120px", minWidth: 0 }}>
             <Text sx={{ fontSize: 0, color: "fg.muted", mb: 1, display: "block" }}>compare</Text>
             <ActionMenu>
-              <ActionMenu.Button size="small" leadingVisual={GitBranchIcon} sx={{ width: "100%" }}>
+              <ActionMenu.Button size="small" leadingVisual={GitBranchIcon} sx={{ width: "100%", "& > span": { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }}>
                 {headBranch || "Select head"}
               </ActionMenu.Button>
               <ActionMenu.Overlay width="medium">
@@ -519,33 +526,62 @@ function CreatePRApp() {
           <MarkdownEditor value={body} onChange={setBody} placeholder="Add a description..." />
         </Box>
 
-        {/* Options */}
-        <Box mb={3} display="flex" gap={4}>
-          <FormControl>
-            <Checkbox checked={isDraft} onChange={(e) => setIsDraft(e.target.checked)} />
-            <FormControl.Label sx={{ fontWeight: "normal", ml: 1 }}>Create as draft</FormControl.Label>
-          </FormControl>
-          <FormControl>
+        {/* Options and Submit */}
+        <Box display="flex" justifyContent="space-between" alignItems="flex-end" flexWrap="wrap" gap={3}>
+          <Box as="label" display="flex" alignItems="center" sx={{ cursor: "pointer", gap: 2 }}>
             <Checkbox checked={maintainerCanModify} onChange={(e) => setMaintainerCanModify(e.target.checked)} />
-            <FormControl.Label sx={{ fontWeight: "normal", ml: 1 }}>Allow maintainer edits</FormControl.Label>
-          </FormControl>
-        </Box>
+            <Text sx={{ fontSize: 1, color: "fg.muted" }}>Allow maintainer edits</Text>
+          </Box>
 
-        {/* Submit button */}
-        <Box display="flex" justifyContent="flex-end" gap={2}>
-          <Button
-            variant="primary"
-            onClick={handleSubmit}
-            disabled={isSubmitting || !owner || !repo || !baseBranch || !headBranch}
-          >
-            {isSubmitting ? (
-              <><Spinner size="small" sx={{ mr: 1 }} />Creating...</>
-            ) : isDraft ? (
-              "Create draft pull request"
-            ) : (
-              "Create pull request"
-            )}
-          </Button>
+          <ButtonGroup>
+            <Button
+              variant="primary"
+              onClick={handleSubmit}
+              disabled={isSubmitting || !owner || !repo || !baseBranch || !headBranch}
+            >
+              {isSubmitting ? (
+                <><Spinner size="small" sx={{ mr: 1 }} />Creating...</>
+              ) : isDraft ? (
+                "Draft pull request"
+              ) : (
+                "Create pull request"
+              )}
+            </Button>
+            <ActionMenu>
+              <ActionMenu.Anchor>
+                <Button
+                  variant="primary"
+                  disabled={isSubmitting || !owner || !repo || !baseBranch || !headBranch}
+                  sx={{ px: 2 }}
+                  aria-label="Select pull request type"
+                >
+                  <TriangleDownIcon />
+                </Button>
+              </ActionMenu.Anchor>
+              <ActionMenu.Overlay width="medium">
+                <ActionList selectionVariant="single">
+                  <ActionList.Item selected={!isDraft} onSelect={() => setIsDraft(false)}>
+                    <ActionList.LeadingVisual>
+                      <GitPullRequestIcon />
+                    </ActionList.LeadingVisual>
+                    Create pull request
+                    <ActionList.Description variant="block">
+                      Open a pull request that is ready for review
+                    </ActionList.Description>
+                  </ActionList.Item>
+                  <ActionList.Item selected={isDraft} onSelect={() => setIsDraft(true)}>
+                    <ActionList.LeadingVisual>
+                      <GitPullRequestIcon />
+                    </ActionList.LeadingVisual>
+                    Create draft pull request
+                    <ActionList.Description variant="block">
+                      Cannot be merged until marked ready for review
+                    </ActionList.Description>
+                  </ActionList.Item>
+                </ActionList>
+              </ActionMenu.Overlay>
+            </ActionMenu>
+          </ButtonGroup>
         </Box>
       </Box>
     </AppProvider>
