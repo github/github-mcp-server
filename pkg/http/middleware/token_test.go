@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/stretchr/testify/assert"
@@ -181,7 +182,7 @@ func TestExtractUserToken(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodGet, "/test", nil)
 			if tt.authHeader != "" {
-				req.Header.Set("Authorization", tt.authHeader)
+				req.Header.Set(headers.AuthorizationHeader, tt.authHeader)
 			}
 			rr := httptest.NewRecorder()
 
@@ -220,7 +221,7 @@ func TestExtractUserToken_NilOAuthConfig(t *testing.T) {
 	handler := middleware(nextHandler)
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	req.Header.Set("Authorization", "Bearer ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+	req.Header.Set(headers.AuthorizationHeader, "Bearer ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
 	rr := httptest.NewRecorder()
 
 	handler.ServeHTTP(rr, req)

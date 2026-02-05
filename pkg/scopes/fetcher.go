@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/github/github-mcp-server/pkg/utils"
 )
 
@@ -78,9 +79,9 @@ func (f *Fetcher) FetchTokenScopes(ctx context.Context, token string) ([]string,
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	req.Header.Set(headers.AuthorizationHeader, "Bearer "+token)
+	req.Header.Set(headers.AcceptHeader, "application/vnd.github+json")
+	req.Header.Set(headers.GitHubAPIVersionHeader, "2022-11-28")
 
 	resp, err := f.client.Do(req)
 	if err != nil {
