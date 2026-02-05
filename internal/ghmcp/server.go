@@ -251,8 +251,10 @@ func NewMCPServer(cfg MCPServerConfig) (*mcp.Server, error) {
 	// enable toolsets or tools explicitly that do need registration).
 	inventory.RegisterAll(context.Background(), ghServer, deps)
 
-	// Register MCP App UI resources (static resources for tool UI) - insiders only
-	if cfg.InsidersMode {
+	// Register MCP App UI resources if available (requires running script/build-ui).
+	// We check availability to allow Insiders mode to work for non-UI features
+	// even when UI assets haven't been built.
+	if cfg.InsidersMode && github.UIAssetsAvailable() {
 		github.RegisterUIResources(ghServer)
 	}
 
