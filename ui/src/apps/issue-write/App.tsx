@@ -252,19 +252,16 @@ function CreateIssueApp() {
     const searchRepos = async () => {
       setRepoSearchLoading(true);
       try {
-        console.log("Searching repositories with query:", repoFilter);
         const result = await callTool("search_repositories", {
           query: repoFilter,
           perPage: 10,
         });
-        console.log("Repository search result:", result);
         if (result && !result.isError && result.content) {
           const textContent = result.content.find(
             (c) => c.type === "text"
           );
           if (textContent && textContent.type === "text" && textContent.text) {
             const data = JSON.parse(textContent.text);
-            console.log("Parsed repository data:", data);
             const repos = (data.repositories || data.items || []).map(
               (r: { id?: number; owner?: { login?: string } | string; name?: string; full_name?: string; private?: boolean }) => ({
                 id: String(r.id || r.full_name),
@@ -274,7 +271,6 @@ function CreateIssueApp() {
                 isPrivate: r.private || false,
               })
             );
-            console.log("Mapped repos:", repos);
             setRepoSearchResults(repos);
           }
         }
@@ -297,7 +293,6 @@ function CreateIssueApp() {
       setLabelsLoading(true);
       try {
         const result = await callTool("ui_get", { method: "labels", owner, repo });
-        console.log("Labels result:", result);
         if (result && !result.isError && result.content) {
           const textContent = result.content.find(
             (c: { type: string }) => c.type === "text"
@@ -325,7 +320,6 @@ function CreateIssueApp() {
       setAssigneesLoading(true);
       try {
         const result = await callTool("ui_get", { method: "assignees", owner, repo });
-        console.log("Assignees result:", result);
         if (result && !result.isError && result.content) {
           const textContent = result.content.find(
             (c: { type: string }) => c.type === "text"
@@ -352,7 +346,6 @@ function CreateIssueApp() {
       setMilestonesLoading(true);
       try {
         const result = await callTool("ui_get", { method: "milestones", owner, repo });
-        console.log("Milestones result:", result);
         if (result && !result.isError && result.content) {
           const textContent = result.content.find(
             (c: { type: string }) => c.type === "text"
@@ -381,7 +374,6 @@ function CreateIssueApp() {
       setIssueTypesLoading(true);
       try {
         const result = await callTool("ui_get", { method: "issue_types", owner });
-        console.log("Issue types result:", result);
         if (result && !result.isError && result.content) {
           const textContent = result.content.find(
             (c: { type: string }) => c.type === "text"
@@ -448,7 +440,6 @@ function CreateIssueApp() {
 
     const loadExistingIssue = async () => {
       try {
-        console.log("Loading existing issue:", owner, repo, issueNumber);
         const result = await callTool("issue_read", {
           method: "get",
           owner,
@@ -462,7 +453,6 @@ function CreateIssueApp() {
           );
           if (textContent && textContent.type === "text" && textContent.text) {
             const issueData = JSON.parse(textContent.text);
-            console.log("Loaded issue data:", issueData);
 
             // Pre-fill title and body immediately
             if (issueData.title && !prefillApplied.current.title) {
@@ -478,18 +468,14 @@ function CreateIssueApp() {
             const assigneeLogins = (issueData.assignees || [])
               .map((a: { login?: string } | string) => typeof a === 'string' ? a : a.login)
               .filter(Boolean) as string[];
-            console.log("Assignees from issue data:", issueData.assignees, "-> logins:", assigneeLogins, "prefillApplied:", prefillApplied.current.assignees);
             if (assigneeLogins.length > 0 && !prefillApplied.current.assignees) {
-              console.log("Setting selectedAssignees to:", assigneeLogins.map(login => ({ id: login, text: login })));
               setSelectedAssignees(assigneeLogins.map(login => ({ id: login, text: login })));
               prefillApplied.current.assignees = true;
             }
 
             // Pre-fill issue type immediately from issue data
             const issueTypeName = issueData.type?.name || (typeof issueData.type === 'string' ? issueData.type : null);
-            console.log("Issue type from issue data:", issueData.type, "-> name:", issueTypeName, "prefillApplied:", prefillApplied.current.type);
             if (issueTypeName && !prefillApplied.current.type) {
-              console.log("Setting selectedIssueType to:", { id: issueTypeName, text: issueTypeName });
               setSelectedIssueType({ id: issueTypeName, text: issueTypeName });
               prefillApplied.current.type = true;
             }
@@ -503,7 +489,6 @@ function CreateIssueApp() {
               ? (typeof issueData.milestone === 'object' ? issueData.milestone.number : issueData.milestone)
               : null;
 
-            console.log("Setting existingIssueData:", { labels: labelNames, assignees: assigneeLogins, milestoneNumber, issueType: issueTypeName });
             setExistingIssueData({ labels: labelNames, assignees: assigneeLogins, milestoneNumber, issueType: issueTypeName });
           }
         }
@@ -656,15 +641,7 @@ function CreateIssueApp() {
         params.type = selectedIssueType.text;
       }
 
-      console.log("Submitting issue_write with params:", JSON.stringify(params, null, 2));
-      console.log("selectedLabels:", selectedLabels);
-      console.log("selectedAssignees:", selectedAssignees);
       const result = await callTool("issue_write", params);
-      console.log("issue_write result:", result);
-      console.log("issue_write result.content:", result.content);
-      if (result.content?.[0]?.text) {
-        console.log("issue_write result text:", result.content[0].text);
-      }
 
       if (result.isError) {
         const textContent = result.content?.find(
@@ -775,10 +752,7 @@ function CreateIssueApp() {
                 <TextInput
                   placeholder="Search repositories..."
                   value={repoFilter}
-                  onChange={(e) => {
-                    console.log("Repo filter changed:", e.target.value);
-                    setRepoFilter(e.target.value);
-                  }}
+                  onChange={(e) => setRepoFilter(e.target.value)}
                   sx={{ width: "100%" }}
                   size="small"
                   autoFocus
