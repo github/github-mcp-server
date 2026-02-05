@@ -234,7 +234,7 @@ function CreatePRApp() {
     const loadBranches = async () => {
       setBranchesLoading(true);
       try {
-        const result = await callTool("list_branches", { owner, repo, perPage: 100 });
+        const result = await callTool("ui_get", { method: "branches", owner, repo });
         if (result && !result.isError && result.content) {
           const textContent = result.content.find((c: { type: string }) => c.type === "text");
           if (textContent && "text" in textContent) {

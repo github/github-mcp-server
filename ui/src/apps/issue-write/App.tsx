@@ -295,7 +295,7 @@ function CreateIssueApp() {
     const loadLabels = async () => {
       setLabelsLoading(true);
       try {
-        const result = await callTool("list_label", { owner, repo });
+        const result = await callTool("ui_get", { method: "labels", owner, repo });
         console.log("Labels result:", result);
         if (result && !result.isError && result.content) {
           const textContent = result.content.find(
@@ -323,7 +323,7 @@ function CreateIssueApp() {
     const loadAssignees = async () => {
       setAssigneesLoading(true);
       try {
-        const result = await callTool("list_assignees", { owner, repo });
+        const result = await callTool("ui_get", { method: "assignees", owner, repo });
         console.log("Assignees result:", result);
         if (result && !result.isError && result.content) {
           const textContent = result.content.find(
@@ -350,7 +350,7 @@ function CreateIssueApp() {
     const loadMilestones = async () => {
       setMilestonesLoading(true);
       try {
-        const result = await callTool("list_milestones", { owner, repo });
+        const result = await callTool("ui_get", { method: "milestones", owner, repo });
         console.log("Milestones result:", result);
         if (result && !result.isError && result.content) {
           const textContent = result.content.find(
@@ -379,7 +379,7 @@ function CreateIssueApp() {
     const loadIssueTypes = async () => {
       setIssueTypesLoading(true);
       try {
-        const result = await callTool("list_issue_types", { owner });
+        const result = await callTool("ui_get", { method: "issue_types", owner });
         console.log("Issue types result:", result);
         if (result && !result.isError && result.content) {
           const textContent = result.content.find(
@@ -387,7 +387,7 @@ function CreateIssueApp() {
           );
           if (textContent && "text" in textContent) {
             const data = JSON.parse(textContent.text as string);
-            // list_issue_types returns array directly or wrapped in issue_types/types
+            // ui_get returns array directly or wrapped in issue_types/types
             const typesArray = Array.isArray(data) ? data : (data.issue_types || data.types || []);
             const types = typesArray.map(
               (t: { id: number; name: string; description?: string } | string) => {
@@ -486,7 +486,8 @@ function CreateIssueApp() {
               ? (typeof issueData.milestone === 'object' ? issueData.milestone.number : issueData.milestone)
               : null;
             
-            const issueType = issueData.issue_type?.name || issueData.type || null;
+            // Issue type can be an object with name or just a string
+            const issueType = issueData.type?.name || (typeof issueData.type === 'string' ? issueData.type : null);
 
             setExistingIssueData({ labels: labelNames, assignees: assigneeLogins, milestoneNumber, issueType });
           }
