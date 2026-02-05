@@ -550,13 +550,13 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 
 			// When creating PR, title/head/base are required
 			if title == "" {
-				return utils.NewToolResultError("title is required"), nil, nil
+				return utils.NewToolResultError("missing required parameter: title"), nil, nil
 			}
 			if head == "" {
-				return utils.NewToolResultError("head is required"), nil, nil
+				return utils.NewToolResultError("missing required parameter: head"), nil, nil
 			}
 			if base == "" {
-				return utils.NewToolResultError("base is required"), nil, nil
+				return utils.NewToolResultError("missing required parameter: base"), nil, nil
 			}
 
 			body, err := OptionalParam[string](args, "body")
