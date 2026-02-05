@@ -6,7 +6,6 @@ import {
   TextInput,
   Button,
   Flash,
-  Link,
   Spinner,
   FormControl,
   CounterLabel,
@@ -135,17 +134,19 @@ function SuccessView({
           <IssueOpenedIcon size={16} />
         </Box>
         <Box sx={{ minWidth: 0 }}>
-          <Link
+          <a
             href={issueUrl}
             target="_blank"
             rel="noopener noreferrer"
-            sx={{
-              fontWeight: "semibold",
-              fontSize: 1,
+            style={{
+              fontWeight: 600,
+              fontSize: "14px",
               display: "block",
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
+              color: "var(--fgColor-accent, var(--color-accent-fg))",
+              textDecoration: "none",
             }}
           >
             {issue.title || submittedTitle}
@@ -154,7 +155,7 @@ function SuccessView({
                 #{issue.number}
               </Text>
             )}
-          </Link>
+          </a>
           <Text sx={{ color: "fg.muted", fontSize: 0 }}>
             {owner}/{repo}
           </Text>

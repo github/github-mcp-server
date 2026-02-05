@@ -6,7 +6,6 @@ import {
   TextInput,
   Button,
   Flash,
-  Link,
   Spinner,
   FormControl,
   ActionMenu,
@@ -102,17 +101,19 @@ function SuccessView({
           <GitPullRequestIcon size={16} />
         </Box>
         <Box sx={{ minWidth: 0 }}>
-          <Link
+          <a
             href={prUrl}
             target="_blank"
             rel="noopener noreferrer"
-            sx={{
-              fontWeight: "semibold",
-              fontSize: 1,
+            style={{
+              fontWeight: 600,
+              fontSize: "14px",
               display: "block",
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
+              color: "var(--fgColor-accent, var(--color-accent-fg))",
+              textDecoration: "none",
             }}
           >
             {pr.title || submittedTitle}
@@ -121,7 +122,7 @@ function SuccessView({
                 #{pr.number}
               </Text>
             )}
-          </Link>
+          </a>
           <Text sx={{ color: "fg.muted", fontSize: 0 }}>
             {owner}/{repo}
           </Text>
