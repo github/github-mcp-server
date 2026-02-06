@@ -142,7 +142,7 @@ func init() {
 	httpCmd.Flags().Int("port", 8082, "HTTP server port")
 	httpCmd.Flags().String("base-url", "", "Base URL where this server is publicly accessible (for OAuth resource metadata)")
 	httpCmd.Flags().String("base-path", "", "Externally visible base path for the HTTP server (for OAuth resource metadata)")
-	httpCmd.Flags().Bool("scope-challenge", false, "Enable OAuth scope challenge responses and tool filtering based on token scopes")
+	httpCmd.Flags().Bool("scope-challenge", false, "Enable OAuth scope challenge responses")
 
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
