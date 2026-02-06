@@ -28,12 +28,12 @@ func TestWithPATScopes(t *testing.T) {
 	logger := slog.Default()
 
 	tests := []struct {
-		name                   string
-		tokenInfo              *ghcontext.TokenInfo
-		fetcherScopes          []string
-		fetcherErr             error
-		expectScopesFetched    bool
-		expectedScopes         []string
+		name                    string
+		tokenInfo               *ghcontext.TokenInfo
+		fetcherScopes           []string
+		fetcherErr              error
+		expectScopesFetched     bool
+		expectedScopes          []string
 		expectNextHandlerCalled bool
 	}{
 		{
@@ -51,7 +51,7 @@ func TestWithPATScopes(t *testing.T) {
 			},
 			expectScopesFetched:     false,
 			expectedScopes:          nil,
-			expectNextHandlerCalled: false, // middleware doesn't call next for non-PAT tokens
+			expectNextHandlerCalled: true,
 		},
 		{
 			name: "fine-grained PAT skips scope fetching",
@@ -61,7 +61,7 @@ func TestWithPATScopes(t *testing.T) {
 			},
 			expectScopesFetched:     false,
 			expectedScopes:          nil,
-			expectNextHandlerCalled: false,
+			expectNextHandlerCalled: true,
 		},
 		{
 			name: "classic PAT fetches and stores scopes",
