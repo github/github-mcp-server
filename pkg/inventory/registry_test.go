@@ -1899,6 +1899,40 @@ func TestWithInsidersMode_EnabledPreservesUIMetadata(t *testing.T) {
 	}
 }
 
+func TestWithInsidersMode_EnabledPreservesInsidersOnlyTools(t *testing.T) {
+	normalTool := mockTool("normal", "toolset1", true)
+	insidersTool := mockTool("insiders_only", "toolset1", true)
+	insidersTool.InsidersOnly = true
+
+	// With insiders mode enabled, both tools should be available
+	reg := mustBuild(t, NewBuilder().
+		SetTools([]ServerTool{normalTool, insidersTool}).
+		WithToolsets([]string{"all"}).
+		WithInsidersMode(true))
+	available := reg.AvailableTools(context.Background())
+
+	require.Len(t, available, 2)
+	names := []string{available[0].Tool.Name, available[1].Tool.Name}
+	require.Contains(t, names, "normal")
+	require.Contains(t, names, "insiders_only")
+}
+
+func TestWithInsidersMode_DisabledRemovesInsidersOnlyTools(t *testing.T) {
+	normalTool := mockTool("normal", "toolset1", true)
+	insidersTool := mockTool("insiders_only", "toolset1", true)
+	insidersTool.InsidersOnly = true
+
+	// With insiders mode disabled, insiders-only tool should be removed
+	reg := mustBuild(t, NewBuilder().
+		SetTools([]ServerTool{normalTool, insidersTool}).
+		WithToolsets([]string{"all"}).
+		WithInsidersMode(false))
+	available := reg.AvailableTools(context.Background())
+
+	require.Len(t, available, 1)
+	require.Equal(t, "normal", available[0].Tool.Name)
+}
+
 func TestWithInsidersMode_ToolsWithoutUIMetaUnaffected(t *testing.T) {
 	toolNoUI := mockToolWithMeta("tool_no_ui", "toolset1", map[string]any{
 		"description": "kept",
@@ -2036,6 +2070,23 @@ func TestStripInsidersFeatures(t *testing.T) {
 
 	// tool3: unchanged (nil)
 	require.Nil(t, result[2].Tool.Meta)
+}
+
+func TestStripInsidersFeatures_RemovesInsidersOnlyTools(t *testing.T) {
+	// Create tools: one normal, one insiders-only, one normal
+	normalTool1 := mockTool("normal1", "toolset1", true)
+	insidersTool := mockTool("insiders_only", "toolset1", true)
+	insidersTool.InsidersOnly = true
+	normalTool2 := mockTool("normal2", "toolset1", true)
+
+	tools := []ServerTool{normalTool1, insidersTool, normalTool2}
+
+	result := stripInsidersFeatures(tools)
+
+	// Should only have 2 tools (insiders-only tool filtered out)
+	require.Len(t, result, 2)
+	require.Equal(t, "normal1", result[0].Tool.Name)
+	require.Equal(t, "normal2", result[1].Tool.Name)
 }
 
 func TestInsidersOnlyMetaKeys_FutureAdditions(t *testing.T) {

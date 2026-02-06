@@ -555,23 +555,34 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// When insiders mode is enabled, show UI - the host will detect the UI metadata and display the form
-			if deps.GetFlags(ctx).InsidersMode {
+			// Get optional params needed for InsidersMode check
+			title, err := OptionalParam[string](args, "title")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			head, err := OptionalParam[string](args, "head")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			base, err := OptionalParam[string](args, "base")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// When insiders mode is enabled and required params are missing, show UI
+			if deps.GetFlags(ctx).InsidersMode && (title == "" || head == "" || base == "") {
 				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. The interactive form will be displayed.", owner, repo)), nil, nil
 			}
 
-			// When not using UI, title/head/base are required
-			title, err := RequiredParam[string](args, "title")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			// When creating PR, title/head/base are required
+			if title == "" {
+				return utils.NewToolResultError("missing required parameter: title"), nil, nil
 			}
-			head, err := RequiredParam[string](args, "head")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if head == "" {
+				return utils.NewToolResultError("missing required parameter: head"), nil, nil
 			}
-			base, err := RequiredParam[string](args, "base")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+			if base == "" {
+				return utils.NewToolResultError("missing required parameter: base"), nil, nil
 			}
 
 			body, err := OptionalParam[string](args, "body")
@@ -927,6 +938,97 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			r, err := json.Marshal(minimalResponse)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("Failed to marshal response", err), nil, nil
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
+		})
+}
+
+// AddReplyToPullRequestComment creates a tool to add a reply to an existing PR comment.
+func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventory.ServerTool {
+	schema := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"pullNumber": {
+				Type:        "number",
+				Description: "Pull request number",
+			},
+			"commentId": {
+				Type:        "number",
+				Description: "The ID of the comment to reply to",
+			},
+			"body": {
+				Type:        "string",
+				Description: "The text of the reply",
+			},
+		},
+		Required: []string{"owner", "repo", "pullNumber", "commentId", "body"},
+	}
+
+	return NewTool(
+		ToolsetMetadataPullRequests,
+		mcp.Tool{
+			Name:        "add_reply_to_pull_request_comment",
+			Description: t("TOOL_ADD_REPLY_TO_PULL_REQUEST_COMMENT_DESCRIPTION", "Add a reply to an existing pull request comment. This creates a new comment that is linked as a reply to the specified comment."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_ADD_REPLY_TO_PULL_REQUEST_COMMENT_USER_TITLE", "Add reply to pull request comment"),
+				ReadOnlyHint: false,
+			},
+			InputSchema: schema,
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			pullNumber, err := RequiredInt(args, "pullNumber")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			commentID, err := RequiredInt(args, "commentId")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			body, err := RequiredParam[string](args, "body")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			comment, resp, err := client.PullRequests.CreateCommentInReplyTo(ctx, owner, repo, pullNumber, body, int64(commentID))
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to add reply to pull request comment", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusCreated {
+				bodyBytes, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add reply to pull request comment", resp, bodyBytes), nil, nil
+			}
+
+			r, err := json.Marshal(comment)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
 			return utils.NewToolResultText(string(r)), nil, nil

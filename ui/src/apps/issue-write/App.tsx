@@ -6,7 +6,6 @@ import {
   TextInput,
   Button,
   Flash,
-  Link,
   Spinner,
   FormControl,
   CounterLabel,
@@ -135,17 +134,19 @@ function SuccessView({
           <IssueOpenedIcon size={16} />
         </Box>
         <Box sx={{ minWidth: 0 }}>
-          <Link
+          <a
             href={issueUrl}
             target="_blank"
             rel="noopener noreferrer"
-            sx={{
-              fontWeight: "semibold",
-              fontSize: 1,
+            style={{
+              fontWeight: 600,
+              fontSize: "14px",
               display: "block",
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
+              color: "var(--fgColor-accent, var(--color-accent-fg))",
+              textDecoration: "none",
             }}
           >
             {issue.title || submittedTitle}
@@ -154,7 +155,7 @@ function SuccessView({
                 #{issue.number}
               </Text>
             )}
-          </Link>
+          </a>
           <Text sx={{ color: "fg.muted", fontSize: 0 }}>
             {owner}/{repo}
           </Text>
@@ -251,19 +252,16 @@ function CreateIssueApp() {
     const searchRepos = async () => {
       setRepoSearchLoading(true);
       try {
-        console.log("Searching repositories with query:", repoFilter);
         const result = await callTool("search_repositories", {
           query: repoFilter,
           perPage: 10,
         });
-        console.log("Repository search result:", result);
         if (result && !result.isError && result.content) {
           const textContent = result.content.find(
-            (c: { type: string }) => c.type === "text"
+            (c) => c.type === "text"
           );
-          if (textContent?.text) {
+          if (textContent && textContent.type === "text" && textContent.text) {
             const data = JSON.parse(textContent.text);
-            console.log("Parsed repository data:", data);
             const repos = (data.repositories || data.items || []).map(
               (r: { id?: number; owner?: { login?: string } | string; name?: string; full_name?: string; private?: boolean }) => ({
                 id: String(r.id || r.full_name),
@@ -273,7 +271,6 @@ function CreateIssueApp() {
                 isPrivate: r.private || false,
               })
             );
-            console.log("Mapped repos:", repos);
             setRepoSearchResults(repos);
           }
         }
@@ -295,8 +292,7 @@ function CreateIssueApp() {
     const loadLabels = async () => {
       setLabelsLoading(true);
       try {
-        const result = await callTool("list_label", { owner, repo });
-        console.log("Labels result:", result);
+        const result = await callTool("ui_get", { method: "labels", owner, repo });
         if (result && !result.isError && result.content) {
           const textContent = result.content.find(
             (c: { type: string }) => c.type === "text"
@@ -323,8 +319,7 @@ function CreateIssueApp() {
     const loadAssignees = async () => {
       setAssigneesLoading(true);
       try {
-        const result = await callTool("list_assignees", { owner, repo });
-        console.log("Assignees result:", result);
+        const result = await callTool("ui_get", { method: "assignees", owner, repo });
         if (result && !result.isError && result.content) {
           const textContent = result.content.find(
             (c: { type: string }) => c.type === "text"
@@ -350,8 +345,7 @@ function CreateIssueApp() {
     const loadMilestones = async () => {
       setMilestonesLoading(true);
       try {
-        const result = await callTool("list_milestones", { owner, repo });
-        console.log("Milestones result:", result);
+        const result = await callTool("ui_get", { method: "milestones", owner, repo });
         if (result && !result.isError && result.content) {
           const textContent = result.content.find(
             (c: { type: string }) => c.type === "text"
@@ -379,15 +373,14 @@ function CreateIssueApp() {
     const loadIssueTypes = async () => {
       setIssueTypesLoading(true);
       try {
-        const result = await callTool("list_issue_types", { owner });
-        console.log("Issue types result:", result);
+        const result = await callTool("ui_get", { method: "issue_types", owner });
         if (result && !result.isError && result.content) {
           const textContent = result.content.find(
             (c: { type: string }) => c.type === "text"
           );
           if (textContent && "text" in textContent) {
             const data = JSON.parse(textContent.text as string);
-            // list_issue_types returns array directly or wrapped in issue_types/types
+            // ui_get returns array directly or wrapped in issue_types/types
             const typesArray = Array.isArray(data) ? data : (data.issue_types || data.types || []);
             const types = typesArray.map(
               (t: { id: number; name: string; description?: string } | string) => {
@@ -447,7 +440,6 @@ function CreateIssueApp() {
 
     const loadExistingIssue = async () => {
       try {
-        console.log("Loading existing issue:", owner, repo, issueNumber);
         const result = await callTool("issue_read", {
           method: "get",
           owner,
@@ -457,11 +449,10 @@ function CreateIssueApp() {
 
         if (result && !result.isError && result.content) {
           const textContent = result.content.find(
-            (c: { type: string }) => c.type === "text"
+            (c) => c.type === "text"
           );
-          if (textContent?.text) {
+          if (textContent && textContent.type === "text" && textContent.text) {
             const issueData = JSON.parse(textContent.text);
-            console.log("Loaded issue data:", issueData);
 
             // Pre-fill title and body immediately
             if (issueData.title && !prefillApplied.current.title) {
@@ -473,22 +464,32 @@ function CreateIssueApp() {
               prefillApplied.current.body = true;
             }
 
-            // Extract data for deferred matching when available lists load
-            const labelNames = (issueData.labels || [])
-              .map((l: { name?: string } | string) => typeof l === 'string' ? l : l.name)
-              .filter(Boolean) as string[];
-            
+            // Pre-fill assignees immediately from issue data
             const assigneeLogins = (issueData.assignees || [])
               .map((a: { login?: string } | string) => typeof a === 'string' ? a : a.login)
+              .filter(Boolean) as string[];
+            if (assigneeLogins.length > 0 && !prefillApplied.current.assignees) {
+              setSelectedAssignees(assigneeLogins.map(login => ({ id: login, text: login })));
+              prefillApplied.current.assignees = true;
+            }
+
+            // Pre-fill issue type immediately from issue data
+            const issueTypeName = issueData.type?.name || (typeof issueData.type === 'string' ? issueData.type : null);
+            if (issueTypeName && !prefillApplied.current.type) {
+              setSelectedIssueType({ id: issueTypeName, text: issueTypeName });
+              prefillApplied.current.type = true;
+            }
+
+            // Extract data for deferred matching when available lists load (for labels and milestones)
+            const labelNames = (issueData.labels || [])
+              .map((l: { name?: string } | string) => typeof l === 'string' ? l : l.name)
               .filter(Boolean) as string[];
             
             const milestoneNumber = issueData.milestone 
               ? (typeof issueData.milestone === 'object' ? issueData.milestone.number : issueData.milestone)
               : null;
-            
-            const issueType = issueData.issue_type?.name || issueData.type || null;
 
-            setExistingIssueData({ labels: labelNames, assignees: assigneeLogins, milestoneNumber, issueType });
+            setExistingIssueData({ labels: labelNames, assignees: assigneeLogins, milestoneNumber, issueType: issueTypeName });
           }
         }
       } catch (e) {
@@ -509,35 +510,15 @@ function CreateIssueApp() {
     }
   }, [existingIssueData, availableLabels]);
 
-  // Apply existing assignees when available assignees load
-  useEffect(() => {
-    if (!existingIssueData?.assignees.length || !availableAssignees.length || prefillApplied.current.assignees) return;
-    const matched = availableAssignees.filter((a) => existingIssueData.assignees.includes(a.text));
-    if (matched.length > 0) {
-      setSelectedAssignees(matched);
-      prefillApplied.current.assignees = true;
-    }
-  }, [existingIssueData, availableAssignees]);
-
   // Apply existing milestone when available milestones load
   useEffect(() => {
     if (!existingIssueData?.milestoneNumber || !availableMilestones.length || prefillApplied.current.milestone) return;
     const matched = availableMilestones.find((m) => m.number === existingIssueData.milestoneNumber);
     if (matched) {
       setSelectedMilestone(matched);
-      prefillApplied.current.milestone = true;
     }
+    prefillApplied.current.milestone = true;
   }, [existingIssueData, availableMilestones]);
-
-  // Apply existing issue type when available issue types load
-  useEffect(() => {
-    if (!existingIssueData?.issueType || !availableIssueTypes.length || prefillApplied.current.type) return;
-    const matched = availableIssueTypes.find((t) => t.text === existingIssueData.issueType);
-    if (matched) {
-      setSelectedIssueType(matched);
-      prefillApplied.current.type = true;
-    }
-  }, [existingIssueData, availableIssueTypes]);
 
   // Pre-fill title and body immediately (don't wait for data loading)
   useEffect(() => {
@@ -754,24 +735,24 @@ function CreateIssueApp() {
         borderBottomWidth={1}
         borderBottomStyle="solid"
         borderBottomColor="border.default"
+        sx={{ minWidth: 0, overflow: "hidden" }}
       >
-        <ActionMenu>
-          <ActionMenu.Button
-            size="small"
-            leadingVisual={selectedRepo?.isPrivate ? LockIcon : RepoIcon}
-          >
-            {selectedRepo ? selectedRepo.fullName : "Select repository"}
-          </ActionMenu.Button>
-          <ActionMenu.Overlay width="large">
+        <Box sx={{ minWidth: 0, maxWidth: "100%" }}>
+          <ActionMenu>
+            <ActionMenu.Button
+              size="small"
+              leadingVisual={selectedRepo?.isPrivate ? LockIcon : RepoIcon}
+              sx={{ maxWidth: "100%", overflow: "hidden", "& > span:last-child": { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }}
+            >
+              {selectedRepo ? selectedRepo.fullName : "Select repository"}
+            </ActionMenu.Button>
+          <ActionMenu.Overlay width="medium">
             <ActionList selectionVariant="single">
               <Box px={3} py={2}>
                 <TextInput
                   placeholder="Search repositories..."
                   value={repoFilter}
-                  onChange={(e) => {
-                    console.log("Repo filter changed:", e.target.value);
-                    setRepoFilter(e.target.value);
-                  }}
+                  onChange={(e) => setRepoFilter(e.target.value)}
                   sx={{ width: "100%" }}
                   size="small"
                   autoFocus
@@ -828,6 +809,7 @@ function CreateIssueApp() {
             </ActionList>
           </ActionMenu.Overlay>
         </ActionMenu>
+        </Box>
       </Box>
 
       {/* Error banner */}
@@ -867,7 +849,7 @@ function CreateIssueApp() {
       </Box>
 
       {/* Metadata section */}
-      <Box display="flex" gap={1} mb={3} sx={{ flexWrap: "nowrap", overflow: "hidden" }}>
+      <Box display="flex" gap={4} mb={3} sx={{ flexWrap: "wrap" }}>
         {/* Labels dropdown */}
         <ActionMenu>
           <ActionMenu.Button size="small" leadingVisual={TagIcon}>

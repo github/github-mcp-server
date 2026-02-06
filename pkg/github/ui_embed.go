@@ -30,3 +30,12 @@ func MustGetUIAsset(name string) string {
 	}
 	return html
 }
+
+// UIAssetsAvailable returns true if the MCP App UI assets have been built.
+// This checks for a known UI asset file to determine if `script/build-ui` has been run.
+// Use this to gracefully skip UI registration when assets aren't available,
+// allowing Insiders mode to work for non-UI features without requiring a UI build.
+func UIAssetsAvailable() bool {
+	_, err := GetUIAsset("get-me.html")
+	return err == nil
+}

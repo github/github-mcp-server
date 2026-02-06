@@ -215,6 +215,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		RequestCopilotReview(t),
 		PullRequestReviewWrite(t),
 		AddCommentToPendingReview(t),
+		AddReplyToPullRequestComment(t),
 
 		// Code security tools
 		GetCodeScanningAlert(t),
@@ -296,6 +297,9 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GetLabelForLabelsToolset(t),
 		ListLabels(t),
 		LabelWrite(t),
+
+		// UI tools (insiders only)
+		UIGet(t),
 	}
 }
 

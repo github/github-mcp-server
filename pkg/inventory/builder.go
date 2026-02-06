@@ -351,14 +351,19 @@ var insidersOnlyMetaKeys = []string{
 }
 
 // stripInsidersFeatures removes insiders-only features from tools.
-// This includes Meta keys listed in insidersOnlyMetaKeys.
+// This includes removing tools marked with InsidersOnly and stripping
+// Meta keys listed in insidersOnlyMetaKeys from remaining tools.
 func stripInsidersFeatures(tools []ServerTool) []ServerTool {
-	result := make([]ServerTool, len(tools))
-	for i, tool := range tools {
+	result := make([]ServerTool, 0, len(tools))
+	for _, tool := range tools {
+		// Skip tools marked as insiders-only
+		if tool.InsidersOnly {
+			continue
+		}
 		if stripped := stripInsidersMetaFromTool(tool); stripped != nil {
-			result[i] = *stripped
+			result = append(result, *stripped)
 		} else {
-			result[i] = tool
+			result = append(result, tool)
 		}
 	}
 	return result

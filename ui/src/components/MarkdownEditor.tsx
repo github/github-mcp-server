@@ -94,6 +94,79 @@ export function MarkdownEditor({
     }
   }, [value]);
 
+  // Handle Enter key for list continuation
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== "Enter" || e.shiftKey) return;
+
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const { selectionStart, value: currentValue } = textarea;
+    
+    // Get the current line
+    const beforeCursor = currentValue.substring(0, selectionStart);
+    const lastNewline = beforeCursor.lastIndexOf("\n");
+    const currentLine = beforeCursor.substring(lastNewline + 1);
+
+    // Match different list patterns
+    const unorderedMatch = currentLine.match(/^(\s*)([-*])\s/);
+    const orderedMatch = currentLine.match(/^(\s*)(\d+)\.\s/);
+    const taskMatch = currentLine.match(/^(\s*)([-*])\s\[[ x]\]\s/);
+
+    let prefix = "";
+    let isEmpty = false;
+
+    if (taskMatch) {
+      const indent = taskMatch[1];
+      const marker = taskMatch[2];
+      // Check if the line only has the list marker with no content
+      isEmpty = currentLine.trim() === `${marker} [ ]` || currentLine.trim() === `${marker} [x]`;
+      prefix = `${indent}${marker} [ ] `;
+    } else if (orderedMatch) {
+      const indent = orderedMatch[1];
+      const num = parseInt(orderedMatch[2], 10);
+      // Check if the line only has the list marker
+      isEmpty = currentLine.trim() === `${num}.`;
+      prefix = `${indent}${num + 1}. `;
+    } else if (unorderedMatch) {
+      const indent = unorderedMatch[1];
+      const marker = unorderedMatch[2];
+      // Check if the line only has the list marker
+      isEmpty = currentLine.trim() === marker;
+      prefix = `${indent}${marker} `;
+    }
+
+    if (prefix) {
+      e.preventDefault();
+      
+      if (isEmpty) {
+        // If just the list marker, remove it and exit list
+        const newValue = currentValue.substring(0, lastNewline + 1) + currentValue.substring(selectionStart);
+        onChange(newValue);
+        // Set cursor position after React updates
+        requestAnimationFrame(() => {
+          if (textarea) {
+            textarea.selectionStart = textarea.selectionEnd = lastNewline + 1;
+            textarea.focus();
+          }
+        });
+      } else {
+        // Continue the list on the next line
+        const afterCursor = currentValue.substring(selectionStart);
+        const newValue = beforeCursor + "\n" + prefix + afterCursor;
+        onChange(newValue);
+        // Set cursor position after the prefix
+        const newCursorPos = selectionStart + 1 + prefix.length;
+        requestAnimationFrame(() => {
+          if (textarea) {
+            textarea.selectionStart = textarea.selectionEnd = newCursorPos;
+            textarea.focus();
+          }
+        });
+      }
+    }
+  };
+
   return (
     <Box
       borderWidth={1}
@@ -248,6 +321,7 @@ export function MarkdownEditor({
           id={textareaId}
           defaultValue={value}
           onChange={(e) => onChange(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder={placeholder}
           style={{
             width: "100%",
@@ -310,8 +384,11 @@ export function MarkdownEditor({
               borderLeft: "4px solid",
               borderColor: "border.default",
               pl: 3,
+              ml: 0,
+              mr: 0,
               my: 2,
               color: "fg.muted",
+              bg: "canvas.subtle",
             },
             "& a": {
               color: "accent.fg",
