@@ -1109,7 +1109,7 @@ Options are:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			if deps.GetFlags().InsidersMode && title == "" {
+			if deps.GetFlags(ctx).InsidersMode && title == "" {
 				if method == "update" {
 					issueNumber, numErr := RequiredInt(args, "issue_number")
 					if numErr != nil {

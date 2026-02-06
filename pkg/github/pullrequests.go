@@ -561,7 +561,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			base, _ := OptionalParam[string](args, "base")
 
 			// When insiders mode is enabled and required params are missing, show UI
-			if deps.GetFlags().InsidersMode && (title == "" || head == "" || base == "") {
+			if deps.GetFlags(ctx).InsidersMode && (title == "" || head == "" || base == "") {
 				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. The interactive form will be displayed.", owner, repo)), nil, nil
 			}
 
