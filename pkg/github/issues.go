@@ -1101,15 +1101,12 @@ Options are:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// When insiders mode is enabled and this is an initial request (no title provided),
-			// show UI - the host will detect the UI metadata and display the form.
-			// If title is provided, this is a submission from the UI form, so proceed with the operation.
-			title, err := OptionalParam[string](args, "title")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
+			// When insiders mode is enabled, check if this is a UI form submission.
+			// The UI sends _ui_submitted=true to distinguish form submissions from LLM calls.
+			// Without this flag, always show the UI so the user can review/edit before submitting.
+			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 
-			if deps.GetFlags(ctx).InsidersMode && title == "" {
+			if deps.GetFlags(ctx).InsidersMode && !uiSubmitted {
 				if method == "update" {
 					issueNumber, numErr := RequiredInt(args, "issue_number")
 					if numErr != nil {
@@ -1118,6 +1115,11 @@ Options are:
 					return utils.NewToolResultText(fmt.Sprintf("Ready to update issue #%d in %s/%s. The interactive form will be displayed.", issueNumber, owner, repo)), nil, nil
 				}
 				return utils.NewToolResultText(fmt.Sprintf("Ready to create an issue in %s/%s. The interactive form will be displayed.", owner, repo)), nil, nil
+			}
+
+			title, err := OptionalParam[string](args, "title")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
 			// Optional parameters

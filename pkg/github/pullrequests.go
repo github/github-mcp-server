@@ -555,17 +555,27 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// Check if required params for PR creation are provided
-			title, _ := OptionalParam[string](args, "title")
-			head, _ := OptionalParam[string](args, "head")
-			base, _ := OptionalParam[string](args, "base")
+			// When insiders mode is enabled, check if this is a UI form submission.
+			// The UI sends _ui_submitted=true to distinguish form submissions from LLM calls.
+			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 
-			// When insiders mode is enabled and required params are missing, show UI
-			if deps.GetFlags(ctx).InsidersMode && (title == "" || head == "" || base == "") {
+			if deps.GetFlags(ctx).InsidersMode && !uiSubmitted {
 				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. The interactive form will be displayed.", owner, repo)), nil, nil
 			}
 
 			// When creating PR, title/head/base are required
+			title, err := OptionalParam[string](args, "title")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			head, err := OptionalParam[string](args, "head")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			base, err := OptionalParam[string](args, "base")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 			if title == "" {
 				return utils.NewToolResultError("missing required parameter: title"), nil, nil
 			}

@@ -621,7 +621,8 @@ function CreateIssueApp() {
         owner,
         repo,
         title: title.trim(),
-        body: body.trim()
+        body: body.trim(),
+        _ui_submitted: true
       };
 
       if (isUpdateMode && issueNumber) {
