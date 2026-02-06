@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	headers "github.com/github/github-mcp-server/pkg/http/headers"
 )
 
 type BearerAuthTransport struct {
@@ -14,11 +15,11 @@ type BearerAuthTransport struct {
 
 func (t *BearerAuthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req = req.Clone(req.Context())
-	req.Header.Set("Authorization", "Bearer "+t.Token)
+	req.Header.Set(headers.AuthorizationHeader, "Bearer "+t.Token)
 
 	// Check for GraphQL-Features in context and add header if present
 	if features := ghcontext.GetGraphQLFeatures(req.Context()); len(features) > 0 {
-		req.Header.Set("GraphQL-Features", strings.Join(features, ", "))
+		req.Header.Set(headers.GraphQLFeaturesHeader, strings.Join(features, ", "))
 	}
 
 	return t.Transport.RoundTrip(req)

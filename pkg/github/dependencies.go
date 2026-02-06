@@ -237,11 +237,6 @@ func NewToolFromHandler(
 }
 
 type RequestDeps struct {
-	Client          *gogithub.Client
-	GQLClient       *githubv4.Client
-	RawClient       *raw.Client
-	RepoAccessCache *lockdown.RepoAccessCache
-
 	// Static dependencies
 	apiHosts          utils.APIHostResolver
 	version           string
@@ -277,12 +272,12 @@ func NewRequestDeps(
 
 // GetClient implements ToolDependencies.
 func (d *RequestDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
-	if d.Client != nil {
-		return d.Client, nil
-	}
-
 	// extract the token from the context
-	token, _ := ghcontext.GetTokenInfo(ctx)
+	tokenInfo, ok := ghcontext.GetTokenInfo(ctx)
+	if !ok {
+		return nil, fmt.Errorf("no token info in context")
+	}
+	token := tokenInfo.Token
 
 	baseRestURL, err := d.apiHosts.BaseRESTURL(ctx)
 	if err != nil {
@@ -303,12 +298,12 @@ func (d *RequestDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
 
 // GetGQLClient implements ToolDependencies.
 func (d *RequestDeps) GetGQLClient(ctx context.Context) (*githubv4.Client, error) {
-	if d.GQLClient != nil {
-		return d.GQLClient, nil
-	}
-
 	// extract the token from the context
-	token, _ := ghcontext.GetTokenInfo(ctx)
+	tokenInfo, ok := ghcontext.GetTokenInfo(ctx)
+	if !ok {
+		return nil, fmt.Errorf("no token info in context")
+	}
+	token := tokenInfo.Token
 
 	// Construct GraphQL client
 	// We use NewEnterpriseClient unconditionally since we already parsed the API host
@@ -329,16 +324,11 @@ func (d *RequestDeps) GetGQLClient(ctx context.Context) (*githubv4.Client, error
 	}
 
 	gqlClient := githubv4.NewEnterpriseClient(graphqlURL.String(), gqlHTTPClient)
-	d.GQLClient = gqlClient
 	return gqlClient, nil
 }
 
 // GetRawClient implements ToolDependencies.
 func (d *RequestDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
-	if d.RawClient != nil {
-		return d.RawClient, nil
-	}
-
 	client, err := d.GetClient(ctx)
 	if err != nil {
 		return nil, err
@@ -350,7 +340,6 @@ func (d *RequestDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
 	}
 
 	rawClient := raw.NewClient(client, rawURL)
-	d.RawClient = rawClient
 
 	return rawClient, nil
 }
@@ -361,10 +350,6 @@ func (d *RequestDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAcc
 		return nil, nil
 	}
 
-	if d.RepoAccessCache != nil {
-		return d.RepoAccessCache, nil
-	}
-
 	gqlClient, err := d.GetGQLClient(ctx)
 	if err != nil {
 		return nil, err
@@ -372,7 +357,6 @@ func (d *RequestDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAcc
 
 	// Create repo access cache
 	instance := lockdown.GetInstance(gqlClient, d.RepoAccessOpts...)
-	d.RepoAccessCache = instance
 	return instance, nil
 }
 

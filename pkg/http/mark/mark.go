@@ -1,4 +1,4 @@
-// Package mark provides a mechnanism for tagging errors with a well-known error value.
+// Package mark provides a mechanism for tagging errors with a well-known error value.
 package mark
 
 import "errors"

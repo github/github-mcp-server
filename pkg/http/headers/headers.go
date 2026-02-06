@@ -43,4 +43,11 @@ const (
 	MCPInsidersHeader = "X-MCP-Insiders"
 	// MCPFeaturesHeader is a comma-separated list of feature flags to enable.
 	MCPFeaturesHeader = "X-MCP-Features"
+
+	// GitHub-specific headers.
+
+	// GraphQLFeaturesHeader is a comma-separated list of GraphQL feature flags to enable for GraphQL requests.
+	GraphQLFeaturesHeader = "GraphQL-Features"
+	// GitHubAPIVersionHeader is the header used to specify the GitHub API version.
+	GitHubAPIVersionHeader = "X-GitHub-Api-Version"
 )

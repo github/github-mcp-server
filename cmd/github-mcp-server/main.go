@@ -109,6 +109,7 @@ var (
 				ContentWindowSize:    viper.GetInt("content-window-size"),
 				LockdownMode:         viper.GetBool("lockdown-mode"),
 				RepoAccessCacheTTL:   &ttl,
+				ScopeChallenge:       viper.GetBool("scope-challenge"),
 			}
 
 			return ghhttp.RunHTTPServer(httpConfig)
@@ -141,6 +142,7 @@ func init() {
 	httpCmd.Flags().Int("port", 8082, "HTTP server port")
 	httpCmd.Flags().String("base-url", "", "Base URL where this server is publicly accessible (for OAuth resource metadata)")
 	httpCmd.Flags().String("base-path", "", "Externally visible base path for the HTTP server (for OAuth resource metadata)")
+	httpCmd.Flags().Bool("scope-challenge", false, "Enable OAuth scope challenge responses and tool filtering based on token scopes")
 
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
@@ -159,7 +161,7 @@ func init() {
 	_ = viper.BindPFlag("port", httpCmd.Flags().Lookup("port"))
 	_ = viper.BindPFlag("base-url", httpCmd.Flags().Lookup("base-url"))
 	_ = viper.BindPFlag("base-path", httpCmd.Flags().Lookup("base-path"))
-
+	_ = viper.BindPFlag("scope-challenge", httpCmd.Flags().Lookup("scope-challenge"))
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)
 	rootCmd.AddCommand(httpCmd)

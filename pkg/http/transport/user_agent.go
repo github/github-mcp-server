@@ -1,6 +1,10 @@
 package transport
 
-import "net/http"
+import (
+	"net/http"
+
+	"github.com/github/github-mcp-server/pkg/http/headers"
+)
 
 type UserAgentTransport struct {
 	Transport http.RoundTripper
@@ -9,6 +13,6 @@ type UserAgentTransport struct {
 
 func (t *UserAgentTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req = req.Clone(req.Context())
-	req.Header.Set("User-Agent", t.Agent)
+	req.Header.Set(headers.UserAgentHeader, t.Agent)
 	return t.Transport.RoundTrip(req)
 }

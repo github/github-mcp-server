@@ -944,7 +944,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 		})
 }
 
-// AddReplyToPullRequestComment creates a tool to add a reply to an existing PR comment.
+// AddReplyToPullRequestComment creates a tool to add a reply to an existing pull request comment.
 func AddReplyToPullRequestComment(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
 		Type: "object",
