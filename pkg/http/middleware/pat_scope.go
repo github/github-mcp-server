@@ -40,6 +40,7 @@ func WithPATScopes(logger *slog.Logger, scopeFetcher scopes.FetcherInterface) fu
 				ctx := ghcontext.WithTokenInfo(ctx, tokenInfo)
 
 				next.ServeHTTP(w, r.WithContext(ctx))
+				return
 			}
 
 			next.ServeHTTP(w, r)
