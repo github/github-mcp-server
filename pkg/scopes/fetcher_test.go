@@ -4,12 +4,30 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type testAPIHostResolver struct {
+	baseURL string
+}
+
+func (t testAPIHostResolver) BaseRESTURL(_ context.Context) (*url.URL, error) {
+	return url.Parse(t.baseURL)
+}
+func (t testAPIHostResolver) GraphqlURL(_ context.Context) (*url.URL, error) {
+	return nil, nil
+}
+func (t testAPIHostResolver) UploadURL(_ context.Context) (*url.URL, error) {
+	return nil, nil
+}
+func (t testAPIHostResolver) RawURL(_ context.Context) (*url.URL, error) {
+	return nil, nil
+}
 
 func TestParseScopeHeader(t *testing.T) {
 	tests := []struct {
@@ -146,10 +164,8 @@ func TestFetcher_FetchTokenScopes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			server := httptest.NewServer(tt.handler)
 			defer server.Close()
-
-			fetcher := NewFetcher(FetcherOptions{
-				APIHost: server.URL,
-			})
+			apiHost := testAPIHostResolver{baseURL: server.URL}
+			fetcher := NewFetcher(apiHost, FetcherOptions{})
 
 			scopes, err := fetcher.FetchTokenScopes(context.Background(), "test-token")
 
@@ -167,10 +183,13 @@ func TestFetcher_FetchTokenScopes(t *testing.T) {
 }
 
 func TestFetcher_DefaultOptions(t *testing.T) {
-	fetcher := NewFetcher(FetcherOptions{})
+	apiHost := testAPIHostResolver{baseURL: "https://api.github.com"}
+	fetcher := NewFetcher(apiHost, FetcherOptions{})
 
 	// Verify default API host is set
-	assert.Equal(t, "https://api.github.com", fetcher.apiHost)
+	apiURL, err := fetcher.apiHost.BaseRESTURL(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "https://api.github.com", apiURL.String())
 
 	// Verify default HTTP client is set with timeout
 	assert.NotNil(t, fetcher.client)
@@ -180,7 +199,8 @@ func TestFetcher_DefaultOptions(t *testing.T) {
 func TestFetcher_CustomHTTPClient(t *testing.T) {
 	customClient := &http.Client{Timeout: 5 * time.Second}
 
-	fetcher := NewFetcher(FetcherOptions{
+	apiHost := testAPIHostResolver{baseURL: "https://api.github.com"}
+	fetcher := NewFetcher(apiHost, FetcherOptions{
 		HTTPClient: customClient,
 	})
 
@@ -188,11 +208,12 @@ func TestFetcher_CustomHTTPClient(t *testing.T) {
 }
 
 func TestFetcher_CustomAPIHost(t *testing.T) {
-	fetcher := NewFetcher(FetcherOptions{
-		APIHost: "https://api.github.enterprise.com",
-	})
+	apiHost := testAPIHostResolver{baseURL: "https://api.github.enterprise.com"}
+	fetcher := NewFetcher(apiHost, FetcherOptions{})
 
-	assert.Equal(t, "https://api.github.enterprise.com", fetcher.apiHost)
+	apiURL, err := fetcher.apiHost.BaseRESTURL(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, "https://api.github.enterprise.com", apiURL.String())
 }
 
 func TestFetcher_ContextCancellation(t *testing.T) {
@@ -202,9 +223,8 @@ func TestFetcher_ContextCancellation(t *testing.T) {
 	}))
 	defer server.Close()
 
-	fetcher := NewFetcher(FetcherOptions{
-		APIHost: server.URL,
-	})
+	apiHost := testAPIHostResolver{baseURL: server.URL}
+	fetcher := NewFetcher(apiHost, FetcherOptions{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately

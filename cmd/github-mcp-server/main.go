@@ -9,6 +9,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/ghmcp"
 	"github.com/github/github-mcp-server/pkg/github"
+	ghhttp "github.com/github/github-mcp-server/pkg/http"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -89,6 +90,31 @@ var (
 			return ghmcp.RunStdioServer(stdioServerConfig)
 		},
 	}
+
+	httpCmd = &cobra.Command{
+		Use:   "http",
+		Short: "Start HTTP server",
+		Long:  `Start an HTTP server that listens for MCP requests over HTTP.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			ttl := viper.GetDuration("repo-access-cache-ttl")
+			httpConfig := ghhttp.ServerConfig{
+				Version:              version,
+				Host:                 viper.GetString("host"),
+				Port:                 viper.GetInt("port"),
+				BaseURL:              viper.GetString("base-url"),
+				ResourcePath:         viper.GetString("base-path"),
+				ExportTranslations:   viper.GetBool("export-translations"),
+				EnableCommandLogging: viper.GetBool("enable-command-logging"),
+				LogFilePath:          viper.GetString("log-file"),
+				ContentWindowSize:    viper.GetInt("content-window-size"),
+				LockdownMode:         viper.GetBool("lockdown-mode"),
+				RepoAccessCacheTTL:   &ttl,
+				ScopeChallenge:       viper.GetBool("scope-challenge"),
+			}
+
+			return ghhttp.RunHTTPServer(httpConfig)
+		},
+	}
 )
 
 func init() {
@@ -112,6 +138,12 @@ func init() {
 	rootCmd.PersistentFlags().Bool("insiders", false, "Enable insiders features")
 	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "Override the repo access cache TTL (e.g. 1m, 0s to disable)")
 
+	// HTTP-specific flags
+	httpCmd.Flags().Int("port", 8082, "HTTP server port")
+	httpCmd.Flags().String("base-url", "", "Base URL where this server is publicly accessible (for OAuth resource metadata)")
+	httpCmd.Flags().String("base-path", "", "Externally visible base path for the HTTP server (for OAuth resource metadata)")
+	httpCmd.Flags().Bool("scope-challenge", false, "Enable OAuth scope challenge responses")
+
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
 	_ = viper.BindPFlag("tools", rootCmd.PersistentFlags().Lookup("tools"))
@@ -126,9 +158,13 @@ func init() {
 	_ = viper.BindPFlag("lockdown-mode", rootCmd.PersistentFlags().Lookup("lockdown-mode"))
 	_ = viper.BindPFlag("insiders", rootCmd.PersistentFlags().Lookup("insiders"))
 	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
-
+	_ = viper.BindPFlag("port", httpCmd.Flags().Lookup("port"))
+	_ = viper.BindPFlag("base-url", httpCmd.Flags().Lookup("base-url"))
+	_ = viper.BindPFlag("base-path", httpCmd.Flags().Lookup("base-path"))
+	_ = viper.BindPFlag("scope-challenge", httpCmd.Flags().Lookup("scope-challenge"))
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)
+	rootCmd.AddCommand(httpCmd)
 }
 
 func initConfig() {
