@@ -41,6 +41,8 @@ func WithPATScopes(logger *slog.Logger, scopeFetcher scopes.FetcherInterface) fu
 
 				next.ServeHTTP(w, r.WithContext(ctx))
 			}
+
+			next.ServeHTTP(w, r)
 		}
 		return http.HandlerFunc(fn)
 	}
