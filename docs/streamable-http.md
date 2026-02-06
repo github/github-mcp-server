@@ -27,7 +27,7 @@ The server will be available at `http://localhost:8082`.
 Enable scope validation to enforce GitHub permission checks:
 
 ```bash
-github-mcp-server http --port 80 --scope-challenge
+github-mcp-server http --scope-challenge
 ```
 
 When `--scope-challenge` is enabled, requests with insufficient scopes receive a `403 Forbidden` response with a `WWW-Authenticate` header indicating the required scopes.
@@ -37,7 +37,7 @@ When `--scope-challenge` is enabled, requests with insufficient scopes receive a
 For use behind reverse proxies or with custom domains, expose OAuth metadata endpoints:
 
 ```bash
-github-mcp-server http --port 80 --scope-challenge --base-url https://myserver.com --base-path /mcp
+github-mcp-server http --scope-challenge --base-url https://myserver.com --base-path /mcp
 ```
 
 The OAuth protected resource metadata's `resource` attribute will be populated with the full URL to the server's protected resource endpoint:
@@ -68,7 +68,7 @@ If your IDE or client has GitHub credentials configured (i.e. VS Code), simply r
 ```json
 {
   "type": "http",
-  "url": "https://localhost:8082"
+  "url": "http://localhost:8082"
 }
 ```
 
@@ -81,7 +81,7 @@ To provide PAT credentials, or to customize server behavior preferences, you can
 ```json
 {
   "type": "http",
-  "url": "https://localhost:8082",
+  "url": "http://localhost:8082",
   "headers": {
     "Authorization": "Bearer ghp_yourtokenhere",
     "X-MCP-Toolsets": "default",
