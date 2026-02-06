@@ -63,7 +63,7 @@ This allows OAuth clients to discover authentication requirements and endpoint i
 
 ### Using OAuth Authentication
 
-If your IDE or client has GitHub credentials configured (i.e. VSCode), simply reference the HTTP server:
+If your IDE or client has GitHub credentials configured (i.e. VS Code), simply reference the HTTP server:
 
 ```json
 {
