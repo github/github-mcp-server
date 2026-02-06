@@ -1043,14 +1043,14 @@ The following sets of tools are available:
 
 - **create_pull_request** - Open new pull request
   - **Required OAuth Scopes**: `repo`
-  - `base`: Branch to merge into (string, optional)
+  - `base`: Branch to merge into (string, required)
   - `body`: PR description (string, optional)
   - `draft`: Create as draft PR (boolean, optional)
-  - `head`: Branch containing changes (string, optional)
+  - `head`: Branch containing changes (string, required)
   - `maintainer_can_modify`: Allow maintainer edits (boolean, optional)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
-  - `title`: PR title (string, optional)
+  - `title`: PR title (string, required)
 
 - **list_pull_requests** - List pull requests
   - **Required OAuth Scopes**: `repo`

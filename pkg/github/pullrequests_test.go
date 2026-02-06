@@ -2039,7 +2039,7 @@ func Test_CreatePullRequest(t *testing.T) {
 	assert.Contains(t, schema.Properties, "base")
 	assert.Contains(t, schema.Properties, "draft")
 	assert.Contains(t, schema.Properties, "maintainer_can_modify")
-	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "title", "head", "base"})
 
 	// Setup mock PR for success case
 	mockPR := &github.PullRequest{

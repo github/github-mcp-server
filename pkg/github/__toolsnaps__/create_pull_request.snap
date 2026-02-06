@@ -49,7 +49,10 @@
     },
     "required": [
       "owner",
-      "repo"
+      "repo",
+      "title",
+      "head",
+      "base"
     ],
     "type": "object"
   },

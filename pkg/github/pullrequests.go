@@ -541,7 +541,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 						Description: "Allow maintainer edits",
 					},
 				},
-				Required: []string{"owner", "repo"},
+				Required: []string{"owner", "repo", "title", "head", "base"},
 			},
 		},
 		[]scopes.Scope{scopes.Repo},
