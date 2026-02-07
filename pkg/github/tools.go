@@ -195,6 +195,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		AddIssueComment(t),
 		AssignCopilotToIssue(t),
 		SubIssueWrite(t),
+		CreateMilestone(t),
 
 		// User tools
 		SearchUsers(t),
@@ -290,6 +291,10 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ProjectsWrite(t),
 		CreateProject(t),
 		CreateIterationField(t),
+		UpdateProjectItemStatus(t),
+		CreateProjectStatusUpdate(t),
+		GetProjectStatusUpdates(t),
+		UpdateProjectSettings(t),
 
 		// Label tools
 		GetLabel(t),

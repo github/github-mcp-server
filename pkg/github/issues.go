@@ -1159,6 +1159,115 @@ Options are:
 		})
 }
 
+// CreateMilestone creates a tool to create a milestone in a repository.
+func CreateMilestone(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataIssues,
+		mcp.Tool{
+			Name:        "create_milestone",
+			Description: t("TOOL_CREATE_MILESTONE_DESCRIPTION", "Create a milestone in a repository. Returns the milestone number and ID."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_CREATE_MILESTONE_USER_TITLE", "Create milestone"),
+				ReadOnlyHint: false,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"title": {
+						Type:        "string",
+						Description: "Milestone title",
+					},
+					"description": {
+						Type:        "string",
+						Description: "Milestone description (optional)",
+					},
+					"due_on": {
+						Type:        "string",
+						Description: "Due date in ISO 8601 format (optional)",
+					},
+				},
+				Required: []string{"owner", "repo", "title"},
+			},
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			title, err := RequiredParam[string](args, "title")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			description, err := OptionalParam[string](args, "description")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			dueOnStr, err := OptionalParam[string](args, "due_on")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			milestone := &github.Milestone{
+				Title:       github.Ptr(title),
+				Description: github.Ptr(description),
+			}
+
+			if dueOnStr != "" {
+				dueOn, err := parseISOTimestamp(dueOnStr)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("failed to parse due_on: %v", err)), nil, nil
+				}
+				milestone.DueOn = &github.Timestamp{Time: dueOn}
+			}
+
+			created, resp, err := client.Issues.CreateMilestone(ctx, owner, repo, milestone)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to create milestone", resp, err), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			if resp.StatusCode != http.StatusCreated {
+				body, err := io.ReadAll(resp.Body)
+				if err != nil {
+					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+				}
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create milestone", resp, body), nil, nil
+			}
+
+			result := map[string]any{
+				"number": created.GetNumber(),
+				"id":     created.GetNodeID(),
+				"title":  created.GetTitle(),
+				"url":    created.GetHTMLURL(),
+			}
+
+			r, err := json.Marshal(result)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
+		})
+}
+
 func CreateIssue(ctx context.Context, client *github.Client, owner string, repo string, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string) (*mcp.CallToolResult, error) {
 	if title == "" {
 		return utils.NewToolResultError("missing required parameter: title"), nil
