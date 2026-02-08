@@ -1,7 +1,7 @@
 {
   "annotations": {
-    "title": "Get organization members",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "Get organization members"
   },
   "description": "Get member users of a specific organization. Returns a list of user objects with fields: login, id, avatar_url, type. Limited to organizations accessible with current credentials",
   "inputSchema": {
@@ -9,14 +9,6 @@
       "org": {
         "description": "Organization login (owner) to get members for.",
         "type": "string"
-      },
-      "page": {
-        "description": "Page number for pagination",
-        "type": "number"
-      },
-      "per_page": {
-        "description": "Results per page (max 100)",
-        "type": "number"
       },
       "role": {
         "description": "Filter by role: all, admin, member",

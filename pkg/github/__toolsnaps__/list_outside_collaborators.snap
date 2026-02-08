@@ -1,7 +1,7 @@
 {
   "annotations": {
-    "title": "List outside collaborators",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "List outside collaborators"
   },
   "description": "List all outside collaborators of an organization (users with access to organization repositories but not members).",
   "inputSchema": {
@@ -9,14 +9,6 @@
       "org": {
         "description": "The organization name",
         "type": "string"
-      },
-      "page": {
-        "description": "Page number for pagination",
-        "type": "number"
-      },
-      "per_page": {
-        "description": "Results per page (max 100)",
-        "type": "number"
       }
     },
     "required": [

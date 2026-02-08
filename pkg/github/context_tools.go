@@ -3,7 +3,6 @@ package github
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
@@ -11,8 +10,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/go-viper/mapstructure/v2"
-	"github.com/google/go-github/v79/github"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -115,8 +112,6 @@ type OrganizationTeams struct {
 	Teams []TeamInfo `json:"teams"`
 }
 
-
-
 type OutUser struct {
 	Login     string `json:"login"`
 	ID        string `json:"id"`
@@ -131,7 +126,6 @@ func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
 		mcp.Tool{
 			Name:        "get_teams",
 			Description: t("TOOL_GET_TEAMS_DESCRIPTION", "Get details of the teams the user is a member of. Limited to organizations accessible with current credentials"),
-			
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_TEAMS_TITLE", "Get teams"),
 				ReadOnlyHint: true,
@@ -295,90 +289,85 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 	)
 }
 
-func GetOrgMembers(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
-	return mcp.NewTool("get_org_members",
-			mcp.WithDescription(t("TOOL_GET_ORG_MEMBERS_DESCRIPTION", "Get member users of a specific organization. Returns a list of user objects with fields: login, id, avatar_url, type. Limited to organizations accessible with current credentials")),
-			mcp.WithString("org",
-				mcp.Description(t("TOOL_GET_ORG_MEMBERS_ORG_DESCRIPTION", "Organization login (owner) to get members for.")),
-				mcp.Required(),
-			),
-			mcp.WithString("role",
-				mcp.Description("Filter by role: all, admin, member"),
-			),
-			mcp.WithNumber("per_page",
-				mcp.Description("Results per page (max 100)"),
-			),
-			mcp.WithNumber("page",
-				mcp.Description("Page number for pagination"),
-			),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+func GetOrgMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataContext,
+		mcp.Tool{
+			Name:        "get_org_members",
+			Description: t("TOOL_GET_ORG_MEMBERS_DESCRIPTION", "Get member users of a specific organization. Returns a list of user objects with fields: login, id, avatar_url, type. Limited to organizations accessible with current credentials"),
+			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_GET_ORG_MEMBERS_TITLE", "Get organization members"),
-				ReadOnlyHint: ToBoolPtr(true),
-			}),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			// Decode params into struct to support optional numbers
-			var params struct {
-				Org     string `mapstructure:"org"`
-				Role    string `mapstructure:"role"`
-				PerPage int32  `mapstructure:"per_page"`
-				Page    int32  `mapstructure:"page"`
-			}
-			if err := mapstructure.Decode(request.Params.Arguments, &params); err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			org := params.Org
-			role := params.Role
-			perPage := params.PerPage
-			page := params.Page
-			if org == "" {
-				return mcp.NewToolResultError("org is required"), nil
-			}
-
-			// Defaults
-			if perPage <= 0 {
-				perPage = 30
-			}
-			if perPage > 100 {
-				perPage = 100
-			}
-			if page <= 0 {
-				page = 1
-			}
-			client, err := getClient(ctx)
-			if err != nil {
-				return mcp.NewToolResultErrorFromErr("failed to get GitHub client", err), nil
-			}
-
-			// Map role string to REST role filter expected by GitHub API ("all","admin","member").
-			roleFilter := ""
-			if role != "" && strings.ToLower(role) != "all" {
-				roleFilter = strings.ToLower(role)
-			}
-
-			// Use Organizations.ListMembers with pagination (page/per_page)
-			opts := &github.ListMembersOptions{
-				Role: roleFilter,
-				ListOptions: github.ListOptions{
-					PerPage: int(perPage),
-					Page:    int(page),
+				ReadOnlyHint: true,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"org": {
+						Type:        "string",
+						Description: t("TOOL_GET_ORG_MEMBERS_ORG_DESCRIPTION", "Organization login (owner) to get members for."),
+					},
+					"role": {
+						Type:        "string",
+						Description: "Filter by role: all, admin, member",
+					},
 				},
-			}
-
-			users, resp, err := client.Organizations.ListMembers(ctx, org, opts)
+				Required: []string{"org"},
+			},
+		},
+		[]scopes.Scope{scopes.ReadOrg},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			org, err := RequiredParam[string](args, "org")
 			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx, "Failed to get organization members", resp, err), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			var members []OutUser
-			for _, u := range users {
-				members = append(members, OutUser{
-					Login:     u.GetLogin(),
-					ID:        fmt.Sprintf("%v", u.GetID()),
-					AvatarURL: u.GetAvatarURL(),
-					Type:      u.GetType(),
-					SiteAdmin: u.GetSiteAdmin(),
-				})
+			role, err := OptionalParam[string](args, "role")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			gqlClient, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
+			}
+
+			roleFilter := strings.ToLower(strings.TrimSpace(role))
+			if roleFilter == "all" {
+				roleFilter = ""
+			}
+
+			var q struct {
+				Organization struct {
+					MembersWithRole struct {
+						Edges []struct {
+							Role githubv4.String
+							Node struct {
+								Login githubv4.String
+							}
+						}
+					} `graphql:"membersWithRole(first: 100)"`
+				} `graphql:"organization(login: $org)"`
+			}
+			vars := map[string]any{
+				"org": githubv4.String(org),
+			}
+
+			if err := gqlClient.Query(ctx, &q, vars); err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to get organization members", err), nil, nil
+			}
+
+			members := make([]struct {
+				Login string `json:"login"`
+				Role  string `json:"role"`
+			}, 0, len(q.Organization.MembersWithRole.Edges))
+			for _, member := range q.Organization.MembersWithRole.Edges {
+				if roleFilter != "" && strings.ToLower(string(member.Role)) != roleFilter {
+					continue
+				}
+				members = append(members, struct {
+					Login string `json:"login"`
+					Role  string `json:"role"`
+				}{Login: string(member.Node.Login), Role: string(member.Role)})
 			}
 
 			return MarshalledTextResult(members), nil, nil
@@ -386,250 +375,50 @@ func GetOrgMembers(getClient GetClientFn, t translations.TranslationHelperFunc) 
 	)
 }
 
-func ListOutsideCollaborators(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
-	return mcp.NewTool("list_outside_collaborators",
-			mcp.WithDescription(t("TOOL_LIST_OUTSIDE_COLLABORATORS_DESCRIPTION", "List all outside collaborators of an organization (users with access to organization repositories but not members).")),
-			mcp.WithString("org",
-				mcp.Description(t("TOOL_LIST_OUTSIDE_COLLABORATORS_ORG_DESCRIPTION", "The organization name")),
-				mcp.Required(),
-			),
-			mcp.WithNumber("per_page",
-				mcp.Description("Results per page (max 100)"),
-			),
-			mcp.WithNumber("page",
-				mcp.Description("Page number for pagination"),
-			),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
+func ListOutsideCollaborators(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataContext,
+		mcp.Tool{
+			Name:        "list_outside_collaborators",
+			Description: t("TOOL_LIST_OUTSIDE_COLLABORATORS_DESCRIPTION", "List all outside collaborators of an organization (users with access to organization repositories but not members)."),
+			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_OUTSIDE_COLLABORATORS_TITLE", "List outside collaborators"),
-				ReadOnlyHint: ToBoolPtr(true),
-			}),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			// Decode params into struct to support optional numbers
-			var params struct {
-				Org     string `mapstructure:"org"`
-				PerPage int32  `mapstructure:"per_page"`
-				Page    int32  `mapstructure:"page"`
-			}
-			if err := mapstructure.Decode(request.Params.Arguments, &params); err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			org := params.Org
-			perPage := params.PerPage
-			page := params.Page
-			if org == "" {
-				return mcp.NewToolResultError("org is required"), nil
-			}
-
-			// Defaults
-			if perPage <= 0 {
-				perPage = 30
-			}
-			if perPage > 100 {
-				perPage = 100
-			}
-			if page <= 0 {
-				page = 1
-			}
-
-			client, err := getClient(ctx)
-			if err != nil {
-				return mcp.NewToolResultErrorFromErr("failed to get GitHub client", err), nil
-			}
-
-			// Use Organizations.ListOutsideCollaborators with pagination
-			opts := &github.ListOutsideCollaboratorsOptions{
-				ListOptions: github.ListOptions{
-					PerPage: int(perPage),
-					Page:    int(page),
+				ReadOnlyHint: true,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"org": {
+						Type:        "string",
+						Description: t("TOOL_LIST_OUTSIDE_COLLABORATORS_ORG_DESCRIPTION", "The organization name"),
+					},
 				},
-			}
-
-			users, resp, err := client.Organizations.ListOutsideCollaborators(ctx, org, opts)
+				Required: []string{"org"},
+			},
+		},
+		[]scopes.Scope{scopes.ReadOrg},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			org, err := RequiredParam[string](args, "org")
 			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx, "Failed to list outside collaborators", resp, err), nil
+				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			var collaborators []OutUser
-			for _, u := range users {
-				collaborators = append(collaborators, OutUser{
-					Login:     u.GetLogin(),
-					ID:        fmt.Sprintf("%v", u.GetID()),
-					AvatarURL: u.GetAvatarURL(),
-					Type:      u.GetType(),
-					SiteAdmin: u.GetSiteAdmin(),
-				})
-			}
-
-			return MarshalledTextResult(collaborators), nil
-		}
-}
-
-func GetOrgMembers(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
-	return mcp.NewTool("get_org_members",
-			mcp.WithDescription(t("TOOL_GET_ORG_MEMBERS_DESCRIPTION", "Get member users of a specific organization. Returns a list of user objects with fields: login, id, avatar_url, type. Limited to organizations accessible with current credentials")),
-			mcp.WithString("org",
-				mcp.Description(t("TOOL_GET_ORG_MEMBERS_ORG_DESCRIPTION", "Organization login (owner) to get members for.")),
-				mcp.Required(),
-			),
-			mcp.WithString("role",
-				mcp.Description("Filter by role: all, admin, member"),
-			),
-			mcp.WithNumber("per_page",
-				mcp.Description("Results per page (max 100)"),
-			),
-			mcp.WithNumber("page",
-				mcp.Description("Page number for pagination"),
-			),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_GET_ORG_MEMBERS_TITLE", "Get organization members"),
-				ReadOnlyHint: ToBoolPtr(true),
-			}),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			// Decode params into struct to support optional numbers
-			var params struct {
-				Org     string `mapstructure:"org"`
-				Role    string `mapstructure:"role"`
-				PerPage int32  `mapstructure:"per_page"`
-				Page    int32  `mapstructure:"page"`
-			}
-			if err := mapstructure.Decode(request.Params.Arguments, &params); err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			org := params.Org
-			role := params.Role
-			perPage := params.PerPage
-			page := params.Page
-			if org == "" {
-				return mcp.NewToolResultError("org is required"), nil
-			}
-
-			// Defaults
-			if perPage <= 0 {
-				perPage = 30
-			}
-			if perPage > 100 {
-				perPage = 100
-			}
-			if page <= 0 {
-				page = 1
-			}
-			client, err := getClient(ctx)
+			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return mcp.NewToolResultErrorFromErr("failed to get GitHub client", err), nil
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
-			// Map role string to REST role filter expected by GitHub API ("all","admin","member").
-			roleFilter := ""
-			if role != "" && strings.ToLower(role) != "all" {
-				roleFilter = strings.ToLower(role)
-			}
-
-			// Use Organizations.ListMembers with pagination (page/per_page)
-			opts := &github.ListMembersOptions{
-				Role: roleFilter,
-				ListOptions: github.ListOptions{
-					PerPage: int(perPage),
-					Page:    int(page),
-				},
-			}
-
-			users, resp, err := client.Organizations.ListMembers(ctx, org, opts)
+			users, resp, err := client.Organizations.ListOutsideCollaborators(ctx, org, nil)
 			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx, "Failed to get organization members", resp, err), nil
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "Failed to list outside collaborators", resp, err), nil, nil
 			}
 
-			var members []OutUser
-			for _, u := range users {
-				members = append(members, OutUser{
-					Login:     u.GetLogin(),
-					ID:        fmt.Sprintf("%v", u.GetID()),
-					AvatarURL: u.GetAvatarURL(),
-					Type:      u.GetType(),
-					SiteAdmin: u.GetSiteAdmin(),
-				})
+			collaborators := make([]string, 0, len(users))
+			for _, user := range users {
+				collaborators = append(collaborators, user.GetLogin())
 			}
 
-			return MarshalledTextResult(members), nil
-		}
-}
-
-func ListOutsideCollaborators(getClient GetClientFn, t translations.TranslationHelperFunc) (mcp.Tool, server.ToolHandlerFunc) {
-	return mcp.NewTool("list_outside_collaborators",
-			mcp.WithDescription(t("TOOL_LIST_OUTSIDE_COLLABORATORS_DESCRIPTION", "List all outside collaborators of an organization (users with access to organization repositories but not members).")),
-			mcp.WithString("org",
-				mcp.Description(t("TOOL_LIST_OUTSIDE_COLLABORATORS_ORG_DESCRIPTION", "The organization name")),
-				mcp.Required(),
-			),
-			mcp.WithNumber("per_page",
-				mcp.Description("Results per page (max 100)"),
-			),
-			mcp.WithNumber("page",
-				mcp.Description("Page number for pagination"),
-			),
-			mcp.WithToolAnnotation(mcp.ToolAnnotation{
-				Title:        t("TOOL_LIST_OUTSIDE_COLLABORATORS_TITLE", "List outside collaborators"),
-				ReadOnlyHint: ToBoolPtr(true),
-			}),
-		),
-		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			// Decode params into struct to support optional numbers
-			var params struct {
-				Org     string `mapstructure:"org"`
-				PerPage int32  `mapstructure:"per_page"`
-				Page    int32  `mapstructure:"page"`
-			}
-			if err := mapstructure.Decode(request.Params.Arguments, &params); err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			org := params.Org
-			perPage := params.PerPage
-			page := params.Page
-			if org == "" {
-				return mcp.NewToolResultError("org is required"), nil
-			}
-
-			// Defaults
-			if perPage <= 0 {
-				perPage = 30
-			}
-			if perPage > 100 {
-				perPage = 100
-			}
-			if page <= 0 {
-				page = 1
-			}
-
-			client, err := getClient(ctx)
-			if err != nil {
-				return mcp.NewToolResultErrorFromErr("failed to get GitHub client", err), nil
-			}
-
-			// Use Organizations.ListOutsideCollaborators with pagination
-			opts := &github.ListOutsideCollaboratorsOptions{
-				ListOptions: github.ListOptions{
-					PerPage: int(perPage),
-					Page:    int(page),
-				},
-			}
-
-			users, resp, err := client.Organizations.ListOutsideCollaborators(ctx, org, opts)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx, "Failed to list outside collaborators", resp, err), nil
-			}
-
-			var collaborators []OutUser
-			for _, u := range users {
-				collaborators = append(collaborators, OutUser{
-					Login:     u.GetLogin(),
-					ID:        fmt.Sprintf("%v", u.GetID()),
-					AvatarURL: u.GetAvatarURL(),
-					Type:      u.GetType(),
-					SiteAdmin: u.GetSiteAdmin(),
-				})
-			}
-
-			return MarshalledTextResult(collaborators), nil
-		}
+			return MarshalledTextResult(collaborators), nil, nil
+		},
+	)
 }

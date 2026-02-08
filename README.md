@@ -672,9 +672,9 @@ The following sets of tools are available:
   - No parameters required
 
 - **get_org_members** - Get organization members
+  - **Required OAuth Scopes**: `read:org`
+  - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `write:org`
   - `org`: Organization login (owner) to get members for. (string, required)
-  - `page`: Page number for pagination (number, optional)
-  - `per_page`: Results per page (max 100) (number, optional)
   - `role`: Filter by role: all, admin, member (string, optional)
 
 - **get_team_members** - Get team members
@@ -689,9 +689,9 @@ The following sets of tools are available:
   - `user`: Username to get teams for. If not provided, uses the authenticated user. (string, optional)
 
 - **list_outside_collaborators** - List outside collaborators
+  - **Required OAuth Scopes**: `read:org`
+  - **Accepted OAuth Scopes**: `admin:org`, `read:org`, `write:org`
   - `org`: The organization name (string, required)
-  - `page`: Page number for pagination (number, optional)
-  - `per_page`: Results per page (max 100) (number, optional)
 
 </details>
 
