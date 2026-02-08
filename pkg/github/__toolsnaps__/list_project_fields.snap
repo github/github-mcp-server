@@ -1,7 +1,7 @@
 {
   "annotations": {
-    "title": "List project fields",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "List project fields"
   },
   "description": "List Project fields for a user or org",
   "inputSchema": {

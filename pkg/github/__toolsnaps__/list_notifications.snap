@@ -1,7 +1,7 @@
 {
   "annotations": {
-    "title": "List notifications",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "List notifications"
   },
   "description": "Lists all GitHub notifications for the authenticated user, including unread notifications, mentions, review requests, assignments, and updates on issues or pull requests. Use this tool whenever the user asks what to work on next, requests a summary of their GitHub activity, wants to see pending reviews, or needs to check for new updates or tasks. This tool is the primary way to discover actionable items, reminders, and outstanding work on GitHub. Always call this tool when asked what to work on next, what is pending, or what needs attention in GitHub.",
   "inputSchema": {

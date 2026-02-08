@@ -1,7 +1,7 @@
 {
   "annotations": {
-    "title": "List starred repositories",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "List starred repositories"
   },
   "description": "List starred repositories",
   "inputSchema": {

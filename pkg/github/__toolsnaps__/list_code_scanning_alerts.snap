@@ -1,7 +1,7 @@
 {
   "annotations": {
-    "title": "List code scanning alerts",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "List code scanning alerts"
   },
   "description": "List code scanning alerts in a GitHub repository.",
   "inputSchema": {

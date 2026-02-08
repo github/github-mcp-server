@@ -1,7 +1,6 @@
 {
   "annotations": {
-    "title": "Open new pull request",
-    "readOnlyHint": false
+    "title": "Open new pull request"
   },
   "description": "Create a new pull request in a GitHub repository.",
   "inputSchema": {

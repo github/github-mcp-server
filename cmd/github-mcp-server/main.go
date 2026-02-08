@@ -9,6 +9,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/ghmcp"
 	"github.com/github/github-mcp-server/pkg/github"
+	ghhttp "github.com/github/github-mcp-server/pkg/http"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -41,20 +42,31 @@ var (
 			// it's because viper doesn't handle comma-separated values correctly for env
 			// vars when using GetStringSlice.
 			// https://github.com/spf13/viper/issues/380
+			//
+			// Additionally, viper.UnmarshalKey returns an empty slice even when the flag
+			// is not set, but we need nil to indicate "use defaults". So we check IsSet first.
 			var enabledToolsets []string
-			if err := viper.UnmarshalKey("toolsets", &enabledToolsets); err != nil {
-				return fmt.Errorf("failed to unmarshal toolsets: %w", err)
+			if viper.IsSet("toolsets") {
+				if err := viper.UnmarshalKey("toolsets", &enabledToolsets); err != nil {
+					return fmt.Errorf("failed to unmarshal toolsets: %w", err)
+				}
 			}
+			// else: enabledToolsets stays nil, meaning "use defaults"
 
 			// Parse tools (similar to toolsets)
 			var enabledTools []string
-			if err := viper.UnmarshalKey("tools", &enabledTools); err != nil {
-				return fmt.Errorf("failed to unmarshal tools: %w", err)
+			if viper.IsSet("tools") {
+				if err := viper.UnmarshalKey("tools", &enabledTools); err != nil {
+					return fmt.Errorf("failed to unmarshal tools: %w", err)
+				}
 			}
 
-			// If neither toolset config nor tools config is passed we enable the default toolset
-			if len(enabledToolsets) == 0 && len(enabledTools) == 0 {
-				enabledToolsets = []string{github.ToolsetMetadataDefault.ID}
+			// Parse enabled features (similar to toolsets)
+			var enabledFeatures []string
+			if viper.IsSet("features") {
+				if err := viper.UnmarshalKey("features", &enabledFeatures); err != nil {
+					return fmt.Errorf("failed to unmarshal features: %w", err)
+				}
 			}
 
 			ttl := viper.GetDuration("repo-access-cache-ttl")
@@ -64,6 +76,7 @@ var (
 				Token:                token,
 				EnabledToolsets:      enabledToolsets,
 				EnabledTools:         enabledTools,
+				EnabledFeatures:      enabledFeatures,
 				DynamicToolsets:      viper.GetBool("dynamic_toolsets"),
 				ReadOnly:             viper.GetBool("read-only"),
 				ExportTranslations:   viper.GetBool("export-translations"),
@@ -71,9 +84,35 @@ var (
 				LogFilePath:          viper.GetString("log-file"),
 				ContentWindowSize:    viper.GetInt("content-window-size"),
 				LockdownMode:         viper.GetBool("lockdown-mode"),
+				InsidersMode:         viper.GetBool("insiders"),
 				RepoAccessCacheTTL:   &ttl,
 			}
 			return ghmcp.RunStdioServer(stdioServerConfig)
+		},
+	}
+
+	httpCmd = &cobra.Command{
+		Use:   "http",
+		Short: "Start HTTP server",
+		Long:  `Start an HTTP server that listens for MCP requests over HTTP.`,
+		RunE: func(_ *cobra.Command, _ []string) error {
+			ttl := viper.GetDuration("repo-access-cache-ttl")
+			httpConfig := ghhttp.ServerConfig{
+				Version:              version,
+				Host:                 viper.GetString("host"),
+				Port:                 viper.GetInt("port"),
+				BaseURL:              viper.GetString("base-url"),
+				ResourcePath:         viper.GetString("base-path"),
+				ExportTranslations:   viper.GetBool("export-translations"),
+				EnableCommandLogging: viper.GetBool("enable-command-logging"),
+				LogFilePath:          viper.GetString("log-file"),
+				ContentWindowSize:    viper.GetInt("content-window-size"),
+				LockdownMode:         viper.GetBool("lockdown-mode"),
+				RepoAccessCacheTTL:   &ttl,
+				ScopeChallenge:       viper.GetBool("scope-challenge"),
+			}
+
+			return ghhttp.RunHTTPServer(httpConfig)
 		},
 	}
 )
@@ -87,6 +126,7 @@ func init() {
 	// Add global flags that will be shared by all commands
 	rootCmd.PersistentFlags().StringSlice("toolsets", nil, github.GenerateToolsetsHelp())
 	rootCmd.PersistentFlags().StringSlice("tools", nil, "Comma-separated list of specific tools to enable")
+	rootCmd.PersistentFlags().StringSlice("features", nil, "Comma-separated list of feature flags to enable")
 	rootCmd.PersistentFlags().Bool("dynamic-toolsets", false, "Enable dynamic toolsets")
 	rootCmd.PersistentFlags().Bool("read-only", false, "Restrict the server to read-only operations")
 	rootCmd.PersistentFlags().String("log-file", "", "Path to log file")
@@ -95,11 +135,19 @@ func init() {
 	rootCmd.PersistentFlags().String("gh-host", "", "Specify the GitHub hostname (for GitHub Enterprise etc.)")
 	rootCmd.PersistentFlags().Int("content-window-size", 5000, "Specify the content window size")
 	rootCmd.PersistentFlags().Bool("lockdown-mode", false, "Enable lockdown mode")
+	rootCmd.PersistentFlags().Bool("insiders", false, "Enable insiders features")
 	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "Override the repo access cache TTL (e.g. 1m, 0s to disable)")
+
+	// HTTP-specific flags
+	httpCmd.Flags().Int("port", 8082, "HTTP server port")
+	httpCmd.Flags().String("base-url", "", "Base URL where this server is publicly accessible (for OAuth resource metadata)")
+	httpCmd.Flags().String("base-path", "", "Externally visible base path for the HTTP server (for OAuth resource metadata)")
+	httpCmd.Flags().Bool("scope-challenge", false, "Enable OAuth scope challenge responses")
 
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
 	_ = viper.BindPFlag("tools", rootCmd.PersistentFlags().Lookup("tools"))
+	_ = viper.BindPFlag("features", rootCmd.PersistentFlags().Lookup("features"))
 	_ = viper.BindPFlag("dynamic_toolsets", rootCmd.PersistentFlags().Lookup("dynamic-toolsets"))
 	_ = viper.BindPFlag("read-only", rootCmd.PersistentFlags().Lookup("read-only"))
 	_ = viper.BindPFlag("log-file", rootCmd.PersistentFlags().Lookup("log-file"))
@@ -108,10 +156,15 @@ func init() {
 	_ = viper.BindPFlag("host", rootCmd.PersistentFlags().Lookup("gh-host"))
 	_ = viper.BindPFlag("content-window-size", rootCmd.PersistentFlags().Lookup("content-window-size"))
 	_ = viper.BindPFlag("lockdown-mode", rootCmd.PersistentFlags().Lookup("lockdown-mode"))
+	_ = viper.BindPFlag("insiders", rootCmd.PersistentFlags().Lookup("insiders"))
 	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
-
+	_ = viper.BindPFlag("port", httpCmd.Flags().Lookup("port"))
+	_ = viper.BindPFlag("base-url", httpCmd.Flags().Lookup("base-url"))
+	_ = viper.BindPFlag("base-path", httpCmd.Flags().Lookup("base-path"))
+	_ = viper.BindPFlag("scope-challenge", httpCmd.Flags().Lookup("scope-challenge"))
 	// Add subcommands
 	rootCmd.AddCommand(stdioCmd)
+	rootCmd.AddCommand(httpCmd)
 }
 
 func initConfig() {
@@ -119,7 +172,6 @@ func initConfig() {
 	viper.SetEnvPrefix("github")
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
-
 }
 
 func main() {

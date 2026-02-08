@@ -1,0 +1,24 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "List discussion categories"
+  },
+  "description": "List discussion categories with their id and name, for a repository or organisation.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name. If not provided, discussion categories will be queried at the organisation level.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner"
+    ],
+    "type": "object"
+  },
+  "name": "list_discussion_categories"
+}

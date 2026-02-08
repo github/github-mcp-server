@@ -1,7 +1,6 @@
 {
   "annotations": {
-    "title": "Create or update issue.",
-    "readOnlyHint": false
+    "title": "Create or update issue."
   },
   "description": "Create a new or update an existing issue in a GitHub repository.",
   "inputSchema": {
@@ -33,7 +32,7 @@
         "type": "array"
       },
       "method": {
-        "description": "Write operation to perform on a single issue.\nOptions are: \n- 'create' - creates a new issue. \n- 'update' - updates an existing issue.\n",
+        "description": "Write operation to perform on a single issue.\nOptions are:\n- 'create' - creates a new issue.\n- 'update' - updates an existing issue.\n",
         "enum": [
           "create",
           "update"

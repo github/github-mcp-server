@@ -1,7 +1,6 @@
 {
   "annotations": {
-    "title": "Add review comment to the requester's latest pending pull request review",
-    "readOnlyHint": false
+    "title": "Add review comment to the requester's latest pending pull request review"
   },
   "description": "Add review comment to the requester's latest pending pull request review. A pending review needs to already exist to call this (check with the user if not sure).",
   "inputSchema": {

@@ -1,7 +1,7 @@
 {
   "annotations": {
-    "title": "Search pull requests",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "Search pull requests"
   },
   "description": "Search for pull requests in GitHub repositories using issues search syntax already scoped to is:pr",
   "inputSchema": {

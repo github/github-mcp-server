@@ -1,7 +1,6 @@
 {
   "annotations": {
-    "title": "Change sub-issue",
-    "readOnlyHint": false
+    "title": "Change sub-issue"
   },
   "description": "Add a sub-issue to a parent issue in a GitHub repository.",
   "inputSchema": {

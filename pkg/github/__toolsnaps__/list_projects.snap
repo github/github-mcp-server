@@ -1,7 +1,7 @@
 {
   "annotations": {
-    "title": "List projects",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "List projects"
   },
   "description": "List Projects for a user or organization",
   "inputSchema": {

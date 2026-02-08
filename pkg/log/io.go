@@ -9,6 +9,8 @@ import (
 // IOLogger is a wrapper around io.Reader and io.Writer that can be used
 // to log the data being read and written from the underlying streams
 type IOLogger struct {
+	io.ReadWriteCloser
+
 	reader io.Reader
 	writer io.Writer
 	logger *slog.Logger
@@ -42,4 +44,18 @@ func (l *IOLogger) Write(p []byte) (n int, err error) {
 	}
 	l.logger.Info("[stdout]: sending bytes", "count", len(p), "data", string(p))
 	return l.writer.Write(p)
+}
+
+func (l *IOLogger) Close() error {
+	var errReader, errWriter error
+	if closer, ok := l.reader.(io.Closer); ok {
+		errReader = closer.Close()
+	}
+	if closer, ok := l.writer.(io.Closer); ok {
+		errWriter = closer.Close()
+	}
+	if errReader != nil {
+		return errReader
+	}
+	return errWriter
 }

@@ -1,7 +1,6 @@
 {
   "annotations": {
-    "title": "Update project item",
-    "readOnlyHint": false
+    "title": "Update project item"
   },
   "description": "Update a specific Project item for a user or org",
   "inputSchema": {
@@ -28,7 +27,6 @@
       },
       "updated_field": {
         "description": "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}",
-        "properties": {},
         "type": "object"
       }
     },

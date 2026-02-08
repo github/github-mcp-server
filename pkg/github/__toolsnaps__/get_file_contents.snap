@@ -1,7 +1,7 @@
 {
   "annotations": {
-    "title": "Get file or directory contents",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "Get file or directory contents"
   },
   "description": "Get the contents of a file or directory from a GitHub repository",
   "inputSchema": {
@@ -12,7 +12,7 @@
       },
       "path": {
         "default": "/",
-        "description": "Path to file/directory (directories must end with a slash '/')",
+        "description": "Path to file/directory",
         "type": "string"
       },
       "ref": {

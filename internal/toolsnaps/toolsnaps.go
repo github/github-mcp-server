@@ -67,15 +67,35 @@ func Test(toolName string, tool any) error {
 }
 
 func writeSnap(snapPath string, contents []byte) error {
+	// Sort the JSON keys recursively to ensure consistent output.
+	// We do this by unmarshaling and remarshaling, which ensures Go's JSON encoder
+	// sorts all map keys alphabetically at every level.
+	sortedJSON, err := sortJSONKeys(contents)
+	if err != nil {
+		return fmt.Errorf("failed to sort JSON keys: %w", err)
+	}
+
 	// Ensure the directory exists
 	if err := os.MkdirAll(filepath.Dir(snapPath), 0700); err != nil {
 		return fmt.Errorf("failed to create snapshot directory: %w", err)
 	}
 
 	// Write the snapshot file
-	if err := os.WriteFile(snapPath, contents, 0600); err != nil {
+	if err := os.WriteFile(snapPath, sortedJSON, 0600); err != nil {
 		return fmt.Errorf("failed to write snapshot file: %w", err)
 	}
 
 	return nil
+}
+
+// sortJSONKeys recursively sorts all object keys in a JSON byte array by
+// unmarshaling to map[string]any and remarshaling. Go's JSON encoder
+// automatically sorts map keys alphabetically.
+func sortJSONKeys(jsonData []byte) ([]byte, error) {
+	var data any
+	if err := json.Unmarshal(jsonData, &data); err != nil {
+		return nil, err
+	}
+
+	return json.MarshalIndent(data, "", "  ")
 }

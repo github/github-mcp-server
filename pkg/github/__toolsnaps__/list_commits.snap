@@ -1,7 +1,7 @@
 {
   "annotations": {
-    "title": "List commits",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "List commits"
   },
   "description": "Get list of commits of a branch in a GitHub repository. Returns at least 30 results per page by default, but can return more if specified using the perPage parameter (up to 100).",
   "inputSchema": {

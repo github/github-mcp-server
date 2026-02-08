@@ -1,0 +1,54 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "List discussions"
+  },
+  "description": "List discussions for a repository or organisation.",
+  "inputSchema": {
+    "properties": {
+      "after": {
+        "description": "Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs.",
+        "type": "string"
+      },
+      "category": {
+        "description": "Optional filter by discussion category ID. If provided, only discussions with this category are listed.",
+        "type": "string"
+      },
+      "direction": {
+        "description": "Order direction.",
+        "enum": [
+          "ASC",
+          "DESC"
+        ],
+        "type": "string"
+      },
+      "orderBy": {
+        "description": "Order discussions by field. If provided, the 'direction' also needs to be provided.",
+        "enum": [
+          "CREATED_AT",
+          "UPDATED_AT"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "perPage": {
+        "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
+        "minimum": 1,
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name. If not provided, discussions will be queried at the organisation level.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner"
+    ],
+    "type": "object"
+  },
+  "name": "list_discussions"
+}

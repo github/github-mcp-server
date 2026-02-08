@@ -1,7 +1,7 @@
 {
   "annotations": {
-    "title": "Get repository tree",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "Get repository tree"
   },
   "description": "Get the tree structure (files and directories) of a GitHub repository at a specific ref or SHA",
   "inputSchema": {

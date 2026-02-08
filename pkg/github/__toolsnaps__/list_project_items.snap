@@ -1,7 +1,7 @@
 {
   "annotations": {
-    "title": "List project items",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "List project items"
   },
   "description": "Search project items with advanced filtering",
   "inputSchema": {

@@ -1,7 +1,6 @@
 {
   "annotations": {
-    "title": "Add project item",
-    "readOnlyHint": false
+    "title": "Add project item"
   },
   "description": "Add a specific Project item for a user or org",
   "inputSchema": {

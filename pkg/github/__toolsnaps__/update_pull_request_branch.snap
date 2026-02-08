@@ -1,7 +1,6 @@
 {
   "annotations": {
-    "title": "Update pull request branch",
-    "readOnlyHint": false
+    "title": "Update pull request branch"
   },
   "description": "Update the branch of a pull request with the latest changes from the base branch.",
   "inputSchema": {

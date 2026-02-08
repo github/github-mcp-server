@@ -1,7 +1,6 @@
 {
   "annotations": {
-    "title": "Mark all notifications as read",
-    "readOnlyHint": false
+    "title": "Mark all notifications as read"
   },
   "description": "Mark all notifications as read",
   "inputSchema": {

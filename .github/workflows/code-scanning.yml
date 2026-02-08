@@ -14,6 +14,8 @@ env:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
+    # Only run on the main repository, not on forks
+    if: github.repository == 'github/github-mcp-server'
     runs-on: ${{ fromJSON(matrix.runner) }}
     permissions:
       actions: read
@@ -46,6 +48,9 @@ jobs:
           queries: "" # Default query suite
           packs: github/ccr-${{ matrix.language }}-queries
           config: |
+            paths-ignore:
+              - third-party
+              - third-party-licenses.*.md
             default-setup:
               org:
                 model-packs: [ ${{ github.event.inputs.code_scanning_codeql_packs }} ]

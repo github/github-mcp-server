@@ -1,7 +1,7 @@
 {
   "annotations": {
-    "title": "Get teams",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "Get teams"
   },
   "description": "Get details of the teams the user is a member of. Limited to organizations accessible with current credentials",
   "inputSchema": {

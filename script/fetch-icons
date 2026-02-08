@@ -1,0 +1,72 @@
+#!/bin/bash
+# Fetch Octicon icons and convert them to PNG for embedding in the MCP server.
+# Generates both light theme (dark icons) and dark theme (white icons) variants.
+# Uses sed to modify SVG fill color before converting to PNG.
+# Requires: rsvg-convert (from librsvg2-bin on Ubuntu/Debian)
+#
+# Usage:
+#   script/fetch-icons              # Fetch all required icons
+#   script/fetch-icons icon1 icon2  # Fetch specific icons
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+ICONS_DIR="$REPO_ROOT/pkg/octicons/icons"
+REQUIRED_ICONS_FILE="$REPO_ROOT/pkg/octicons/required_icons.txt"
+OCTICONS_BASE="https://raw.githubusercontent.com/primer/octicons/main/icons"
+
+# Check for rsvg-convert
+if ! command -v rsvg-convert &> /dev/null; then
+    echo "Error: rsvg-convert not found. Install with:"
+    echo "  Ubuntu/Debian: sudo apt-get install librsvg2-bin"
+    echo "  macOS: brew install librsvg"
+    exit 1
+fi
+
+# Load icons from required_icons.txt or use command-line arguments
+if [ $# -gt 0 ]; then
+    ICONS=("$@")
+else
+    if [ ! -f "$REQUIRED_ICONS_FILE" ]; then
+        echo "Error: Required icons file not found: $REQUIRED_ICONS_FILE"
+        exit 1
+    fi
+    # Read icons from file, skipping comments and empty lines
+    mapfile -t ICONS < <(grep -v '^#' "$REQUIRED_ICONS_FILE" | grep -v '^$')
+fi
+
+# Ensure icons directory exists
+mkdir -p "$ICONS_DIR"
+
+echo "Fetching ${#ICONS[@]} icons (24px, light + dark themes)..."
+
+for icon in "${ICONS[@]}"; do
+    svg_url="${OCTICONS_BASE}/${icon}-24.svg"
+    light_file="${ICONS_DIR}/${icon}-light.png"
+    dark_file="${ICONS_DIR}/${icon}-dark.png"
+    
+    echo "  ${icon} (light + dark)"
+    
+    # Download SVG
+    svg_content=$(curl -sfL "$svg_url" 2>/dev/null) || {
+        echo "    Warning: Failed to fetch ${icon}-24.svg (may not exist)"
+        continue
+    }
+    
+    # Light theme: dark icons (#24292f) for light backgrounds
+    # Add fill attribute to the svg tag
+    light_svg=$(echo "$svg_content" | sed 's/<svg /<svg fill="#24292f" /')
+    echo "$light_svg" | rsvg-convert -o "$light_file"
+    
+    # Dark theme: white icons (#ffffff) for dark backgrounds
+    dark_svg=$(echo "$svg_content" | sed 's/<svg /<svg fill="#ffffff" /')
+    echo "$dark_svg" | rsvg-convert -o "$dark_file"
+done
+
+echo "Done. Icons saved to $ICONS_DIR"
+echo ""
+echo "Next steps:"
+echo "  1. Run 'go test ./pkg/octicons/...' to verify icons are embedded"
+echo "  2. Run 'go test ./pkg/github/...' to verify toolset icons are valid"
+echo "  3. Commit the new icon files"

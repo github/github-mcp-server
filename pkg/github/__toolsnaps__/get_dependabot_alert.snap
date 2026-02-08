@@ -1,7 +1,7 @@
 {
   "annotations": {
-    "title": "Get dependabot alert",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "Get dependabot alert"
   },
   "description": "Get details of a specific dependabot alert in a GitHub repository.",
   "inputSchema": {

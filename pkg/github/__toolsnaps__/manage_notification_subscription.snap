@@ -1,7 +1,6 @@
 {
   "annotations": {
-    "title": "Manage notification subscription",
-    "readOnlyHint": false
+    "title": "Manage notification subscription"
   },
   "description": "Manage a notification subscription: ignore, watch, or delete a notification thread subscription.",
   "inputSchema": {

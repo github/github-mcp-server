@@ -1,7 +1,7 @@
 {
   "annotations": {
-    "title": "List branches",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "List branches"
   },
   "description": "List branches in a GitHub repository",
   "inputSchema": {

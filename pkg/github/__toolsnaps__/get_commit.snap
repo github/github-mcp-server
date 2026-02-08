@@ -1,7 +1,7 @@
 {
   "annotations": {
-    "title": "Get commit details",
-    "readOnlyHint": true
+    "readOnlyHint": true,
+    "title": "Get commit details"
   },
   "description": "Get details for a commit from a GitHub repository",
   "inputSchema": {

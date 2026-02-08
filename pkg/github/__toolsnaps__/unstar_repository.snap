@@ -1,7 +1,6 @@
 {
   "annotations": {
-    "title": "Unstar repository",
-    "readOnlyHint": false
+    "title": "Unstar repository"
   },
   "description": "Unstar a GitHub repository",
   "inputSchema": {

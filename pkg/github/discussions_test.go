@@ -7,8 +7,10 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/internal/githubv4mock"
+	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v79/github"
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -211,15 +213,19 @@ var (
 )
 
 func Test_ListDiscussions(t *testing.T) {
-	mockClient := githubv4.NewClient(nil)
-	toolDef, _ := ListDiscussions(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
-	assert.Equal(t, "list_discussions", toolDef.Name)
-	assert.NotEmpty(t, toolDef.Description)
-	assert.Contains(t, toolDef.InputSchema.Properties, "owner")
-	assert.Contains(t, toolDef.InputSchema.Properties, "repo")
-	assert.Contains(t, toolDef.InputSchema.Properties, "orderBy")
-	assert.Contains(t, toolDef.InputSchema.Properties, "direction")
-	assert.ElementsMatch(t, toolDef.InputSchema.Required, []string{"owner"})
+	toolDef := ListDiscussions(translations.NullTranslationHelper)
+	tool := toolDef.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "list_discussions", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "orderBy")
+	assert.Contains(t, schema.Properties, "direction")
+	assert.ElementsMatch(t, schema.Required, []string{"owner"})
 
 	// Variables matching what GraphQL receives after JSON marshaling/unmarshaling
 	varsListAll := map[string]interface{}{
@@ -441,10 +447,11 @@ func Test_ListDiscussions(t *testing.T) {
 			}
 
 			gqlClient := githubv4.NewClient(httpClient)
-			_, handler := ListDiscussions(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+			deps := BaseDeps{GQLClient: gqlClient}
+			handler := toolDef.Handler(deps)
 
 			req := createMCPRequest(tc.reqParams)
-			res, err := handler(context.Background(), req)
+			res, err := handler(ContextWithDeps(context.Background(), deps), &req)
 			text := getTextResult(t, res).Text
 
 			if tc.expectError {
@@ -488,13 +495,18 @@ func Test_ListDiscussions(t *testing.T) {
 
 func Test_GetDiscussion(t *testing.T) {
 	// Verify tool definition and schema
-	toolDef, _ := GetDiscussion(nil, translations.NullTranslationHelper)
-	assert.Equal(t, "get_discussion", toolDef.Name)
-	assert.NotEmpty(t, toolDef.Description)
-	assert.Contains(t, toolDef.InputSchema.Properties, "owner")
-	assert.Contains(t, toolDef.InputSchema.Properties, "repo")
-	assert.Contains(t, toolDef.InputSchema.Properties, "discussionNumber")
-	assert.ElementsMatch(t, toolDef.InputSchema.Required, []string{"owner", "repo", "discussionNumber"})
+	toolDef := GetDiscussion(translations.NullTranslationHelper)
+	tool := toolDef.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "get_discussion", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "discussionNumber")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "discussionNumber"})
 
 	// Use exact string query that matches implementation output
 	qGetDiscussion := "query($discussionNumber:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){number,title,body,createdAt,closed,isAnswered,answerChosenAt,url,category{name}}}}"
@@ -547,10 +559,12 @@ func Test_GetDiscussion(t *testing.T) {
 			matcher := githubv4mock.NewQueryMatcher(qGetDiscussion, vars, tc.response)
 			httpClient := githubv4mock.NewMockedHTTPClient(matcher)
 			gqlClient := githubv4.NewClient(httpClient)
-			_, handler := GetDiscussion(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+			deps := BaseDeps{GQLClient: gqlClient}
+			handler := toolDef.Handler(deps)
 
-			req := createMCPRequest(map[string]interface{}{"owner": "owner", "repo": "repo", "discussionNumber": int32(1)})
-			res, err := handler(context.Background(), req)
+			reqParams := map[string]interface{}{"owner": "owner", "repo": "repo", "discussionNumber": int32(1)}
+			req := createMCPRequest(reqParams)
+			res, err := handler(ContextWithDeps(context.Background(), deps), &req)
 			text := getTextResult(t, res).Text
 
 			if tc.expectError {
@@ -578,13 +592,18 @@ func Test_GetDiscussion(t *testing.T) {
 
 func Test_GetDiscussionComments(t *testing.T) {
 	// Verify tool definition and schema
-	toolDef, _ := GetDiscussionComments(nil, translations.NullTranslationHelper)
-	assert.Equal(t, "get_discussion_comments", toolDef.Name)
-	assert.NotEmpty(t, toolDef.Description)
-	assert.Contains(t, toolDef.InputSchema.Properties, "owner")
-	assert.Contains(t, toolDef.InputSchema.Properties, "repo")
-	assert.Contains(t, toolDef.InputSchema.Properties, "discussionNumber")
-	assert.ElementsMatch(t, toolDef.InputSchema.Required, []string{"owner", "repo", "discussionNumber"})
+	toolDef := GetDiscussionComments(translations.NullTranslationHelper)
+	tool := toolDef.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "get_discussion_comments", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "discussionNumber")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "discussionNumber"})
 
 	// Use exact string query that matches implementation output
 	qGetComments := "query($after:String$discussionNumber:Int!$first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){comments(first: $first, after: $after){nodes{body},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}}"
@@ -620,15 +639,17 @@ func Test_GetDiscussionComments(t *testing.T) {
 	matcher := githubv4mock.NewQueryMatcher(qGetComments, vars, mockResponse)
 	httpClient := githubv4mock.NewMockedHTTPClient(matcher)
 	gqlClient := githubv4.NewClient(httpClient)
-	_, handler := GetDiscussionComments(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+	deps := BaseDeps{GQLClient: gqlClient}
+	handler := toolDef.Handler(deps)
 
-	request := createMCPRequest(map[string]interface{}{
+	reqParams := map[string]interface{}{
 		"owner":            "owner",
 		"repo":             "repo",
 		"discussionNumber": int32(1),
-	})
+	}
+	request := createMCPRequest(reqParams)
 
-	result, err := handler(context.Background(), request)
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 	require.NoError(t, err)
 
 	textContent := getTextResult(t, result)
@@ -655,14 +676,18 @@ func Test_GetDiscussionComments(t *testing.T) {
 }
 
 func Test_ListDiscussionCategories(t *testing.T) {
-	mockClient := githubv4.NewClient(nil)
-	toolDef, _ := ListDiscussionCategories(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
-	assert.Equal(t, "list_discussion_categories", toolDef.Name)
-	assert.NotEmpty(t, toolDef.Description)
-	assert.Contains(t, toolDef.Description, "or organisation")
-	assert.Contains(t, toolDef.InputSchema.Properties, "owner")
-	assert.Contains(t, toolDef.InputSchema.Properties, "repo")
-	assert.ElementsMatch(t, toolDef.InputSchema.Required, []string{"owner"})
+	toolDef := ListDiscussionCategories(translations.NullTranslationHelper)
+	tool := toolDef.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "list_discussion_categories", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.Description, "or organisation")
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.ElementsMatch(t, schema.Required, []string{"owner"})
 
 	// Use exact string query that matches implementation output
 	qListCategories := "query($first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussionCategories(first: $first){nodes{id,name},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
@@ -766,10 +791,11 @@ func Test_ListDiscussionCategories(t *testing.T) {
 			httpClient := githubv4mock.NewMockedHTTPClient(matcher)
 			gqlClient := githubv4.NewClient(httpClient)
 
-			_, handler := ListDiscussionCategories(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+			deps := BaseDeps{GQLClient: gqlClient}
+			handler := toolDef.Handler(deps)
 
 			req := createMCPRequest(tc.reqParams)
-			res, err := handler(context.Background(), req)
+			res, err := handler(ContextWithDeps(context.Background(), deps), &req)
 			text := getTextResult(t, res).Text
 
 			if tc.expectError {

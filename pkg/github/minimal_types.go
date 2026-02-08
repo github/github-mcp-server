@@ -1,6 +1,8 @@
 package github
 
-import "github.com/google/go-github/v79/github"
+import (
+	"github.com/google/go-github/v79/github"
+)
 
 // MinimalUser is the output type for user and organization search results.
 type MinimalUser struct {
@@ -129,6 +131,7 @@ type MinimalProject struct {
 	Number           *int              `json:"number,omitempty"`
 	ShortDescription *string           `json:"short_description,omitempty"`
 	DeletedBy        *MinimalUser      `json:"deleted_by,omitempty"`
+	OwnerType        string            `json:"owner_type,omitempty"`
 }
 
 // Helper functions
