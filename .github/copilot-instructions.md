@@ -46,17 +46,17 @@ If you change any MCP tool definitions or schemas:
 # Download dependencies (rarely needed - usually cached)
 go mod download
 
-# Build the server binary
-go build -v ./cmd/github-mcp-server
+# Build the server binary (CGO required for tree-sitter)
+CGO_ENABLED=1 go build -v ./cmd/github-mcp-server
 
 # Run the server
 ./github-mcp-server stdio
 
 # Run specific package tests
-go test ./pkg/github -v
+CGO_ENABLED=1 go test ./pkg/github -v
 
 # Run specific test
-go test ./pkg/github -run TestGetMe
+CGO_ENABLED=1 go test ./pkg/github -run TestGetMe
 ```
 
 ## Project Structure
@@ -94,7 +94,7 @@ go test ./pkg/github -run TestGetMe
 
 - **go.mod / go.sum:** Go module dependencies (Go 1.24.0+)
 - **.golangci.yml:** Linter configuration (v2 format, ~15 linters enabled)
-- **Dockerfile:** Multi-stage build (golang:1.25.3-alpine → distroless)
+- **Dockerfile:** Multi-stage build (golang:1.25.3-alpine → distroless), CGO_ENABLED=1 for tree-sitter
 - **server.json:** MCP server metadata for registry
 - **.goreleaser.yaml:** Release automation config
 - **.gitignore:** Excludes bin/, dist/, vendor/, *.DS_Store, github-mcp-server binary
@@ -182,6 +182,58 @@ All workflows run on push/PR unless noted. Located in `.github/workflows/`:
 - Follow standard Go conventions (Effective Go, Go proverbs)
 - **Test changes thoroughly** before committing
 - Export functions (capitalize) if they could be used by other repos as a library
+
+## Structural Diff & Symbol Extraction (Tree-sitter)
+
+The server includes a tree-sitter-based code analysis engine that powers two features:
+
+### compare_file_contents Tool (Feature-flagged: `mcp_compare_file_contents`)
+
+Compares two versions of a file between refs/commits. Produces context-efficient diffs:
+
+- **Structured data** (JSON, YAML, CSV, TOML): Semantic path-based diffs showing only meaningful changes
+- **Code files** (Go, Python, JS, TS, Ruby, Rust, Java, C/C++): Structural diffs showing declaration-level changes with inline detail
+- **Other files**: Unified line-based diff as fallback
+
+Structural diffs are significantly more token-efficient (~74% average reduction) while preserving all meaningful information. They show which symbols changed, with inline line diffs for the specific changes within each symbol.
+
+Key behaviors:
+- **Recursive nesting**: Classes/modules drill down to show which specific method changed
+- **Whitespace normalization**: Indentation-only changes in brace languages collapse to "(whitespace/formatting changes only)"
+- **Whitespace-significant languages**: Python preserves indentation as meaningful changes
+- **Max depth of 5** prevents unbounded recursion into nested declarations
+
+### Symbol Extraction (get_file_contents `symbol` parameter)
+
+The `get_file_contents` tool accepts an optional `symbol` parameter that extracts a specific named symbol from a file using tree-sitter. Instead of returning the entire file, only the matching symbol's source code is returned.
+
+This pairs powerfully with `compare_file_contents`:
+1. **Structural diff** shows which symbols changed (acts as a table of contents)
+2. **Symbol extraction** fetches just the specific symbol to examine in detail
+
+If the symbol is not found, the error includes available symbol names to help self-correct.
+
+### Key Files
+
+- `pkg/github/structural_diff.go` — Tree-sitter AST extraction, declaration-level diffing, language configs
+- `pkg/github/semantic_diff.go` — Core diff engine dispatching to format-specific parsers (JSON, YAML, CSV, TOML) and structural diff
+- `pkg/github/symbol_extraction.go` — Symbol lookup by name, reusing tree-sitter configs
+- `pkg/github/compare_file_contents.go` — MCP tool definition for compare_file_contents
+
+### CGO Requirement
+
+Tree-sitter requires CGO (`CGO_ENABLED=1`) for its C bindings. This affects:
+- **Dockerfile**: Uses `gcc` and `musl-dev`, statically links with `-linkmode external -extldflags '-static'`
+- **.goreleaser.yaml**: CGO_ENABLED=1, Windows builds excluded (no CGO cross-compilation without extra toolchain)
+- **Local development**: `CGO_ENABLED=1` must be set when running tests or building if tree-sitter code is involved
+
+### Adding a New Language
+
+1. Add the grammar import in `structural_diff.go` (e.g., `github.com/smacker/go-tree-sitter/newlang`)
+2. Create a config function (e.g., `newlangConfig()`) with declaration kinds and name extractor
+3. Add the file extension mapping in `languageForPath()`
+4. Write tests in `structural_diff_test.go`
+5. Run `go mod tidy` to update dependencies
 
 ## Common Development Workflows
 
