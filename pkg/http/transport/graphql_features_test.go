@@ -1,10 +1,13 @@
-package github
+package transport
 
 import (
 	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	"github.com/github/github-mcp-server/pkg/http/headers"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -54,8 +57,8 @@ func TestGraphQLFeaturesTransport(t *testing.T) {
 
 			// Create a test server that captures the request header
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				capturedHeader = r.Header.Get("GraphQL-Features")
-				headerExists = r.Header.Get("GraphQL-Features") != ""
+				capturedHeader = r.Header.Get(headers.GraphQLFeaturesHeader)
+				headerExists = r.Header.Get(headers.GraphQLFeaturesHeader) != ""
 				w.WriteHeader(http.StatusOK)
 			}))
 			defer server.Close()
@@ -68,7 +71,7 @@ func TestGraphQLFeaturesTransport(t *testing.T) {
 			// Create a request
 			ctx := context.Background()
 			if tc.features != nil {
-				ctx = withGraphQLFeatures(ctx, tc.features...)
+				ctx = ghcontext.WithGraphQLFeatures(ctx, tc.features...)
 			}
 
 			req, err := http.NewRequestWithContext(ctx, http.MethodPost, server.URL, nil)
@@ -95,7 +98,7 @@ func TestGraphQLFeaturesTransport_NilTransport(t *testing.T) {
 
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedHeader = r.Header.Get("GraphQL-Features")
+		capturedHeader = r.Header.Get(headers.GraphQLFeaturesHeader)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -106,7 +109,7 @@ func TestGraphQLFeaturesTransport_NilTransport(t *testing.T) {
 	}
 
 	// Create a request with features
-	ctx := withGraphQLFeatures(context.Background(), "test_feature")
+	ctx := ghcontext.WithGraphQLFeatures(context.Background(), "test_feature")
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, server.URL, nil)
 	require.NoError(t, err)
 
@@ -134,12 +137,12 @@ func TestGraphQLFeaturesTransport_DoesNotMutateOriginalRequest(t *testing.T) {
 	}
 
 	// Create a request with features
-	ctx := withGraphQLFeatures(context.Background(), "test_feature")
+	ctx := ghcontext.WithGraphQLFeatures(context.Background(), "test_feature")
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, server.URL, nil)
 	require.NoError(t, err)
 
 	// Store the original header value
-	originalHeader := req.Header.Get("GraphQL-Features")
+	originalHeader := req.Header.Get(headers.GraphQLFeaturesHeader)
 
 	// Execute the request
 	resp, err := transport.RoundTrip(req)
@@ -147,5 +150,5 @@ func TestGraphQLFeaturesTransport_DoesNotMutateOriginalRequest(t *testing.T) {
 	defer resp.Body.Close()
 
 	// Verify the original request was not mutated
-	assert.Equal(t, originalHeader, req.Header.Get("GraphQL-Features"))
+	assert.Equal(t, originalHeader, req.Header.Get(headers.GraphQLFeaturesHeader))
 }

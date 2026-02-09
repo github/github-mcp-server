@@ -45,7 +45,7 @@ func HelloWorldTool(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if deps.IsFeatureEnabled(ctx, RemoteMCPEnthusiasticGreeting) {
 				greeting += " Welcome to the future of MCP! 🎉"
 			}
-			if deps.GetFlags().InsidersMode {
+			if deps.GetFlags(ctx).InsidersMode {
 				greeting += " Experimental features are enabled! 🚀"
 			}
 
