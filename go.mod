@@ -1,6 +1,8 @@
 module github.com/github/github-mcp-server
 
-go 1.24.0
+go 1.24.4
+
+toolchain go1.24.11
 
 require (
 	github.com/google/go-github/v79 v79.0.0
@@ -11,6 +13,12 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
+)
+
+require (
+	github.com/google/go-github/v73 v73.0.0 // indirect
+	github.com/gorilla/mux v1.8.1 // indirect
+	golang.org/x/time v0.11.0 // indirect
 )
 
 require (
@@ -27,6 +35,7 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/lithammer/fuzzysearch v1.1.8
 	github.com/mailru/easyjson v0.7.7 // indirect
+	github.com/migueleliasweb/go-github-mock v1.5.0
 	github.com/modelcontextprotocol/go-sdk v1.2.0
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect

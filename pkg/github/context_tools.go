@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
@@ -109,6 +110,14 @@ type TeamInfo struct {
 type OrganizationTeams struct {
 	Org   string     `json:"org"`
 	Teams []TeamInfo `json:"teams"`
+}
+
+type OutUser struct {
+	Login     string `json:"login"`
+	ID        string `json:"id"`
+	AvatarURL string `json:"avatar_url"`
+	Type      string `json:"type"`
+	SiteAdmin bool   `json:"site_admin"`
 }
 
 func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -276,6 +285,140 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			return MarshalledTextResult(members), nil, nil
+		},
+	)
+}
+
+func GetOrgMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataContext,
+		mcp.Tool{
+			Name:        "get_org_members",
+			Description: t("TOOL_GET_ORG_MEMBERS_DESCRIPTION", "Get member users of a specific organization. Returns a list of user objects with fields: login, id, avatar_url, type. Limited to organizations accessible with current credentials"),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_GET_ORG_MEMBERS_TITLE", "Get organization members"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"org": {
+						Type:        "string",
+						Description: t("TOOL_GET_ORG_MEMBERS_ORG_DESCRIPTION", "Organization login (owner) to get members for."),
+					},
+					"role": {
+						Type:        "string",
+						Description: "Filter by role: all, admin, member",
+					},
+				},
+				Required: []string{"org"},
+			},
+		},
+		[]scopes.Scope{scopes.ReadOrg},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			org, err := RequiredParam[string](args, "org")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			role, err := OptionalParam[string](args, "role")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			gqlClient, err := deps.GetGQLClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
+			}
+
+			roleFilter := strings.ToLower(strings.TrimSpace(role))
+			if roleFilter == "all" {
+				roleFilter = ""
+			}
+
+			var q struct {
+				Organization struct {
+					MembersWithRole struct {
+						Edges []struct {
+							Role githubv4.String
+							Node struct {
+								Login githubv4.String
+							}
+						}
+					} `graphql:"membersWithRole(first: 100)"`
+				} `graphql:"organization(login: $org)"`
+			}
+			vars := map[string]any{
+				"org": githubv4.String(org),
+			}
+
+			if err := gqlClient.Query(ctx, &q, vars); err != nil {
+				return ghErrors.NewGitHubGraphQLErrorResponse(ctx, "Failed to get organization members", err), nil, nil
+			}
+
+			members := make([]struct {
+				Login string `json:"login"`
+				Role  string `json:"role"`
+			}, 0, len(q.Organization.MembersWithRole.Edges))
+			for _, member := range q.Organization.MembersWithRole.Edges {
+				if roleFilter != "" && strings.ToLower(string(member.Role)) != roleFilter {
+					continue
+				}
+				members = append(members, struct {
+					Login string `json:"login"`
+					Role  string `json:"role"`
+				}{Login: string(member.Node.Login), Role: string(member.Role)})
+			}
+
+			return MarshalledTextResult(members), nil, nil
+		},
+	)
+}
+
+func ListOutsideCollaborators(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataContext,
+		mcp.Tool{
+			Name:        "list_outside_collaborators",
+			Description: t("TOOL_LIST_OUTSIDE_COLLABORATORS_DESCRIPTION", "List all outside collaborators of an organization (users with access to organization repositories but not members)."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_LIST_OUTSIDE_COLLABORATORS_TITLE", "List outside collaborators"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"org": {
+						Type:        "string",
+						Description: t("TOOL_LIST_OUTSIDE_COLLABORATORS_ORG_DESCRIPTION", "The organization name"),
+					},
+				},
+				Required: []string{"org"},
+			},
+		},
+		[]scopes.Scope{scopes.ReadOrg},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			org, err := RequiredParam[string](args, "org")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			users, resp, err := client.Organizations.ListOutsideCollaborators(ctx, org, nil)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx, "Failed to list outside collaborators", resp, err), nil, nil
+			}
+
+			collaborators := make([]string, 0, len(users))
+			for _, user := range users {
+				collaborators = append(collaborators, user.GetLogin())
+			}
+
+			return MarshalledTextResult(collaborators), nil, nil
 		},
 	)
 }

@@ -1,0 +1,20 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "List outside collaborators"
+  },
+  "description": "List all outside collaborators of an organization (users with access to organization repositories but not members).",
+  "inputSchema": {
+    "properties": {
+      "org": {
+        "description": "The organization name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "org"
+    ],
+    "type": "object"
+  },
+  "name": "list_outside_collaborators"
+}

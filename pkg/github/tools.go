@@ -11,6 +11,7 @@ import (
 )
 
 type GetClientFn func(context.Context) (*github.Client, error)
+
 type GetGQLClientFn func(context.Context) (*githubv4.Client, error)
 
 // Toolset metadata constants - these define all available toolsets and their descriptions.
@@ -160,6 +161,8 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GetMe(t),
 		GetTeams(t),
 		GetTeamMembers(t),
+		GetOrgMembers(t),
+		ListOutsideCollaborators(t),
 
 		// Repository tools
 		SearchRepositories(t),

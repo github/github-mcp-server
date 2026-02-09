@@ -1,0 +1,24 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get organization members"
+  },
+  "description": "Get member users of a specific organization. Returns a list of user objects with fields: login, id, avatar_url, type. Limited to organizations accessible with current credentials",
+  "inputSchema": {
+    "properties": {
+      "org": {
+        "description": "Organization login (owner) to get members for.",
+        "type": "string"
+      },
+      "role": {
+        "description": "Filter by role: all, admin, member",
+        "type": "string"
+      }
+    },
+    "required": [
+      "org"
+    ],
+    "type": "object"
+  },
+  "name": "get_org_members"
+}
