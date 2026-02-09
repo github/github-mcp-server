@@ -1,0 +1,40 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Compare file contents between revisions"
+  },
+  "description": "Compare two versions of a file in a GitHub repository.\nFor structured formats (JSON, YAML, CSV, TOML), produces a semantic diff that shows only meaningful changes, ignoring formatting differences.\nFor other file types, produces a standard unified diff.\nThis is useful for understanding what actually changed between two versions of a file, especially for configuration files and data files where reformatting can obscure real changes.",
+  "inputSchema": {
+    "properties": {
+      "base": {
+        "description": "Base ref to compare from (commit SHA, branch name, or tag name)",
+        "type": "string"
+      },
+      "head": {
+        "description": "Head ref to compare to (commit SHA, branch name, or tag name)",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "path": {
+        "description": "Path to the file to compare",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "path",
+      "base",
+      "head"
+    ],
+    "type": "object"
+  },
+  "name": "compare_file_contents"
+}
