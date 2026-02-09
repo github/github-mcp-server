@@ -31,7 +31,7 @@ copilot --add-github-mcp-tool list_discussions
 copilot --disable-builtin-mcps
 ```
 
-Run `copilot --help` for all available flags. For the list of toolsets and tools, see the [toolsets documentation](../../README.md#available-toolsets).
+Run `copilot --help` for all available flags. For the list of toolsets, see [Available toolsets](../../README.md#available-toolsets); for the list of tools, see [Tools](../../README.md#tools).
 
 ## Custom Configuration
 
