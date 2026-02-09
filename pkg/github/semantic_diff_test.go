@@ -355,7 +355,8 @@ func TestSemanticDiffNewAndDeletedFiles(t *testing.T) {
 	t.Run("deleted Go file", func(t *testing.T) {
 		result := SemanticDiff("main.go", []byte("package main\n"), nil)
 		assert.Equal(t, DiffFormatStructural, result.Format)
-		assert.Equal(t, "file deleted", result.Diff)
+		assert.Contains(t, result.Diff, "file deleted")
+		assert.Contains(t, result.Diff, "package main")
 	})
 
 	t.Run("both nil", func(t *testing.T) {

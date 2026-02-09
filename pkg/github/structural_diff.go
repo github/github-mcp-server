@@ -320,6 +320,14 @@ func goNameExtractor(node *sitter.Node, source []byte) string {
 		return ""
 	case "import_declaration":
 		return summarizeImport(node, source)
+	case "package_clause":
+		for i := 0; i < int(node.ChildCount()); i++ {
+			child := node.Child(i)
+			if child.Type() == "package_identifier" {
+				return "package " + child.Content(source)
+			}
+		}
+		return "package"
 	default:
 		return defaultNameExtractor(node, source)
 	}
