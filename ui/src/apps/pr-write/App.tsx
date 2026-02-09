@@ -231,9 +231,11 @@ function CreatePRApp() {
           borderBottomStyle="solid"
           borderBottomColor="border.default"
         >
-          <GitPullRequestIcon size={16} />
-          <Text sx={{ fontWeight: "semibold" }}>New pull request</Text>
-          <Text sx={{ color: "fg.muted", fontSize: 0 }}>
+          <Box sx={{ color: "fg.default", flexShrink: 0, display: "flex" }}>
+            <GitPullRequestIcon size={16} />
+          </Box>
+          <Text sx={{ fontWeight: "semibold", whiteSpace: "nowrap" }}>New pull request</Text>
+          <Text sx={{ color: "fg.muted", fontSize: 0, ml: 1 }}>
             {owner}/{repo}
           </Text>
           {head && base && (

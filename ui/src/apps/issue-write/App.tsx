@@ -241,11 +241,13 @@ function CreateIssueApp() {
         borderBottomStyle="solid"
         borderBottomColor="border.default"
       >
-        <IssueOpenedIcon size={16} />
-        <Text sx={{ fontWeight: "semibold" }}>
+        <Box sx={{ color: "fg.default", flexShrink: 0, display: "flex" }}>
+          <IssueOpenedIcon size={16} />
+        </Box>
+        <Text sx={{ fontWeight: "semibold", whiteSpace: "nowrap" }}>
           {isUpdateMode ? `Update issue #${issueNumber}` : "New issue"}
         </Text>
-        <Text sx={{ color: "fg.muted", fontSize: 0 }}>
+        <Text sx={{ color: "fg.muted", fontSize: 0, ml: 1 }}>
           {owner}/{repo}
         </Text>
       </Box>
