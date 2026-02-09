@@ -114,7 +114,7 @@ func Test_CompareFileContents(t *testing.T) {
 			expectDiff:   `host: "localhost" → "production.db"`,
 		},
 		{
-			name: "unsupported format falls back to unified diff",
+			name: "Go file uses structural diff",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposContentsByOwnerByRepoByPath: mockContentsForRef(map[string]string{
 					"main":    "func main() {}\n",
@@ -128,8 +128,8 @@ func Test_CompareFileContents(t *testing.T) {
 				"base":  "main",
 				"head":  "feature",
 			},
-			expectFormat: "unified",
-			expectDiff:   "--- a/main.go",
+			expectFormat: "structural",
+			expectDiff:   "function_declaration main: modified",
 		},
 		{
 			name:         "missing required parameter - owner",
