@@ -231,7 +231,7 @@ function CreatePRApp() {
           borderBottomStyle="solid"
           borderBottomColor="border.default"
         >
-          <Box sx={{ color: "fg.default", flexShrink: 0, display: "flex" }}>
+          <Box sx={{ color: "fg.default", flexShrink: 0, display: "flex", mr: 1 }}>
             <GitPullRequestIcon size={16} />
           </Box>
           <Text sx={{ fontWeight: "semibold", whiteSpace: "nowrap" }}>New pull request</Text>
