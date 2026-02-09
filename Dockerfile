@@ -26,6 +26,8 @@ LABEL io.modelcontextprotocol.server.name="io.github.github/github-mcp-server"
 WORKDIR /server
 # Copy the binary from the build stage
 COPY --from=build /bin/github-mcp-server .
+# Expose the default port
+EXPOSE 8082
 # Set the entrypoint to the server binary
 ENTRYPOINT ["/server/github-mcp-server"]
 # Default arguments for ENTRYPOINT
