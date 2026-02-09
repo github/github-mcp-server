@@ -978,6 +978,120 @@ func Test_MergePullRequest(t *testing.T) {
 	}
 }
 
+func Test_ListPullRequests_AuthorFilter(t *testing.T) {
+	// Setup mock PRs from multiple authors
+	mockPRs := []*github.PullRequest{
+		{
+			Number:  github.Ptr(42),
+			Title:   github.Ptr("PR by user1"),
+			State:   github.Ptr("open"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42"),
+			User: &github.User{
+				Login: github.Ptr("user1"),
+			},
+		},
+		{
+			Number:  github.Ptr(43),
+			Title:   github.Ptr("PR by user2"),
+			State:   github.Ptr("open"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/pull/43"),
+			User: &github.User{
+				Login: github.Ptr("user2"),
+			},
+		},
+		{
+			Number:  github.Ptr(44),
+			Title:   github.Ptr("Another PR by user1"),
+			State:   github.Ptr("closed"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/pull/44"),
+			User: &github.User{
+				Login: github.Ptr("user1"),
+			},
+		},
+	}
+
+	tests := []struct {
+		name            string
+		author          string
+		expectedCount   int
+		expectedNumbers []int
+	}{
+		{
+			name:            "filter by user1 returns 2 PRs",
+			author:          "user1",
+			expectedCount:   2,
+			expectedNumbers: []int{42, 44},
+		},
+		{
+			name:            "filter by user2 returns 1 PR",
+			author:          "user2",
+			expectedCount:   1,
+			expectedNumbers: []int{43},
+		},
+		{
+			name:            "filter by USER1 (case insensitive) returns 2 PRs",
+			author:          "USER1",
+			expectedCount:   2,
+			expectedNumbers: []int{42, 44},
+		},
+		{
+			name:            "filter by nonexistent user returns 0 PRs",
+			author:          "nonexistent",
+			expectedCount:   0,
+			expectedNumbers: []int{},
+		},
+		{
+			name:            "no author filter returns all PRs",
+			author:          "",
+			expectedCount:   3,
+			expectedNumbers: []int{42, 43, 44},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepo: mockResponse(t, http.StatusOK, mockPRs),
+			})
+
+			client := github.NewClient(mockedClient)
+			serverTool := ListPullRequests(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
+
+			requestArgs := map[string]interface{}{
+				"owner": "owner",
+				"repo":  "repo",
+			}
+			if tc.author != "" {
+				requestArgs["author"] = tc.author
+			}
+
+			request := createMCPRequest(requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+
+			textContent := getTextResult(t, result)
+			var returnedPRs []*github.PullRequest
+			err = json.Unmarshal([]byte(textContent.Text), &returnedPRs)
+			require.NoError(t, err)
+
+			assert.Len(t, returnedPRs, tc.expectedCount)
+
+			// Verify the expected PR numbers are returned
+			returnedNumbers := make([]int, len(returnedPRs))
+			for i, pr := range returnedPRs {
+				returnedNumbers[i] = *pr.Number
+			}
+			assert.ElementsMatch(t, tc.expectedNumbers, returnedNumbers)
+		})
+	}
+}
+
 func Test_SearchPullRequests(t *testing.T) {
 	serverTool := SearchPullRequests(translations.NullTranslationHelper)
 	tool := serverTool.Tool

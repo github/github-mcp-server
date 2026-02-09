@@ -1063,6 +1063,7 @@ The following sets of tools are available:
 
 - **list_pull_requests** - List pull requests
   - **Required OAuth Scopes**: `repo`
+  - `author`: Filter by PR author username (client-side filter) (string, optional)
   - `base`: Filter by base branch (string, optional)
   - `direction`: Sort direction (string, optional)
   - `head`: Filter by head user/org and branch (string, optional)

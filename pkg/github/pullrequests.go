@@ -1047,6 +1047,10 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 				Description: "Sort direction",
 				Enum:        []any{"asc", "desc"},
 			},
+			"author": {
+				Type:        "string",
+				Description: "Filter by PR author username (client-side filter)",
+			},
 		},
 		Required: []string{"owner", "repo"},
 	}
@@ -1056,7 +1060,7 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "list_pull_requests",
-			Description: t("TOOL_LIST_PULL_REQUESTS_DESCRIPTION", "List pull requests in a GitHub repository. If the user specifies an author, then DO NOT use this tool and use the search_pull_requests tool instead. If you receive a 422 error from search_pull_requests, then use the get_prs_reviewed_by tool instead."),
+			Description: t("TOOL_LIST_PULL_REQUESTS_DESCRIPTION", "List pull requests in a GitHub repository. If the user specifies an author, then DO NOT use this tool and use the search_pull_requests tool instead. If you receive a 422 error from search_pull_requests, then use the get_prs_reviewed_by tool (to list by reviewer), or this tool with the author parameter (for filtering by author) depending on what you need."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_PULL_REQUESTS_USER_TITLE", "List pull requests"),
 				ReadOnlyHint: true,
@@ -1090,6 +1094,10 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			direction, err := OptionalParam[string](args, "direction")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			author, err := OptionalParam[string](args, "author")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -1130,6 +1138,18 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
 				}
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list pull requests", resp, bodyBytes), nil, nil
+			}
+
+			// Filter by author if specified (client-side filtering)
+			if author != "" {
+				filtered := make([]*github.PullRequest, 0)
+				for _, pr := range prs {
+					if pr != nil && pr.User != nil && pr.User.Login != nil &&
+						strings.EqualFold(*pr.User.Login, author) {
+						filtered = append(filtered, pr)
+					}
+				}
+				prs = filtered
 			}
 
 			// sanitize title/body on each PR
