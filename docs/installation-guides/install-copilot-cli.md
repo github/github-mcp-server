@@ -35,7 +35,7 @@ Run `copilot --help` for all available flags. For the list of toolsets and tools
 
 ## Custom Configuration
 
-Configure the server using one of the methods below.
+You can configure the GitHub MCP server in Copilot CLI using either the interactive command or by manually editing the configuration file.
 
 > **Server naming:** Name your server `github-mcp-server` to replace the built-in server, or use a different name (e.g., `github`) to run alongside it.
 
