@@ -652,6 +652,10 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						Type:        "string",
 						Description: "Accepts optional commit SHA. If specified, it will be used instead of ref",
 					},
+					"symbol": {
+						Type:        "string",
+						Description: "Optional: extract a specific symbol (function, class, type, etc.) from the file. For supported languages, returns only the symbol's source code instead of the entire file. If the symbol is not found, returns a list of available symbols.",
+					},
 				},
 				Required: []string{"owner", "repo"},
 			},
@@ -680,6 +684,11 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 			originalRef := ref
 
 			sha, err := OptionalParam[string](args, "sha")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			symbol, err := OptionalParam[string](args, "symbol")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
@@ -769,9 +778,31 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						strings.HasSuffix(contentType, "+xml")
 
 					if isTextContent {
+						content := string(body)
+
+						// If a symbol was requested, extract just that symbol
+						if symbol != "" {
+							symbolText, symbolKind, extractErr := ExtractSymbol(path, body, symbol)
+							if extractErr != nil {
+								return utils.NewToolResultError(extractErr.Error()), nil, nil
+							}
+							content = symbolText
+							successMsg := fmt.Sprintf("extracted %s %q from %s", symbolKind, symbol, path)
+							if fileSHA != "" {
+								successMsg += fmt.Sprintf(" (SHA: %s)", fileSHA)
+							}
+							successMsg += successNote
+							result := &mcp.ResourceContents{
+								URI:      resourceURI,
+								Text:     content,
+								MIMEType: contentType,
+							}
+							return utils.NewToolResultResource(successMsg, result), nil, nil
+						}
+
 						result := &mcp.ResourceContents{
 							URI:      resourceURI,
-							Text:     string(body),
+							Text:     content,
 							MIMEType: contentType,
 						}
 						// Include SHA in the result metadata
