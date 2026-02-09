@@ -220,8 +220,8 @@ func GetPullRequestDiff(ctx context.Context, client *github.Client, owner, repo 
 
 	defer func() { _ = resp.Body.Close() }()
 
-	// Return the raw response
-	return utils.NewToolResultText(string(raw)), nil
+	// Return the raw response, with semantic diffs applied where beneficial
+	return utils.NewToolResultText(processMultiFileDiff(string(raw))), nil
 }
 
 func GetPullRequestStatus(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
@@ -291,6 +291,14 @@ func GetPullRequestFiles(ctx context.Context, client *github.Client, owner, repo
 			return nil, fmt.Errorf("failed to read response body: %w", err)
 		}
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request files", resp, body), nil
+	}
+
+	// Apply semantic diffs to file patches where beneficial
+	for _, file := range files {
+		if file.Patch != nil && file.Filename != nil {
+			semanticPatch := applySemanticDiffToUnifiedPatch(file.GetFilename(), file.GetPatch())
+			file.Patch = &semanticPatch
+		}
 	}
 
 	r, err := json.Marshal(files)
