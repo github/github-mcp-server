@@ -80,6 +80,10 @@ func SemanticDiff(path string, base, head []byte) SemanticDiffResult {
 	case ".toml":
 		return semanticDiffTOML(path, base, head)
 	default:
+		// Try tree-sitter structural diff for code files
+		if languageForPath(path) != nil {
+			return structuralDiff(path, base, head)
+		}
 		return SemanticDiffResult{
 			Format: DiffFormatUnified,
 			Diff:   unifiedDiff(path, base, head),
@@ -542,6 +546,9 @@ func DetectDiffFormat(path string) DiffFormat {
 	case ".toml":
 		return DiffFormatTOML
 	default:
+		if languageForPath(path) != nil {
+			return DiffFormatStructural
+		}
 		return DiffFormatUnified
 	}
 }

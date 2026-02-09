@@ -302,36 +302,17 @@ func TestSemanticDiffTOML(t *testing.T) {
 }
 
 func TestSemanticDiffUnifiedFallback(t *testing.T) {
-	tests := []struct {
-		name         string
-		path         string
-		base         string
-		head         string
-		expectedDiff string
-	}{
-		{
-			name:         "unsupported extension uses unified diff",
-			path:         "main.go",
-			base:         "func main() {\n}\n",
-			head:         "func main() {\n\tfmt.Println(\"hello\")\n}\n",
-			expectedDiff: "--- a/main.go",
-		},
-		{
-			name:         "no extension uses unified diff",
-			path:         "Makefile",
-			base:         "all:\n\techo hello\n",
-			head:         "all:\n\techo world\n",
-			expectedDiff: "--- a/Makefile",
-		},
-	}
+	t.Run("Go file uses structural diff", func(t *testing.T) {
+		result := SemanticDiff("main.go", []byte("func main() {\n}\n"), []byte("func main() {\n\tfmt.Println(\"hello\")\n}\n"))
+		assert.Equal(t, DiffFormatStructural, result.Format)
+		assert.Contains(t, result.Diff, "function_declaration main: modified")
+	})
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result := SemanticDiff(tc.path, []byte(tc.base), []byte(tc.head))
-			assert.Equal(t, DiffFormatUnified, result.Format)
-			assert.Contains(t, result.Diff, tc.expectedDiff)
-		})
-	}
+	t.Run("no extension uses unified diff", func(t *testing.T) {
+		result := SemanticDiff("Makefile", []byte("all:\n\techo hello\n"), []byte("all:\n\techo world\n"))
+		assert.Equal(t, DiffFormatUnified, result.Format)
+		assert.Contains(t, result.Diff, "--- a/Makefile")
+	})
 }
 
 func TestSemanticDiffFileSizeLimit(t *testing.T) {
@@ -373,7 +354,7 @@ func TestSemanticDiffNewAndDeletedFiles(t *testing.T) {
 
 	t.Run("deleted Go file", func(t *testing.T) {
 		result := SemanticDiff("main.go", []byte("package main\n"), nil)
-		assert.Equal(t, DiffFormatUnified, result.Format)
+		assert.Equal(t, DiffFormatStructural, result.Format)
 		assert.Equal(t, "file deleted", result.Diff)
 	})
 
@@ -394,7 +375,7 @@ func TestDetectDiffFormat(t *testing.T) {
 		{"config.yml", DiffFormatYAML},
 		{"data.csv", DiffFormatCSV},
 		{"config.toml", DiffFormatTOML},
-		{"main.go", DiffFormatUnified},
+		{"main.go", DiffFormatStructural},
 		{"README.md", DiffFormatUnified},
 		{"Makefile", DiffFormatUnified},
 	}
