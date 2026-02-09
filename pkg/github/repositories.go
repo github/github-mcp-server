@@ -786,7 +786,11 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 							if extractErr != nil {
 								return utils.NewToolResultError(extractErr.Error()), nil, nil
 							}
-							return utils.NewToolResultText(fmt.Sprintf("%s %s in %s:\n\n%s", symbolKind, symbol, path, symbolText)), nil, nil
+							msg := fmt.Sprintf("%s %s in %s", symbolKind, symbol, path)
+							if fileSHA != "" {
+								msg += fmt.Sprintf(" (SHA: %s)", fileSHA)
+							}
+							return utils.NewToolResultText(fmt.Sprintf("%s:\n\n%s", msg, symbolText)), nil, nil
 						}
 
 						result := &mcp.ResourceContents{
