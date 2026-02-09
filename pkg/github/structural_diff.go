@@ -310,7 +310,6 @@ func goNameExtractor(node *sitter.Node, source []byte) string {
 		}
 		return name
 	case "type_declaration", "var_declaration", "const_declaration":
-		// These contain spec children (type_spec, var_spec, const_spec) with name fields
 		for i := 0; i < int(node.ChildCount()); i++ {
 			child := node.Child(i)
 			nameNode := child.ChildByFieldName("name")
@@ -319,9 +318,25 @@ func goNameExtractor(node *sitter.Node, source []byte) string {
 			}
 		}
 		return ""
+	case "import_declaration":
+		return summarizeImport(node, source)
 	default:
 		return defaultNameExtractor(node, source)
 	}
+}
+
+// summarizeImport produces a concise name for an import declaration by
+// extracting the imported package paths.
+func summarizeImport(node *sitter.Node, source []byte) string {
+	var paths []string
+	collectImportPaths(node, source, &paths)
+	if len(paths) == 0 {
+		return node.Content(source)
+	}
+	if len(paths) <= 3 {
+		return strings.Join(paths, ", ")
+	}
+	return fmt.Sprintf("%s, %s, ... (%d packages)", paths[0], paths[1], len(paths))
 }
 
 // extractReceiverType extracts the type name from a Go method receiver.
@@ -336,6 +351,24 @@ func extractReceiverType(receiver *sitter.Node, source []byte) string {
 		}
 	}
 	return receiver.Content(source)
+}
+
+// collectImportPaths extracts package path strings from an import node tree.
+func collectImportPaths(node *sitter.Node, source []byte, paths *[]string) {
+	if node.Type() == "interpreted_string_literal" || node.Type() == "raw_string_literal" {
+		// Strip quotes
+		content := node.Content(source)
+		content = strings.Trim(content, "\"'`")
+		// Use short form: last path component
+		if idx := strings.LastIndex(content, "/"); idx >= 0 {
+			content = content[idx+1:]
+		}
+		*paths = append(*paths, content)
+		return
+	}
+	for i := 0; i < int(node.ChildCount()); i++ {
+		collectImportPaths(node.Child(i), source, paths)
+	}
 }
 
 // jsNameExtractor handles JS/TS-specific naming (variable declarations, exports).
@@ -454,7 +487,12 @@ func diffDeclarations(config *languageConfig, base, head []declaration, indent s
 		case inBase && !inHead:
 			changes = append(changes, fmt.Sprintf("%s%s %s: removed", indent, baseDecl.Kind, baseDecl.Name))
 		case !inBase && inHead:
-			changes = append(changes, fmt.Sprintf("%s%s %s: added", indent, headDecl.Kind, headDecl.Name))
+			sig := declarationSignature(headDecl.Text)
+			if sig != "" && sig != headDecl.Name {
+				changes = append(changes, fmt.Sprintf("%s%s %s: added\n%s  %s", indent, headDecl.Kind, headDecl.Name, indent, sig))
+			} else {
+				changes = append(changes, fmt.Sprintf("%s%s %s: added", indent, headDecl.Kind, headDecl.Name))
+			}
 		case baseDecl.Text != headDecl.Text:
 			detail := modifiedDetail(config, baseDecl, headDecl, indent, depth)
 			changes = append(changes, fmt.Sprintf("%s%s %s: modified\n%s", indent, baseDecl.Kind, baseDecl.Name, detail))
@@ -466,13 +504,33 @@ func diffDeclarations(config *languageConfig, base, head []declaration, indent s
 
 // indexDeclarations creates a lookup map from declaration key to declaration.
 // The key combines kind and name to handle same-name declarations of different kinds.
+// Import and package declarations use kind-only keys since they're typically
+// singletons and their "name" changes when contents change.
 func indexDeclarations(decls []declaration) map[string]declaration {
 	result := make(map[string]declaration, len(decls))
+	importCount := 0
 	for _, d := range decls {
-		key := d.Kind + ":" + d.Name
+		var key string
+		switch d.Kind {
+		case "import_declaration", "import_statement", "import_from_statement",
+			"package_clause", "package_declaration":
+			key = fmt.Sprintf("%s:%d", d.Kind, importCount)
+			importCount++
+		default:
+			key = d.Kind + ":" + d.Name
+		}
 		result[key] = d
 	}
 	return result
+}
+
+// declarationSignature returns the first line of a declaration, which typically
+// contains the signature (e.g., "func hello(name string) error {").
+func declarationSignature(text string) string {
+	if idx := strings.Index(text, "\n"); idx >= 0 {
+		return strings.TrimSpace(text[:idx])
+	}
+	return strings.TrimSpace(text)
 }
 
 // modifiedDetail produces the detail output for a modified declaration. If the
