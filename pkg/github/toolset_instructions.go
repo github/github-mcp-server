@@ -5,6 +5,12 @@ import "github.com/github/github-mcp-server/pkg/inventory"
 // Toolset instruction functions - these generate context-aware instructions for each toolset.
 // They are called during inventory build to generate server instructions.
 
+func generateReposToolsetInstructions(_ *inventory.Inventory) string {
+	return `## Repos
+
+File comparison workflow: Use 'compare_file_contents' to see what changed between two refs — it produces structural diffs showing which symbols were added, removed, or modified. Then use 'get_file_contents' with 'symbol' to fetch specific changed symbols for detailed examination.`
+}
+
 func generateContextToolsetInstructions(_ *inventory.Inventory) string {
 	return "Always call 'get_me' first to understand current user permissions and context."
 }
