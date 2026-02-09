@@ -23,6 +23,9 @@ import (
 // DiffFormatStructural indicates a tree-sitter based structural diff.
 const DiffFormatStructural DiffFormat = "structural"
 
+// maxStructuralDiffDepth limits recursion into nested declarations.
+const maxStructuralDiffDepth = 5
+
 // declaration represents a named top-level code construct (function, class, etc).
 type declaration struct {
 	Kind string // e.g. "function", "class", "type", "import"
@@ -33,9 +36,10 @@ type declaration struct {
 // languageConfig maps file extensions to tree-sitter languages and the node
 // types that should be treated as top-level declarations.
 type languageConfig struct {
-	language         *sitter.Language
-	declarationKinds map[string]bool
-	nameExtractor    func(node *sitter.Node, source []byte) string
+	language                 *sitter.Language
+	declarationKinds         map[string]bool
+	nameExtractor            func(node *sitter.Node, source []byte) string
+	indentationIsSignificant bool
 }
 
 // languageForPath returns the tree-sitter language config for a file path, or nil if unsupported.
@@ -92,7 +96,8 @@ func pythonConfig() *languageConfig {
 			"import_statement":      true,
 			"import_from_statement": true,
 		},
-		nameExtractor: defaultNameExtractor,
+		nameExtractor:            defaultNameExtractor,
+		indentationIsSignificant: true,
 	}
 }
 
@@ -102,6 +107,7 @@ func javascriptConfig() *languageConfig {
 		declarationKinds: map[string]bool{
 			"function_declaration": true,
 			"class_declaration":    true,
+			"method_definition":    true,
 			"export_statement":     true,
 			"import_statement":     true,
 			"lexical_declaration":  true,
@@ -117,6 +123,7 @@ func typescriptConfig() *languageConfig {
 		declarationKinds: map[string]bool{
 			"function_declaration":   true,
 			"class_declaration":      true,
+			"method_definition":      true,
 			"export_statement":       true,
 			"import_statement":       true,
 			"lexical_declaration":    true,
@@ -135,6 +142,7 @@ func tsxConfig() *languageConfig {
 		declarationKinds: map[string]bool{
 			"function_declaration":   true,
 			"class_declaration":      true,
+			"method_definition":      true,
 			"export_statement":       true,
 			"import_statement":       true,
 			"lexical_declaration":    true,
@@ -241,11 +249,15 @@ func extractDeclarations(config *languageConfig, source []byte) ([]declaration, 
 	}
 	defer tree.Close()
 
-	root := tree.RootNode()
+	return extractChildDeclarations(config, tree.RootNode(), source), nil
+}
+
+// extractChildDeclarations extracts declarations from the direct children of a node.
+func extractChildDeclarations(config *languageConfig, node *sitter.Node, source []byte) []declaration {
 	var decls []declaration
 
-	for i := 0; i < int(root.ChildCount()); i++ {
-		child := root.Child(i)
+	for i := 0; i < int(node.ChildCount()); i++ {
+		child := node.Child(i)
 		nodeType := child.Type()
 
 		if !config.declarationKinds[nodeType] {
@@ -264,7 +276,7 @@ func extractDeclarations(config *languageConfig, source []byte) ([]declaration, 
 		})
 	}
 
-	return decls, nil
+	return decls
 }
 
 // defaultNameExtractor finds the first "name" or "identifier" child node.
@@ -401,7 +413,7 @@ func structuralDiff(path string, base, head []byte) SemanticDiffResult {
 		return fallbackResult(path, base, head, "failed to parse head file")
 	}
 
-	changes := diffDeclarations(baseDecls, headDecls)
+	changes := diffDeclarations(config, baseDecls, headDecls, "", 0)
 	if len(changes) == 0 {
 		return SemanticDiffResult{
 			Format: DiffFormatStructural,
@@ -416,7 +428,8 @@ func structuralDiff(path string, base, head []byte) SemanticDiffResult {
 }
 
 // diffDeclarations compares two sets of declarations and returns change descriptions.
-func diffDeclarations(base, head []declaration) []string {
+// indent controls visual nesting, depth limits recursion.
+func diffDeclarations(config *languageConfig, base, head []declaration, indent string, depth int) []string {
 	baseMap := indexDeclarations(base)
 	headMap := indexDeclarations(head)
 
@@ -442,11 +455,12 @@ func diffDeclarations(base, head []declaration) []string {
 
 		switch {
 		case inBase && !inHead:
-			changes = append(changes, fmt.Sprintf("%s %s: removed", baseDecl.Kind, baseDecl.Name))
+			changes = append(changes, fmt.Sprintf("%s%s %s: removed", indent, baseDecl.Kind, baseDecl.Name))
 		case !inBase && inHead:
-			changes = append(changes, fmt.Sprintf("%s %s: added", headDecl.Kind, headDecl.Name))
+			changes = append(changes, fmt.Sprintf("%s%s %s: added", indent, headDecl.Kind, headDecl.Name))
 		case baseDecl.Text != headDecl.Text:
-			changes = append(changes, fmt.Sprintf("%s %s: modified", baseDecl.Kind, baseDecl.Name))
+			detail := modifiedDetail(config, baseDecl, headDecl, indent, depth)
+			changes = append(changes, fmt.Sprintf("%s%s %s: modified\n%s", indent, baseDecl.Kind, baseDecl.Name, detail))
 		}
 	}
 
@@ -461,5 +475,190 @@ func indexDeclarations(decls []declaration) map[string]declaration {
 		key := d.Kind + ":" + d.Name
 		result[key] = d
 	}
+	return result
+}
+
+// modifiedDetail produces the detail output for a modified declaration. If the
+// declaration contains sub-declarations (e.g. methods in a class) and we haven't
+// hit the depth limit, it recurses to show which children changed. Otherwise it
+// falls back to a line-level diff of the declaration body.
+func modifiedDetail(config *languageConfig, baseDecl, headDecl declaration, indent string, depth int) string {
+	if depth < maxStructuralDiffDepth {
+		baseChildren := extractChildDeclarationsFromText(config, baseDecl.Text)
+		headChildren := extractChildDeclarationsFromText(config, headDecl.Text)
+
+		if len(baseChildren) > 0 || len(headChildren) > 0 {
+			nested := diffDeclarations(config, baseChildren, headChildren, indent+"  ", depth+1)
+			if len(nested) > 0 {
+				return strings.Join(nested, "\n")
+			}
+		}
+	}
+
+	return declarationDiff(baseDecl.Text, headDecl.Text, indent+"  ", config.indentationIsSignificant)
+}
+
+// extractChildDeclarationsFromText parses a declaration's text and extracts any
+// nested declarations (e.g. methods inside a class body).
+func extractChildDeclarationsFromText(config *languageConfig, text string) []declaration {
+	parser := sitter.NewParser()
+	defer parser.Close()
+	parser.SetLanguage(config.language)
+
+	src := []byte(text)
+	tree, err := parser.ParseCtx(context.Background(), nil, src)
+	if err != nil {
+		return nil
+	}
+	defer tree.Close()
+
+	// Walk all descendants looking for declaration nodes that aren't the root wrapper
+	root := tree.RootNode()
+	var decls []declaration
+	findNestedDeclarations(config, root, src, &decls, 0, true)
+	return decls
+}
+
+// findNestedDeclarations recursively walks AST nodes to find declarations that
+// are nested inside a parent. skipRoot=true on the first call to avoid matching
+// the re-parsed wrapper of the parent declaration itself.
+func findNestedDeclarations(config *languageConfig, node *sitter.Node, source []byte, decls *[]declaration, depth int, skipRoot bool) {
+	if depth > maxStructuralDiffDepth {
+		return
+	}
+	for i := 0; i < int(node.ChildCount()); i++ {
+		child := node.Child(i)
+		nodeType := child.Type()
+
+		if !skipRoot && config.declarationKinds[nodeType] {
+			name := config.nameExtractor(child, source)
+			if name == "" {
+				name = fmt.Sprintf("_%s_%d", nodeType, i)
+			}
+			*decls = append(*decls, declaration{
+				Kind: nodeType,
+				Name: name,
+				Text: child.Content(source),
+			})
+		} else {
+			// Keep walking into non-declaration nodes (e.g. class_body)
+			findNestedDeclarations(config, child, source, decls, depth+1, false)
+		}
+	}
+}
+
+// declarationDiff produces a compact, indented diff showing what changed inside
+// a modified declaration. For languages where indentation is not significant,
+// lines are compared with leading whitespace normalized so that pure formatting
+// changes are collapsed. For whitespace-significant languages like Python,
+// indentation differences are preserved as meaningful changes.
+func declarationDiff(baseText, headText string, indent string, indentationIsSignificant bool) string {
+	baseLines := strings.Split(baseText, "\n")
+	headLines := strings.Split(headText, "\n")
+
+	var baseCmp, headCmp []string
+	if indentationIsSignificant {
+		baseCmp = baseLines
+		headCmp = headLines
+	} else {
+		baseCmp = trimLines(baseLines)
+		headCmp = trimLines(headLines)
+	}
+
+	// Compute LCS — on trimmed content for brace languages, exact for whitespace-significant
+	lcsIndices := longestCommonSubsequence(baseCmp, headCmp)
+
+	var buf strings.Builder
+	bi, hi, li := 0, 0, 0
+
+	for li < len(lcsIndices) {
+		bIdx := lcsIndices[li][0]
+		hIdx := lcsIndices[li][1]
+
+		// Lines removed from base before this common line
+		for bi < bIdx {
+			buf.WriteString(indent + "- " + baseLines[bi] + "\n")
+			bi++
+		}
+		// Lines added in head before this common line
+		for hi < hIdx {
+			buf.WriteString(indent + "+ " + headLines[hi] + "\n")
+			hi++
+		}
+		// Common line (by trimmed content) — skip silently
+		bi++
+		hi++
+		li++
+	}
+
+	// Remaining lines after LCS is exhausted
+	for bi < len(baseLines) {
+		buf.WriteString(indent + "- " + baseLines[bi] + "\n")
+		bi++
+	}
+	for hi < len(headLines) {
+		buf.WriteString(indent + "+ " + headLines[hi] + "\n")
+		hi++
+	}
+
+	result := strings.TrimRight(buf.String(), "\n")
+	if result == "" {
+		return indent + "(whitespace/formatting changes only)"
+	}
+	return result
+}
+
+// trimLines returns a slice with each line's leading/trailing whitespace removed.
+func trimLines(lines []string) []string {
+	trimmed := make([]string, len(lines))
+	for i, l := range lines {
+		trimmed[i] = strings.TrimSpace(l)
+	}
+	return trimmed
+}
+
+// longestCommonSubsequence returns index pairs [baseIdx, headIdx] for matching
+// lines between a and b.
+func longestCommonSubsequence(a, b []string) [][2]int {
+	m, n := len(a), len(b)
+	dp := make([][]int, m+1)
+	for i := range dp {
+		dp[i] = make([]int, n+1)
+	}
+
+	for i := 1; i <= m; i++ {
+		for j := 1; j <= n; j++ {
+			switch {
+			case a[i-1] == b[j-1]:
+				dp[i][j] = dp[i-1][j-1] + 1
+			case dp[i-1][j] >= dp[i][j-1]:
+				dp[i][j] = dp[i-1][j]
+			default:
+				dp[i][j] = dp[i][j-1]
+			}
+		}
+	}
+
+	// Backtrack to find index pairs
+	result := make([][2]int, 0, dp[m][n])
+	i, j := m, n
+	for i > 0 && j > 0 {
+		switch {
+		case a[i-1] == b[j-1]:
+			result = append(result, [2]int{i - 1, j - 1})
+			i--
+			j--
+		case dp[i-1][j] >= dp[i][j-1]:
+			i--
+		default:
+			j--
+		}
+	}
+
+	// Reverse
+	for left, right := 0, len(result)-1; left < right; left, right = left+1, right-1 {
+		result[left], result[right] = result[right], result[left]
+	}
+
 	return result
 }
