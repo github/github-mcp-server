@@ -95,7 +95,12 @@ jobs:
       - name: Inject go-build-cache
         uses: reproducible-containers/buildkit-cache-dance@6f699a72a59e4252f05a7435430009b77e25fe06 # v3.3.1
         with:
-          cache-source: go-build-cache
+          cache-map: |
+            {
+              "go-build-cache/apk": "/var/cache/apk",
+              "go-build-cache/pkg": "/go/pkg/mod",
+              "go-build-cache/build": "/root/.cache/go-build"
+            }
 
       # Build and push Docker image with Buildx (don't push on PR)
       # https://github.com/docker/build-push-action
