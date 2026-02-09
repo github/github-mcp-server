@@ -685,6 +685,185 @@ func Test_ListPullRequests(t *testing.T) {
 	}
 }
 
+func Test_GetPRsReviewedBy(t *testing.T) {
+	// Verify tool definition once
+	serverTool := GetPRsReviewedBy(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "get_prs_reviewed_by", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	schema := tool.InputSchema.(*jsonschema.Schema)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "reviewer")
+	assert.Contains(t, schema.Properties, "state")
+	assert.Contains(t, schema.Properties, "perPage")
+	assert.Contains(t, schema.Properties, "page")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "reviewer"})
+
+	// Setup mock PRs
+	mockPRs := []*github.PullRequest{
+		{
+			Number:  github.Ptr(42),
+			Title:   github.Ptr("First PR"),
+			State:   github.Ptr("open"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42"),
+			User:    &github.User{Login: github.Ptr("author1")},
+		},
+		{
+			Number:  github.Ptr(43),
+			Title:   github.Ptr("Second PR"),
+			State:   github.Ptr("closed"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/pull/43"),
+			User:    &github.User{Login: github.Ptr("author2")},
+		},
+		{
+			Number:  github.Ptr(44),
+			Title:   github.Ptr("Third PR"),
+			State:   github.Ptr("open"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/pull/44"),
+			User:    &github.User{Login: github.Ptr("author3")},
+		},
+	}
+
+	// Mock reviews for each PR
+	reviewsPR42 := []*github.PullRequestReview{
+		{ID: github.Ptr(int64(1)), User: &github.User{Login: github.Ptr("reviewer1")}},
+		{ID: github.Ptr(int64(2)), User: &github.User{Login: github.Ptr("reviewer2")}},
+	}
+	reviewsPR43 := []*github.PullRequestReview{
+		{ID: github.Ptr(int64(3)), User: &github.User{Login: github.Ptr("reviewer2")}},
+	}
+	reviewsPR44 := []*github.PullRequestReview{
+		{ID: github.Ptr(int64(4)), User: &github.User{Login: github.Ptr("reviewer1")}},
+	}
+
+	tests := []struct {
+		name           string
+		mockedClient   *http.Client
+		requestArgs    map[string]interface{}
+		expectError    bool
+		expectedCount  int
+		expectedErrMsg string
+	}{
+		{
+			name: "find PRs reviewed by reviewer1",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepo:                   mockResponse(t, http.StatusOK, mockPRs),
+				"GET /repos/{owner}/{repo}/pulls/42/reviews": mockResponse(t, http.StatusOK, reviewsPR42),
+				"GET /repos/{owner}/{repo}/pulls/43/reviews": mockResponse(t, http.StatusOK, reviewsPR43),
+				"GET /repos/{owner}/{repo}/pulls/44/reviews": mockResponse(t, http.StatusOK, reviewsPR44),
+			}),
+			requestArgs: map[string]interface{}{
+				"owner":    "owner",
+				"repo":     "repo",
+				"reviewer": "reviewer1",
+			},
+			expectError:   false,
+			expectedCount: 2, // PR 42 and 44
+		},
+		{
+			name: "find PRs reviewed by reviewer2",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepo:                   mockResponse(t, http.StatusOK, mockPRs),
+				"GET /repos/{owner}/{repo}/pulls/42/reviews": mockResponse(t, http.StatusOK, reviewsPR42),
+				"GET /repos/{owner}/{repo}/pulls/43/reviews": mockResponse(t, http.StatusOK, reviewsPR43),
+				"GET /repos/{owner}/{repo}/pulls/44/reviews": mockResponse(t, http.StatusOK, reviewsPR44),
+			}),
+			requestArgs: map[string]interface{}{
+				"owner":    "owner",
+				"repo":     "repo",
+				"reviewer": "reviewer2",
+			},
+			expectError:   false,
+			expectedCount: 2, // PR 42 and 43
+		},
+		{
+			name: "case insensitive reviewer matching",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepo:                   mockResponse(t, http.StatusOK, mockPRs),
+				"GET /repos/{owner}/{repo}/pulls/42/reviews": mockResponse(t, http.StatusOK, reviewsPR42),
+				"GET /repos/{owner}/{repo}/pulls/43/reviews": mockResponse(t, http.StatusOK, reviewsPR43),
+				"GET /repos/{owner}/{repo}/pulls/44/reviews": mockResponse(t, http.StatusOK, reviewsPR44),
+			}),
+			requestArgs: map[string]interface{}{
+				"owner":    "owner",
+				"repo":     "repo",
+				"reviewer": "REVIEWER1",
+			},
+			expectError:   false,
+			expectedCount: 2,
+		},
+		{
+			name: "no PRs reviewed by unknown reviewer",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepo:                   mockResponse(t, http.StatusOK, mockPRs),
+				"GET /repos/{owner}/{repo}/pulls/42/reviews": mockResponse(t, http.StatusOK, reviewsPR42),
+				"GET /repos/{owner}/{repo}/pulls/43/reviews": mockResponse(t, http.StatusOK, reviewsPR43),
+				"GET /repos/{owner}/{repo}/pulls/44/reviews": mockResponse(t, http.StatusOK, reviewsPR44),
+			}),
+			requestArgs: map[string]interface{}{
+				"owner":    "owner",
+				"repo":     "repo",
+				"reviewer": "unknownuser",
+			},
+			expectError:   false,
+			expectedCount: 0,
+		},
+		{
+			name: "listing PRs fails",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposPullsByOwnerByRepo: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusNotFound)
+					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
+				},
+			}),
+			requestArgs: map[string]interface{}{
+				"owner":    "owner",
+				"repo":     "nonexistent",
+				"reviewer": "reviewer1",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to list pull requests",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := github.NewClient(tc.mockedClient)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			if tc.expectError {
+				require.NoError(t, err)
+				require.True(t, result.IsError)
+				errorContent := getErrorResult(t, result)
+				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+
+			textContent := getTextResult(t, result)
+			var response map[string]interface{}
+			err = json.Unmarshal([]byte(textContent.Text), &response)
+			require.NoError(t, err)
+
+			assert.Equal(t, float64(tc.expectedCount), response["total_count"])
+			pullRequests, ok := response["pull_requests"].([]interface{})
+			require.True(t, ok)
+			assert.Len(t, pullRequests, tc.expectedCount)
+		})
+	}
+}
+
 func Test_MergePullRequest(t *testing.T) {
 	// Verify tool definition once
 	serverTool := MergePullRequest(translations.NullTranslationHelper)

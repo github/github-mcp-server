@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/google/go-github/v79/github"
@@ -29,8 +30,8 @@ func PullRequestRead(t translations.TranslationHelperFunc) inventory.ServerTool 
 		Properties: map[string]*jsonschema.Schema{
 			"method": {
 				Type: "string",
-				Description: `Action to specify what pull request data needs to be retrieved from GitHub. 
-Possible options: 
+				Description: `Action to specify what pull request data needs to be retrieved from GitHub.
+Possible options:
  1. get - Get details of a specific pull request.
  2. get_diff - Get the diff of a pull request.
  3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
@@ -1055,7 +1056,7 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "list_pull_requests",
-			Description: t("TOOL_LIST_PULL_REQUESTS_DESCRIPTION", "List pull requests in a GitHub repository. If the user specifies an author, then DO NOT use this tool and use the search_pull_requests tool instead."),
+			Description: t("TOOL_LIST_PULL_REQUESTS_DESCRIPTION", "List pull requests in a GitHub repository. If the user specifies an author, then DO NOT use this tool and use the search_pull_requests tool instead. If you receive a 422 error from search_pull_requests, then use the get_prs_reviewed_by tool instead."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_LIST_PULL_REQUESTS_USER_TITLE", "List pull requests"),
 				ReadOnlyHint: true,
@@ -1151,6 +1152,154 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 
 			return utils.NewToolResultText(string(r)), nil, nil
 		})
+}
+
+// GetPRsReviewedBy creates a tool for finding PRs reviewed by a specific user
+func GetPRsReviewedBy(t translations.TranslationHelperFunc) inventory.ServerTool {
+	schema := &jsonschema.Schema{
+		Type: "object",
+		Properties: map[string]*jsonschema.Schema{
+			"owner": {
+				Type:        "string",
+				Description: "Repository owner",
+			},
+			"repo": {
+				Type:        "string",
+				Description: "Repository name",
+			},
+			"reviewer": {
+				Type:        "string",
+				Description: "GitHub username of the reviewer",
+			},
+			"state": {
+				Type:        "string",
+				Description: "PR state filter: open, closed, or all",
+				Enum:        []any{"open", "closed", "all"},
+			},
+		},
+		Required: []string{"owner", "repo", "reviewer"},
+	}
+	WithPagination(schema)
+
+	return NewTool(
+		ToolsetMetadataPullRequests,
+		mcp.Tool{
+			Name: "get_prs_reviewed_by",
+			Description: t("TOOL_GET_PRS_REVIEWED_BY_DESCRIPTION",
+				"Find PRs reviewed by a user. Use this tool if you receive a 422 error when using the search_pull_requests tool."),
+			Annotations: &mcp.ToolAnnotations{
+				Title:        t("TOOL_GET_PRS_REVIEWED_BY_TITLE", "Get PRs reviewed by user"),
+				ReadOnlyHint: true,
+			},
+			InputSchema: schema,
+		},
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+			owner, err := RequiredParam[string](args, "owner")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			repo, err := RequiredParam[string](args, "repo")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			reviewer, err := RequiredParam[string](args, "reviewer")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			state, err := OptionalParam[string](args, "state")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if state == "" {
+				state = "all"
+			}
+
+			opts := &github.PullRequestListOptions{
+				State: state,
+				ListOptions: github.ListOptions{
+					PerPage: 100,
+				},
+			}
+
+			pagination, err := OptionalPaginationParams(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if pagination.Page > 0 {
+				opts.ListOptions.Page = pagination.Page
+			}
+			if pagination.PerPage > 0 {
+				opts.ListOptions.PerPage = pagination.PerPage
+			}
+
+			client, err := deps.GetClient(ctx)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+			}
+
+			// List all PRs
+			prs, resp, err := client.PullRequests.List(ctx, owner, repo, opts)
+			if err != nil {
+				return ghErrors.NewGitHubAPIErrorResponse(ctx,
+					"failed to list pull requests",
+					resp,
+					err,
+				), nil, nil
+			}
+			defer func() { _ = resp.Body.Close() }()
+
+			// Filter PRs by reviewer
+			var reviewedPRs []*github.PullRequest
+			for _, pr := range prs {
+				if pr.Number == nil {
+					continue
+				}
+				reviews, _, err := client.PullRequests.ListReviews(ctx, owner, repo, *pr.Number, nil)
+				if err != nil {
+					continue // Skip PRs we can't get reviews for
+				}
+				for _, review := range reviews {
+					if review.User != nil && review.User.Login != nil &&
+						strings.EqualFold(*review.User.Login, reviewer) {
+						reviewedPRs = append(reviewedPRs, pr)
+						break
+					}
+				}
+			}
+
+			// Sanitize the results
+			sanitized := make([]map[string]any, 0, len(reviewedPRs))
+			for _, pr := range reviewedPRs {
+				if pr.Title != nil {
+					pr.Title = github.Ptr(sanitize.Sanitize(*pr.Title))
+				}
+				if pr.Body != nil {
+					pr.Body = github.Ptr(sanitize.Sanitize(*pr.Body))
+				}
+				sanitized = append(sanitized, map[string]any{
+					"number":   pr.GetNumber(),
+					"title":    pr.GetTitle(),
+					"state":    pr.GetState(),
+					"html_url": pr.GetHTMLURL(),
+					"user":     pr.GetUser().GetLogin(),
+					"draft":    pr.GetDraft(),
+				})
+			}
+
+			result := map[string]any{
+				"pull_requests": sanitized,
+				"total_count":   len(sanitized),
+			}
+
+			r, err := json.Marshal(result)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			}
+
+			return utils.NewToolResultText(string(r)), nil, nil
+		},
+	)
 }
 
 // MergePullRequest creates a tool to merge a pull request.
@@ -1310,7 +1459,7 @@ func SearchPullRequests(t translations.TranslationHelperFunc) inventory.ServerTo
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
 			Name:        "search_pull_requests",
-			Description: t("TOOL_SEARCH_PULL_REQUESTS_DESCRIPTION", "Search for pull requests in GitHub repositories using issues search syntax already scoped to is:pr"),
+			Description: t("TOOL_SEARCH_PULL_REQUESTS_DESCRIPTION", "Search for pull requests in GitHub repositories using issues search syntax already scoped to is:pr. If you receive a 422 error, then use the get_prs_reviewed_by tool instead."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_SEARCH_PULL_REQUESTS_USER_TITLE", "Search pull requests"),
 				ReadOnlyHint: true,
