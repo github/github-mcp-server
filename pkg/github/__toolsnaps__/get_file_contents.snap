@@ -26,6 +26,10 @@
       "sha": {
         "description": "Accepts optional commit SHA. If specified, it will be used instead of ref",
         "type": "string"
+      },
+      "symbol": {
+        "description": "Optional: extract a specific symbol (function, class, type, etc.) from the file. For supported languages, returns only the symbol's source code instead of the entire file. If the symbol is not found, returns a list of available symbols.",
+        "type": "string"
       }
     },
     "required": [
