@@ -353,6 +353,9 @@ func addUserAgentsMiddleware(cfg github.MCPServerConfig, restClient *gogithub.Cl
 				message.Params.ClientInfo.Name,
 				message.Params.ClientInfo.Version,
 			)
+			if cfg.InsidersMode {
+				userAgent += " (insiders)"
+			}
 
 			restClient.UserAgent = userAgent
 
