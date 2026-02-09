@@ -295,11 +295,10 @@ func defaultNameExtractor(node *sitter.Node, source []byte) string {
 	return ""
 }
 
-// goNameExtractor handles Go-specific naming (method receivers, type specs).
+// goNameExtractor handles Go-specific naming (method receivers, type/var/const specs).
 func goNameExtractor(node *sitter.Node, source []byte) string {
 	switch node.Type() {
 	case "method_declaration":
-		// Include receiver type: (r *Receiver) MethodName
 		nameNode := node.ChildByFieldName("name")
 		if nameNode == nil {
 			return ""
@@ -310,15 +309,13 @@ func goNameExtractor(node *sitter.Node, source []byte) string {
 			return fmt.Sprintf("(%s).%s", extractReceiverType(receiver, source), name)
 		}
 		return name
-	case "type_declaration":
-		// type_declaration contains type_spec children
+	case "type_declaration", "var_declaration", "const_declaration":
+		// These contain spec children (type_spec, var_spec, const_spec) with name fields
 		for i := 0; i < int(node.ChildCount()); i++ {
 			child := node.Child(i)
-			if child.Type() == "type_spec" {
-				nameNode := child.ChildByFieldName("name")
-				if nameNode != nil {
-					return nameNode.Content(source)
-				}
+			nameNode := child.ChildByFieldName("name")
+			if nameNode != nil {
+				return nameNode.Content(source)
 			}
 		}
 		return ""
