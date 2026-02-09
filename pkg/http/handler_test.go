@@ -251,12 +251,14 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 			expectedTools: []string{"get_file_contents", "list_issues", "list_pull_requests", "hidden_by_holdback"},
 		},
 		{
-			name: "X-MCP-Features header enables flagged tool",
+			name: "X-MCP-Features header with feature flag is ignored when not in knownFeatureFlags",
 			path: "/",
 			headers: map[string]string{
 				headers.MCPFeaturesHeader: "mcp_holdback_consolidated_projects",
 			},
-			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "create_issue", "list_pull_requests", "create_pull_request", "needs_holdback"},
+			// Since mcp_holdback_consolidated_projects is no longer in knownFeatureFlags,
+			// the flag is ignored and tools behave as if no flag was set
+			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "create_issue", "list_pull_requests", "create_pull_request", "hidden_by_holdback"},
 		},
 		{
 			name: "X-MCP-Features header with unknown flag is ignored",
