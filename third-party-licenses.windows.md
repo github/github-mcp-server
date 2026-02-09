@@ -50,5 +50,6 @@ The following packages are included for the 386, amd64, arm64 architectures.
  - [golang.org/x/sys/windows](https://pkg.go.dev/golang.org/x/sys/windows) ([BSD-3-Clause](https://cs.opensource.google/go/x/sys/+/v0.31.0:LICENSE))
  - [golang.org/x/text](https://pkg.go.dev/golang.org/x/text) ([BSD-3-Clause](https://cs.opensource.google/go/x/text/+/v0.28.0:LICENSE))
  - [gopkg.in/yaml.v2](https://pkg.go.dev/gopkg.in/yaml.v2) ([Apache-2.0](https://github.com/go-yaml/yaml/blob/v2.4.0/LICENSE))
+ - [gopkg.in/yaml.v3](https://pkg.go.dev/gopkg.in/yaml.v3) ([MIT](https://github.com/go-yaml/yaml/blob/v3.0.1/LICENSE))
 
 [github/github-mcp-server]: https://github.com/github/github-mcp-server
