@@ -35,16 +35,38 @@ func ExtractSymbol(path string, source []byte, symbolName string) (text string, 
 
 	// Build list of available symbols for the error message
 	available := listSymbolNames(config, decls)
+
+	// Suggest closest match for bare method names
+	if suggestion := findClosestMatch(available, symbolName); suggestion != "" {
+		return "", "", fmt.Errorf("symbol %q not found. Did you mean %q? Available symbols: %s",
+			symbolName, suggestion, strings.Join(available, ", "))
+	}
 	return "", "", fmt.Errorf("symbol %q not found. Available symbols: %s", symbolName, strings.Join(available, ", "))
 }
 
 // findSymbol searches a slice of declarations for a matching name.
+// It first tries an exact match, then falls back to suffix matching
+// (e.g., "RegisterRoutes" matches "(*Handler).RegisterRoutes") when
+// there is exactly one unambiguous match.
 func findSymbol(decls []declaration, name string) (string, string, bool) {
 	for _, d := range decls {
 		if d.Name == name {
 			return d.Text, d.Kind, true
 		}
 	}
+
+	// Suffix match: accept bare method name when unambiguous
+	var matches []declaration
+	suffix := "." + name
+	for _, d := range decls {
+		if strings.HasSuffix(d.Name, suffix) {
+			matches = append(matches, d)
+		}
+	}
+	if len(matches) == 1 {
+		return matches[0].Text, matches[0].Kind, true
+	}
+
 	return "", "", false
 }
 
@@ -64,4 +86,20 @@ func listSymbolNames(config *languageConfig, decls []declaration) []string {
 		}
 	}
 	return names
+}
+
+// findClosestMatch looks for a symbol name that ends with ".name" or contains
+// the search term as a substring, returning the best suggestion.
+func findClosestMatch(available []string, name string) string {
+	suffix := "." + name
+	var suffixMatches []string
+	for _, s := range available {
+		if strings.HasSuffix(s, suffix) {
+			suffixMatches = append(suffixMatches, s)
+		}
+	}
+	if len(suffixMatches) == 1 {
+		return suffixMatches[0]
+	}
+	return ""
 }

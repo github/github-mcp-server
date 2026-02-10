@@ -113,4 +113,32 @@ func TestExtractSymbol(t *testing.T) {
 		assert.Contains(t, text, "30")
 		assert.NotContains(t, text, "maxRetries")
 	})
+
+	t.Run("bare method name matches unambiguous receiver", func(t *testing.T) {
+		source := []byte("package main\n\ntype Handler struct{}\n\nfunc (h *Handler) RegisterRoutes() {\n\t// routes\n}\n\nfunc (h *Handler) ServeHTTP() {\n\t// serve\n}\n")
+		text, kind, err := ExtractSymbol("main.go", source, "RegisterRoutes")
+		require.NoError(t, err)
+		assert.Equal(t, "method_declaration", kind)
+		assert.Contains(t, text, "RegisterRoutes")
+		assert.NotContains(t, text, "ServeHTTP")
+	})
+
+	t.Run("bare method name ambiguous returns error", func(t *testing.T) {
+		source := []byte("package main\n\ntype A struct{}\ntype B struct{}\n\nfunc (a A) Start() {}\n\nfunc (b B) Start() {}\n")
+		_, _, err := ExtractSymbol("main.go", source, "Start")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
+	})
+
+	t.Run("error suggests closest match", func(t *testing.T) {
+		source := []byte("package main\n\ntype Handler struct{}\n\nfunc (h *Handler) RegisterRoutes() {}\n\nfunc Hello() {}\n")
+		_, _, err := ExtractSymbol("main.go", source, "RegisterRoutes")
+		// Should succeed via suffix match
+		require.NoError(t, err)
+
+		// Nonexistent but similar to a method — should suggest
+		_, _, err = ExtractSymbol("main.go", source, "Routes")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
+	})
 }

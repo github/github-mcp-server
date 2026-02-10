@@ -654,7 +654,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 					},
 					"symbol": {
 						Type:        "string",
-						Description: "Optional: extract a specific symbol (function, class, type, etc.) from the file. For supported languages, returns only the symbol's source code instead of the entire file. If the symbol is not found, returns a list of available symbols.",
+						Description: "Optional: extract a specific symbol (function, class, type, etc.) from the file. For supported languages, returns only the symbol's source code instead of the entire file. For methods, use receiver prefix format: (*TypeName).MethodName — bare method names also work when unambiguous. If the symbol is not found, returns available symbols with suggestions.",
 					},
 				},
 				Required: []string{"owner", "repo"},
