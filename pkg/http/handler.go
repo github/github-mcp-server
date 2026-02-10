@@ -271,8 +271,10 @@ func PATScopeFilter(b *inventory.Builder, r *http.Request, fetcher scopes.Fetche
 	// Only classic PATs (ghp_ prefix) return OAuth scopes via X-OAuth-Scopes header.
 	// Fine-grained PATs and other token types don't support this, so we skip filtering.
 	if tokenInfo.TokenType == utils.TokenTypePersonalAccessToken {
-		if tokenInfo.ScopesFetched {
-			return b.WithFilter(github.CreateToolScopeFilter(tokenInfo.Scopes))
+		// Check if scopes are already in context (should be set by WithPATScopes). If not, fetch them.
+		existingScopes, ok := ghcontext.GetTokenScopes(ctx)
+		if ok {
+			return b.WithFilter(github.CreateToolScopeFilter(existingScopes))
 		}
 
 		scopesList, err := fetcher.FetchTokenScopes(ctx, tokenInfo.Token)
