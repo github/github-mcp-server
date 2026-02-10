@@ -3,7 +3,7 @@ package context
 import (
 	"context"
 
-	"github.com/github/github-mcp-server/pkg/utils"
+	"github.com/github/github-mcp-server/pkg/githubapi"
 )
 
 // tokenCtxKey is a context key for authentication token information
@@ -13,7 +13,7 @@ var tokenCtxKey tokenCtx = "tokenctx"
 
 type TokenInfo struct {
 	Token         string
-	TokenType     utils.TokenType
+	TokenType     githubapi.TokenType
 	ScopesFetched bool
 	Scopes        []string
 }

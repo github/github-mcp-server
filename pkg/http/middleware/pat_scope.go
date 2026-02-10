@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	"github.com/github/github-mcp-server/pkg/githubapi"
 	"github.com/github/github-mcp-server/pkg/scopes"
-	"github.com/github/github-mcp-server/pkg/utils"
 )
 
 // WithPATScopes is a middleware that fetches and stores scopes for classic Personal Access Tokens (PATs) in the request context.
@@ -25,7 +25,7 @@ func WithPATScopes(logger *slog.Logger, scopeFetcher scopes.FetcherInterface) fu
 			// Fetch token scopes for scope-based tool filtering (PAT tokens only)
 			// Only classic PATs (ghp_ prefix) return OAuth scopes via X-OAuth-Scopes header.
 			// Fine-grained PATs and other token types don't support this, so we skip filtering.
-			if tokenInfo.TokenType == utils.TokenTypePersonalAccessToken {
+			if tokenInfo.TokenType == githubapi.TokenTypePersonalAccessToken {
 				scopesList, err := scopeFetcher.FetchTokenScopes(ctx, tokenInfo.Token)
 				if err != nil {
 					logger.Warn("failed to fetch PAT scopes", "error", err)

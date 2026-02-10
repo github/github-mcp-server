@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/github/github-mcp-server/pkg/githubapi"
 	"github.com/github/github-mcp-server/pkg/http/headers"
-	"github.com/github/github-mcp-server/pkg/utils"
 )
 
 // OAuthScopesHeader is the HTTP response header containing the token's OAuth scopes.
@@ -26,7 +26,7 @@ type FetcherOptions struct {
 
 	// APIHost is the GitHub API host (e.g., "https://api.github.com").
 	// Defaults to "https://api.github.com" if empty.
-	APIHost utils.APIHostResolver
+	APIHost githubapi.HostResolver
 }
 
 type FetcherInterface interface {
@@ -37,11 +37,11 @@ type FetcherInterface interface {
 // It uses an HTTP HEAD request to minimize bandwidth since we only need headers.
 type Fetcher struct {
 	client  *http.Client
-	apiHost utils.APIHostResolver
+	apiHost githubapi.HostResolver
 }
 
 // NewFetcher creates a new scope fetcher with the given options.
-func NewFetcher(apiHost utils.APIHostResolver, opts FetcherOptions) *Fetcher {
+func NewFetcher(apiHost githubapi.HostResolver, opts FetcherOptions) *Fetcher {
 	client := opts.HTTPClient
 	if client == nil {
 		client = &http.Client{Timeout: DefaultFetchTimeout}
@@ -122,7 +122,7 @@ func ParseScopeHeader(header string) []string {
 // FetchTokenScopes is a convenience function that creates a default fetcher
 // and fetches the token scopes.
 func FetchTokenScopes(ctx context.Context, token string) ([]string, error) {
-	apiHost, err := utils.NewAPIHost("https://api.github.com/")
+	apiHost, err := githubapi.NewHost("https://api.github.com/")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create default API host: %w", err)
 	}
@@ -132,6 +132,6 @@ func FetchTokenScopes(ctx context.Context, token string) ([]string, error) {
 
 // FetchTokenScopesWithHost is a convenience function that creates a fetcher
 // for a specific API host and fetches the token scopes.
-func FetchTokenScopesWithHost(ctx context.Context, token string, apiHost utils.APIHostResolver) ([]string, error) {
+func FetchTokenScopesWithHost(ctx context.Context, token string, apiHost githubapi.HostResolver) ([]string, error) {
 	return NewFetcher(apiHost, FetcherOptions{}).FetchTokenScopes(ctx, token)
 }

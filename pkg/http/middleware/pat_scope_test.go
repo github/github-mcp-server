@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
-	"github.com/github/github-mcp-server/pkg/utils"
+	"github.com/github/github-mcp-server/pkg/githubapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -47,7 +47,7 @@ func TestWithPATScopes(t *testing.T) {
 			name: "non-PAT token type skips scope fetching",
 			tokenInfo: &ghcontext.TokenInfo{
 				Token:     "gho_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-				TokenType: utils.TokenTypeOAuthAccessToken,
+				TokenType: githubapi.TokenTypeOAuthAccessToken,
 			},
 			expectScopesFetched:     false,
 			expectedScopes:          nil,
@@ -57,7 +57,7 @@ func TestWithPATScopes(t *testing.T) {
 			name: "fine-grained PAT skips scope fetching",
 			tokenInfo: &ghcontext.TokenInfo{
 				Token:     "github_pat_xxxxxxxxxxxxxxxxxxxxxxx",
-				TokenType: utils.TokenTypeFineGrainedPersonalAccessToken,
+				TokenType: githubapi.TokenTypeFineGrainedPersonalAccessToken,
 			},
 			expectScopesFetched:     false,
 			expectedScopes:          nil,
@@ -67,7 +67,7 @@ func TestWithPATScopes(t *testing.T) {
 			name: "classic PAT fetches and stores scopes",
 			tokenInfo: &ghcontext.TokenInfo{
 				Token:     "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-				TokenType: utils.TokenTypePersonalAccessToken,
+				TokenType: githubapi.TokenTypePersonalAccessToken,
 			},
 			fetcherScopes:           []string{"repo", "user", "read:org"},
 			expectScopesFetched:     true,
@@ -78,7 +78,7 @@ func TestWithPATScopes(t *testing.T) {
 			name: "classic PAT with empty scopes",
 			tokenInfo: &ghcontext.TokenInfo{
 				Token:     "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-				TokenType: utils.TokenTypePersonalAccessToken,
+				TokenType: githubapi.TokenTypePersonalAccessToken,
 			},
 			fetcherScopes:           []string{},
 			expectScopesFetched:     true,
@@ -89,7 +89,7 @@ func TestWithPATScopes(t *testing.T) {
 			name: "fetcher error calls next handler without scopes",
 			tokenInfo: &ghcontext.TokenInfo{
 				Token:     "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-				TokenType: utils.TokenTypePersonalAccessToken,
+				TokenType: githubapi.TokenTypePersonalAccessToken,
 			},
 			fetcherErr:              errors.New("network error"),
 			expectScopesFetched:     false,
@@ -100,7 +100,7 @@ func TestWithPATScopes(t *testing.T) {
 			name: "old-style PAT (40 hex chars) fetches scopes",
 			tokenInfo: &ghcontext.TokenInfo{
 				Token:     "0123456789abcdef0123456789abcdef01234567",
-				TokenType: utils.TokenTypePersonalAccessToken,
+				TokenType: githubapi.TokenTypePersonalAccessToken,
 			},
 			fetcherScopes:           []string{"repo"},
 			expectScopesFetched:     true,
@@ -166,7 +166,7 @@ func TestWithPATScopes_PreservesExistingTokenInfo(t *testing.T) {
 
 	originalTokenInfo := &ghcontext.TokenInfo{
 		Token:     "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-		TokenType: utils.TokenTypePersonalAccessToken,
+		TokenType: githubapi.TokenTypePersonalAccessToken,
 	}
 
 	middleware := WithPATScopes(logger, fetcher)

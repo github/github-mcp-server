@@ -7,25 +7,27 @@ import (
 
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/githubapi"
 	"github.com/github/github-mcp-server/pkg/http/middleware"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-type InventoryFactoryFunc func(r *http.Request) (*inventory.Inventory, error)
-type GitHubMCPServerFactoryFunc func(r *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error)
+type (
+	InventoryFactoryFunc       func(r *http.Request) (*inventory.Inventory, error)
+	GitHubMCPServerFactoryFunc func(r *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error)
+)
 
 type Handler struct {
 	ctx                    context.Context
 	config                 *ServerConfig
 	deps                   github.ToolDependencies
 	logger                 *slog.Logger
-	apiHosts               utils.APIHostResolver
+	apiHosts               githubapi.HostResolver
 	t                      translations.TranslationHelperFunc
 	githubMcpServerFactory GitHubMCPServerFactoryFunc
 	inventoryFactoryFunc   InventoryFactoryFunc
@@ -79,8 +81,9 @@ func NewHTTPMcpHandler(
 	deps github.ToolDependencies,
 	t translations.TranslationHelperFunc,
 	logger *slog.Logger,
-	apiHost utils.APIHostResolver,
-	options ...HandlerOption) *Handler {
+	apiHost githubapi.HostResolver,
+	options ...HandlerOption,
+) *Handler {
 	opts := &HandlerOptions{}
 	for _, o := range options {
 		o(opts)
@@ -198,7 +201,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 	})
-
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -270,7 +272,7 @@ func PATScopeFilter(b *inventory.Builder, r *http.Request, fetcher scopes.Fetche
 	// Scopes should have already been fetched by the WithPATScopes middleware.
 	// Only classic PATs (ghp_ prefix) return OAuth scopes via X-OAuth-Scopes header.
 	// Fine-grained PATs and other token types don't support this, so we skip filtering.
-	if tokenInfo.TokenType == utils.TokenTypePersonalAccessToken {
+	if tokenInfo.TokenType == githubapi.TokenTypePersonalAccessToken {
 		if tokenInfo.ScopesFetched {
 			return b.WithFilter(github.CreateToolScopeFilter(tokenInfo.Scopes))
 		}

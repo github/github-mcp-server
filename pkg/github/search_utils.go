@@ -9,7 +9,7 @@ import (
 	"regexp"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
-	"github.com/github/github-mcp-server/pkg/utils"
+	"github.com/github/github-mcp-server/pkg/mcpresult"
 	"github.com/google/go-github/v79/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -46,7 +46,7 @@ func searchHandler(
 ) (*mcp.CallToolResult, error) {
 	query, err := RequiredParam[string](args, "query")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return mcpresult.NewError(err.Error()), nil
 	}
 
 	if !hasSpecificFilter(query, "is", searchType) {
@@ -55,12 +55,12 @@ func searchHandler(
 
 	owner, err := OptionalParam[string](args, "owner")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return mcpresult.NewError(err.Error()), nil
 	}
 
 	repo, err := OptionalParam[string](args, "repo")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return mcpresult.NewError(err.Error()), nil
 	}
 
 	if owner != "" && repo != "" && !hasRepoFilter(query) {
@@ -69,15 +69,15 @@ func searchHandler(
 
 	sort, err := OptionalParam[string](args, "sort")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return mcpresult.NewError(err.Error()), nil
 	}
 	order, err := OptionalParam[string](args, "order")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return mcpresult.NewError(err.Error()), nil
 	}
 	pagination, err := OptionalPaginationParams(args)
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil
+		return mcpresult.NewError(err.Error()), nil
 	}
 
 	opts := &github.SearchOptions{
@@ -92,26 +92,26 @@ func searchHandler(
 
 	client, err := getClient(ctx)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to get GitHub client", err), nil
+		return mcpresult.NewErrorFromErr(errorPrefix+": failed to get GitHub client", err), nil
 	}
 	result, resp, err := client.Search.Issues(ctx, query, opts)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr(errorPrefix, err), nil
+		return mcpresult.NewErrorFromErr(errorPrefix, err), nil
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return utils.NewToolResultErrorFromErr(errorPrefix+": failed to read response body", err), nil
+			return mcpresult.NewErrorFromErr(errorPrefix+": failed to read response body", err), nil
 		}
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, errorPrefix, resp, body), nil
 	}
 
 	r, err := json.Marshal(result)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr(errorPrefix+": failed to marshal response", err), nil
+		return mcpresult.NewErrorFromErr(errorPrefix+": failed to marshal response", err), nil
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return mcpresult.NewText(string(r)), nil
 }

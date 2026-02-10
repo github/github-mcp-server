@@ -13,9 +13,9 @@ import (
 	buffer "github.com/github/github-mcp-server/pkg/buffer"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/mcpresult"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -79,22 +79,22 @@ func ListWorkflows(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Get optional pagination parameters
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Set up list options
@@ -114,7 +114,7 @@ func ListWorkflows(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
@@ -206,44 +206,44 @@ func ListWorkflowRuns(t translations.TranslationHelperFunc) inventory.ServerTool
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			workflowID, err := RequiredParam[string](args, "workflow_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Get optional filtering parameters
 			actor, err := OptionalParam[string](args, "actor")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			branch, err := OptionalParam[string](args, "branch")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			event, err := OptionalParam[string](args, "event")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			status, err := OptionalParam[string](args, "status")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Get optional pagination parameters
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Set up list options
@@ -269,7 +269,7 @@ func ListWorkflowRuns(t translations.TranslationHelperFunc) inventory.ServerTool
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
@@ -318,24 +318,24 @@ func RunWorkflow(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			workflowID, err := RequiredParam[string](args, "workflow_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			ref, err := RequiredParam[string](args, "ref")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Get optional inputs parameter
@@ -382,7 +382,7 @@ func RunWorkflow(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
@@ -423,20 +423,20 @@ func GetWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			runIDInt, err := RequiredInt(args, "run_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			runID := int64(runIDInt)
 
@@ -451,7 +451,7 @@ func GetWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
@@ -492,20 +492,20 @@ func GetWorkflowRunLogs(t translations.TranslationHelperFunc) inventory.ServerTo
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			runIDInt, err := RequiredInt(args, "run_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			runID := int64(runIDInt)
 
@@ -530,7 +530,7 @@ func GetWorkflowRunLogs(t translations.TranslationHelperFunc) inventory.ServerTo
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
@@ -576,33 +576,33 @@ func ListWorkflowJobs(t translations.TranslationHelperFunc) inventory.ServerTool
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			runIDInt, err := RequiredInt(args, "run_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			runID := int64(runIDInt)
 
 			// Get optional filtering parameters
 			filter, err := OptionalParam[string](args, "filter")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Get optional pagination parameters
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Set up list options
@@ -631,7 +631,7 @@ func ListWorkflowJobs(t translations.TranslationHelperFunc) inventory.ServerTool
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
@@ -689,38 +689,38 @@ func GetJobLogs(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Get optional parameters
 			jobID, err := OptionalIntParam(args, "job_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			runID, err := OptionalIntParam(args, "run_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			failedOnly, err := OptionalParam[bool](args, "failed_only")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			returnContent, err := OptionalParam[bool](args, "return_content")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			tailLines, err := OptionalIntParam(args, "tail_lines")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			// Default to 500 lines if not specified
 			if tailLines == 0 {
@@ -729,10 +729,10 @@ func GetJobLogs(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			// Validate parameters
 			if failedOnly && runID == 0 {
-				return utils.NewToolResultError("run_id is required when failed_only is true"), nil, nil
+				return mcpresult.NewError("run_id is required when failed_only is true"), nil, nil
 			}
 			if !failedOnly && jobID == 0 {
-				return utils.NewToolResultError("job_id is required when failed_only is false"), nil, nil
+				return mcpresult.NewError("job_id is required when failed_only is false"), nil, nil
 			}
 
 			if failedOnly && runID > 0 {
@@ -743,7 +743,7 @@ func GetJobLogs(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return handleSingleJobLogs(ctx, client, owner, repo, int64(jobID), returnContent, tailLines, deps.GetContentWindowSize())
 			}
 
-			return utils.NewToolResultError("Either job_id must be provided for single job logs, or run_id with failed_only=true for failed job logs"), nil, nil
+			return mcpresult.NewError("Either job_id must be provided for single job logs, or run_id with failed_only=true for failed job logs"), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
@@ -777,7 +777,7 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 			"failed_jobs": 0,
 		}
 		r, _ := json.Marshal(result)
-		return utils.NewToolResultText(string(r)), nil, nil
+		return mcpresult.NewText(string(r)), nil, nil
 	}
 
 	// Collect logs for all failed jobs
@@ -812,7 +812,7 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 // handleSingleJobLogs gets logs for a single job
@@ -827,7 +827,7 @@ func handleSingleJobLogs(ctx context.Context, client *github.Client, owner, repo
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 // getJobLogData retrieves log data for a single job, either as URL or content
@@ -938,20 +938,20 @@ func RerunWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerTool
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			runIDInt, err := RequiredInt(args, "run_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			runID := int64(runIDInt)
 
@@ -973,7 +973,7 @@ func RerunWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerTool
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
@@ -1014,20 +1014,20 @@ func RerunFailedJobs(t translations.TranslationHelperFunc) inventory.ServerTool 
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			runIDInt, err := RequiredInt(args, "run_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			runID := int64(runIDInt)
 
@@ -1049,7 +1049,7 @@ func RerunFailedJobs(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
@@ -1090,20 +1090,20 @@ func CancelWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerToo
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			runIDInt, err := RequiredInt(args, "run_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			runID := int64(runIDInt)
 
@@ -1127,7 +1127,7 @@ func CancelWorkflowRun(t translations.TranslationHelperFunc) inventory.ServerToo
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
@@ -1168,27 +1168,27 @@ func ListWorkflowRunArtifacts(t translations.TranslationHelperFunc) inventory.Se
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			runIDInt, err := RequiredInt(args, "run_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			runID := int64(runIDInt)
 
 			// Get optional pagination parameters
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Set up list options
@@ -1208,7 +1208,7 @@ func ListWorkflowRunArtifacts(t translations.TranslationHelperFunc) inventory.Se
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
@@ -1249,20 +1249,20 @@ func DownloadWorkflowRunArtifact(t translations.TranslationHelperFunc) inventory
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			artifactIDInt, err := RequiredInt(args, "artifact_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			artifactID := int64(artifactIDInt)
 
@@ -1286,7 +1286,7 @@ func DownloadWorkflowRunArtifact(t translations.TranslationHelperFunc) inventory
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
@@ -1328,20 +1328,20 @@ func DeleteWorkflowRunLogs(t translations.TranslationHelperFunc) inventory.Serve
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			runIDInt, err := RequiredInt(args, "run_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			runID := int64(runIDInt)
 
@@ -1363,7 +1363,7 @@ func DeleteWorkflowRunLogs(t translations.TranslationHelperFunc) inventory.Serve
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
@@ -1404,20 +1404,20 @@ func GetWorkflowRunUsage(t translations.TranslationHelperFunc) inventory.ServerT
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			runIDInt, err := RequiredInt(args, "run_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			runID := int64(runIDInt)
 
@@ -1432,7 +1432,7 @@ func GetWorkflowRunUsage(t translations.TranslationHelperFunc) inventory.ServerT
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 	tool.FeatureFlagEnable = FeatureFlagHoldbackConsolidatedActions
@@ -1569,27 +1569,27 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			resourceID, err := OptionalParam[string](args, "resource_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -1607,13 +1607,13 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 				// If not provided, list all workflow runs in the repository
 			default:
 				if resourceID == "" {
-					return utils.NewToolResultError(fmt.Sprintf("missing required parameter for method %s: resource_id", method)), nil, nil
+					return mcpresult.NewError(fmt.Sprintf("missing required parameter for method %s: resource_id", method)), nil, nil
 				}
 
 				// resource ID must be an integer for jobs and artifacts
 				resourceIDInt, parseErr = strconv.ParseInt(resourceID, 10, 64)
 				if parseErr != nil {
-					return utils.NewToolResultError(fmt.Sprintf("invalid resource_id, must be an integer for method %s: %v", method, parseErr)), nil, nil
+					return mcpresult.NewError(fmt.Sprintf("invalid resource_id, must be an integer for method %s: %v", method, parseErr)), nil, nil
 				}
 			}
 
@@ -1627,7 +1627,7 @@ Use this tool to list workflows in a repository, or list workflow runs, jobs, an
 			case actionsMethodListWorkflowArtifacts:
 				return listWorkflowArtifacts(ctx, client, owner, repo, resourceIDInt, pagination)
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		},
 	)
@@ -1688,20 +1688,20 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			resourceID, err := RequiredParam[string](args, "resource_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -1718,7 +1718,7 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 				// For other methods, resource ID must be an integer
 				resourceIDInt, parseErr = strconv.ParseInt(resourceID, 10, 64)
 				if parseErr != nil {
-					return utils.NewToolResultError(fmt.Sprintf("invalid resource_id, must be an integer for method %s: %v", method, parseErr)), nil, nil
+					return mcpresult.NewError(fmt.Sprintf("invalid resource_id, must be an integer for method %s: %v", method, parseErr)), nil, nil
 				}
 			}
 
@@ -1736,7 +1736,7 @@ Use this tool to get details about individual workflows, workflow runs, jobs, an
 			case actionsMethodGetWorkflowRunLogsURL:
 				return getWorkflowRunLogsURL(ctx, client, owner, repo, resourceIDInt)
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		},
 	)
@@ -1802,15 +1802,15 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Get optional parameters
@@ -1829,13 +1829,13 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 			// Validate required parameters based on action type
 			if method == actionsMethodRunWorkflow {
 				if workflowID == "" {
-					return utils.NewToolResultError("workflow_id is required for run_workflow action"), nil, nil
+					return mcpresult.NewError("workflow_id is required for run_workflow action"), nil, nil
 				}
 				if ref == "" {
-					return utils.NewToolResultError("ref is required for run_workflow action"), nil, nil
+					return mcpresult.NewError("ref is required for run_workflow action"), nil, nil
 				}
 			} else if runID == 0 {
-				return utils.NewToolResultError("missing required parameter: run_id"), nil, nil
+				return mcpresult.NewError("missing required parameter: run_id"), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -1855,7 +1855,7 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 			case actionsMethodDeleteWorkflowRunLogs:
 				return deleteWorkflowRunLogs(ctx, client, owner, repo, int64(runID))
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		},
 	)
@@ -1917,36 +1917,36 @@ For single job logs, provide job_id. For all failed jobs in a run, provide run_i
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			jobID, err := OptionalIntParam(args, "job_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			runID, err := OptionalIntParam(args, "run_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			failedOnly, err := OptionalParam[bool](args, "failed_only")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			returnContent, err := OptionalParam[bool](args, "return_content")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			tailLines, err := OptionalIntParam(args, "tail_lines")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			// Default to 500 lines if not specified
 			if tailLines == 0 {
@@ -1960,10 +1960,10 @@ For single job logs, provide job_id. For all failed jobs in a run, provide run_i
 
 			// Validate parameters
 			if failedOnly && runID == 0 {
-				return utils.NewToolResultError("run_id is required when failed_only is true"), nil, nil
+				return mcpresult.NewError("run_id is required when failed_only is true"), nil, nil
 			}
 			if !failedOnly && jobID == 0 {
-				return utils.NewToolResultError("job_id is required when failed_only is false"), nil, nil
+				return mcpresult.NewError("job_id is required when failed_only is false"), nil, nil
 			}
 
 			if failedOnly && runID > 0 {
@@ -1974,7 +1974,7 @@ For single job logs, provide job_id. For all failed jobs in a run, provide run_i
 				return handleSingleJobLogs(ctx, client, owner, repo, int64(jobID), returnContent, tailLines, deps.GetContentWindowSize())
 			}
 
-			return utils.NewToolResultError("Either job_id must be provided for single job logs, or run_id with failed_only=true for failed job logs"), nil, nil
+			return mcpresult.NewError("Either job_id must be provided for single job logs, or run_id with failed_only=true for failed job logs"), nil, nil
 		},
 	)
 	tool.FeatureFlagDisable = FeatureFlagHoldbackConsolidatedActions
@@ -2004,7 +2004,7 @@ func getWorkflow(ctx context.Context, client *github.Client, owner, repo, resour
 		return nil, nil, fmt.Errorf("failed to marshal workflow: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 func getWorkflowRun(ctx context.Context, client *github.Client, owner, repo string, resourceID int64) (*mcp.CallToolResult, any, error) {
@@ -2017,7 +2017,7 @@ func getWorkflowRun(ctx context.Context, client *github.Client, owner, repo stri
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal workflow run: %w", err)
 	}
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 func getWorkflowJob(ctx context.Context, client *github.Client, owner, repo string, resourceID int64) (*mcp.CallToolResult, any, error) {
@@ -2030,7 +2030,7 @@ func getWorkflowJob(ctx context.Context, client *github.Client, owner, repo stri
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to marshal workflow job: %w", err)
 	}
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 func listWorkflows(ctx context.Context, client *github.Client, owner, repo string, pagination PaginationParams) (*mcp.CallToolResult, any, error) {
@@ -2050,13 +2050,13 @@ func listWorkflows(ctx context.Context, client *github.Client, owner, repo strin
 		return nil, nil, fmt.Errorf("failed to marshal workflows: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 func listWorkflowRuns(ctx context.Context, client *github.Client, args map[string]any, owner, repo, resourceID string, pagination PaginationParams) (*mcp.CallToolResult, any, error) {
 	filterArgs, err := OptionalParam[map[string]any](args, "workflow_runs_filter")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
+		return mcpresult.NewError(err.Error()), nil, nil
 	}
 
 	filterArgsTyped := make(map[string]string)
@@ -2100,13 +2100,13 @@ func listWorkflowRuns(ctx context.Context, client *github.Client, args map[strin
 		return nil, nil, fmt.Errorf("failed to marshal workflow runs: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 func listWorkflowJobs(ctx context.Context, client *github.Client, args map[string]any, owner, repo string, resourceID int64, pagination PaginationParams) (*mcp.CallToolResult, any, error) {
 	filterArgs, err := OptionalParam[map[string]any](args, "workflow_jobs_filter")
 	if err != nil {
-		return utils.NewToolResultError(err.Error()), nil, nil
+		return mcpresult.NewError(err.Error()), nil, nil
 	}
 
 	filterArgsTyped := make(map[string]string)
@@ -2139,7 +2139,7 @@ func listWorkflowJobs(ctx context.Context, client *github.Client, args map[strin
 		return nil, nil, fmt.Errorf("failed to marshal workflow jobs: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 func listWorkflowArtifacts(ctx context.Context, client *github.Client, owner, repo string, resourceID int64, pagination PaginationParams) (*mcp.CallToolResult, any, error) {
@@ -2159,7 +2159,7 @@ func listWorkflowArtifacts(ctx context.Context, client *github.Client, owner, re
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 func downloadWorkflowArtifact(ctx context.Context, client *github.Client, owner, repo string, resourceID int64) (*mcp.CallToolResult, any, error) {
@@ -2183,7 +2183,7 @@ func downloadWorkflowArtifact(ctx context.Context, client *github.Client, owner,
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 func getWorkflowRunLogsURL(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, any, error) {
@@ -2208,7 +2208,7 @@ func getWorkflowRunLogsURL(ctx context.Context, client *github.Client, owner, re
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 func getWorkflowRunUsage(ctx context.Context, client *github.Client, owner, repo string, resourceID int64) (*mcp.CallToolResult, any, error) {
@@ -2223,7 +2223,7 @@ func getWorkflowRunUsage(ctx context.Context, client *github.Client, owner, repo
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 func runWorkflow(ctx context.Context, client *github.Client, owner, repo, workflowID, ref string, inputs map[string]interface{}) (*mcp.CallToolResult, any, error) {
@@ -2264,7 +2264,7 @@ func runWorkflow(ctx context.Context, client *github.Client, owner, repo, workfl
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 func rerunWorkflowRun(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, any, error) {
@@ -2286,7 +2286,7 @@ func rerunWorkflowRun(ctx context.Context, client *github.Client, owner, repo st
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 func rerunFailedJobs(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, any, error) {
@@ -2308,7 +2308,7 @@ func rerunFailedJobs(ctx context.Context, client *github.Client, owner, repo str
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 func cancelWorkflowRun(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, any, error) {
@@ -2333,7 +2333,7 @@ func cancelWorkflowRun(ctx context.Context, client *github.Client, owner, repo s
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }
 
 func deleteWorkflowRunLogs(ctx context.Context, client *github.Client, owner, repo string, runID int64) (*mcp.CallToolResult, any, error) {
@@ -2355,5 +2355,5 @@ func deleteWorkflowRunLogs(ctx context.Context, client *github.Client, owner, re
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil, nil
+	return mcpresult.NewText(string(r)), nil, nil
 }

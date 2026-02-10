@@ -8,9 +8,9 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/mcpresult"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -81,28 +81,28 @@ func GetRepositoryTree(t translations.TranslationHelperFunc) inventory.ServerToo
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			treeSHA, err := OptionalParam[string](args, "tree_sha")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			recursive, err := OptionalBoolParamWithDefault(args, "recursive", false)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			pathFilter, err := OptionalParam[string](args, "path_filter")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError("failed to get GitHub client"), nil, nil
+				return mcpresult.NewError("failed to get GitHub client"), nil, nil
 			}
 
 			// If no tree_sha is provided, use the repository's default branch
@@ -171,7 +171,7 @@ func GetRepositoryTree(t translations.TranslationHelperFunc) inventory.ServerToo
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		},
 	)
 }

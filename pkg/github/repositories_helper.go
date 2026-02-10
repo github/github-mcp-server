@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
+	"github.com/github/github-mcp-server/pkg/mcpresult"
 	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v79/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -110,18 +110,18 @@ func matchFiles(ctx context.Context, client *github.Client, owner, repo, ref, pa
 	if len(matchingFiles) > 0 {
 		matchingFilesJSON, err := json.Marshal(matchingFiles)
 		if err != nil {
-			return utils.NewToolResultError(fmt.Sprintf("failed to marshal matching files: %s", err)), nil, nil
+			return mcpresult.NewError(fmt.Sprintf("failed to marshal matching files: %s", err)), nil, nil
 		}
 		resolvedRefs, err := json.Marshal(rawOpts)
 		if err != nil {
-			return utils.NewToolResultError(fmt.Sprintf("failed to marshal resolved refs: %s", err)), nil, nil
+			return mcpresult.NewError(fmt.Sprintf("failed to marshal resolved refs: %s", err)), nil, nil
 		}
 		if rawAPIResponseCode > 0 {
-			return utils.NewToolResultText(fmt.Sprintf("Resolved potential matches in the repository tree (resolved refs: %s, matching files: %s), but the content API returned an unexpected status code %d.", string(resolvedRefs), string(matchingFilesJSON), rawAPIResponseCode)), nil, nil
+			return mcpresult.NewText(fmt.Sprintf("Resolved potential matches in the repository tree (resolved refs: %s, matching files: %s), but the content API returned an unexpected status code %d.", string(resolvedRefs), string(matchingFilesJSON), rawAPIResponseCode)), nil, nil
 		}
-		return utils.NewToolResultText(fmt.Sprintf("Resolved potential matches in the repository tree (resolved refs: %s, matching files: %s).", string(resolvedRefs), string(matchingFilesJSON))), nil, nil
+		return mcpresult.NewText(fmt.Sprintf("Resolved potential matches in the repository tree (resolved refs: %s, matching files: %s).", string(resolvedRefs), string(matchingFilesJSON))), nil, nil
 	}
-	return utils.NewToolResultError("Failed to get file contents. The path does not point to a file or directory, or the file does not exist in the repository."), nil, nil
+	return mcpresult.NewError("Failed to get file contents. The path does not point to a file or directory, or the file does not exist in the repository."), nil, nil
 }
 
 // filterPaths filters the entries in a GitHub tree to find paths that

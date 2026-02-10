@@ -1,4 +1,4 @@
-package utils //nolint:revive //TODO: figure out a better name for this package
+package githubapi
 
 import (
 	"fmt"

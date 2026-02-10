@@ -18,7 +18,7 @@ When generating the migration guide, consider the following aspects:
 * The return type for the tool constructor function should be updated from `mcp.Tool, server.ToolHandlerFunc` to `(mcp.Tool, mcp.ToolHandlerFor[map[string]any, any])`.
 * The tool handler function signature should be updated to use generics, changing from `func(ctx context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error)` to `func(context.Context, *mcp.CallToolRequest, map[string]any) (*mcp.CallToolResult, any, error)`.
 * The `RequiredParam`, `RequiredInt`, `RequiredBigInt`, `OptionalParamOK`, `OptionalParam`, `OptionalIntParam`, `OptionalIntParamWithDefault`, `OptionalBoolParamWithDefault`, `OptionalStringArrayParam`, `OptionalBigIntArrayParam` and `OptionalCursorPaginationParams` functions should be changed to use the tool arguments that are now passed as a map in the tool handler function, rather than extracting them from the `mcp.CallToolRequest`.
-* `mcp.NewToolResultText`, `mcp.NewToolResultError`, `mcp.NewToolResultErrorFromErr` and `mcp.NewToolResultResource` no longer available in `modelcontextprotocol/go-sdk`. There are a few helper functions available in `pkg/utils/result.go` that can be used to replace these, in the `utils` package.
+* `mcp.NewToolResultText`, `mcp.NewToolResultError`, `mcp.NewToolResultErrorFromErr` and `mcp.NewToolResultResource` no longer available in `modelcontextprotocol/go-sdk`. There are a few helper functions available in `pkg/mcpresult/mcpresult.go` that can be used to replace these, in the `mcpresult` package.
 
 ### Schema Changes
 

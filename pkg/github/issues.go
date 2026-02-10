@@ -12,11 +12,11 @@ import (
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/mcpresult"
 	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/google/go-github/v79/github"
 	"github.com/google/jsonschema-go/jsonschema"
@@ -279,35 +279,35 @@ Options are:
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			issueNumber, err := RequiredInt(args, "issue_number")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub graphql client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub graphql client", err), nil, nil
 			}
 
 			switch method {
@@ -324,7 +324,7 @@ Options are:
 				result, err := GetIssueLabels(ctx, gqlClient, owner, repo, issueNumber)
 				return result, nil, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		})
 }
@@ -358,10 +358,10 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 		if login != "" {
 			isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
+				return mcpresult.NewError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
 			}
 			if !isSafeContent {
-				return utils.NewToolResultError("access to issue details is restricted by lockdown mode"), nil
+				return mcpresult.NewError("access to issue details is restricted by lockdown mode"), nil
 			}
 		}
 	}
@@ -381,7 +381,7 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 		return nil, fmt.Errorf("failed to marshal issue: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return mcpresult.NewText(string(r)), nil
 }
 
 func GetIssueComments(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
@@ -427,7 +427,7 @@ func GetIssueComments(ctx context.Context, client *github.Client, deps ToolDepen
 			}
 			isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
+				return mcpresult.NewError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
 			}
 			if isSafeContent {
 				filteredComments = append(filteredComments, comment)
@@ -441,7 +441,7 @@ func GetIssueComments(ctx context.Context, client *github.Client, deps ToolDepen
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return mcpresult.NewText(string(r)), nil
 }
 
 func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
@@ -493,7 +493,7 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 			}
 			isSafeContent, err := cache.IsSafeContent(ctx, login, owner, repo)
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
+				return mcpresult.NewError(fmt.Sprintf("failed to check lockdown mode: %v", err)), nil
 			}
 			if isSafeContent {
 				filteredSubIssues = append(filteredSubIssues, subIssue)
@@ -507,7 +507,7 @@ func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependenc
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return mcpresult.NewText(string(r)), nil
 }
 
 func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, repo string, issueNumber int) (*mcp.CallToolResult, error) {
@@ -559,8 +559,7 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(out)), nil
-
+	return mcpresult.NewText(string(out)), nil
 }
 
 // ListIssueTypes creates a tool to list defined issue types for an organization. This can be used to understand supported issue type values for creating or updating issues.
@@ -589,33 +588,33 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 			issueTypes, resp, err := client.Organizations.ListIssueTypes(ctx, owner)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to list issue types", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to list issue types", err), nil, nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 
 			if resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					return mcpresult.NewErrorFromErr("failed to read response body", err), nil, nil
 				}
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list issue types", resp, body), nil, nil
 			}
 
 			r, err := json.Marshal(issueTypes)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal issue types", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to marshal issue types", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		})
 }
 
@@ -657,19 +656,19 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			issueNumber, err := RequiredInt(args, "issue_number")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			body, err := RequiredParam[string](args, "body")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			comment := &github.IssueComment{
@@ -678,28 +677,28 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 			createdComment, resp, err := client.Issues.CreateComment(ctx, owner, repo, issueNumber, comment)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to create comment", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to create comment", err), nil, nil
 			}
 			defer func() { _ = resp.Body.Close() }()
 
 			if resp.StatusCode != http.StatusCreated {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
+					return mcpresult.NewErrorFromErr("failed to read response body", err), nil, nil
 				}
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create comment", resp, body), nil, nil
 			}
 
 			r, err := json.Marshal(createdComment)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return mcpresult.NewText(string(r)), nil, nil
 		})
 }
 
@@ -762,41 +761,41 @@ Options are:
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			issueNumber, err := RequiredInt(args, "issue_number")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			subIssueID, err := RequiredInt(args, "sub_issue_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			replaceParent, err := OptionalParam[bool](args, "replace_parent")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			afterID, err := OptionalIntParam(args, "after_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			beforeID, err := OptionalIntParam(args, "before_id")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			switch strings.ToLower(method) {
@@ -812,7 +811,7 @@ Options are:
 				result, err := ReprioritizeSubIssue(ctx, client, owner, repo, issueNumber, subIssueID, afterID, beforeID)
 				return result, nil, err
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
 		})
 }
@@ -847,8 +846,7 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil
-
+	return mcpresult.NewText(string(r)), nil
 }
 
 func RemoveSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int) (*mcp.CallToolResult, error) {
@@ -879,16 +877,16 @@ func RemoveSubIssue(ctx context.Context, client *github.Client, owner string, re
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return mcpresult.NewText(string(r)), nil
 }
 
 func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int, afterID int, beforeID int) (*mcp.CallToolResult, error) {
 	// Validate that either after_id or before_id is specified, but not both
 	if afterID == 0 && beforeID == 0 {
-		return utils.NewToolResultError("either after_id or before_id must be specified"), nil
+		return mcpresult.NewError("either after_id or before_id must be specified"), nil
 	}
 	if afterID != 0 && beforeID != 0 {
-		return utils.NewToolResultError("only one of after_id or before_id should be specified, not both"), nil
+		return mcpresult.NewError("only one of after_id or before_id should be specified, not both"), nil
 	}
 
 	subIssueRequest := github.SubIssueRequest{
@@ -928,7 +926,7 @@ func ReprioritizeSubIssue(ctx context.Context, client *github.Client, owner stri
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return mcpresult.NewText(string(r)), nil
 }
 
 // SearchIssues creates a tool to search for issues.
@@ -1080,44 +1078,44 @@ Options are:
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			title, err := OptionalParam[string](args, "title")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Optional parameters
 			body, err := OptionalParam[string](args, "body")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Get assignees
 			assignees, err := OptionalStringArrayParam(args, "assignees")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Get labels
 			labels, err := OptionalStringArrayParam(args, "labels")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Get optional milestone
 			milestone, err := OptionalIntParam(args, "milestone")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			var milestoneNum int
@@ -1128,36 +1126,36 @@ Options are:
 			// Get optional type
 			issueType, err := OptionalParam[string](args, "type")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Handle state, state_reason and duplicateOf parameters
 			state, err := OptionalParam[string](args, "state")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			stateReason, err := OptionalParam[string](args, "state_reason")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			duplicateOf, err := OptionalIntParam(args, "duplicate_of")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			if duplicateOf != 0 && stateReason != "duplicate" {
-				return utils.NewToolResultError("duplicate_of can only be used when state_reason is 'duplicate'"), nil, nil
+				return mcpresult.NewError("duplicate_of can only be used when state_reason is 'duplicate'"), nil, nil
 			}
 
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GraphQL client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GraphQL client", err), nil, nil
 			}
 
 			switch method {
@@ -1167,19 +1165,19 @@ Options are:
 			case "update":
 				issueNumber, err := RequiredInt(args, "issue_number")
 				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+					return mcpresult.NewError(err.Error()), nil, nil
 				}
 				result, err := UpdateIssue(ctx, client, gqlClient, owner, repo, issueNumber, title, body, assignees, labels, milestoneNum, issueType, state, stateReason, duplicateOf)
 				return result, nil, err
 			default:
-				return utils.NewToolResultError("invalid method, must be either 'create' or 'update'"), nil, nil
+				return mcpresult.NewError("invalid method, must be either 'create' or 'update'"), nil, nil
 			}
 		})
 }
 
 func CreateIssue(ctx context.Context, client *github.Client, owner string, repo string, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string) (*mcp.CallToolResult, error) {
 	if title == "" {
-		return utils.NewToolResultError("missing required parameter: title"), nil
+		return mcpresult.NewError("missing required parameter: title"), nil
 	}
 
 	// Create the issue request
@@ -1211,7 +1209,7 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 	if resp.StatusCode != http.StatusCreated {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return utils.NewToolResultErrorFromErr("failed to read response body", err), nil
+			return mcpresult.NewErrorFromErr("failed to read response body", err), nil
 		}
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create issue", resp, body), nil
 	}
@@ -1224,10 +1222,10 @@ func CreateIssue(ctx context.Context, client *github.Client, owner string, repo 
 
 	r, err := json.Marshal(minimalResponse)
 	if err != nil {
-		return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil
+		return mcpresult.NewErrorFromErr("failed to marshal response", err), nil
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return mcpresult.NewText(string(r)), nil
 }
 
 func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4.Client, owner string, repo string, issueNumber int, title string, body string, assignees []string, labels []string, milestoneNum int, issueType string, state string, stateReason string, duplicateOf int) (*mcp.CallToolResult, error) {
@@ -1281,7 +1279,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 	if state != "" {
 		// Mandate specifying duplicateOf when trying to close as duplicate
 		if state == "closed" && stateReason == "duplicate" && duplicateOf == 0 {
-			return utils.NewToolResultError("duplicate_of must be provided when state_reason is 'duplicate'"), nil
+			return mcpresult.NewError("duplicate_of must be provided when state_reason is 'duplicate'"), nil
 		}
 
 		// Get target issue ID (and duplicate issue ID if needed)
@@ -1352,7 +1350,7 @@ func UpdateIssue(ctx context.Context, client *github.Client, gqlClient *githubv4
 		return nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return mcpresult.NewText(string(r)), nil
 }
 
 // ListIssues creates a tool to list and filter repository issues
@@ -1414,17 +1412,17 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 			repo, err := RequiredParam[string](args, "repo")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Set optional parameters if provided
 			state, err := OptionalParam[string](args, "state")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Normalize and filter by state
@@ -1441,17 +1439,17 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// Get labels
 			labels, err := OptionalStringArrayParam(args, "labels")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			orderBy, err := OptionalParam[string](args, "orderBy")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			direction, err := OptionalParam[string](args, "direction")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// Normalize and validate orderBy
@@ -1474,7 +1472,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			since, err := OptionalParam[string](args, "since")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			// There are two optional parameters: since and labels.
@@ -1483,7 +1481,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if since != "" {
 				sinceTime, err = parseISOTimestamp(since)
 				if err != nil {
-					return utils.NewToolResultError(fmt.Sprintf("failed to list issues: %s", err.Error())), nil, nil
+					return mcpresult.NewError(fmt.Sprintf("failed to list issues: %s", err.Error())), nil, nil
 				}
 				hasSince = true
 			}
@@ -1497,7 +1495,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			// Check if someone tried to use page-based pagination instead of cursor-based
 			if _, pageProvided := args["page"]; pageProvided {
-				return utils.NewToolResultError("This tool uses cursor-based pagination. Use the 'after' parameter with the 'endCursor' value from the previous response instead of 'page'."), nil, nil
+				return mcpresult.NewError("This tool uses cursor-based pagination. Use the 'after' parameter with the 'endCursor' value from the previous response instead of 'page'."), nil, nil
 			}
 
 			// Check if pagination parameters were explicitly provided
@@ -1517,7 +1515,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
 
 			vars := map[string]interface{}{
@@ -1593,7 +1591,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal issues: %w", err)
 			}
-			return utils.NewToolResultText(string(out)), nil, nil
+			return mcpresult.NewText(string(out)), nil, nil
 		})
 }
 
@@ -1784,7 +1782,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				CustomInstructions string `mapstructure:"custom_instructions"`
 			}
 			if err := mapstructure.Decode(args, &params); err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			client, err := deps.GetGQLClient(ctx)
@@ -1847,7 +1845,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 			// If we didn't find the copilot bot, we can't proceed any further.
 			if copilotAssignee == nil {
 				// The e2e tests depend upon this specific message to skip the test.
-				return utils.NewToolResultError("copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot for more information."), nil, nil
+				return mcpresult.NewError("copilot isn't available as an assignee for this issue. Please inform the user to visit https://docs.github.com/en/copilot/using-github-copilot/using-copilot-coding-agent-to-work-on-tasks/about-assigning-tasks-to-copilot for more information."), nil, nil
 			}
 
 			// Next, get the issue ID and repository ID
@@ -2002,10 +2000,10 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 
 			r, err := json.Marshal(result)
 			if err != nil {
-				return utils.NewToolResultError(fmt.Sprintf("failed to marshal response: %s", err)), nil, nil
+				return mcpresult.NewError(fmt.Sprintf("failed to marshal response: %s", err)), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), result, nil
+			return mcpresult.NewText(string(r)), result, nil
 		})
 }
 

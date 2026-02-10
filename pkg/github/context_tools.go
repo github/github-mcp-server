@@ -7,9 +7,9 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/mcpresult"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -56,7 +56,7 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
 			client, err := deps.GetClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 			}
 
 			user, res, err := client.Users.Get(ctx, "")
@@ -135,7 +135,7 @@ func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			user, err := OptionalParam[string](args, "user")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			var username string
@@ -144,7 +144,7 @@ func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
 			} else {
 				client, err := deps.GetClient(ctx)
 				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
+					return mcpresult.NewErrorFromErr("failed to get GitHub client", err), nil, nil
 				}
 
 				userResp, res, err := client.Users.Get(ctx, "")
@@ -160,7 +160,7 @@ func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub GQL client", err), nil, nil
 			}
 
 			var q struct {
@@ -238,17 +238,17 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			org, err := RequiredParam[string](args, "org")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			teamSlug, err := RequiredParam[string](args, "team_slug")
 			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
+				return mcpresult.NewError(err.Error()), nil, nil
 			}
 
 			gqlClient, err := deps.GetGQLClient(ctx)
 			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub GQL client", err), nil, nil
+				return mcpresult.NewErrorFromErr("failed to get GitHub GQL client", err), nil, nil
 			}
 
 			var q struct {

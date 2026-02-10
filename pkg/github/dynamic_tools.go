@@ -6,8 +6,8 @@ import (
 	"fmt"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/mcpresult"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -84,17 +84,17 @@ func EnableToolset(r *inventory.Inventory) inventory.ServerTool {
 			return func(_ context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 				toolsetName, err := RequiredParam[string](args, "toolset")
 				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+					return mcpresult.NewError(err.Error()), nil, nil
 				}
 
 				toolsetID := inventory.ToolsetID(toolsetName)
 
 				if !deps.Inventory.HasToolset(toolsetID) {
-					return utils.NewToolResultError(fmt.Sprintf("Toolset %s not found", toolsetName)), nil, nil
+					return mcpresult.NewError(fmt.Sprintf("Toolset %s not found", toolsetName)), nil, nil
 				}
 
 				if deps.Inventory.IsToolsetEnabled(toolsetID) {
-					return utils.NewToolResultText(fmt.Sprintf("Toolset %s is already enabled", toolsetName)), nil, nil
+					return mcpresult.NewText(fmt.Sprintf("Toolset %s is already enabled", toolsetName)), nil, nil
 				}
 
 				// Mark the toolset as enabled so IsToolsetEnabled returns true
@@ -106,7 +106,7 @@ func EnableToolset(r *inventory.Inventory) inventory.ServerTool {
 					st.RegisterFunc(deps.Server, deps.ToolDeps)
 				}
 
-				return utils.NewToolResultText(fmt.Sprintf("Toolset %s enabled with %d tools", toolsetName, len(toolsForToolset))), nil, nil
+				return mcpresult.NewText(fmt.Sprintf("Toolset %s enabled with %d tools", toolsetName, len(toolsForToolset))), nil, nil
 			}
 		},
 	)
@@ -149,7 +149,7 @@ func ListAvailableToolsets() inventory.ServerTool {
 					return nil, nil, fmt.Errorf("failed to marshal features: %w", err)
 				}
 
-				return utils.NewToolResultText(string(r)), nil, nil
+				return mcpresult.NewText(string(r)), nil, nil
 			}
 		},
 	)
@@ -182,13 +182,13 @@ func GetToolsetsTools(r *inventory.Inventory) inventory.ServerTool {
 			return func(_ context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 				toolsetName, err := RequiredParam[string](args, "toolset")
 				if err != nil {
-					return utils.NewToolResultError(err.Error()), nil, nil
+					return mcpresult.NewError(err.Error()), nil, nil
 				}
 
 				toolsetID := inventory.ToolsetID(toolsetName)
 
 				if !deps.Inventory.HasToolset(toolsetID) {
-					return utils.NewToolResultError(fmt.Sprintf("Toolset %s not found", toolsetName)), nil, nil
+					return mcpresult.NewError(fmt.Sprintf("Toolset %s not found", toolsetName)), nil, nil
 				}
 
 				// Get all tools for this toolset (ignoring current filters for discovery)
@@ -210,7 +210,7 @@ func GetToolsetsTools(r *inventory.Inventory) inventory.ServerTool {
 					return nil, nil, fmt.Errorf("failed to marshal features: %w", err)
 				}
 
-				return utils.NewToolResultText(string(r)), nil, nil
+				return mcpresult.NewText(string(r)), nil, nil
 			}
 		},
 	)
