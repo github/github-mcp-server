@@ -13,6 +13,16 @@ import (
 func ExtractUserToken(oauthCfg *oauth.Config) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+
+			// Check if token info already exists in context, if it does, skip extraction.
+			// In remote setup, we may have already extracted token info earlier.
+			if _, ok := ghcontext.GetTokenInfo(ctx); ok {
+				// Token info already exists in context, skip extraction
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			tokenType, token, err := utils.ParseAuthorizationHeader(r)
 			if err != nil {
 				// For missing Authorization header, return 401 with WWW-Authenticate header per MCP spec
@@ -25,7 +35,6 @@ func ExtractUserToken(oauthCfg *oauth.Config) func(next http.Handler) http.Handl
 				return
 			}
 
-			ctx := r.Context()
 			ctx = ghcontext.WithTokenInfo(ctx, &ghcontext.TokenInfo{
 				Token:     token,
 				TokenType: tokenType,
