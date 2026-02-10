@@ -47,35 +47,35 @@ func Test_IsAcceptedError(t *testing.T) {
 func Test_RequiredStringParam(t *testing.T) {
 	tests := []struct {
 		name        string
-		params      map[string]interface{}
+		params      map[string]any
 		paramName   string
 		expected    string
 		expectError bool
 	}{
 		{
 			name:        "valid string parameter",
-			params:      map[string]interface{}{"name": "test-value"},
+			params:      map[string]any{"name": "test-value"},
 			paramName:   "name",
 			expected:    "test-value",
 			expectError: false,
 		},
 		{
 			name:        "missing parameter",
-			params:      map[string]interface{}{},
+			params:      map[string]any{},
 			paramName:   "name",
 			expected:    "",
 			expectError: true,
 		},
 		{
 			name:        "empty string parameter",
-			params:      map[string]interface{}{"name": ""},
+			params:      map[string]any{"name": ""},
 			paramName:   "name",
 			expected:    "",
 			expectError: true,
 		},
 		{
 			name:        "wrong type parameter",
-			params:      map[string]interface{}{"name": 123},
+			params:      map[string]any{"name": 123},
 			paramName:   "name",
 			expected:    "",
 			expectError: true,
@@ -99,35 +99,35 @@ func Test_RequiredStringParam(t *testing.T) {
 func Test_OptionalStringParam(t *testing.T) {
 	tests := []struct {
 		name        string
-		params      map[string]interface{}
+		params      map[string]any
 		paramName   string
 		expected    string
 		expectError bool
 	}{
 		{
 			name:        "valid string parameter",
-			params:      map[string]interface{}{"name": "test-value"},
+			params:      map[string]any{"name": "test-value"},
 			paramName:   "name",
 			expected:    "test-value",
 			expectError: false,
 		},
 		{
 			name:        "missing parameter",
-			params:      map[string]interface{}{},
+			params:      map[string]any{},
 			paramName:   "name",
 			expected:    "",
 			expectError: false,
 		},
 		{
 			name:        "empty string parameter",
-			params:      map[string]interface{}{"name": ""},
+			params:      map[string]any{"name": ""},
 			paramName:   "name",
 			expected:    "",
 			expectError: false,
 		},
 		{
 			name:        "wrong type parameter",
-			params:      map[string]interface{}{"name": 123},
+			params:      map[string]any{"name": 123},
 			paramName:   "name",
 			expected:    "",
 			expectError: true,
@@ -151,28 +151,28 @@ func Test_OptionalStringParam(t *testing.T) {
 func Test_RequiredInt(t *testing.T) {
 	tests := []struct {
 		name        string
-		params      map[string]interface{}
+		params      map[string]any
 		paramName   string
 		expected    int
 		expectError bool
 	}{
 		{
 			name:        "valid number parameter",
-			params:      map[string]interface{}{"count": float64(42)},
+			params:      map[string]any{"count": float64(42)},
 			paramName:   "count",
 			expected:    42,
 			expectError: false,
 		},
 		{
 			name:        "missing parameter",
-			params:      map[string]interface{}{},
+			params:      map[string]any{},
 			paramName:   "count",
 			expected:    0,
 			expectError: true,
 		},
 		{
 			name:        "wrong type parameter",
-			params:      map[string]interface{}{"count": "not-a-number"},
+			params:      map[string]any{"count": "not-a-number"},
 			paramName:   "count",
 			expected:    0,
 			expectError: true,
@@ -195,35 +195,35 @@ func Test_RequiredInt(t *testing.T) {
 func Test_OptionalIntParam(t *testing.T) {
 	tests := []struct {
 		name        string
-		params      map[string]interface{}
+		params      map[string]any
 		paramName   string
 		expected    int
 		expectError bool
 	}{
 		{
 			name:        "valid number parameter",
-			params:      map[string]interface{}{"count": float64(42)},
+			params:      map[string]any{"count": float64(42)},
 			paramName:   "count",
 			expected:    42,
 			expectError: false,
 		},
 		{
 			name:        "missing parameter",
-			params:      map[string]interface{}{},
+			params:      map[string]any{},
 			paramName:   "count",
 			expected:    0,
 			expectError: false,
 		},
 		{
 			name:        "zero value",
-			params:      map[string]interface{}{"count": float64(0)},
+			params:      map[string]any{"count": float64(0)},
 			paramName:   "count",
 			expected:    0,
 			expectError: false,
 		},
 		{
 			name:        "wrong type parameter",
-			params:      map[string]interface{}{"count": "not-a-number"},
+			params:      map[string]any{"count": "not-a-number"},
 			paramName:   "count",
 			expected:    0,
 			expectError: true,
@@ -247,7 +247,7 @@ func Test_OptionalIntParam(t *testing.T) {
 func Test_OptionalNumberParamWithDefault(t *testing.T) {
 	tests := []struct {
 		name        string
-		params      map[string]interface{}
+		params      map[string]any
 		paramName   string
 		defaultVal  int
 		expected    int
@@ -255,7 +255,7 @@ func Test_OptionalNumberParamWithDefault(t *testing.T) {
 	}{
 		{
 			name:        "valid number parameter",
-			params:      map[string]interface{}{"count": float64(42)},
+			params:      map[string]any{"count": float64(42)},
 			paramName:   "count",
 			defaultVal:  10,
 			expected:    42,
@@ -263,7 +263,7 @@ func Test_OptionalNumberParamWithDefault(t *testing.T) {
 		},
 		{
 			name:        "missing parameter",
-			params:      map[string]interface{}{},
+			params:      map[string]any{},
 			paramName:   "count",
 			defaultVal:  10,
 			expected:    10,
@@ -271,7 +271,7 @@ func Test_OptionalNumberParamWithDefault(t *testing.T) {
 		},
 		{
 			name:        "zero value",
-			params:      map[string]interface{}{"count": float64(0)},
+			params:      map[string]any{"count": float64(0)},
 			paramName:   "count",
 			defaultVal:  10,
 			expected:    10,
@@ -279,7 +279,7 @@ func Test_OptionalNumberParamWithDefault(t *testing.T) {
 		},
 		{
 			name:        "wrong type parameter",
-			params:      map[string]interface{}{"count": "not-a-number"},
+			params:      map[string]any{"count": "not-a-number"},
 			paramName:   "count",
 			defaultVal:  10,
 			expected:    0,
@@ -304,35 +304,35 @@ func Test_OptionalNumberParamWithDefault(t *testing.T) {
 func Test_OptionalBooleanParam(t *testing.T) {
 	tests := []struct {
 		name        string
-		params      map[string]interface{}
+		params      map[string]any
 		paramName   string
 		expected    bool
 		expectError bool
 	}{
 		{
 			name:        "true value",
-			params:      map[string]interface{}{"flag": true},
+			params:      map[string]any{"flag": true},
 			paramName:   "flag",
 			expected:    true,
 			expectError: false,
 		},
 		{
 			name:        "false value",
-			params:      map[string]interface{}{"flag": false},
+			params:      map[string]any{"flag": false},
 			paramName:   "flag",
 			expected:    false,
 			expectError: false,
 		},
 		{
 			name:        "missing parameter",
-			params:      map[string]interface{}{},
+			params:      map[string]any{},
 			paramName:   "flag",
 			expected:    false,
 			expectError: false,
 		},
 		{
 			name:        "wrong type parameter",
-			params:      map[string]interface{}{"flag": "not-a-boolean"},
+			params:      map[string]any{"flag": "not-a-boolean"},
 			paramName:   "flag",
 			expected:    false,
 			expectError: true,
@@ -356,7 +356,7 @@ func Test_OptionalBooleanParam(t *testing.T) {
 func TestOptionalStringArrayParam(t *testing.T) {
 	tests := []struct {
 		name        string
-		params      map[string]interface{}
+		params      map[string]any
 		paramName   string
 		expected    []string
 		expectError bool

@@ -178,10 +178,7 @@ func downloadLogContent(ctx context.Context, logURL string, tailLines int, maxLi
 		return "", 0, httpResp, fmt.Errorf("failed to download logs: HTTP %d", httpResp.StatusCode)
 	}
 
-	bufferSize := tailLines
-	if bufferSize > maxLines {
-		bufferSize = maxLines
-	}
+	bufferSize := min(tailLines, maxLines)
 
 	processedInput, totalLines, httpResp, err := buffer.ProcessResponseAsRingBufferToEnd(httpResp, bufferSize)
 	if err != nil {
@@ -577,9 +574,9 @@ func ActionsRunTrigger(t translations.TranslationHelperFunc) inventory.ServerToo
 			runID, _ := OptionalIntParam(args, "run_id")
 
 			// Get optional inputs parameter
-			var inputs map[string]interface{}
+			var inputs map[string]any
 			if requestInputs, ok := args["inputs"]; ok {
-				if inputsMap, ok := requestInputs.(map[string]interface{}); ok {
+				if inputsMap, ok := requestInputs.(map[string]any); ok {
 					inputs = inputsMap
 				}
 			}
@@ -982,7 +979,7 @@ func getWorkflowRunUsage(ctx context.Context, client *github.Client, owner, repo
 	return utils.NewToolResultText(string(r)), nil, nil
 }
 
-func runWorkflow(ctx context.Context, client *github.Client, owner, repo, workflowID, ref string, inputs map[string]interface{}) (*mcp.CallToolResult, any, error) {
+func runWorkflow(ctx context.Context, client *github.Client, owner, repo, workflowID, ref string, inputs map[string]any) (*mcp.CallToolResult, any, error) {
 	event := github.CreateWorkflowDispatchEventRequest{
 		Ref:    ref,
 		Inputs: inputs,

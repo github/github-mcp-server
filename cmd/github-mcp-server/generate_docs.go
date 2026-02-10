@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 
@@ -234,7 +235,7 @@ func writeToolDoc(buf *strings.Builder, tool inventory.ServerTool) {
 
 		for i, propName := range paramNames {
 			prop := schema.Properties[propName]
-			required := contains(schema.Required, propName)
+			required := slices.Contains(schema.Required, propName)
 			requiredStr := "optional"
 			if required {
 				requiredStr = "required"
@@ -289,15 +290,6 @@ func scopesEqual(a, b []string) bool {
 	return true
 }
 
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
-}
-
 // indentMultilineDescription adds the specified indent to all lines after the first line.
 // This ensures that multi-line descriptions maintain proper markdown list formatting.
 func indentMultilineDescription(description, indent string) string {
@@ -319,14 +311,14 @@ func replaceSection(content, startMarker, endMarker, newContent string) (string,
 	start := fmt.Sprintf("<!-- %s -->", startMarker)
 	end := fmt.Sprintf("<!-- %s -->", endMarker)
 
-	startIdx := strings.Index(content, start)
+	before, _, ok := strings.Cut(content, start)
 	endIdx := strings.Index(content, end)
-	if startIdx == -1 || endIdx == -1 {
+	if !ok || endIdx == -1 {
 		return "", fmt.Errorf("markers not found: %s / %s", start, end)
 	}
 
 	var buf strings.Builder
-	buf.WriteString(content[:startIdx])
+	buf.WriteString(before)
 	buf.WriteString(start)
 	buf.WriteString("\n")
 	buf.WriteString(newContent)
@@ -426,6 +418,7 @@ func generateRemoteOnlyToolsetsDoc() string {
 
 	return strings.TrimSuffix(buf.String(), "\n")
 }
+
 func generateDeprecatedAliasesDocs(docsPath string) error {
 	// Read the current file
 	content, err := os.ReadFile(docsPath) //#nosec G304

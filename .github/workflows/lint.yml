@@ -20,4 +20,5 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.5
+          # sync with script/lint.sh
+          version: v2.9

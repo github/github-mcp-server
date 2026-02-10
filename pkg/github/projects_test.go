@@ -123,7 +123,7 @@ func Test_ProjectsList_ListProjects(t *testing.T) {
 			var response map[string]any
 			err = json.Unmarshal([]byte(textContent.Text), &response)
 			require.NoError(t, err)
-			projects, ok := response["projects"].([]interface{})
+			projects, ok := response["projects"].([]any)
 			require.True(t, ok)
 			assert.Equal(t, tc.expectedLength, len(projects))
 		})
@@ -160,7 +160,7 @@ func Test_ProjectsList_ListProjectFields(t *testing.T) {
 		var response map[string]any
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
-		fieldsList, ok := response["fields"].([]interface{})
+		fieldsList, ok := response["fields"].([]any)
 		require.True(t, ok)
 		assert.Equal(t, 1, len(fieldsList))
 	})
@@ -216,7 +216,7 @@ func Test_ProjectsList_ListProjectItems(t *testing.T) {
 		var response map[string]any
 		err = json.Unmarshal([]byte(textContent.Text), &response)
 		require.NoError(t, err)
-		itemsList, ok := response["items"].([]interface{})
+		itemsList, ok := response["items"].([]any)
 		require.True(t, ok)
 		assert.Equal(t, 1, len(itemsList))
 	})

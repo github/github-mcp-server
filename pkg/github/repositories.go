@@ -1078,7 +1078,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			// Create a response similar to what the DeleteFile API would return
-			response := map[string]interface{}{
+			response := map[string]any{
 				"commit":  newCommit,
 				"content": nil,
 			}
@@ -1278,7 +1278,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			// Parse files parameter - this should be an array of objects with path and content
-			filesObj, ok := args["files"].([]interface{})
+			filesObj, ok := args["files"].([]any)
 			if !ok {
 				return utils.NewToolResultError("files parameter must be an array of objects with path and content"), nil, nil
 			}
@@ -1360,7 +1360,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 			var entries []*github.TreeEntry
 
 			for _, file := range filesObj {
-				fileMap, ok := file.(map[string]interface{})
+				fileMap, ok := file.(map[string]any)
 				if !ok {
 					return utils.NewToolResultError("each file must be an object with path and content"), nil, nil
 				}

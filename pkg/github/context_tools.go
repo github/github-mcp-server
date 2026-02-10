@@ -179,7 +179,7 @@ func GetTeams(t translations.TranslationHelperFunc) inventory.ServerTool {
 					} `graphql:"organizations(first: 100)"`
 				} `graphql:"user(login: $login)"`
 			}
-			vars := map[string]interface{}{
+			vars := map[string]any{
 				"login": githubv4.String(username),
 			}
 			if err := gqlClient.Query(ctx, &q, vars); err != nil {
@@ -262,7 +262,7 @@ func GetTeamMembers(t translations.TranslationHelperFunc) inventory.ServerTool {
 					} `graphql:"team(slug: $teamSlug)"`
 				} `graphql:"organization(login: $org)"`
 			}
-			vars := map[string]interface{}{
+			vars := map[string]any{
 				"org":      githubv4.String(org),
 				"teamSlug": githubv4.String(teamSlug),
 			}

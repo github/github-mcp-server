@@ -215,7 +215,7 @@ func Test_GetTeams(t *testing.T) {
 	// to ensure each test gets a fresh client
 	gqlClientForTestuser := func() *githubv4.Client {
 		queryStr := "query($login:String!){user(login: $login){organizations(first: 100){nodes{login,teams(first: 100, userLogins: [$login]){nodes{name,slug,description}}}}}}"
-		vars := map[string]interface{}{
+		vars := map[string]any{
 			"login": "testuser",
 		}
 		matcher := githubv4mock.NewQueryMatcher(queryStr, vars, mockTeamsResponse)
@@ -225,7 +225,7 @@ func Test_GetTeams(t *testing.T) {
 
 	gqlClientForSpecificuser := func() *githubv4.Client {
 		queryStr := "query($login:String!){user(login: $login){organizations(first: 100){nodes{login,teams(first: 100, userLogins: [$login]){nodes{name,slug,description}}}}}}"
-		vars := map[string]interface{}{
+		vars := map[string]any{
 			"login": "specificuser",
 		}
 		matcher := githubv4mock.NewQueryMatcher(queryStr, vars, mockTeamsResponse)
@@ -235,7 +235,7 @@ func Test_GetTeams(t *testing.T) {
 
 	gqlClientNoTeams := func() *githubv4.Client {
 		queryStr := "query($login:String!){user(login: $login){organizations(first: 100){nodes{login,teams(first: 100, userLogins: [$login]){nodes{name,slug,description}}}}}}"
-		vars := map[string]interface{}{
+		vars := map[string]any{
 			"login": "testuser",
 		}
 		matcher := githubv4mock.NewQueryMatcher(queryStr, vars, mockNoTeamsResponse)
@@ -419,7 +419,7 @@ func Test_GetTeamMembers(t *testing.T) {
 	// Create GQL clients for different test scenarios
 	gqlClientWithMembers := func() *githubv4.Client {
 		queryStr := "query($org:String!$teamSlug:String!){organization(login: $org){team(slug: $teamSlug){members(first: 100){nodes{login}}}}}"
-		vars := map[string]interface{}{
+		vars := map[string]any{
 			"org":      "testorg",
 			"teamSlug": "testteam",
 		}
@@ -430,7 +430,7 @@ func Test_GetTeamMembers(t *testing.T) {
 
 	gqlClientNoMembers := func() *githubv4.Client {
 		queryStr := "query($org:String!$teamSlug:String!){organization(login: $org){team(slug: $teamSlug){members(first: 100){nodes{login}}}}}"
-		vars := map[string]interface{}{
+		vars := map[string]any{
 			"org":      "testorg",
 			"teamSlug": "emptyteam",
 		}
