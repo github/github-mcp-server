@@ -1427,6 +1427,7 @@ type PullRequestReviewWriteParams struct {
 	Body       string
 	Event      string
 	CommitID   *string
+	ThreadID   string
 }
 
 func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -1439,7 +1440,7 @@ func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.Serv
 			"method": {
 				Type:        "string",
 				Description: `The write operation to perform on pull request review.`,
-				Enum:        []any{"create", "submit_pending", "delete_pending"},
+				Enum:        []any{"create", "submit_pending", "delete_pending", "resolve_thread", "unresolve_thread"},
 			},
 			"owner": {
 				Type:        "string",
@@ -1466,6 +1467,10 @@ func PullRequestReviewWrite(t translations.TranslationHelperFunc) inventory.Serv
 				Type:        "string",
 				Description: "SHA of commit to review",
 			},
+			"threadId": {
+				Type:        "string",
+				Description: "The node ID of the review thread (e.g., PRRT_kwDOxxx). Required for resolve_thread and unresolve_thread methods. Get thread IDs from pull_request_read with method get_review_comments.",
+			},
 		},
 		Required: []string{"method", "owner", "repo", "pullNumber"},
 	}
@@ -1480,6 +1485,8 @@ Available methods:
 - create: Create a new review of a pull request. If "event" parameter is provided, the review is submitted. If "event" is omitted, a pending review is created.
 - submit_pending: Submit an existing pending review of a pull request. This requires that a pending review exists for the current user on the specified pull request. The "body" and "event" parameters are used when submitting the review.
 - delete_pending: Delete an existing pending review of a pull request. This requires that a pending review exists for the current user on the specified pull request.
+- resolve_thread: Resolve a review thread. Requires only "threadId" parameter with the thread's node ID (e.g., PRRT_kwDOxxx). The owner, repo, and pullNumber parameters are not used for this method. Resolving an already-resolved thread is a no-op.
+- unresolve_thread: Unresolve a previously resolved review thread. Requires only "threadId" parameter. The owner, repo, and pullNumber parameters are not used for this method. Unresolving an already-unresolved thread is a no-op.
 `),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_PULL_REQUEST_REVIEW_WRITE_USER_TITLE", "Write operations (create, submit, delete) on pull request reviews."),
@@ -1509,6 +1516,12 @@ Available methods:
 				return result, nil, err
 			case "delete_pending":
 				result, err := DeletePendingPullRequestReview(ctx, client, params)
+				return result, nil, err
+			case "resolve_thread":
+				result, err := ResolveReviewThread(ctx, client, params.ThreadID, true)
+				return result, nil, err
+			case "unresolve_thread":
+				result, err := ResolveReviewThread(ctx, client, params.ThreadID, false)
 				return result, nil, err
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", params.Method)), nil, nil
@@ -1737,6 +1750,60 @@ func DeletePendingPullRequestReview(ctx context.Context, client *githubv4.Client
 	// In future, we may want to return the review ID, but for the moment, we're not leaking
 	// API implementation details to the LLM.
 	return utils.NewToolResultText("pending pull request review successfully deleted"), nil
+}
+
+// ResolveReviewThread resolves or unresolves a PR review thread using GraphQL mutations.
+func ResolveReviewThread(ctx context.Context, client *githubv4.Client, threadID string, resolve bool) (*mcp.CallToolResult, error) {
+	if threadID == "" {
+		return utils.NewToolResultError("threadId is required for resolve_thread and unresolve_thread methods"), nil
+	}
+
+	if resolve {
+		var mutation struct {
+			ResolveReviewThread struct {
+				Thread struct {
+					ID         githubv4.ID
+					IsResolved githubv4.Boolean
+				}
+			} `graphql:"resolveReviewThread(input: $input)"`
+		}
+
+		input := githubv4.ResolveReviewThreadInput{
+			ThreadID: githubv4.ID(threadID),
+		}
+
+		if err := client.Mutate(ctx, &mutation, input, nil); err != nil {
+			return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+				"failed to resolve review thread",
+				err,
+			), nil
+		}
+
+		return utils.NewToolResultText("review thread resolved successfully"), nil
+	}
+
+	// Unresolve
+	var mutation struct {
+		UnresolveReviewThread struct {
+			Thread struct {
+				ID         githubv4.ID
+				IsResolved githubv4.Boolean
+			}
+		} `graphql:"unresolveReviewThread(input: $input)"`
+	}
+
+	input := githubv4.UnresolveReviewThreadInput{
+		ThreadID: githubv4.ID(threadID),
+	}
+
+	if err := client.Mutate(ctx, &mutation, input, nil); err != nil {
+		return ghErrors.NewGitHubGraphQLErrorResponse(ctx,
+			"failed to unresolve review thread",
+			err,
+		), nil
+	}
+
+	return utils.NewToolResultText("review thread unresolved successfully"), nil
 }
 
 // AddCommentToPendingReview creates a tool to add a comment to a pull request review.
