@@ -227,6 +227,16 @@ type MinimalPRBranchRepo struct {
 	Description string `json:"description,omitempty"`
 }
 
+type MinimalProjectStatusUpdate struct {
+	ID         string       `json:"id"`
+	Body       string       `json:"body,omitempty"`
+	Status     string       `json:"status,omitempty"`
+	CreatedAt  string       `json:"created_at,omitempty"`
+	StartDate  string       `json:"start_date,omitempty"`
+	TargetDate string       `json:"target_date,omitempty"`
+	Creator    *MinimalUser `json:"creator,omitempty"`
+}
+
 // Helper functions
 
 func convertToMinimalIssue(issue *github.Issue) MinimalIssue {

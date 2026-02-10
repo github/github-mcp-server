@@ -1,0 +1,42 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "List project status updates"
+  },
+  "description": "List status updates for a GitHub project",
+  "inputSchema": {
+    "properties": {
+      "after": {
+        "description": "Forward pagination cursor from previous pageInfo.nextCursor.",
+        "type": "string"
+      },
+      "owner": {
+        "description": "The owner (user or organization login). The name is not case sensitive.",
+        "type": "string"
+      },
+      "owner_type": {
+        "description": "Owner type",
+        "enum": [
+          "user",
+          "org"
+        ],
+        "type": "string"
+      },
+      "per_page": {
+        "description": "Results per page (max 50)",
+        "type": "number"
+      },
+      "project_number": {
+        "description": "The project's number.",
+        "type": "number"
+      }
+    },
+    "required": [
+      "owner",
+      "owner_type",
+      "project_number"
+    ],
+    "type": "object"
+  },
+  "name": "list_project_status_updates"
+}
