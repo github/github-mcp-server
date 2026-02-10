@@ -48,6 +48,12 @@ func SemanticDiff(path string, base, head []byte) SemanticDiffResult {
 	}
 
 	if base == nil {
+		if summary := summarizeNewOrDeletedFile(path, head, "added"); summary != "" {
+			return SemanticDiffResult{
+				Format: DetectDiffFormat(path),
+				Diff:   summary,
+			}
+		}
 		return SemanticDiffResult{
 			Format: DetectDiffFormat(path),
 			Diff:   "file added",
@@ -55,6 +61,12 @@ func SemanticDiff(path string, base, head []byte) SemanticDiffResult {
 	}
 
 	if head == nil {
+		if summary := summarizeNewOrDeletedFile(path, base, "deleted"); summary != "" {
+			return SemanticDiffResult{
+				Format: DetectDiffFormat(path),
+				Diff:   summary,
+			}
+		}
 		return SemanticDiffResult{
 			Format: DetectDiffFormat(path),
 			Diff:   "file deleted",
@@ -89,6 +101,34 @@ func SemanticDiff(path string, base, head []byte) SemanticDiffResult {
 			Diff:   unifiedDiff(path, base, head),
 		}
 	}
+}
+
+// summarizeNewOrDeletedFile returns a structural summary of a new or deleted code file.
+// It extracts top-level declarations and lists them with their signatures.
+// Returns empty string if the file type is not supported by tree-sitter.
+func summarizeNewOrDeletedFile(path string, content []byte, action string) string {
+	lang := languageForPath(path)
+	if lang == nil {
+		return ""
+	}
+
+	decls, err := extractDeclarations(lang, content)
+	if err != nil || len(decls) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("file " + action + "\n\n")
+	sb.WriteString("Declarations:\n")
+	for _, d := range decls {
+		sig := declarationSignature(d.Text)
+		if sig != "" && sig != d.Name {
+			sb.WriteString("  " + d.Name + ": " + sig + "\n")
+		} else {
+			sb.WriteString("  " + d.Name + "\n")
+		}
+	}
+	return sb.String()
 }
 
 // semanticDiffJSON parses both versions as JSON and produces a path-based diff.

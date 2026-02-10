@@ -75,6 +75,7 @@ type MinimalCommitFile struct {
 	Additions int    `json:"additions,omitempty"`
 	Deletions int    `json:"deletions,omitempty"`
 	Changes   int    `json:"changes,omitempty"`
+	Patch     string `json:"patch,omitempty"`
 }
 
 // MinimalCommit is the trimmed output type for commit objects.
@@ -236,12 +237,17 @@ func convertToMinimalCommit(commit *github.RepositoryCommit, includeDiffs bool) 
 		if len(commit.Files) > 0 {
 			minimalCommit.Files = make([]MinimalCommitFile, 0, len(commit.Files))
 			for _, file := range commit.Files {
+				patch := file.GetPatch()
+				if patch != "" {
+					patch = applySemanticDiffToUnifiedPatch(file.GetFilename(), patch)
+				}
 				minimalFile := MinimalCommitFile{
 					Filename:  file.GetFilename(),
 					Status:    file.GetStatus(),
 					Additions: file.GetAdditions(),
 					Deletions: file.GetDeletions(),
 					Changes:   file.GetChanges(),
+					Patch:     patch,
 				}
 				minimalCommit.Files = append(minimalCommit.Files, minimalFile)
 			}
