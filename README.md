@@ -976,6 +976,23 @@ The following sets of tools are available:
 
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/project-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/project-light.png"><img src="pkg/octicons/icons/project-light.png" width="20" height="20" alt="project"></picture> Projects</summary>
 
+- **create_iteration_field** - Create iteration field
+  - **Required OAuth Scopes**: `project`
+  - `duration`: Duration in days for each iteration (typically 7 for weekly) (number, required)
+  - `field_name`: Field name (e.g., 'Sprint', 'Iteration') (string, required)
+  - `iterations`: Array of iteration definitions (object[], required)
+  - `owner`: GitHub username or organization name (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `project_number`: The project's number (number, required)
+  - `start_date`: Start date in YYYY-MM-DD format (string, required)
+
+- **create_project** - Create project
+  - **Required OAuth Scopes**: `project`
+  - `description`: Project description (optional) (string, optional)
+  - `owner`: GitHub username or organization name (string, required)
+  - `owner_type`: Owner type (string, required)
+  - `title`: Project title (string, required)
+
 - **projects_get** - Get details of GitHub Projects resources
   - **Required OAuth Scopes**: `read:project`
   - **Accepted OAuth Scopes**: `project`, `read:project`
