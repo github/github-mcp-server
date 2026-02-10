@@ -266,7 +266,7 @@ func extractChildDeclarations(config *languageConfig, node *sitter.Node, source 
 
 		name := config.nameExtractor(child, source)
 		if name == "" {
-			name = fmt.Sprintf("_%s_%d", nodeType, i)
+			name = firstLine(child.Content(source))
 		}
 
 		decls = append(decls, declaration{
@@ -310,14 +310,32 @@ func goNameExtractor(node *sitter.Node, source []byte) string {
 		}
 		return name
 	case "type_declaration", "var_declaration", "const_declaration":
+		var names []string
 		for i := 0; i < int(node.ChildCount()); i++ {
 			child := node.Child(i)
-			nameNode := child.ChildByFieldName("name")
-			if nameNode != nil {
-				return nameNode.Content(source)
+			switch child.Type() {
+			case "var_spec", "const_spec", "type_spec":
+				nameNode := child.ChildByFieldName("name")
+				if nameNode != nil {
+					names = append(names, nameNode.Content(source))
+				}
+			case "var_spec_list", "const_spec_list", "type_spec_list":
+				for j := 0; j < int(child.ChildCount()); j++ {
+					spec := child.Child(j)
+					nameNode := spec.ChildByFieldName("name")
+					if nameNode != nil {
+						names = append(names, nameNode.Content(source))
+					}
+				}
 			}
 		}
-		return ""
+		if len(names) == 0 {
+			return ""
+		}
+		if len(names) <= 3 {
+			return strings.Join(names, ", ")
+		}
+		return fmt.Sprintf("%s, %s, ... (%d vars)", names[0], names[1], len(names))
 	case "import_declaration":
 		return summarizeImport(node, source)
 	case "package_clause":
@@ -516,14 +534,15 @@ func diffDeclarations(config *languageConfig, base, head []declaration, indent s
 // singletons and their "name" changes when contents change.
 func indexDeclarations(decls []declaration) map[string]declaration {
 	result := make(map[string]declaration, len(decls))
-	importCount := 0
+	kindCounters := make(map[string]int)
 	for _, d := range decls {
 		var key string
 		switch d.Kind {
 		case "import_declaration", "import_statement", "import_from_statement",
-			"package_clause", "package_declaration":
-			key = fmt.Sprintf("%s:%d", d.Kind, importCount)
-			importCount++
+			"package_clause", "package_declaration",
+			"var_declaration", "const_declaration":
+			kindCounters[d.Kind]++
+			key = fmt.Sprintf("%s:%d", d.Kind, kindCounters[d.Kind])
 		default:
 			key = d.Kind + ":" + d.Name
 		}
@@ -535,6 +554,16 @@ func indexDeclarations(decls []declaration) map[string]declaration {
 // declarationSignature returns the first line of a declaration, which typically
 // contains the signature (e.g., "func hello(name string) error {").
 func declarationSignature(text string) string {
+	if idx := strings.Index(text, "\n"); idx >= 0 {
+		return strings.TrimSpace(text[:idx])
+	}
+	return strings.TrimSpace(text)
+}
+
+// firstLine returns the first line of text, trimmed. Used as a fallback name
+// for declarations where the name extractor returns empty, so that actual code
+// is shown instead of opaque tree-sitter node indices.
+func firstLine(text string) string {
 	if idx := strings.Index(text, "\n"); idx >= 0 {
 		return strings.TrimSpace(text[:idx])
 	}
@@ -596,7 +625,7 @@ func findNestedDeclarations(config *languageConfig, node *sitter.Node, source []
 		if !skipRoot && config.declarationKinds[nodeType] {
 			name := config.nameExtractor(child, source)
 			if name == "" {
-				name = fmt.Sprintf("_%s_%d", nodeType, i)
+				name = firstLine(child.Content(source))
 			}
 			*decls = append(*decls, declaration{
 				Kind: nodeType,
