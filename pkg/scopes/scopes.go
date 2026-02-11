@@ -55,6 +55,9 @@ const (
 
 	// WritePackages grants write access to packages
 	WritePackages Scope = "write:packages"
+
+	// Workflow grants read and write access to GitHub Actions workflow files
+	Workflow Scope = "workflow"
 )
 
 // ScopeHierarchy defines parent-child relationships between scopes.
