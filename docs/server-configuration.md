@@ -345,6 +345,22 @@ See [Scope Filtering](./scope-filtering.md) for details on how filtering works w
 
 ---
 
+## Feature Flags
+
+The GitHub MCP Server supports runtime feature flags that can modify tool behavior for improved compatibility with different MCP clients.
+
+### MCP_DISABLE_EMBEDDED_RESOURCES
+
+When enabled, the `get_file_contents` tool returns file content as standard MCP content types instead of embedded resources:
+- **Text files**: Returned as `TextContent` with MIME type in metadata
+- **Binary files**: Returned as `ImageContent` with raw binary data
+
+**Configuration:**
+
+Feature flags are checked at runtime via the feature flag checker passed to `BaseDeps`. You can configure this through environment variables or command-line arguments depending on your deployment setup.
+
+---
+
 ## Troubleshooting
 
 | Problem | Cause | Solution |

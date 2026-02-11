@@ -768,6 +768,9 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						strings.HasSuffix(contentType, "+json") ||
 						strings.HasSuffix(contentType, "+xml")
 
+					// Check if embedded resources should be disabled
+					disableEmbedded := deps.IsFeatureEnabled(ctx, FeatureFlagDisableEmbeddedResources)
+
 					if isTextContent {
 						result := &mcp.ResourceContents{
 							URI:      resourceURI,
@@ -776,9 +779,9 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 						}
 						// Include SHA in the result metadata
 						if fileSHA != "" {
-							return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)", fileSHA)+successNote, result), nil, nil
+							return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)", fileSHA)+successNote, result, disableEmbedded), nil, nil
 						}
-						return utils.NewToolResultResource("successfully downloaded text file"+successNote, result), nil, nil
+						return utils.NewToolResultResource("successfully downloaded text file"+successNote, result, disableEmbedded), nil, nil
 					}
 
 					result := &mcp.ResourceContents{
@@ -788,9 +791,9 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 					}
 					// Include SHA in the result metadata
 					if fileSHA != "" {
-						return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)", fileSHA)+successNote, result), nil, nil
+						return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)", fileSHA)+successNote, result, disableEmbedded), nil, nil
 					}
-					return utils.NewToolResultResource("successfully downloaded binary file"+successNote, result), nil, nil
+					return utils.NewToolResultResource("successfully downloaded binary file"+successNote, result, disableEmbedded), nil, nil
 				}
 
 				// Raw API call failed

@@ -102,6 +102,10 @@ If you prefer running the server locally with Docker:
 
 ## Troubleshooting
 
+### File contents not displaying properly
+
+If you experience issues with the `get_file_contents` tool not displaying file contents correctly, this may be due to limited embedded resource support in some versions of Antigravity. This is a known limitation that affects how file contents are displayed.
+
 ### "Error: serverUrl or command must be specified"
 
 Make sure you're using `serverUrl` (not `url`) for the remote server configuration. Antigravity requires `serverUrl` for HTTP-based MCP servers.
