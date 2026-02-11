@@ -31,6 +31,7 @@ type Handler struct {
 	inventoryFactoryFunc   InventoryFactoryFunc
 	oauthCfg               *oauth.Config
 	scopeFetcher           scopes.FetcherInterface
+	schemaCache            *mcp.SchemaCache
 }
 
 type HandlerOptions struct {
@@ -101,6 +102,10 @@ func NewHTTPMcpHandler(
 		inventoryFactory = DefaultInventoryFactory(cfg, t, opts.FeatureChecker, scopeFetcher)
 	}
 
+	// Create a shared schema cache to avoid repeated JSON schema reflection
+	// when a new MCP Server is created per request in stateless mode.
+	schemaCache := mcp.NewSchemaCache()
+
 	return &Handler{
 		ctx:                    ctx,
 		config:                 cfg,
@@ -112,6 +117,7 @@ func NewHTTPMcpHandler(
 		inventoryFactoryFunc:   inventoryFactory,
 		oauthCfg:               opts.OAuthConfig,
 		scopeFetcher:           scopeFetcher,
+		schemaCache:            schemaCache,
 	}
 }
 
@@ -195,6 +201,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					Resources: &mcp.ResourceCapabilities{},
 					Prompts:   &mcp.PromptCapabilities{},
 				}
+				so.SchemaCache = h.schemaCache
 			},
 		},
 	})
