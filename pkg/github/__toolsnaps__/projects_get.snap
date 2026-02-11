@@ -53,9 +53,7 @@
       }
     },
     "required": [
-      "method",
-      "owner",
-      "project_number"
+      "method"
     ],
     "type": "object"
   },
