@@ -23,7 +23,7 @@ jobs:
         run: script/build-ui
       - uses: actions/setup-go@v6
         with:
-          go-version: stable
+          go-version: '1.25'
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
