@@ -236,7 +236,7 @@ func Test_ProjectsGet(t *testing.T) {
 	assert.Contains(t, inputSchema.Properties, "project_number")
 	assert.Contains(t, inputSchema.Properties, "field_id")
 	assert.Contains(t, inputSchema.Properties, "item_id")
-	assert.ElementsMatch(t, inputSchema.Required, []string{"method", "owner", "project_number"})
+	assert.ElementsMatch(t, inputSchema.Required, []string{"method"})
 }
 
 func Test_ProjectsGet_GetProject(t *testing.T) {
@@ -1906,4 +1906,117 @@ func Test_ProjectsWrite_CreateProjectStatusUpdate(t *testing.T) {
 		assert.Equal(t, "Consolidated test", response["body"])
 		assert.Equal(t, "AT_RISK", response["status"])
 	})
+}
+
+func Test_ListProjectStatusUpdates_NegativePerPage(t *testing.T) {
+	serverTool := ListProjectStatusUpdates(translations.NullTranslationHelper)
+
+	// With a negative per_page, the handler should clamp to MaxProjectsPerPage (50)
+	mockedClient := githubv4mock.NewMockedHTTPClient(
+		githubv4mock.NewQueryMatcher(
+			statusUpdatesUserQuery{},
+			map[string]any{
+				"owner":         githubv4.String("octocat"),
+				"projectNumber": githubv4.Int(1),
+				"first":         githubv4.Int(50), // clamped to default
+				"after":         (*githubv4.String)(nil),
+			},
+			githubv4mock.DataResponse(map[string]any{
+				"user": map[string]any{
+					"projectV2": map[string]any{
+						"statusUpdates": map[string]any{
+							"nodes": []map[string]any{
+								{
+									"id":         "SU_neg",
+									"body":       "Negative per_page test",
+									"status":     "ON_TRACK",
+									"createdAt":  "2026-01-15T10:00:00Z",
+									"startDate":  "2026-01-01",
+									"targetDate": "2026-03-01",
+									"creator":    map[string]any{"login": "octocat"},
+								},
+							},
+							"pageInfo": map[string]any{
+								"hasNextPage":     false,
+								"hasPreviousPage": false,
+								"startCursor":     "cursor1",
+								"endCursor":       "cursor1",
+							},
+						},
+					},
+				},
+			}),
+		),
+	)
+
+	client := githubv4.NewClient(mockedClient)
+	deps := BaseDeps{
+		GQLClient: client,
+	}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"owner":          "octocat",
+		"owner_type":     "user",
+		"project_number": float64(1),
+		"per_page":       float64(-5),
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+	var response map[string]any
+	err = json.Unmarshal([]byte(textContent.Text), &response)
+	require.NoError(t, err)
+	updates, ok := response["statusUpdates"].([]any)
+	require.True(t, ok)
+	assert.Len(t, updates, 1)
+}
+
+func Test_CreateProjectStatusUpdate_InvalidOwnerType(t *testing.T) {
+	serverTool := CreateProjectStatusUpdate(translations.NullTranslationHelper)
+
+	mockedClient := githubv4mock.NewMockedHTTPClient()
+	client := githubv4.NewClient(mockedClient)
+	deps := BaseDeps{
+		GQLClient: client,
+	}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"owner":          "octocat",
+		"owner_type":     "invalid",
+		"project_number": float64(2),
+		"body":           "Test",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+	assert.Contains(t, textContent.Text, `invalid owner_type "invalid"`)
+}
+
+func Test_ListProjectStatusUpdates_InvalidOwnerType(t *testing.T) {
+	serverTool := ListProjectStatusUpdates(translations.NullTranslationHelper)
+
+	mockedClient := githubv4mock.NewMockedHTTPClient()
+	client := githubv4.NewClient(mockedClient)
+	deps := BaseDeps{
+		GQLClient: client,
+	}
+	handler := serverTool.Handler(deps)
+	request := createMCPRequest(map[string]any{
+		"owner":          "octocat",
+		"owner_type":     "invalid",
+		"project_number": float64(1),
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+
+	textContent := getTextResult(t, result)
+	assert.Contains(t, textContent.Text, `invalid owner_type "invalid"`)
 }

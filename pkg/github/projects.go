@@ -55,11 +55,11 @@ const (
 
 type statusUpdateNode struct {
 	ID         githubv4.ID
-	Body       githubv4.String
-	Status     githubv4.String
+	Body       *githubv4.String
+	Status     *githubv4.String
 	CreatedAt  githubv4.DateTime
-	StartDate  githubv4.String
-	TargetDate githubv4.String
+	StartDate  *githubv4.String
+	TargetDate *githubv4.String
 	Creator    struct {
 		Login githubv4.String
 	}
@@ -123,13 +123,20 @@ func convertToMinimalStatusUpdate(node statusUpdateNode) MinimalProjectStatusUpd
 
 	return MinimalProjectStatusUpdate{
 		ID:         fmt.Sprintf("%v", node.ID),
-		Body:       string(node.Body),
-		Status:     string(node.Status),
+		Body:       derefString(node.Body),
+		Status:     derefString(node.Status),
 		CreatedAt:  node.CreatedAt.Time.Format(time.RFC3339),
-		StartDate:  string(node.StartDate),
-		TargetDate: string(node.TargetDate),
+		StartDate:  derefString(node.StartDate),
+		TargetDate: derefString(node.TargetDate),
 		Creator:    creator,
 	}
+}
+
+func derefString(s *githubv4.String) string {
+	if s == nil {
+		return ""
+	}
+	return string(*s)
 }
 
 func ListProjects(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -1482,7 +1489,7 @@ Use this tool to get details about individual projects, project fields, and proj
 						Description: "The node ID of the project status update. Required for 'get_project_status_update' method.",
 					},
 				},
-				Required: []string{"method", "owner", "project_number"},
+				Required: []string{"method"},
 			},
 		},
 		[]scopes.Scope{scopes.ReadProject},
@@ -2213,14 +2220,14 @@ func resolveProjectNodeID(ctx context.Context, gqlClient *githubv4.Client, owner
 	if ownerType == "org" {
 		err := gqlClient.Query(ctx, &projectIDQueryOrg, queryVars)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", ProjectResolveIDFailedError, err)
+			return "", fmt.Errorf("%s: %w", ProjectResolveIDFailedError, err)
 		}
 		return projectIDQueryOrg.Organization.ProjectV2.ID, nil
 	}
 
 	err := gqlClient.Query(ctx, &projectIDQueryUser, queryVars)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %w", ProjectResolveIDFailedError, err)
+		return "", fmt.Errorf("%s: %w", ProjectResolveIDFailedError, err)
 	}
 	return projectIDQueryUser.User.ProjectV2.ID, nil
 }
@@ -2293,6 +2300,9 @@ func validateDateFormat(value, fieldName string) error {
 // createProjectStatusUpdate creates a new status update for a project via GraphQL.
 func createProjectStatusUpdate(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, body, status, startDate, targetDate string) (*mcp.CallToolResult, any, error) {
 	// Validate inputs
+	if ownerType != "user" && ownerType != "org" {
+		return utils.NewToolResultError(fmt.Sprintf("invalid owner_type %q: must be \"user\" or \"org\"", ownerType)), nil, nil
+	}
 	if status != "" && !validProjectV2StatusUpdateStatuses[status] {
 		return utils.NewToolResultError(fmt.Sprintf("invalid status %q: must be one of INACTIVE, ON_TRACK, AT_RISK, OFF_TRACK, COMPLETE", status)), nil, nil
 	}
@@ -2360,6 +2370,10 @@ func createProjectStatusUpdate(ctx context.Context, gqlClient *githubv4.Client, 
 
 // listProjectStatusUpdates lists status updates for a project via GraphQL.
 func listProjectStatusUpdates(ctx context.Context, gqlClient *githubv4.Client, args map[string]any, owner, ownerType string) (*mcp.CallToolResult, any, error) {
+	if ownerType != "user" && ownerType != "org" {
+		return utils.NewToolResultError(fmt.Sprintf("invalid owner_type %q: must be \"user\" or \"org\"", ownerType)), nil, nil
+	}
+
 	projectNumber, err := RequiredInt(args, "project_number")
 	if err != nil {
 		return utils.NewToolResultError(err.Error()), nil, nil
@@ -2370,6 +2384,9 @@ func listProjectStatusUpdates(ctx context.Context, gqlClient *githubv4.Client, a
 		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 	if perPage > MaxProjectsPerPage {
+		perPage = MaxProjectsPerPage
+	}
+	if perPage < 1 {
 		perPage = MaxProjectsPerPage
 	}
 
