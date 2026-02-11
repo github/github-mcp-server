@@ -17,14 +17,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// WithSchemaCache sets a shared SchemaCache for the handler.
-// This avoids repeated schema reflection when a new MCP Server is created per request.
-func WithSchemaCache(cache *mcp.SchemaCache) HandlerOption {
-	return func(o *HandlerOptions) {
-		o.SchemaCache = cache
-	}
-}
-
 type InventoryFactoryFunc func(r *http.Request) (*inventory.Inventory, error)
 type GitHubMCPServerFactoryFunc func(r *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error)
 
@@ -80,6 +72,14 @@ func WithOAuthConfig(cfg *oauth.Config) HandlerOption {
 func WithFeatureChecker(checker inventory.FeatureFlagChecker) HandlerOption {
 	return func(o *HandlerOptions) {
 		o.FeatureChecker = checker
+	}
+}
+
+// WithSchemaCache sets a shared SchemaCache for the handler.
+// This avoids repeated schema reflection when a new MCP Server is created per request.
+func WithSchemaCache(cache *mcp.SchemaCache) HandlerOption {
+	return func(o *HandlerOptions) {
+		o.SchemaCache = cache
 	}
 }
 
