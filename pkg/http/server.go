@@ -21,7 +21,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // knownFeatureFlags are the feature flags that can be enabled via X-MCP-Features header.
@@ -135,12 +134,8 @@ func RunHTTPServer(cfg ServerConfig) error {
 		serverOptions = append(serverOptions, WithScopeFetcher(scopeFetcher))
 	}
 
-	// Create a shared schema cache to avoid repeated JSON schema reflection
-	// when a new MCP Server is created per request in stateless mode.
-	schemaCache := mcp.NewSchemaCache()
-
 	r := chi.NewRouter()
-	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger, apiHost, append(serverOptions, WithFeatureChecker(featureChecker), WithOAuthConfig(oauthCfg), WithSchemaCache(schemaCache))...)
+	handler := NewHTTPMcpHandler(ctx, &cfg, deps, t, logger, apiHost, append(serverOptions, WithFeatureChecker(featureChecker), WithOAuthConfig(oauthCfg))...)
 	oauthHandler, err := oauth.NewAuthHandler(oauthCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create OAuth handler: %w", err)

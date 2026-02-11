@@ -40,7 +40,6 @@ type HandlerOptions struct {
 	OAuthConfig            *oauth.Config
 	ScopeFetcher           scopes.FetcherInterface
 	FeatureChecker         inventory.FeatureFlagChecker
-	SchemaCache            *mcp.SchemaCache
 }
 
 type HandlerOption func(*HandlerOptions)
@@ -75,14 +74,6 @@ func WithFeatureChecker(checker inventory.FeatureFlagChecker) HandlerOption {
 	}
 }
 
-// WithSchemaCache sets a shared SchemaCache for the handler.
-// This avoids repeated schema reflection when a new MCP Server is created per request.
-func WithSchemaCache(cache *mcp.SchemaCache) HandlerOption {
-	return func(o *HandlerOptions) {
-		o.SchemaCache = cache
-	}
-}
-
 func NewHTTPMcpHandler(
 	ctx context.Context,
 	cfg *ServerConfig,
@@ -111,6 +102,10 @@ func NewHTTPMcpHandler(
 		inventoryFactory = DefaultInventoryFactory(cfg, t, opts.FeatureChecker, scopeFetcher)
 	}
 
+	// Create a shared schema cache to avoid repeated JSON schema reflection
+	// when a new MCP Server is created per request in stateless mode.
+	schemaCache := mcp.NewSchemaCache()
+
 	return &Handler{
 		ctx:                    ctx,
 		config:                 cfg,
@@ -122,7 +117,7 @@ func NewHTTPMcpHandler(
 		inventoryFactoryFunc:   inventoryFactory,
 		oauthCfg:               opts.OAuthConfig,
 		scopeFetcher:           scopeFetcher,
-		schemaCache:            opts.SchemaCache,
+		schemaCache:            schemaCache,
 	}
 }
 
