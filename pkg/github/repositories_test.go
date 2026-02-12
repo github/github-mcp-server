@@ -338,7 +338,7 @@ func Test_GetFileContents(t *testing.T) {
 					_, _ = w.Write(contentBytes)
 				},
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
 				"path":  "large-file.bin",

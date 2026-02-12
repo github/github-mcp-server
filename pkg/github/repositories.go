@@ -721,7 +721,7 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				pathParts := strings.Split(path, "/")
 				resourceURI, err := expandRepoResourceURI(owner, repo, sha, ref, pathParts)
 				if err != nil {
-					return utils.NewToolResultError("failed to get GitHub raw content client"), nil, nil
+					return utils.NewToolResultError("failed to build resource URI"), nil, nil
 				}
 
 				// main branch ref passed in ref parameter but it doesn't exist - default branch was used
