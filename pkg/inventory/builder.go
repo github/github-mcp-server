@@ -3,9 +3,8 @@ package inventory
 import (
 	"context"
 	"fmt"
-	"slices"
-	"sort"
 	"maps"
+	"slices"
 	"strings"
 )
 
