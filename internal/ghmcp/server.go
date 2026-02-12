@@ -347,6 +347,15 @@ func addUserAgentsMiddleware(cfg github.MCPServerConfig, restClient *gogithub.Cl
 			}
 
 			message := initializeRequest
+
+			// Debug log client capabilities for MCP Apps support diagnosis
+			if message.Params.Capabilities != nil {
+				slog.Info("client capabilities",
+					"experimental", message.Params.Capabilities.Experimental,
+					"client", message.Params.ClientInfo.Name,
+				)
+			}
+
 			userAgent := fmt.Sprintf(
 				"github-mcp-server/%s (%s/%s)",
 				cfg.Version,

@@ -2172,10 +2172,10 @@ func Test_CreatePullRequest(t *testing.T) {
 	}
 }
 
-// Test_CreatePullRequest_InsidersMode_NoUISupport verifies that when insiders
-// mode is enabled but the client does not support MCP Apps UI, the tool
-// executes directly instead of returning a "Ready to..." form message.
-func Test_CreatePullRequest_InsidersMode_NoUISupport(t *testing.T) {
+// Test_CreatePullRequest_InsidersMode_UIGate verifies the insiders mode UI gate
+// behavior: the first call returns a form-ready message, and a subsequent
+// call with _ui_submitted=true executes the action.
+func Test_CreatePullRequest_InsidersMode_UIGate(t *testing.T) {
 	t.Parallel()
 
 	mockPR := &github.PullRequest{
@@ -2200,23 +2200,39 @@ func Test_CreatePullRequest_InsidersMode_NoUISupport(t *testing.T) {
 	}
 	handler := serverTool.Handler(deps)
 
-	// Request has no session — simulates a client without MCP Apps support
-	request := createMCPRequest(map[string]interface{}{
-		"owner": "owner",
-		"repo":  "repo",
-		"title": "Test PR",
-		"head":  "feature",
-		"base":  "main",
-	})
-	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-	require.NoError(t, err)
-	require.NotNil(t, result)
+	t.Run("without _ui_submitted returns form message", func(t *testing.T) {
+		request := createMCPRequest(map[string]interface{}{
+			"owner": "owner",
+			"repo":  "repo",
+			"title": "Test PR",
+			"head":  "feature",
+			"base":  "main",
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
 
-	textContent := getTextResult(t, result)
-	assert.NotContains(t, textContent.Text, "interactive form will be displayed",
-		"tool should execute directly when client has no MCP Apps support")
-	assert.Contains(t, textContent.Text, "https://github.com/owner/repo/pull/42",
-		"tool should return the created PR URL")
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "Ready to create a pull request")
+		assert.Contains(t, textContent.Text, "_ui_submitted",
+			"message should instruct model to retry with _ui_submitted")
+	})
+
+	t.Run("with _ui_submitted executes directly", func(t *testing.T) {
+		request := createMCPRequest(map[string]interface{}{
+			"owner":         "owner",
+			"repo":          "repo",
+			"title":         "Test PR",
+			"head":          "feature",
+			"base":          "main",
+			"_ui_submitted": true,
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/pull/42",
+			"tool should return the created PR URL")
+	})
 }
 
 func TestCreateAndSubmitPullRequestReview(t *testing.T) {
