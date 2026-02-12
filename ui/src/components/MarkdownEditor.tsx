@@ -102,7 +102,7 @@ export function MarkdownEditor({
     if (!textarea) return;
 
     const { selectionStart, value: currentValue } = textarea;
-    
+
     // Get the current line
     const beforeCursor = currentValue.substring(0, selectionStart);
     const lastNewline = beforeCursor.lastIndexOf("\n");
@@ -138,7 +138,7 @@ export function MarkdownEditor({
 
     if (prefix) {
       e.preventDefault();
-      
+
       if (isEmpty) {
         // If just the list marker, remove it and exit list
         const newValue = currentValue.substring(0, lastNewline + 1) + currentValue.substring(selectionStart);
@@ -197,11 +197,8 @@ export function MarkdownEditor({
             sx={{
               fontWeight: viewMode === "write" ? "semibold" : "normal",
               color: viewMode === "write" ? "fg.default" : "fg.muted",
-              borderBottomWidth: 2,
-              borderBottomStyle: "solid",
-              borderBottomColor:
-                viewMode === "write" ? "accent.fg" : "transparent",
-              pb: 1,
+              bg: viewMode === "write" ? "actionListItem.default.hoverBg" : "transparent",
+              borderRadius: 2,
               "&:hover": {
                 color: "fg.default",
               },
@@ -216,11 +213,8 @@ export function MarkdownEditor({
             sx={{
               fontWeight: viewMode === "preview" ? "semibold" : "normal",
               color: viewMode === "preview" ? "fg.default" : "fg.muted",
-              borderBottomWidth: 2,
-              borderBottomStyle: "solid",
-              borderBottomColor:
-                viewMode === "preview" ? "accent.fg" : "transparent",
-              pb: 1,
+              bg: viewMode === "preview" ? "actionListItem.default.hoverBg" : "transparent",
+              borderRadius: 2,
               "&:hover": {
                 color: "fg.default",
               },
@@ -340,13 +334,15 @@ export function MarkdownEditor({
         />
       ) : (
         <Box
-          p={3}
           bg="canvas.default"
           sx={{
+            padding: "12px",
             minHeight,
             fontSize: 1,
-            lineHeight: 1.6,
+            lineHeight: 1.5,
             color: "fg.default",
+            // Remove top margin from first element so text aligns with write mode
+            "& > :first-child": { mt: 0 },
             // GitHub Flavored Markdown styles
             "& h1, & h2, & h3, & h4, & h5, & h6": {
               mt: 3,
@@ -417,8 +413,8 @@ export function MarkdownEditor({
               borderColor: "border.default",
               my: 3,
             },
-          }}
-        >
+          }}>
+
           {value ? (
             <Markdown remarkPlugins={[remarkGfm]}>{value}</Markdown>
           ) : (
