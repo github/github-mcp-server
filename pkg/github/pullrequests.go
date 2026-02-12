@@ -804,7 +804,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 					} `graphql:"repository(owner: $owner, name: $repo)"`
 				}
 
-				err = gqlClient.Query(ctx, &prQuery, map[string]interface{}{
+				err = gqlClient.Query(ctx, &prQuery, map[string]any{
 					"owner": githubv4.String(owner),
 					"repo":  githubv4.String(repo),
 					"prNum": githubv4.Int(pullNumber), // #nosec G115 - pull request numbers are always small positive integers

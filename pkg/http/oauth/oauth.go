@@ -236,8 +236,8 @@ func joinRoute(basePath, pattern string) string {
 	if pattern == "" {
 		return basePath
 	}
-	if strings.HasSuffix(basePath, "/") {
-		return strings.TrimSuffix(basePath, "/") + pattern
+	if before, ok := strings.CutSuffix(basePath, "/"); ok {
+		return before + pattern
 	}
 	return basePath + pattern
 }

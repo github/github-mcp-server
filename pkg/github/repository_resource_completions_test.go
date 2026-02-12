@@ -257,7 +257,7 @@ func TestRepositoryResourceCompletionHandler_MaxResults(t *testing.T) {
 	RepositoryResourceArgumentResolvers["owner"] = func(_ context.Context, _ *github.Client, _ map[string]string, _ string) ([]string, error) {
 		// Return 150 results
 		results := make([]string, 150)
-		for i := 0; i < 150; i++ {
+		for i := range 150 {
 			results[i] = fmt.Sprintf("user%d", i)
 		}
 		return results, nil

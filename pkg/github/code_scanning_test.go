@@ -41,7 +41,7 @@ func Test_GetCodeScanningAlert(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedAlert  *github.Alert
 		expectedErrMsg string
@@ -51,7 +51,7 @@ func Test_GetCodeScanningAlert(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposCodeScanningAlertsByOwnerByRepoByAlertNumber: mockResponse(t, http.StatusOK, mockAlert),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner":       "owner",
 				"repo":        "repo",
 				"alertNumber": float64(42),
@@ -67,7 +67,7 @@ func Test_GetCodeScanningAlert(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
 				}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner":       "owner",
 				"repo":        "repo",
 				"alertNumber": float64(9999),
@@ -158,7 +158,7 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedAlerts []*github.Alert
 		expectedErrMsg string
@@ -175,7 +175,7 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockAlerts),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner":     "owner",
 				"repo":      "repo",
 				"ref":       "main",
@@ -194,7 +194,7 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Unauthorized access"}`))
 				}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
 			},

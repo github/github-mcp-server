@@ -34,7 +34,7 @@ func Test_GetDependabotAlert(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedAlert  *github.DependabotAlert
 		expectedErrMsg string
@@ -44,7 +44,7 @@ func Test_GetDependabotAlert(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposDependabotAlertsByOwnerByRepoByAlertNumber: mockResponse(t, http.StatusOK, mockAlert),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner":       "owner",
 				"repo":        "repo",
 				"alertNumber": float64(42),
@@ -60,7 +60,7 @@ func Test_GetDependabotAlert(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
 				}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner":       "owner",
 				"repo":        "repo",
 				"alertNumber": float64(9999),
@@ -140,7 +140,7 @@ func Test_ListDependabotAlerts(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedAlerts []*github.DependabotAlert
 		expectedErrMsg string
@@ -154,7 +154,7 @@ func Test_ListDependabotAlerts(t *testing.T) {
 					mockResponse(t, http.StatusOK, []*github.DependabotAlert{&criticalAlert}),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
 				"state": "open",
@@ -171,7 +171,7 @@ func Test_ListDependabotAlerts(t *testing.T) {
 					mockResponse(t, http.StatusOK, []*github.DependabotAlert{&highSeverityAlert}),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner":    "owner",
 				"repo":     "repo",
 				"severity": "high",
@@ -186,7 +186,7 @@ func Test_ListDependabotAlerts(t *testing.T) {
 					mockResponse(t, http.StatusOK, []*github.DependabotAlert{&criticalAlert, &highSeverityAlert}),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
 			},
@@ -201,7 +201,7 @@ func Test_ListDependabotAlerts(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Unauthorized access"}`))
 				}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
 			},
