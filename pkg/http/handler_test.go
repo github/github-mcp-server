@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sort"
 	"testing"
 
@@ -273,8 +274,11 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 			var capturedInventory *inventory.Inventory
 			var capturedCtx context.Context
 
-			// Create feature checker that reads from context (same as production)
-			featureChecker := createHTTPFeatureChecker()
+			// Create feature checker that reads from context without whitelist validation
+			// (the whitelist is tested separately; here we test the filtering logic)
+			featureChecker := func(ctx context.Context, flag string) (bool, error) {
+				return slices.Contains(ghcontext.GetHeaderFeatures(ctx), flag), nil
+			}
 
 			apiHost, err := utils.NewAPIHost("https://api.github.com")
 			require.NoError(t, err)

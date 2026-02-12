@@ -25,10 +25,7 @@ import (
 
 // knownFeatureFlags are the feature flags that can be enabled via X-MCP-Features header.
 // Only these flags are accepted from headers.
-var knownFeatureFlags = []string{
-	github.FeatureFlagHoldbackConsolidatedProjects,
-	github.FeatureFlagHoldbackConsolidatedActions,
-}
+var knownFeatureFlags = []string{}
 
 type ServerConfig struct {
 	// Version of the server

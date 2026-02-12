@@ -291,10 +291,7 @@ func normalizedSimilarity(a, b string) float64 {
 	}
 
 	distance := fuzzy.LevenshteinDistance(a, b)
-	maxLen := len(a)
-	if len(b) > maxLen {
-		maxLen = len(b)
-	}
+	maxLen := max(len(b), len(a))
 
 	similarity := 1 - (float64(distance) / float64(maxLen))
 	if similarity < 0 {

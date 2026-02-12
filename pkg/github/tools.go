@@ -2,11 +2,12 @@ package github
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v82/github"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -242,21 +243,6 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ListDiscussionCategories(t),
 
 		// Actions tools
-		ListWorkflows(t),
-		ListWorkflowRuns(t),
-		GetWorkflowRun(t),
-		GetWorkflowRunLogs(t),
-		ListWorkflowJobs(t),
-		GetJobLogs(t),
-		ListWorkflowRunArtifacts(t),
-		DownloadWorkflowRunArtifact(t),
-		GetWorkflowRunUsage(t),
-		RunWorkflow(t),
-		RerunWorkflowRun(t),
-		RerunFailedJobs(t),
-		CancelWorkflowRun(t),
-		DeleteWorkflowRunLogs(t),
-		// Consolidated Actions tools (enabled via feature flag)
 		ActionsList(t),
 		ActionsGet(t),
 		ActionsRunTrigger(t),
@@ -275,17 +261,6 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		UpdateGist(t),
 
 		// Project tools
-		ListProjects(t),
-		GetProject(t),
-		ListProjectFields(t),
-		GetProjectField(t),
-		ListProjectItems(t),
-		GetProjectItem(t),
-		AddProjectItem(t),
-		DeleteProjectItem(t),
-		UpdateProjectItem(t),
-
-		// Consolidated project tools (enabled via feature flag)
 		ProjectsList(t),
 		ProjectsGet(t),
 		ProjectsWrite(t),
@@ -419,12 +394,7 @@ func RemoveToolset(tools []string, toRemove string) []string {
 }
 
 func ContainsToolset(tools []string, toCheck string) bool {
-	for _, tool := range tools {
-		if tool == toCheck {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(tools, toCheck)
 }
 
 // CleanTools cleans tool names by removing duplicates and trimming whitespace.
