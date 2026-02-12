@@ -3,6 +3,7 @@ package inventory
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -392,14 +393,7 @@ func stripInsidersMetaFromTool(tool ServerTool) *ServerTool {
 	toolCopy := tool
 	newMeta := make(map[string]any, len(tool.Tool.Meta))
 	for k, v := range tool.Tool.Meta {
-		isInsidersKey := false
-		for _, insidersKey := range insidersOnlyMetaKeys {
-			if k == insidersKey {
-				isInsidersKey = true
-				break
-			}
-		}
-		if !isInsidersKey {
+		if !slices.Contains(insidersOnlyMetaKeys, k) {
 			newMeta[k] = v
 		}
 	}

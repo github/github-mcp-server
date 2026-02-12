@@ -297,9 +297,9 @@ func createMCPRequest(args any) mcp.CallToolRequest {
 func createMCPRequestWithSession(t *testing.T, clientName string, args any) mcp.CallToolRequest {
 	t.Helper()
 
-	argsMap, ok := args.(map[string]interface{})
+	argsMap, ok := args.(map[string]any)
 	if !ok {
-		argsMap = make(map[string]interface{})
+		argsMap = make(map[string]any)
 	}
 	argsJSON, err := json.Marshal(argsMap)
 	require.NoError(t, err)

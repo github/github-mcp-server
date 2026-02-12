@@ -958,7 +958,7 @@ func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 	handler := serverTool.Handler(deps)
 
 	t.Run("UI client without _ui_submitted returns form message", func(t *testing.T) {
-		request := createMCPRequestWithSession(t, "Visual Studio Code - Insiders", map[string]interface{}{
+		request := createMCPRequestWithSession(t, "Visual Studio Code - Insiders", map[string]any{
 			"method": "create",
 			"owner":  "owner",
 			"repo":   "repo",
@@ -972,7 +972,7 @@ func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 	})
 
 	t.Run("UI client with _ui_submitted executes directly", func(t *testing.T) {
-		request := createMCPRequestWithSession(t, "Visual Studio Code - Insiders", map[string]interface{}{
+		request := createMCPRequestWithSession(t, "Visual Studio Code - Insiders", map[string]any{
 			"method":        "create",
 			"owner":         "owner",
 			"repo":          "repo",
