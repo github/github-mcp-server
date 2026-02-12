@@ -934,8 +934,7 @@ func Test_CreateIssue(t *testing.T) {
 }
 
 // Test_IssueWrite_InsidersMode_UIGate verifies the insiders mode UI gate
-// behavior: the first call returns a form-ready message, and a subsequent
-// call with _ui_submitted=true executes the action.
+// behavior: UI clients get a form message, non-UI clients execute directly.
 func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 	t.Parallel()
 
@@ -958,8 +957,8 @@ func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 	}
 	handler := serverTool.Handler(deps)
 
-	t.Run("without _ui_submitted returns form message", func(t *testing.T) {
-		request := createMCPRequest(map[string]interface{}{
+	t.Run("UI client without _ui_submitted returns form message", func(t *testing.T) {
+		request := createMCPRequestWithSession(t, "Visual Studio Code - Insiders", map[string]interface{}{
 			"method": "create",
 			"owner":  "owner",
 			"repo":   "repo",
@@ -970,12 +969,10 @@ func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 
 		textContent := getTextResult(t, result)
 		assert.Contains(t, textContent.Text, "Ready to create an issue")
-		assert.Contains(t, textContent.Text, "_ui_submitted",
-			"message should instruct model to retry with _ui_submitted")
 	})
 
-	t.Run("with _ui_submitted executes directly", func(t *testing.T) {
-		request := createMCPRequest(map[string]interface{}{
+	t.Run("UI client with _ui_submitted executes directly", func(t *testing.T) {
+		request := createMCPRequestWithSession(t, "Visual Studio Code - Insiders", map[string]interface{}{
 			"method":        "create",
 			"owner":         "owner",
 			"repo":          "repo",
@@ -988,6 +985,21 @@ func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 		textContent := getTextResult(t, result)
 		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
 			"tool should return the created issue URL")
+	})
+
+	t.Run("non-UI client executes directly without _ui_submitted", func(t *testing.T) {
+		request := createMCPRequest(map[string]interface{}{
+			"method": "create",
+			"owner":  "owner",
+			"repo":   "repo",
+			"title":  "Test",
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
+			"non-UI client should execute directly")
 	})
 }
 

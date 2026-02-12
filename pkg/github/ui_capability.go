@@ -2,25 +2,26 @@ package github
 
 import "github.com/modelcontextprotocol/go-sdk/mcp"
 
-// UIExtensionID is the MCP Apps extension identifier used for capability negotiation.
-// Clients advertise MCP Apps support by including this key in their capabilities.
-// See: https://github.com/modelcontextprotocol/ext-apps
-const UIExtensionID = "io.modelcontextprotocol/ui"
-
-// clientSupportsUI checks whether the client that sent this request supports
-// MCP Apps UI rendering. It inspects the client's experimental capabilities
-// for the MCP Apps extension identifier.
+// uiSupportedClients lists client names (from ClientInfo.Name) known to
+// support MCP Apps UI rendering.
 //
-// When the client does not support MCP Apps, tools should skip any UI-gated
-// flow (e.g., interactive forms) and execute the action directly.
+// This is a temporary workaround until the Go SDK adds an Extensions field
+// to ClientCapabilities (see https://github.com/modelcontextprotocol/go-sdk/issues/777).
+// Once that lands, detection should use capabilities.extensions instead.
+var uiSupportedClients = map[string]bool{
+	"Visual Studio Code - Insiders": true,
+	"Visual Studio Code":            true,
+}
+
+// clientSupportsUI reports whether the MCP client that sent this request
+// supports MCP Apps UI rendering, based on its ClientInfo.Name.
 func clientSupportsUI(req *mcp.CallToolRequest) bool {
 	if req == nil || req.Session == nil {
 		return false
 	}
 	params := req.Session.InitializeParams()
-	if params == nil || params.Capabilities == nil {
+	if params == nil || params.ClientInfo == nil {
 		return false
 	}
-	_, ok := params.Capabilities.Experimental[UIExtensionID]
-	return ok
+	return uiSupportedClients[params.ClientInfo.Name]
 }
