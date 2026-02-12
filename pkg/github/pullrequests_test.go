@@ -2172,6 +2172,82 @@ func Test_CreatePullRequest(t *testing.T) {
 	}
 }
 
+// Test_CreatePullRequest_InsidersMode_UIGate verifies the insiders mode UI gate
+// behavior: UI clients get a form message, non-UI clients execute directly.
+func Test_CreatePullRequest_InsidersMode_UIGate(t *testing.T) {
+	t.Parallel()
+
+	mockPR := &github.PullRequest{
+		Number:  github.Ptr(42),
+		Title:   github.Ptr("Test PR"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42"),
+		Head:    &github.PullRequestBranch{SHA: github.Ptr("abc"), Ref: github.Ptr("feature")},
+		Base:    &github.PullRequestBranch{SHA: github.Ptr("def"), Ref: github.Ptr("main")},
+		User:    &github.User{Login: github.Ptr("testuser")},
+	}
+
+	serverTool := CreatePullRequest(translations.NullTranslationHelper)
+
+	client := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		PostReposPullsByOwnerByRepo: mockResponse(t, http.StatusCreated, mockPR),
+	}))
+
+	deps := BaseDeps{
+		Client:    client,
+		GQLClient: githubv4.NewClient(nil),
+		Flags:     FeatureFlags{InsidersMode: true},
+	}
+	handler := serverTool.Handler(deps)
+
+	t.Run("UI client without _ui_submitted returns form message", func(t *testing.T) {
+		request := createMCPRequestWithSession(t, "Visual Studio Code", map[string]any{
+			"owner": "owner",
+			"repo":  "repo",
+			"title": "Test PR",
+			"head":  "feature",
+			"base":  "main",
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "Ready to create a pull request")
+	})
+
+	t.Run("UI client with _ui_submitted executes directly", func(t *testing.T) {
+		request := createMCPRequestWithSession(t, "Visual Studio Code", map[string]any{
+			"owner":         "owner",
+			"repo":          "repo",
+			"title":         "Test PR",
+			"head":          "feature",
+			"base":          "main",
+			"_ui_submitted": true,
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/pull/42",
+			"tool should return the created PR URL")
+	})
+
+	t.Run("non-UI client executes directly without _ui_submitted", func(t *testing.T) {
+		request := createMCPRequest(map[string]any{
+			"owner": "owner",
+			"repo":  "repo",
+			"title": "Test PR",
+			"head":  "feature",
+			"base":  "main",
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/pull/42",
+			"non-UI client should execute directly")
+	})
+}
+
 func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 	t.Parallel()
 

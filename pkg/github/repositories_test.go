@@ -78,18 +78,19 @@ func Test_GetFileContents(t *testing.T) {
 				GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
 				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
+					// Base64 encode the content as GitHub API does
+					encodedContent := base64.StdEncoding.EncodeToString(mockRawContent)
 					fileContent := &github.RepositoryContent{
-						Name: github.Ptr("README.md"),
-						Path: github.Ptr("README.md"),
-						SHA:  github.Ptr("abc123"),
-						Type: github.Ptr("file"),
+						Name:     github.Ptr("README.md"),
+						Path:     github.Ptr("README.md"),
+						SHA:      github.Ptr("abc123"),
+						Type:     github.Ptr("file"),
+						Content:  github.Ptr(encodedContent),
+						Size:     github.Ptr(len(mockRawContent)),
+						Encoding: github.Ptr("base64"),
 					}
 					contentBytes, _ := json.Marshal(fileContent)
 					_, _ = w.Write(contentBytes)
-				},
-				GetRawReposContentsByOwnerByRepoByBranchByPath: func(w http.ResponseWriter, _ *http.Request) {
-					w.Header().Set("Content-Type", "text/markdown")
-					_, _ = w.Write(mockRawContent)
 				},
 			}),
 			requestArgs: map[string]any{
@@ -102,28 +103,30 @@ func Test_GetFileContents(t *testing.T) {
 			expectedResult: mcp.ResourceContents{
 				URI:      "repo://owner/repo/refs/heads/main/contents/README.md",
 				Text:     "# Test Repository\n\nThis is a test repository.",
-				MIMEType: "text/markdown",
+				MIMEType: "text/plain; charset=utf-8",
 			},
 		},
 		{
-			name: "successful file blob content fetch",
+			name: "successful binary file content fetch (PNG)",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposGitRefByOwnerByRepoByRef: mockResponse(t, http.StatusOK, "{\"ref\": \"refs/heads/main\", \"object\": {\"sha\": \"\"}}"),
 				GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
 				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
+					// PNG magic bytes followed by some data
+					pngContent := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01")
+					encodedContent := base64.StdEncoding.EncodeToString(pngContent)
 					fileContent := &github.RepositoryContent{
-						Name: github.Ptr("test.png"),
-						Path: github.Ptr("test.png"),
-						SHA:  github.Ptr("def456"),
-						Type: github.Ptr("file"),
+						Name:     github.Ptr("test.png"),
+						Path:     github.Ptr("test.png"),
+						SHA:      github.Ptr("def456"),
+						Type:     github.Ptr("file"),
+						Content:  github.Ptr(encodedContent),
+						Size:     github.Ptr(len(pngContent)),
+						Encoding: github.Ptr("base64"),
 					}
 					contentBytes, _ := json.Marshal(fileContent)
 					_, _ = w.Write(contentBytes)
-				},
-				GetRawReposContentsByOwnerByRepoByBranchByPath: func(w http.ResponseWriter, _ *http.Request) {
-					w.Header().Set("Content-Type", "image/png")
-					_, _ = w.Write(mockRawContent)
 				},
 			}),
 			requestArgs: map[string]any{
@@ -135,29 +138,31 @@ func Test_GetFileContents(t *testing.T) {
 			expectError: false,
 			expectedResult: mcp.ResourceContents{
 				URI:      "repo://owner/repo/refs/heads/main/contents/test.png",
-				Blob:     mockRawContent,
+				Blob:     []byte(base64.StdEncoding.EncodeToString([]byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"))),
 				MIMEType: "image/png",
 			},
 		},
 		{
-			name: "successful PDF file content fetch",
+			name: "successful binary file content fetch (PDF)",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposGitRefByOwnerByRepoByRef: mockResponse(t, http.StatusOK, "{\"ref\": \"refs/heads/main\", \"object\": {\"sha\": \"\"}}"),
 				GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
 				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
+					// PDF magic bytes
+					pdfContent := []byte("%PDF-1.4 fake pdf content")
+					encodedContent := base64.StdEncoding.EncodeToString(pdfContent)
 					fileContent := &github.RepositoryContent{
-						Name: github.Ptr("document.pdf"),
-						Path: github.Ptr("document.pdf"),
-						SHA:  github.Ptr("pdf123"),
-						Type: github.Ptr("file"),
+						Name:     github.Ptr("document.pdf"),
+						Path:     github.Ptr("document.pdf"),
+						SHA:      github.Ptr("pdf123"),
+						Type:     github.Ptr("file"),
+						Content:  github.Ptr(encodedContent),
+						Size:     github.Ptr(len(pdfContent)),
+						Encoding: github.Ptr("base64"),
 					}
 					contentBytes, _ := json.Marshal(fileContent)
 					_, _ = w.Write(contentBytes)
-				},
-				GetRawReposContentsByOwnerByRepoByBranchByPath: func(w http.ResponseWriter, _ *http.Request) {
-					w.Header().Set("Content-Type", "application/pdf")
-					_, _ = w.Write(mockRawContent)
 				},
 			}),
 			requestArgs: map[string]any{
@@ -169,7 +174,7 @@ func Test_GetFileContents(t *testing.T) {
 			expectError: false,
 			expectedResult: mcp.ResourceContents{
 				URI:      "repo://owner/repo/refs/heads/main/contents/document.pdf",
-				Blob:     mockRawContent,
+				Blob:     []byte(base64.StdEncoding.EncodeToString([]byte("%PDF-1.4 fake pdf content"))),
 				MIMEType: "application/pdf",
 			},
 		},
@@ -200,18 +205,19 @@ func Test_GetFileContents(t *testing.T) {
 				GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
 				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
+					// Base64 encode the content as GitHub API does
+					encodedContent := base64.StdEncoding.EncodeToString(mockRawContent)
 					fileContent := &github.RepositoryContent{
-						Name: github.Ptr("README.md"),
-						Path: github.Ptr("README.md"),
-						SHA:  github.Ptr("abc123"),
-						Type: github.Ptr("file"),
+						Name:     github.Ptr("README.md"),
+						Path:     github.Ptr("README.md"),
+						SHA:      github.Ptr("abc123"),
+						Type:     github.Ptr("file"),
+						Content:  github.Ptr(encodedContent),
+						Size:     github.Ptr(len(mockRawContent)),
+						Encoding: github.Ptr("base64"),
 					}
 					contentBytes, _ := json.Marshal(fileContent)
 					_, _ = w.Write(contentBytes)
-				},
-				GetRawReposContentsByOwnerByRepoByBranchByPath: func(w http.ResponseWriter, _ *http.Request) {
-					w.Header().Set("Content-Type", "text/markdown")
-					_, _ = w.Write(mockRawContent)
 				},
 			}),
 			requestArgs: map[string]any{
@@ -224,7 +230,7 @@ func Test_GetFileContents(t *testing.T) {
 			expectedResult: mcp.ResourceContents{
 				URI:      "repo://owner/repo/refs/heads/main/contents/README.md",
 				Text:     "# Test Repository\n\nThis is a test repository.",
-				MIMEType: "text/markdown",
+				MIMEType: "text/plain; charset=utf-8",
 			},
 		},
 		{
@@ -239,7 +245,7 @@ func Test_GetFileContents(t *testing.T) {
 						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
 					case strings.Contains(path, "heads/develop"):
 						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write([]byte(`{"ref": "refs/heads/develop", "object": {"sha": "abc123def456", "type": "commit", "url": "https://api.github.com/repos/owner/repo/git/commits/abc123def456"}}`))
+						_, _ = w.Write([]byte(`{"ref": "refs/heads/develop", "object": {"sha": "abc123def456abc123def456abc123def456abc1", "type": "commit", "url": "https://api.github.com/repos/owner/repo/git/commits/abc123def456abc123def456abc123def456abc1"}}`))
 					default:
 						w.WriteHeader(http.StatusNotFound)
 						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
@@ -253,7 +259,7 @@ func Test_GetFileContents(t *testing.T) {
 						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
 					case strings.Contains(path, "heads/develop"):
 						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write([]byte(`{"ref": "refs/heads/develop", "object": {"sha": "abc123def456", "type": "commit", "url": "https://api.github.com/repos/owner/repo/git/commits/abc123def456"}}`))
+						_, _ = w.Write([]byte(`{"ref": "refs/heads/develop", "object": {"sha": "abc123def456abc123def456abc123def456abc1", "type": "commit", "url": "https://api.github.com/repos/owner/repo/git/commits/abc123def456abc123def456abc123def456abc1"}}`))
 					default:
 						w.WriteHeader(http.StatusNotFound)
 						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
@@ -267,7 +273,7 @@ func Test_GetFileContents(t *testing.T) {
 						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
 					case strings.Contains(path, "heads/develop"):
 						w.WriteHeader(http.StatusOK)
-						_, _ = w.Write([]byte(`{"ref": "refs/heads/develop", "object": {"sha": "abc123def456", "type": "commit", "url": "https://api.github.com/repos/owner/repo/git/commits/abc123def456"}}`))
+						_, _ = w.Write([]byte(`{"ref": "refs/heads/develop", "object": {"sha": "abc123def456abc123def456abc123def456abc1", "type": "commit", "url": "https://api.github.com/repos/owner/repo/git/commits/abc123def456abc123def456abc123def456abc1"}}`))
 					default:
 						w.WriteHeader(http.StatusNotFound)
 						_, _ = w.Write([]byte(`{"message": "Not Found"}`))
@@ -279,30 +285,23 @@ func Test_GetFileContents(t *testing.T) {
 				},
 				"GET /repos/owner/repo/git/ref/heads/develop": func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
-					_, _ = w.Write([]byte(`{"ref": "refs/heads/develop", "object": {"sha": "abc123def456", "type": "commit", "url": "https://api.github.com/repos/owner/repo/git/commits/abc123def456"}}`))
+					_, _ = w.Write([]byte(`{"ref": "refs/heads/develop", "object": {"sha": "abc123def456abc123def456abc123def456abc1", "type": "commit", "url": "https://api.github.com/repos/owner/repo/git/commits/abc123def456abc123def456abc123def456abc1"}}`))
 				},
 				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
 					w.WriteHeader(http.StatusOK)
+					// Base64 encode the content as GitHub API does
+					encodedContent := base64.StdEncoding.EncodeToString(mockRawContent)
 					fileContent := &github.RepositoryContent{
-						Name: github.Ptr("README.md"),
-						Path: github.Ptr("README.md"),
-						SHA:  github.Ptr("abc123"),
-						Type: github.Ptr("file"),
+						Name:     github.Ptr("README.md"),
+						Path:     github.Ptr("README.md"),
+						SHA:      github.Ptr("abc123"),
+						Type:     github.Ptr("file"),
+						Content:  github.Ptr(encodedContent),
+						Size:     github.Ptr(len(mockRawContent)),
+						Encoding: github.Ptr("base64"),
 					}
 					contentBytes, _ := json.Marshal(fileContent)
 					_, _ = w.Write(contentBytes)
-				},
-				"GET /owner/repo/refs/heads/develop/README.md": func(w http.ResponseWriter, _ *http.Request) {
-					w.Header().Set("Content-Type", "text/markdown")
-					_, _ = w.Write(mockRawContent)
-				},
-				"GET /owner/repo/refs%2Fheads%2Fdevelop/README.md": func(w http.ResponseWriter, _ *http.Request) {
-					w.Header().Set("Content-Type", "text/markdown")
-					_, _ = w.Write(mockRawContent)
-				},
-				"GET /owner/repo/abc123def456/README.md": func(w http.ResponseWriter, _ *http.Request) {
-					w.Header().Set("Content-Type", "text/markdown")
-					_, _ = w.Write(mockRawContent)
 				},
 			}),
 			requestArgs: map[string]any{
@@ -313,11 +312,44 @@ func Test_GetFileContents(t *testing.T) {
 			},
 			expectError: false,
 			expectedResult: mcp.ResourceContents{
-				URI:      "repo://owner/repo/abc123def456/contents/README.md",
+				URI:      "repo://owner/repo/sha/abc123def456abc123def456abc123def456abc1/contents/README.md",
 				Text:     "# Test Repository\n\nThis is a test repository.",
-				MIMEType: "text/markdown",
+				MIMEType: "text/plain; charset=utf-8",
 			},
 			expectedMsg: " Note: the provided ref 'main' does not exist, default branch 'refs/heads/develop' was used instead.",
+		},
+		{
+			name: "large file returns ResourceLink",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposGitRefByOwnerByRepoByRef: mockResponse(t, http.StatusOK, "{\"ref\": \"refs/heads/main\", \"object\": {\"sha\": \"\"}}"),
+				GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
+				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					// File larger than 1MB - Contents API returns metadata but no content
+					fileContent := &github.RepositoryContent{
+						Name:        github.Ptr("large-file.bin"),
+						Path:        github.Ptr("large-file.bin"),
+						SHA:         github.Ptr("largesha123"),
+						Type:        github.Ptr("file"),
+						Size:        github.Ptr(2 * 1024 * 1024), // 2MB
+						DownloadURL: github.Ptr("https://raw.githubusercontent.com/owner/repo/main/large-file.bin"),
+					}
+					contentBytes, _ := json.Marshal(fileContent)
+					_, _ = w.Write(contentBytes)
+				},
+			}),
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"path":  "large-file.bin",
+				"ref":   "refs/heads/main",
+			},
+			expectError: false,
+			expectedResult: &mcp.ResourceLink{
+				URI:   "repo://owner/repo/refs/heads/main/contents/large-file.bin",
+				Name:  "large-file.bin",
+				Title: "File: large-file.bin",
+			},
 		},
 		{
 			name: "content fetch fails",
@@ -395,6 +427,14 @@ func Test_GetFileContents(t *testing.T) {
 					assert.Equal(t, *expected[i].Path, *content.Path)
 					assert.Equal(t, *expected[i].Type, *content.Type)
 				}
+			case *mcp.ResourceLink:
+				// Large file returns a ResourceLink
+				require.Len(t, result.Content, 2)
+				resourceLink, ok := result.Content[1].(*mcp.ResourceLink)
+				require.True(t, ok, "expected Content[1] to be ResourceLink")
+				assert.Equal(t, expected.URI, resourceLink.URI)
+				assert.Equal(t, expected.Name, resourceLink.Name)
+				assert.Equal(t, expected.Title, resourceLink.Title)
 			case mcp.TextContent:
 				textContent := getErrorResult(t, result)
 				require.Equal(t, textContent, expected)

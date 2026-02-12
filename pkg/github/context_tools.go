@@ -15,6 +15,9 @@ import (
 	"github.com/shurcooL/githubv4"
 )
 
+// GetMeUIResourceURI is the URI for the get_me tool's MCP App UI resource.
+const GetMeUIResourceURI = "ui://github-mcp-server/get-me"
+
 // UserDetails contains additional fields about a GitHub user not already
 // present in MinimalUser. Used by get_me context tool but omitted from search_users.
 type UserDetails struct {
@@ -51,6 +54,11 @@ func GetMe(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// Use json.RawMessage to ensure "properties" is included even when empty.
 			// OpenAI strict mode requires the properties field to be present.
 			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+			Meta: mcp.Meta{
+				"ui": map[string]any{
+					"resourceUri": GetMeUIResourceURI,
+				},
+			},
 		},
 		nil,
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {

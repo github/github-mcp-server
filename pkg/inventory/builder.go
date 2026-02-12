@@ -42,6 +42,7 @@ type Builder struct {
 	featureChecker       FeatureFlagChecker
 	filters              []ToolFilter // filters to apply to all tools
 	generateInstructions bool
+	insidersMode         bool
 }
 
 // NewBuilder creates a new Builder.
@@ -134,6 +135,15 @@ func (b *Builder) WithFilter(filter ToolFilter) *Builder {
 	return b
 }
 
+// WithInsidersMode enables or disables insiders mode features.
+// When insiders mode is disabled (default), UI metadata is removed from tools
+// so clients won't attempt to load UI resources.
+// Returns self for chaining.
+func (b *Builder) WithInsidersMode(enabled bool) *Builder {
+	b.insidersMode = enabled
+	return b
+}
+
 // cleanTools trims whitespace and removes duplicates from tool names.
 // Empty strings after trimming are excluded.
 func cleanTools(tools []string) []string {
@@ -161,8 +171,14 @@ func cleanTools(tools []string) []string {
 // (i.e., they don't exist in the tool set and are not deprecated aliases).
 // This ensures invalid tool configurations fail fast at build time.
 func (b *Builder) Build() (*Inventory, error) {
+	// When insiders mode is disabled, strip insiders-only features from tools
+	tools := b.tools
+	if !b.insidersMode {
+		tools = stripInsidersFeatures(b.tools)
+	}
+
 	r := &Inventory{
-		tools:             b.tools,
+		tools:             tools,
 		resourceTemplates: b.resourceTemplates,
 		prompts:           b.prompts,
 		deprecatedAliases: b.deprecatedAliases,
@@ -175,9 +191,9 @@ func (b *Builder) Build() (*Inventory, error) {
 	r.enabledToolsets, r.unrecognizedToolsets, r.toolsetIDs, r.toolsetIDSet, r.defaultToolsetIDs, r.toolsetDescriptions = b.processToolsets()
 
 	// Build set of valid tool names for validation
-	validToolNames := make(map[string]bool, len(b.tools))
-	for i := range b.tools {
-		validToolNames[b.tools[i].Tool.Name] = true
+	validToolNames := make(map[string]bool, len(tools))
+	for i := range tools {
+		validToolNames[tools[i].Tool.Name] = true
 	}
 
 	// Process additional tools (clean, resolve aliases, and track unrecognized)
@@ -324,4 +340,66 @@ func (b *Builder) processToolsets() (map[ToolsetID]bool, []string, []ToolsetID, 
 		enabledToolsets[id] = true
 	}
 	return enabledToolsets, unrecognized, allToolsetIDs, validIDs, defaultToolsetIDList, descriptions
+}
+
+// insidersOnlyMetaKeys lists the Meta keys that are only available in insiders mode.
+// Add new experimental feature keys here to have them automatically stripped
+// when insiders mode is disabled.
+var insidersOnlyMetaKeys = []string{
+	"ui", // MCP Apps UI metadata
+}
+
+// stripInsidersFeatures removes insiders-only features from tools.
+// This includes removing tools marked with InsidersOnly and stripping
+// Meta keys listed in insidersOnlyMetaKeys from remaining tools.
+func stripInsidersFeatures(tools []ServerTool) []ServerTool {
+	result := make([]ServerTool, 0, len(tools))
+	for _, tool := range tools {
+		// Skip tools marked as insiders-only
+		if tool.InsidersOnly {
+			continue
+		}
+		if stripped := stripInsidersMetaFromTool(tool); stripped != nil {
+			result = append(result, *stripped)
+		} else {
+			result = append(result, tool)
+		}
+	}
+	return result
+}
+
+// stripInsidersMetaFromTool removes insiders-only Meta keys from a single tool.
+// Returns a modified copy if changes were made, nil otherwise.
+func stripInsidersMetaFromTool(tool ServerTool) *ServerTool {
+	if tool.Tool.Meta == nil {
+		return nil
+	}
+
+	// Check if any insiders-only keys exist
+	hasInsidersKeys := false
+	for _, key := range insidersOnlyMetaKeys {
+		if tool.Tool.Meta[key] != nil {
+			hasInsidersKeys = true
+			break
+		}
+	}
+	if !hasInsidersKeys {
+		return nil
+	}
+
+	// Make a shallow copy and remove insiders-only keys
+	toolCopy := tool
+	newMeta := make(map[string]any, len(tool.Tool.Meta))
+	for k, v := range tool.Tool.Meta {
+		if !slices.Contains(insidersOnlyMetaKeys, k) {
+			newMeta[k] = v
+		}
+	}
+
+	if len(newMeta) == 0 {
+		toolCopy.Tool.Meta = nil
+	} else {
+		toolCopy.Tool.Meta = newMeta
+	}
+	return &toolCopy
 }

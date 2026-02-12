@@ -1,0 +1,36 @@
+{
+  "name": "@github/mcp-server-ui",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MCP App UIs for github-mcp-server using Primer React",
+  "scripts": {
+    "build": "npm run build:get-me && npm run build:issue-write && npm run build:pr-write",
+    "build:get-me": "cross-env APP=get-me vite build",
+    "build:issue-write": "cross-env APP=issue-write vite build",
+    "build:pr-write": "cross-env APP=pr-write vite build",
+    "dev": "npm run build",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@github/markdown-toolbar-element": "^2.2.3",
+    "@modelcontextprotocol/ext-apps": "^1.0.0",
+    "@primer/octicons-react": "^19.0.0",
+    "@primer/react": "^36.0.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.0",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "cross-env": "^7.0.3",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "vite-plugin-singlefile": "^2.0.0"
+  }
+}

@@ -137,7 +137,8 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		WithToolsets(github.ResolvedEnabledToolsets(cfg.DynamicToolsets, cfg.EnabledToolsets, cfg.EnabledTools)).
 		WithTools(github.CleanTools(cfg.EnabledTools)).
 		WithServerInstructions().
-		WithFeatureChecker(featureChecker)
+		WithFeatureChecker(featureChecker).
+		WithInsidersMode(cfg.InsidersMode)
 
 	// Apply token scope filtering if scopes are known (for PAT filtering)
 	if cfg.TokenScopes != nil {
@@ -152,6 +153,13 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 	ghServer, err := github.NewMCPServer(ctx, &cfg, deps, inventory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub MCP server: %w", err)
+	}
+
+	// Register MCP App UI resources if available (requires running script/build-ui).
+	// We check availability to allow Insiders mode to work for non-UI features
+	// even when UI assets haven't been built.
+	if cfg.InsidersMode && github.UIAssetsAvailable() {
+		github.RegisterUIResources(ghServer)
 	}
 
 	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.rest, clients.gqlHTTP))
@@ -346,6 +354,9 @@ func addUserAgentsMiddleware(cfg github.MCPServerConfig, restClient *gogithub.Cl
 				message.Params.ClientInfo.Name,
 				message.Params.ClientInfo.Version,
 			)
+			if cfg.InsidersMode {
+				userAgent += " (insiders)"
+			}
 
 			restClient.UserAgent = userAgent
 

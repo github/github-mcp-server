@@ -2,6 +2,7 @@ package github
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -286,6 +287,44 @@ func createMCPRequest(args any) mcp.CallToolRequest {
 	return mcp.CallToolRequest{
 		Params: &mcp.CallToolParamsRaw{
 			Arguments: jsonRawMessage,
+		},
+	}
+}
+
+// createMCPRequestWithSession creates a CallToolRequest with a ServerSession
+// that has the given client name in its InitializeParams. This is used to test
+// UI capability detection based on ClientInfo.Name.
+func createMCPRequestWithSession(t *testing.T, clientName string, args any) mcp.CallToolRequest {
+	t.Helper()
+
+	argsMap, ok := args.(map[string]any)
+	if !ok {
+		argsMap = make(map[string]any)
+	}
+	argsJSON, err := json.Marshal(argsMap)
+	require.NoError(t, err)
+
+	srv := mcp.NewServer(&mcp.Implementation{Name: "test"}, nil)
+
+	st, _ := mcp.NewInMemoryTransports()
+	session, err := srv.Connect(context.Background(), st, &mcp.ServerSessionOptions{
+		State: &mcp.ServerSessionState{
+			InitializeParams: &mcp.InitializeParams{
+				ClientInfo: &mcp.Implementation{Name: clientName},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Close the unused client-side transport and session
+	t.Cleanup(func() {
+		_ = session.Close()
+	})
+
+	return mcp.CallToolRequest{
+		Session: session,
+		Params: &mcp.CallToolParamsRaw{
+			Arguments: json.RawMessage(argsJSON),
 		},
 	}
 }
