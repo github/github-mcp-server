@@ -28,6 +28,10 @@ conformance-report/
 ui/dist/
 ui/node_modules/
 
+# Playwright test artifacts
+ui/playwright-report/
+ui/test-results/
+
 # Embedded UI assets (built from ui/)
 pkg/github/ui_dist/*
 !pkg/github/ui_dist/.gitkeep

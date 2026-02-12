@@ -6,9 +6,8 @@ import { resolve } from "path";
 // Get the app to build from environment variable
 const app = process.env.APP;
 
-if (!app) {
-  throw new Error("APP environment variable must be set");
-}
+// In dev mode (no APP specified), serve all apps
+const isDev = !app;
 
 // Plugin to rename the output file and remove the nested directory structure
 function renameOutput(): Plugin {
