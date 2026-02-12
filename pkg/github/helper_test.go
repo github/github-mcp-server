@@ -51,6 +51,7 @@ const (
 	PostReposGitTreesByOwnerByRepo             = "POST /repos/{owner}/{repo}/git/trees"
 	GetReposCommitsStatusByOwnerByRepoByRef    = "GET /repos/{owner}/{repo}/commits/{ref}/status"
 	GetReposCommitsStatusesByOwnerByRepoByRef  = "GET /repos/{owner}/{repo}/commits/{ref}/statuses"
+	GetReposCommitsCheckRunsByOwnerByRepoByRef = "GET /repos/{owner}/{repo}/commits/{ref}/check-runs"
 
 	// Issues endpoints
 	GetReposIssuesByOwnerByRepoByIssueNumber                    = "GET /repos/{owner}/{repo}/issues/{issue_number}"
