@@ -545,7 +545,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			},
 		},
 		[]scopes.Scope{scopes.Repo},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -555,11 +555,13 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// When insiders mode is enabled, check if this is a UI form submission.
-			// The UI sends _ui_submitted=true to distinguish form submissions from LLM calls.
+			// When insiders mode is enabled and the client supports MCP Apps UI,
+			// check if this is a UI form submission. The UI sends _ui_submitted=true
+			// to distinguish form submissions from LLM calls.
+			// Clients without MCP Apps support skip this gate and execute directly.
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 
-			if deps.GetFlags(ctx).InsidersMode && !uiSubmitted {
+			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(req) && !uiSubmitted {
 				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. The interactive form will be displayed.", owner, repo)), nil, nil
 			}
 

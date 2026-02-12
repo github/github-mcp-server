@@ -933,6 +933,50 @@ func Test_CreateIssue(t *testing.T) {
 	}
 }
 
+// Test_IssueWrite_InsidersMode_NoUISupport verifies that when insiders mode is
+// enabled but the client does not support MCP Apps UI (no session or no UI
+// capability), the tool executes directly instead of returning a "Ready to..."
+// form message.
+func Test_IssueWrite_InsidersMode_NoUISupport(t *testing.T) {
+	t.Parallel()
+
+	mockIssue := &github.Issue{
+		Number:  github.Ptr(1),
+		Title:   github.Ptr("Test"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/1"),
+	}
+
+	serverTool := IssueWrite(translations.NullTranslationHelper)
+
+	client := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		PostReposIssuesByOwnerByRepo: mockResponse(t, http.StatusCreated, mockIssue),
+	}))
+
+	deps := BaseDeps{
+		Client:    client,
+		GQLClient: githubv4.NewClient(nil),
+		Flags:     FeatureFlags{InsidersMode: true},
+	}
+	handler := serverTool.Handler(deps)
+
+	// Request has no session — simulates a client without MCP Apps support
+	request := createMCPRequest(map[string]interface{}{
+		"method": "create",
+		"owner":  "owner",
+		"repo":   "repo",
+		"title":  "Test",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	textContent := getTextResult(t, result)
+	assert.NotContains(t, textContent.Text, "interactive form will be displayed",
+		"tool should execute directly when client has no MCP Apps support")
+	assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
+		"tool should return the created issue URL")
+}
+
 func Test_ListIssues(t *testing.T) {
 	// Verify tool definition
 	serverTool := ListIssues(translations.NullTranslationHelper)

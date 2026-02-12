@@ -1086,7 +1086,7 @@ Options are:
 			},
 		},
 		[]scopes.Scope{scopes.Repo},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -1101,12 +1101,14 @@ Options are:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// When insiders mode is enabled, check if this is a UI form submission.
-			// The UI sends _ui_submitted=true to distinguish form submissions from LLM calls.
-			// Without this flag, always show the UI so the user can review/edit before submitting.
+			// When insiders mode is enabled and the client supports MCP Apps UI,
+			// check if this is a UI form submission. The UI sends _ui_submitted=true
+			// to distinguish form submissions from LLM calls. Without this flag,
+			// show the UI so the user can review/edit before submitting.
+			// Clients without MCP Apps support skip this gate and execute directly.
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 
-			if deps.GetFlags(ctx).InsidersMode && !uiSubmitted {
+			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(req) && !uiSubmitted {
 				if method == "update" {
 					issueNumber, numErr := RequiredInt(args, "issue_number")
 					if numErr != nil {

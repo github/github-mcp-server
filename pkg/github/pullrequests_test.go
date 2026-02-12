@@ -2172,6 +2172,53 @@ func Test_CreatePullRequest(t *testing.T) {
 	}
 }
 
+// Test_CreatePullRequest_InsidersMode_NoUISupport verifies that when insiders
+// mode is enabled but the client does not support MCP Apps UI, the tool
+// executes directly instead of returning a "Ready to..." form message.
+func Test_CreatePullRequest_InsidersMode_NoUISupport(t *testing.T) {
+	t.Parallel()
+
+	mockPR := &github.PullRequest{
+		Number:  github.Ptr(42),
+		Title:   github.Ptr("Test PR"),
+		HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42"),
+		Head:    &github.PullRequestBranch{SHA: github.Ptr("abc"), Ref: github.Ptr("feature")},
+		Base:    &github.PullRequestBranch{SHA: github.Ptr("def"), Ref: github.Ptr("main")},
+		User:    &github.User{Login: github.Ptr("testuser")},
+	}
+
+	serverTool := CreatePullRequest(translations.NullTranslationHelper)
+
+	client := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		PostReposPullsByOwnerByRepo: mockResponse(t, http.StatusCreated, mockPR),
+	}))
+
+	deps := BaseDeps{
+		Client:    client,
+		GQLClient: githubv4.NewClient(nil),
+		Flags:     FeatureFlags{InsidersMode: true},
+	}
+	handler := serverTool.Handler(deps)
+
+	// Request has no session — simulates a client without MCP Apps support
+	request := createMCPRequest(map[string]interface{}{
+		"owner": "owner",
+		"repo":  "repo",
+		"title": "Test PR",
+		"head":  "feature",
+		"base":  "main",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	textContent := getTextResult(t, result)
+	assert.NotContains(t, textContent.Text, "interactive form will be displayed",
+		"tool should execute directly when client has no MCP Apps support")
+	assert.Contains(t, textContent.Text, "https://github.com/owner/repo/pull/42",
+		"tool should return the created PR URL")
+}
+
 func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 	t.Parallel()
 
