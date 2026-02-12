@@ -81,7 +81,7 @@ function SuccessView({
         borderStyle="solid"
         borderColor="border.default"
       >
-        <Box sx={{ color: "open.fg", flexShrink: 0, mt: "2px" }}>
+        <Box sx={{ color: "open.fg", flexShrink: 0, mt: "2px", mr: 1 }}>
           <GitPullRequestIcon size={16} />
         </Box>
         <Box sx={{ minWidth: 0 }}>

@@ -186,9 +186,10 @@ export function MarkdownEditor({
         borderBottomWidth={1}
         borderBottomStyle="solid"
         borderBottomColor="border.default"
+        overflow="hidden"
       >
         {/* Write/Preview tabs */}
-        <Box display="flex" gap={0}>
+        <Box display="flex" flexShrink={0} gap={0}>
           <Button
             size="small"
             variant="invisible"
@@ -200,7 +201,6 @@ export function MarkdownEditor({
               borderBottomStyle: "solid",
               borderBottomColor:
                 viewMode === "write" ? "accent.fg" : "transparent",
-              borderRadius: 0,
               pb: 1,
               "&:hover": {
                 color: "fg.default",
@@ -220,7 +220,6 @@ export function MarkdownEditor({
               borderBottomStyle: "solid",
               borderBottomColor:
                 viewMode === "preview" ? "accent.fg" : "transparent",
-              borderRadius: 0,
               pb: 1,
               "&:hover": {
                 color: "fg.default",
@@ -233,8 +232,8 @@ export function MarkdownEditor({
 
         {/* Toolbar - uses GitHub's official markdown-toolbar-element */}
         {viewMode === "write" && (
-          <markdown-toolbar for={textareaId}>
-            <Box display="flex" gap={0} alignItems="center">
+          <markdown-toolbar for={textareaId} style={{ display: "flex", overflow: "hidden", minWidth: 0, flexShrink: 1 }}>
+            <Box display="flex" gap={0} alignItems="center" sx={{ overflowX: "auto" }}>
               <md-bold>
                 <IconButton
                   icon={BoldIcon}
