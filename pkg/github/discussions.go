@@ -214,7 +214,7 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 				categoryID = &id
 			}
 
-			vars := map[string]interface{}{
+			vars := map[string]any{
 				"owner": githubv4.String(owner),
 				"repo":  githubv4.String(repo),
 				"first": githubv4.Int(*paginationParams.First),
@@ -256,9 +256,9 @@ func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool 
 			}
 
 			// Create response with pagination info
-			response := map[string]interface{}{
+			response := map[string]any{
 				"discussions": discussions,
-				"pageInfo": map[string]interface{}{
+				"pageInfo": map[string]any{
 					"hasNextPage":     pageInfo.HasNextPage,
 					"hasPreviousPage": pageInfo.HasPreviousPage,
 					"startCursor":     string(pageInfo.StartCursor),
@@ -338,7 +338,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 					} `graphql:"discussion(number: $discussionNumber)"`
 				} `graphql:"repository(owner: $owner, name: $repo)"`
 			}
-			vars := map[string]interface{}{
+			vars := map[string]any{
 				"owner":            githubv4.String(params.Owner),
 				"repo":             githubv4.String(params.Repo),
 				"discussionNumber": githubv4.Int(params.DiscussionNumber),
@@ -352,7 +352,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// The go-github library's Discussion type lacks isAnswered and answerChosenAt fields,
 			// so we use map[string]interface{} for the response (consistent with other functions
 			// like ListDiscussions and GetDiscussionComments).
-			response := map[string]interface{}{
+			response := map[string]any{
 				"number":     int(d.Number),
 				"title":      string(d.Title),
 				"body":       string(d.Body),
@@ -360,7 +360,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 				"closed":     bool(d.Closed),
 				"isAnswered": bool(d.IsAnswered),
 				"createdAt":  d.CreatedAt.Time,
-				"category": map[string]interface{}{
+				"category": map[string]any{
 					"name": string(d.Category.Name),
 				},
 			}
@@ -465,7 +465,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 					} `graphql:"discussion(number: $discussionNumber)"`
 				} `graphql:"repository(owner: $owner, name: $repo)"`
 			}
-			vars := map[string]interface{}{
+			vars := map[string]any{
 				"owner":            githubv4.String(params.Owner),
 				"repo":             githubv4.String(params.Repo),
 				"discussionNumber": githubv4.Int(params.DiscussionNumber),
@@ -486,9 +486,9 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 			}
 
 			// Create response with pagination info
-			response := map[string]interface{}{
+			response := map[string]any{
 				"comments": comments,
-				"pageInfo": map[string]interface{}{
+				"pageInfo": map[string]any{
 					"hasNextPage":     q.Repository.Discussion.Comments.PageInfo.HasNextPage,
 					"hasPreviousPage": q.Repository.Discussion.Comments.PageInfo.HasPreviousPage,
 					"startCursor":     string(q.Repository.Discussion.Comments.PageInfo.StartCursor),
@@ -570,7 +570,7 @@ func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.Se
 					} `graphql:"discussionCategories(first: $first)"`
 				} `graphql:"repository(owner: $owner, name: $repo)"`
 			}
-			vars := map[string]interface{}{
+			vars := map[string]any{
 				"owner": githubv4.String(owner),
 				"repo":  githubv4.String(repo),
 				"first": githubv4.Int(25),
@@ -588,9 +588,9 @@ func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.Se
 			}
 
 			// Create response with pagination info
-			response := map[string]interface{}{
+			response := map[string]any{
 				"categories": categories,
-				"pageInfo": map[string]interface{}{
+				"pageInfo": map[string]any{
 					"hasNextPage":     q.Repository.DiscussionCategories.PageInfo.HasNextPage,
 					"hasPreviousPage": q.Repository.DiscussionCategories.PageInfo.HasPreviousPage,
 					"startCursor":     string(q.Repository.DiscussionCategories.PageInfo.StartCursor),

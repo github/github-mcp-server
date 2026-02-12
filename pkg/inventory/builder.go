@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"maps"
 	"strings"
 )
 
@@ -74,9 +75,7 @@ func (b *Builder) SetPrompts(prompts []ServerPrompt) *Builder {
 // WithDeprecatedAliases adds deprecated tool name aliases that map to canonical names.
 // Returns self for chaining.
 func (b *Builder) WithDeprecatedAliases(aliases map[string]string) *Builder {
-	for oldName, newName := range aliases {
-		b.deprecatedAliases[oldName] = newName
-	}
+	maps.Copy(b.deprecatedAliases, aliases)
 	return b
 }
 
@@ -281,13 +280,13 @@ func (b *Builder) processToolsets() (map[ToolsetID]bool, []string, []ToolsetID, 
 	for id := range validIDs {
 		allToolsetIDs = append(allToolsetIDs, id)
 	}
-	sort.Slice(allToolsetIDs, func(i, j int) bool { return allToolsetIDs[i] < allToolsetIDs[j] })
+	slices.Sort(allToolsetIDs)
 
 	defaultToolsetIDList := make([]ToolsetID, 0, len(defaultIDs))
 	for id := range defaultIDs {
 		defaultToolsetIDList = append(defaultToolsetIDList, id)
 	}
-	sort.Slice(defaultToolsetIDList, func(i, j int) bool { return defaultToolsetIDList[i] < defaultToolsetIDList[j] })
+	slices.Sort(defaultToolsetIDList)
 
 	toolsetIDs := b.toolsetIDs
 

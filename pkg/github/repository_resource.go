@@ -257,3 +257,54 @@ func RepositoryResourceContentsHandler(resourceURITemplate *uritemplate.Template
 		}
 	}
 }
+
+// expandRepoResourceURI builds a resource URI using the appropriate URI template
+// based on the provided parameters (sha, ref, or default).
+func expandRepoResourceURI(owner, repo, sha, ref string, pathParts []string) (string, error) {
+	baseValues := uritemplate.Values{
+		"owner": uritemplate.String(owner),
+		"repo":  uritemplate.String(repo),
+		"path":  uritemplate.List(pathParts...),
+	}
+
+	switch {
+	case sha != "":
+		baseValues["sha"] = uritemplate.String(sha)
+		return repositoryResourceCommitContentURITemplate.Expand(baseValues)
+
+	case ref != "":
+		// Parse ref to determine which template to use
+		switch {
+		case strings.HasPrefix(ref, "refs/heads/"):
+			branch := strings.TrimPrefix(ref, "refs/heads/")
+			baseValues["branch"] = uritemplate.String(branch)
+			return repositoryResourceBranchContentURITemplate.Expand(baseValues)
+
+		case strings.HasPrefix(ref, "refs/tags/"):
+			tag := strings.TrimPrefix(ref, "refs/tags/")
+			baseValues["tag"] = uritemplate.String(tag)
+			return repositoryResourceTagContentURITemplate.Expand(baseValues)
+
+		case strings.HasPrefix(ref, "refs/pull/") && strings.HasSuffix(ref, "/head"):
+			// Extract PR number from "refs/pull/{number}/head"
+			prPart := strings.TrimPrefix(ref, "refs/pull/")
+			prNumber := strings.TrimSuffix(prPart, "/head")
+			baseValues["prNumber"] = uritemplate.String(prNumber)
+			return repositoryResourcePrContentURITemplate.Expand(baseValues)
+
+		case looksLikeSHA(ref):
+			// ref is actually a SHA (e.g., from resolveGitReference)
+			baseValues["sha"] = uritemplate.String(ref)
+			return repositoryResourceCommitContentURITemplate.Expand(baseValues)
+
+		default:
+			// For other refs (like a branch name without refs/heads/ prefix),
+			// treat it as a branch
+			baseValues["branch"] = uritemplate.String(ref)
+			return repositoryResourceBranchContentURITemplate.Expand(baseValues)
+		}
+
+	default:
+		return repositoryResourceContentURITemplate.Expand(baseValues)
+	}
+}

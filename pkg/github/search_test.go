@@ -59,7 +59,7 @@ func Test_SearchRepositories(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedResult *github.RepositoriesSearchResult
 		expectedErrMsg string
@@ -77,7 +77,7 @@ func Test_SearchRepositories(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query":   "golang test",
 				"sort":    "stars",
 				"order":   "desc",
@@ -98,7 +98,7 @@ func Test_SearchRepositories(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "golang test",
 			},
 			expectError:    false,
@@ -112,7 +112,7 @@ func Test_SearchRepositories(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Invalid query"}`))
 				}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "invalid:query",
 			},
 			expectError:    true,
@@ -201,7 +201,7 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 	}
 	handler := serverTool.Handler(deps)
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"query":          "golang test",
 		"minimal_output": false,
 	}
@@ -271,7 +271,7 @@ func Test_SearchCode(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedResult *github.CodeSearchResult
 		expectedErrMsg string
@@ -289,7 +289,7 @@ func Test_SearchCode(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query":   "fmt.Println language:go",
 				"sort":    "indexed",
 				"order":   "desc",
@@ -310,7 +310,7 @@ func Test_SearchCode(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "fmt.Println language:go",
 			},
 			expectError:    false,
@@ -324,7 +324,7 @@ func Test_SearchCode(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
 				}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "invalid:query",
 			},
 			expectError:    true,
@@ -422,7 +422,7 @@ func Test_SearchUsers(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedResult *github.UsersSearchResult
 		expectedErrMsg string
@@ -440,7 +440,7 @@ func Test_SearchUsers(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query":   "location:finland language:go",
 				"sort":    "followers",
 				"order":   "desc",
@@ -461,7 +461,7 @@ func Test_SearchUsers(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "location:finland language:go",
 			},
 			expectError:    false,
@@ -478,7 +478,7 @@ func Test_SearchUsers(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "type:user location:seattle followers:>100",
 			},
 			expectError:    false,
@@ -495,7 +495,7 @@ func Test_SearchUsers(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "type:user (location:seattle OR location:california) followers:>50",
 			},
 			expectError:    false,
@@ -509,7 +509,7 @@ func Test_SearchUsers(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
 				}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "invalid:query",
 			},
 			expectError:    true,
@@ -608,7 +608,7 @@ func Test_SearchOrgs(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedResult *github.UsersSearchResult
 		expectedErrMsg string
@@ -624,7 +624,7 @@ func Test_SearchOrgs(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "github",
 			},
 			expectError:    false,
@@ -641,7 +641,7 @@ func Test_SearchOrgs(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "type:org location:california followers:>1000",
 			},
 			expectError:    false,
@@ -658,7 +658,7 @@ func Test_SearchOrgs(t *testing.T) {
 					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "type:org (location:seattle OR location:california OR location:newyork) repos:>10",
 			},
 			expectError:    false,
@@ -672,7 +672,7 @@ func Test_SearchOrgs(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
 				}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"query": "invalid:query",
 			},
 			expectError:    true,

@@ -63,7 +63,7 @@ func Test_GetRepositoryTree(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedErrMsg string
 	}{
@@ -73,7 +73,7 @@ func Test_GetRepositoryTree(t *testing.T) {
 				GetReposByOwnerByRepo:               mockResponse(t, http.StatusOK, mockRepo),
 				GetReposGitTreesByOwnerByRepoByTree: mockResponse(t, http.StatusOK, mockTree),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
 			},
@@ -84,7 +84,7 @@ func Test_GetRepositoryTree(t *testing.T) {
 				GetReposByOwnerByRepo:               mockResponse(t, http.StatusOK, mockRepo),
 				GetReposGitTreesByOwnerByRepoByTree: mockResponse(t, http.StatusOK, mockTree),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner":       "owner",
 				"repo":        "repo",
 				"path_filter": "src/",
@@ -98,7 +98,7 @@ func Test_GetRepositoryTree(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
 				}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner": "owner",
 				"repo":  "nonexistent",
 			},
@@ -114,7 +114,7 @@ func Test_GetRepositoryTree(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
 				}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
 			},
@@ -149,7 +149,7 @@ func Test_GetRepositoryTree(t *testing.T) {
 				textContent := getTextResult(t, result)
 
 				// Parse the JSON response
-				var treeResponse map[string]interface{}
+				var treeResponse map[string]any
 				err := json.Unmarshal([]byte(textContent.Text), &treeResponse)
 				require.NoError(t, err)
 
@@ -163,9 +163,9 @@ func Test_GetRepositoryTree(t *testing.T) {
 
 				// Check filtering if path_filter was provided
 				if pathFilter, exists := tc.requestArgs["path_filter"]; exists {
-					tree := treeResponse["tree"].([]interface{})
+					tree := treeResponse["tree"].([]any)
 					for _, entry := range tree {
-						entryMap := entry.(map[string]interface{})
+						entryMap := entry.(map[string]any)
 						path := entryMap["path"].(string)
 						assert.True(t, strings.HasPrefix(path, pathFilter.(string)),
 							"Path %s should start with filter %s", path, pathFilter)

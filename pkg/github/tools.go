@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -393,12 +394,7 @@ func RemoveToolset(tools []string, toRemove string) []string {
 }
 
 func ContainsToolset(tools []string, toCheck string) bool {
-	for _, tool := range tools {
-		if tool == toCheck {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(tools, toCheck)
 }
 
 // CleanTools cleans tool names by removing duplicates and trimming whitespace.
