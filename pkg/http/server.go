@@ -114,6 +114,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 		t,
 		cfg.ContentWindowSize,
 		featureChecker,
+		logger,
 	)
 
 	// Initialize the global tool scope map
