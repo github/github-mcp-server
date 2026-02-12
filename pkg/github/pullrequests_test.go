@@ -2232,7 +2232,7 @@ func Test_CreatePullRequest_InsidersMode_UIGate(t *testing.T) {
 	})
 
 	t.Run("non-UI client executes directly without _ui_submitted", func(t *testing.T) {
-		request := createMCPRequest(map[string]interface{}{
+		request := createMCPRequest(map[string]any{
 			"owner": "owner",
 			"repo":  "repo",
 			"title": "Test PR",

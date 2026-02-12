@@ -988,7 +988,7 @@ func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 	})
 
 	t.Run("non-UI client executes directly without _ui_submitted", func(t *testing.T) {
-		request := createMCPRequest(map[string]interface{}{
+		request := createMCPRequest(map[string]any{
 			"method": "create",
 			"owner":  "owner",
 			"repo":   "repo",
