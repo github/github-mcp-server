@@ -26,6 +26,13 @@ func WithPATScopes(logger *slog.Logger, scopeFetcher scopes.FetcherInterface) fu
 			// Only classic PATs (ghp_ prefix) return OAuth scopes via X-OAuth-Scopes header.
 			// Fine-grained PATs and other token types don't support this, so we skip filtering.
 			if tokenInfo.TokenType == utils.TokenTypePersonalAccessToken {
+				existingScopes, ok := ghcontext.GetTokenScopes(ctx)
+				if ok {
+					logger.Debug("using existing scopes from context", "scopes", existingScopes)
+					next.ServeHTTP(w, r)
+					return
+				}
+
 				scopesList, err := scopeFetcher.FetchTokenScopes(ctx, tokenInfo.Token)
 				if err != nil {
 					logger.Warn("failed to fetch PAT scopes", "error", err)
@@ -33,11 +40,8 @@ func WithPATScopes(logger *slog.Logger, scopeFetcher scopes.FetcherInterface) fu
 					return
 				}
 
-				tokenInfo.Scopes = scopesList
-				tokenInfo.ScopesFetched = true
-
 				// Store fetched scopes in context for downstream use
-				ctx := ghcontext.WithTokenInfo(ctx, tokenInfo)
+				ctx = ghcontext.WithTokenScopes(ctx, scopesList)
 
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return

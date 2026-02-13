@@ -111,12 +111,13 @@ func TestWithPATScopes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var capturedTokenInfo *ghcontext.TokenInfo
+			var capturedScopes []string
+			var scopesFound bool
 			var nextHandlerCalled bool
 
 			nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				nextHandlerCalled = true
-				capturedTokenInfo, _ = ghcontext.GetTokenInfo(r.Context())
+				capturedScopes, scopesFound = ghcontext.GetTokenScopes(r.Context())
 				w.WriteHeader(http.StatusOK)
 			})
 
@@ -141,10 +142,9 @@ func TestWithPATScopes(t *testing.T) {
 
 			assert.Equal(t, tt.expectNextHandlerCalled, nextHandlerCalled, "next handler called mismatch")
 
-			if tt.expectNextHandlerCalled && tt.tokenInfo != nil {
-				require.NotNil(t, capturedTokenInfo, "expected token info in context")
-				assert.Equal(t, tt.expectScopesFetched, capturedTokenInfo.ScopesFetched)
-				assert.Equal(t, tt.expectedScopes, capturedTokenInfo.Scopes)
+			if tt.expectNextHandlerCalled {
+				assert.Equal(t, tt.expectScopesFetched, scopesFound, "scopes found mismatch")
+				assert.Equal(t, tt.expectedScopes, capturedScopes)
 			}
 		})
 	}
@@ -154,9 +154,12 @@ func TestWithPATScopes_PreservesExistingTokenInfo(t *testing.T) {
 	logger := slog.Default()
 
 	var capturedTokenInfo *ghcontext.TokenInfo
+	var capturedScopes []string
+	var scopesFound bool
 
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedTokenInfo, _ = ghcontext.GetTokenInfo(r.Context())
+		capturedScopes, scopesFound = ghcontext.GetTokenScopes(r.Context())
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -182,6 +185,6 @@ func TestWithPATScopes_PreservesExistingTokenInfo(t *testing.T) {
 	require.NotNil(t, capturedTokenInfo)
 	assert.Equal(t, originalTokenInfo.Token, capturedTokenInfo.Token)
 	assert.Equal(t, originalTokenInfo.TokenType, capturedTokenInfo.TokenType)
-	assert.True(t, capturedTokenInfo.ScopesFetched)
-	assert.Equal(t, []string{"repo", "user"}, capturedTokenInfo.Scopes)
+	assert.True(t, scopesFound)
+	assert.Equal(t, []string{"repo", "user"}, capturedScopes)
 }
