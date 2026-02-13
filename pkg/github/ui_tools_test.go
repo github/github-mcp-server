@@ -8,7 +8,7 @@ import (
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,23 +43,23 @@ func Test_UIGet(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedErrMsg string
-		validateResult func(t *testing.T, response map[string]interface{})
+		validateResult func(t *testing.T, response map[string]any)
 	}{
 		{
 			name: "successful assignees fetch",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				"GET /repos/owner/repo/assignees": mockResponse(t, http.StatusOK, mockAssignees),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method": "assignees",
 				"owner":  "owner",
 				"repo":   "repo",
 			},
 			expectError: false,
-			validateResult: func(t *testing.T, response map[string]interface{}) {
+			validateResult: func(t *testing.T, response map[string]any) {
 				assert.Contains(t, response, "assignees")
 				assert.Contains(t, response, "totalCount")
 			},
@@ -69,13 +69,13 @@ func Test_UIGet(t *testing.T) {
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				"GET /repos/owner/repo/branches": mockResponse(t, http.StatusOK, mockBranches),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method": "branches",
 				"owner":  "owner",
 				"repo":   "repo",
 			},
 			expectError: false,
-			validateResult: func(t *testing.T, response map[string]interface{}) {
+			validateResult: func(t *testing.T, response map[string]any) {
 				assert.Contains(t, response, "branches")
 				assert.Contains(t, response, "totalCount")
 			},
@@ -83,7 +83,7 @@ func Test_UIGet(t *testing.T) {
 		{
 			name:         "missing method parameter",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
 			},
@@ -93,7 +93,7 @@ func Test_UIGet(t *testing.T) {
 		{
 			name:         "missing owner parameter",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method": "assignees",
 				"repo":   "repo",
 			},
@@ -103,7 +103,7 @@ func Test_UIGet(t *testing.T) {
 		{
 			name:         "missing repo parameter for assignees",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method": "assignees",
 				"owner":  "owner",
 			},
@@ -113,7 +113,7 @@ func Test_UIGet(t *testing.T) {
 		{
 			name:         "unknown method",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method": "unknown",
 				"owner":  "owner",
 				"repo":   "repo",
@@ -156,7 +156,7 @@ func Test_UIGet(t *testing.T) {
 			require.False(t, result.IsError)
 			textContent := getTextResult(t, result)
 
-			var response map[string]interface{}
+			var response map[string]any
 			err = json.Unmarshal([]byte(textContent.Text), &response)
 			require.NoError(t, err)
 

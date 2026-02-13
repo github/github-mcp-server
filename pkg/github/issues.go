@@ -18,7 +18,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -48,7 +48,7 @@ const (
 // When duplicateOf is non-zero, it fetches both the main issue and duplicate issue IDs in a single query.
 func fetchIssueIDs(ctx context.Context, gqlClient *githubv4.Client, owner, repo string, issueNumber int, duplicateOf int) (githubv4.ID, githubv4.ID, error) {
 	// Build query variables common to both cases
-	vars := map[string]interface{}{
+	vars := map[string]any{
 		"owner":       githubv4.String(owner),
 		"repo":        githubv4.String(repo),
 		"issueNumber": githubv4.Int(issueNumber), // #nosec G115 - issue numbers are always small positive integers
@@ -1086,7 +1086,7 @@ Options are:
 			},
 		},
 		[]scopes.Scope{scopes.Repo},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -1101,20 +1101,20 @@ Options are:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// When insiders mode is enabled, check if this is a UI form submission.
-			// The UI sends _ui_submitted=true to distinguish form submissions from LLM calls.
-			// Without this flag, always show the UI so the user can review/edit before submitting.
+			// When insiders mode is enabled and the client supports MCP Apps UI,
+			// check if this is a UI form submission. The UI sends _ui_submitted=true
+			// to distinguish form submissions from LLM calls.
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 
-			if deps.GetFlags(ctx).InsidersMode && !uiSubmitted {
+			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(req) && !uiSubmitted {
 				if method == "update" {
 					issueNumber, numErr := RequiredInt(args, "issue_number")
 					if numErr != nil {
 						return utils.NewToolResultError("issue_number is required for update method"), nil, nil
 					}
-					return utils.NewToolResultText(fmt.Sprintf("Ready to update issue #%d in %s/%s. The interactive form will be displayed.", issueNumber, owner, repo)), nil, nil
+					return utils.NewToolResultText(fmt.Sprintf("Ready to update issue #%d in %s/%s. The user will review and confirm via the interactive form.", issueNumber, owner, repo)), nil, nil
 				}
-				return utils.NewToolResultText(fmt.Sprintf("Ready to create an issue in %s/%s. The interactive form will be displayed.", owner, repo)), nil, nil
+				return utils.NewToolResultText(fmt.Sprintf("Ready to create an issue in %s/%s. The user will review and confirm via the interactive form.", owner, repo)), nil, nil
 			}
 
 			title, err := OptionalParam[string](args, "title")
@@ -1546,7 +1546,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
 
-			vars := map[string]interface{}{
+			vars := map[string]any{
 				"owner":     githubv4.String(owner),
 				"repo":      githubv4.String(repo),
 				"states":    states,
@@ -1605,9 +1605,9 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			// Create response with issues
-			response := map[string]interface{}{
+			response := map[string]any{
 				"issues": issues,
-				"pageInfo": map[string]interface{}{
+				"pageInfo": map[string]any{
 					"hasNextPage":     pageInfo.HasNextPage,
 					"hasPreviousPage": pageInfo.HasPreviousPage,
 					"startCursor":     string(pageInfo.StartCursor),
