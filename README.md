@@ -983,9 +983,9 @@ The following sets of tools are available:
   - `fields`: Specific list of field IDs to include in the response when getting a project item (e.g. ["102589", "985201", "169875"]). If not provided, only the title field is included. Only used for 'get_project_item' method. (string[], optional)
   - `item_id`: The item's ID. Required for 'get_project_item' method. (number, optional)
   - `method`: The method to execute (string, required)
-  - `owner`: The owner (user or organization login). The name is not case sensitive. (string, required)
+  - `owner`: The owner (user or organization login). The name is not case sensitive. (string, optional)
   - `owner_type`: Owner type (user or org). If not provided, will be automatically detected. (string, optional)
-  - `project_number`: The project's number. (number, required)
+  - `project_number`: The project's number. (number, optional)
   - `status_update_id`: The node ID of the project status update. Required for 'get_project_status_update' method. (string, optional)
 
 - **projects_list** - List GitHub Projects resources
