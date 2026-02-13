@@ -669,7 +669,19 @@ function CreateIssueApp() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [title, body, owner, repo, selectedLabels, selectedAssignees, selectedMilestone, selectedIssueType, callTool]);
+  }, [
+    title,
+    body,
+    owner,
+    repo,
+    selectedLabels,
+    selectedAssignees,
+    selectedMilestone,
+    selectedIssueType,
+    isUpdateMode,
+    issueNumber,
+    callTool,
+  ]);
 
   // Filtered items for dropdowns
   const filteredLabels = useMemo(() => {
