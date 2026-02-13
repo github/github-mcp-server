@@ -39,6 +39,8 @@ func generateProjectsToolsetInstructions(_ *inventory.Inventory) string {
 
 Workflow: 1) list_project_fields (get field IDs), 2) list_project_items (with pagination), 3) optional updates.
 
+Status updates: Use list_project_status_updates to read recent project status updates (newest first). Use get_project_status_update with a node ID to get a single update. Use create_project_status_update to create a new status update for a project.
+
 Field usage:
 	- Call list_project_fields first to understand available fields and get IDs/types before filtering.
 	- Use EXACT returned field names (case-insensitive match). Don't invent names or IDs.

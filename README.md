@@ -983,9 +983,10 @@ The following sets of tools are available:
   - `fields`: Specific list of field IDs to include in the response when getting a project item (e.g. ["102589", "985201", "169875"]). If not provided, only the title field is included. Only used for 'get_project_item' method. (string[], optional)
   - `item_id`: The item's ID. Required for 'get_project_item' method. (number, optional)
   - `method`: The method to execute (string, required)
-  - `owner`: The owner (user or organization login). The name is not case sensitive. (string, required)
+  - `owner`: The owner (user or organization login). The name is not case sensitive. (string, optional)
   - `owner_type`: Owner type (user or org). If not provided, will be automatically detected. (string, optional)
-  - `project_number`: The project's number. (number, required)
+  - `project_number`: The project's number. (number, optional)
+  - `status_update_id`: The node ID of the project status update. Required for 'get_project_status_update' method. (string, optional)
 
 - **projects_list** - List GitHub Projects resources
   - **Required OAuth Scopes**: `read:project`
@@ -997,11 +998,12 @@ The following sets of tools are available:
   - `owner`: The owner (user or organization login). The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (user or org). If not provided, will automatically try both. (string, optional)
   - `per_page`: Results per page (max 50) (number, optional)
-  - `project_number`: The project's number. Required for 'list_project_fields' and 'list_project_items' methods. (number, optional)
+  - `project_number`: The project's number. Required for 'list_project_fields', 'list_project_items', and 'list_project_status_updates' methods. (number, optional)
   - `query`: Filter/query string. For list_projects: filter by title text and state (e.g. "roadmap is:open"). For list_project_items: advanced filtering using GitHub's project filtering syntax. (string, optional)
 
 - **projects_write** - Modify GitHub Project items
   - **Required OAuth Scopes**: `project`
+  - `body`: The body of the status update (markdown). Used for 'create_project_status_update' method. (string, optional)
   - `issue_number`: The issue number (use when item_type is 'issue' for 'add_project_item' method). Provide either issue_number or pull_request_number. (number, optional)
   - `item_id`: The project item ID. Required for 'update_project_item' and 'delete_project_item' methods. (number, optional)
   - `item_owner`: The owner (user or organization) of the repository containing the issue or pull request. Required for 'add_project_item' method. (string, optional)
@@ -1012,6 +1014,9 @@ The following sets of tools are available:
   - `owner_type`: Owner type (user or org). If not provided, will be automatically detected. (string, optional)
   - `project_number`: The project's number. (number, required)
   - `pull_request_number`: The pull request number (use when item_type is 'pull_request' for 'add_project_item' method). Provide either issue_number or pull_request_number. (number, optional)
+  - `start_date`: The start date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method. (string, optional)
+  - `status`: The status of the project. Used for 'create_project_status_update' method. (string, optional)
+  - `target_date`: The target date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method. (string, optional)
   - `updated_field`: Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {"id": 123456, "value": "New Value"}. Required for 'update_project_item' method. (object, optional)
 
 </details>
