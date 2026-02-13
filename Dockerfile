@@ -1,3 +1,12 @@
+FROM node:20-alpine AS ui-build
+WORKDIR /app
+COPY ui/package*.json ./ui/
+RUN cd ui && npm ci
+COPY ui/ ./ui/
+# Create output directory and build - vite outputs directly to pkg/github/ui_dist/
+RUN mkdir -p ./pkg/github/ui_dist && \
+    cd ui && npm run build
+
 FROM golang:1.25.7-alpine AS build
 ARG VERSION="dev"
 
@@ -8,11 +17,15 @@ WORKDIR /build
 RUN --mount=type=cache,target=/var/cache/apk \
     apk add git
 
+# Copy source code (including ui_dist placeholder)
+COPY . .
+
+# Copy built UI assets over the placeholder
+COPY --from=ui-build /app/pkg/github/ui_dist/* ./pkg/github/ui_dist/
+
 # Build the server
-# go build automatically download required module dependencies to /go/pkg/mod
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    --mount=type=bind,target=. \
     CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION} -X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     -o /bin/github-mcp-server ./cmd/github-mcp-server
 
