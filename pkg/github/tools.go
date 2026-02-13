@@ -270,6 +270,9 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GetLabelForLabelsToolset(t),
 		ListLabels(t),
 		LabelWrite(t),
+
+		// UI tools (insiders only)
+		UIGet(t),
 	}
 }
 
