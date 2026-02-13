@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bytes"
+	"bufio"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -376,8 +376,8 @@ func buildJSONRPCRequest(method, toolName string, arguments map[string]any) (str
 	return string(jsonData), nil
 }
 
-// executeServerCommand runs the specified command, sends the JSON request to stdin,
-// and returns the response from stdout
+// executeServerCommand runs the specified command, performs the MCP initialization
+// handshake, sends the JSON request to stdin, and returns the response from stdout.
 func executeServerCommand(cmdStr, jsonRequest string) (string, error) {
 	// Split the command string into command and arguments
 	cmdParts := strings.Fields(cmdStr)
@@ -393,9 +393,14 @@ func executeServerCommand(cmdStr, jsonRequest string) (string, error) {
 		return "", fmt.Errorf("failed to create stdin pipe: %w", err)
 	}
 
-	// Setup stdout and stderr pipes
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
+	// Setup stdout pipe for line-by-line reading
+	stdoutPipe, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", fmt.Errorf("failed to create stdout pipe: %w", err)
+	}
+
+	// Stderr still uses a buffer
+	var stderr strings.Builder
 	cmd.Stderr = &stderr
 
 	// Start the command
@@ -403,18 +408,109 @@ func executeServerCommand(cmdStr, jsonRequest string) (string, error) {
 		return "", fmt.Errorf("failed to start command: %w", err)
 	}
 
-	// Write the JSON request to stdin
+	// Ensure the child process is cleaned up on any error after Start()
+	cleanup := func() {
+		_ = stdin.Close()
+		_ = cmd.Wait()
+	}
+
+	// Use a scanner with a large buffer for reading JSON-RPC responses
+	scanner := bufio.NewScanner(stdoutPipe)
+	scanner.Buffer(make([]byte, 0, 1024*1024), 1024*1024) // 1MB max line size
+
+	// Step 1: Send MCP initialize request
+	initReq, err := buildInitializeRequest()
+	if err != nil {
+		cleanup()
+		return "", fmt.Errorf("failed to build initialize request: %w", err)
+	}
+	if _, err := io.WriteString(stdin, initReq+"\n"); err != nil {
+		cleanup()
+		return "", fmt.Errorf("failed to write initialize request: %w", err)
+	}
+
+	// Step 2: Read initialize response (skip any server notifications)
+	if _, err := readJSONRPCResponse(scanner); err != nil {
+		cleanup()
+		return "", fmt.Errorf("failed to read initialize response: %w, stderr: %s", err, stderr.String())
+	}
+
+	// Step 3: Send initialized notification
+	if _, err := io.WriteString(stdin, buildInitializedNotification()+"\n"); err != nil {
+		cleanup()
+		return "", fmt.Errorf("failed to write initialized notification: %w", err)
+	}
+
+	// Step 4: Send the actual request
 	if _, err := io.WriteString(stdin, jsonRequest+"\n"); err != nil {
-		return "", fmt.Errorf("failed to write to stdin: %w", err)
-	}
-	_ = stdin.Close()
-
-	// Wait for the command to complete
-	if err := cmd.Wait(); err != nil {
-		return "", fmt.Errorf("command failed: %w, stderr: %s", err, stderr.String())
+		cleanup()
+		return "", fmt.Errorf("failed to write request: %w", err)
 	}
 
-	return stdout.String(), nil
+	// Step 5: Read the actual response (skip any server notifications)
+	response, err := readJSONRPCResponse(scanner)
+	if err != nil {
+		cleanup()
+		return "", fmt.Errorf("failed to read response: %w, stderr: %s", err, stderr.String())
+	}
+
+	// Close stdin and wait for process to exit. The server will see EOF and
+	// exit with a non-zero status, which is expected — we already have the response.
+	cleanup()
+
+	return response, nil
+}
+
+// buildInitializeRequest creates the MCP initialize handshake request.
+func buildInitializeRequest() (string, error) {
+	id, err := rand.Int(rand.Reader, big.NewInt(10000))
+	if err != nil {
+		return "", fmt.Errorf("failed to generate random ID: %w", err)
+	}
+	msg := map[string]any{
+		"jsonrpc": "2.0",
+		"id":      int(id.Int64()),
+		"method":  "initialize",
+		"params": map[string]any{
+			"protocolVersion": "2024-11-05",
+			"capabilities":    map[string]any{},
+			"clientInfo": map[string]any{
+				"name":    "mcpcurl",
+				"version": "0.1.0",
+			},
+		},
+	}
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal initialize request: %w", err)
+	}
+	return string(data), nil
+}
+
+// buildInitializedNotification creates the MCP initialized notification.
+func buildInitializedNotification() string {
+	return `{"jsonrpc":"2.0","method":"notifications/initialized"}`
+}
+
+// readJSONRPCResponse reads lines from the scanner, skipping server-initiated
+// notifications (messages without an "id" field), and returns the first response.
+func readJSONRPCResponse(scanner *bufio.Scanner) (string, error) {
+	for scanner.Scan() {
+		line := scanner.Text()
+		// JSON-RPC responses have an "id" field; notifications do not.
+		var msg map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(line), &msg); err != nil {
+			return "", fmt.Errorf("failed to parse JSON-RPC message: %w", err)
+		}
+		if _, hasID := msg["id"]; hasID {
+			return line, nil
+		}
+		// No "id" — this is a notification, skip it
+	}
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+	return "", fmt.Errorf("unexpected end of output")
 }
 
 func printResponse(response string, prettyPrint bool) error {
