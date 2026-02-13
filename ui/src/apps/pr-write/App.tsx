@@ -258,7 +258,7 @@ function CreatePRApp() {
     };
 
     loadBranches();
-  }, [owner, repo, app, callTool, baseBranch]);
+  }, [owner, repo, app, callTool]);
 
   // Filters
   const filteredBaseBranches = useMemo(() => {
