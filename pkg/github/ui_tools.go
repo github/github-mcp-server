@@ -270,29 +270,28 @@ func uiGetBranches(ctx context.Context, deps ToolDependencies, args map[string]a
 
 	client, err := deps.GetClient(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get GitHub client: %w", err)
+		return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
 	}
 
 	opts := &github.BranchListOptions{
 		ListOptions: github.ListOptions{PerPage: 100},
 	}
 
-	branches, resp, err := client.Repositories.ListBranches(ctx, owner, repo, opts)
-	if err != nil {
-		return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list branches", resp, err), nil, nil
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
+	var allBranches []*github.Branch
+	for {
+		branches, resp, err := client.Repositories.ListBranches(ctx, owner, repo, opts)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+			return ghErrors.NewGitHubAPIErrorResponse(ctx, "failed to list branches", resp, err), nil, nil
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list branches", resp, body), nil, nil
+		allBranches = append(allBranches, branches...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opts.Page = resp.NextPage
 	}
 
-	minimalBranches := make([]MinimalBranch, 0, len(branches))
-	for _, branch := range branches {
+	minimalBranches := make([]MinimalBranch, 0, len(allBranches))
+	for _, branch := range allBranches {
 		minimalBranches = append(minimalBranches, convertToMinimalBranch(branch))
 	}
 
@@ -301,7 +300,7 @@ func uiGetBranches(ctx context.Context, deps ToolDependencies, args map[string]a
 		"totalCount": len(minimalBranches),
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+		return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 	}
 
 	return utils.NewToolResultText(string(r)), nil, nil
