@@ -503,6 +503,9 @@ func readJSONRPCResponse(scanner *bufio.Scanner) (string, error) {
 			return "", fmt.Errorf("failed to parse JSON-RPC message: %w", err)
 		}
 		if _, hasID := msg["id"]; hasID {
+			if errField, hasErr := msg["error"]; hasErr {
+				return "", fmt.Errorf("server returned error: %s", string(errField))
+			}
 			return line, nil
 		}
 		// No "id" — this is a notification, skip it

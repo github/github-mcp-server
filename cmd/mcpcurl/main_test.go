@@ -88,6 +88,23 @@ func TestReadJSONRPCResponse_InvalidJSON(t *testing.T) {
 	}
 }
 
+func TestReadJSONRPCResponse_ServerError(t *testing.T) {
+	t.Parallel()
+	input := `{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"method not found"}}` + "\n"
+	scanner := bufio.NewScanner(strings.NewReader(input))
+
+	_, err := readJSONRPCResponse(scanner)
+	if err == nil {
+		t.Fatal("expected error for server error response, got nil")
+	}
+	if !strings.Contains(err.Error(), "server returned error") {
+		t.Fatalf("expected 'server returned error', got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "method not found") {
+		t.Fatalf("expected error to contain server message, got: %v", err)
+	}
+}
+
 func TestBuildInitializeRequest(t *testing.T) {
 	t.Parallel()
 	got, err := buildInitializeRequest()
