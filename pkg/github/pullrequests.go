@@ -186,12 +186,9 @@ func GetPullRequest(ctx context.Context, client *github.Client, deps ToolDepende
 		}
 	}
 
-	r, err := json.Marshal(pr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
-	}
+	minimalPR := convertToMinimalPullRequest(pr)
 
-	return utils.NewToolResultText(string(r)), nil
+	return MarshalledTextResult(minimalPR), nil
 }
 
 func GetPullRequestDiff(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
@@ -1171,12 +1168,15 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 				}
 			}
 
-			r, err := json.Marshal(prs)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
+			minimalPRs := make([]MinimalPullRequest, 0, len(prs))
+			for _, pr := range prs {
+				if pr == nil {
+					continue
+				}
+				minimalPRs = append(minimalPRs, convertToMinimalPullRequest(pr))
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return MarshalledTextResult(minimalPRs), nil, nil
 		})
 }
 
