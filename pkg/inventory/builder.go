@@ -9,6 +9,7 @@ import (
 )
 
 var (
+	// UnknownToolsErr is returned when tools specified via WithTools() are not recognized.
 	UnknownToolsErr = errors.New("unknown tools specified in WithTools")
 )
 

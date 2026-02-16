@@ -181,7 +181,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, inventory.UnknownToolsErr) {
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(err.Error()))
+			if _, writeErr := w.Write([]byte(err.Error())); writeErr != nil {
+				h.logger.Error("failed to write response", "error", writeErr)
+			}
 			return
 		}
 
