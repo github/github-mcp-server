@@ -179,7 +179,7 @@ func withInsiders(next http.Handler) http.Handler {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	inv, err := h.inventoryFactoryFunc(r)
 	if err != nil {
-		if errors.Is(err, inventory.UnknownToolsErr) {
+		if errors.Is(err, inventory.ErrUnknownTools) {
 			w.WriteHeader(http.StatusBadRequest)
 			if _, writeErr := w.Write([]byte(err.Error())); writeErr != nil {
 				h.logger.Error("failed to write response", "error", writeErr)

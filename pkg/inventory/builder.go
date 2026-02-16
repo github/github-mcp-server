@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	// UnknownToolsErr is returned when tools specified via WithTools() are not recognized.
-	UnknownToolsErr = errors.New("unknown tools specified in WithTools")
+	// ErrUnknownTools is returned when tools specified via WithTools() are not recognized.
+	ErrUnknownTools = errors.New("unknown tools specified in WithTools")
 )
 
 // ToolFilter is a function that determines if a tool should be included.
@@ -210,7 +210,7 @@ func (b *Builder) Build() (*Inventory, error) {
 
 		// Error out if there are unrecognized tools
 		if len(unrecognizedTools) > 0 {
-			return nil, fmt.Errorf("%w: %s", UnknownToolsErr, strings.Join(unrecognizedTools, ", "))
+			return nil, fmt.Errorf("%w: %s", ErrUnknownTools, strings.Join(unrecognizedTools, ", "))
 		}
 	}
 
