@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -178,6 +179,12 @@ func withInsiders(next http.Handler) http.Handler {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	inv, err := h.inventoryFactoryFunc(r)
 	if err != nil {
+		if errors.Is(err, inventory.UnknownToolsErr) {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(err.Error()))
+			return
+		}
+
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
