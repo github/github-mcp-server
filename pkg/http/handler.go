@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -31,6 +32,7 @@ type Handler struct {
 	inventoryFactoryFunc   InventoryFactoryFunc
 	oauthCfg               *oauth.Config
 	scopeFetcher           scopes.FetcherInterface
+	schemaCache            *mcp.SchemaCache
 }
 
 type HandlerOptions struct {
@@ -101,6 +103,10 @@ func NewHTTPMcpHandler(
 		inventoryFactory = DefaultInventoryFactory(cfg, t, opts.FeatureChecker, scopeFetcher)
 	}
 
+	// Create a shared schema cache to avoid repeated JSON schema reflection
+	// when a new MCP Server is created per request in stateless mode.
+	schemaCache := mcp.NewSchemaCache()
+
 	return &Handler{
 		ctx:                    ctx,
 		config:                 cfg,
@@ -112,6 +118,7 @@ func NewHTTPMcpHandler(
 		inventoryFactoryFunc:   inventoryFactory,
 		oauthCfg:               opts.OAuthConfig,
 		scopeFetcher:           scopeFetcher,
+		schemaCache:            schemaCache,
 	}
 }
 
@@ -172,6 +179,14 @@ func withInsiders(next http.Handler) http.Handler {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	inv, err := h.inventoryFactoryFunc(r)
 	if err != nil {
+		if errors.Is(err, inventory.ErrUnknownTools) {
+			w.WriteHeader(http.StatusBadRequest)
+			if _, writeErr := w.Write([]byte(err.Error())); writeErr != nil {
+				h.logger.Error("failed to write response", "error", writeErr)
+			}
+			return
+		}
+
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -195,6 +210,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					Resources: &mcp.ResourceCapabilities{},
 					Prompts:   &mcp.PromptCapabilities{},
 				}
+				so.SchemaCache = h.schemaCache
 			},
 		},
 	})
@@ -271,8 +287,10 @@ func PATScopeFilter(b *inventory.Builder, r *http.Request, fetcher scopes.Fetche
 	// Only classic PATs (ghp_ prefix) return OAuth scopes via X-OAuth-Scopes header.
 	// Fine-grained PATs and other token types don't support this, so we skip filtering.
 	if tokenInfo.TokenType == utils.TokenTypePersonalAccessToken {
-		if tokenInfo.ScopesFetched {
-			return b.WithFilter(github.CreateToolScopeFilter(tokenInfo.Scopes))
+		// Check if scopes are already in context (should be set by WithPATScopes). If not, fetch them.
+		existingScopes, ok := ghcontext.GetTokenScopes(ctx)
+		if ok {
+			return b.WithFilter(github.CreateToolScopeFilter(existingScopes))
 		}
 
 		scopesList, err := fetcher.FetchTokenScopes(ctx, tokenInfo.Token)

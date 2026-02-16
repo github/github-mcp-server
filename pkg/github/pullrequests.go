@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -485,47 +485,11 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, deps Tool
 	return utils.NewToolResultText(string(r)), nil
 }
 
+// PullRequestWriteUIResourceURI is the URI for the create_pull_request tool's MCP App UI resource.
+const PullRequestWriteUIResourceURI = "ui://github-mcp-server/pr-write"
+
 // CreatePullRequest creates a tool to create a new pull request.
 func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerTool {
-	schema := &jsonschema.Schema{
-		Type: "object",
-		Properties: map[string]*jsonschema.Schema{
-			"owner": {
-				Type:        "string",
-				Description: "Repository owner",
-			},
-			"repo": {
-				Type:        "string",
-				Description: "Repository name",
-			},
-			"title": {
-				Type:        "string",
-				Description: "PR title",
-			},
-			"body": {
-				Type:        "string",
-				Description: "PR description",
-			},
-			"head": {
-				Type:        "string",
-				Description: "Branch containing changes",
-			},
-			"base": {
-				Type:        "string",
-				Description: "Branch to merge into",
-			},
-			"draft": {
-				Type:        "boolean",
-				Description: "Create as draft PR",
-			},
-			"maintainer_can_modify": {
-				Type:        "boolean",
-				Description: "Allow maintainer edits",
-			},
-		},
-		Required: []string{"owner", "repo", "title", "head", "base"},
-	}
-
 	return NewTool(
 		ToolsetMetadataPullRequests,
 		mcp.Tool{
@@ -535,10 +499,53 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				Title:        t("TOOL_CREATE_PULL_REQUEST_USER_TITLE", "Open new pull request"),
 				ReadOnlyHint: false,
 			},
-			InputSchema: schema,
+			Meta: mcp.Meta{
+				"ui": map[string]any{
+					"resourceUri": PullRequestWriteUIResourceURI,
+					"visibility":  []string{"model", "app"},
+				},
+			},
+			InputSchema: &jsonschema.Schema{
+				Type: "object",
+				Properties: map[string]*jsonschema.Schema{
+					"owner": {
+						Type:        "string",
+						Description: "Repository owner",
+					},
+					"repo": {
+						Type:        "string",
+						Description: "Repository name",
+					},
+					"title": {
+						Type:        "string",
+						Description: "PR title",
+					},
+					"body": {
+						Type:        "string",
+						Description: "PR description",
+					},
+					"head": {
+						Type:        "string",
+						Description: "Branch containing changes",
+					},
+					"base": {
+						Type:        "string",
+						Description: "Branch to merge into",
+					},
+					"draft": {
+						Type:        "boolean",
+						Description: "Create as draft PR",
+					},
+					"maintainer_can_modify": {
+						Type:        "boolean",
+						Description: "Allow maintainer edits",
+					},
+				},
+				Required: []string{"owner", "repo", "title", "head", "base"},
+			},
 		},
 		[]scopes.Scope{scopes.Repo},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		func(ctx context.Context, deps ToolDependencies, req *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -547,17 +554,37 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			title, err := RequiredParam[string](args, "title")
+
+			// When insiders mode is enabled and the client supports MCP Apps UI,
+			// check if this is a UI form submission. The UI sends _ui_submitted=true
+			// to distinguish form submissions from LLM calls.
+			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
+
+			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(req) && !uiSubmitted {
+				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. The user will review and confirm via the interactive form.", owner, repo)), nil, nil
+			}
+
+			// When creating PR, title/head/base are required
+			title, err := OptionalParam[string](args, "title")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			head, err := RequiredParam[string](args, "head")
+			head, err := OptionalParam[string](args, "head")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			base, err := RequiredParam[string](args, "base")
+			base, err := OptionalParam[string](args, "base")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			if title == "" {
+				return utils.NewToolResultError("missing required parameter: title"), nil, nil
+			}
+			if head == "" {
+				return utils.NewToolResultError("missing required parameter: head"), nil, nil
+			}
+			if base == "" {
+				return utils.NewToolResultError("missing required parameter: base"), nil, nil
 			}
 
 			body, err := OptionalParam[string](args, "body")
@@ -804,7 +831,7 @@ func UpdatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 					} `graphql:"repository(owner: $owner, name: $repo)"`
 				}
 
-				err = gqlClient.Query(ctx, &prQuery, map[string]interface{}{
+				err = gqlClient.Query(ctx, &prQuery, map[string]any{
 					"owner": githubv4.String(owner),
 					"repo":  githubv4.String(repo),
 					"prNum": githubv4.Int(pullNumber), // #nosec G115 - pull request numbers are always small positive integers
