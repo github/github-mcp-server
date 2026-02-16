@@ -76,7 +76,7 @@ jobs:
 
       - name: Set up Node.js
         if: matrix.language == 'go'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: "npm"
