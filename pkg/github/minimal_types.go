@@ -1,6 +1,8 @@
 package github
 
 import (
+	"time"
+
 	"github.com/google/go-github/v82/github"
 )
 
@@ -197,16 +199,16 @@ func convertToMinimalPullRequest(pr *github.PullRequest) MinimalPullRequest {
 	}
 
 	if pr.CreatedAt != nil {
-		m.CreatedAt = pr.CreatedAt.Format("2006-01-02T15:04:05Z")
+		m.CreatedAt = pr.CreatedAt.Format(time.RFC3339)
 	}
 	if pr.UpdatedAt != nil {
-		m.UpdatedAt = pr.UpdatedAt.Format("2006-01-02T15:04:05Z")
+		m.UpdatedAt = pr.UpdatedAt.Format(time.RFC3339)
 	}
 	if pr.ClosedAt != nil {
-		m.ClosedAt = pr.ClosedAt.Format("2006-01-02T15:04:05Z")
+		m.ClosedAt = pr.ClosedAt.Format(time.RFC3339)
 	}
 	if pr.MergedAt != nil {
-		m.MergedAt = pr.MergedAt.Format("2006-01-02T15:04:05Z")
+		m.MergedAt = pr.MergedAt.Format(time.RFC3339)
 	}
 
 	for _, label := range pr.Labels {
