@@ -1168,15 +1168,12 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 				}
 			}
 
-			minimalPRs := make([]MinimalPullRequest, 0, len(prs))
-			for _, pr := range prs {
-				if pr == nil {
-					continue
-				}
-				minimalPRs = append(minimalPRs, convertToMinimalPullRequest(pr))
+			r, err := json.Marshal(prs)
+			if err != nil {
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
-			return MarshalledTextResult(minimalPRs), nil, nil
+			return utils.NewToolResultText(string(r)), nil, nil
 		})
 }
 
