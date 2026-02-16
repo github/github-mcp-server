@@ -1,6 +1,8 @@
 package github
 
 import (
+	"time"
+
 	"github.com/google/go-github/v82/github"
 )
 
@@ -134,7 +136,80 @@ type MinimalProject struct {
 	OwnerType        string            `json:"owner_type,omitempty"`
 }
 
+// MinimalIssue is the trimmed output type for issue objects to reduce verbosity.
+type MinimalIssue struct {
+	Number      int          `json:"number"`
+	Title       string       `json:"title"`
+	Body        string       `json:"body,omitempty"`
+	State       string       `json:"state"`
+	StateReason string       `json:"state_reason,omitempty"`
+	Draft       bool         `json:"draft,omitempty"`
+	Locked      bool         `json:"locked,omitempty"`
+	HTMLURL     string       `json:"html_url"`
+	User        *MinimalUser `json:"user,omitempty"`
+	Labels      []string     `json:"labels,omitempty"`
+	Assignees   []string     `json:"assignees,omitempty"`
+	Milestone   string       `json:"milestone,omitempty"`
+	Comments    int          `json:"comments,omitempty"`
+	CreatedAt   string       `json:"created_at,omitempty"`
+	UpdatedAt   string       `json:"updated_at,omitempty"`
+	ClosedAt    string       `json:"closed_at,omitempty"`
+	ClosedBy    string       `json:"closed_by,omitempty"`
+	IssueType   string       `json:"issue_type,omitempty"`
+}
+
 // Helper functions
+
+func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
+	m := MinimalIssue{
+		Number:      issue.GetNumber(),
+		Title:       issue.GetTitle(),
+		Body:        issue.GetBody(),
+		State:       issue.GetState(),
+		StateReason: issue.GetStateReason(),
+		Draft:       issue.GetDraft(),
+		Locked:      issue.GetLocked(),
+		HTMLURL:     issue.GetHTMLURL(),
+		User:        convertToMinimalUser(issue.GetUser()),
+		Comments:    issue.GetComments(),
+	}
+
+	if issue.CreatedAt != nil {
+		m.CreatedAt = issue.CreatedAt.Format(time.RFC3339)
+	}
+	if issue.UpdatedAt != nil {
+		m.UpdatedAt = issue.UpdatedAt.Format(time.RFC3339)
+	}
+	if issue.ClosedAt != nil {
+		m.ClosedAt = issue.ClosedAt.Format(time.RFC3339)
+	}
+
+	for _, label := range issue.Labels {
+		if label != nil {
+			m.Labels = append(m.Labels, label.GetName())
+		}
+	}
+
+	for _, assignee := range issue.Assignees {
+		if assignee != nil {
+			m.Assignees = append(m.Assignees, assignee.GetLogin())
+		}
+	}
+
+	if closedBy := issue.GetClosedBy(); closedBy != nil {
+		m.ClosedBy = closedBy.GetLogin()
+	}
+
+	if milestone := issue.GetMilestone(); milestone != nil {
+		m.Milestone = milestone.GetTitle()
+	}
+
+	if issueType := issue.GetType(); issueType != nil {
+		m.IssueType = issueType.GetName()
+	}
+
+	return m
+}
 
 func convertToMinimalProject(fullProject *github.ProjectV2) *MinimalProject {
 	if fullProject == nil {
