@@ -1,4 +1,4 @@
-FROM node:20-alpine AS ui-build
+FROM node:25-alpine AS ui-build
 WORKDIR /app
 COPY ui/package*.json ./ui/
 RUN cd ui && npm ci
