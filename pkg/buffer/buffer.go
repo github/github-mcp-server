@@ -112,17 +112,14 @@ func ProcessResponseAsRingBufferToEnd(httpResp *http.Response, maxJobLogLines in
 	}
 
 	var result []string
-	linesInBuffer := totalLines
-	if linesInBuffer > maxJobLogLines {
-		linesInBuffer = maxJobLogLines
-	}
+	linesInBuffer := min(totalLines, maxJobLogLines)
 
 	startIndex := 0
 	if totalLines > maxJobLogLines {
 		startIndex = writeIndex
 	}
 
-	for i := 0; i < linesInBuffer; i++ {
+	for i := range linesInBuffer {
 		idx := (startIndex + i) % maxJobLogLines
 		if validLines[idx] {
 			result = append(result, lines[idx])

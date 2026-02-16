@@ -82,6 +82,10 @@ type ServerTool struct {
 	// This includes the required scopes plus any higher-level scopes that provide
 	// the necessary permissions due to scope hierarchy.
 	AcceptedScopes []string
+
+	// InsidersOnly marks this tool as only available when insiders mode is enabled.
+	// When insiders mode is disabled, tools with this flag set are completely omitted.
+	InsidersOnly bool
 }
 
 // IsReadOnly returns true if this tool is marked as read-only via annotations.
