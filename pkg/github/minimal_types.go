@@ -172,6 +172,48 @@ type MinimalIssue struct {
 	IssueType   string            `json:"issue_type,omitempty"`
 }
 
+// MinimalPullRequest is the trimmed output type for pull request objects to reduce verbosity.
+type MinimalPullRequest struct {
+	Number             int              `json:"number"`
+	Title              string           `json:"title"`
+	Body               string           `json:"body,omitempty"`
+	State              string           `json:"state"`
+	Draft              bool             `json:"draft"`
+	Merged             bool             `json:"merged"`
+	MergeableState     string           `json:"mergeable_state,omitempty"`
+	HTMLURL            string           `json:"html_url"`
+	User               *MinimalUser     `json:"user,omitempty"`
+	Labels             []string         `json:"labels,omitempty"`
+	Assignees          []string         `json:"assignees,omitempty"`
+	RequestedReviewers []string         `json:"requested_reviewers,omitempty"`
+	MergedBy           string           `json:"merged_by,omitempty"`
+	Head               *MinimalPRBranch `json:"head,omitempty"`
+	Base               *MinimalPRBranch `json:"base,omitempty"`
+	Additions          int              `json:"additions,omitempty"`
+	Deletions          int              `json:"deletions,omitempty"`
+	ChangedFiles       int              `json:"changed_files,omitempty"`
+	Commits            int              `json:"commits,omitempty"`
+	Comments           int              `json:"comments,omitempty"`
+	CreatedAt          string           `json:"created_at,omitempty"`
+	UpdatedAt          string           `json:"updated_at,omitempty"`
+	ClosedAt           string           `json:"closed_at,omitempty"`
+	MergedAt           string           `json:"merged_at,omitempty"`
+	Milestone          string           `json:"milestone,omitempty"`
+}
+
+// MinimalPRBranch is the trimmed output type for pull request branch references.
+type MinimalPRBranch struct {
+	Ref  string               `json:"ref"`
+	SHA  string               `json:"sha"`
+	Repo *MinimalPRBranchRepo `json:"repo,omitempty"`
+}
+
+// MinimalPRBranchRepo is the trimmed repo info nested inside a PR branch.
+type MinimalPRBranchRepo struct {
+	FullName    string `json:"full_name"`
+	Description string `json:"description,omitempty"`
+}
+
 // Helper functions
 
 func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
@@ -237,6 +279,94 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 	}
 
 	return m
+}
+
+func convertToMinimalPullRequest(pr *github.PullRequest) MinimalPullRequest {
+	m := MinimalPullRequest{
+		Number:         pr.GetNumber(),
+		Title:          pr.GetTitle(),
+		Body:           pr.GetBody(),
+		State:          pr.GetState(),
+		Draft:          pr.GetDraft(),
+		Merged:         pr.GetMerged(),
+		MergeableState: pr.GetMergeableState(),
+		HTMLURL:        pr.GetHTMLURL(),
+		User:           convertToMinimalUser(pr.GetUser()),
+		Additions:      pr.GetAdditions(),
+		Deletions:      pr.GetDeletions(),
+		ChangedFiles:   pr.GetChangedFiles(),
+		Commits:        pr.GetCommits(),
+		Comments:       pr.GetComments(),
+	}
+
+	if pr.CreatedAt != nil {
+		m.CreatedAt = pr.CreatedAt.Format(time.RFC3339)
+	}
+	if pr.UpdatedAt != nil {
+		m.UpdatedAt = pr.UpdatedAt.Format(time.RFC3339)
+	}
+	if pr.ClosedAt != nil {
+		m.ClosedAt = pr.ClosedAt.Format(time.RFC3339)
+	}
+	if pr.MergedAt != nil {
+		m.MergedAt = pr.MergedAt.Format(time.RFC3339)
+	}
+
+	for _, label := range pr.Labels {
+		if label != nil {
+			m.Labels = append(m.Labels, label.GetName())
+		}
+	}
+
+	for _, assignee := range pr.Assignees {
+		if assignee != nil {
+			m.Assignees = append(m.Assignees, assignee.GetLogin())
+		}
+	}
+
+	for _, reviewer := range pr.RequestedReviewers {
+		if reviewer != nil {
+			m.RequestedReviewers = append(m.RequestedReviewers, reviewer.GetLogin())
+		}
+	}
+
+	if mergedBy := pr.GetMergedBy(); mergedBy != nil {
+		m.MergedBy = mergedBy.GetLogin()
+	}
+
+	if head := pr.Head; head != nil {
+		m.Head = convertToMinimalPRBranch(head)
+	}
+
+	if base := pr.Base; base != nil {
+		m.Base = convertToMinimalPRBranch(base)
+	}
+
+	if milestone := pr.GetMilestone(); milestone != nil {
+		m.Milestone = milestone.GetTitle()
+	}
+
+	return m
+}
+
+func convertToMinimalPRBranch(branch *github.PullRequestBranch) *MinimalPRBranch {
+	if branch == nil {
+		return nil
+	}
+
+	b := &MinimalPRBranch{
+		Ref: branch.GetRef(),
+		SHA: branch.GetSHA(),
+	}
+
+	if repo := branch.GetRepo(); repo != nil {
+		b.Repo = &MinimalPRBranchRepo{
+			FullName:    repo.GetFullName(),
+			Description: repo.GetDescription(),
+		}
+	}
+
+	return b
 }
 
 func convertToMinimalProject(fullProject *github.ProjectV2) *MinimalProject {

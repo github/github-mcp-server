@@ -186,12 +186,9 @@ func GetPullRequest(ctx context.Context, client *github.Client, deps ToolDepende
 		}
 	}
 
-	r, err := json.Marshal(pr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
-	}
+	minimalPR := convertToMinimalPullRequest(pr)
 
-	return utils.NewToolResultText(string(r)), nil
+	return MarshalledTextResult(minimalPR), nil
 }
 
 func GetPullRequestDiff(ctx context.Context, client *github.Client, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
