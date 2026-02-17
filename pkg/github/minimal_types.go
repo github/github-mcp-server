@@ -173,6 +173,18 @@ type MinimalIssue struct {
 	IssueType         string            `json:"issue_type,omitempty"`
 }
 
+// MinimalIssueComment is the trimmed output type for issue comment objects to reduce verbosity.
+type MinimalIssueComment struct {
+	ID                int64             `json:"id"`
+	Body              string            `json:"body,omitempty"`
+	HTMLURL           string            `json:"html_url"`
+	User              *MinimalUser      `json:"user,omitempty"`
+	AuthorAssociation string            `json:"author_association,omitempty"`
+	Reactions         *MinimalReactions `json:"reactions,omitempty"`
+	CreatedAt         string            `json:"created_at,omitempty"`
+	UpdatedAt         string            `json:"updated_at,omitempty"`
+}
+
 // MinimalPullRequest is the trimmed output type for pull request objects to reduce verbosity.
 type MinimalPullRequest struct {
 	Number             int              `json:"number"`
@@ -267,6 +279,39 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 	}
 
 	if r := issue.Reactions; r != nil {
+		m.Reactions = &MinimalReactions{
+			TotalCount: r.GetTotalCount(),
+			PlusOne:    r.GetPlusOne(),
+			MinusOne:   r.GetMinusOne(),
+			Laugh:      r.GetLaugh(),
+			Confused:   r.GetConfused(),
+			Heart:      r.GetHeart(),
+			Hooray:     r.GetHooray(),
+			Rocket:     r.GetRocket(),
+			Eyes:       r.GetEyes(),
+		}
+	}
+
+	return m
+}
+
+func convertToMinimalIssueComment(comment *github.IssueComment) MinimalIssueComment {
+	m := MinimalIssueComment{
+		ID:                comment.GetID(),
+		Body:              comment.GetBody(),
+		HTMLURL:           comment.GetHTMLURL(),
+		User:              convertToMinimalUser(comment.GetUser()),
+		AuthorAssociation: comment.GetAuthorAssociation(),
+	}
+
+	if comment.CreatedAt != nil {
+		m.CreatedAt = comment.CreatedAt.Format(time.RFC3339)
+	}
+	if comment.UpdatedAt != nil {
+		m.UpdatedAt = comment.UpdatedAt.Format(time.RFC3339)
+	}
+
+	if r := comment.Reactions; r != nil {
 		m.Reactions = &MinimalReactions{
 			TotalCount: r.GetTotalCount(),
 			PlusOne:    r.GetPlusOne(),

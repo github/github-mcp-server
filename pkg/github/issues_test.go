@@ -2020,16 +2020,16 @@ func Test_GetIssueComments(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
-			var returnedComments []*github.IssueComment
+			var returnedComments []MinimalIssueComment
 			err = json.Unmarshal([]byte(textContent.Text), &returnedComments)
 			require.NoError(t, err)
 			assert.Equal(t, len(tc.expectedComments), len(returnedComments))
 			for i := range tc.expectedComments {
 				require.NotNil(t, tc.expectedComments[i].User)
 				require.NotNil(t, returnedComments[i].User)
-				assert.Equal(t, tc.expectedComments[i].GetID(), returnedComments[i].GetID())
-				assert.Equal(t, tc.expectedComments[i].GetBody(), returnedComments[i].GetBody())
-				assert.Equal(t, tc.expectedComments[i].GetUser().GetLogin(), returnedComments[i].GetUser().GetLogin())
+				assert.Equal(t, tc.expectedComments[i].GetID(), returnedComments[i].ID)
+				assert.Equal(t, tc.expectedComments[i].GetBody(), returnedComments[i].Body)
+				assert.Equal(t, tc.expectedComments[i].GetUser().GetLogin(), returnedComments[i].User.Login)
 			}
 		})
 	}
