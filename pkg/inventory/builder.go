@@ -2,10 +2,16 @@ package inventory
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
 	"strings"
+)
+
+var (
+	// ErrUnknownTools is returned when tools specified via WithTools() are not recognized.
+	ErrUnknownTools = errors.New("unknown tools specified in WithTools")
 )
 
 // ToolFilter is a function that determines if a tool should be included.
@@ -219,7 +225,7 @@ func (b *Builder) Build() (*Inventory, error) {
 
 		// Error out if there are unrecognized tools
 		if len(unrecognizedTools) > 0 {
-			return nil, fmt.Errorf("unrecognized tools: %s", strings.Join(unrecognizedTools, ", "))
+			return nil, fmt.Errorf("%w: %s", ErrUnknownTools, strings.Join(unrecognizedTools, ", "))
 		}
 	}
 

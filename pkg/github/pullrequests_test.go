@@ -127,14 +127,14 @@ func Test_GetPullRequest(t *testing.T) {
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
-			var returnedPR github.PullRequest
+			// Unmarshal and verify the minimal result
+			var returnedPR MinimalPullRequest
 			err = json.Unmarshal([]byte(textContent.Text), &returnedPR)
 			require.NoError(t, err)
-			assert.Equal(t, *tc.expectedPR.Number, *returnedPR.Number)
-			assert.Equal(t, *tc.expectedPR.Title, *returnedPR.Title)
-			assert.Equal(t, *tc.expectedPR.State, *returnedPR.State)
-			assert.Equal(t, *tc.expectedPR.HTMLURL, *returnedPR.HTMLURL)
+			assert.Equal(t, tc.expectedPR.GetNumber(), returnedPR.Number)
+			assert.Equal(t, tc.expectedPR.GetTitle(), returnedPR.Title)
+			assert.Equal(t, tc.expectedPR.GetState(), returnedPR.State)
+			assert.Equal(t, tc.expectedPR.GetHTMLURL(), returnedPR.HTMLURL)
 		})
 	}
 }
