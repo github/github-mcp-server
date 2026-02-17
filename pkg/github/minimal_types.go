@@ -136,26 +136,40 @@ type MinimalProject struct {
 	OwnerType        string            `json:"owner_type,omitempty"`
 }
 
+// MinimalReactions is the trimmed output type for reaction summaries, dropping the API URL.
+type MinimalReactions struct {
+	TotalCount int `json:"total_count"`
+	PlusOne    int `json:"+1"`
+	MinusOne   int `json:"-1"`
+	Laugh      int `json:"laugh"`
+	Confused   int `json:"confused"`
+	Heart      int `json:"heart"`
+	Hooray     int `json:"hooray"`
+	Rocket     int `json:"rocket"`
+	Eyes       int `json:"eyes"`
+}
+
 // MinimalIssue is the trimmed output type for issue objects to reduce verbosity.
 type MinimalIssue struct {
-	Number      int          `json:"number"`
-	Title       string       `json:"title"`
-	Body        string       `json:"body,omitempty"`
-	State       string       `json:"state"`
-	StateReason string       `json:"state_reason,omitempty"`
-	Draft       bool         `json:"draft,omitempty"`
-	Locked      bool         `json:"locked,omitempty"`
-	HTMLURL     string       `json:"html_url"`
-	User        *MinimalUser `json:"user,omitempty"`
-	Labels      []string     `json:"labels,omitempty"`
-	Assignees   []string     `json:"assignees,omitempty"`
-	Milestone   string       `json:"milestone,omitempty"`
-	Comments    int          `json:"comments,omitempty"`
-	CreatedAt   string       `json:"created_at,omitempty"`
-	UpdatedAt   string       `json:"updated_at,omitempty"`
-	ClosedAt    string       `json:"closed_at,omitempty"`
-	ClosedBy    string       `json:"closed_by,omitempty"`
-	IssueType   string       `json:"issue_type,omitempty"`
+	Number      int               `json:"number"`
+	Title       string            `json:"title"`
+	Body        string            `json:"body,omitempty"`
+	State       string            `json:"state"`
+	StateReason string            `json:"state_reason,omitempty"`
+	Draft       bool              `json:"draft,omitempty"`
+	Locked      bool              `json:"locked,omitempty"`
+	HTMLURL     string            `json:"html_url"`
+	User        *MinimalUser      `json:"user,omitempty"`
+	Labels      []string          `json:"labels,omitempty"`
+	Assignees   []string          `json:"assignees,omitempty"`
+	Milestone   string            `json:"milestone,omitempty"`
+	Comments    int               `json:"comments,omitempty"`
+	Reactions   *MinimalReactions `json:"reactions,omitempty"`
+	CreatedAt   string            `json:"created_at,omitempty"`
+	UpdatedAt   string            `json:"updated_at,omitempty"`
+	ClosedAt    string            `json:"closed_at,omitempty"`
+	ClosedBy    string            `json:"closed_by,omitempty"`
+	IssueType   string            `json:"issue_type,omitempty"`
 }
 
 // Helper functions
@@ -206,6 +220,20 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 
 	if issueType := issue.GetType(); issueType != nil {
 		m.IssueType = issueType.GetName()
+	}
+
+	if r := issue.Reactions; r != nil {
+		m.Reactions = &MinimalReactions{
+			TotalCount: r.GetTotalCount(),
+			PlusOne:    r.GetPlusOne(),
+			MinusOne:   r.GetMinusOne(),
+			Laugh:      r.GetLaugh(),
+			Confused:   r.GetConfused(),
+			Heart:      r.GetHeart(),
+			Hooray:     r.GetHooray(),
+			Rocket:     r.GetRocket(),
+			Eyes:       r.GetEyes(),
+		}
 	}
 
 	return m
