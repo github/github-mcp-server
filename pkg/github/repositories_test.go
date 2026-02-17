@@ -1434,18 +1434,18 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 			}
 
 			// Unmarshal and verify the result
-			var returnedContent github.RepositoryContentResponse
+			var returnedContent MinimalFileContentResponse
 			err = json.Unmarshal([]byte(textContent.Text), &returnedContent)
 			require.NoError(t, err)
 
 			// Verify content
-			assert.Equal(t, *tc.expectedContent.Content.Name, *returnedContent.Content.Name)
-			assert.Equal(t, *tc.expectedContent.Content.Path, *returnedContent.Content.Path)
-			assert.Equal(t, *tc.expectedContent.Content.SHA, *returnedContent.Content.SHA)
+			assert.Equal(t, tc.expectedContent.Content.GetName(), returnedContent.Content.Name)
+			assert.Equal(t, tc.expectedContent.Content.GetPath(), returnedContent.Content.Path)
+			assert.Equal(t, tc.expectedContent.Content.GetSHA(), returnedContent.Content.SHA)
 
 			// Verify commit
-			assert.Equal(t, *tc.expectedContent.Commit.SHA, *returnedContent.Commit.SHA)
-			assert.Equal(t, *tc.expectedContent.Commit.Message, *returnedContent.Commit.Message)
+			assert.Equal(t, tc.expectedContent.Commit.GetSHA(), returnedContent.Commit.SHA)
+			assert.Equal(t, tc.expectedContent.Commit.GetMessage(), returnedContent.Commit.Message)
 		})
 	}
 }
