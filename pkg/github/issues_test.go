@@ -1188,7 +1188,6 @@ func Test_ListIssues(t *testing.T) {
 		expectError   bool
 		errContains   string
 		expectedCount int
-		verifyOrder   func(t *testing.T, issues []*github.Issue)
 	}{
 		{
 			name: "list all issues",
@@ -1296,32 +1295,29 @@ func Test_ListIssues(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			// Parse the structured response with pagination info
-			var response struct {
-				Issues   []*github.Issue `json:"issues"`
-				PageInfo struct {
-					HasNextPage     bool   `json:"hasNextPage"`
-					HasPreviousPage bool   `json:"hasPreviousPage"`
-					StartCursor     string `json:"startCursor"`
-					EndCursor       string `json:"endCursor"`
-				} `json:"pageInfo"`
-				TotalCount int `json:"totalCount"`
-			}
+			// Parse the response
+			var response map[string]any
 			err = json.Unmarshal([]byte(text), &response)
 			require.NoError(t, err)
 
-			assert.Len(t, response.Issues, tc.expectedCount, "Expected %d issues, got %d", tc.expectedCount, len(response.Issues))
+			// Metadata should be preserved
+			assert.NotNil(t, response["totalCount"])
+			pageInfo, ok := response["pageInfo"].(map[string]any)
+			require.True(t, ok, "pageInfo should be a map")
+			assert.Contains(t, pageInfo, "hasNextPage")
+			assert.Contains(t, pageInfo, "endCursor")
 
-			// Verify order if verifyOrder function is provided
-			if tc.verifyOrder != nil {
-				tc.verifyOrder(t, response.Issues)
-			}
+			issues, ok := response["issues"].([]any)
+			require.True(t, ok)
+			assert.Len(t, issues, tc.expectedCount, "Expected %d issues, got %d", tc.expectedCount, len(issues))
 
 			// Verify that returned issues have expected structure
-			for _, issue := range response.Issues {
-				assert.NotNil(t, issue.Number, "Issue should have number")
-				assert.NotNil(t, issue.Title, "Issue should have title")
-				assert.NotNil(t, issue.State, "Issue should have state")
+			for _, issue := range issues {
+				m, ok := issue.(map[string]any)
+				require.True(t, ok)
+				assert.NotNil(t, m["number"], "Issue should have number")
+				assert.NotNil(t, m["title"], "Issue should have title")
+				assert.NotNil(t, m["state"], "Issue should have state")
 			}
 		})
 	}

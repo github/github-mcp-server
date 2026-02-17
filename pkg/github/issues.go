@@ -13,6 +13,7 @@ import (
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/octicons"
+	"github.com/github/github-mcp-server/pkg/response"
 	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -610,7 +611,7 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list issue types", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(issueTypes)
+			r, err := response.MarshalItems(issueTypes)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal issue types", err), nil, nil
 			}
@@ -1605,7 +1606,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			// Create response with issues
-			response := map[string]any{
+			issueResponse := map[string]any{
 				"issues": issues,
 				"pageInfo": map[string]any{
 					"hasNextPage":     pageInfo.HasNextPage,
@@ -1615,7 +1616,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				},
 				"totalCount": totalCount,
 			}
-			out, err := json.Marshal(response)
+			out, err := response.MarshalItems(issueResponse)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal issues: %w", err)
 			}

@@ -13,6 +13,7 @@ import (
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/octicons"
+	"github.com/github/github-mcp-server/pkg/response"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -216,7 +217,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 				minimalCommits[i] = convertToMinimalCommit(commit, false)
 			}
 
-			r, err := json.Marshal(minimalCommits)
+			r, err := response.MarshalItems(minimalCommits, 3)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -1496,7 +1497,7 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list tags", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(tags)
+			r, err := response.MarshalItems(tags)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -1669,7 +1670,7 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list releases", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(releases)
+			r, err := response.MarshalItems(releases)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}

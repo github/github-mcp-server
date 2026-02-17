@@ -12,11 +12,16 @@ const defaultFillRateThreshold = 0.1
 // minFillRateRows is the minimum number of items required to apply fill-rate filtering
 const minFillRateRows = 3
 
+// maxFlattenDepth is the maximum nesting depth that flatten will recurse into.
+// Deeper nested maps are silently dropped.
+const maxFlattenDepth = 2
+
 // preservedFields is a set of keys that are exempt from all destructive strategies except whitespace normalization.
 // Keys are matched against post-flatten map keys, so for nested fields like "user.html_url", the dotted key must be
 // added explicitly. Empty collections are still dropped. Wins over collectionFieldExtractors.
 var preservedFields = map[string]bool{
 	"html_url": true,
+	"draft":    true,
 }
 
 // collectionFieldExtractors controls how array fields are handled instead of being summarized as "[N items]".
@@ -32,7 +37,14 @@ var collectionFieldExtractors = map[string][]string{
 
 // MarshalItems is the single entry point for response optimization.
 // Handles two shapes: plain JSON arrays and wrapped objects with metadata.
-func MarshalItems(data any) ([]byte, error) {
+// An optional maxDepth controls how many nesting levels flatten will recurse
+// into; it defaults to maxFlattenDepth when omitted.
+func MarshalItems(data any, maxDepth ...int) ([]byte, error) {
+	depth := maxFlattenDepth
+	if len(maxDepth) > 0 {
+		depth = maxDepth[0]
+	}
+
 	raw, err := json.Marshal(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal data: %w", err)
@@ -40,9 +52,9 @@ func MarshalItems(data any) ([]byte, error) {
 
 	switch raw[0] {
 	case '[':
-		return optimizeArray(raw)
+		return optimizeArray(raw, depth)
 	case '{':
-		return optimizeObject(raw)
+		return optimizeObject(raw, depth)
 	default:
 		return raw, nil
 	}
@@ -51,13 +63,13 @@ func MarshalItems(data any) ([]byte, error) {
 // OptimizeItems runs the full optimization pipeline on a slice of items:
 // flatten, remove URLs, remove zero-values, normalize whitespace,
 // summarize collections, and fill-rate filtering.
-func OptimizeItems(items []map[string]any) []map[string]any {
+func OptimizeItems(items []map[string]any, depth int) []map[string]any {
 	if len(items) == 0 {
 		return items
 	}
 
 	for i, item := range items {
-		flattenedItem := flatten(item)
+		flattenedItem := flattenTo(item, depth)
 		items[i] = optimizeItem(flattenedItem)
 	}
 
@@ -68,29 +80,26 @@ func OptimizeItems(items []map[string]any) []map[string]any {
 	return items
 }
 
-// flatten promotes values from one-level-deep nested maps into the parent
-// using dot-notation keys ("user.login", "user.id"). Nested maps and arrays
-// within those nested maps are dropped.
-func flatten(item map[string]any) map[string]any {
+// flattenTo recursively promotes values from nested maps into the parent
+// using dot-notation keys ("user.login", "commit.author.date"). Arrays
+// within nested maps are preserved at their dotted key position.
+// Recursion stops at the given maxDepth; deeper nested maps are dropped.
+func flattenTo(item map[string]any, maxDepth int) map[string]any {
 	result := make(map[string]any, len(item))
-	for key, value := range item {
-		nested, ok := value.(map[string]any)
-		if !ok {
-			result[key] = value
-			continue
-		}
+	flattenInto(item, "", result, 1, maxDepth)
+	return result
+}
 
-		for nk, nv := range nested {
-			switch nv.(type) {
-			case map[string]any, []any:
-				// skip complex nested values
-			default:
-				result[key+"."+nk] = nv
-			}
+// flattenInto is the recursive worker for flattenTo.
+func flattenInto(item map[string]any, prefix string, result map[string]any, depth int, maxDepth int) {
+	for key, value := range item {
+		fullKey := prefix + key
+		if nested, ok := value.(map[string]any); ok && depth < maxDepth {
+			flattenInto(nested, fullKey+".", result, depth+1, maxDepth)
+		} else if !ok {
+			result[fullKey] = value
 		}
 	}
-
-	return result
 }
 
 // filterByFillRate drops keys that appear on less than the threshold proportion of items.
@@ -126,16 +135,16 @@ func filterByFillRate(items []map[string]any, threshold float64) []map[string]an
 }
 
 // optimizeArray is the entry point for optimizing a raw JSON array.
-func optimizeArray(raw []byte) ([]byte, error) {
+func optimizeArray(raw []byte, depth int) ([]byte, error) {
 	var items []map[string]any
 	if err := json.Unmarshal(raw, &items); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
 	}
-	return json.Marshal(OptimizeItems(items))
+	return json.Marshal(OptimizeItems(items, depth))
 }
 
 // optimizeObject is the entry point for optimizing a raw JSON object.
-func optimizeObject(raw []byte) ([]byte, error) {
+func optimizeObject(raw []byte, depth int) ([]byte, error) {
 	var wrapper map[string]any
 	if err := json.Unmarshal(raw, &wrapper); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
@@ -161,7 +170,7 @@ func optimizeObject(raw []byte) ([]byte, error) {
 			items = append(items, m)
 		}
 	}
-	wrapper[dataKey] = OptimizeItems(items)
+	wrapper[dataKey] = OptimizeItems(items, depth)
 
 	return json.Marshal(wrapper)
 }

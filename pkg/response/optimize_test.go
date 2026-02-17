@@ -30,7 +30,7 @@ func TestFlatten(t *testing.T) {
 			},
 		},
 		{
-			name: "discards non-primitive nested values",
+			name: "drops nested maps at default depth",
 			input: map[string]any{
 				"user": map[string]any{
 					"login": "user",
@@ -40,16 +40,35 @@ func TestFlatten(t *testing.T) {
 			},
 			expected: map[string]any{
 				"user.login": "user",
+				"user.repos": []any{"repo1"},
 			},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := flatten(tc.input)
+			result := flattenTo(tc.input, maxFlattenDepth)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
+
+	t.Run("recurses deeper with custom depth", func(t *testing.T) {
+		input := map[string]any{
+			"commit": map[string]any{
+				"message": "fix bug",
+				"author": map[string]any{
+					"name": "user",
+					"date": "2026-01-01",
+				},
+			},
+		}
+		result := flattenTo(input, 3)
+		assert.Equal(t, map[string]any{
+			"commit.message":     "fix bug",
+			"commit.author.name": "user",
+			"commit.author.date": "2026-01-01",
+		}, result)
+	})
 }
 
 func TestTrimArrayFields(t *testing.T) {
@@ -144,6 +163,7 @@ func TestOptimizeItems(t *testing.T) {
 					"title":      "Fix bug",
 					"body":       "line1 line2",
 					"html_url":   "https://github.com/repo/1",
+					"draft":      false,
 					"labels":     "bug",
 					"user.login": "user",
 				},
@@ -158,7 +178,7 @@ func TestOptimizeItems(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := OptimizeItems(tc.items)
+			result := OptimizeItems(tc.items, maxFlattenDepth)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
@@ -170,7 +190,7 @@ func TestOptimizeItems_SkipsFillRateBelowMinRows(t *testing.T) {
 		{"title": "b"},
 	}
 
-	result := OptimizeItems(items)
+	result := OptimizeItems(items, maxFlattenDepth)
 	assert.Equal(t, "x", result[0]["rare"])
 }
 
@@ -326,6 +346,6 @@ func TestMarshalItems_WrappedObject(t *testing.T) {
 		assert.NotEmpty(t, m["title"])
 		assert.NotEmpty(t, m["html_url"])
 		assert.Nil(t, m["url"])
-		assert.Nil(t, m["draft"])
+		assert.Equal(t, false, m["draft"])
 	}
 }
