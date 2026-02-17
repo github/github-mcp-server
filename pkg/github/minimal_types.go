@@ -151,25 +151,26 @@ type MinimalReactions struct {
 
 // MinimalIssue is the trimmed output type for issue objects to reduce verbosity.
 type MinimalIssue struct {
-	Number      int               `json:"number"`
-	Title       string            `json:"title"`
-	Body        string            `json:"body,omitempty"`
-	State       string            `json:"state"`
-	StateReason string            `json:"state_reason,omitempty"`
-	Draft       bool              `json:"draft,omitempty"`
-	Locked      bool              `json:"locked,omitempty"`
-	HTMLURL     string            `json:"html_url"`
-	User        *MinimalUser      `json:"user,omitempty"`
-	Labels      []string          `json:"labels,omitempty"`
-	Assignees   []string          `json:"assignees,omitempty"`
-	Milestone   string            `json:"milestone,omitempty"`
-	Comments    int               `json:"comments,omitempty"`
-	Reactions   *MinimalReactions `json:"reactions,omitempty"`
-	CreatedAt   string            `json:"created_at,omitempty"`
-	UpdatedAt   string            `json:"updated_at,omitempty"`
-	ClosedAt    string            `json:"closed_at,omitempty"`
-	ClosedBy    string            `json:"closed_by,omitempty"`
-	IssueType   string            `json:"issue_type,omitempty"`
+	Number            int               `json:"number"`
+	Title             string            `json:"title"`
+	Body              string            `json:"body,omitempty"`
+	State             string            `json:"state"`
+	StateReason       string            `json:"state_reason,omitempty"`
+	Draft             bool              `json:"draft,omitempty"`
+	Locked            bool              `json:"locked,omitempty"`
+	HTMLURL           string            `json:"html_url"`
+	User              *MinimalUser      `json:"user,omitempty"`
+	AuthorAssociation string            `json:"author_association,omitempty"`
+	Labels            []string          `json:"labels,omitempty"`
+	Assignees         []string          `json:"assignees,omitempty"`
+	Milestone         string            `json:"milestone,omitempty"`
+	Comments          int               `json:"comments,omitempty"`
+	Reactions         *MinimalReactions `json:"reactions,omitempty"`
+	CreatedAt         string            `json:"created_at,omitempty"`
+	UpdatedAt         string            `json:"updated_at,omitempty"`
+	ClosedAt          string            `json:"closed_at,omitempty"`
+	ClosedBy          string            `json:"closed_by,omitempty"`
+	IssueType         string            `json:"issue_type,omitempty"`
 }
 
 // MinimalPullRequest is the trimmed output type for pull request objects to reduce verbosity.
@@ -218,16 +219,17 @@ type MinimalPRBranchRepo struct {
 
 func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 	m := MinimalIssue{
-		Number:      issue.GetNumber(),
-		Title:       issue.GetTitle(),
-		Body:        issue.GetBody(),
-		State:       issue.GetState(),
-		StateReason: issue.GetStateReason(),
-		Draft:       issue.GetDraft(),
-		Locked:      issue.GetLocked(),
-		HTMLURL:     issue.GetHTMLURL(),
-		User:        convertToMinimalUser(issue.GetUser()),
-		Comments:    issue.GetComments(),
+		Number:            issue.GetNumber(),
+		Title:             issue.GetTitle(),
+		Body:              issue.GetBody(),
+		State:             issue.GetState(),
+		StateReason:       issue.GetStateReason(),
+		Draft:             issue.GetDraft(),
+		Locked:            issue.GetLocked(),
+		HTMLURL:           issue.GetHTMLURL(),
+		User:              convertToMinimalUser(issue.GetUser()),
+		AuthorAssociation: issue.GetAuthorAssociation(),
+		Comments:          issue.GetComments(),
 	}
 
 	if issue.CreatedAt != nil {
