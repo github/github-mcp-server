@@ -376,12 +376,9 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 		}
 	}
 
-	r, err := json.Marshal(issue)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal issue: %w", err)
-	}
+	minimalIssue := convertToMinimalIssue(issue)
 
-	return utils.NewToolResultText(string(r)), nil
+	return MarshalledTextResult(minimalIssue), nil
 }
 
 func GetIssueComments(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
