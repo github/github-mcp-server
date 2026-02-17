@@ -433,12 +433,12 @@ func GetIssueComments(ctx context.Context, client *github.Client, deps ToolDepen
 		comments = filteredComments
 	}
 
-	r, err := json.Marshal(comments)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	minimalComments := make([]MinimalIssueComment, 0, len(comments))
+	for _, comment := range comments {
+		minimalComments = append(minimalComments, convertToMinimalIssueComment(comment))
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return MarshalledTextResult(minimalComments), nil
 }
 
 func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
