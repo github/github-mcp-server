@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -178,6 +179,14 @@ func withInsiders(next http.Handler) http.Handler {
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	inv, err := h.inventoryFactoryFunc(r)
 	if err != nil {
+		if errors.Is(err, inventory.ErrUnknownTools) {
+			w.WriteHeader(http.StatusBadRequest)
+			if _, writeErr := w.Write([]byte(err.Error())); writeErr != nil {
+				h.logger.Error("failed to write response", "error", writeErr)
+			}
+			return
+		}
+
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -278,8 +287,10 @@ func PATScopeFilter(b *inventory.Builder, r *http.Request, fetcher scopes.Fetche
 	// Only classic PATs (ghp_ prefix) return OAuth scopes via X-OAuth-Scopes header.
 	// Fine-grained PATs and other token types don't support this, so we skip filtering.
 	if tokenInfo.TokenType == utils.TokenTypePersonalAccessToken {
-		if tokenInfo.ScopesFetched {
-			return b.WithFilter(github.CreateToolScopeFilter(tokenInfo.Scopes))
+		// Check if scopes are already in context (should be set by WithPATScopes). If not, fetch them.
+		existingScopes, ok := ghcontext.GetTokenScopes(ctx)
+		if ok {
+			return b.WithFilter(github.CreateToolScopeFilter(existingScopes))
 		}
 
 		scopesList, err := fetcher.FetchTokenScopes(ctx, tokenInfo.Token)
