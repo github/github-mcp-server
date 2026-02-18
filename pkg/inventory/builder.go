@@ -141,6 +141,19 @@ func (b *Builder) WithFilter(filter ToolFilter) *Builder {
 	return b
 }
 
+// WithDisallowedTools specifies tools that should be disabled regardless of other settings.
+// These tools will be excluded even if their toolset is enabled or they are in the
+// additional tools list. This takes precedence over all other tool enablement settings.
+// Input is cleaned (trimmed, deduplicated) before applying.
+// Returns self for chaining.
+func (b *Builder) WithDisallowedTools(toolNames []string) *Builder {
+	cleaned := cleanTools(toolNames)
+	if len(cleaned) > 0 {
+		b.filters = append(b.filters, CreateDisallowedToolsFilter(cleaned))
+	}
+	return b
+}
+
 // WithInsidersMode enables or disables insiders mode features.
 // When insiders mode is disabled (default), UI metadata is removed from tools
 // so clients won't attempt to load UI resources.
@@ -148,6 +161,20 @@ func (b *Builder) WithFilter(filter ToolFilter) *Builder {
 func (b *Builder) WithInsidersMode(enabled bool) *Builder {
 	b.insidersMode = enabled
 	return b
+}
+
+// CreateDisallowedToolsFilter creates a ToolFilter that excludes tools by name.
+// Any tool whose name appears in the disallowed list will be filtered out.
+// The input slice should already be cleaned (trimmed, deduplicated).
+func CreateDisallowedToolsFilter(disallowed []string) ToolFilter {
+	set := make(map[string]struct{}, len(disallowed))
+	for _, name := range disallowed {
+		set[name] = struct{}{}
+	}
+	return func(_ context.Context, tool *ServerTool) (bool, error) {
+		_, blocked := set[tool.Tool.Name]
+		return !blocked, nil
+	}
 }
 
 // cleanTools trims whitespace and removes duplicates from tool names.
