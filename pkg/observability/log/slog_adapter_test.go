@@ -49,7 +49,7 @@ func TestSlogLogger_ConvenienceMethods(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		logFunc func(string, ...slog.Attr)
+		logFunc func(string, ...Field)
 		level   string
 	}{
 		{"Debug", logger.Debug, "DEBUG"},
@@ -61,7 +61,7 @@ func TestSlogLogger_ConvenienceMethods(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			buf.Reset()
-			tt.logFunc("test message", slog.String("key", "value"))
+			tt.logFunc("test message", String("key", "value"))
 
 			output := buf.String()
 			assert.Contains(t, output, "test message")
@@ -76,12 +76,10 @@ func TestSlogLogger_Fatal(t *testing.T) {
 	slogger := slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	logger := NewSlogLogger(slogger, DebugLevel)
 
-	// Fatal should panic after logging
 	assert.Panics(t, func() {
 		logger.Fatal("fatal message")
 	})
 
-	// Verify the message was logged before panic
 	assert.Contains(t, buf.String(), "fatal message")
 }
 
@@ -90,10 +88,9 @@ func TestSlogLogger_WithFields(t *testing.T) {
 	slogger := slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	logger := NewSlogLogger(slogger, InfoLevel)
 
-	// Add fields and log
 	loggerWithFields := logger.WithFields(
-		slog.String("service", "test-service"),
-		slog.Int("port", 8080),
+		String("service", "test-service"),
+		Int("port", 8080),
 	)
 
 	loggerWithFields.Info("message with fields")
@@ -105,7 +102,6 @@ func TestSlogLogger_WithFields(t *testing.T) {
 	assert.Contains(t, output, "port")
 	assert.Contains(t, output, "8080")
 
-	// Original logger should not have the fields
 	buf.Reset()
 	logger.Info("message without fields")
 	output = buf.String()
@@ -147,10 +143,8 @@ func TestSlogLogger_WithLevel(t *testing.T) {
 	slogger := slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	logger := NewSlogLogger(slogger, InfoLevel)
 
-	// New logger with debug level
 	debugLogger := logger.WithLevel(DebugLevel)
 
-	// Verify levels are correct
 	assert.Equal(t, InfoLevel, logger.Level())
 	assert.Equal(t, DebugLevel, debugLogger.Level())
 }
@@ -160,7 +154,6 @@ func TestSlogLogger_Sync(t *testing.T) {
 	slogger := slog.New(slog.NewTextHandler(buf, nil))
 	logger := NewSlogLogger(slogger, InfoLevel)
 
-	// Sync should not error for slog (no-op)
 	err := logger.Sync()
 	assert.NoError(t, err)
 }
@@ -170,10 +163,9 @@ func TestSlogLogger_Chaining(t *testing.T) {
 	slogger := slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	logger := NewSlogLogger(slogger, DebugLevel)
 
-	// Chain multiple operations
 	chainedLogger := logger.
 		Named("service").
-		WithFields(slog.String("version", "1.0")).
+		WithFields(String("version", "1.0")).
 		WithLevel(InfoLevel)
 
 	chainedLogger.Info("chained message")
@@ -222,7 +214,7 @@ func TestSlogLogger_LogWithContext(t *testing.T) {
 	logger := NewSlogLogger(slogger, DebugLevel)
 
 	ctx := context.Background()
-	logger.Log(ctx, InfoLevel, "context message", slog.String("trace_id", "abc123"))
+	logger.Log(ctx, InfoLevel, "context message", String("trace_id", "abc123"))
 
 	output := buf.String()
 	assert.Contains(t, output, "context message")
@@ -235,7 +227,7 @@ func TestSlogLogger_WithFields_PreservesLevel(t *testing.T) {
 	slogger := slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	logger := NewSlogLogger(slogger, WarnLevel)
 
-	withFields := logger.WithFields(slog.String("key", "value"))
+	withFields := logger.WithFields(String("key", "value"))
 
 	assert.Equal(t, WarnLevel, withFields.Level())
 
@@ -262,10 +254,10 @@ func TestSlogLogger_MultipleFields(t *testing.T) {
 	logger := NewSlogLogger(slogger, DebugLevel)
 
 	logger.Info("multi-field message",
-		slog.String("string_field", "value"),
-		slog.Int("int_field", 42),
-		slog.Bool("bool_field", true),
-		slog.Float64("float_field", 3.14),
+		String("string_field", "value"),
+		Int("int_field", 42),
+		Bool("bool_field", true),
+		Float64("float_field", 3.14),
 	)
 
 	output := buf.String()

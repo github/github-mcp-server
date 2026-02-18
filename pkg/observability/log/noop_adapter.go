@@ -2,7 +2,6 @@ package log
 
 import (
 	"context"
-	"log/slog"
 )
 
 type NoopLogger struct{}
@@ -17,31 +16,31 @@ func (l *NoopLogger) Level() Level {
 	return DebugLevel
 }
 
-func (l *NoopLogger) Log(_ context.Context, _ Level, _ string, _ ...slog.Attr) {
+func (l *NoopLogger) Log(_ context.Context, _ Level, _ string, _ ...Field) {
 	// No-op
 }
 
-func (l *NoopLogger) Debug(_ string, _ ...slog.Attr) {
+func (l *NoopLogger) Debug(_ string, _ ...Field) {
 	// No-op
 }
 
-func (l *NoopLogger) Info(_ string, _ ...slog.Attr) {
+func (l *NoopLogger) Info(_ string, _ ...Field) {
 	// No-op
 }
 
-func (l *NoopLogger) Warn(_ string, _ ...slog.Attr) {
+func (l *NoopLogger) Warn(_ string, _ ...Field) {
 	// No-op
 }
 
-func (l *NoopLogger) Error(_ string, _ ...slog.Attr) {
+func (l *NoopLogger) Error(_ string, _ ...Field) {
 	// No-op
 }
 
-func (l *NoopLogger) Fatal(_ string, _ ...slog.Attr) {
+func (l *NoopLogger) Fatal(_ string, _ ...Field) {
 	// No-op
 }
 
-func (l *NoopLogger) WithFields(_ ...slog.Attr) Logger {
+func (l *NoopLogger) WithFields(_ ...Field) Logger {
 	return l
 }
 

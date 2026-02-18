@@ -2,17 +2,16 @@ package log
 
 import (
 	"context"
-	"log/slog"
 )
 
 type Logger interface {
-	Log(ctx context.Context, level Level, msg string, fields ...slog.Attr)
-	Debug(msg string, fields ...slog.Attr)
-	Info(msg string, fields ...slog.Attr)
-	Warn(msg string, fields ...slog.Attr)
-	Error(msg string, fields ...slog.Attr)
-	Fatal(msg string, fields ...slog.Attr)
-	WithFields(fields ...slog.Attr) Logger
+	Log(ctx context.Context, level Level, msg string, fields ...Field)
+	Debug(msg string, fields ...Field)
+	Info(msg string, fields ...Field)
+	Warn(msg string, fields ...Field)
+	Error(msg string, fields ...Field)
+	Fatal(msg string, fields ...Field)
+	WithFields(fields ...Field) Logger
 	WithError(err error) Logger
 	Named(name string) Logger
 	WithLevel(level Level) Logger
