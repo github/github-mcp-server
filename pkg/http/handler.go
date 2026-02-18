@@ -19,6 +19,9 @@ import (
 )
 
 type InventoryFactoryFunc func(r *http.Request) (*inventory.Inventory, error)
+
+// GitHubMCPServerFactoryFunc is a function type for creating a new MCP Server instance.
+// middleware are applied AFTER the default GitHub MCP Server middlewares (like error context injection)
 type GitHubMCPServerFactoryFunc func(r *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error)
 
 type Handler struct {

@@ -78,7 +78,7 @@ type MCPServerConfig struct {
 
 type MCPServerOption func(*mcp.ServerOptions)
 
-func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependencies, inv *inventory.Inventory) (*mcp.Server, error) {
+func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependencies, inv *inventory.Inventory, middleware ...mcp.Middleware) (*mcp.Server, error) {
 	// Create the MCP server
 	serverOpts := &mcp.ServerOptions{
 		Instructions:      inv.Instructions(),
@@ -103,9 +103,11 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 
 	ghServer := NewServer(cfg.Version, serverOpts)
 
-	// Add middlewares
-	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
+	// Add middlewares. Order matters - for example, the error context middleware should be applied last so that it runs FIRST (closest to the handler) to ensure all errors are captured,
+	// and any middleware that needs to read or modify the context should be before it.
+	ghServer.AddReceivingMiddleware(middleware...)
 	ghServer.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
 
 	if unrecognized := inv.UnrecognizedToolsets(); len(unrecognized) > 0 {
 		cfg.Logger.Warn("Warning: unrecognized toolsets ignored", "toolsets", strings.Join(unrecognized, ", "))
