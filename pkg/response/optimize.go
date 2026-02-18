@@ -274,11 +274,10 @@ func trimArrayFields(items []any, fields []string) []any {
 
 // isURLKey matches "url", "*_url", and their dot-prefixed variants.
 func isURLKey(key string) bool {
-	base := key
-	if idx := strings.LastIndex(base, "."); idx >= 0 {
-		base = base[idx+1:]
+	if idx := strings.LastIndex(key, "."); idx >= 0 {
+		key = key[idx+1:]
 	}
-	return base == "url" || strings.HasSuffix(base, "_url")
+	return key == "url" || strings.HasSuffix(key, "_url")
 }
 
 func isZeroValue(v any) bool {
