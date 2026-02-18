@@ -354,6 +354,10 @@ func convertToMinimalIssueComment(comment *github.IssueComment) MinimalIssueComm
 func convertToMinimalFileContentResponse(resp *github.RepositoryContentResponse) MinimalFileContentResponse {
 	m := MinimalFileContentResponse{}
 
+	if resp == nil {
+		return m
+	}
+
 	if c := resp.Content; c != nil {
 		m.Content = &MinimalFileContent{
 			Name:    c.GetName(),
