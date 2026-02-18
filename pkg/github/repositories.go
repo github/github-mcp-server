@@ -304,7 +304,7 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 				minimalBranches = append(minimalBranches, convertToMinimalBranch(branch))
 			}
 
-			r, err := response.MarshalItems(minimalBranches)
+			r, err := json.Marshal(minimalBranches)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}

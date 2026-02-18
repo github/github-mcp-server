@@ -608,7 +608,7 @@ func ListIssueTypes(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list issue types", resp, body), nil, nil
 			}
 
-			r, err := response.MarshalItems(issueTypes)
+			r, err := json.Marshal(issueTypes)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal issue types", err), nil, nil
 			}
