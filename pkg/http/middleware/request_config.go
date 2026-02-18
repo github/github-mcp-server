@@ -35,9 +35,9 @@ func WithRequestConfig(next http.Handler) http.Handler {
 			ctx = ghcontext.WithLockdownMode(ctx, true)
 		}
 
-		// Disallowed tools
-		if disallowedTools := headers.ParseCommaSeparated(r.Header.Get(headers.MCPDisallowedToolsHeader)); len(disallowedTools) > 0 {
-			ctx = ghcontext.WithDisallowedTools(ctx, disallowedTools)
+		// Excluded tools
+		if excludeTools := headers.ParseCommaSeparated(r.Header.Get(headers.MCPExcludeToolsHeader)); len(excludeTools) > 0 {
+			ctx = ghcontext.WithExcludeTools(ctx, excludeTools)
 		}
 
 		// Insiders mode

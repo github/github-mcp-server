@@ -135,7 +135,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		WithReadOnly(cfg.ReadOnly).
 		WithToolsets(github.ResolvedEnabledToolsets(cfg.DynamicToolsets, cfg.EnabledToolsets, cfg.EnabledTools)).
 		WithTools(github.CleanTools(cfg.EnabledTools)).
-		WithDisallowedTools(cfg.DisallowedTools).
+		WithExcludeTools(cfg.ExcludeTools).
 		WithServerInstructions().
 		WithFeatureChecker(featureChecker).
 		WithInsidersMode(cfg.InsidersMode)
@@ -215,10 +215,10 @@ type StdioServerConfig struct {
 	// InsidersMode indicates if we should enable experimental features
 	InsidersMode bool
 
-	// DisallowedTools is a list of tool names to disable regardless of other settings.
+	// ExcludeTools is a list of tool names to disable regardless of other settings.
 	// These tools will be excluded even if their toolset is enabled or they are
 	// explicitly listed in EnabledTools.
-	DisallowedTools []string
+	ExcludeTools []string
 
 	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
 	RepoAccessCacheTTL *time.Duration
@@ -277,7 +277,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		ContentWindowSize: cfg.ContentWindowSize,
 		LockdownMode:      cfg.LockdownMode,
 		InsidersMode:      cfg.InsidersMode,
-		DisallowedTools:   cfg.DisallowedTools,
+		ExcludeTools:      cfg.ExcludeTools,
 		Logger:            logger,
 		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
 		TokenScopes:       tokenScopes,

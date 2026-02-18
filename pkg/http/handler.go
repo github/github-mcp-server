@@ -272,8 +272,8 @@ func InventoryFiltersForRequest(r *http.Request, builder *inventory.Builder) *in
 		builder = builder.WithTools(github.CleanTools(tools))
 	}
 
-	if disallowed := ghcontext.GetDisallowedTools(ctx); len(disallowed) > 0 {
-		builder = builder.WithDisallowedTools(disallowed)
+	if excluded := ghcontext.GetExcludeTools(ctx); len(excluded) > 0 {
+		builder = builder.WithExcludeTools(excluded)
 	}
 
 	return builder

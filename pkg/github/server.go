@@ -62,10 +62,10 @@ type MCPServerConfig struct {
 	// RepoAccessTTL overrides the default TTL for repository access cache entries.
 	RepoAccessTTL *time.Duration
 
-	// DisallowedTools is a list of tool names that should be disabled regardless of
+	// ExcludeTools is a list of tool names that should be disabled regardless of
 	// other configuration. These tools will be excluded even if their toolset is enabled
 	// or they are explicitly listed in EnabledTools.
-	DisallowedTools []string
+	ExcludeTools []string
 
 	// TokenScopes contains the OAuth scopes available to the token.
 	// When non-nil, tools requiring scopes not in this list will be hidden.

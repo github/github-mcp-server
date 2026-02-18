@@ -82,17 +82,17 @@ func IsInsidersMode(ctx context.Context) bool {
 	return false
 }
 
-// disallowedToolsCtxKey is a context key for disallowed tools
-type disallowedToolsCtxKey struct{}
+// excludeToolsCtxKey is a context key for excluded tools
+type excludeToolsCtxKey struct{}
 
-// WithDisallowedTools adds the disallowed tools to the context
-func WithDisallowedTools(ctx context.Context, tools []string) context.Context {
-	return context.WithValue(ctx, disallowedToolsCtxKey{}, tools)
+// WithExcludeTools adds the excluded tools to the context
+func WithExcludeTools(ctx context.Context, tools []string) context.Context {
+	return context.WithValue(ctx, excludeToolsCtxKey{}, tools)
 }
 
-// GetDisallowedTools retrieves the disallowed tools from the context
-func GetDisallowedTools(ctx context.Context) []string {
-	if tools, ok := ctx.Value(disallowedToolsCtxKey{}).([]string); ok {
+// GetExcludeTools retrieves the excluded tools from the context
+func GetExcludeTools(ctx context.Context) []string {
+	if tools, ok := ctx.Value(excludeToolsCtxKey{}).([]string); ok {
 		return tools
 	}
 	return nil

@@ -141,15 +141,15 @@ func (b *Builder) WithFilter(filter ToolFilter) *Builder {
 	return b
 }
 
-// WithDisallowedTools specifies tools that should be disabled regardless of other settings.
+// WithExcludeTools specifies tools that should be disabled regardless of other settings.
 // These tools will be excluded even if their toolset is enabled or they are in the
 // additional tools list. This takes precedence over all other tool enablement settings.
 // Input is cleaned (trimmed, deduplicated) before applying.
 // Returns self for chaining.
-func (b *Builder) WithDisallowedTools(toolNames []string) *Builder {
+func (b *Builder) WithExcludeTools(toolNames []string) *Builder {
 	cleaned := cleanTools(toolNames)
 	if len(cleaned) > 0 {
-		b.filters = append(b.filters, CreateDisallowedToolsFilter(cleaned))
+		b.filters = append(b.filters, CreateExcludeToolsFilter(cleaned))
 	}
 	return b
 }
@@ -163,12 +163,12 @@ func (b *Builder) WithInsidersMode(enabled bool) *Builder {
 	return b
 }
 
-// CreateDisallowedToolsFilter creates a ToolFilter that excludes tools by name.
-// Any tool whose name appears in the disallowed list will be filtered out.
+// CreateExcludeToolsFilter creates a ToolFilter that excludes tools by name.
+// Any tool whose name appears in the excluded list will be filtered out.
 // The input slice should already be cleaned (trimmed, deduplicated).
-func CreateDisallowedToolsFilter(disallowed []string) ToolFilter {
-	set := make(map[string]struct{}, len(disallowed))
-	for _, name := range disallowed {
+func CreateExcludeToolsFilter(excluded []string) ToolFilter {
+	set := make(map[string]struct{}, len(excluded))
+	for _, name := range excluded {
 		set[name] = struct{}{}
 	}
 	return func(_ context.Context, tool *ServerTool) (bool, error) {
