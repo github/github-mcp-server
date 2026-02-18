@@ -236,7 +236,7 @@ func Test_ProjectsGet(t *testing.T) {
 	assert.Contains(t, inputSchema.Properties, "project_number")
 	assert.Contains(t, inputSchema.Properties, "field_id")
 	assert.Contains(t, inputSchema.Properties, "item_id")
-	assert.ElementsMatch(t, inputSchema.Required, []string{"method", "owner", "project_number"})
+	assert.ElementsMatch(t, inputSchema.Required, []string{"method"})
 }
 
 func Test_ProjectsGet_GetProject(t *testing.T) {
@@ -812,5 +812,211 @@ func Test_ProjectsWrite_DeleteProjectItem(t *testing.T) {
 		require.True(t, result.IsError)
 		textContent := getTextResult(t, result)
 		assert.Contains(t, textContent.Text, "missing required parameter: item_id")
+	})
+}
+
+func Test_ProjectsList_ListProjectStatusUpdates(t *testing.T) {
+	toolDef := ProjectsList(translations.NullTranslationHelper)
+
+	t.Run("success via consolidated tool", func(t *testing.T) {
+		// REST mock for detectOwnerType (when owner_type is omitted)
+		restClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			GetUsersProjectsV2ByUsernameByProject: mockResponse(t, http.StatusOK, map[string]any{"id": 1}),
+		})
+
+		// GQL mock for listProjectStatusUpdates
+		gqlMockedClient := githubv4mock.NewMockedHTTPClient(
+			githubv4mock.NewQueryMatcher(
+				statusUpdatesUserQuery{},
+				map[string]any{
+					"owner":         githubv4.String("octocat"),
+					"projectNumber": githubv4.Int(1),
+					"first":         githubv4.Int(50),
+					"after":         (*githubv4.String)(nil),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"user": map[string]any{
+						"projectV2": map[string]any{
+							"statusUpdates": map[string]any{
+								"nodes": []map[string]any{
+									{
+										"id":         "SU_1",
+										"body":       "On track",
+										"status":     "ON_TRACK",
+										"createdAt":  "2026-01-15T10:00:00Z",
+										"startDate":  "2026-01-01",
+										"targetDate": "2026-03-01",
+										"creator":    map[string]any{"login": "octocat"},
+									},
+								},
+								"pageInfo": map[string]any{
+									"hasNextPage":     false,
+									"hasPreviousPage": false,
+									"startCursor":     "",
+									"endCursor":       "",
+								},
+							},
+						},
+					},
+				}),
+			),
+		)
+
+		gqlClient := githubv4.NewClient(gqlMockedClient)
+		deps := BaseDeps{
+			Client:    gh.NewClient(restClient),
+			GQLClient: gqlClient,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "list_project_status_updates",
+			"owner":          "octocat",
+			"project_number": float64(1),
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		var response map[string]any
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+		updates, ok := response["statusUpdates"].([]any)
+		require.True(t, ok)
+		assert.Len(t, updates, 1)
+	})
+}
+
+func Test_ProjectsGet_GetProjectStatusUpdate(t *testing.T) {
+	toolDef := ProjectsGet(translations.NullTranslationHelper)
+
+	t.Run("success via consolidated tool", func(t *testing.T) {
+		gqlMockedClient := githubv4mock.NewMockedHTTPClient(
+			githubv4mock.NewQueryMatcher(
+				statusUpdateNodeQuery{},
+				map[string]any{
+					"id": githubv4.ID("SU_abc123"),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"node": map[string]any{
+						"id":         "SU_abc123",
+						"body":       "On track",
+						"status":     "ON_TRACK",
+						"createdAt":  "2026-01-15T10:00:00Z",
+						"startDate":  "2026-01-01",
+						"targetDate": "2026-03-01",
+						"creator":    map[string]any{"login": "octocat"},
+					},
+				}),
+			),
+		)
+
+		gqlClient := githubv4.NewClient(gqlMockedClient)
+		deps := BaseDeps{
+			GQLClient: gqlClient,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":           "get_project_status_update",
+			"owner":            "octocat",
+			"project_number":   float64(1),
+			"status_update_id": "SU_abc123",
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		var response map[string]any
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+		assert.Equal(t, "SU_abc123", response["id"])
+		assert.Equal(t, "On track", response["body"])
+	})
+}
+
+func Test_ProjectsWrite_CreateProjectStatusUpdate(t *testing.T) {
+	toolDef := ProjectsWrite(translations.NullTranslationHelper)
+
+	t.Run("success via consolidated tool", func(t *testing.T) {
+		bodyStr := githubv4.String("Consolidated test")
+		statusStr := githubv4.String("AT_RISK")
+
+		gqlMockedClient := githubv4mock.NewMockedHTTPClient(
+			// Mock project ID query for user
+			githubv4mock.NewQueryMatcher(
+				struct {
+					User struct {
+						ProjectV2 struct {
+							ID githubv4.ID
+						} `graphql:"projectV2(number: $projectNumber)"`
+					} `graphql:"user(login: $owner)"`
+				}{},
+				map[string]any{
+					"owner":         githubv4.String("octocat"),
+					"projectNumber": githubv4.Int(3),
+				},
+				githubv4mock.DataResponse(map[string]any{
+					"user": map[string]any{
+						"projectV2": map[string]any{
+							"id": "PVT_project3",
+						},
+					},
+				}),
+			),
+			// Mock createProjectV2StatusUpdate mutation
+			githubv4mock.NewMutationMatcher(
+				struct {
+					CreateProjectV2StatusUpdate struct {
+						StatusUpdate statusUpdateNode
+					} `graphql:"createProjectV2StatusUpdate(input: $input)"`
+				}{},
+				CreateProjectV2StatusUpdateInput{
+					ProjectID: githubv4.ID("PVT_project3"),
+					Body:      &bodyStr,
+					Status:    &statusStr,
+				},
+				nil,
+				githubv4mock.DataResponse(map[string]any{
+					"createProjectV2StatusUpdate": map[string]any{
+						"statusUpdate": map[string]any{
+							"id":        "PVTSU_su003",
+							"body":      "Consolidated test",
+							"status":    "AT_RISK",
+							"createdAt": "2026-02-09T12:00:00Z",
+							"creator":   map[string]any{"login": "octocat"},
+						},
+					},
+				}),
+			),
+		)
+
+		gqlClient := githubv4.NewClient(gqlMockedClient)
+		deps := BaseDeps{
+			GQLClient: gqlClient,
+		}
+		handler := toolDef.Handler(deps)
+		request := createMCPRequest(map[string]any{
+			"method":         "create_project_status_update",
+			"owner":          "octocat",
+			"owner_type":     "user",
+			"project_number": float64(3),
+			"body":           "Consolidated test",
+			"status":         "AT_RISK",
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		textContent := getTextResult(t, result)
+		var response map[string]any
+		err = json.Unmarshal([]byte(textContent.Text), &response)
+		require.NoError(t, err)
+		assert.Equal(t, "PVTSU_su003", response["id"])
+		assert.Equal(t, "Consolidated test", response["body"])
+		assert.Equal(t, "AT_RISK", response["status"])
 	})
 }
