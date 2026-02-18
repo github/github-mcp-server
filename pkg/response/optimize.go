@@ -152,7 +152,8 @@ func optimizeObject(raw []byte, depth int) ([]byte, error) {
 		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
 	}
 
-	// find the actual data array within the wrapper; rest is metadata to be preserved as is
+	// find the first array field in the wrapper (data); rest is metadata to be preserved as is
+	// assumes exactly one array field exists; if multiple are present, only the first will be optimized
 	var dataKey string
 	for key, value := range wrapper {
 		if _, ok := value.([]any); ok {
