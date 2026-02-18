@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -19,25 +20,120 @@ import (
 )
 
 const (
-	ProjectUpdateFailedError = "failed to update a project item"
-	ProjectAddFailedError    = "failed to add a project item"
-	ProjectDeleteFailedError = "failed to delete a project item"
-	ProjectListFailedError   = "failed to list project items"
-	MaxProjectsPerPage       = 50
+	ProjectUpdateFailedError             = "failed to update a project item"
+	ProjectAddFailedError                = "failed to add a project item"
+	ProjectDeleteFailedError             = "failed to delete a project item"
+	ProjectListFailedError               = "failed to list project items"
+	ProjectStatusUpdateListFailedError   = "failed to list project status updates"
+	ProjectStatusUpdateGetFailedError    = "failed to get project status update"
+	ProjectStatusUpdateCreateFailedError = "failed to create project status update"
+	ProjectResolveIDFailedError          = "failed to resolve project ID"
+	MaxProjectsPerPage                   = 50
 )
 
 // Method constants for consolidated project tools
 const (
-	projectsMethodListProjects      = "list_projects"
-	projectsMethodListProjectFields = "list_project_fields"
-	projectsMethodListProjectItems  = "list_project_items"
-	projectsMethodGetProject        = "get_project"
-	projectsMethodGetProjectField   = "get_project_field"
-	projectsMethodGetProjectItem    = "get_project_item"
-	projectsMethodAddProjectItem    = "add_project_item"
-	projectsMethodUpdateProjectItem = "update_project_item"
-	projectsMethodDeleteProjectItem = "delete_project_item"
+	projectsMethodListProjects              = "list_projects"
+	projectsMethodListProjectFields         = "list_project_fields"
+	projectsMethodListProjectItems          = "list_project_items"
+	projectsMethodGetProject                = "get_project"
+	projectsMethodGetProjectField           = "get_project_field"
+	projectsMethodGetProjectItem            = "get_project_item"
+	projectsMethodAddProjectItem            = "add_project_item"
+	projectsMethodUpdateProjectItem         = "update_project_item"
+	projectsMethodDeleteProjectItem         = "delete_project_item"
+	projectsMethodListProjectStatusUpdates  = "list_project_status_updates"
+	projectsMethodGetProjectStatusUpdate    = "get_project_status_update"
+	projectsMethodCreateProjectStatusUpdate = "create_project_status_update"
 )
+
+// GraphQL types for ProjectV2 status updates
+
+type statusUpdateNode struct {
+	ID         githubv4.ID
+	Body       *githubv4.String
+	Status     *githubv4.String
+	CreatedAt  githubv4.DateTime
+	StartDate  *githubv4.String
+	TargetDate *githubv4.String
+	Creator    struct {
+		Login githubv4.String
+	}
+}
+
+type statusUpdateConnection struct {
+	Nodes    []statusUpdateNode
+	PageInfo PageInfoFragment
+}
+
+// statusUpdatesUserQuery is the GraphQL query for listing status updates on a user-owned project.
+type statusUpdatesUserQuery struct {
+	User struct {
+		ProjectV2 struct {
+			StatusUpdates statusUpdateConnection `graphql:"statusUpdates(first: $first, after: $after, orderBy: {field: CREATED_AT, direction: DESC})"`
+		} `graphql:"projectV2(number: $projectNumber)"`
+	} `graphql:"user(login: $owner)"`
+}
+
+// statusUpdatesOrgQuery is the GraphQL query for listing status updates on an org-owned project.
+type statusUpdatesOrgQuery struct {
+	Organization struct {
+		ProjectV2 struct {
+			StatusUpdates statusUpdateConnection `graphql:"statusUpdates(first: $first, after: $after, orderBy: {field: CREATED_AT, direction: DESC})"`
+		} `graphql:"projectV2(number: $projectNumber)"`
+	} `graphql:"organization(login: $owner)"`
+}
+
+// statusUpdateNodeQuery is the GraphQL query for fetching a single status update by node ID.
+type statusUpdateNodeQuery struct {
+	Node struct {
+		StatusUpdate statusUpdateNode `graphql:"... on ProjectV2StatusUpdate"`
+	} `graphql:"node(id: $id)"`
+}
+
+// CreateProjectV2StatusUpdateInput is the input for the createProjectV2StatusUpdate mutation.
+// Defined locally because the shurcooL/githubv4 library does not include this type.
+type CreateProjectV2StatusUpdateInput struct {
+	ProjectID        githubv4.ID      `json:"projectId"`
+	Body             *githubv4.String `json:"body,omitempty"`
+	Status           *githubv4.String `json:"status,omitempty"`
+	StartDate        *githubv4.String `json:"startDate,omitempty"`
+	TargetDate       *githubv4.String `json:"targetDate,omitempty"`
+	ClientMutationID *githubv4.String `json:"clientMutationId,omitempty"`
+}
+
+// validProjectV2StatusUpdateStatuses is the set of valid status values for the createProjectV2StatusUpdate mutation.
+var validProjectV2StatusUpdateStatuses = map[string]bool{
+	"INACTIVE":  true,
+	"ON_TRACK":  true,
+	"AT_RISK":   true,
+	"OFF_TRACK": true,
+	"COMPLETE":  true,
+}
+
+func convertToMinimalStatusUpdate(node statusUpdateNode) MinimalProjectStatusUpdate {
+	var creator *MinimalUser
+	if login := string(node.Creator.Login); login != "" {
+		creator = &MinimalUser{Login: login}
+	}
+
+	return MinimalProjectStatusUpdate{
+		ID:         fmt.Sprintf("%v", node.ID),
+		Body:       derefString(node.Body),
+		Status:     derefString(node.Status),
+		CreatedAt:  node.CreatedAt.Time.Format(time.RFC3339),
+		StartDate:  derefString(node.StartDate),
+		TargetDate: derefString(node.TargetDate),
+		Creator:    creator,
+	}
+}
+
+func derefString(s *githubv4.String) string {
+	if s == nil {
+		return ""
+	}
+	return string(*s)
+}
 
 // ProjectsList returns the tool and handler for listing GitHub Projects resources.
 func ProjectsList(t translations.TranslationHelperFunc) inventory.ServerTool {
@@ -63,6 +159,7 @@ Use this tool to list projects for a user or organization, or list project field
 							projectsMethodListProjects,
 							projectsMethodListProjectFields,
 							projectsMethodListProjectItems,
+							projectsMethodListProjectStatusUpdates,
 						},
 					},
 					"owner_type": {
@@ -76,7 +173,7 @@ Use this tool to list projects for a user or organization, or list project field
 					},
 					"project_number": {
 						Type:        "number",
-						Description: "The project's number. Required for 'list_project_fields' and 'list_project_items' methods.",
+						Description: "The project's number. Required for 'list_project_fields', 'list_project_items', and 'list_project_status_updates' methods.",
 					},
 					"query": {
 						Type:        "string",
@@ -130,34 +227,33 @@ Use this tool to list projects for a user or organization, or list project field
 			switch method {
 			case projectsMethodListProjects:
 				return listProjects(ctx, client, args, owner, ownerType)
-			case projectsMethodListProjectFields:
-				// Detect owner type if not provided and project_number is available
-				if ownerType == "" {
-					projectNumber, err := RequiredInt(args, "project_number")
-					if err != nil {
-						return utils.NewToolResultError(err.Error()), nil, nil
-					}
-					ownerType, err = detectOwnerType(ctx, client, owner, projectNumber)
-					if err != nil {
-						return utils.NewToolResultError(err.Error()), nil, nil
-					}
-				}
-				return listProjectFields(ctx, client, args, owner, ownerType)
-			case projectsMethodListProjectItems:
-				// Detect owner type if not provided and project_number is available
-				if ownerType == "" {
-					projectNumber, err := RequiredInt(args, "project_number")
-					if err != nil {
-						return utils.NewToolResultError(err.Error()), nil, nil
-					}
-					ownerType, err = detectOwnerType(ctx, client, owner, projectNumber)
-					if err != nil {
-						return utils.NewToolResultError(err.Error()), nil, nil
-					}
-				}
-				return listProjectItems(ctx, client, args, owner, ownerType)
 			default:
-				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				// All other methods require project_number and ownerType detection
+				if ownerType == "" {
+					projectNumber, err := RequiredInt(args, "project_number")
+					if err != nil {
+						return utils.NewToolResultError(err.Error()), nil, nil
+					}
+					ownerType, err = detectOwnerType(ctx, client, owner, projectNumber)
+					if err != nil {
+						return utils.NewToolResultError(err.Error()), nil, nil
+					}
+				}
+
+				switch method {
+				case projectsMethodListProjectFields:
+					return listProjectFields(ctx, client, args, owner, ownerType)
+				case projectsMethodListProjectItems:
+					return listProjectItems(ctx, client, args, owner, ownerType)
+				case projectsMethodListProjectStatusUpdates:
+					gqlClient, err := deps.GetGQLClient(ctx)
+					if err != nil {
+						return utils.NewToolResultError(err.Error()), nil, nil
+					}
+					return listProjectStatusUpdates(ctx, gqlClient, args, owner, ownerType)
+				default:
+					return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
+				}
 			}
 		},
 	)
@@ -187,6 +283,7 @@ Use this tool to get details about individual projects, project fields, and proj
 							projectsMethodGetProject,
 							projectsMethodGetProjectField,
 							projectsMethodGetProjectItem,
+							projectsMethodGetProjectStatusUpdate,
 						},
 					},
 					"owner_type": {
@@ -217,8 +314,12 @@ Use this tool to get details about individual projects, project fields, and proj
 							Type: "string",
 						},
 					},
+					"status_update_id": {
+						Type:        "string",
+						Description: "The node ID of the project status update. Required for 'get_project_status_update' method.",
+					},
 				},
-				Required: []string{"method", "owner", "project_number"},
+				Required: []string{"method"},
 			},
 		},
 		[]scopes.Scope{scopes.ReadProject},
@@ -226,6 +327,19 @@ Use this tool to get details about individual projects, project fields, and proj
 			method, err := RequiredParam[string](args, "method")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
+			// Handle get_project_status_update early — it only needs status_update_id
+			if method == projectsMethodGetProjectStatusUpdate {
+				statusUpdateID, err := RequiredParam[string](args, "status_update_id")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				gqlClient, err := deps.GetGQLClient(ctx)
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				return getProjectStatusUpdate(ctx, gqlClient, statusUpdateID)
 			}
 
 			owner, err := RequiredParam[string](args, "owner")
@@ -289,7 +403,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 		ToolsetMetadataProjects,
 		mcp.Tool{
 			Name:        "projects_write",
-			Description: t("TOOL_PROJECTS_WRITE_DESCRIPTION", "Add, update, or delete project items in a GitHub Project."),
+			Description: t("TOOL_PROJECTS_WRITE_DESCRIPTION", "Add, update, or delete project items, or create status updates in a GitHub Project."),
 			Annotations: &mcp.ToolAnnotations{
 				Title:           t("TOOL_PROJECTS_WRITE_USER_TITLE", "Modify GitHub Project items"),
 				ReadOnlyHint:    false,
@@ -305,6 +419,7 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 							projectsMethodAddProjectItem,
 							projectsMethodUpdateProjectItem,
 							projectsMethodDeleteProjectItem,
+							projectsMethodCreateProjectStatusUpdate,
 						},
 					},
 					"owner_type": {
@@ -348,6 +463,23 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					"updated_field": {
 						Type:        "object",
 						Description: "Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {\"id\": 123456, \"value\": \"New Value\"}. Required for 'update_project_item' method.",
+					},
+					"body": {
+						Type:        "string",
+						Description: "The body of the status update (markdown). Used for 'create_project_status_update' method.",
+					},
+					"status": {
+						Type:        "string",
+						Description: "The status of the project. Used for 'create_project_status_update' method.",
+						Enum:        []any{"INACTIVE", "ON_TRACK", "AT_RISK", "OFF_TRACK", "COMPLETE"},
+					},
+					"start_date": {
+						Type:        "string",
+						Description: "The start date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method.",
+					},
+					"target_date": {
+						Type:        "string",
+						Description: "The target date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method.",
 					},
 				},
 				Required: []string{"method", "owner", "project_number"},
@@ -445,6 +577,24 @@ func ProjectsWrite(t translations.TranslationHelperFunc) inventory.ServerTool {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
 				return deleteProjectItem(ctx, client, owner, ownerType, projectNumber, itemID)
+			case projectsMethodCreateProjectStatusUpdate:
+				body, err := OptionalParam[string](args, "body")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				status, err := OptionalParam[string](args, "status")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				startDate, err := OptionalParam[string](args, "start_date")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				targetDate, err := OptionalParam[string](args, "target_date")
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				return createProjectStatusUpdate(ctx, gqlClient, owner, ownerType, projectNumber, body, status, startDate, targetDate)
 			default:
 				return utils.NewToolResultError(fmt.Sprintf("unknown method: %s", method)), nil, nil
 			}
@@ -875,6 +1025,43 @@ func deleteProjectItem(ctx context.Context, client *github.Client, owner, ownerT
 	return utils.NewToolResultText("project item successfully deleted"), nil, nil
 }
 
+// resolveProjectNodeID resolves (owner, ownerType, projectNumber) to a project node ID via GraphQL.
+func resolveProjectNodeID(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int) (githubv4.ID, error) {
+	var projectIDQueryUser struct {
+		User struct {
+			ProjectV2 struct {
+				ID githubv4.ID
+			} `graphql:"projectV2(number: $projectNumber)"`
+		} `graphql:"user(login: $owner)"`
+	}
+	var projectIDQueryOrg struct {
+		Organization struct {
+			ProjectV2 struct {
+				ID githubv4.ID
+			} `graphql:"projectV2(number: $projectNumber)"`
+		} `graphql:"organization(login: $owner)"`
+	}
+
+	queryVars := map[string]any{
+		"owner":         githubv4.String(owner),
+		"projectNumber": githubv4.Int(int32(projectNumber)), //nolint:gosec // Project numbers are small integers
+	}
+
+	if ownerType == "org" {
+		err := gqlClient.Query(ctx, &projectIDQueryOrg, queryVars)
+		if err != nil {
+			return "", fmt.Errorf("%s: %w", ProjectResolveIDFailedError, err)
+		}
+		return projectIDQueryOrg.Organization.ProjectV2.ID, nil
+	}
+
+	err := gqlClient.Query(ctx, &projectIDQueryUser, queryVars)
+	if err != nil {
+		return "", fmt.Errorf("%s: %w", ProjectResolveIDFailedError, err)
+	}
+	return projectIDQueryUser.User.ProjectV2.ID, nil
+}
+
 // addProjectItem adds an item to a project by resolving the issue/PR number to a node ID
 func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, itemOwner, itemRepo string, itemNumber int, itemType string) (*mcp.CallToolResult, any, error) {
 	if itemType != "issue" && itemType != "pull_request" {
@@ -902,41 +1089,10 @@ func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, owne
 		} `graphql:"addProjectV2ItemById(input: $input)"`
 	}
 
-	// First, get the project ID
-	var projectIDQuery struct {
-		User struct {
-			ProjectV2 struct {
-				ID githubv4.ID
-			} `graphql:"projectV2(number: $projectNumber)"`
-		} `graphql:"user(login: $owner)"`
-	}
-	var projectIDQueryOrg struct {
-		Organization struct {
-			ProjectV2 struct {
-				ID githubv4.ID
-			} `graphql:"projectV2(number: $projectNumber)"`
-		} `graphql:"organization(login: $owner)"`
-	}
-
-	var projectID githubv4.ID
-	if ownerType == "org" {
-		err = gqlClient.Query(ctx, &projectIDQueryOrg, map[string]any{
-			"owner":         githubv4.String(owner),
-			"projectNumber": githubv4.Int(int32(projectNumber)), //nolint:gosec // Project numbers are small integers
-		})
-		if err != nil {
-			return utils.NewToolResultError(fmt.Sprintf("failed to get project ID: %v", err)), nil, nil
-		}
-		projectID = projectIDQueryOrg.Organization.ProjectV2.ID
-	} else {
-		err = gqlClient.Query(ctx, &projectIDQuery, map[string]any{
-			"owner":         githubv4.String(owner),
-			"projectNumber": githubv4.Int(int32(projectNumber)), //nolint:gosec // Project numbers are small integers
-		})
-		if err != nil {
-			return utils.NewToolResultError(fmt.Sprintf("failed to get project ID: %v", err)), nil, nil
-		}
-		projectID = projectIDQuery.User.ProjectV2.ID
+	// Resolve the project number to a node ID
+	projectID, err := resolveProjectNodeID(ctx, gqlClient, owner, ownerType, projectNumber)
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
 	}
 
 	// Add the item to the project
@@ -960,6 +1116,188 @@ func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, owne
 		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 	}
 
+	return utils.NewToolResultText(string(r)), nil, nil
+}
+
+// validateDateFormat checks that a date string is in YYYY-MM-DD format.
+func validateDateFormat(value, fieldName string) error {
+	if _, err := time.Parse("2006-01-02", value); err != nil {
+		return fmt.Errorf("invalid %s %q: must be YYYY-MM-DD format", fieldName, value)
+	}
+	return nil
+}
+
+// createProjectStatusUpdate creates a new status update for a project via GraphQL.
+func createProjectStatusUpdate(ctx context.Context, gqlClient *githubv4.Client, owner, ownerType string, projectNumber int, body, status, startDate, targetDate string) (*mcp.CallToolResult, any, error) {
+	// Validate inputs
+	if ownerType != "user" && ownerType != "org" {
+		return utils.NewToolResultError(fmt.Sprintf("invalid owner_type %q: must be \"user\" or \"org\"", ownerType)), nil, nil
+	}
+	if status != "" && !validProjectV2StatusUpdateStatuses[status] {
+		return utils.NewToolResultError(fmt.Sprintf("invalid status %q: must be one of INACTIVE, ON_TRACK, AT_RISK, OFF_TRACK, COMPLETE", status)), nil, nil
+	}
+	if startDate != "" {
+		if err := validateDateFormat(startDate, "start_date"); err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+	}
+	if targetDate != "" {
+		if err := validateDateFormat(targetDate, "target_date"); err != nil {
+			return utils.NewToolResultError(err.Error()), nil, nil
+		}
+	}
+
+	// Resolve project number to project node ID
+	projectID, err := resolveProjectNodeID(ctx, gqlClient, owner, ownerType, projectNumber)
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+
+	// Build mutation input
+	input := CreateProjectV2StatusUpdateInput{
+		ProjectID: projectID,
+	}
+
+	if body != "" {
+		s := githubv4.String(body)
+		input.Body = &s
+	}
+	if status != "" {
+		s := githubv4.String(status)
+		input.Status = &s
+	}
+	if startDate != "" {
+		s := githubv4.String(startDate)
+		input.StartDate = &s
+	}
+	if targetDate != "" {
+		s := githubv4.String(targetDate)
+		input.TargetDate = &s
+	}
+
+	// Execute mutation
+	var mutation struct {
+		CreateProjectV2StatusUpdate struct {
+			StatusUpdate statusUpdateNode
+		} `graphql:"createProjectV2StatusUpdate(input: $input)"`
+	}
+
+	err = gqlClient.Mutate(ctx, &mutation, input, nil)
+	if err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectStatusUpdateCreateFailedError, err)), nil, nil
+	}
+
+	// Convert and return
+	result := convertToMinimalStatusUpdate(mutation.CreateProjectV2StatusUpdate.StatusUpdate)
+
+	r, err := json.Marshal(result)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+
+	return utils.NewToolResultText(string(r)), nil, nil
+}
+
+// listProjectStatusUpdates lists status updates for a project via GraphQL.
+func listProjectStatusUpdates(ctx context.Context, gqlClient *githubv4.Client, args map[string]any, owner, ownerType string) (*mcp.CallToolResult, any, error) {
+	if ownerType != "user" && ownerType != "org" {
+		return utils.NewToolResultError(fmt.Sprintf("invalid owner_type %q: must be \"user\" or \"org\"", ownerType)), nil, nil
+	}
+
+	projectNumber, err := RequiredInt(args, "project_number")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+
+	perPage, err := OptionalIntParamWithDefault(args, "per_page", MaxProjectsPerPage)
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+	if perPage > MaxProjectsPerPage {
+		perPage = MaxProjectsPerPage
+	}
+	if perPage < 1 {
+		perPage = MaxProjectsPerPage
+	}
+
+	afterCursor, err := OptionalParam[string](args, "after")
+	if err != nil {
+		return utils.NewToolResultError(err.Error()), nil, nil
+	}
+
+	vars := map[string]any{
+		"owner":         githubv4.String(owner),
+		"projectNumber": githubv4.Int(int32(projectNumber)), //nolint:gosec // Project numbers are small integers
+		"first":         githubv4.Int(int32(perPage)),       //nolint:gosec // perPage is bounded by MaxProjectsPerPage
+	}
+	if afterCursor != "" {
+		vars["after"] = githubv4.String(afterCursor)
+	} else {
+		vars["after"] = (*githubv4.String)(nil)
+	}
+
+	var nodes []statusUpdateNode
+	var pi PageInfoFragment
+
+	if ownerType == "org" {
+		var q statusUpdatesOrgQuery
+		if err := gqlClient.Query(ctx, &q, vars); err != nil {
+			return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectStatusUpdateListFailedError, err)), nil, nil
+		}
+		nodes = q.Organization.ProjectV2.StatusUpdates.Nodes
+		pi = q.Organization.ProjectV2.StatusUpdates.PageInfo
+	} else {
+		var q statusUpdatesUserQuery
+		if err := gqlClient.Query(ctx, &q, vars); err != nil {
+			return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectStatusUpdateListFailedError, err)), nil, nil
+		}
+		nodes = q.User.ProjectV2.StatusUpdates.Nodes
+		pi = q.User.ProjectV2.StatusUpdates.PageInfo
+	}
+
+	updates := make([]MinimalProjectStatusUpdate, 0, len(nodes))
+	for _, n := range nodes {
+		updates = append(updates, convertToMinimalStatusUpdate(n))
+	}
+
+	response := map[string]any{
+		"statusUpdates": updates,
+		"pageInfo": map[string]any{
+			"hasNextPage":     pi.HasNextPage,
+			"hasPreviousPage": pi.HasPreviousPage,
+			"nextCursor":      string(pi.EndCursor),
+			"prevCursor":      string(pi.StartCursor),
+		},
+	}
+
+	r, err := json.Marshal(response)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
+	return utils.NewToolResultText(string(r)), nil, nil
+}
+
+// getProjectStatusUpdate fetches a single status update by its node ID via GraphQL.
+func getProjectStatusUpdate(ctx context.Context, gqlClient *githubv4.Client, statusUpdateID string) (*mcp.CallToolResult, any, error) {
+	var q statusUpdateNodeQuery
+	vars := map[string]any{
+		"id": githubv4.ID(statusUpdateID),
+	}
+
+	if err := gqlClient.Query(ctx, &q, vars); err != nil {
+		return utils.NewToolResultError(fmt.Sprintf("%s: %v", ProjectStatusUpdateGetFailedError, err)), nil, nil
+	}
+
+	if q.Node.StatusUpdate.ID == nil || q.Node.StatusUpdate.ID == "" {
+		return utils.NewToolResultError(fmt.Sprintf("%s: node is not a ProjectV2StatusUpdate or was not found", ProjectStatusUpdateGetFailedError)), nil, nil
+	}
+
+	update := convertToMinimalStatusUpdate(q.Node.StatusUpdate)
+
+	r, err := json.Marshal(update)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+	}
 	return utils.NewToolResultText(string(r)), nil, nil
 }
 

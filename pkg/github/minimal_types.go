@@ -1,6 +1,8 @@
 package github
 
 import (
+	"time"
+
 	"github.com/google/go-github/v82/github"
 )
 
@@ -134,7 +136,295 @@ type MinimalProject struct {
 	OwnerType        string            `json:"owner_type,omitempty"`
 }
 
+// MinimalReactions is the trimmed output type for reaction summaries, dropping the API URL.
+type MinimalReactions struct {
+	TotalCount int `json:"total_count"`
+	PlusOne    int `json:"+1"`
+	MinusOne   int `json:"-1"`
+	Laugh      int `json:"laugh"`
+	Confused   int `json:"confused"`
+	Heart      int `json:"heart"`
+	Hooray     int `json:"hooray"`
+	Rocket     int `json:"rocket"`
+	Eyes       int `json:"eyes"`
+}
+
+// MinimalIssue is the trimmed output type for issue objects to reduce verbosity.
+type MinimalIssue struct {
+	Number            int               `json:"number"`
+	Title             string            `json:"title"`
+	Body              string            `json:"body,omitempty"`
+	State             string            `json:"state"`
+	StateReason       string            `json:"state_reason,omitempty"`
+	Draft             bool              `json:"draft,omitempty"`
+	Locked            bool              `json:"locked,omitempty"`
+	HTMLURL           string            `json:"html_url"`
+	User              *MinimalUser      `json:"user,omitempty"`
+	AuthorAssociation string            `json:"author_association,omitempty"`
+	Labels            []string          `json:"labels,omitempty"`
+	Assignees         []string          `json:"assignees,omitempty"`
+	Milestone         string            `json:"milestone,omitempty"`
+	Comments          int               `json:"comments,omitempty"`
+	Reactions         *MinimalReactions `json:"reactions,omitempty"`
+	CreatedAt         string            `json:"created_at,omitempty"`
+	UpdatedAt         string            `json:"updated_at,omitempty"`
+	ClosedAt          string            `json:"closed_at,omitempty"`
+	ClosedBy          string            `json:"closed_by,omitempty"`
+	IssueType         string            `json:"issue_type,omitempty"`
+}
+
+// MinimalIssueComment is the trimmed output type for issue comment objects to reduce verbosity.
+type MinimalIssueComment struct {
+	ID                int64             `json:"id"`
+	Body              string            `json:"body,omitempty"`
+	HTMLURL           string            `json:"html_url"`
+	User              *MinimalUser      `json:"user,omitempty"`
+	AuthorAssociation string            `json:"author_association,omitempty"`
+	Reactions         *MinimalReactions `json:"reactions,omitempty"`
+	CreatedAt         string            `json:"created_at,omitempty"`
+	UpdatedAt         string            `json:"updated_at,omitempty"`
+}
+
+// MinimalPullRequest is the trimmed output type for pull request objects to reduce verbosity.
+type MinimalPullRequest struct {
+	Number             int              `json:"number"`
+	Title              string           `json:"title"`
+	Body               string           `json:"body,omitempty"`
+	State              string           `json:"state"`
+	Draft              bool             `json:"draft"`
+	Merged             bool             `json:"merged"`
+	MergeableState     string           `json:"mergeable_state,omitempty"`
+	HTMLURL            string           `json:"html_url"`
+	User               *MinimalUser     `json:"user,omitempty"`
+	Labels             []string         `json:"labels,omitempty"`
+	Assignees          []string         `json:"assignees,omitempty"`
+	RequestedReviewers []string         `json:"requested_reviewers,omitempty"`
+	MergedBy           string           `json:"merged_by,omitempty"`
+	Head               *MinimalPRBranch `json:"head,omitempty"`
+	Base               *MinimalPRBranch `json:"base,omitempty"`
+	Additions          int              `json:"additions,omitempty"`
+	Deletions          int              `json:"deletions,omitempty"`
+	ChangedFiles       int              `json:"changed_files,omitempty"`
+	Commits            int              `json:"commits,omitempty"`
+	Comments           int              `json:"comments,omitempty"`
+	CreatedAt          string           `json:"created_at,omitempty"`
+	UpdatedAt          string           `json:"updated_at,omitempty"`
+	ClosedAt           string           `json:"closed_at,omitempty"`
+	MergedAt           string           `json:"merged_at,omitempty"`
+	Milestone          string           `json:"milestone,omitempty"`
+}
+
+// MinimalPRBranch is the trimmed output type for pull request branch references.
+type MinimalPRBranch struct {
+	Ref  string               `json:"ref"`
+	SHA  string               `json:"sha"`
+	Repo *MinimalPRBranchRepo `json:"repo,omitempty"`
+}
+
+// MinimalPRBranchRepo is the trimmed repo info nested inside a PR branch.
+type MinimalPRBranchRepo struct {
+	FullName    string `json:"full_name"`
+	Description string `json:"description,omitempty"`
+}
+
+type MinimalProjectStatusUpdate struct {
+	ID         string       `json:"id"`
+	Body       string       `json:"body,omitempty"`
+	Status     string       `json:"status,omitempty"`
+	CreatedAt  string       `json:"created_at,omitempty"`
+	StartDate  string       `json:"start_date,omitempty"`
+	TargetDate string       `json:"target_date,omitempty"`
+	Creator    *MinimalUser `json:"creator,omitempty"`
+}
+
 // Helper functions
+
+func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
+	m := MinimalIssue{
+		Number:            issue.GetNumber(),
+		Title:             issue.GetTitle(),
+		Body:              issue.GetBody(),
+		State:             issue.GetState(),
+		StateReason:       issue.GetStateReason(),
+		Draft:             issue.GetDraft(),
+		Locked:            issue.GetLocked(),
+		HTMLURL:           issue.GetHTMLURL(),
+		User:              convertToMinimalUser(issue.GetUser()),
+		AuthorAssociation: issue.GetAuthorAssociation(),
+		Comments:          issue.GetComments(),
+	}
+
+	if issue.CreatedAt != nil {
+		m.CreatedAt = issue.CreatedAt.Format(time.RFC3339)
+	}
+	if issue.UpdatedAt != nil {
+		m.UpdatedAt = issue.UpdatedAt.Format(time.RFC3339)
+	}
+	if issue.ClosedAt != nil {
+		m.ClosedAt = issue.ClosedAt.Format(time.RFC3339)
+	}
+
+	for _, label := range issue.Labels {
+		if label != nil {
+			m.Labels = append(m.Labels, label.GetName())
+		}
+	}
+
+	for _, assignee := range issue.Assignees {
+		if assignee != nil {
+			m.Assignees = append(m.Assignees, assignee.GetLogin())
+		}
+	}
+
+	if closedBy := issue.GetClosedBy(); closedBy != nil {
+		m.ClosedBy = closedBy.GetLogin()
+	}
+
+	if milestone := issue.GetMilestone(); milestone != nil {
+		m.Milestone = milestone.GetTitle()
+	}
+
+	if issueType := issue.GetType(); issueType != nil {
+		m.IssueType = issueType.GetName()
+	}
+
+	if r := issue.Reactions; r != nil {
+		m.Reactions = &MinimalReactions{
+			TotalCount: r.GetTotalCount(),
+			PlusOne:    r.GetPlusOne(),
+			MinusOne:   r.GetMinusOne(),
+			Laugh:      r.GetLaugh(),
+			Confused:   r.GetConfused(),
+			Heart:      r.GetHeart(),
+			Hooray:     r.GetHooray(),
+			Rocket:     r.GetRocket(),
+			Eyes:       r.GetEyes(),
+		}
+	}
+
+	return m
+}
+
+func convertToMinimalIssueComment(comment *github.IssueComment) MinimalIssueComment {
+	m := MinimalIssueComment{
+		ID:                comment.GetID(),
+		Body:              comment.GetBody(),
+		HTMLURL:           comment.GetHTMLURL(),
+		User:              convertToMinimalUser(comment.GetUser()),
+		AuthorAssociation: comment.GetAuthorAssociation(),
+	}
+
+	if comment.CreatedAt != nil {
+		m.CreatedAt = comment.CreatedAt.Format(time.RFC3339)
+	}
+	if comment.UpdatedAt != nil {
+		m.UpdatedAt = comment.UpdatedAt.Format(time.RFC3339)
+	}
+
+	if r := comment.Reactions; r != nil {
+		m.Reactions = &MinimalReactions{
+			TotalCount: r.GetTotalCount(),
+			PlusOne:    r.GetPlusOne(),
+			MinusOne:   r.GetMinusOne(),
+			Laugh:      r.GetLaugh(),
+			Confused:   r.GetConfused(),
+			Heart:      r.GetHeart(),
+			Hooray:     r.GetHooray(),
+			Rocket:     r.GetRocket(),
+			Eyes:       r.GetEyes(),
+		}
+	}
+
+	return m
+}
+
+func convertToMinimalPullRequest(pr *github.PullRequest) MinimalPullRequest {
+	m := MinimalPullRequest{
+		Number:         pr.GetNumber(),
+		Title:          pr.GetTitle(),
+		Body:           pr.GetBody(),
+		State:          pr.GetState(),
+		Draft:          pr.GetDraft(),
+		Merged:         pr.GetMerged(),
+		MergeableState: pr.GetMergeableState(),
+		HTMLURL:        pr.GetHTMLURL(),
+		User:           convertToMinimalUser(pr.GetUser()),
+		Additions:      pr.GetAdditions(),
+		Deletions:      pr.GetDeletions(),
+		ChangedFiles:   pr.GetChangedFiles(),
+		Commits:        pr.GetCommits(),
+		Comments:       pr.GetComments(),
+	}
+
+	if pr.CreatedAt != nil {
+		m.CreatedAt = pr.CreatedAt.Format(time.RFC3339)
+	}
+	if pr.UpdatedAt != nil {
+		m.UpdatedAt = pr.UpdatedAt.Format(time.RFC3339)
+	}
+	if pr.ClosedAt != nil {
+		m.ClosedAt = pr.ClosedAt.Format(time.RFC3339)
+	}
+	if pr.MergedAt != nil {
+		m.MergedAt = pr.MergedAt.Format(time.RFC3339)
+	}
+
+	for _, label := range pr.Labels {
+		if label != nil {
+			m.Labels = append(m.Labels, label.GetName())
+		}
+	}
+
+	for _, assignee := range pr.Assignees {
+		if assignee != nil {
+			m.Assignees = append(m.Assignees, assignee.GetLogin())
+		}
+	}
+
+	for _, reviewer := range pr.RequestedReviewers {
+		if reviewer != nil {
+			m.RequestedReviewers = append(m.RequestedReviewers, reviewer.GetLogin())
+		}
+	}
+
+	if mergedBy := pr.GetMergedBy(); mergedBy != nil {
+		m.MergedBy = mergedBy.GetLogin()
+	}
+
+	if head := pr.Head; head != nil {
+		m.Head = convertToMinimalPRBranch(head)
+	}
+
+	if base := pr.Base; base != nil {
+		m.Base = convertToMinimalPRBranch(base)
+	}
+
+	if milestone := pr.GetMilestone(); milestone != nil {
+		m.Milestone = milestone.GetTitle()
+	}
+
+	return m
+}
+
+func convertToMinimalPRBranch(branch *github.PullRequestBranch) *MinimalPRBranch {
+	if branch == nil {
+		return nil
+	}
+
+	b := &MinimalPRBranch{
+		Ref: branch.GetRef(),
+		SHA: branch.GetSHA(),
+	}
+
+	if repo := branch.GetRepo(); repo != nil {
+		b.Repo = &MinimalPRBranchRepo{
+			FullName:    repo.GetFullName(),
+			Description: repo.GetDescription(),
+		}
+	}
+
+	return b
+}
 
 func convertToMinimalProject(fullProject *github.ProjectV2) *MinimalProject {
 	if fullProject == nil {

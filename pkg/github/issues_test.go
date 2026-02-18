@@ -345,15 +345,15 @@ func Test_GetIssue(t *testing.T) {
 
 			textContent := getTextResult(t, result)
 
-			var returnedIssue github.Issue
+			var returnedIssue MinimalIssue
 			err = json.Unmarshal([]byte(textContent.Text), &returnedIssue)
 			require.NoError(t, err)
-			assert.Equal(t, *tc.expectedIssue.Number, *returnedIssue.Number)
-			assert.Equal(t, *tc.expectedIssue.Title, *returnedIssue.Title)
-			assert.Equal(t, *tc.expectedIssue.Body, *returnedIssue.Body)
-			assert.Equal(t, *tc.expectedIssue.State, *returnedIssue.State)
-			assert.Equal(t, *tc.expectedIssue.HTMLURL, *returnedIssue.HTMLURL)
-			assert.Equal(t, *tc.expectedIssue.User.Login, *returnedIssue.User.Login)
+			assert.Equal(t, tc.expectedIssue.GetNumber(), returnedIssue.Number)
+			assert.Equal(t, tc.expectedIssue.GetTitle(), returnedIssue.Title)
+			assert.Equal(t, tc.expectedIssue.GetBody(), returnedIssue.Body)
+			assert.Equal(t, tc.expectedIssue.GetState(), returnedIssue.State)
+			assert.Equal(t, tc.expectedIssue.GetHTMLURL(), returnedIssue.HTMLURL)
+			assert.Equal(t, tc.expectedIssue.GetUser().GetLogin(), returnedIssue.User.Login)
 		})
 	}
 }
@@ -2020,16 +2020,16 @@ func Test_GetIssueComments(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
-			var returnedComments []*github.IssueComment
+			var returnedComments []MinimalIssueComment
 			err = json.Unmarshal([]byte(textContent.Text), &returnedComments)
 			require.NoError(t, err)
 			assert.Equal(t, len(tc.expectedComments), len(returnedComments))
 			for i := range tc.expectedComments {
 				require.NotNil(t, tc.expectedComments[i].User)
 				require.NotNil(t, returnedComments[i].User)
-				assert.Equal(t, tc.expectedComments[i].GetID(), returnedComments[i].GetID())
-				assert.Equal(t, tc.expectedComments[i].GetBody(), returnedComments[i].GetBody())
-				assert.Equal(t, tc.expectedComments[i].GetUser().GetLogin(), returnedComments[i].GetUser().GetLogin())
+				assert.Equal(t, tc.expectedComments[i].GetID(), returnedComments[i].ID)
+				assert.Equal(t, tc.expectedComments[i].GetBody(), returnedComments[i].Body)
+				assert.Equal(t, tc.expectedComments[i].GetUser().GetLogin(), returnedComments[i].User.Login)
 			}
 		})
 	}
