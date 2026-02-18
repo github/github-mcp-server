@@ -98,13 +98,11 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 
 	ghServer := NewServer(cfg.Version, serverOpts)
 
-	// We always want the GitHub API error middleware to run first so that any errors from the,
-	// GitHub API are captured in the context for downstream middlewares and handlers, even if MCP parsing fails and prevents later middlewares from running.
-	middlewareToInject := []mcp.Middleware{addGitHubAPIErrorToContext, InjectDepsMiddleware(deps)}
-	middlewareToInject = append(middlewareToInject, middleware...)
-
-	// Add middlewares
-	ghServer.AddReceivingMiddleware(middlewareToInject...)
+	// Add middlewares. Order matters - for example, the error context middleware should be applied last so that it runs FIRST (closest to the handler) to ensure all errors are captured,
+	// and any middleware that needs to read or modify the context should be before it.
+	ghServer.AddReceivingMiddleware(middleware...)
+	ghServer.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
 
 	if unrecognized := inv.UnrecognizedToolsets(); len(unrecognized) > 0 {
 		cfg.Logger.Warn("Warning: unrecognized toolsets ignored", "toolsets", strings.Join(unrecognized, ", "))
