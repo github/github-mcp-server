@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	gherrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -98,11 +97,10 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 
 	ghServer := NewServer(cfg.Version, serverOpts)
 
-	// Add middlewares. Order matters - for example, the error context middleware should be applied last so that it runs FIRST (closest to the handler) to ensure all errors are captured,
-	// and any middleware that needs to read or modify the context should be before it.
+	// Add middlewares. The deps middleware must be applied so that it runs before
+	// tool handlers to inject dependencies into the context.
 	ghServer.AddReceivingMiddleware(middleware...)
 	ghServer.AddReceivingMiddleware(InjectDepsMiddleware(deps))
-	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
 
 	if unrecognized := inv.UnrecognizedToolsets(); len(unrecognized) > 0 {
 		cfg.Logger.Warn("Warning: unrecognized toolsets ignored", "toolsets", strings.Join(unrecognized, ", "))
@@ -160,15 +158,6 @@ func ResolvedEnabledToolsets(dynamicToolsets bool, enabledToolsets []string, ena
 
 	// nil means "use defaults" in WithToolsets
 	return nil
-}
-
-func addGitHubAPIErrorToContext(next mcp.MethodHandler) mcp.MethodHandler {
-	return func(ctx context.Context, method string, req mcp.Request) (result mcp.Result, err error) {
-		// Ensure the context is cleared of any previous errors
-		// as context isn't propagated through middleware
-		ctx = gherrors.ContextWithGitHubErrors(ctx)
-		return next(ctx, method, req)
-	}
 }
 
 // NewServer creates a new GitHub MCP server with the specified GH client and logger.
