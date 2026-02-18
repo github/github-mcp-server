@@ -82,6 +82,22 @@ func IsInsidersMode(ctx context.Context) bool {
 	return false
 }
 
+// disallowedToolsCtxKey is a context key for disallowed tools
+type disallowedToolsCtxKey struct{}
+
+// WithDisallowedTools adds the disallowed tools to the context
+func WithDisallowedTools(ctx context.Context, tools []string) context.Context {
+	return context.WithValue(ctx, disallowedToolsCtxKey{}, tools)
+}
+
+// GetDisallowedTools retrieves the disallowed tools from the context
+func GetDisallowedTools(ctx context.Context) []string {
+	if tools, ok := ctx.Value(disallowedToolsCtxKey{}).([]string); ok {
+		return tools
+	}
+	return nil
+}
+
 // headerFeaturesCtxKey is a context key for raw header feature flags
 type headerFeaturesCtxKey struct{}
 
