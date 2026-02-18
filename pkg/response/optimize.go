@@ -22,6 +22,7 @@ const maxFlattenDepth = 2
 var preservedFields = map[string]bool{
 	"html_url": true,
 	"draft":    true,
+	"prerelease": true,
 }
 
 // collectionFieldExtractors controls how array fields are handled instead of being summarized as "[N items]".
@@ -33,6 +34,7 @@ var preservedFields = map[string]bool{
 var collectionFieldExtractors = map[string][]string{
 	"labels":              {"name"},
 	"requested_reviewers": {"login"},
+	"requested_teams":     {"name"},
 }
 
 // MarshalItems is the single entry point for response optimization.
