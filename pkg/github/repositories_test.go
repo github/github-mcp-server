@@ -352,6 +352,40 @@ func Test_GetFileContents(t *testing.T) {
 			},
 		},
 		{
+			name: "successful empty file content fetch",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposGitRefByOwnerByRepoByRef: mockResponse(t, http.StatusOK, "{\"ref\": \"refs/heads/main\", \"object\": {\"sha\": \"\"}}"),
+				GetReposByOwnerByRepo:            mockResponse(t, http.StatusOK, "{\"name\": \"repo\", \"default_branch\": \"main\"}"),
+				GetReposContentsByOwnerByRepoByPath: func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusOK)
+					fileContent := &github.RepositoryContent{
+						Name:     github.Ptr(".gitkeep"),
+						Path:     github.Ptr(".gitkeep"),
+						SHA:      github.Ptr("empty123"),
+						Type:     github.Ptr("file"),
+						Content:  nil,
+						Size:     github.Ptr(0),
+						Encoding: github.Ptr("base64"),
+					}
+					contentBytes, _ := json.Marshal(fileContent)
+					_, _ = w.Write(contentBytes)
+				},
+			}),
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"path":  ".gitkeep",
+				"ref":   "refs/heads/main",
+			},
+			expectError: false,
+			expectedResult: mcp.ResourceContents{
+				URI:      "repo://owner/repo/refs/heads/main/contents/.gitkeep",
+				Text:     "",
+				MIMEType: "text/plain",
+			},
+			expectedMsg: "successfully downloaded empty file",
+		},
+		{
 			name: "content fetch fails",
 			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 				GetReposGitRefByOwnerByRepoByRef: mockResponse(t, http.StatusOK, "{\"ref\": \"refs/heads/main\", \"object\": {\"sha\": \"\"}}"),
