@@ -14,6 +14,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/observability"
 	obsvLog "github.com/github/github-mcp-server/pkg/observability/log"
+	obsvMetrics "github.com/github/github-mcp-server/pkg/observability/metrics"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -100,6 +101,9 @@ type ToolDependencies interface {
 
 	// Logger returns the logger
 	Logger(ctx context.Context) obsvLog.Logger
+
+	// Metrics returns the metrics client
+	Metrics(ctx context.Context) obsvMetrics.Metrics
 }
 
 // BaseDeps is the standard implementation of ToolDependencies for the local server.
@@ -141,9 +145,9 @@ func NewBaseDeps(
 ) *BaseDeps {
 	var obsv observability.Exporters
 	if logger != nil {
-		obsv = observability.NewExporters(obsvLog.NewSlogLogger(logger, obsvLog.InfoLevel))
+		obsv = observability.NewExporters(obsvLog.NewSlogLogger(logger, obsvLog.InfoLevel), obsvMetrics.NewNoopMetrics())
 	} else {
-		obsv = observability.NewExporters(obsvLog.NewNoopLogger())
+		obsv = observability.NewExporters(obsvLog.NewNoopLogger(), obsvMetrics.NewNoopMetrics())
 	}
 	return &BaseDeps{
 		Client:            client,
@@ -190,6 +194,11 @@ func (d BaseDeps) GetContentWindowSize() int { return d.ContentWindowSize }
 // Logger implements ToolDependencies.
 func (d BaseDeps) Logger(ctx context.Context) obsvLog.Logger {
 	return d.Obsv.Logger(ctx)
+}
+
+// Metrics implements ToolDependencies.
+func (d BaseDeps) Metrics(ctx context.Context) obsvMetrics.Metrics {
+	return d.Obsv.Metrics(ctx)
 }
 
 // IsFeatureEnabled checks if a feature flag is enabled.
@@ -287,9 +296,9 @@ func NewRequestDeps(
 ) *RequestDeps {
 	var obsv observability.Exporters
 	if logger != nil {
-		obsv = observability.NewExporters(obsvLog.NewSlogLogger(logger, obsvLog.InfoLevel))
+		obsv = observability.NewExporters(obsvLog.NewSlogLogger(logger, obsvLog.InfoLevel), obsvMetrics.NewNoopMetrics())
 	} else {
-		obsv = observability.NewExporters(obsvLog.NewNoopLogger())
+		obsv = observability.NewExporters(obsvLog.NewNoopLogger(), obsvMetrics.NewNoopMetrics())
 	}
 	return &RequestDeps{
 		apiHosts:          apiHosts,
@@ -410,6 +419,11 @@ func (d *RequestDeps) GetContentWindowSize() int { return d.ContentWindowSize }
 // Logger implements ToolDependencies.
 func (d *RequestDeps) Logger(ctx context.Context) obsvLog.Logger {
 	return d.obsv.Logger(ctx)
+}
+
+// Metrics implements ToolDependencies.
+func (d *RequestDeps) Metrics(ctx context.Context) obsvMetrics.Metrics {
+	return d.obsv.Metrics(ctx)
 }
 
 // IsFeatureEnabled checks if a feature flag is enabled.

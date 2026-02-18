@@ -12,6 +12,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/observability"
 	mcpLog "github.com/github/github-mcp-server/pkg/observability/log"
+	mcpMetrics "github.com/github/github-mcp-server/pkg/observability/metrics"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v82/github"
@@ -67,6 +68,12 @@ func (s stubDeps) Logger(_ context.Context) mcpLog.Logger {
 		return s.obsv.Logger(context.Background())
 	}
 	return mcpLog.NewNoopLogger()
+}
+func (s stubDeps) Metrics(_ context.Context) mcpMetrics.Metrics {
+	if s.obsv != nil {
+		return s.obsv.Metrics(context.Background())
+	}
+	return mcpMetrics.NewNoopMetrics()
 }
 
 // Helper functions to create stub client functions for error testing
