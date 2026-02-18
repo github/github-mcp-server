@@ -1760,7 +1760,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 	}
 
 	return NewTool(
-		ToolsetMetadataIssues,
+		ToolsetMetadataCopilot,
 		mcp.Tool{
 			Name:        "assign_copilot_to_issue",
 			Description: t("TOOL_ASSIGN_COPILOT_TO_ISSUE_DESCRIPTION", description.String()),

@@ -1977,7 +1977,7 @@ func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.Server
 	}
 
 	return NewTool(
-		ToolsetMetadataPullRequests,
+		ToolsetMetadataCopilot,
 		mcp.Tool{
 			Name:        "request_copilot_review",
 			Description: t("TOOL_REQUEST_COPILOT_REVIEW_DESCRIPTION", "Request a GitHub Copilot code review for a pull request. Use this for automated feedback on pull requests, usually before requesting a human reviewer."),
