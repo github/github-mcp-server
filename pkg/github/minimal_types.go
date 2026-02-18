@@ -529,7 +529,7 @@ func convertToMinimalCommit(commit *github.RepositoryCommit, includeDiffs bool) 
 				Email: commit.Commit.Author.GetEmail(),
 			}
 			if commit.Commit.Author.Date != nil {
-				minimalCommit.Commit.Author.Date = commit.Commit.Author.Date.Format("2006-01-02T15:04:05Z")
+				minimalCommit.Commit.Author.Date = commit.Commit.Author.Date.Format(time.RFC3339)
 			}
 		}
 
@@ -539,7 +539,7 @@ func convertToMinimalCommit(commit *github.RepositoryCommit, includeDiffs bool) 
 				Email: commit.Commit.Committer.GetEmail(),
 			}
 			if commit.Commit.Committer.Date != nil {
-				minimalCommit.Commit.Committer.Date = commit.Commit.Committer.Date.Format("2006-01-02T15:04:05Z")
+				minimalCommit.Commit.Committer.Date = commit.Commit.Committer.Date.Format(time.RFC3339)
 			}
 		}
 	}
