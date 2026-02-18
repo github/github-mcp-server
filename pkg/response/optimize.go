@@ -20,8 +20,8 @@ const maxFlattenDepth = 2
 // Keys are matched against post-flatten map keys, so for nested fields like "user.html_url", the dotted key must be
 // added explicitly. Empty collections are still dropped. Wins over collectionFieldExtractors.
 var preservedFields = map[string]bool{
-	"html_url": true,
-	"draft":    true,
+	"html_url":   true,
+	"draft":      true,
 	"prerelease": true,
 }
 
