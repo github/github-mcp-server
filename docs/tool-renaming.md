@@ -48,14 +48,12 @@ Will get `issue_read` and `get_file_contents` tools registered, with no errors.
 |----------|----------|
 | `add_project_item` | `projects_write` |
 | `cancel_workflow_run` | `actions_run_trigger` |
-| `create_project_status_update` | `projects_write` |
 | `delete_project_item` | `projects_write` |
 | `delete_workflow_run_logs` | `actions_run_trigger` |
 | `download_workflow_run_artifact` | `actions_get` |
 | `get_project` | `projects_get` |
 | `get_project_field` | `projects_get` |
 | `get_project_item` | `projects_get` |
-| `get_project_status_update` | `projects_get` |
 | `get_workflow` | `actions_get` |
 | `get_workflow_job` | `actions_get` |
 | `get_workflow_job_logs` | `actions_get` |
@@ -64,7 +62,6 @@ Will get `issue_read` and `get_file_contents` tools registered, with no errors.
 | `get_workflow_run_usage` | `actions_get` |
 | `list_project_fields` | `projects_list` |
 | `list_project_items` | `projects_list` |
-| `list_project_status_updates` | `projects_list` |
 | `list_projects` | `projects_list` |
 | `list_workflow_jobs` | `actions_list` |
 | `list_workflow_run_artifacts` | `actions_list` |
