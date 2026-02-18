@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSlogMetrics_ImplementsInterface(t *testing.T) {
+func TestSlogMetrics_ImplementsInterface(_ *testing.T) {
 	var _ Metrics = (*SlogMetrics)(nil)
 }
 

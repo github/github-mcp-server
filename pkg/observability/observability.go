@@ -12,22 +12,22 @@ type Exporters interface {
 	Metrics(context.Context) metrics.Metrics
 }
 
-type ObservabilityExporters struct {
+type exporters struct {
 	logger  log.Logger
 	metrics metrics.Metrics
 }
 
 func NewExporters(logger log.Logger, metrics metrics.Metrics) Exporters {
-	return &ObservabilityExporters{
+	return &exporters{
 		logger:  logger,
 		metrics: metrics,
 	}
 }
 
-func (e *ObservabilityExporters) Logger(_ context.Context) log.Logger {
+func (e *exporters) Logger(_ context.Context) log.Logger {
 	return e.logger
 }
 
-func (e *ObservabilityExporters) Metrics(_ context.Context) metrics.Metrics {
+func (e *exporters) Metrics(_ context.Context) metrics.Metrics {
 	return e.metrics
 }

@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNoopMetrics_ImplementsInterface(t *testing.T) {
+func TestNoopMetrics_ImplementsInterface(_ *testing.T) {
 	var _ Metrics = (*NoopMetrics)(nil)
 }
 
