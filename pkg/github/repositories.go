@@ -217,7 +217,10 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 				minimalCommits[i] = convertToMinimalCommit(commit, false)
 			}
 
-			r, err := response.MarshalItems(minimalCommits, 3)
+			r, err := response.OptimizeList(minimalCommits,
+				response.WithMaxDepth(3),
+				response.WithPreservedFields(map[string]bool{"html_url": true}),
+			)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -304,7 +307,7 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 				minimalBranches = append(minimalBranches, convertToMinimalBranch(branch))
 			}
 
-			r, err := response.MarshalItems(minimalBranches)
+			r, err := response.OptimizeList(minimalBranches)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -1498,7 +1501,7 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list tags", resp, body), nil, nil
 			}
 
-			r, err := response.MarshalItems(tags)
+			r, err := response.OptimizeList(tags)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -1671,7 +1674,9 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list releases", resp, body), nil, nil
 			}
 
-			r, err := response.MarshalItems(releases)
+			r, err := response.OptimizeList(releases,
+				response.WithPreservedFields(map[string]bool{"html_url": true, "prerelease": true}),
+			)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}

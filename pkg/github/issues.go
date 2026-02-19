@@ -1602,9 +1602,16 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				totalCount = fragment.TotalCount
 			}
 
-			// Create response with issues
+			optimizedIssues, err := response.OptimizeList(issues,
+				response.WithCollectionExtractors(map[string][]string{"labels": {"name"}}),
+			)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to optimize issues: %w", err)
+			}
+
+			// Wrap optimized issues with pagination metadata
 			issueResponse := map[string]any{
-				"issues": issues,
+				"issues": json.RawMessage(optimizedIssues),
 				"pageInfo": map[string]any{
 					"hasNextPage":     pageInfo.HasNextPage,
 					"hasPreviousPage": pageInfo.HasPreviousPage,
@@ -1613,7 +1620,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				},
 				"totalCount": totalCount,
 			}
-			out, err := response.MarshalItems(issueResponse)
+			out, err := json.Marshal(issueResponse)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal issues: %w", err)
 			}

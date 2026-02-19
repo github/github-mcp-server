@@ -6,80 +6,78 @@ import (
 	"strings"
 )
 
-// defaultFillRateThreshold is the default proportion of items that must have a key for it to survive
-const defaultFillRateThreshold = 0.1
+const (
+	defaultFillRateThreshold = 0.1 // default proportion of items that must have a key for it to survive
+	minFillRateRows          = 3   // minimum number of items required to apply fill-rate filtering
+	defaultMaxDepth          = 2   // default nesting depth that flatten will recurse into
+)
 
-// minFillRateRows is the minimum number of items required to apply fill-rate filtering
-const minFillRateRows = 3
-
-// maxFlattenDepth is the maximum nesting depth that flatten will recurse into.
-// Deeper nested maps are silently dropped.
-const maxFlattenDepth = 2
-
-// preservedFields is a set of keys that are exempt from all destructive strategies except whitespace normalization.
-// Keys are matched against post-flatten map keys, so for nested fields like "user.html_url", the dotted key must be
-// added explicitly. Empty collections are still dropped. Wins over collectionFieldExtractors.
-var preservedFields = map[string]bool{
-	"html_url":   true,
-	"draft":      true,
-	"prerelease": true,
+// OptimizeListConfig controls the optimization pipeline behavior.
+type OptimizeListConfig struct {
+	maxDepth             int
+	preservedFields      map[string]bool
+	collectionExtractors map[string][]string
 }
 
-// collectionFieldExtractors controls how array fields are handled instead of being summarized as "[N items]".
+type OptimizeListOption func(*OptimizeListConfig)
+
+// WithMaxDepth sets the maximum nesting depth for flattening.
+// Deeper nested maps are silently dropped.
+func WithMaxDepth(d int) OptimizeListOption {
+	return func(c *OptimizeListConfig) {
+		c.maxDepth = d
+	}
+}
+
+// WithPreservedFields sets keys that are exempt from all destructive strategies except whitespace normalization.
+// Keys are matched against post-flatten map keys, so for nested fields like "user.html_url", the dotted key must be
+// added explicitly. Empty collections are still dropped. Wins over collectionExtractors.
+func WithPreservedFields(fields map[string]bool) OptimizeListOption {
+	return func(c *OptimizeListConfig) {
+		c.preservedFields = fields
+	}
+}
+
+// WithCollectionExtractors controls how array fields are handled instead of being summarized as "[N items]".
 //   - 1 sub-field: comma-joined into a flat string ("bug, enhancement").
 //   - Multiple sub-fields: keep the array, but trim each element to only those fields.
 //
 // These are explicitly exempt from fill-rate filtering; if we asked for the extraction, it's likely important
 // to preserve the data even if only one item has it.
-var collectionFieldExtractors = map[string][]string{
-	"labels":              {"name"},
-	"requested_reviewers": {"login"},
-	"requested_teams":     {"name"},
+func WithCollectionExtractors(extractors map[string][]string) OptimizeListOption {
+	return func(c *OptimizeListConfig) {
+		c.collectionExtractors = extractors
+	}
 }
 
-// MarshalItems is the single entry point for response optimization.
-// Handles two shapes: plain JSON arrays and wrapped objects with metadata.
-// An optional maxDepth controls how many nesting levels flatten will recurse
-// into; it defaults to maxFlattenDepth when omitted.
-func MarshalItems(data any, maxDepth ...int) ([]byte, error) {
-	depth := maxFlattenDepth
-	if len(maxDepth) > 0 {
-		depth = maxDepth[0]
+// OptimizeList optimizes a list of items by applying flattening, URL removal, zero-value removal, 
+// whitespace normalization, collection summarization, and fill-rate filtering.
+func OptimizeList[T any](items []T, opts ...OptimizeListOption) ([]byte, error) {
+	cfg := OptimizeListConfig{maxDepth: defaultMaxDepth}
+	for _, opt := range opts {
+		opt(&cfg)
 	}
 
-	raw, err := json.Marshal(data)
+	raw, err := json.Marshal(items)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal data: %w", err)
 	}
 
-	switch raw[0] {
-	case '[':
-		return optimizeArray(raw, depth)
-	case '{':
-		return optimizeObject(raw, depth)
-	default:
-		return raw, nil
-	}
-}
-
-// OptimizeItems runs the full optimization pipeline on a slice of items:
-// flatten, remove URLs, remove zero-values, normalize whitespace,
-// summarize collections, and fill-rate filtering.
-func OptimizeItems(items []map[string]any, depth int) []map[string]any {
-	if len(items) == 0 {
-		return items
+	var maps []map[string]any
+	if err := json.Unmarshal(raw, &maps); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
 	}
 
-	for i, item := range items {
-		flattenedItem := flattenTo(item, depth)
-		items[i] = optimizeItem(flattenedItem)
+	for i, item := range maps {
+		flattenedItem := flattenTo(item, cfg.maxDepth)
+		maps[i] = optimizeItem(flattenedItem, cfg)
 	}
 
-	if len(items) >= minFillRateRows {
-		items = filterByFillRate(items, defaultFillRateThreshold)
+	if len(maps) >= minFillRateRows {
+		maps = filterByFillRate(maps, defaultFillRateThreshold, cfg)
 	}
 
-	return items
+	return json.Marshal(maps)
 }
 
 // flattenTo recursively promotes values from nested maps into the parent
@@ -106,7 +104,7 @@ func flattenInto(item map[string]any, prefix string, result map[string]any, dept
 
 // filterByFillRate drops keys that appear on less than the threshold proportion of items.
 // Preserved fields and extractor keys always survive.
-func filterByFillRate(items []map[string]any, threshold float64) []map[string]any {
+func filterByFillRate(items []map[string]any, threshold float64, cfg OptimizeListConfig) []map[string]any {
 	keyCounts := make(map[string]int)
 	for _, item := range items {
 		for key := range item {
@@ -117,8 +115,8 @@ func filterByFillRate(items []map[string]any, threshold float64) []map[string]an
 	minCount := int(threshold * float64(len(items)))
 	keepKeys := make(map[string]bool, len(keyCounts))
 	for key, count := range keyCounts {
-		_, hasExtractor := collectionFieldExtractors[key]
-		if count > minCount || preservedFields[key] || hasExtractor {
+		_, hasExtractor := cfg.collectionExtractors[key]
+		if count > minCount || cfg.preservedFields[key] || hasExtractor {
 			keepKeys[key] = true
 		}
 	}
@@ -136,55 +134,13 @@ func filterByFillRate(items []map[string]any, threshold float64) []map[string]an
 	return items
 }
 
-// optimizeArray is the entry point for optimizing a raw JSON array.
-func optimizeArray(raw []byte, depth int) ([]byte, error) {
-	var items []map[string]any
-	if err := json.Unmarshal(raw, &items); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
-	}
-	return json.Marshal(OptimizeItems(items, depth))
-}
-
-// optimizeObject is the entry point for optimizing a raw JSON object.
-func optimizeObject(raw []byte, depth int) ([]byte, error) {
-	var wrapper map[string]any
-	if err := json.Unmarshal(raw, &wrapper); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
-	}
-
-	// find the first array field in the wrapper (data); rest is metadata to be preserved as is
-	// assumes exactly one array field exists; if multiple are present, only the first will be optimized
-	var dataKey string
-	for key, value := range wrapper {
-		if _, ok := value.([]any); ok {
-			dataKey = key
-			break
-		}
-	}
-	// if no data array found, just return the original response
-	if dataKey == "" {
-		return raw, nil
-	}
-
-	rawItems := wrapper[dataKey].([]any)
-	items := make([]map[string]any, 0, len(rawItems))
-	for _, rawItem := range rawItems {
-		if m, ok := rawItem.(map[string]any); ok {
-			items = append(items, m)
-		}
-	}
-	wrapper[dataKey] = OptimizeItems(items, depth)
-
-	return json.Marshal(wrapper)
-}
-
 // optimizeItem applies per-item strategies in a single pass: remove URLs,
 // remove zero-values, normalize whitespace, summarize collections.
 // Preserved fields skip everything except whitespace normalization.
-func optimizeItem(item map[string]any) map[string]any {
+func optimizeItem(item map[string]any, cfg OptimizeListConfig) map[string]any {
 	result := make(map[string]any, len(item))
 	for key, value := range item {
-		preserved := preservedFields[key]
+		preserved := cfg.preservedFields[key]
 		if !preserved && isURLKey(key) {
 			continue
 		}
@@ -202,7 +158,7 @@ func optimizeItem(item map[string]any) map[string]any {
 
 			if preserved {
 				result[key] = value
-			} else if fields, ok := collectionFieldExtractors[key]; ok {
+			} else if fields, ok := cfg.collectionExtractors[key]; ok {
 				if len(fields) == 1 {
 					result[key] = extractSubField(v, fields[0])
 				} else {

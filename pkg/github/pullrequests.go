@@ -1169,7 +1169,14 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 				}
 			}
 
-			r, err := response.MarshalItems(prs)
+			r, err := response.OptimizeList(prs,
+				response.WithPreservedFields(map[string]bool{"html_url": true, "draft": true}),
+				response.WithCollectionExtractors(map[string][]string{
+					"labels":              {"name"},
+					"requested_reviewers": {"login"},
+					"requested_teams":     {"name"},
+				}),
+			)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
