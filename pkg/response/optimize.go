@@ -50,7 +50,7 @@ func WithCollectionExtractors(extractors map[string][]string) OptimizeListOption
 	}
 }
 
-// OptimizeList optimizes a list of items by applying flattening, URL removal, zero-value removal, 
+// OptimizeList optimizes a list of items by applying flattening, URL removal, zero-value removal,
 // whitespace normalization, collection summarization, and fill-rate filtering.
 func OptimizeList[T any](items []T, opts ...OptimizeListOption) ([]byte, error) {
 	cfg := OptimizeListConfig{maxDepth: defaultMaxDepth}

@@ -47,7 +47,7 @@ func TestFlatten(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := flattenTo(tc.input, maxFlattenDepth)
+			result := flattenTo(tc.input, defaultMaxDepth)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
@@ -72,11 +72,10 @@ func TestFlatten(t *testing.T) {
 }
 
 func TestTrimArrayFields(t *testing.T) {
-	original := collectionFieldExtractors
-	defer func() { collectionFieldExtractors = original }()
-
-	collectionFieldExtractors = map[string][]string{
-		"reviewers": {"login", "state"},
+	cfg := OptimizeListConfig{
+		collectionExtractors: map[string][]string{
+			"reviewers": {"login", "state"},
+		},
 	}
 
 	result := optimizeItem(map[string]any{
@@ -85,7 +84,7 @@ func TestTrimArrayFields(t *testing.T) {
 			map[string]any{"login": "bob", "state": "changes_requested", "id": float64(2)},
 		},
 		"title": "Fix bug",
-	})
+	}, cfg)
 
 	expected := []any{
 		map[string]any{"login": "alice", "state": "approved"},
@@ -96,6 +95,8 @@ func TestTrimArrayFields(t *testing.T) {
 }
 
 func TestFilterByFillRate(t *testing.T) {
+	cfg := OptimizeListConfig{}
+
 	items := []map[string]any{
 		{"title": "a", "body": "text", "milestone": "v1"},
 		{"title": "b", "body": "text"},
@@ -109,7 +110,7 @@ func TestFilterByFillRate(t *testing.T) {
 		{"title": "j", "body": "text"},
 	}
 
-	result := filterByFillRate(items, 0.1)
+	result := filterByFillRate(items, 0.1, cfg)
 
 	for _, item := range result {
 		assert.Contains(t, item, "title")
@@ -119,10 +120,9 @@ func TestFilterByFillRate(t *testing.T) {
 }
 
 func TestFilterByFillRate_PreservesFields(t *testing.T) {
-	original := preservedFields
-	defer func() { preservedFields = original }()
-
-	preservedFields = map[string]bool{"html_url": true}
+	cfg := OptimizeListConfig{
+		preservedFields: map[string]bool{"html_url": true},
+	}
 
 	items := make([]map[string]any, 10)
 	for i := range items {
@@ -130,134 +130,134 @@ func TestFilterByFillRate_PreservesFields(t *testing.T) {
 	}
 	items[0]["html_url"] = "https://github.com/repo/1"
 
-	result := filterByFillRate(items, 0.1)
+	result := filterByFillRate(items, 0.1, cfg)
 	assert.Contains(t, result[0], "html_url")
 }
 
-func TestOptimizeItems(t *testing.T) {
-	tests := []struct {
-		name     string
-		items    []map[string]any
-		expected []map[string]any
-	}{
+func TestOptimizeList_AllStrategies(t *testing.T) {
+	items := []map[string]any{
 		{
-			name: "applies all strategies in sequence",
-			items: []map[string]any{
-				{
-					"title":      "Fix bug",
-					"body":       "line1\n\nline2",
-					"url":        "https://api.github.com/repos/1",
-					"html_url":   "https://github.com/repo/1",
-					"avatar_url": "https://avatars.githubusercontent.com/1",
-					"draft":      false,
-					"merged_at":  nil,
-					"labels":     []any{map[string]any{"name": "bug"}},
-					"user": map[string]any{
-						"login":      "user",
-						"avatar_url": "https://avatars.githubusercontent.com/1",
-					},
-				},
+			"title":      "Fix bug",
+			"body":       "line1\n\nline2",
+			"url":        "https://api.github.com/repos/1",
+			"html_url":   "https://github.com/repo/1",
+			"avatar_url": "https://avatars.githubusercontent.com/1",
+			"draft":      false,
+			"merged_at":  nil,
+			"labels":     []any{map[string]any{"name": "bug"}},
+			"user": map[string]any{
+				"login":      "user",
+				"avatar_url": "https://avatars.githubusercontent.com/1",
 			},
-			expected: []map[string]any{
-				{
-					"title":      "Fix bug",
-					"body":       "line1 line2",
-					"html_url":   "https://github.com/repo/1",
-					"draft":      false,
-					"labels":     "bug",
-					"user.login": "user",
-				},
-			},
-		},
-		{
-			name:     "nil input",
-			items:    nil,
-			expected: nil,
 		},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			result := OptimizeItems(tc.items, maxFlattenDepth)
-			assert.Equal(t, tc.expected, result)
-		})
-	}
+	raw, err := OptimizeList(items,
+		WithPreservedFields(map[string]bool{"html_url": true, "draft": true}),
+		WithCollectionExtractors(map[string][]string{"labels": {"name"}}),
+	)
+	require.NoError(t, err)
+
+	var result []map[string]any
+	err = json.Unmarshal(raw, &result)
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+
+	assert.Equal(t, "Fix bug", result[0]["title"])
+	assert.Equal(t, "line1 line2", result[0]["body"])
+	assert.Equal(t, "https://github.com/repo/1", result[0]["html_url"])
+	assert.Equal(t, false, result[0]["draft"])
+	assert.Equal(t, "bug", result[0]["labels"])
+	assert.Equal(t, "user", result[0]["user.login"])
+	assert.Nil(t, result[0]["url"])
+	assert.Nil(t, result[0]["avatar_url"])
+	assert.Nil(t, result[0]["merged_at"])
 }
 
-func TestOptimizeItems_SkipsFillRateBelowMinRows(t *testing.T) {
+func TestOptimizeList_NilInput(t *testing.T) {
+	raw, err := OptimizeList[map[string]any](nil)
+	require.NoError(t, err)
+	assert.Equal(t, "null", string(raw))
+}
+
+func TestOptimizeList_SkipsFillRateBelowMinRows(t *testing.T) {
 	items := []map[string]any{
 		{"title": "a", "rare": "x"},
 		{"title": "b"},
 	}
 
-	result := OptimizeItems(items, maxFlattenDepth)
+	raw, err := OptimizeList(items)
+	require.NoError(t, err)
+
+	var result []map[string]any
+	err = json.Unmarshal(raw, &result)
+	require.NoError(t, err)
+
 	assert.Equal(t, "x", result[0]["rare"])
 }
 
 func TestPreservedFields(t *testing.T) {
-	original := preservedFields
-	defer func() { preservedFields = original }()
+	t.Run("keeps preserved URL keys, strips non-preserved", func(t *testing.T) {
+		cfg := OptimizeListConfig{
+			preservedFields: map[string]bool{
+				"html_url":  true,
+				"clone_url": true,
+			},
+		}
 
-	preservedFields = map[string]bool{
-		"html_url":  true,
-		"clone_url": true,
-	}
+		result := optimizeItem(map[string]any{
+			"html_url":       "https://github.com/repo/1",
+			"clone_url":      "https://github.com/repo/1.git",
+			"avatar_url":     "https://avatars.githubusercontent.com/1",
+			"user.html_url":  "https://github.com/user",
+			"user.clone_url": "https://github.com/user.git",
+		}, cfg)
 
-	result := optimizeItem(map[string]any{
-		"html_url":       "https://github.com/repo/1",
-		"clone_url":      "https://github.com/repo/1.git",
-		"avatar_url":     "https://avatars.githubusercontent.com/1",
-		"user.html_url":  "https://github.com/user",
-		"user.clone_url": "https://github.com/user.git",
+		assert.Contains(t, result, "html_url")
+		assert.Contains(t, result, "clone_url")
+		assert.NotContains(t, result, "avatar_url")
+		assert.NotContains(t, result, "user.html_url")
+		assert.NotContains(t, result, "user.clone_url")
 	})
 
-	assert.Contains(t, result, "html_url")
-	assert.Contains(t, result, "clone_url")
-	assert.NotContains(t, result, "avatar_url")
-	assert.NotContains(t, result, "user.html_url")
-	assert.NotContains(t, result, "user.clone_url")
-}
+	t.Run("protects zero values", func(t *testing.T) {
+		cfg := OptimizeListConfig{
+			preservedFields: map[string]bool{"draft": true},
+		}
 
-func TestPreservedFields_ProtectsZeroValues(t *testing.T) {
-	original := preservedFields
-	defer func() { preservedFields = original }()
+		result := optimizeItem(map[string]any{
+			"draft": false,
+			"body":  "",
+		}, cfg)
 
-	preservedFields = map[string]bool{"draft": true}
-
-	result := optimizeItem(map[string]any{
-		"draft": false,
-		"body":  "",
+		assert.Contains(t, result, "draft")
+		assert.NotContains(t, result, "body")
 	})
 
-	assert.Contains(t, result, "draft")
-	assert.NotContains(t, result, "body")
-}
+	t.Run("protects from collection summarization", func(t *testing.T) {
+		cfg := OptimizeListConfig{
+			preservedFields: map[string]bool{"assignees": true},
+		}
 
-func TestPreservedFields_ProtectsFromCollectionSummarization(t *testing.T) {
-	original := preservedFields
-	defer func() { preservedFields = original }()
+		assignees := []any{
+			map[string]any{"login": "alice", "id": float64(1)},
+			map[string]any{"login": "bob", "id": float64(2)},
+		}
 
-	preservedFields = map[string]bool{"assignees": true}
+		result := optimizeItem(map[string]any{
+			"assignees": assignees,
+			"comments":  []any{map[string]any{"id": "1"}, map[string]any{"id": "2"}},
+		}, cfg)
 
-	assignees := []any{
-		map[string]any{"login": "alice", "id": float64(1)},
-		map[string]any{"login": "bob", "id": float64(2)},
-	}
-
-	result := optimizeItem(map[string]any{
-		"assignees": assignees,
-		"comments":  []any{map[string]any{"id": "1"}, map[string]any{"id": "2"}},
+		assert.Equal(t, assignees, result["assignees"])
+		assert.Equal(t, "[2 items]", result["comments"])
 	})
-
-	assert.Equal(t, assignees, result["assignees"])
-	assert.Equal(t, "[2 items]", result["comments"])
 }
 
 func TestCollectionFieldExtractors_SurviveFillRate(t *testing.T) {
-	original := collectionFieldExtractors
-	defer func() { collectionFieldExtractors = original }()
-
-	collectionFieldExtractors = map[string][]string{"labels": {"name"}}
+	cfg := OptimizeListConfig{
+		collectionExtractors: map[string][]string{"labels": {"name"}},
+	}
 
 	items := []map[string]any{
 		{"title": "PR 1", "labels": "bug"},
@@ -266,86 +266,7 @@ func TestCollectionFieldExtractors_SurviveFillRate(t *testing.T) {
 		{"title": "PR 4"},
 	}
 
-	result := filterByFillRate(items, defaultFillRateThreshold)
+	result := filterByFillRate(items, defaultFillRateThreshold, cfg)
 
 	assert.Contains(t, result[0], "labels")
-}
-
-func TestMarshalItems_PlainSlice(t *testing.T) {
-	type commit struct {
-		SHA     string `json:"sha"`
-		Message string `json:"message"`
-		URL     string `json:"url"`
-	}
-
-	data := []commit{
-		{SHA: "abc123", Message: "fix bug", URL: "https://api.github.com/commits/abc123"},
-		{SHA: "def456", Message: "add feature", URL: "https://api.github.com/commits/def456"},
-		{SHA: "ghi789", Message: "update docs", URL: "https://api.github.com/commits/ghi789"},
-	}
-
-	raw, err := MarshalItems(data)
-	require.NoError(t, err)
-
-	var result []map[string]any
-	err = json.Unmarshal(raw, &result)
-	require.NoError(t, err)
-
-	for _, item := range result {
-		assert.NotEmpty(t, item["sha"])
-		assert.NotEmpty(t, item["message"])
-		assert.Nil(t, item["url"])
-	}
-}
-
-func TestMarshalItems_WrappedObject(t *testing.T) {
-	data := map[string]any{
-		"issues": []any{
-			map[string]any{
-				"title":    "bug report",
-				"url":      "https://api.github.com/issues/1",
-				"html_url": "https://github.com/issues/1",
-				"draft":    false,
-			},
-			map[string]any{
-				"title":    "feature request",
-				"url":      "https://api.github.com/issues/2",
-				"html_url": "https://github.com/issues/2",
-				"draft":    false,
-			},
-			map[string]any{
-				"title":    "docs update",
-				"url":      "https://api.github.com/issues/3",
-				"html_url": "https://github.com/issues/3",
-				"draft":    false,
-			},
-		},
-		"totalCount": 100,
-		"pageInfo": map[string]any{
-			"hasNextPage": true,
-			"endCursor":   "abc123",
-		},
-	}
-
-	raw, err := MarshalItems(data)
-	require.NoError(t, err)
-
-	var result map[string]any
-	err = json.Unmarshal(raw, &result)
-	require.NoError(t, err)
-
-	assert.NotNil(t, result["totalCount"])
-	assert.NotNil(t, result["pageInfo"])
-
-	issues, ok := result["issues"].([]any)
-	require.True(t, ok)
-	require.Len(t, issues, 3)
-
-	for _, issue := range issues {
-		m := issue.(map[string]any)
-		assert.NotEmpty(t, m["title"])
-		assert.NotEmpty(t, m["html_url"])
-		assert.Nil(t, m["url"])
-		assert.Equal(t, false, m["draft"])
-	}
 }
