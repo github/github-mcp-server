@@ -819,3 +819,167 @@ func Test_ListDiscussionCategories(t *testing.T) {
 		})
 	}
 }
+
+func Test_CreateDiscussion(t *testing.T) {
+	t.Parallel()
+
+	toolDef := CreateDiscussion(translations.NullTranslationHelper)
+	tool := toolDef.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "create_discussion", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.Description, "Create")
+
+	// Verify tool schema with type assertion
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
+	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
+	assert.Equal(t, "object", schema.Type)
+	assert.Contains(t, schema.Properties, "owner")
+	assert.Contains(t, schema.Properties, "repo")
+	assert.Contains(t, schema.Properties, "categoryId")
+	assert.Contains(t, schema.Properties, "title")
+	assert.Contains(t, schema.Properties, "body")
+	assert.ElementsMatch(t, schema.Required, []string{"owner", "categoryId", "title", "body"})
+
+	// Query for getting repository ID
+	qGetRepoID := struct {
+		Repository struct {
+			ID githubv4.ID
+		} `graphql:"repository(owner: $owner, name: $repo)"`
+	}{}
+
+	// Mutation for creating discussion
+	qCreateDiscussion := struct {
+		CreateDiscussion struct {
+			Discussion struct {
+				ID     githubv4.ID
+				Number githubv4.Int
+				URL    githubv4.String
+			}
+		} `graphql:"createDiscussion(input: $input)"`
+	}{}
+
+	tests := []struct {
+		name         string
+		reqParams    map[string]any
+		repoVars     map[string]any
+		repoResponse githubv4mock.GQLResponse
+		mutInput     githubv4.CreateDiscussionInput
+		mutResponse  githubv4mock.GQLResponse
+		expectError  bool
+		expectedID   string
+		expectedNum  int
+		expectedURL  string
+	}{
+		{
+			name: "successful discussion creation",
+			reqParams: map[string]any{
+				"owner":      "test-owner",
+				"repo":       "test-repo",
+				"categoryId": "cat-123",
+				"title":      "Test Discussion",
+				"body":       "This is the body of the test discussion",
+			},
+			repoVars: map[string]any{
+				"owner": githubv4.String("test-owner"),
+				"repo":  githubv4.String("test-repo"),
+			},
+			repoResponse: githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"id": "repo-id-123",
+				},
+			}),
+			mutInput: githubv4.CreateDiscussionInput{
+				RepositoryID: githubv4.ID("repo-id-123"),
+				CategoryID:   githubv4.ID("cat-123"),
+				Title:        githubv4.String("Test Discussion"),
+				Body:         githubv4.String("This is the body of the test discussion"),
+			},
+			mutResponse: githubv4mock.DataResponse(map[string]any{
+				"createDiscussion": map[string]any{
+					"discussion": map[string]any{
+						"id":     "disc-123",
+						"number": 42,
+						"url":    "https://github.com/test-owner/test-repo/discussions/42",
+					},
+				},
+			}),
+			expectError: false,
+			expectedID:  "disc-123",
+			expectedNum: 42,
+			expectedURL: "https://github.com/test-owner/test-repo/discussions/42",
+		},
+		{
+			name: "org level discussion (no repo specified)",
+			reqParams: map[string]any{
+				"owner":      "test-org",
+				"categoryId": "cat-456",
+				"title":      "Org Discussion",
+				"body":       "An org-level discussion body",
+			},
+			repoVars: map[string]any{
+				"owner": githubv4.String("test-org"),
+				"repo":  githubv4.String(".github"),
+			},
+			repoResponse: githubv4mock.DataResponse(map[string]any{
+				"repository": map[string]any{
+					"id": "org-repo-id",
+				},
+			}),
+			mutInput: githubv4.CreateDiscussionInput{
+				RepositoryID: githubv4.ID("org-repo-id"),
+				CategoryID:   githubv4.ID("cat-456"),
+				Title:        githubv4.String("Org Discussion"),
+				Body:         githubv4.String("An org-level discussion body"),
+			},
+			mutResponse: githubv4mock.DataResponse(map[string]any{
+				"createDiscussion": map[string]any{
+					"discussion": map[string]any{
+						"id":     "org-disc-1",
+						"number": 1,
+						"url":    "https://github.com/test-org/.github/discussions/1",
+					},
+				},
+			}),
+			expectError: false,
+			expectedID:  "org-disc-1",
+			expectedNum: 1,
+			expectedURL: "https://github.com/test-org/.github/discussions/1",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create matchers for the sequence of GraphQL calls
+			repoMatcher := githubv4mock.NewQueryMatcher(qGetRepoID, tc.repoVars, tc.repoResponse)
+			mutMatcher := githubv4mock.NewMutationMatcher(qCreateDiscussion, tc.mutInput, nil, tc.mutResponse)
+			httpClient := githubv4mock.NewMockedHTTPClient(repoMatcher, mutMatcher)
+			gqlClient := githubv4.NewClient(httpClient)
+
+			deps := BaseDeps{GQLClient: gqlClient}
+			handler := toolDef.Handler(deps)
+
+			req := createMCPRequest(tc.reqParams)
+			res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+
+			if tc.expectError {
+				require.True(t, res.IsError)
+				return
+			}
+			require.NoError(t, err)
+
+			text := getTextResult(t, res).Text
+
+			var response struct {
+				ID     string `json:"id"`
+				Number int    `json:"number"`
+				URL    string `json:"url"`
+			}
+			require.NoError(t, json.Unmarshal([]byte(text), &response))
+			assert.Equal(t, tc.expectedID, response.ID)
+			assert.Equal(t, tc.expectedNum, response.Number)
+			assert.Equal(t, tc.expectedURL, response.URL)
+		})
+	}
+}
