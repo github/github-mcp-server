@@ -19,6 +19,9 @@ import (
 )
 
 type InventoryFactoryFunc func(r *http.Request) (*inventory.Inventory, error)
+
+// GitHubMCPServerFactoryFunc is a function type for creating a new MCP Server instance.
+// middleware are applied AFTER the default GitHub MCP Server middlewares (like error context injection)
 type GitHubMCPServerFactoryFunc func(r *http.Request, deps github.ToolDependencies, inventory *inventory.Inventory, cfg *github.MCPServerConfig) (*mcp.Server, error)
 
 type Handler struct {
@@ -270,6 +273,10 @@ func InventoryFiltersForRequest(r *http.Request, builder *inventory.Builder) *in
 			builder = builder.WithToolsets([]string{})
 		}
 		builder = builder.WithTools(github.CleanTools(tools))
+	}
+
+	if excluded := ghcontext.GetExcludeTools(ctx); len(excluded) > 0 {
+		builder = builder.WithExcludeTools(excluded)
 	}
 
 	return builder
