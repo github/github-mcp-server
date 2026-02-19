@@ -28,6 +28,7 @@ func TestIsFeatureEnabled_WithEnabledFlag(t *testing.T) {
 		github.FeatureFlags{},
 		0,       // contentWindowSize
 		checker, // featureChecker
+		nil,     // logger
 	)
 
 	// Test enabled flag
@@ -52,6 +53,7 @@ func TestIsFeatureEnabled_WithoutChecker(t *testing.T) {
 		github.FeatureFlags{},
 		0,   // contentWindowSize
 		nil, // featureChecker (nil)
+		nil, // logger
 	)
 
 	// Should return false when checker is nil
@@ -76,6 +78,7 @@ func TestIsFeatureEnabled_EmptyFlagName(t *testing.T) {
 		github.FeatureFlags{},
 		0,       // contentWindowSize
 		checker, // featureChecker
+		nil,     // logger
 	)
 
 	// Should return false for empty flag name
@@ -100,6 +103,7 @@ func TestIsFeatureEnabled_CheckerError(t *testing.T) {
 		github.FeatureFlags{},
 		0,       // contentWindowSize
 		checker, // featureChecker
+		nil,     // logger
 	)
 
 	// Should return false and log error (not crash)
