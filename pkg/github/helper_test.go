@@ -306,11 +306,20 @@ func createMCPRequestWithSession(t *testing.T, clientName string, args any) mcp.
 
 	srv := mcp.NewServer(&mcp.Implementation{Name: "test"}, nil)
 
+	caps := &mcp.ClientCapabilities{}
+	// If the client is a known UI-supporting client, add the UI extension
+	if clientName == "Visual Studio Code - Insiders" || clientName == "Visual Studio Code" {
+		caps.AddExtension("io.modelcontextprotocol/ui", map[string]any{
+			"mimeTypes": []string{"text/html;profile=mcp-app"},
+		})
+	}
+
 	st, _ := mcp.NewInMemoryTransports()
 	session, err := srv.Connect(context.Background(), st, &mcp.ServerSessionOptions{
 		State: &mcp.ServerSessionState{
 			InitializeParams: &mcp.InitializeParams{
-				ClientInfo: &mcp.Implementation{Name: clientName},
+				ClientInfo:   &mcp.Implementation{Name: clientName},
+				Capabilities: caps,
 			},
 		},
 	})
