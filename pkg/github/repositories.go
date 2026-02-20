@@ -219,7 +219,7 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			r, err := response.OptimizeList(minimalCommits,
 				response.WithMaxDepth(3),
-				response.WithPreservedFields(map[string]bool{"html_url": true}),
+				response.WithPreservedFields("html_url"),
 			)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
@@ -1675,7 +1675,7 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			r, err := response.OptimizeList(releases,
-				response.WithPreservedFields(map[string]bool{"html_url": true, "prerelease": true}),
+				response.WithPreservedFields("html_url", "prerelease"),
 			)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)

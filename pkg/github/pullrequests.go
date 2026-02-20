@@ -1170,7 +1170,7 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 			}
 
 			r, err := response.OptimizeList(prs,
-				response.WithPreservedFields(map[string]bool{"html_url": true, "draft": true}),
+				response.WithPreservedFields("html_url", "draft"),
 				response.WithCollectionExtractors(map[string][]string{
 					"labels":              {"name"},
 					"requested_reviewers": {"login"},

@@ -153,7 +153,7 @@ func TestOptimizeList_AllStrategies(t *testing.T) {
 	}
 
 	raw, err := OptimizeList(items,
-		WithPreservedFields(map[string]bool{"html_url": true, "draft": true}),
+		WithPreservedFields("html_url", "draft"),
 		WithCollectionExtractors(map[string][]string{"labels": {"name"}}),
 	)
 	require.NoError(t, err)
