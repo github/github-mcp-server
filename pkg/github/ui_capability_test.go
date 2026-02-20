@@ -7,29 +7,48 @@ import (
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func createMCPRequestWithCapabilities(t *testing.T, caps *mcp.ClientCapabilities) mcp.CallToolRequest {
+	t.Helper()
+	srv := mcp.NewServer(&mcp.Implementation{Name: "test"}, nil)
+	st, _ := mcp.NewInMemoryTransports()
+	session, err := srv.Connect(context.Background(), st, &mcp.ServerSessionOptions{
+		State: &mcp.ServerSessionState{
+			InitializeParams: &mcp.InitializeParams{
+				ClientInfo:   &mcp.Implementation{Name: "test-client"},
+				Capabilities: caps,
+			},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+	return mcp.CallToolRequest{Session: session}
+}
 
 func Test_clientSupportsUI(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	tests := []struct {
-		name       string
-		clientName string
-		want       bool
-	}{
-		{name: "VS Code Insiders", clientName: "Visual Studio Code - Insiders", want: true},
-		{name: "VS Code Stable", clientName: "Visual Studio Code", want: true},
-		{name: "unknown client", clientName: "some-other-client", want: false},
-		{name: "empty client name", clientName: "", want: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req := createMCPRequestWithSession(t, tt.clientName, nil)
-			assert.Equal(t, tt.want, clientSupportsUI(ctx, &req))
+	t.Run("client with UI extension", func(t *testing.T) {
+		caps := &mcp.ClientCapabilities{}
+		caps.AddExtension("io.modelcontextprotocol/ui", map[string]any{
+			"mimeTypes": []string{"text/html;profile=mcp-app"},
 		})
-	}
+		req := createMCPRequestWithCapabilities(t, caps)
+		assert.True(t, clientSupportsUI(ctx, &req))
+	})
+
+	t.Run("client without UI extension", func(t *testing.T) {
+		req := createMCPRequestWithCapabilities(t, &mcp.ClientCapabilities{})
+		assert.False(t, clientSupportsUI(ctx, &req))
+	})
+
+	t.Run("client with nil capabilities", func(t *testing.T) {
+		req := createMCPRequestWithCapabilities(t, nil)
+		assert.False(t, clientSupportsUI(ctx, &req))
+	})
 
 	t.Run("nil request", func(t *testing.T) {
 		assert.False(t, clientSupportsUI(ctx, nil))
@@ -41,42 +60,28 @@ func Test_clientSupportsUI(t *testing.T) {
 	})
 }
 
-func Test_clientSupportsUI_nilClientInfo(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-
-	srv := mcp.NewServer(&mcp.Implementation{Name: "test"}, nil)
-	st, _ := mcp.NewInMemoryTransports()
-	session, err := srv.Connect(context.Background(), st, &mcp.ServerSessionOptions{
-		State: &mcp.ServerSessionState{
-			InitializeParams: &mcp.InitializeParams{
-				ClientInfo: nil,
-			},
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = session.Close() })
-
-	req := mcp.CallToolRequest{Session: session}
-	assert.False(t, clientSupportsUI(ctx, &req))
-}
-
 func Test_clientSupportsUI_fromContext(t *testing.T) {
 	t.Parallel()
 
-	t.Run("supported client in context", func(t *testing.T) {
-		ctx := ghcontext.WithClientName(context.Background(), "Visual Studio Code - Insiders")
+	t.Run("UI supported in context", func(t *testing.T) {
+		ctx := ghcontext.WithUISupport(context.Background(), true)
 		assert.True(t, clientSupportsUI(ctx, nil))
 	})
 
-	t.Run("unsupported client in context", func(t *testing.T) {
-		ctx := ghcontext.WithClientName(context.Background(), "some-other-client")
+	t.Run("UI not supported in context", func(t *testing.T) {
+		ctx := ghcontext.WithUISupport(context.Background(), false)
 		assert.False(t, clientSupportsUI(ctx, nil))
 	})
 
-	t.Run("no client in context or session", func(t *testing.T) {
+	t.Run("context takes precedence over session", func(t *testing.T) {
+		ctx := ghcontext.WithUISupport(context.Background(), false)
+		caps := &mcp.ClientCapabilities{}
+		caps.AddExtension("io.modelcontextprotocol/ui", map[string]any{})
+		req := createMCPRequestWithCapabilities(t, caps)
+		assert.False(t, clientSupportsUI(ctx, &req))
+	})
+
+	t.Run("no context or session", func(t *testing.T) {
 		assert.False(t, clientSupportsUI(context.Background(), nil))
 	})
 }

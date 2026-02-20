@@ -114,18 +114,18 @@ func GetHeaderFeatures(ctx context.Context) []string {
 	return nil
 }
 
-// clientNameCtxKey is a context key for the MCP client name
-type clientNameCtxKey struct{}
+// uiSupportCtxKey is a context key for MCP Apps UI support
+type uiSupportCtxKey struct{}
 
-// WithClientName stores the MCP client name in the context.
-// This is used by HTTP/stateless servers where req.Session may not have
-// InitializeParams available on every request.
-func WithClientName(ctx context.Context, name string) context.Context {
-	return context.WithValue(ctx, clientNameCtxKey{}, name)
+// WithUISupport stores whether the client supports MCP Apps UI in the context.
+// This is used by HTTP/stateless servers where the go-sdk session may not
+// persist client capabilities across requests.
+func WithUISupport(ctx context.Context, supported bool) context.Context {
+	return context.WithValue(ctx, uiSupportCtxKey{}, supported)
 }
 
-// GetClientName retrieves the MCP client name from the context.
-func GetClientName(ctx context.Context) (string, bool) {
-	name, ok := ctx.Value(clientNameCtxKey{}).(string)
-	return name, ok && name != ""
+// HasUISupport retrieves the MCP Apps UI support flag from context.
+func HasUISupport(ctx context.Context) (supported bool, ok bool) {
+	v, ok := ctx.Value(uiSupportCtxKey{}).(bool)
+	return v, ok
 }
