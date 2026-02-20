@@ -2129,3 +2129,151 @@ func TestWithInsidersMode_DoesNotMutateOriginalTools(t *testing.T) {
 	require.Equal(t, "data", tools[0].Tool.Meta["ui"], "original tool should not be mutated")
 	require.Equal(t, "kept", tools[0].Tool.Meta["description"], "original tool should not be mutated")
 }
+
+func TestWithExcludeTools(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("tool1", "toolset1", true),
+		mockTool("tool2", "toolset1", true),
+		mockTool("tool3", "toolset2", true),
+	}
+
+	tests := []struct {
+		name            string
+		excluded        []string
+		toolsets        []string
+		expectedNames   []string
+		unexpectedNames []string
+	}{
+		{
+			name:            "single tool excluded",
+			excluded:        []string{"tool2"},
+			toolsets:        []string{"all"},
+			expectedNames:   []string{"tool1", "tool3"},
+			unexpectedNames: []string{"tool2"},
+		},
+		{
+			name:            "multiple tools excluded",
+			excluded:        []string{"tool1", "tool3"},
+			toolsets:        []string{"all"},
+			expectedNames:   []string{"tool2"},
+			unexpectedNames: []string{"tool1", "tool3"},
+		},
+		{
+			name:            "empty excluded list is a no-op",
+			excluded:        []string{},
+			toolsets:        []string{"all"},
+			expectedNames:   []string{"tool1", "tool2", "tool3"},
+			unexpectedNames: nil,
+		},
+		{
+			name:            "nil excluded list is a no-op",
+			excluded:        nil,
+			toolsets:        []string{"all"},
+			expectedNames:   []string{"tool1", "tool2", "tool3"},
+			unexpectedNames: nil,
+		},
+		{
+			name:            "excluding non-existent tool is a no-op",
+			excluded:        []string{"nonexistent"},
+			toolsets:        []string{"all"},
+			expectedNames:   []string{"tool1", "tool2", "tool3"},
+			unexpectedNames: nil,
+		},
+		{
+			name:            "exclude all tools",
+			excluded:        []string{"tool1", "tool2", "tool3"},
+			toolsets:        []string{"all"},
+			expectedNames:   nil,
+			unexpectedNames: []string{"tool1", "tool2", "tool3"},
+		},
+		{
+			name:            "whitespace is trimmed",
+			excluded:        []string{" tool2 ", "  tool3  "},
+			toolsets:        []string{"all"},
+			expectedNames:   []string{"tool1"},
+			unexpectedNames: []string{"tool2", "tool3"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reg := mustBuild(t, NewBuilder().
+				SetTools(tools).
+				WithToolsets(tt.toolsets).
+				WithExcludeTools(tt.excluded))
+
+			available := reg.AvailableTools(context.Background())
+			names := make(map[string]bool)
+			for _, tool := range available {
+				names[tool.Tool.Name] = true
+			}
+
+			for _, expected := range tt.expectedNames {
+				require.True(t, names[expected], "tool %q should be available", expected)
+			}
+			for _, unexpected := range tt.unexpectedNames {
+				require.False(t, names[unexpected], "tool %q should be excluded", unexpected)
+			}
+		})
+	}
+}
+
+func TestWithExcludeTools_OverridesAdditionalTools(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("tool1", "toolset1", true),
+		mockTool("tool2", "toolset1", true),
+		mockTool("tool3", "toolset2", true),
+	}
+
+	// tool3 is explicitly enabled via WithTools, but also excluded
+	// excluded should win because builder filters run before additional tools check
+	reg := mustBuild(t, NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"toolset1"}).
+		WithTools([]string{"tool3"}).
+		WithExcludeTools([]string{"tool3"}))
+
+	available := reg.AvailableTools(context.Background())
+	names := make(map[string]bool)
+	for _, tool := range available {
+		names[tool.Tool.Name] = true
+	}
+
+	require.True(t, names["tool1"], "tool1 should be available")
+	require.True(t, names["tool2"], "tool2 should be available")
+	require.False(t, names["tool3"], "tool3 should be excluded even though explicitly added via WithTools")
+}
+
+func TestWithExcludeTools_CombinesWithReadOnly(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("read_tool", "toolset1", true),
+		mockTool("write_tool", "toolset1", false),
+		mockTool("another_read", "toolset1", true),
+	}
+
+	// read-only excludes write_tool, exclude-tools excludes read_tool
+	reg := mustBuild(t, NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"all"}).
+		WithReadOnly(true).
+		WithExcludeTools([]string{"read_tool"}))
+
+	available := reg.AvailableTools(context.Background())
+	require.Len(t, available, 1)
+	require.Equal(t, "another_read", available[0].Tool.Name)
+}
+
+func TestCreateExcludeToolsFilter(t *testing.T) {
+	filter := CreateExcludeToolsFilter([]string{"blocked_tool"})
+
+	blockedTool := mockTool("blocked_tool", "toolset1", true)
+	allowedTool := mockTool("allowed_tool", "toolset1", true)
+
+	allowed, err := filter(context.Background(), &blockedTool)
+	require.NoError(t, err)
+	require.False(t, allowed, "blocked_tool should be excluded")
+
+	allowed, err = filter(context.Background(), &allowedTool)
+	require.NoError(t, err)
+	require.True(t, allowed, "allowed_tool should be included")
+}

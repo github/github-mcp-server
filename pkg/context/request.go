@@ -82,6 +82,22 @@ func IsInsidersMode(ctx context.Context) bool {
 	return false
 }
 
+// excludeToolsCtxKey is a context key for excluded tools
+type excludeToolsCtxKey struct{}
+
+// WithExcludeTools adds the excluded tools to the context
+func WithExcludeTools(ctx context.Context, tools []string) context.Context {
+	return context.WithValue(ctx, excludeToolsCtxKey{}, tools)
+}
+
+// GetExcludeTools retrieves the excluded tools from the context
+func GetExcludeTools(ctx context.Context) []string {
+	if tools, ok := ctx.Value(excludeToolsCtxKey{}).([]string); ok {
+		return tools
+	}
+	return nil
+}
+
 // headerFeaturesCtxKey is a context key for raw header feature flags
 type headerFeaturesCtxKey struct{}
 
