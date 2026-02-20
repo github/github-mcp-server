@@ -4,12 +4,14 @@ import (
 	"context"
 	"testing"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 )
 
 func Test_clientSupportsUI(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	tests := []struct {
 		name       string
@@ -25,22 +27,23 @@ func Test_clientSupportsUI(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := createMCPRequestWithSession(t, tt.clientName, nil)
-			assert.Equal(t, tt.want, clientSupportsUI(&req))
+			assert.Equal(t, tt.want, clientSupportsUI(ctx, &req))
 		})
 	}
 
 	t.Run("nil request", func(t *testing.T) {
-		assert.False(t, clientSupportsUI(nil))
+		assert.False(t, clientSupportsUI(ctx, nil))
 	})
 
 	t.Run("nil session", func(t *testing.T) {
 		req := createMCPRequest(nil)
-		assert.False(t, clientSupportsUI(&req))
+		assert.False(t, clientSupportsUI(ctx, &req))
 	})
 }
 
 func Test_clientSupportsUI_nilClientInfo(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	srv := mcp.NewServer(&mcp.Implementation{Name: "test"}, nil)
 	st, _ := mcp.NewInMemoryTransports()
@@ -57,5 +60,23 @@ func Test_clientSupportsUI_nilClientInfo(t *testing.T) {
 	t.Cleanup(func() { _ = session.Close() })
 
 	req := mcp.CallToolRequest{Session: session}
-	assert.False(t, clientSupportsUI(&req))
+	assert.False(t, clientSupportsUI(ctx, &req))
+}
+
+func Test_clientSupportsUI_fromContext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("supported client in context", func(t *testing.T) {
+		ctx := ghcontext.WithClientName(context.Background(), "Visual Studio Code - Insiders")
+		assert.True(t, clientSupportsUI(ctx, nil))
+	})
+
+	t.Run("unsupported client in context", func(t *testing.T) {
+		ctx := ghcontext.WithClientName(context.Background(), "some-other-client")
+		assert.False(t, clientSupportsUI(ctx, nil))
+	})
+
+	t.Run("no client in context or session", func(t *testing.T) {
+		assert.False(t, clientSupportsUI(context.Background(), nil))
+	})
 }

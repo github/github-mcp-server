@@ -113,3 +113,19 @@ func GetHeaderFeatures(ctx context.Context) []string {
 	}
 	return nil
 }
+
+// clientNameCtxKey is a context key for the MCP client name
+type clientNameCtxKey struct{}
+
+// WithClientName stores the MCP client name in the context.
+// This is used by HTTP/stateless servers where req.Session may not have
+// InitializeParams available on every request.
+func WithClientName(ctx context.Context, name string) context.Context {
+	return context.WithValue(ctx, clientNameCtxKey{}, name)
+}
+
+// GetClientName retrieves the MCP client name from the context.
+func GetClientName(ctx context.Context) (string, bool) {
+	name, ok := ctx.Value(clientNameCtxKey{}).(string)
+	return name, ok && name != ""
+}

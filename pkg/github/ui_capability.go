@@ -1,6 +1,11 @@
 package github
 
-import "github.com/modelcontextprotocol/go-sdk/mcp"
+import (
+	"context"
+
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+)
 
 // uiSupportedClients lists client names (from ClientInfo.Name) known to
 // support MCP Apps UI rendering.
@@ -14,14 +19,21 @@ var uiSupportedClients = map[string]bool{
 }
 
 // clientSupportsUI reports whether the MCP client that sent this request
-// supports MCP Apps UI rendering, based on its ClientInfo.Name.
-func clientSupportsUI(req *mcp.CallToolRequest) bool {
-	if req == nil || req.Session == nil {
-		return false
+// supports MCP Apps UI rendering.
+// It checks the go-sdk Session first (for stdio/stateful servers), then
+// falls back to the request context (for HTTP/stateless servers where
+// the session may not persist InitializeParams across requests).
+func clientSupportsUI(ctx context.Context, req *mcp.CallToolRequest) bool {
+	// Try go-sdk session first (works for stdio/stateful servers)
+	if req != nil && req.Session != nil {
+		params := req.Session.InitializeParams()
+		if params != nil && params.ClientInfo != nil {
+			return uiSupportedClients[params.ClientInfo.Name]
+		}
 	}
-	params := req.Session.InitializeParams()
-	if params == nil || params.ClientInfo == nil {
-		return false
+	// Fall back to context (works for HTTP/stateless servers)
+	if name, ok := ghcontext.GetClientName(ctx); ok {
+		return uiSupportedClients[name]
 	}
-	return uiSupportedClients[params.ClientInfo.Name]
+	return false
 }
