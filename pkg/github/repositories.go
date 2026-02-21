@@ -731,6 +731,20 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 					successNote = fmt.Sprintf(" Note: the provided ref '%s' does not exist, default branch '%s' was used instead.", originalRef, rawOpts.Ref)
 				}
 
+				// Empty files (0 bytes) have no content to decode; return
+				// them directly as empty text to avoid errors from
+				// GetContent when the API returns null content with a
+				// base64 encoding field, and to avoid DetectContentType
+				// misclassifying them as binary.
+				if fileSize == 0 {
+					result := &mcp.ResourceContents{
+						URI:      resourceURI,
+						Text:     "",
+						MIMEType: "text/plain",
+					}
+					return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded empty file (SHA: %s)%s", fileSHA, successNote), result), nil, nil
+				}
+
 				// For files >= 1MB, return a ResourceLink instead of content
 				const maxContentSize = 1024 * 1024 // 1MB
 				if fileSize >= maxContentSize {
