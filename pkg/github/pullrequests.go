@@ -16,6 +16,7 @@ import (
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/octicons"
+	"github.com/github/github-mcp-server/pkg/response"
 	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -1168,7 +1169,14 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 				}
 			}
 
-			r, err := json.Marshal(prs)
+			r, err := response.OptimizeList(prs,
+				response.WithPreservedFields("html_url", "draft"),
+				response.WithCollectionExtractors(map[string][]string{
+					"labels":              {"name"},
+					"requested_reviewers": {"login"},
+					"requested_teams":     {"name"},
+				}),
+			)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
