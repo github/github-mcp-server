@@ -808,6 +808,30 @@ The following sets of tools are available:
   - `owner`: Repository owner (username or organization name) (string, required)
   - `repo`: Repository name (string, required)
 
+- **issue_dependency_read** - Get issue dependencies
+  - **Required OAuth Scopes**: `repo`
+  - `issue_number`: The number of the issue (number, required)
+  - `method`: The read operation to perform on issue dependencies.
+    Options are:
+    - 'get_blocked_by' - Get the list of issues that block this issue.
+     (string, required)
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
+
+- **issue_dependency_write** - Manage issue dependencies
+  - **Required OAuth Scopes**: `repo`
+  - `blocking_issue_id`: The ID (not number) of the issue that blocks this issue (number, required)
+  - `issue_number`: The number of the issue that is blocked (number, required)
+  - `method`: The action to perform on issue dependencies.
+    Options are:
+    - 'add' - Add a 'blocked by' relationship, indicating this issue is blocked by another issue.
+    - 'remove' - Remove a 'blocked by' relationship.
+     (string, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
 - **issue_read** - Get issue details
   - **Required OAuth Scopes**: `repo`
   - `issue_number`: The number of the issue (number, required)
