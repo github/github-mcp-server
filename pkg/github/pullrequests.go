@@ -557,7 +557,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			// to distinguish form submissions from LLM calls.
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 
-			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(req) && !uiSubmitted {
+			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(ctx, req) && !uiSubmitted {
 				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. The user will review and confirm via the interactive form.", owner, repo)), nil, nil
 			}
 
