@@ -8,17 +8,16 @@ import (
 
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/migueleliasweb/go-github-mock/src/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func Test_SearchRepositories(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := SearchRepositories(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := SearchRepositories(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "search_repositories", tool.Name)
@@ -60,28 +59,25 @@ func Test_SearchRepositories(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedResult *github.RepositoriesSearchResult
 		expectedErrMsg string
 	}{
 		{
 			name: "successful repository search",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchRepositories,
-					expectQueryParams(t, map[string]string{
-						"q":        "golang test",
-						"sort":     "stars",
-						"order":    "desc",
-						"page":     "2",
-						"per_page": "10",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchRepositories: expectQueryParams(t, map[string]string{
+					"q":        "golang test",
+					"sort":     "stars",
+					"order":    "desc",
+					"page":     "2",
+					"per_page": "10",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
-			requestArgs: map[string]interface{}{
+			}),
+			requestArgs: map[string]any{
 				"query":   "golang test",
 				"sort":    "stars",
 				"order":   "desc",
@@ -93,19 +89,16 @@ func Test_SearchRepositories(t *testing.T) {
 		},
 		{
 			name: "repository search with default pagination",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchRepositories,
-					expectQueryParams(t, map[string]string{
-						"q":        "golang test",
-						"page":     "1",
-						"per_page": "30",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchRepositories: expectQueryParams(t, map[string]string{
+					"q":        "golang test",
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
-			requestArgs: map[string]interface{}{
+			}),
+			requestArgs: map[string]any{
 				"query": "golang test",
 			},
 			expectError:    false,
@@ -113,16 +106,13 @@ func Test_SearchRepositories(t *testing.T) {
 		},
 		{
 			name: "search fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchRepositories,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusBadRequest)
-						_, _ = w.Write([]byte(`{"message": "Invalid query"}`))
-					}),
-				),
-			),
-			requestArgs: map[string]interface{}{
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchRepositories: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = w.Write([]byte(`{"message": "Invalid query"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
 				"query": "invalid:query",
 			},
 			expectError:    true,
@@ -134,13 +124,16 @@ func Test_SearchRepositories(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := SearchRepositories(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -191,30 +184,31 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 		},
 	}
 
-	mockedClient := mock.NewMockedHTTPClient(
-		mock.WithRequestMatchHandler(
-			mock.GetSearchRepositories,
-			expectQueryParams(t, map[string]string{
-				"q":        "golang test",
-				"page":     "1",
-				"per_page": "30",
-			}).andThen(
-				mockResponse(t, http.StatusOK, mockSearchResult),
-			),
+	mockedClient := MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		GetSearchRepositories: expectQueryParams(t, map[string]string{
+			"q":        "golang test",
+			"page":     "1",
+			"per_page": "30",
+		}).andThen(
+			mockResponse(t, http.StatusOK, mockSearchResult),
 		),
-	)
+	})
 
 	client := github.NewClient(mockedClient)
-	_, handlerTest := SearchRepositories(stubGetClientFn(client), translations.NullTranslationHelper)
+	serverTool := SearchRepositories(translations.NullTranslationHelper)
+	deps := BaseDeps{
+		Client: client,
+	}
+	handler := serverTool.Handler(deps)
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"query":          "golang test",
 		"minimal_output": false,
 	}
 
 	request := createMCPRequest(args)
 
-	result, _, err := handlerTest(context.Background(), &request, args)
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 	require.NoError(t, err)
 	require.False(t, result.IsError)
@@ -236,8 +230,8 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 
 func Test_SearchCode(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := SearchCode(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := SearchCode(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "search_code", tool.Name)
@@ -277,28 +271,25 @@ func Test_SearchCode(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedResult *github.CodeSearchResult
 		expectedErrMsg string
 	}{
 		{
 			name: "successful code search with all parameters",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchCode,
-					expectQueryParams(t, map[string]string{
-						"q":        "fmt.Println language:go",
-						"sort":     "indexed",
-						"order":    "desc",
-						"page":     "1",
-						"per_page": "30",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchCode: expectQueryParams(t, map[string]string{
+					"q":        "fmt.Println language:go",
+					"sort":     "indexed",
+					"order":    "desc",
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
-			requestArgs: map[string]interface{}{
+			}),
+			requestArgs: map[string]any{
 				"query":   "fmt.Println language:go",
 				"sort":    "indexed",
 				"order":   "desc",
@@ -310,19 +301,16 @@ func Test_SearchCode(t *testing.T) {
 		},
 		{
 			name: "code search with minimal parameters",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchCode,
-					expectQueryParams(t, map[string]string{
-						"q":        "fmt.Println language:go",
-						"page":     "1",
-						"per_page": "30",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchCode: expectQueryParams(t, map[string]string{
+					"q":        "fmt.Println language:go",
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
-			requestArgs: map[string]interface{}{
+			}),
+			requestArgs: map[string]any{
 				"query": "fmt.Println language:go",
 			},
 			expectError:    false,
@@ -330,16 +318,13 @@ func Test_SearchCode(t *testing.T) {
 		},
 		{
 			name: "search code fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchCode,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusBadRequest)
-						_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
-					}),
-				),
-			),
-			requestArgs: map[string]interface{}{
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchCode: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
 				"query": "invalid:query",
 			},
 			expectError:    true,
@@ -351,13 +336,16 @@ func Test_SearchCode(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := SearchCode(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -394,8 +382,8 @@ func Test_SearchCode(t *testing.T) {
 
 func Test_SearchUsers(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := SearchUsers(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := SearchUsers(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
 	assert.Equal(t, "search_users", tool.Name)
@@ -434,28 +422,25 @@ func Test_SearchUsers(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedResult *github.UsersSearchResult
 		expectedErrMsg string
 	}{
 		{
 			name: "successful users search with all parameters",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchUsers,
-					expectQueryParams(t, map[string]string{
-						"q":        "type:user location:finland language:go",
-						"sort":     "followers",
-						"order":    "desc",
-						"page":     "1",
-						"per_page": "30",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchUsers: expectQueryParams(t, map[string]string{
+					"q":        "type:user location:finland language:go",
+					"sort":     "followers",
+					"order":    "desc",
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
-			requestArgs: map[string]interface{}{
+			}),
+			requestArgs: map[string]any{
 				"query":   "location:finland language:go",
 				"sort":    "followers",
 				"order":   "desc",
@@ -467,19 +452,16 @@ func Test_SearchUsers(t *testing.T) {
 		},
 		{
 			name: "users search with minimal parameters",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchUsers,
-					expectQueryParams(t, map[string]string{
-						"q":        "type:user location:finland language:go",
-						"page":     "1",
-						"per_page": "30",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchUsers: expectQueryParams(t, map[string]string{
+					"q":        "type:user location:finland language:go",
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
-			requestArgs: map[string]interface{}{
+			}),
+			requestArgs: map[string]any{
 				"query": "location:finland language:go",
 			},
 			expectError:    false,
@@ -487,19 +469,16 @@ func Test_SearchUsers(t *testing.T) {
 		},
 		{
 			name: "query with existing type:user filter - no duplication",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchUsers,
-					expectQueryParams(t, map[string]string{
-						"q":        "type:user location:seattle followers:>100",
-						"page":     "1",
-						"per_page": "30",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchUsers: expectQueryParams(t, map[string]string{
+					"q":        "type:user location:seattle followers:>100",
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
-			requestArgs: map[string]interface{}{
+			}),
+			requestArgs: map[string]any{
 				"query": "type:user location:seattle followers:>100",
 			},
 			expectError:    false,
@@ -507,19 +486,16 @@ func Test_SearchUsers(t *testing.T) {
 		},
 		{
 			name: "complex query with existing type:user filter and OR operators",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchUsers,
-					expectQueryParams(t, map[string]string{
-						"q":        "type:user (location:seattle OR location:california) followers:>50",
-						"page":     "1",
-						"per_page": "30",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchUsers: expectQueryParams(t, map[string]string{
+					"q":        "type:user (location:seattle OR location:california) followers:>50",
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
-			requestArgs: map[string]interface{}{
+			}),
+			requestArgs: map[string]any{
 				"query": "type:user (location:seattle OR location:california) followers:>50",
 			},
 			expectError:    false,
@@ -527,16 +503,13 @@ func Test_SearchUsers(t *testing.T) {
 		},
 		{
 			name: "search users fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchUsers,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusBadRequest)
-						_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
-					}),
-				),
-			),
-			requestArgs: map[string]interface{}{
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchUsers: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
 				"query": "invalid:query",
 			},
 			expectError:    true,
@@ -548,13 +521,16 @@ func Test_SearchUsers(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := SearchUsers(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -592,8 +568,8 @@ func Test_SearchUsers(t *testing.T) {
 
 func Test_SearchOrgs(t *testing.T) {
 	// Verify tool definition once
-	mockClient := github.NewClient(nil)
-	tool, _ := SearchOrgs(stubGetClientFn(mockClient), translations.NullTranslationHelper)
+	serverTool := SearchOrgs(translations.NullTranslationHelper)
+	tool := serverTool.Tool
 
 	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
@@ -632,26 +608,23 @@ func Test_SearchOrgs(t *testing.T) {
 	tests := []struct {
 		name           string
 		mockedClient   *http.Client
-		requestArgs    map[string]interface{}
+		requestArgs    map[string]any
 		expectError    bool
 		expectedResult *github.UsersSearchResult
 		expectedErrMsg string
 	}{
 		{
 			name: "successful org search",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchUsers,
-					expectQueryParams(t, map[string]string{
-						"q":        "type:org github",
-						"page":     "1",
-						"per_page": "30",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchUsers: expectQueryParams(t, map[string]string{
+					"q":        "type:org github",
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
-			requestArgs: map[string]interface{}{
+			}),
+			requestArgs: map[string]any{
 				"query": "github",
 			},
 			expectError:    false,
@@ -659,19 +632,16 @@ func Test_SearchOrgs(t *testing.T) {
 		},
 		{
 			name: "query with existing type:org filter - no duplication",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchUsers,
-					expectQueryParams(t, map[string]string{
-						"q":        "type:org location:california followers:>1000",
-						"page":     "1",
-						"per_page": "30",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchUsers: expectQueryParams(t, map[string]string{
+					"q":        "type:org location:california followers:>1000",
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
-			requestArgs: map[string]interface{}{
+			}),
+			requestArgs: map[string]any{
 				"query": "type:org location:california followers:>1000",
 			},
 			expectError:    false,
@@ -679,19 +649,16 @@ func Test_SearchOrgs(t *testing.T) {
 		},
 		{
 			name: "complex query with existing type:org filter and OR operators",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchUsers,
-					expectQueryParams(t, map[string]string{
-						"q":        "type:org (location:seattle OR location:california OR location:newyork) repos:>10",
-						"page":     "1",
-						"per_page": "30",
-					}).andThen(
-						mockResponse(t, http.StatusOK, mockSearchResult),
-					),
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchUsers: expectQueryParams(t, map[string]string{
+					"q":        "type:org (location:seattle OR location:california OR location:newyork) repos:>10",
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockSearchResult),
 				),
-			),
-			requestArgs: map[string]interface{}{
+			}),
+			requestArgs: map[string]any{
 				"query": "type:org (location:seattle OR location:california OR location:newyork) repos:>10",
 			},
 			expectError:    false,
@@ -699,16 +666,13 @@ func Test_SearchOrgs(t *testing.T) {
 		},
 		{
 			name: "org search fails",
-			mockedClient: mock.NewMockedHTTPClient(
-				mock.WithRequestMatchHandler(
-					mock.GetSearchUsers,
-					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						w.WriteHeader(http.StatusBadRequest)
-						_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
-					}),
-				),
-			),
-			requestArgs: map[string]interface{}{
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetSearchUsers: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					w.WriteHeader(http.StatusBadRequest)
+					_, _ = w.Write([]byte(`{"message": "Validation Failed"}`))
+				}),
+			}),
+			requestArgs: map[string]any{
 				"query": "invalid:query",
 			},
 			expectError:    true,
@@ -720,13 +684,16 @@ func Test_SearchOrgs(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			// Setup client with mock
 			client := github.NewClient(tc.mockedClient)
-			_, handler := SearchOrgs(stubGetClientFn(client), translations.NullTranslationHelper)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
 
 			// Create call request
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, _, err := handler(context.Background(), &request, tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 
 			// Verify results
 			if tc.expectError {

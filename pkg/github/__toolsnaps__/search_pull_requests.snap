@@ -5,44 +5,39 @@
   },
   "description": "Search for pull requests in GitHub repositories using issues search syntax already scoped to is:pr",
   "inputSchema": {
-    "type": "object",
-    "required": [
-      "query"
-    ],
     "properties": {
       "order": {
-        "type": "string",
         "description": "Sort order",
         "enum": [
           "asc",
           "desc"
-        ]
+        ],
+        "type": "string"
       },
       "owner": {
-        "type": "string",
-        "description": "Optional repository owner. If provided with repo, only pull requests for this repository are listed."
+        "description": "Optional repository owner. If provided with repo, only pull requests for this repository are listed.",
+        "type": "string"
       },
       "page": {
-        "type": "number",
         "description": "Page number for pagination (min 1)",
-        "minimum": 1
+        "minimum": 1,
+        "type": "number"
       },
       "perPage": {
-        "type": "number",
         "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
         "minimum": 1,
-        "maximum": 100
+        "type": "number"
       },
       "query": {
-        "type": "string",
-        "description": "Search query using GitHub pull request search syntax"
+        "description": "Search query using GitHub pull request search syntax",
+        "type": "string"
       },
       "repo": {
-        "type": "string",
-        "description": "Optional repository name. If provided with owner, only pull requests for this repository are listed."
+        "description": "Optional repository name. If provided with owner, only pull requests for this repository are listed.",
+        "type": "string"
       },
       "sort": {
-        "type": "string",
         "description": "Sort field by number of matches of categories, defaults to best match",
         "enum": [
           "comments",
@@ -56,9 +51,14 @@
           "interactions",
           "created",
           "updated"
-        ]
+        ],
+        "type": "string"
       }
-    }
+    },
+    "required": [
+      "query"
+    ],
+    "type": "object"
   },
   "name": "search_pull_requests"
 }

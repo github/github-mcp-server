@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-viper/mapstructure/v2"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
@@ -121,8 +123,10 @@ func getQueryType(useOrdering bool, categoryID *githubv4.ID) any {
 	return &BasicNoOrder{}
 }
 
-func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func ListDiscussions(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataDiscussions,
+		mcp.Tool{
 			Name:        "list_discussions",
 			Description: t("TOOL_LIST_DISCUSSIONS_DESCRIPTION", "List discussions for a repository or organisation."),
 			Annotations: &mcp.ToolAnnotations{
@@ -158,7 +162,8 @@ func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelp
 				Required: []string{"owner"},
 			}),
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -198,7 +203,7 @@ func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelp
 				return nil, nil, err
 			}
 
-			client, err := getGQLClient(ctx)
+			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
@@ -209,7 +214,7 @@ func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelp
 				categoryID = &id
 			}
 
-			vars := map[string]interface{}{
+			vars := map[string]any{
 				"owner": githubv4.String(owner),
 				"repo":  githubv4.String(repo),
 				"first": githubv4.Int(*paginationParams.First),
@@ -251,9 +256,9 @@ func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelp
 			}
 
 			// Create response with pagination info
-			response := map[string]interface{}{
+			response := map[string]any{
 				"discussions": discussions,
-				"pageInfo": map[string]interface{}{
+				"pageInfo": map[string]any{
 					"hasNextPage":     pageInfo.HasNextPage,
 					"hasPreviousPage": pageInfo.HasPreviousPage,
 					"startCursor":     string(pageInfo.StartCursor),
@@ -267,11 +272,14 @@ func ListDiscussions(getGQLClient GetGQLClientFn, t translations.TranslationHelp
 				return nil, nil, fmt.Errorf("failed to marshal discussions: %w", err)
 			}
 			return utils.NewToolResultText(string(out)), nil, nil
-		}
+		},
+	)
 }
 
-func GetDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataDiscussions,
+		mcp.Tool{
 			Name:        "get_discussion",
 			Description: t("TOOL_GET_DISCUSSION_DESCRIPTION", "Get a specific discussion by ID"),
 			Annotations: &mcp.ToolAnnotations{
@@ -297,7 +305,8 @@ func GetDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelper
 				Required: []string{"owner", "repo", "discussionNumber"},
 			},
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			// Decode params
 			var params struct {
 				Owner            string
@@ -307,7 +316,7 @@ func GetDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelper
 			if err := mapstructure.Decode(args, &params); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			client, err := getGQLClient(ctx)
+			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
@@ -329,7 +338,7 @@ func GetDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelper
 					} `graphql:"discussion(number: $discussionNumber)"`
 				} `graphql:"repository(owner: $owner, name: $repo)"`
 			}
-			vars := map[string]interface{}{
+			vars := map[string]any{
 				"owner":            githubv4.String(params.Owner),
 				"repo":             githubv4.String(params.Repo),
 				"discussionNumber": githubv4.Int(params.DiscussionNumber),
@@ -343,7 +352,7 @@ func GetDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelper
 			// The go-github library's Discussion type lacks isAnswered and answerChosenAt fields,
 			// so we use map[string]interface{} for the response (consistent with other functions
 			// like ListDiscussions and GetDiscussionComments).
-			response := map[string]interface{}{
+			response := map[string]any{
 				"number":     int(d.Number),
 				"title":      string(d.Title),
 				"body":       string(d.Body),
@@ -351,7 +360,7 @@ func GetDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelper
 				"closed":     bool(d.Closed),
 				"isAnswered": bool(d.IsAnswered),
 				"createdAt":  d.CreatedAt.Time,
-				"category": map[string]interface{}{
+				"category": map[string]any{
 					"name": string(d.Category.Name),
 				},
 			}
@@ -367,11 +376,14 @@ func GetDiscussion(getGQLClient GetGQLClientFn, t translations.TranslationHelper
 			}
 
 			return utils.NewToolResultText(string(out)), nil, nil
-		}
+		},
+	)
 }
 
-func GetDiscussionComments(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataDiscussions,
+		mcp.Tool{
 			Name:        "get_discussion_comments",
 			Description: t("TOOL_GET_DISCUSSION_COMMENTS_DESCRIPTION", "Get comments from a discussion"),
 			Annotations: &mcp.ToolAnnotations{
@@ -397,7 +409,8 @@ func GetDiscussionComments(getGQLClient GetGQLClientFn, t translations.Translati
 				Required: []string{"owner", "repo", "discussionNumber"},
 			}),
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			// Decode params
 			var params struct {
 				Owner            string
@@ -429,7 +442,7 @@ func GetDiscussionComments(getGQLClient GetGQLClientFn, t translations.Translati
 				paginationParams.First = &defaultFirst
 			}
 
-			client, err := getGQLClient(ctx)
+			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
@@ -452,7 +465,7 @@ func GetDiscussionComments(getGQLClient GetGQLClientFn, t translations.Translati
 					} `graphql:"discussion(number: $discussionNumber)"`
 				} `graphql:"repository(owner: $owner, name: $repo)"`
 			}
-			vars := map[string]interface{}{
+			vars := map[string]any{
 				"owner":            githubv4.String(params.Owner),
 				"repo":             githubv4.String(params.Repo),
 				"discussionNumber": githubv4.Int(params.DiscussionNumber),
@@ -473,9 +486,9 @@ func GetDiscussionComments(getGQLClient GetGQLClientFn, t translations.Translati
 			}
 
 			// Create response with pagination info
-			response := map[string]interface{}{
+			response := map[string]any{
 				"comments": comments,
-				"pageInfo": map[string]interface{}{
+				"pageInfo": map[string]any{
 					"hasNextPage":     q.Repository.Discussion.Comments.PageInfo.HasNextPage,
 					"hasPreviousPage": q.Repository.Discussion.Comments.PageInfo.HasPreviousPage,
 					"startCursor":     string(q.Repository.Discussion.Comments.PageInfo.StartCursor),
@@ -490,11 +503,14 @@ func GetDiscussionComments(getGQLClient GetGQLClientFn, t translations.Translati
 			}
 
 			return utils.NewToolResultText(string(out)), nil, nil
-		}
+		},
+	)
 }
 
-func ListDiscussionCategories(getGQLClient GetGQLClientFn, t translations.TranslationHelperFunc) (mcp.Tool, mcp.ToolHandlerFor[map[string]any, any]) {
-	return mcp.Tool{
+func ListDiscussionCategories(t translations.TranslationHelperFunc) inventory.ServerTool {
+	return NewTool(
+		ToolsetMetadataDiscussions,
+		mcp.Tool{
 			Name:        "list_discussion_categories",
 			Description: t("TOOL_LIST_DISCUSSION_CATEGORIES_DESCRIPTION", "List discussion categories with their id and name, for a repository or organisation."),
 			Annotations: &mcp.ToolAnnotations{
@@ -516,7 +532,8 @@ func ListDiscussionCategories(getGQLClient GetGQLClientFn, t translations.Transl
 				Required: []string{"owner"},
 			},
 		},
-		func(ctx context.Context, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
+		[]scopes.Scope{scopes.Repo},
+		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			owner, err := RequiredParam[string](args, "owner")
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -531,7 +548,7 @@ func ListDiscussionCategories(getGQLClient GetGQLClientFn, t translations.Transl
 				repo = ".github"
 			}
 
-			client, err := getGQLClient(ctx)
+			client, err := deps.GetGQLClient(ctx)
 			if err != nil {
 				return utils.NewToolResultError(fmt.Sprintf("failed to get GitHub GQL client: %v", err)), nil, nil
 			}
@@ -553,7 +570,7 @@ func ListDiscussionCategories(getGQLClient GetGQLClientFn, t translations.Transl
 					} `graphql:"discussionCategories(first: $first)"`
 				} `graphql:"repository(owner: $owner, name: $repo)"`
 			}
-			vars := map[string]interface{}{
+			vars := map[string]any{
 				"owner": githubv4.String(owner),
 				"repo":  githubv4.String(repo),
 				"first": githubv4.Int(25),
@@ -571,9 +588,9 @@ func ListDiscussionCategories(getGQLClient GetGQLClientFn, t translations.Transl
 			}
 
 			// Create response with pagination info
-			response := map[string]interface{}{
+			response := map[string]any{
 				"categories": categories,
-				"pageInfo": map[string]interface{}{
+				"pageInfo": map[string]any{
 					"hasNextPage":     q.Repository.DiscussionCategories.PageInfo.HasNextPage,
 					"hasPreviousPage": q.Repository.DiscussionCategories.PageInfo.HasPreviousPage,
 					"startCursor":     string(q.Repository.DiscussionCategories.PageInfo.StartCursor),
@@ -587,5 +604,6 @@ func ListDiscussionCategories(getGQLClient GetGQLClientFn, t translations.Transl
 				return nil, nil, fmt.Errorf("failed to marshal discussion categories: %w", err)
 			}
 			return utils.NewToolResultText(string(out)), nil, nil
-		}
+		},
+	)
 }

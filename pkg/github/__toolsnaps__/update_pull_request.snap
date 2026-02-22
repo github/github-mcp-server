@@ -4,61 +4,61 @@
   },
   "description": "Update an existing pull request in a GitHub repository.",
   "inputSchema": {
-    "type": "object",
+    "properties": {
+      "base": {
+        "description": "New base branch name",
+        "type": "string"
+      },
+      "body": {
+        "description": "New description",
+        "type": "string"
+      },
+      "draft": {
+        "description": "Mark pull request as draft (true) or ready for review (false)",
+        "type": "boolean"
+      },
+      "maintainer_can_modify": {
+        "description": "Allow maintainer edits",
+        "type": "boolean"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "pullNumber": {
+        "description": "Pull request number to update",
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "reviewers": {
+        "description": "GitHub usernames to request reviews from",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "state": {
+        "description": "New state",
+        "enum": [
+          "open",
+          "closed"
+        ],
+        "type": "string"
+      },
+      "title": {
+        "description": "New title",
+        "type": "string"
+      }
+    },
     "required": [
       "owner",
       "repo",
       "pullNumber"
     ],
-    "properties": {
-      "base": {
-        "type": "string",
-        "description": "New base branch name"
-      },
-      "body": {
-        "type": "string",
-        "description": "New description"
-      },
-      "draft": {
-        "type": "boolean",
-        "description": "Mark pull request as draft (true) or ready for review (false)"
-      },
-      "maintainer_can_modify": {
-        "type": "boolean",
-        "description": "Allow maintainer edits"
-      },
-      "owner": {
-        "type": "string",
-        "description": "Repository owner"
-      },
-      "pullNumber": {
-        "type": "number",
-        "description": "Pull request number to update"
-      },
-      "repo": {
-        "type": "string",
-        "description": "Repository name"
-      },
-      "reviewers": {
-        "type": "array",
-        "description": "GitHub usernames to request reviews from",
-        "items": {
-          "type": "string"
-        }
-      },
-      "state": {
-        "type": "string",
-        "description": "New state",
-        "enum": [
-          "open",
-          "closed"
-        ]
-      },
-      "title": {
-        "type": "string",
-        "description": "New title"
-      }
-    }
+    "type": "object"
   },
   "name": "update_pull_request"
 }

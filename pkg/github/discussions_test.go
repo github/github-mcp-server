@@ -9,7 +9,7 @@ import (
 	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/github/github-mcp-server/internal/toolsnaps"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
@@ -213,13 +213,13 @@ var (
 )
 
 func Test_ListDiscussions(t *testing.T) {
-	mockClient := githubv4.NewClient(nil)
-	toolDef, _ := ListDiscussions(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
-	require.NoError(t, toolsnaps.Test(toolDef.Name, toolDef))
+	toolDef := ListDiscussions(translations.NullTranslationHelper)
+	tool := toolDef.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "list_discussions", toolDef.Name)
-	assert.NotEmpty(t, toolDef.Description)
-	schema, ok := toolDef.InputSchema.(*jsonschema.Schema)
+	assert.Equal(t, "list_discussions", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
@@ -228,21 +228,21 @@ func Test_ListDiscussions(t *testing.T) {
 	assert.ElementsMatch(t, schema.Required, []string{"owner"})
 
 	// Variables matching what GraphQL receives after JSON marshaling/unmarshaling
-	varsListAll := map[string]interface{}{
+	varsListAll := map[string]any{
 		"owner": "owner",
 		"repo":  "repo",
 		"first": float64(30),
 		"after": (*string)(nil),
 	}
 
-	varsRepoNotFound := map[string]interface{}{
+	varsRepoNotFound := map[string]any{
 		"owner": "owner",
 		"repo":  "nonexistent-repo",
 		"first": float64(30),
 		"after": (*string)(nil),
 	}
 
-	varsDiscussionsFiltered := map[string]interface{}{
+	varsDiscussionsFiltered := map[string]any{
 		"owner":      "owner",
 		"repo":       "repo",
 		"categoryId": "DIC_kwDOABC123",
@@ -250,7 +250,7 @@ func Test_ListDiscussions(t *testing.T) {
 		"after":      (*string)(nil),
 	}
 
-	varsOrderByCreatedAsc := map[string]interface{}{
+	varsOrderByCreatedAsc := map[string]any{
 		"owner":            "owner",
 		"repo":             "repo",
 		"orderByField":     "CREATED_AT",
@@ -259,7 +259,7 @@ func Test_ListDiscussions(t *testing.T) {
 		"after":            (*string)(nil),
 	}
 
-	varsOrderByUpdatedDesc := map[string]interface{}{
+	varsOrderByUpdatedDesc := map[string]any{
 		"owner":            "owner",
 		"repo":             "repo",
 		"orderByField":     "UPDATED_AT",
@@ -268,7 +268,7 @@ func Test_ListDiscussions(t *testing.T) {
 		"after":            (*string)(nil),
 	}
 
-	varsCategoryWithOrder := map[string]interface{}{
+	varsCategoryWithOrder := map[string]any{
 		"owner":            "owner",
 		"repo":             "repo",
 		"categoryId":       "DIC_kwDOABC123",
@@ -278,7 +278,7 @@ func Test_ListDiscussions(t *testing.T) {
 		"after":            (*string)(nil),
 	}
 
-	varsOrgLevel := map[string]interface{}{
+	varsOrgLevel := map[string]any{
 		"owner": "owner",
 		"repo":  ".github", // This is what gets set when repo is not provided
 		"first": float64(30),
@@ -287,7 +287,7 @@ func Test_ListDiscussions(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		reqParams     map[string]interface{}
+		reqParams     map[string]any
 		expectError   bool
 		errContains   string
 		expectedCount int
@@ -295,7 +295,7 @@ func Test_ListDiscussions(t *testing.T) {
 	}{
 		{
 			name: "list all discussions without category filter",
-			reqParams: map[string]interface{}{
+			reqParams: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
 			},
@@ -304,7 +304,7 @@ func Test_ListDiscussions(t *testing.T) {
 		},
 		{
 			name: "filter by category ID",
-			reqParams: map[string]interface{}{
+			reqParams: map[string]any{
 				"owner":    "owner",
 				"repo":     "repo",
 				"category": "DIC_kwDOABC123",
@@ -314,7 +314,7 @@ func Test_ListDiscussions(t *testing.T) {
 		},
 		{
 			name: "order by created at ascending",
-			reqParams: map[string]interface{}{
+			reqParams: map[string]any{
 				"owner":     "owner",
 				"repo":      "repo",
 				"orderBy":   "CREATED_AT",
@@ -332,7 +332,7 @@ func Test_ListDiscussions(t *testing.T) {
 		},
 		{
 			name: "order by updated at descending",
-			reqParams: map[string]interface{}{
+			reqParams: map[string]any{
 				"owner":     "owner",
 				"repo":      "repo",
 				"orderBy":   "UPDATED_AT",
@@ -350,7 +350,7 @@ func Test_ListDiscussions(t *testing.T) {
 		},
 		{
 			name: "filter by category with order",
-			reqParams: map[string]interface{}{
+			reqParams: map[string]any{
 				"owner":     "owner",
 				"repo":      "repo",
 				"category":  "DIC_kwDOABC123",
@@ -368,7 +368,7 @@ func Test_ListDiscussions(t *testing.T) {
 		},
 		{
 			name: "order by without direction (should not use ordering)",
-			reqParams: map[string]interface{}{
+			reqParams: map[string]any{
 				"owner":   "owner",
 				"repo":    "repo",
 				"orderBy": "CREATED_AT",
@@ -378,7 +378,7 @@ func Test_ListDiscussions(t *testing.T) {
 		},
 		{
 			name: "direction without order by (should not use ordering)",
-			reqParams: map[string]interface{}{
+			reqParams: map[string]any{
 				"owner":     "owner",
 				"repo":      "repo",
 				"direction": "DESC",
@@ -388,7 +388,7 @@ func Test_ListDiscussions(t *testing.T) {
 		},
 		{
 			name: "repository not found error",
-			reqParams: map[string]interface{}{
+			reqParams: map[string]any{
 				"owner": "owner",
 				"repo":  "nonexistent-repo",
 			},
@@ -397,7 +397,7 @@ func Test_ListDiscussions(t *testing.T) {
 		},
 		{
 			name: "list org-level discussions (no repo provided)",
-			reqParams: map[string]interface{}{
+			reqParams: map[string]any{
 				"owner": "owner",
 				// repo is not provided, it will default to ".github"
 			},
@@ -447,10 +447,11 @@ func Test_ListDiscussions(t *testing.T) {
 			}
 
 			gqlClient := githubv4.NewClient(httpClient)
-			_, handler := ListDiscussions(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+			deps := BaseDeps{GQLClient: gqlClient}
+			handler := toolDef.Handler(deps)
 
 			req := createMCPRequest(tc.reqParams)
-			res, _, err := handler(context.Background(), &req, tc.reqParams)
+			res, err := handler(ContextWithDeps(context.Background(), deps), &req)
 			text := getTextResult(t, res).Text
 
 			if tc.expectError {
@@ -494,12 +495,13 @@ func Test_ListDiscussions(t *testing.T) {
 
 func Test_GetDiscussion(t *testing.T) {
 	// Verify tool definition and schema
-	toolDef, _ := GetDiscussion(nil, translations.NullTranslationHelper)
-	require.NoError(t, toolsnaps.Test(toolDef.Name, toolDef))
+	toolDef := GetDiscussion(translations.NullTranslationHelper)
+	tool := toolDef.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "get_discussion", toolDef.Name)
-	assert.NotEmpty(t, toolDef.Description)
-	schema, ok := toolDef.InputSchema.(*jsonschema.Schema)
+	assert.Equal(t, "get_discussion", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
@@ -509,7 +511,7 @@ func Test_GetDiscussion(t *testing.T) {
 	// Use exact string query that matches implementation output
 	qGetDiscussion := "query($discussionNumber:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){number,title,body,createdAt,closed,isAnswered,answerChosenAt,url,category{name}}}}"
 
-	vars := map[string]interface{}{
+	vars := map[string]any{
 		"owner":            "owner",
 		"repo":             "repo",
 		"discussionNumber": float64(1),
@@ -518,7 +520,7 @@ func Test_GetDiscussion(t *testing.T) {
 		name        string
 		response    githubv4mock.GQLResponse
 		expectError bool
-		expected    map[string]interface{}
+		expected    map[string]any
 		errContains string
 	}{
 		{
@@ -536,7 +538,7 @@ func Test_GetDiscussion(t *testing.T) {
 				}},
 			}),
 			expectError: false,
-			expected: map[string]interface{}{
+			expected: map[string]any{
 				"number":     float64(1),
 				"title":      "Test Discussion Title",
 				"body":       "This is a test discussion",
@@ -557,11 +559,12 @@ func Test_GetDiscussion(t *testing.T) {
 			matcher := githubv4mock.NewQueryMatcher(qGetDiscussion, vars, tc.response)
 			httpClient := githubv4mock.NewMockedHTTPClient(matcher)
 			gqlClient := githubv4.NewClient(httpClient)
-			_, handler := GetDiscussion(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+			deps := BaseDeps{GQLClient: gqlClient}
+			handler := toolDef.Handler(deps)
 
-			reqParams := map[string]interface{}{"owner": "owner", "repo": "repo", "discussionNumber": int32(1)}
+			reqParams := map[string]any{"owner": "owner", "repo": "repo", "discussionNumber": int32(1)}
 			req := createMCPRequest(reqParams)
-			res, _, err := handler(context.Background(), &req, reqParams)
+			res, err := handler(ContextWithDeps(context.Background(), deps), &req)
 			text := getTextResult(t, res).Text
 
 			if tc.expectError {
@@ -571,7 +574,7 @@ func Test_GetDiscussion(t *testing.T) {
 			}
 
 			require.NoError(t, err)
-			var out map[string]interface{}
+			var out map[string]any
 			require.NoError(t, json.Unmarshal([]byte(text), &out))
 			assert.Equal(t, tc.expected["number"], out["number"])
 			assert.Equal(t, tc.expected["title"], out["title"])
@@ -580,7 +583,7 @@ func Test_GetDiscussion(t *testing.T) {
 			assert.Equal(t, tc.expected["closed"], out["closed"])
 			assert.Equal(t, tc.expected["isAnswered"], out["isAnswered"])
 			// Check category is present
-			category, ok := out["category"].(map[string]interface{})
+			category, ok := out["category"].(map[string]any)
 			require.True(t, ok)
 			assert.Equal(t, "General", category["name"])
 		})
@@ -589,12 +592,13 @@ func Test_GetDiscussion(t *testing.T) {
 
 func Test_GetDiscussionComments(t *testing.T) {
 	// Verify tool definition and schema
-	toolDef, _ := GetDiscussionComments(nil, translations.NullTranslationHelper)
-	require.NoError(t, toolsnaps.Test(toolDef.Name, toolDef))
+	toolDef := GetDiscussionComments(translations.NullTranslationHelper)
+	tool := toolDef.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "get_discussion_comments", toolDef.Name)
-	assert.NotEmpty(t, toolDef.Description)
-	schema, ok := toolDef.InputSchema.(*jsonschema.Schema)
+	assert.Equal(t, "get_discussion_comments", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
@@ -605,7 +609,7 @@ func Test_GetDiscussionComments(t *testing.T) {
 	qGetComments := "query($after:String$discussionNumber:Int!$first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussion(number: $discussionNumber){comments(first: $first, after: $after){nodes{body},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}}"
 
 	// Variables matching what GraphQL receives after JSON marshaling/unmarshaling
-	vars := map[string]interface{}{
+	vars := map[string]any{
 		"owner":            "owner",
 		"repo":             "repo",
 		"discussionNumber": float64(1),
@@ -635,16 +639,17 @@ func Test_GetDiscussionComments(t *testing.T) {
 	matcher := githubv4mock.NewQueryMatcher(qGetComments, vars, mockResponse)
 	httpClient := githubv4mock.NewMockedHTTPClient(matcher)
 	gqlClient := githubv4.NewClient(httpClient)
-	_, handler := GetDiscussionComments(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+	deps := BaseDeps{GQLClient: gqlClient}
+	handler := toolDef.Handler(deps)
 
-	reqParams := map[string]interface{}{
+	reqParams := map[string]any{
 		"owner":            "owner",
 		"repo":             "repo",
 		"discussionNumber": int32(1),
 	}
 	request := createMCPRequest(reqParams)
 
-	result, _, err := handler(context.Background(), &request, reqParams)
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 	require.NoError(t, err)
 
 	textContent := getTextResult(t, result)
@@ -671,14 +676,14 @@ func Test_GetDiscussionComments(t *testing.T) {
 }
 
 func Test_ListDiscussionCategories(t *testing.T) {
-	mockClient := githubv4.NewClient(nil)
-	toolDef, _ := ListDiscussionCategories(stubGetGQLClientFn(mockClient), translations.NullTranslationHelper)
-	require.NoError(t, toolsnaps.Test(toolDef.Name, toolDef))
+	toolDef := ListDiscussionCategories(translations.NullTranslationHelper)
+	tool := toolDef.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
 
-	assert.Equal(t, "list_discussion_categories", toolDef.Name)
-	assert.NotEmpty(t, toolDef.Description)
-	assert.Contains(t, toolDef.Description, "or organisation")
-	schema, ok := toolDef.InputSchema.(*jsonschema.Schema)
+	assert.Equal(t, "list_discussion_categories", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+	assert.Contains(t, tool.Description, "or organisation")
+	schema, ok := tool.InputSchema.(*jsonschema.Schema)
 	require.True(t, ok, "InputSchema should be *jsonschema.Schema")
 	assert.Contains(t, schema.Properties, "owner")
 	assert.Contains(t, schema.Properties, "repo")
@@ -688,14 +693,14 @@ func Test_ListDiscussionCategories(t *testing.T) {
 	qListCategories := "query($first:Int!$owner:String!$repo:String!){repository(owner: $owner, name: $repo){discussionCategories(first: $first){nodes{id,name},pageInfo{hasNextPage,hasPreviousPage,startCursor,endCursor},totalCount}}}"
 
 	// Variables for repository-level categories
-	varsRepo := map[string]interface{}{
+	varsRepo := map[string]any{
 		"owner": "owner",
 		"repo":  "repo",
 		"first": float64(25),
 	}
 
 	// Variables for organization-level categories (using .github repo)
-	varsOrg := map[string]interface{}{
+	varsOrg := map[string]any{
 		"owner": "owner",
 		"repo":  ".github",
 		"first": float64(25),
@@ -740,8 +745,8 @@ func Test_ListDiscussionCategories(t *testing.T) {
 
 	tests := []struct {
 		name               string
-		reqParams          map[string]interface{}
-		vars               map[string]interface{}
+		reqParams          map[string]any
+		vars               map[string]any
 		mockResponse       githubv4mock.GQLResponse
 		expectError        bool
 		expectedCount      int
@@ -749,7 +754,7 @@ func Test_ListDiscussionCategories(t *testing.T) {
 	}{
 		{
 			name: "list repository-level discussion categories",
-			reqParams: map[string]interface{}{
+			reqParams: map[string]any{
 				"owner": "owner",
 				"repo":  "repo",
 			},
@@ -764,7 +769,7 @@ func Test_ListDiscussionCategories(t *testing.T) {
 		},
 		{
 			name: "list org-level discussion categories (no repo provided)",
-			reqParams: map[string]interface{}{
+			reqParams: map[string]any{
 				"owner": "owner",
 				// repo is not provided, it will default to ".github"
 			},
@@ -786,10 +791,11 @@ func Test_ListDiscussionCategories(t *testing.T) {
 			httpClient := githubv4mock.NewMockedHTTPClient(matcher)
 			gqlClient := githubv4.NewClient(httpClient)
 
-			_, handler := ListDiscussionCategories(stubGetGQLClientFn(gqlClient), translations.NullTranslationHelper)
+			deps := BaseDeps{GQLClient: gqlClient}
+			handler := toolDef.Handler(deps)
 
 			req := createMCPRequest(tc.reqParams)
-			res, _, err := handler(context.Background(), &req, tc.reqParams)
+			res, err := handler(ContextWithDeps(context.Background(), deps), &req)
 			text := getTextResult(t, res).Text
 
 			if tc.expectError {

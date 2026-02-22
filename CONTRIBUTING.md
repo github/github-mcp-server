@@ -39,6 +39,8 @@ These are one time installations required to be able to test your changes locall
     - Run linter: `script/lint`
     - Update snapshots and run tests: `UPDATE_TOOLSNAPS=true go test ./...`
     - Update readme documentation: `script/generate-docs`
+    - If renaming a tool, add a deprecation alias (see [Tool Renaming Guide](docs/tool-renaming.md))
+    - For toolset and icon configuration, see [Toolsets and Icons Guide](docs/toolsets-and-icons.md)
 6. Push to your fork and [submit a pull request][pr] targeting the `main` branch
 7. Pat yourself on the back and wait for your pull request to be reviewed and merged.
 

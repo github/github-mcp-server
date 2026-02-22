@@ -4,25 +4,25 @@
   },
   "description": "Dismiss a notification by marking it as read or done",
   "inputSchema": {
-    "type": "object",
-    "required": [
-      "threadID",
-      "state"
-    ],
     "properties": {
       "state": {
-        "type": "string",
         "description": "The new state of the notification (read/done)",
         "enum": [
           "read",
           "done"
-        ]
+        ],
+        "type": "string"
       },
       "threadID": {
-        "type": "string",
-        "description": "The ID of the notification thread"
+        "description": "The ID of the notification thread",
+        "type": "string"
       }
-    }
+    },
+    "required": [
+      "threadID",
+      "state"
+    ],
+    "type": "object"
   },
   "name": "dismiss_notification"
 }

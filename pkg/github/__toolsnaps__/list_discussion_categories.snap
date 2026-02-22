@@ -5,20 +5,20 @@
   },
   "description": "List discussion categories with their id and name, for a repository or organisation.",
   "inputSchema": {
-    "type": "object",
+    "properties": {
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name. If not provided, discussion categories will be queried at the organisation level.",
+        "type": "string"
+      }
+    },
     "required": [
       "owner"
     ],
-    "properties": {
-      "owner": {
-        "type": "string",
-        "description": "Repository owner"
-      },
-      "repo": {
-        "type": "string",
-        "description": "Repository name. If not provided, discussion categories will be queried at the organisation level."
-      }
-    }
+    "type": "object"
   },
   "name": "list_discussion_categories"
 }

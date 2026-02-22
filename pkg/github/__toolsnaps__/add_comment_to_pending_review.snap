@@ -4,7 +4,60 @@
   },
   "description": "Add review comment to the requester's latest pending pull request review. A pending review needs to already exist to call this (check with the user if not sure).",
   "inputSchema": {
-    "type": "object",
+    "properties": {
+      "body": {
+        "description": "The text of the review comment",
+        "type": "string"
+      },
+      "line": {
+        "description": "The line of the blob in the pull request diff that the comment applies to. For multi-line comments, the last line of the range",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "path": {
+        "description": "The relative path to the file that necessitates a comment",
+        "type": "string"
+      },
+      "pullNumber": {
+        "description": "Pull request number",
+        "type": "number"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "side": {
+        "description": "The side of the diff to comment on. LEFT indicates the previous state, RIGHT indicates the new state",
+        "enum": [
+          "LEFT",
+          "RIGHT"
+        ],
+        "type": "string"
+      },
+      "startLine": {
+        "description": "For multi-line comments, the first line of the range that the comment applies to",
+        "type": "number"
+      },
+      "startSide": {
+        "description": "For multi-line comments, the starting side of the diff that the comment applies to. LEFT indicates the previous state, RIGHT indicates the new state",
+        "enum": [
+          "LEFT",
+          "RIGHT"
+        ],
+        "type": "string"
+      },
+      "subjectType": {
+        "description": "The level at which the comment is targeted",
+        "enum": [
+          "FILE",
+          "LINE"
+        ],
+        "type": "string"
+      }
+    },
     "required": [
       "owner",
       "repo",
@@ -13,60 +66,7 @@
       "body",
       "subjectType"
     ],
-    "properties": {
-      "body": {
-        "type": "string",
-        "description": "The text of the review comment"
-      },
-      "line": {
-        "type": "number",
-        "description": "The line of the blob in the pull request diff that the comment applies to. For multi-line comments, the last line of the range"
-      },
-      "owner": {
-        "type": "string",
-        "description": "Repository owner"
-      },
-      "path": {
-        "type": "string",
-        "description": "The relative path to the file that necessitates a comment"
-      },
-      "pullNumber": {
-        "type": "number",
-        "description": "Pull request number"
-      },
-      "repo": {
-        "type": "string",
-        "description": "Repository name"
-      },
-      "side": {
-        "type": "string",
-        "description": "The side of the diff to comment on. LEFT indicates the previous state, RIGHT indicates the new state",
-        "enum": [
-          "LEFT",
-          "RIGHT"
-        ]
-      },
-      "startLine": {
-        "type": "number",
-        "description": "For multi-line comments, the first line of the range that the comment applies to"
-      },
-      "startSide": {
-        "type": "string",
-        "description": "For multi-line comments, the starting side of the diff that the comment applies to. LEFT indicates the previous state, RIGHT indicates the new state",
-        "enum": [
-          "LEFT",
-          "RIGHT"
-        ]
-      },
-      "subjectType": {
-        "type": "string",
-        "description": "The level at which the comment is targeted",
-        "enum": [
-          "FILE",
-          "LINE"
-        ]
-      }
-    }
+    "type": "object"
   },
   "name": "add_comment_to_pending_review"
 }

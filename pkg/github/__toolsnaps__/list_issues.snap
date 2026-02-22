@@ -5,67 +5,67 @@
   },
   "description": "List issues in a GitHub repository. For pagination, use the 'endCursor' from the previous response's 'pageInfo' in the 'after' parameter.",
   "inputSchema": {
-    "type": "object",
-    "required": [
-      "owner",
-      "repo"
-    ],
     "properties": {
       "after": {
-        "type": "string",
-        "description": "Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs."
+        "description": "Cursor for pagination. Use the endCursor from the previous page's PageInfo for GraphQL APIs.",
+        "type": "string"
       },
       "direction": {
-        "type": "string",
         "description": "Order direction. If provided, the 'orderBy' also needs to be provided.",
         "enum": [
           "ASC",
           "DESC"
-        ]
+        ],
+        "type": "string"
       },
       "labels": {
-        "type": "array",
         "description": "Filter by labels",
         "items": {
           "type": "string"
-        }
+        },
+        "type": "array"
       },
       "orderBy": {
-        "type": "string",
         "description": "Order issues by field. If provided, the 'direction' also needs to be provided.",
         "enum": [
           "CREATED_AT",
           "UPDATED_AT",
           "COMMENTS"
-        ]
+        ],
+        "type": "string"
       },
       "owner": {
-        "type": "string",
-        "description": "Repository owner"
+        "description": "Repository owner",
+        "type": "string"
       },
       "perPage": {
-        "type": "number",
         "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
         "minimum": 1,
-        "maximum": 100
+        "type": "number"
       },
       "repo": {
-        "type": "string",
-        "description": "Repository name"
+        "description": "Repository name",
+        "type": "string"
       },
       "since": {
-        "type": "string",
-        "description": "Filter by date (ISO 8601 timestamp)"
+        "description": "Filter by date (ISO 8601 timestamp)",
+        "type": "string"
       },
       "state": {
-        "type": "string",
         "description": "Filter by state, by default both open and closed issues are returned when not provided",
         "enum": [
           "OPEN",
           "CLOSED"
-        ]
+        ],
+        "type": "string"
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo"
+    ],
+    "type": "object"
   },
   "name": "list_issues"
 }

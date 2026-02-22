@@ -5,16 +5,16 @@
   },
   "description": "Get gist content of a particular gist, by gist ID",
   "inputSchema": {
-    "type": "object",
+    "properties": {
+      "gist_id": {
+        "description": "The ID of the gist",
+        "type": "string"
+      }
+    },
     "required": [
       "gist_id"
     ],
-    "properties": {
-      "gist_id": {
-        "type": "string",
-        "description": "The ID of the gist"
-      }
-    }
+    "type": "object"
   },
   "name": "get_gist"
 }

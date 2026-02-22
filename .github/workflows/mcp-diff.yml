@@ -1,0 +1,80 @@
+name: MCP Server Diff
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  mcp-diff:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build UI
+        run: script/build-ui
+
+      - name: Run MCP Server Diff
+        uses: SamMorrowDrums/mcp-server-diff@v2.3.5
+        with:
+          setup_go: "true"
+          install_command: go mod download
+          start_command: go run ./cmd/github-mcp-server stdio
+          env_vars: |
+            GITHUB_PERSONAL_ACCESS_TOKEN=test-token
+          configurations: |
+            [
+              {"name": "default", "args": ""},
+              {"name": "read-only", "args": "--read-only"},
+              {"name": "dynamic-toolsets", "args": "--dynamic-toolsets"},
+              {"name": "read-only+dynamic", "args": "--read-only --dynamic-toolsets"},
+              {"name": "toolsets-repos", "args": "--toolsets=repos"},
+              {"name": "toolsets-issues", "args": "--toolsets=issues"},
+              {"name": "toolsets-context", "args": "--toolsets=context"},
+              {"name": "toolsets-pull_requests", "args": "--toolsets=pull_requests"},
+              {"name": "toolsets-repos,issues", "args": "--toolsets=repos,issues"},
+              {"name": "toolsets-issues,context", "args": "--toolsets=issues,context"},
+              {"name": "toolsets-all", "args": "--toolsets=all"},
+              {"name": "tools-get_me", "args": "--tools=get_me"},
+              {"name": "tools-get_me,list_issues", "args": "--tools=get_me,list_issues"},
+              {"name": "toolsets-repos+read-only", "args": "--toolsets=repos --read-only"},
+              {"name": "toolsets-all+dynamic", "args": "--toolsets=all --dynamic-toolsets"},
+              {"name": "toolsets-repos+dynamic", "args": "--toolsets=repos --dynamic-toolsets"},
+              {"name": "toolsets-repos,issues+dynamic", "args": "--toolsets=repos,issues --dynamic-toolsets"},
+              {
+                "name": "dynamic-tool-calls",
+                "args": "--dynamic-toolsets",
+                "custom_messages": [
+                  {"id": 10, "name": "list_toolsets_before", "message": {"jsonrpc": "2.0", "id": 10, "method": "tools/call", "params": {"name": "list_available_toolsets", "arguments": {}}}},
+                  {"id": 11, "name": "get_toolset_tools", "message": {"jsonrpc": "2.0", "id": 11, "method": "tools/call", "params": {"name": "get_toolset_tools", "arguments": {"toolset": "repos"}}}},
+                  {"id": 12, "name": "enable_toolset", "message": {"jsonrpc": "2.0", "id": 12, "method": "tools/call", "params": {"name": "enable_toolset", "arguments": {"toolset": "repos"}}}},
+                  {"id": 13, "name": "list_toolsets_after", "message": {"jsonrpc": "2.0", "id": 13, "method": "tools/call", "params": {"name": "list_available_toolsets", "arguments": {}}}}
+                ]
+              }
+            ]
+
+      - name: Add interpretation note
+        if: always()
+        run: |
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "ℹ️ **Note:** Differences may be intentional improvements." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Common expected differences:" >> $GITHUB_STEP_SUMMARY
+          echo "- New tools/toolsets added" >> $GITHUB_STEP_SUMMARY
+          echo "- Tool descriptions updated" >> $GITHUB_STEP_SUMMARY
+          echo "- Capability changes (intentional improvements)" >> $GITHUB_STEP_SUMMARY
