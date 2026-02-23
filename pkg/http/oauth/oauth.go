@@ -63,6 +63,14 @@ func NewAuthHandler(cfg *Config, apiHost utils.APIHostResolver) (*AuthHandler, e
 		cfg = &Config{}
 	}
 
+	if apiHost == nil {
+		var err error
+		apiHost, err = utils.NewAPIHost("https://api.github.com")
+		if err != nil {
+			return nil, fmt.Errorf("failed to create default API host: %w", err)
+		}
+	}
+
 	return &AuthHandler{
 		cfg:     cfg,
 		apiHost: apiHost,
