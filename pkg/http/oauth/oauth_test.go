@@ -8,13 +8,21 @@ import (
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/http/headers"
+	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	defaultAuthorizationServer = "https://github.com/login/oauth"
+)
+
 func TestNewAuthHandler(t *testing.T) {
 	t.Parallel()
+
+	dotcomHost, err := utils.NewAPIHost("https://api.github.com")
+	require.NoError(t, err)
 
 	tests := []struct {
 		name                 string
@@ -25,13 +33,13 @@ func TestNewAuthHandler(t *testing.T) {
 		{
 			name:                 "nil config uses defaults",
 			cfg:                  nil,
-			expectedAuthServer:   DefaultAuthorizationServer,
+			expectedAuthServer:   defaultAuthorizationServer,
 			expectedResourcePath: "",
 		},
 		{
 			name:                 "empty config uses defaults",
 			cfg:                  &Config{},
-			expectedAuthServer:   DefaultAuthorizationServer,
+			expectedAuthServer:   defaultAuthorizationServer,
 			expectedResourcePath: "",
 		},
 		{
@@ -48,7 +56,7 @@ func TestNewAuthHandler(t *testing.T) {
 				BaseURL:      "https://example.com",
 				ResourcePath: "/mcp",
 			},
-			expectedAuthServer:   DefaultAuthorizationServer,
+			expectedAuthServer:   defaultAuthorizationServer,
 			expectedResourcePath: "/mcp",
 		},
 	}
@@ -57,11 +65,12 @@ func TestNewAuthHandler(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			handler, err := NewAuthHandler(tc.cfg)
+			handler, err := NewAuthHandler(t.Context(), tc.cfg, dotcomHost)
 			require.NoError(t, err)
 			require.NotNil(t, handler)
 
 			assert.Equal(t, tc.expectedAuthServer, handler.cfg.AuthorizationServer)
+			assert.Equal(t, tc.expectedResourcePath, handler.cfg.ResourcePath)
 		})
 	}
 }
@@ -372,7 +381,7 @@ func TestHandleProtectedResource(t *testing.T) {
 				authServers, ok := body["authorization_servers"].([]any)
 				require.True(t, ok)
 				require.Len(t, authServers, 1)
-				assert.Equal(t, DefaultAuthorizationServer, authServers[0])
+				assert.Equal(t, defaultAuthorizationServer, authServers[0])
 			},
 		},
 		{
@@ -451,7 +460,10 @@ func TestHandleProtectedResource(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			handler, err := NewAuthHandler(tc.cfg)
+			dotcomHost, err := utils.NewAPIHost("https://api.github.com")
+			require.NoError(t, err)
+
+			handler, err := NewAuthHandler(t.Context(), tc.cfg, dotcomHost)
 			require.NoError(t, err)
 
 			router := chi.NewRouter()
@@ -493,9 +505,12 @@ func TestHandleProtectedResource(t *testing.T) {
 func TestRegisterRoutes(t *testing.T) {
 	t.Parallel()
 
-	handler, err := NewAuthHandler(&Config{
+	dotcomHost, err := utils.NewAPIHost("https://api.github.com")
+	require.NoError(t, err)
+
+	handler, err := NewAuthHandler(t.Context(), &Config{
 		BaseURL: "https://api.example.com",
-	})
+	}, dotcomHost)
 	require.NoError(t, err)
 
 	router := chi.NewRouter()
@@ -559,9 +574,12 @@ func TestSupportedScopes(t *testing.T) {
 func TestProtectedResourceResponseFormat(t *testing.T) {
 	t.Parallel()
 
-	handler, err := NewAuthHandler(&Config{
+	dotcomHost, err := utils.NewAPIHost("https://api.github.com")
+	require.NoError(t, err)
+
+	handler, err := NewAuthHandler(t.Context(), &Config{
 		BaseURL: "https://api.example.com",
-	})
+	}, dotcomHost)
 	require.NoError(t, err)
 
 	router := chi.NewRouter()
@@ -598,7 +616,7 @@ func TestProtectedResourceResponseFormat(t *testing.T) {
 	authServers, ok := response["authorization_servers"].([]any)
 	require.True(t, ok)
 	assert.Len(t, authServers, 1)
-	assert.Equal(t, DefaultAuthorizationServer, authServers[0])
+	assert.Equal(t, defaultAuthorizationServer, authServers[0])
 }
 
 func TestOAuthProtectedResourcePrefix(t *testing.T) {
@@ -611,5 +629,70 @@ func TestOAuthProtectedResourcePrefix(t *testing.T) {
 func TestDefaultAuthorizationServer(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "https://github.com/login/oauth", DefaultAuthorizationServer)
+	assert.Equal(t, "https://github.com/login/oauth", defaultAuthorizationServer)
+}
+
+func TestAPIHostResolver_AuthorizationServerURL(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		host          string
+		expectedURL   string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:        "valid host returns authorization server URL",
+			host:        "http://api.github.com",
+			expectedURL: "https://github.com/login/oauth",
+			expectError: false,
+		},
+		{
+			name:          "invalid host returns error",
+			host:          "://invalid-url",
+			expectedURL:   "",
+			expectError:   true,
+			errorContains: "could not parse host as URL",
+		},
+		{
+			name:          "host without scheme returns error",
+			host:          "api.github.com",
+			expectedURL:   "",
+			expectError:   true,
+			errorContains: "host must have a scheme",
+		},
+		{
+			name:        "GHES host returns correct authorization server URL with subdomain isolation",
+			host:        "https://api.ghe.example.com",
+			expectedURL: "https://ghe.example.com/login/oauth",
+			expectError: false,
+		},
+		{
+			name:        "GHES host returns correct authorization server URL without subdomain isolation",
+			host:        "https://ghe-nosubdomain.example.com/api/v3",
+			expectedURL: "https://ghe-nosubdomain.example.com/login/oauth",
+			expectError: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			apiHost, err := utils.NewAPIHost(tc.host)
+			if tc.expectError {
+				require.Error(t, err)
+				if tc.errorContains != "" {
+					assert.Contains(t, err.Error(), tc.errorContains)
+				}
+				return
+			}
+			require.NoError(t, err)
+
+			url, err := apiHost.AuthorizationServerURL(t.Context())
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedURL, url.String())
+		})
+	}
 }

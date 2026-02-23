@@ -3,11 +3,13 @@
 package oauth
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/github/github-mcp-server/pkg/http/headers"
+	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
@@ -16,9 +18,6 @@ import (
 const (
 	// OAuthProtectedResourcePrefix is the well-known path prefix for OAuth protected resource metadata.
 	OAuthProtectedResourcePrefix = "/.well-known/oauth-protected-resource"
-
-	// DefaultAuthorizationServer is GitHub's OAuth authorization server.
-	DefaultAuthorizationServer = "https://github.com/login/oauth"
 )
 
 // SupportedScopes lists all OAuth scopes that may be required by MCP tools.
@@ -59,14 +58,19 @@ type AuthHandler struct {
 }
 
 // NewAuthHandler creates a new OAuth auth handler.
-func NewAuthHandler(cfg *Config) (*AuthHandler, error) {
+func NewAuthHandler(ctx context.Context, cfg *Config, apiHost utils.APIHostResolver) (*AuthHandler, error) {
 	if cfg == nil {
 		cfg = &Config{}
 	}
 
 	// Default authorization server to GitHub
 	if cfg.AuthorizationServer == "" {
-		cfg.AuthorizationServer = DefaultAuthorizationServer
+		url, err := apiHost.AuthorizationServerURL(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get authorization server URL from API host: %w", err)
+		}
+
+		cfg.AuthorizationServer = url.String()
 	}
 
 	return &AuthHandler{
