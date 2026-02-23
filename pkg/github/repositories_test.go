@@ -2806,7 +2806,7 @@ func Test_ListTags(t *testing.T) {
 			require.Equal(t, len(tc.expectedTags), len(returnedTags))
 			for i, expectedTag := range tc.expectedTags {
 				assert.Equal(t, *expectedTag.Name, returnedTags[i]["name"])
-				assert.Equal(t, *expectedTag.Commit.SHA, returnedTags[i]["commit.sha"])
+				assert.Equal(t, *expectedTag.Commit.SHA, returnedTags[i]["sha"])
 			}
 		})
 	}

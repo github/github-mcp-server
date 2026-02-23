@@ -1599,9 +1599,14 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				totalCount = fragment.TotalCount
 			}
 
-			optimizedIssues, err := response.OptimizeList(issues,
-				response.WithCollectionExtractors(map[string][]string{"labels": {"name"}}),
-			)
+			minimalIssues := make([]MinimalIssue, 0, len(issues))
+			for _, issue := range issues {
+				if issue != nil {
+					minimalIssues = append(minimalIssues, convertToMinimalIssue(issue))
+				}
+			}
+
+			optimizedIssues, err := response.OptimizeList(minimalIssues)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to optimize issues: %w", err)
 			}

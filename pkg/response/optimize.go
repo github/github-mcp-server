@@ -14,9 +14,8 @@ const (
 
 // OptimizeListConfig controls the optimization pipeline behavior.
 type OptimizeListConfig struct {
-	maxDepth             int
-	preservedFields      map[string]bool
-	collectionExtractors map[string][]string
+	maxDepth        int
+	preservedFields map[string]bool
 }
 
 type OptimizeListOption func(*OptimizeListConfig)
@@ -41,20 +40,8 @@ func WithPreservedFields(fields ...string) OptimizeListOption {
 	}
 }
 
-// WithCollectionExtractors controls how array fields are handled instead of being summarized as "[N items]".
-//   - 1 sub-field: comma-joined into a flat string ("bug, enhancement").
-//   - Multiple sub-fields: keep the array, but trim each element to only those fields.
-//
-// These are explicitly exempt from fill-rate filtering; if we asked for the extraction, it's likely important
-// to preserve the data even if only one item has it.
-func WithCollectionExtractors(extractors map[string][]string) OptimizeListOption {
-	return func(c *OptimizeListConfig) {
-		c.collectionExtractors = extractors
-	}
-}
-
 // OptimizeList optimizes a list of items by applying flattening, URL removal, zero-value removal,
-// whitespace normalization, collection summarization, and fill-rate filtering.
+// whitespace normalization, and fill-rate filtering.
 func OptimizeList[T any](items []T, opts ...OptimizeListOption) ([]byte, error) {
 	cfg := OptimizeListConfig{maxDepth: defaultMaxDepth}
 	for _, opt := range opts {
@@ -106,7 +93,7 @@ func flattenInto(item map[string]any, prefix string, result map[string]any, dept
 }
 
 // filterByFillRate drops keys that appear on less than the threshold proportion of items.
-// Preserved fields and extractor keys always survive.
+// Preserved fields always survive.
 func filterByFillRate(items []map[string]any, threshold float64, cfg OptimizeListConfig) []map[string]any {
 	keyCounts := make(map[string]int)
 	for _, item := range items {
@@ -118,8 +105,7 @@ func filterByFillRate(items []map[string]any, threshold float64, cfg OptimizeLis
 	minCount := int(threshold * float64(len(items)))
 	keepKeys := make(map[string]bool, len(keyCounts))
 	for key, count := range keyCounts {
-		_, hasExtractor := cfg.collectionExtractors[key]
-		if count > minCount || cfg.preservedFields[key] || hasExtractor {
+		if count > minCount || cfg.preservedFields[key] {
 			keepKeys[key] = true
 		}
 	}
@@ -138,7 +124,7 @@ func filterByFillRate(items []map[string]any, threshold float64, cfg OptimizeLis
 }
 
 // optimizeItem applies per-item strategies in a single pass: remove URLs,
-// remove zero-values, normalize whitespace, summarize collections.
+// remove zero-values, normalize whitespace.
 // Preserved fields skip everything except whitespace normalization.
 func optimizeItem(item map[string]any, cfg OptimizeListConfig) map[string]any {
 	result := make(map[string]any, len(item))
@@ -151,80 +137,10 @@ func optimizeItem(item map[string]any, cfg OptimizeListConfig) map[string]any {
 			continue
 		}
 
-		switch v := value.(type) {
-		case string:
-			result[key] = strings.Join(strings.Fields(v), " ")
-		case []any:
-			if len(v) == 0 {
-				continue
-			}
-
-			if preserved {
-				result[key] = value
-			} else if fields, ok := cfg.collectionExtractors[key]; ok {
-				if len(fields) == 1 {
-					result[key] = extractSubField(v, fields[0])
-				} else {
-					result[key] = trimArrayFields(v, fields)
-				}
-			} else {
-				result[key] = fmt.Sprintf("[%d items]", len(v))
-			}
-		default:
+		if s, ok := value.(string); ok {
+			result[key] = strings.Join(strings.Fields(s), " ")
+		} else {
 			result[key] = value
-		}
-	}
-
-	return result
-}
-
-// extractSubField pulls a named sub-field from each slice element and joins
-// them with ", ". Elements missing the field are silently skipped.
-func extractSubField(items []any, field string) string {
-	var vals []string
-	for _, item := range items {
-		m, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		v, ok := m[field]
-		if !ok || v == nil {
-			continue
-		}
-
-		switch s := v.(type) {
-		case string:
-			if s != "" {
-				vals = append(vals, s)
-			}
-		default:
-			vals = append(vals, fmt.Sprintf("%v", v))
-		}
-	}
-
-	return strings.Join(vals, ", ")
-}
-
-// trimArrayFields keeps only the specified fields from each object in a slice.
-// The trimmed objects are returned as is, no further strategies are applied.
-func trimArrayFields(items []any, fields []string) []any {
-	result := make([]any, 0, len(items))
-	for _, item := range items {
-		m, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		trimmed := make(map[string]any, len(fields))
-		for _, f := range fields {
-			if v, exists := m[f]; exists {
-				trimmed[f] = v
-			}
-		}
-
-		if len(trimmed) > 0 {
-			result = append(result, trimmed)
 		}
 	}
 

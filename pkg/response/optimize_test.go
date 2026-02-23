@@ -71,29 +71,6 @@ func TestFlatten(t *testing.T) {
 	})
 }
 
-func TestTrimArrayFields(t *testing.T) {
-	cfg := OptimizeListConfig{
-		collectionExtractors: map[string][]string{
-			"reviewers": {"login", "state"},
-		},
-	}
-
-	result := optimizeItem(map[string]any{
-		"reviewers": []any{
-			map[string]any{"login": "alice", "state": "approved", "id": float64(1)},
-			map[string]any{"login": "bob", "state": "changes_requested", "id": float64(2)},
-		},
-		"title": "Fix bug",
-	}, cfg)
-
-	expected := []any{
-		map[string]any{"login": "alice", "state": "approved"},
-		map[string]any{"login": "bob", "state": "changes_requested"},
-	}
-	assert.Equal(t, expected, result["reviewers"])
-	assert.Equal(t, "Fix bug", result["title"])
-}
-
 func TestFilterByFillRate(t *testing.T) {
 	cfg := OptimizeListConfig{}
 
@@ -144,7 +121,7 @@ func TestOptimizeList_AllStrategies(t *testing.T) {
 			"avatar_url": "https://avatars.githubusercontent.com/1",
 			"draft":      false,
 			"merged_at":  nil,
-			"labels":     []any{map[string]any{"name": "bug"}},
+			"labels":     []any{"bug", "fix"},
 			"user": map[string]any{
 				"login":      "user",
 				"avatar_url": "https://avatars.githubusercontent.com/1",
@@ -154,7 +131,6 @@ func TestOptimizeList_AllStrategies(t *testing.T) {
 
 	raw, err := OptimizeList(items,
 		WithPreservedFields("html_url", "draft"),
-		WithCollectionExtractors(map[string][]string{"labels": {"name"}}),
 	)
 	require.NoError(t, err)
 
@@ -167,7 +143,7 @@ func TestOptimizeList_AllStrategies(t *testing.T) {
 	assert.Equal(t, "line1 line2", result[0]["body"])
 	assert.Equal(t, "https://github.com/repo/1", result[0]["html_url"])
 	assert.Equal(t, false, result[0]["draft"])
-	assert.Equal(t, "bug", result[0]["labels"])
+	assert.Equal(t, []any{"bug", "fix"}, result[0]["labels"])
 	assert.Equal(t, "user", result[0]["user.login"])
 	assert.Nil(t, result[0]["url"])
 	assert.Nil(t, result[0]["avatar_url"])
@@ -233,40 +209,4 @@ func TestPreservedFields(t *testing.T) {
 		assert.Contains(t, result, "draft")
 		assert.NotContains(t, result, "body")
 	})
-
-	t.Run("protects from collection summarization", func(t *testing.T) {
-		cfg := OptimizeListConfig{
-			preservedFields: map[string]bool{"assignees": true},
-		}
-
-		assignees := []any{
-			map[string]any{"login": "alice", "id": float64(1)},
-			map[string]any{"login": "bob", "id": float64(2)},
-		}
-
-		result := optimizeItem(map[string]any{
-			"assignees": assignees,
-			"comments":  []any{map[string]any{"id": "1"}, map[string]any{"id": "2"}},
-		}, cfg)
-
-		assert.Equal(t, assignees, result["assignees"])
-		assert.Equal(t, "[2 items]", result["comments"])
-	})
-}
-
-func TestCollectionFieldExtractors_SurviveFillRate(t *testing.T) {
-	cfg := OptimizeListConfig{
-		collectionExtractors: map[string][]string{"labels": {"name"}},
-	}
-
-	items := []map[string]any{
-		{"title": "PR 1", "labels": "bug"},
-		{"title": "PR 2"},
-		{"title": "PR 3"},
-		{"title": "PR 4"},
-	}
-
-	result := filterByFillRate(items, defaultFillRateThreshold, cfg)
-
-	assert.Contains(t, result[0], "labels")
 }
