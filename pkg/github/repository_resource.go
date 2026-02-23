@@ -13,13 +13,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/go-github/v82/github"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/yosida95/uritemplate/v3"
+
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v82/github"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/yosida95/uritemplate/v3"
 )
 
 var (
@@ -185,7 +186,6 @@ func RepositoryResourceContentsHandler(resourceURITemplate *uritemplate.Template
 			return nil, fmt.Errorf("directories are not supported: %s", path)
 		}
 		rawClient, err := deps.GetRawClient(ctx)
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to get GitHub raw content client: %w", err)
 		}

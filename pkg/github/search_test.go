@@ -6,12 +6,13 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/translations"
 )
 
 func Test_SearchRepositories(t *testing.T) {
@@ -163,7 +164,6 @@ func Test_SearchRepositories(t *testing.T) {
 				assert.Equal(t, *tc.expectedResult.Repositories[i].FullName, repo.FullName)
 				assert.Equal(t, *tc.expectedResult.Repositories[i].HTMLURL, repo.HTMLURL)
 			}
-
 		})
 	}
 }

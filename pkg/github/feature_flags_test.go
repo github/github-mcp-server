@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/scopes"
+	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
 )
 
@@ -39,7 +39,6 @@ func HelloWorldTool(t translations.TranslationHelperFunc) inventory.ServerTool {
 		},
 		[]scopes.Scope{},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, any, error) {
-
 			// Check feature flag to determine greeting style
 			greeting := "Hello, world!"
 			if deps.IsFeatureEnabled(ctx, RemoteMCPEnthusiasticGreeting) {

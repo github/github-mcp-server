@@ -12,6 +12,10 @@ import (
 	"syscall"
 	"time"
 
+	gogithub "github.com/google/go-github/v82/github"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/shurcooL/githubv4"
+
 	"github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/transport"
@@ -22,9 +26,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	gogithub "github.com/google/go-github/v82/github"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/shurcooL/githubv4"
 )
 
 // githubClients holds all the GitHub API clients created for a server instance.
@@ -235,7 +236,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	var slogHandler slog.Handler
 	var logOutput io.Writer
 	if cfg.LogFilePath != "" {
-		file, err := os.OpenFile(cfg.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+		file, err := os.OpenFile(cfg.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 		if err != nil {
 			return fmt.Errorf("failed to open log file: %w", err)
 		}

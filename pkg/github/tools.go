@@ -5,14 +5,17 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/github/github-mcp-server/pkg/inventory"
-	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v82/github"
 	"github.com/shurcooL/githubv4"
+
+	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/translations"
 )
 
-type GetClientFn func(context.Context) (*github.Client, error)
-type GetGQLClientFn func(context.Context) (*githubv4.Client, error)
+type (
+	GetClientFn    func(context.Context) (*github.Client, error)
+	GetGQLClientFn func(context.Context) (*githubv4.Client, error)
+)
 
 // Toolset metadata constants - these define all available toolsets and their descriptions.
 // Tools use these constants to declare which toolset they belong to.

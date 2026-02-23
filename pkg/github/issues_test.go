@@ -11,19 +11,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/github/github-mcp-server/internal/githubv4mock"
-	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/lockdown"
-	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/github/github-mcp-server/internal/githubv4mock"
+	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/lockdown"
+	"github.com/github/github-mcp-server/pkg/translations"
 )
 
-var defaultGQLClient *githubv4.Client = githubv4.NewClient(newRepoAccessHTTPClient())
-var repoAccessCache *lockdown.RepoAccessCache = stubRepoAccessCache(defaultGQLClient, 15*time.Minute)
+var (
+	defaultGQLClient *githubv4.Client          = githubv4.NewClient(newRepoAccessHTTPClient())
+	repoAccessCache  *lockdown.RepoAccessCache = stubRepoAccessCache(defaultGQLClient, 15*time.Minute)
+)
 
 type repoAccessKey struct {
 	owner    string
@@ -465,7 +468,6 @@ func Test_AddIssueComment(t *testing.T) {
 			assert.Equal(t, *tc.expectedComment.ID, *returnedComment.ID)
 			assert.Equal(t, *tc.expectedComment.Body, *returnedComment.Body)
 			assert.Equal(t, *tc.expectedComment.User.Login, *returnedComment.User.Login)
-
 		})
 	}
 }

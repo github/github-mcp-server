@@ -19,12 +19,15 @@ type testAPIHostResolver struct {
 func (t testAPIHostResolver) BaseRESTURL(_ context.Context) (*url.URL, error) {
 	return url.Parse(t.baseURL)
 }
+
 func (t testAPIHostResolver) GraphqlURL(_ context.Context) (*url.URL, error) {
 	return nil, nil
 }
+
 func (t testAPIHostResolver) UploadURL(_ context.Context) (*url.URL, error) {
 	return nil, nil
 }
+
 func (t testAPIHostResolver) RawURL(_ context.Context) (*url.URL, error) {
 	return nil, nil
 }

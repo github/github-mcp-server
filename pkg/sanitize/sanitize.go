@@ -8,8 +8,10 @@ import (
 	"github.com/microcosm-cc/bluemonday"
 )
 
-var policy *bluemonday.Policy
-var policyOnce sync.Once
+var (
+	policy     *bluemonday.Policy
+	policyOnce sync.Once
+)
 
 func Sanitize(input string) string {
 	return FilterHTMLTags(FilterCodeFenceMetadata(FilterInvisibleCharacters(input)))

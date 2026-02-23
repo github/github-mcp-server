@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/github/github-mcp-server/pkg/octicons"
 )
 
 // HandlerFunc is a function that takes dependencies and returns an MCP tool handler.

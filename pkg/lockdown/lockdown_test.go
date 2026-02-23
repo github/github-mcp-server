@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/github/github-mcp-server/internal/githubv4mock"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/require"
+
+	"github.com/github/github-mcp-server/internal/githubv4mock"
 )
 
 const (

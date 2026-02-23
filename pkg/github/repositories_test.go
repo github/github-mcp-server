@@ -10,15 +10,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/raw"
-	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/raw"
+	"github.com/github/github-mcp-server/pkg/translations"
+	"github.com/github/github-mcp-server/pkg/utils"
 )
 
 func Test_GetFileContents(t *testing.T) {
@@ -3062,6 +3063,7 @@ func Test_ListReleases(t *testing.T) {
 		})
 	}
 }
+
 func Test_GetLatestRelease(t *testing.T) {
 	serverTool := GetLatestRelease(translations.NullTranslationHelper)
 	tool := serverTool.Tool

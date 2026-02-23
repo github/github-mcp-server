@@ -192,6 +192,7 @@ func Test_RequiredInt(t *testing.T) {
 		})
 	}
 }
+
 func Test_OptionalIntParam(t *testing.T) {
 	tests := []struct {
 		name        string

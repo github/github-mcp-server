@@ -9,16 +9,17 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/go-github/v82/github"
+	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/shurcooL/githubv4"
+
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v82/github"
-	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/shurcooL/githubv4"
 )
 
 // CloseIssueInput represents the input for closing an issue via the GraphQL API.
@@ -554,7 +555,6 @@ func GetIssueLabels(ctx context.Context, client *githubv4.Client, owner string, 
 	}
 
 	return utils.NewToolResultText(string(out)), nil
-
 }
 
 // ListIssueTypes creates a tool to list defined issue types for an organization. This can be used to understand supported issue type values for creating or updating issues.
@@ -842,7 +842,6 @@ func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo 
 	}
 
 	return utils.NewToolResultText(string(r)), nil
-
 }
 
 func RemoveSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int) (*mcp.CallToolResult, error) {

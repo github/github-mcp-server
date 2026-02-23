@@ -6,6 +6,9 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/middleware"
@@ -14,8 +17,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/go-chi/chi/v5"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type InventoryFactoryFunc func(r *http.Request) (*inventory.Inventory, error)
@@ -85,7 +86,8 @@ func NewHTTPMcpHandler(
 	t translations.TranslationHelperFunc,
 	logger *slog.Logger,
 	apiHost utils.APIHostResolver,
-	options ...HandlerOption) *Handler {
+	options ...HandlerOption,
+) *Handler {
 	opts := &HandlerOptions{}
 	for _, o := range options {
 		o(opts)
@@ -217,7 +219,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 	})
-
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
