@@ -79,6 +79,18 @@ type MinimalCommitFile struct {
 	Changes   int    `json:"changes,omitempty"`
 }
 
+// MinimalPRFile represents a file changed in a pull request.
+// Compared to MinimalCommitFile, it includes the patch diff and previous filename for renames.
+type MinimalPRFile struct {
+	Filename         string `json:"filename"`
+	Status           string `json:"status,omitempty"`
+	Additions        int    `json:"additions,omitempty"`
+	Deletions        int    `json:"deletions,omitempty"`
+	Changes          int    `json:"changes,omitempty"`
+	Patch            string `json:"patch,omitempty"`
+	PreviousFilename string `json:"previous_filename,omitempty"`
+}
+
 // MinimalCommit is the trimmed output type for commit objects.
 type MinimalCommit struct {
 	SHA       string              `json:"sha"`
@@ -633,6 +645,22 @@ type MinimalReviewThreadsResponse struct {
 	ReviewThreads []MinimalReviewThread `json:"review_threads"`
 	TotalCount    int                   `json:"total_count"`
 	PageInfo      MinimalPageInfo       `json:"page_info"`
+}
+
+func convertToMinimalPRFiles(files []*github.CommitFile) []MinimalPRFile {
+	result := make([]MinimalPRFile, 0, len(files))
+	for _, f := range files {
+		result = append(result, MinimalPRFile{
+			Filename:         f.GetFilename(),
+			Status:           f.GetStatus(),
+			Additions:        f.GetAdditions(),
+			Deletions:        f.GetDeletions(),
+			Changes:          f.GetChanges(),
+			Patch:            f.GetPatch(),
+			PreviousFilename: f.GetPreviousFilename(),
+		})
+	}
+	return result
 }
 
 // convertToMinimalBranch converts a GitHub API Branch to MinimalBranch
