@@ -626,6 +626,7 @@ func TestAPIHostResolver_AuthorizationServerURL(t *testing.T) {
 	tests := []struct {
 		name               string
 		host               string
+		oauthConfig        *Config
 		expectedURL        string
 		expectedError      bool
 		expectedStatusCode int
@@ -669,6 +670,15 @@ func TestAPIHostResolver_AuthorizationServerURL(t *testing.T) {
 			expectedURL:        "http://ghe.example.com/login/oauth",
 			expectedStatusCode: http.StatusOK,
 		},
+		{
+			name: "custom authorization server in config takes precedence",
+			host: "https://github.com",
+			oauthConfig: &Config{
+				AuthorizationServer: "https://custom.auth.example.com/oauth",
+			},
+			expectedURL:        "https://custom.auth.example.com/oauth",
+			expectedStatusCode: http.StatusOK,
+		},
 	}
 
 	for _, tc := range tests {
@@ -685,9 +695,13 @@ func TestAPIHostResolver_AuthorizationServerURL(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			handler, err := NewAuthHandler(&Config{
-				BaseURL: "https://api.example.com",
-			}, apiHost)
+			config := tc.oauthConfig
+			if config == nil {
+				config = &Config{}
+			}
+			config.BaseURL = tc.host
+
+			handler, err := NewAuthHandler(config, apiHost)
 			require.NoError(t, err)
 
 			router := chi.NewRouter()
