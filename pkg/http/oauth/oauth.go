@@ -3,7 +3,6 @@
 package oauth
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -59,7 +58,7 @@ type AuthHandler struct {
 }
 
 // NewAuthHandler creates a new OAuth auth handler.
-func NewAuthHandler(ctx context.Context, cfg *Config, apiHost utils.APIHostResolver) (*AuthHandler, error) {
+func NewAuthHandler(cfg *Config, apiHost utils.APIHostResolver) (*AuthHandler, error) {
 	if cfg == nil {
 		cfg = &Config{}
 	}

@@ -53,7 +53,7 @@ func TestNewAuthHandler(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			handler, err := NewAuthHandler(t.Context(), tc.cfg, dotcomHost)
+			handler, err := NewAuthHandler(tc.cfg, dotcomHost)
 			require.NoError(t, err)
 			require.NotNil(t, handler)
 
@@ -451,7 +451,7 @@ func TestHandleProtectedResource(t *testing.T) {
 			dotcomHost, err := utils.NewAPIHost("https://api.github.com")
 			require.NoError(t, err)
 
-			handler, err := NewAuthHandler(t.Context(), tc.cfg, dotcomHost)
+			handler, err := NewAuthHandler(tc.cfg, dotcomHost)
 			require.NoError(t, err)
 
 			router := chi.NewRouter()
@@ -496,7 +496,7 @@ func TestRegisterRoutes(t *testing.T) {
 	dotcomHost, err := utils.NewAPIHost("https://api.github.com")
 	require.NoError(t, err)
 
-	handler, err := NewAuthHandler(t.Context(), &Config{
+	handler, err := NewAuthHandler(&Config{
 		BaseURL: "https://api.example.com",
 	}, dotcomHost)
 	require.NoError(t, err)
@@ -565,7 +565,7 @@ func TestProtectedResourceResponseFormat(t *testing.T) {
 	dotcomHost, err := utils.NewAPIHost("https://api.github.com")
 	require.NoError(t, err)
 
-	handler, err := NewAuthHandler(t.Context(), &Config{
+	handler, err := NewAuthHandler(&Config{
 		BaseURL: "https://api.example.com",
 	}, dotcomHost)
 	require.NoError(t, err)
@@ -676,11 +676,10 @@ func TestAPIHostResolver_AuthorizationServerURL(t *testing.T) {
 					assert.Contains(t, err.Error(), tc.errorContains)
 				}
 				return
-			} else {
-				require.NoError(t, err)
 			}
+			require.NoError(t, err)
 
-			handler, err := NewAuthHandler(t.Context(), &Config{
+			handler, err := NewAuthHandler(&Config{
 				BaseURL: "https://api.example.com",
 			}, apiHost)
 			require.NoError(t, err)
@@ -708,7 +707,6 @@ func TestAPIHostResolver_AuthorizationServerURL(t *testing.T) {
 				}
 				return
 			}
-			require.NoError(t, err)
 
 			responseAuthServers, ok := response["authorization_servers"].([]any)
 			require.True(t, ok)
