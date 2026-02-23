@@ -409,24 +409,7 @@ func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 		}
 	}
 
-	// Build response with review threads and pagination info
-	response := map[string]any{
-		"reviewThreads": query.Repository.PullRequest.ReviewThreads.Nodes,
-		"pageInfo": map[string]any{
-			"hasNextPage":     query.Repository.PullRequest.ReviewThreads.PageInfo.HasNextPage,
-			"hasPreviousPage": query.Repository.PullRequest.ReviewThreads.PageInfo.HasPreviousPage,
-			"startCursor":     string(query.Repository.PullRequest.ReviewThreads.PageInfo.StartCursor),
-			"endCursor":       string(query.Repository.PullRequest.ReviewThreads.PageInfo.EndCursor),
-		},
-		"totalCount": int(query.Repository.PullRequest.ReviewThreads.TotalCount),
-	}
-
-	r, err := json.Marshal(response)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
-	}
-
-	return utils.NewToolResultText(string(r)), nil
+	return MarshalledTextResult(convertToMinimalReviewThreadsResponse(query)), nil
 }
 
 func GetPullRequestReviews(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
