@@ -1,17 +1,48 @@
 package oauth
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/http/headers"
+	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// mockAPIHostResolver is a test implementation of utils.APIHostResolver
+type mockAPIHostResolver struct {
+	oauthURL string
+}
+
+func (m mockAPIHostResolver) BaseRESTURL(_ context.Context) (*url.URL, error) {
+	return nil, nil
+}
+
+func (m mockAPIHostResolver) GraphqlURL(_ context.Context) (*url.URL, error) {
+	return nil, nil
+}
+
+func (m mockAPIHostResolver) UploadURL(_ context.Context) (*url.URL, error) {
+	return nil, nil
+}
+
+func (m mockAPIHostResolver) RawURL(_ context.Context) (*url.URL, error) {
+	return nil, nil
+}
+
+func (m mockAPIHostResolver) OAuthURL(_ context.Context) (*url.URL, error) {
+	return url.Parse(m.oauthURL)
+}
+
+// Ensure mockAPIHostResolver implements utils.APIHostResolver
+var _ utils.APIHostResolver = mockAPIHostResolver{}
 
 func TestNewAuthHandler(t *testing.T) {
 	t.Parallel()
@@ -50,6 +81,31 @@ func TestNewAuthHandler(t *testing.T) {
 			},
 			expectedAuthServer:   DefaultAuthorizationServer,
 			expectedResourcePath: "/mcp",
+		},
+		{
+			name: "APIHost with HTTPS GHES",
+			cfg: &Config{
+				APIHost: mockAPIHostResolver{oauthURL: "https://ghes.example.com/login/oauth"},
+			},
+			expectedAuthServer:   "https://ghes.example.com/login/oauth",
+			expectedResourcePath: "",
+		},
+		{
+			name: "APIHost with HTTP GHES",
+			cfg: &Config{
+				APIHost: mockAPIHostResolver{oauthURL: "http://ghes.local/login/oauth"},
+			},
+			expectedAuthServer:   "http://ghes.local/login/oauth",
+			expectedResourcePath: "",
+		},
+		{
+			name: "APIHost takes precedence over AuthorizationServer",
+			cfg: &Config{
+				APIHost:             mockAPIHostResolver{oauthURL: "https://ghes.example.com/login/oauth"},
+				AuthorizationServer: "https://should-be-ignored.example.com/oauth",
+			},
+			expectedAuthServer:   "https://ghes.example.com/login/oauth",
+			expectedResourcePath: "",
 		},
 	}
 

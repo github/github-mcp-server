@@ -126,13 +126,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 	oauthCfg := &oauth.Config{
 		BaseURL:      cfg.BaseURL,
 		ResourcePath: cfg.ResourcePath,
-	}
-	if cfg.Host != "" {
-		oauthURL, err := apiHost.OAuthURL(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to get OAuth URL: %w", err)
-		}
-		oauthCfg.AuthorizationServer = oauthURL.String()
+		APIHost:      apiHost,
 	}
 
 	serverOptions := []HandlerOption{}

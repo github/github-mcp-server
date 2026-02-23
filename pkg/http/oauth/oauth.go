@@ -3,11 +3,13 @@
 package oauth
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/github/github-mcp-server/pkg/http/headers"
+	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
@@ -43,8 +45,13 @@ type Config struct {
 	// This is used to construct the OAuth resource URL.
 	BaseURL string
 
+	// APIHost is the GitHub API host resolver that provides OAuth URL.
+	// If set, this takes precedence over AuthorizationServer.
+	APIHost utils.APIHostResolver
+
 	// AuthorizationServer is the OAuth authorization server URL.
 	// Defaults to GitHub's OAuth server if not specified.
+	// This field is ignored if APIHost is set.
 	AuthorizationServer string
 
 	// ResourcePath is the externally visible base path for the MCP server (e.g., "/mcp").
@@ -64,8 +71,15 @@ func NewAuthHandler(cfg *Config) (*AuthHandler, error) {
 		cfg = &Config{}
 	}
 
-	// Default authorization server to GitHub
-	if cfg.AuthorizationServer == "" {
+	// Resolve authorization server from APIHost if provided
+	if cfg.APIHost != nil {
+		oauthURL, err := cfg.APIHost.OAuthURL(context.Background())
+		if err != nil {
+			return nil, fmt.Errorf("failed to get OAuth URL from API host: %w", err)
+		}
+		cfg.AuthorizationServer = oauthURL.String()
+	} else if cfg.AuthorizationServer == "" {
+		// Default authorization server to GitHub if not provided
 		cfg.AuthorizationServer = DefaultAuthorizationServer
 	}
 
