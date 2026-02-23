@@ -35,6 +35,11 @@ func WithRequestConfig(next http.Handler) http.Handler {
 			ctx = ghcontext.WithLockdownMode(ctx, true)
 		}
 
+		// Excluded tools
+		if excludeTools := headers.ParseCommaSeparated(r.Header.Get(headers.MCPExcludeToolsHeader)); len(excludeTools) > 0 {
+			ctx = ghcontext.WithExcludeTools(ctx, excludeTools)
+		}
+
 		// Insiders mode
 		if relaxedParseBool(r.Header.Get(headers.MCPInsidersHeader)) {
 			ctx = ghcontext.WithInsidersMode(ctx, true)

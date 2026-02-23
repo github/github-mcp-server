@@ -32,6 +32,9 @@ const maxLineSize = 10 * 1024 * 1024
 // If the response contains more lines than maxJobLogLines, only the most recent lines are kept.
 // Lines exceeding maxLineSize are truncated with a marker.
 func ProcessResponseAsRingBufferToEnd(httpResp *http.Response, maxJobLogLines int) (string, int, *http.Response, error) {
+	if maxJobLogLines <= 0 {
+		maxJobLogLines = 500
+	}
 	if maxJobLogLines > 100000 {
 		maxJobLogLines = 100000
 	}
