@@ -663,15 +663,14 @@ func TestAPIHostResolver_AuthorizationServerURL(t *testing.T) {
 			errorContains: "host must have a scheme",
 		},
 		{
-			name:        "GHES host returns correct authorization server URL with subdomain isolation",
-			host:        "https://ghe.example.com",
-			expectedURL: "https://ghe.example.com/login/oauth",
-			expectError: false,
+			name:        "GHEC host returns correct authorization server URL",
+			host:        "https://test.ghe.com",
+			expectedURL: "https://test.ghe.com/login/oauth",
 		},
 		{
-			name:        "GHES host returns correct authorization server URL without subdomain isolation",
-			host:        "https://ghe-nosubdomain.example.com",
-			expectedURL: "https://ghe-nosubdomain.example.com/login/oauth",
+			name:        "GHES host returns correct authorization server URL",
+			host:        "https://ghe.example.com",
+			expectedURL: "https://ghe.example.com/login/oauth",
 			expectError: false,
 		},
 	}
