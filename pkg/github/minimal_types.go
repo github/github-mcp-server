@@ -612,6 +612,41 @@ func convertToMinimalCommit(commit *github.RepositoryCommit, includeDiffs bool) 
 	return minimalCommit
 }
 
+// MinimalPageInfo contains pagination cursor information.
+type MinimalPageInfo struct {
+	HasNextPage     bool   `json:"has_next_page"`
+	HasPreviousPage bool   `json:"has_previous_page"`
+	StartCursor     string `json:"start_cursor,omitempty"`
+	EndCursor       string `json:"end_cursor,omitempty"`
+}
+
+// MinimalReviewComment is the trimmed output type for PR review comment objects.
+type MinimalReviewComment struct {
+	Body      string `json:"body,omitempty"`
+	Path      string `json:"path"`
+	Line      *int   `json:"line,omitempty"`
+	Author    string `json:"author,omitempty"`
+	CreatedAt string `json:"created_at,omitempty"`
+	UpdatedAt string `json:"updated_at,omitempty"`
+	HTMLURL   string `json:"html_url"`
+}
+
+// MinimalReviewThread is the trimmed output type for PR review thread objects.
+type MinimalReviewThread struct {
+	IsResolved  bool                   `json:"is_resolved"`
+	IsOutdated  bool                   `json:"is_outdated"`
+	IsCollapsed bool                   `json:"is_collapsed"`
+	Comments    []MinimalReviewComment `json:"comments"`
+	TotalCount  int                    `json:"total_count"`
+}
+
+// MinimalReviewThreadsResponse is the trimmed output for a paginated list of PR review threads.
+type MinimalReviewThreadsResponse struct {
+	ReviewThreads []MinimalReviewThread `json:"review_threads"`
+	TotalCount    int                   `json:"total_count"`
+	PageInfo      MinimalPageInfo       `json:"page_info"`
+}
+
 func convertToMinimalPRFiles(files []*github.CommitFile) []MinimalPRFile {
 	result := make([]MinimalPRFile, 0, len(files))
 	for _, f := range files {
@@ -635,4 +670,62 @@ func convertToMinimalBranch(branch *github.Branch) MinimalBranch {
 		SHA:       branch.GetCommit().GetSHA(),
 		Protected: branch.GetProtected(),
 	}
+}
+
+func convertToMinimalReviewThreadsResponse(query reviewThreadsQuery) MinimalReviewThreadsResponse {
+	threads := query.Repository.PullRequest.ReviewThreads
+
+	minimalThreads := make([]MinimalReviewThread, 0, len(threads.Nodes))
+	for _, thread := range threads.Nodes {
+		minimalThreads = append(minimalThreads, convertToMinimalReviewThread(thread))
+	}
+
+	return MinimalReviewThreadsResponse{
+		ReviewThreads: minimalThreads,
+		TotalCount:    int(threads.TotalCount),
+		PageInfo: MinimalPageInfo{
+			HasNextPage:     bool(threads.PageInfo.HasNextPage),
+			HasPreviousPage: bool(threads.PageInfo.HasPreviousPage),
+			StartCursor:     string(threads.PageInfo.StartCursor),
+			EndCursor:       string(threads.PageInfo.EndCursor),
+		},
+	}
+}
+
+func convertToMinimalReviewThread(thread reviewThreadNode) MinimalReviewThread {
+	comments := make([]MinimalReviewComment, 0, len(thread.Comments.Nodes))
+	for _, c := range thread.Comments.Nodes {
+		comments = append(comments, convertToMinimalReviewComment(c))
+	}
+
+	return MinimalReviewThread{
+		IsResolved:  bool(thread.IsResolved),
+		IsOutdated:  bool(thread.IsOutdated),
+		IsCollapsed: bool(thread.IsCollapsed),
+		Comments:    comments,
+		TotalCount:  int(thread.Comments.TotalCount),
+	}
+}
+
+func convertToMinimalReviewComment(c reviewCommentNode) MinimalReviewComment {
+	m := MinimalReviewComment{
+		Body:    string(c.Body),
+		Path:    string(c.Path),
+		Author:  string(c.Author.Login),
+		HTMLURL: c.URL.String(),
+	}
+
+	if c.Line != nil {
+		line := int(*c.Line)
+		m.Line = &line
+	}
+
+	if !c.CreatedAt.IsZero() {
+		m.CreatedAt = c.CreatedAt.Format(time.RFC3339)
+	}
+	if !c.UpdatedAt.IsZero() {
+		m.UpdatedAt = c.UpdatedAt.Format(time.RFC3339)
+	}
+
+	return m
 }
