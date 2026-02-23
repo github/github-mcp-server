@@ -1229,15 +1229,15 @@ func Test_GetPullRequestFiles(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
-			var returnedFiles []*github.CommitFile
+			var returnedFiles []MinimalPRFile
 			err = json.Unmarshal([]byte(textContent.Text), &returnedFiles)
 			require.NoError(t, err)
 			assert.Len(t, returnedFiles, len(tc.expectedFiles))
 			for i, file := range returnedFiles {
-				assert.Equal(t, *tc.expectedFiles[i].Filename, *file.Filename)
-				assert.Equal(t, *tc.expectedFiles[i].Status, *file.Status)
-				assert.Equal(t, *tc.expectedFiles[i].Additions, *file.Additions)
-				assert.Equal(t, *tc.expectedFiles[i].Deletions, *file.Deletions)
+				assert.Equal(t, tc.expectedFiles[i].GetFilename(), file.Filename)
+				assert.Equal(t, tc.expectedFiles[i].GetStatus(), file.Status)
+				assert.Equal(t, tc.expectedFiles[i].GetAdditions(), file.Additions)
+				assert.Equal(t, tc.expectedFiles[i].GetDeletions(), file.Deletions)
 			}
 		})
 	}

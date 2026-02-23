@@ -290,12 +290,9 @@ func GetPullRequestFiles(ctx context.Context, client *github.Client, owner, repo
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request files", resp, body), nil
 	}
 
-	r, err := json.Marshal(files)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
-	}
+	minimalFiles := convertToMinimalPRFiles(files)
 
-	return utils.NewToolResultText(string(r)), nil
+	return MarshalledTextResult(minimalFiles), nil
 }
 
 // GraphQL types for review threads query
