@@ -1,7 +1,6 @@
 package github
 
 import (
-	"context"
 	"encoding/json"
 	"testing"
 
@@ -46,7 +45,7 @@ func TestDynamicTools_ListAvailableToolsets(t *testing.T) {
 	handler := tool.Handler(deps)
 
 	// Call the handler
-	result, err := handler(context.Background(), createDynamicRequest(map[string]any{}))
+	result, err := handler(t.Context(), createDynamicRequest(map[string]any{}))
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Len(t, result.Content, 1)
@@ -95,7 +94,7 @@ func TestDynamicTools_GetToolsetTools(t *testing.T) {
 	handler := tool.Handler(deps)
 
 	// Call the handler for repos toolset
-	result, err := handler(context.Background(), createDynamicRequest(map[string]any{
+	result, err := handler(t.Context(), createDynamicRequest(map[string]any{
 		"toolset": "repos",
 	}))
 	require.NoError(t, err)
@@ -148,7 +147,7 @@ func TestDynamicTools_EnableToolset(t *testing.T) {
 	handler := tool.Handler(deps)
 
 	// Enable the repos toolset
-	result, err := handler(context.Background(), createDynamicRequest(map[string]any{
+	result, err := handler(t.Context(), createDynamicRequest(map[string]any{
 		"toolset": "repos",
 	}))
 	require.NoError(t, err)
@@ -163,7 +162,7 @@ func TestDynamicTools_EnableToolset(t *testing.T) {
 	assert.Contains(t, textContent.Text, "enabled")
 
 	// Try enabling again - should say already enabled
-	result2, err := handler(context.Background(), createDynamicRequest(map[string]any{
+	result2, err := handler(t.Context(), createDynamicRequest(map[string]any{
 		"toolset": "repos",
 	}))
 	require.NoError(t, err)
@@ -194,7 +193,7 @@ func TestDynamicTools_EnableToolset_InvalidToolset(t *testing.T) {
 	handler := tool.Handler(deps)
 
 	// Try to enable a non-existent toolset
-	result, err := handler(context.Background(), createDynamicRequest(map[string]any{
+	result, err := handler(t.Context(), createDynamicRequest(map[string]any{
 		"toolset": "nonexistent",
 	}))
 	require.NoError(t, err)

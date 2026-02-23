@@ -2,7 +2,6 @@ package github
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -307,7 +306,7 @@ func createMCPRequestWithSession(t *testing.T, clientName string, args any) mcp.
 	srv := mcp.NewServer(&mcp.Implementation{Name: "test"}, nil)
 
 	st, _ := mcp.NewInMemoryTransports()
-	session, err := srv.Connect(context.Background(), st, &mcp.ServerSessionOptions{
+	session, err := srv.Connect(t.Context(), st, &mcp.ServerSessionOptions{
 		State: &mcp.ServerSessionState{
 			InitializeParams: &mcp.InitializeParams{
 				ClientInfo: &mcp.Implementation{Name: clientName},

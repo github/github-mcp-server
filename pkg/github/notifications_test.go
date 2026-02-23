@@ -1,7 +1,6 @@
 package github
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -114,7 +113,7 @@ func Test_ListNotifications(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -238,7 +237,7 @@ func Test_ManageNotificationSubscription(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -392,7 +391,7 @@ func Test_ManageRepositoryNotificationSubscription(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -540,7 +539,7 @@ func Test_DismissNotification(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -653,7 +652,7 @@ func Test_MarkAllNotificationsRead(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {
@@ -731,7 +730,7 @@ func Test_GetNotificationDetails(t *testing.T) {
 			}
 			handler := serverTool.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			require.NoError(t, err)
 			if tc.expectError {

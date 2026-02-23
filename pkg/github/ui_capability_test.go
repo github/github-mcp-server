@@ -1,7 +1,6 @@
 package github
 
 import (
-	"context"
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -44,7 +43,7 @@ func Test_clientSupportsUI_nilClientInfo(t *testing.T) {
 
 	srv := mcp.NewServer(&mcp.Implementation{Name: "test"}, nil)
 	st, _ := mcp.NewInMemoryTransports()
-	session, err := srv.Connect(context.Background(), st, &mcp.ServerSessionOptions{
+	session, err := srv.Connect(t.Context(), st, &mcp.ServerSessionOptions{
 		State: &mcp.ServerSessionState{
 			InitializeParams: &mcp.InitializeParams{
 				ClientInfo: nil,

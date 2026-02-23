@@ -17,11 +17,8 @@ type dummyTool struct {
 
 // withIsolatedWorkingDir creates a temp dir, changes to it, and restores the original working dir after the test.
 func withIsolatedWorkingDir(t *testing.T) {
-	dir := t.TempDir()
-	origDir, err := os.Getwd()
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, os.Chdir(origDir)) })
-	require.NoError(t, os.Chdir(dir))
+	t.Helper()
+	t.Chdir(t.TempDir())
 }
 
 func TestSnapshotDoesNotExistNotInCI(t *testing.T) {

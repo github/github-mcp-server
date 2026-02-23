@@ -1,7 +1,6 @@
 package github
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -451,7 +450,7 @@ func Test_ListDiscussions(t *testing.T) {
 			handler := toolDef.Handler(deps)
 
 			req := createMCPRequest(tc.reqParams)
-			res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+			res, err := handler(ContextWithDeps(t.Context(), deps), &req)
 			text := getTextResult(t, res).Text
 
 			if tc.expectError {
@@ -564,7 +563,7 @@ func Test_GetDiscussion(t *testing.T) {
 
 			reqParams := map[string]any{"owner": "owner", "repo": "repo", "discussionNumber": int32(1)}
 			req := createMCPRequest(reqParams)
-			res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+			res, err := handler(ContextWithDeps(t.Context(), deps), &req)
 			text := getTextResult(t, res).Text
 
 			if tc.expectError {
@@ -649,7 +648,7 @@ func Test_GetDiscussionComments(t *testing.T) {
 	}
 	request := createMCPRequest(reqParams)
 
-	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 	require.NoError(t, err)
 
 	textContent := getTextResult(t, result)
@@ -795,7 +794,7 @@ func Test_ListDiscussionCategories(t *testing.T) {
 			handler := toolDef.Handler(deps)
 
 			req := createMCPRequest(tc.reqParams)
-			res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+			res, err := handler(ContextWithDeps(t.Context(), deps), &req)
 			text := getTextResult(t, res).Text
 
 			if tc.expectError {

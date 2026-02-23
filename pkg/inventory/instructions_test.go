@@ -1,7 +1,6 @@
 package inventory
 
 import (
-	"os"
 	"strings"
 	"testing"
 )
@@ -104,22 +103,7 @@ func TestGenerateInstructionsWithDisableFlag(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Save original env value
-			originalValue := os.Getenv("DISABLE_INSTRUCTIONS")
-			defer func() {
-				if originalValue == "" {
-					os.Unsetenv("DISABLE_INSTRUCTIONS")
-				} else {
-					os.Setenv("DISABLE_INSTRUCTIONS", originalValue)
-				}
-			}()
-
-			// Set test env value
-			if tt.disableEnvValue == "" {
-				os.Unsetenv("DISABLE_INSTRUCTIONS")
-			} else {
-				os.Setenv("DISABLE_INSTRUCTIONS", tt.disableEnvValue)
-			}
+			t.Setenv("DISABLE_INSTRUCTIONS", tt.disableEnvValue)
 
 			inv := createTestInventory([]ToolsetMetadata{
 				{ID: "test", Description: "Test"},

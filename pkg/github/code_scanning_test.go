@@ -1,7 +1,6 @@
 package github
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -90,7 +89,7 @@ func Test_GetCodeScanningAlert(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler with new signature
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -216,7 +215,7 @@ func Test_ListCodeScanningAlerts(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler with new signature
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			// Verify results
 			if tc.expectError {

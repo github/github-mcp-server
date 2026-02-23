@@ -1,7 +1,6 @@
 package github
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -133,7 +132,7 @@ func Test_SearchRepositories(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -208,7 +207,7 @@ func Test_SearchRepositories_FullOutput(t *testing.T) {
 
 	request := createMCPRequest(args)
 
-	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 	require.NoError(t, err)
 	require.False(t, result.IsError)
@@ -345,7 +344,7 @@ func Test_SearchCode(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -530,7 +529,7 @@ func Test_SearchUsers(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -693,7 +692,7 @@ func Test_SearchOrgs(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			// Verify results
 			if tc.expectError {

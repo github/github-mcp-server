@@ -144,7 +144,7 @@ func TestInventoryFiltersForRequest(t *testing.T) {
 			inv, err := builder.Build()
 			require.NoError(t, err)
 
-			available := inv.AvailableTools(context.Background())
+			available := inv.AvailableTools(t.Context())
 			toolNames := make([]string, len(available))
 			for i, tool := range available {
 				toolNames[i] = tool.Tool.Name
@@ -367,7 +367,7 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 
 			// Create handler with our factories
 			handler := NewHTTPMcpHandler(
-				context.Background(),
+				t.Context(),
 				&ServerConfig{Version: "test"},
 				nil, // deps not needed for this test
 				translations.NullTranslationHelper,

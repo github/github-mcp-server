@@ -1,7 +1,6 @@
 package github
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -134,7 +133,7 @@ func Test_GetRepositoryTree(t *testing.T) {
 			// Create the tool request
 			request := createMCPRequest(tc.requestArgs)
 
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			if tc.expectError {
 				require.NoError(t, err)
