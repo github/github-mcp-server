@@ -31,18 +31,6 @@ func TestNewAuthHandler(t *testing.T) {
 		expectedResourcePath string
 	}{
 		{
-			name:                 "nil config uses defaults",
-			cfg:                  nil,
-			expectedAuthServer:   defaultAuthorizationServer,
-			expectedResourcePath: "",
-		},
-		{
-			name:                 "empty config uses defaults",
-			cfg:                  &Config{},
-			expectedAuthServer:   defaultAuthorizationServer,
-			expectedResourcePath: "",
-		},
-		{
 			name: "custom authorization server",
 			cfg: &Config{
 				AuthorizationServer: "https://custom.example.com/oauth",
@@ -56,7 +44,7 @@ func TestNewAuthHandler(t *testing.T) {
 				BaseURL:      "https://example.com",
 				ResourcePath: "/mcp",
 			},
-			expectedAuthServer:   defaultAuthorizationServer,
+			expectedAuthServer:   "",
 			expectedResourcePath: "/mcp",
 		},
 	}
@@ -636,42 +624,44 @@ func TestAPIHostResolver_AuthorizationServerURL(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
-		host          string
-		expectedURL   string
-		expectError   bool
-		errorContains string
+		name               string
+		host               string
+		expectedURL        string
+		expectedError      bool
+		expectedStatusCode int
+		errorContains      string
 	}{
 		{
-			name:        "valid host returns authorization server URL",
-			host:        "http://github.com",
-			expectedURL: "https://github.com/login/oauth",
-			expectError: false,
+			name:               "valid host returns authorization server URL",
+			host:               "http://github.com",
+			expectedURL:        "https://github.com/login/oauth",
+			expectedStatusCode: http.StatusOK,
 		},
 		{
 			name:          "invalid host returns error",
 			host:          "://invalid-url",
 			expectedURL:   "",
-			expectError:   true,
+			expectedError: true,
 			errorContains: "could not parse host as URL",
 		},
 		{
 			name:          "host without scheme returns error",
 			host:          "github.com",
 			expectedURL:   "",
-			expectError:   true,
+			expectedError: true,
 			errorContains: "host must have a scheme",
 		},
 		{
-			name:        "GHEC host returns correct authorization server URL",
-			host:        "https://test.ghe.com",
-			expectedURL: "https://test.ghe.com/login/oauth",
+			name:               "GHEC host returns correct authorization server URL",
+			host:               "https://test.ghe.com",
+			expectedURL:        "https://test.ghe.com/login/oauth",
+			expectedStatusCode: http.StatusOK,
 		},
 		{
-			name:        "GHES host returns correct authorization server URL",
-			host:        "https://ghe.example.com",
-			expectedURL: "https://ghe.example.com/login/oauth",
-			expectError: false,
+			name:               "GHES host returns correct authorization server URL",
+			host:               "https://ghe.example.com",
+			expectedURL:        "https://ghe.example.com/login/oauth",
+			expectedStatusCode: http.StatusOK,
 		},
 	}
 
@@ -680,18 +670,50 @@ func TestAPIHostResolver_AuthorizationServerURL(t *testing.T) {
 			t.Parallel()
 
 			apiHost, err := utils.NewAPIHost(tc.host)
-			if tc.expectError {
+			if tc.expectedError {
 				require.Error(t, err)
 				if tc.errorContains != "" {
 					assert.Contains(t, err.Error(), tc.errorContains)
 				}
 				return
+			} else {
+				require.NoError(t, err)
+			}
+
+			handler, err := NewAuthHandler(t.Context(), &Config{
+				BaseURL: "https://api.example.com",
+			}, apiHost)
+			require.NoError(t, err)
+
+			router := chi.NewRouter()
+			handler.RegisterRoutes(router)
+
+			req := httptest.NewRequest(http.MethodGet, OAuthProtectedResourcePrefix, nil)
+			req.Host = "api.example.com"
+
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			require.Equal(t, http.StatusOK, rec.Code)
+
+			var response map[string]any
+			err = json.Unmarshal(rec.Body.Bytes(), &response)
+			require.NoError(t, err)
+
+			assert.Contains(t, response, "authorization_servers")
+			if tc.expectedStatusCode != http.StatusOK {
+				require.Equal(t, tc.expectedStatusCode, rec.Code)
+				if tc.errorContains != "" {
+					assert.Contains(t, rec.Body.String(), tc.errorContains)
+				}
+				return
 			}
 			require.NoError(t, err)
 
-			url, err := apiHost.AuthorizationServerURL(t.Context())
-			require.NoError(t, err)
-			assert.Equal(t, tc.expectedURL, url.String())
+			responseAuthServers, ok := response["authorization_servers"].([]any)
+			require.True(t, ok)
+			require.Len(t, responseAuthServers, 1)
+			assert.Equal(t, tc.expectedURL, responseAuthServers[0])
 		})
 	}
 }

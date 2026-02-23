@@ -54,7 +54,8 @@ type Config struct {
 
 // AuthHandler handles OAuth-related HTTP endpoints.
 type AuthHandler struct {
-	cfg *Config
+	cfg     *Config
+	apiHost utils.APIHostResolver
 }
 
 // NewAuthHandler creates a new OAuth auth handler.
@@ -63,18 +64,9 @@ func NewAuthHandler(ctx context.Context, cfg *Config, apiHost utils.APIHostResol
 		cfg = &Config{}
 	}
 
-	// Default authorization server to GitHub
-	if cfg.AuthorizationServer == "" {
-		url, err := apiHost.AuthorizationServerURL(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get authorization server URL from API host: %w", err)
-		}
-
-		cfg.AuthorizationServer = url.String()
-	}
-
 	return &AuthHandler{
-		cfg: cfg,
+		cfg:     cfg,
+		apiHost: apiHost,
 	}, nil
 }
 
@@ -99,15 +91,28 @@ func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 
 func (h *AuthHandler) metadataHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
 		resourcePath := resolveResourcePath(
 			strings.TrimPrefix(r.URL.Path, OAuthProtectedResourcePrefix),
 			h.cfg.ResourcePath,
 		)
 		resourceURL := h.buildResourceURL(r, resourcePath)
 
+		var authorizationServerURL string
+		if h.cfg.AuthorizationServer != "" {
+			authorizationServerURL = h.cfg.AuthorizationServer
+		} else {
+			authURL, err := h.apiHost.AuthorizationServerURL(ctx)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("failed to resolve authorization server URL: %v", err), http.StatusInternalServerError)
+				return
+			}
+			authorizationServerURL = authURL.String()
+		}
+
 		metadata := &oauthex.ProtectedResourceMetadata{
 			Resource:               resourceURL,
-			AuthorizationServers:   []string{h.cfg.AuthorizationServer},
+			AuthorizationServers:   []string{authorizationServerURL},
 			ResourceName:           "GitHub MCP Server",
 			ScopesSupported:        SupportedScopes,
 			BearerMethodsSupported: []string{"header"},
