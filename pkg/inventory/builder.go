@@ -9,10 +9,8 @@ import (
 	"strings"
 )
 
-var (
-	// ErrUnknownTools is returned when tools specified via WithTools() are not recognized.
-	ErrUnknownTools = errors.New("unknown tools specified in WithTools")
-)
+// ErrUnknownTools is returned when tools specified via WithTools() are not recognized.
+var ErrUnknownTools = errors.New("unknown tools specified in WithTools")
 
 // ToolFilter is a function that determines if a tool should be included.
 // Returns true if the tool should be included, false to exclude it.

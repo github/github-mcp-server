@@ -894,6 +894,7 @@ func TestForMCPRequest_ResourcesRead(t *testing.T) {
 		t.Fatalf("Expected 2 resources for resources/read (SDK handles matching), got %d", len(available))
 	}
 }
+
 func TestForMCPRequest_PromptsList(t *testing.T) {
 	tools := []ServerTool{
 		mockTool("tool1", "repos", true),

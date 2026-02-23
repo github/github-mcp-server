@@ -6,12 +6,13 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/translations"
 )
 
 func Test_GetCodeScanningAlert(t *testing.T) {
@@ -115,7 +116,6 @@ func Test_GetCodeScanningAlert(t *testing.T) {
 			assert.Equal(t, *tc.expectedAlert.State, *returnedAlert.State)
 			assert.Equal(t, *tc.expectedAlert.Rule.ID, *returnedAlert.Rule.ID)
 			assert.Equal(t, *tc.expectedAlert.HTMLURL, *returnedAlert.HTMLURL)
-
 		})
 	}
 }

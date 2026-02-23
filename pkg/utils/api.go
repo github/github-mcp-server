@@ -27,7 +27,6 @@ var _ APIHostResolver = APIHost{}
 
 func NewAPIHost(s string) (APIHostResolver, error) {
 	a, err := parseAPIHost(s)
-
 	if err != nil {
 		return nil, err
 	}

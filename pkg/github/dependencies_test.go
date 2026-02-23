@@ -5,9 +5,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestIsFeatureEnabled_WithEnabledFlag(t *testing.T) {

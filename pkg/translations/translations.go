@@ -17,7 +17,7 @@ func NullTranslationHelper(_ string, defaultValue string) string {
 }
 
 func TranslationHelper() (TranslationHelperFunc, func()) {
-	var translationKeyMap = map[string]string{}
+	translationKeyMap := map[string]string{}
 	v := viper.New()
 
 	// Load from JSON file

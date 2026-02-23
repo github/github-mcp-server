@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // IssueToFixWorkflowPrompt provides a guided workflow for creating an issue and then generating a PR to fix it

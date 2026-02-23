@@ -15,12 +15,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/github/github-mcp-server/internal/ghmcp"
-	"github.com/github/github-mcp-server/pkg/github"
-	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v82/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
+
+	"github.com/github/github-mcp-server/internal/ghmcp"
+	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/translations"
 )
 
 var (
@@ -277,7 +278,6 @@ func TestGetMe(t *testing.T) {
 	user, _, err := ghClient.Users.Get(context.Background(), "")
 	require.NoError(t, err, "expected to get user successfully")
 	require.Equal(t, trimmedContent.Login, *user.Login, "expected login to match")
-
 }
 
 func TestToolsets(t *testing.T) {
@@ -296,7 +296,7 @@ func TestToolsets(t *testing.T) {
 	// We could enumerate the tools here, but we'll need to expose that information
 	// declaratively in the MCP server, so for the moment let's just check the existence
 	// of an issue and repo tool, and the non-existence of a pull_request tool.
-	var toolsContains = func(expectedName string) bool {
+	toolsContains := func(expectedName string) bool {
 		return slices.ContainsFunc(response.Tools, func(tool *mcp.Tool) bool {
 			return tool.Name == expectedName
 		})

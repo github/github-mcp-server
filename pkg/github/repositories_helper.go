@@ -7,11 +7,12 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/go-github/v82/github"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v82/github"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // initializeRepository creates an initial commit in an empty repository and returns the default branch ref and base commit

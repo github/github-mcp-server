@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/oauth"
@@ -20,7 +22,6 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/go-chi/chi/v5"
 )
 
 // knownFeatureFlags are the feature flags that can be enabled via X-MCP-Features header.
@@ -79,7 +80,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 	var slogHandler slog.Handler
 	var logOutput io.Writer
 	if cfg.LogFilePath != "" {
-		file, err := os.OpenFile(cfg.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+		file, err := os.OpenFile(cfg.LogFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 		if err != nil {
 			return fmt.Errorf("failed to open log file: %w", err)
 		}
@@ -192,7 +193,6 @@ func initGlobalToolScopeMap(t translations.TranslationHelperFunc) error {
 	inv, err := inventory.NewBuilder().
 		SetTools(github.AllTools(t)).
 		Build()
-
 	if err != nil {
 		return fmt.Errorf("failed to build inventory for tool scope map: %w", err)
 	}

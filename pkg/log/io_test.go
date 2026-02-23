@@ -2,10 +2,9 @@ package log
 
 import (
 	"bytes"
+	"log/slog"
 	"strings"
 	"testing"
-
-	"log/slog"
 
 	"github.com/stretchr/testify/assert"
 )

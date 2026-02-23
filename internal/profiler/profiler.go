@@ -3,13 +3,12 @@ package profiler
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"math"
 	"os"
 	"runtime"
 	"strconv"
 	"time"
-
-	"log/slog"
-	"math"
 )
 
 // Profile represents performance metrics for an operation

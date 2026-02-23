@@ -252,6 +252,7 @@ func TestFilterHtmlTags(t *testing.T) {
 		})
 	}
 }
+
 func TestFilterCodeFenceMetadata(t *testing.T) {
 	tests := []struct {
 		name     string

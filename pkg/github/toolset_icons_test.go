@@ -3,9 +3,10 @@ package github
 import (
 	"testing"
 
-	"github.com/github/github-mcp-server/pkg/octicons"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/github/github-mcp-server/pkg/octicons"
 )
 
 // TestAllToolsetIconsExist validates that every toolset with an Icon field

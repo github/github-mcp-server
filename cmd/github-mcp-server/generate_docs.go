@@ -9,11 +9,12 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/google/jsonschema-go/jsonschema"
+	"github.com/spf13/cobra"
+
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/jsonschema-go/jsonschema"
-	"github.com/spf13/cobra"
 )
 
 var generateDocsCmd = &cobra.Command{
@@ -81,7 +82,7 @@ func generateReadmeDocs(readmePath string) error {
 	}
 
 	// Write back to file
-	err = os.WriteFile(readmePath, []byte(updatedContent), 0600)
+	err = os.WriteFile(readmePath, []byte(updatedContent), 0o600)
 	if err != nil {
 		return fmt.Errorf("failed to write README.md: %w", err)
 	}
@@ -110,7 +111,7 @@ func generateRemoteServerDocs(docsPath string) error {
 		return err
 	}
 
-	return os.WriteFile(docsPath, []byte(updatedContent), 0600) //#nosec G306
+	return os.WriteFile(docsPath, []byte(updatedContent), 0o600) //#nosec G306
 }
 
 // octiconImg returns an img tag for an Octicon that works with GitHub's light/dark theme.
@@ -436,7 +437,7 @@ func generateDeprecatedAliasesDocs(docsPath string) error {
 	}
 
 	// Write back to file
-	err = os.WriteFile(docsPath, []byte(updatedContent), 0600)
+	err = os.WriteFile(docsPath, []byte(updatedContent), 0o600)
 	if err != nil {
 		return fmt.Errorf("failed to write deprecated aliases docs: %w", err)
 	}

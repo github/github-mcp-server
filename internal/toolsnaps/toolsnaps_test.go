@@ -65,8 +65,8 @@ func TestSnapshotExistsMatch(t *testing.T) {
 	// Given a matching snapshot file exists
 	tool := dummyTool{"foo", 42}
 	b, _ := json.MarshalIndent(tool, "", "  ")
-	require.NoError(t, os.MkdirAll("__toolsnaps__", 0700))
-	require.NoError(t, os.WriteFile(filepath.Join("__toolsnaps__", "dummy.snap"), b, 0600))
+	require.NoError(t, os.MkdirAll("__toolsnaps__", 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join("__toolsnaps__", "dummy.snap"), b, 0o600))
 
 	// When we test the snapshot
 	err := Test("dummy", tool)
@@ -82,8 +82,8 @@ func TestSnapshotExistsDiff(t *testing.T) {
 	t.Setenv("UPDATE_TOOLSNAPS", "false")
 
 	// Given a non-matching snapshot file exists
-	require.NoError(t, os.MkdirAll("__toolsnaps__", 0700))
-	require.NoError(t, os.WriteFile(filepath.Join("__toolsnaps__", "dummy.snap"), []byte(`{"name":"foo","value":1}`), 0600))
+	require.NoError(t, os.MkdirAll("__toolsnaps__", 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join("__toolsnaps__", "dummy.snap"), []byte(`{"name":"foo","value":1}`), 0o600))
 	tool := dummyTool{"foo", 2}
 
 	// When we test the snapshot
@@ -99,8 +99,8 @@ func TestUpdateToolsnaps(t *testing.T) {
 
 	// Given UPDATE_TOOLSNAPS is set, regardless of whether a matching snapshot file exists
 	t.Setenv("UPDATE_TOOLSNAPS", "true")
-	require.NoError(t, os.MkdirAll("__toolsnaps__", 0700))
-	require.NoError(t, os.WriteFile(filepath.Join("__toolsnaps__", "dummy.snap"), []byte(`{"name":"foo","value":1}`), 0600))
+	require.NoError(t, os.MkdirAll("__toolsnaps__", 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join("__toolsnaps__", "dummy.snap"), []byte(`{"name":"foo","value":1}`), 0o600))
 	tool := dummyTool{"foo", 42}
 
 	// When we test the snapshot
@@ -120,8 +120,8 @@ func TestMalformedSnapshotJSON(t *testing.T) {
 	t.Setenv("UPDATE_TOOLSNAPS", "false")
 
 	// Given a malformed snapshot file exists
-	require.NoError(t, os.MkdirAll("__toolsnaps__", 0700))
-	require.NoError(t, os.WriteFile(filepath.Join("__toolsnaps__", "dummy.snap"), []byte(`not-json`), 0600))
+	require.NoError(t, os.MkdirAll("__toolsnaps__", 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join("__toolsnaps__", "dummy.snap"), []byte(`not-json`), 0o600))
 	tool := dummyTool{"foo", 42}
 
 	// When we test the snapshot

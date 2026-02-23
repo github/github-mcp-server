@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/google/go-github/v82/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/github/github-mcp-server/pkg/utils"
 )
 
 type GitHubAPIError struct {
@@ -63,12 +64,14 @@ func (e *GitHubRawAPIError) Error() string {
 	return fmt.Errorf("%s: %w", e.Message, e.Err).Error()
 }
 
-type GitHubErrorKey struct{}
-type GitHubCtxErrors struct {
-	api     []*GitHubAPIError
-	graphQL []*GitHubGraphQLError
-	raw     []*GitHubRawAPIError
-}
+type (
+	GitHubErrorKey  struct{}
+	GitHubCtxErrors struct {
+		api     []*GitHubAPIError
+		graphQL []*GitHubGraphQLError
+		raw     []*GitHubRawAPIError
+	}
+)
 
 // ContextWithGitHubErrors updates or creates a context with a pointer to GitHub error information (to be used by middleware).
 func ContextWithGitHubErrors(ctx context.Context) context.Context {

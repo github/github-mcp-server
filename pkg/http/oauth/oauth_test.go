@@ -7,10 +7,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/github/github-mcp-server/pkg/http/headers"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/github/github-mcp-server/pkg/http/headers"
 )
 
 func TestNewAuthHandler(t *testing.T) {

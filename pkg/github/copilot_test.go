@@ -7,14 +7,15 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/github/github-mcp-server/internal/githubv4mock"
-	"github.com/github/github-mcp-server/internal/toolsnaps"
-	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/github/github-mcp-server/internal/githubv4mock"
+	"github.com/github/github-mcp-server/internal/toolsnaps"
+	"github.com/github/github-mcp-server/pkg/translations"
 )
 
 func TestAssignCopilotToIssue(t *testing.T) {
@@ -40,7 +41,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 		return &v
 	}
 
-	var pageOfFakeBots = func(n int) []struct{} {
+	pageOfFakeBots := func(n int) []struct{} {
 		// We don't _really_ need real bots here, just objects that count as entries for the page
 		bots := make([]struct{}, n)
 		for i := range n {
@@ -698,7 +699,6 @@ func TestAssignCopilotToIssue(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-
 			t.Parallel()
 			// Setup client with mock
 			client := githubv4.NewClient(tc.mockedClient)

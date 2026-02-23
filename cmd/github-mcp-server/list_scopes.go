@@ -8,11 +8,12 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 // ToolScopeInfo contains scope information for a single tool.

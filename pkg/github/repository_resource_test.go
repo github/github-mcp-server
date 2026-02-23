@@ -6,10 +6,11 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/google/go-github/v82/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
+
+	"github.com/github/github-mcp-server/pkg/raw"
 )
 
 type resourceResponseType int
@@ -82,7 +83,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 					Blob:     []byte("IyBUZXN0IFJlcG9zaXRvcnkKClRoaXMgaXMgYSB0ZXN0IHJlcG9zaXRvcnku"),
 					MIMEType: "image/png",
 					URI:      "",
-				}}},
+				}},
+			},
 		},
 		{
 			name: "successful text content fetch (HEAD)",
@@ -103,7 +105,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 					Text:     "# Test Repository\n\nThis is a test repository.",
 					MIMEType: "text/markdown",
 					URI:      "",
-				}}},
+				}},
+			},
 		},
 		{
 			name: "successful text content fetch (HEAD)",
@@ -126,7 +129,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 					Text:     "package actions\n\nfunc main() {\n    // Sample Go file content\n}\n",
 					MIMEType: "text/plain",
 					URI:      "",
-				}}},
+				}},
+			},
 		},
 		{
 			name: "successful text content fetch (branch)",
@@ -147,7 +151,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 					Text:     "# Test Repository\n\nThis is a test repository.",
 					MIMEType: "text/markdown",
 					URI:      "",
-				}}},
+				}},
+			},
 		},
 		{
 			name: "successful text content fetch (tag)",
@@ -168,7 +173,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 					Text:     "# Test Repository\n\nThis is a test repository.",
 					MIMEType: "text/markdown",
 					URI:      "",
-				}}},
+				}},
+			},
 		},
 		{
 			name: "successful text content fetch (sha)",
@@ -189,7 +195,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 					Text:     "# Test Repository\n\nThis is a test repository.",
 					MIMEType: "text/markdown",
 					URI:      "",
-				}}},
+				}},
+			},
 		},
 		{
 			name: "successful text content fetch (pr)",
@@ -215,7 +222,8 @@ func Test_repositoryResourceContents(t *testing.T) {
 					Text:     "# Test Repository\n\nThis is a test repository.",
 					MIMEType: "text/markdown",
 					URI:      "",
-				}}},
+				}},
+			},
 		},
 		{
 			name: "content fetch fails",
