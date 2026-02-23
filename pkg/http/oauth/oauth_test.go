@@ -633,7 +633,7 @@ func TestAPIHostResolver_AuthorizationServerURL(t *testing.T) {
 	}{
 		{
 			name:               "valid host returns authorization server URL",
-			host:               "http://github.com",
+			host:               "https://github.com",
 			expectedURL:        "https://github.com/login/oauth",
 			expectedStatusCode: http.StatusOK,
 		},
@@ -661,6 +661,12 @@ func TestAPIHostResolver_AuthorizationServerURL(t *testing.T) {
 			name:               "GHES host returns correct authorization server URL",
 			host:               "https://ghe.example.com",
 			expectedURL:        "https://ghe.example.com/login/oauth",
+			expectedStatusCode: http.StatusOK,
+		},
+		{
+			name:               "GHES with http scheme returns the correct authorization server URL",
+			host:               "http://ghe.example.com",
+			expectedURL:        "http://ghe.example.com/login/oauth",
 			expectedStatusCode: http.StatusOK,
 		},
 	}
