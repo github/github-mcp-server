@@ -14,6 +14,7 @@ type APIHostResolver interface {
 	GraphqlURL(ctx context.Context) (*url.URL, error)
 	UploadURL(ctx context.Context) (*url.URL, error)
 	RawURL(ctx context.Context) (*url.URL, error)
+	OAuthURL(ctx context.Context) (*url.URL, error)
 }
 
 type APIHost struct {
@@ -21,6 +22,7 @@ type APIHost struct {
 	gqlURL    *url.URL
 	uploadURL *url.URL
 	rawURL    *url.URL
+	oauthURL  *url.URL
 }
 
 var _ APIHostResolver = APIHost{}
@@ -52,6 +54,10 @@ func (a APIHost) RawURL(_ context.Context) (*url.URL, error) {
 	return a.rawURL, nil
 }
 
+func (a APIHost) OAuthURL(_ context.Context) (*url.URL, error) {
+	return a.oauthURL, nil
+}
+
 func newDotcomHost() (APIHost, error) {
 	baseRestURL, err := url.Parse("https://api.github.com/")
 	if err != nil {
@@ -73,11 +79,17 @@ func newDotcomHost() (APIHost, error) {
 		return APIHost{}, fmt.Errorf("failed to parse dotcom Raw URL: %w", err)
 	}
 
+	oauthURL, err := url.Parse("https://github.com/login/oauth")
+	if err != nil {
+		return APIHost{}, fmt.Errorf("failed to parse dotcom OAuth URL: %w", err)
+	}
+
 	return APIHost{
 		restURL:   baseRestURL,
 		gqlURL:    gqlURL,
 		uploadURL: uploadURL,
 		rawURL:    rawURL,
+		oauthURL:  oauthURL,
 	}, nil
 }
 
@@ -112,11 +124,17 @@ func newGHECHost(hostname string) (APIHost, error) {
 		return APIHost{}, fmt.Errorf("failed to parse GHEC Raw URL: %w", err)
 	}
 
+	oauthURL, err := url.Parse(fmt.Sprintf("https://%s/login/oauth", u.Hostname()))
+	if err != nil {
+		return APIHost{}, fmt.Errorf("failed to parse GHEC OAuth URL: %w", err)
+	}
+
 	return APIHost{
 		restURL:   restURL,
 		gqlURL:    gqlURL,
 		uploadURL: uploadURL,
 		rawURL:    rawURL,
+		oauthURL:  oauthURL,
 	}, nil
 }
 
@@ -164,11 +182,17 @@ func newGHESHost(hostname string) (APIHost, error) {
 		return APIHost{}, fmt.Errorf("failed to parse GHES Raw URL: %w", err)
 	}
 
+	oauthURL, err := url.Parse(fmt.Sprintf("%s://%s/login/oauth", u.Scheme, u.Hostname()))
+	if err != nil {
+		return APIHost{}, fmt.Errorf("failed to parse GHES OAuth URL: %w", err)
+	}
+
 	return APIHost{
 		restURL:   restURL,
 		gqlURL:    gqlURL,
 		uploadURL: uploadURL,
 		rawURL:    rawURL,
+		oauthURL:  oauthURL,
 	}, nil
 }
 

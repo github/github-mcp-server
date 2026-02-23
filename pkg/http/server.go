@@ -6,7 +6,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"slices"
@@ -129,12 +128,11 @@ func RunHTTPServer(cfg ServerConfig) error {
 		ResourcePath: cfg.ResourcePath,
 	}
 	if cfg.Host != "" {
-		u := &url.URL{
-			Scheme: "https",
-			Host:   cfg.Host,
-			Path:   "/login/oauth",
+		oauthURL, err := apiHost.OAuthURL(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get OAuth URL: %w", err)
 		}
-		oauthCfg.AuthorizationServer = u.String()
+		oauthCfg.AuthorizationServer = oauthURL.String()
 	}
 
 	serverOptions := []HandlerOption{}
