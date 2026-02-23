@@ -153,7 +153,7 @@ Example for `https://octocorp.ghe.com` with GitHub PAT token:
 ```
 {
     ...
-    "proxima-github": {
+    "github-octocorp": {
       "type": "http",
       "url": "https://copilot-api.octocorp.ghe.com/mcp",
       "headers": {
