@@ -125,9 +125,7 @@ func newGHECHost(hostname string) (APIHost, error) {
 		return APIHost{}, fmt.Errorf("failed to parse GHEC Raw URL: %w", err)
 	}
 
-	// The authorization server for GHEC is still on the root domain, not the api subdomain
-	rootHost := strings.TrimPrefix(u.Hostname(), "api.")
-	authorizationServerURL, err := url.Parse(fmt.Sprintf("https://%s/login/oauth", rootHost))
+	authorizationServerURL, err := url.Parse(fmt.Sprintf("https://%s/login/oauth", u.Hostname()))
 	if err != nil {
 		return APIHost{}, fmt.Errorf("failed to parse GHEC Authorization Server URL: %w", err)
 	}
@@ -185,16 +183,7 @@ func newGHESHost(hostname string) (APIHost, error) {
 		return APIHost{}, fmt.Errorf("failed to parse GHES Raw URL: %w", err)
 	}
 
-	// If subdomain isolation is enabled, the hostname will be api.hostname, but the authorization server is still on the root domain at hostname/login/oauth
-	// If subdomain isolation is not enabled, the hostname is still hostname and the authorization server is at hostname/login/oauth
-	var rootHost string
-	if hasSubdomainIsolation {
-		rootHost = strings.TrimPrefix(u.Hostname(), "api.")
-	} else {
-		rootHost = u.Hostname()
-	}
-	authorizationServerURL, err := url.Parse(fmt.Sprintf("%s://%s/login/oauth", u.Scheme, rootHost))
-
+	authorizationServerURL, err := url.Parse(fmt.Sprintf("%s://%s/login/oauth", u.Scheme, u.Hostname()))
 	if err != nil {
 		return APIHost{}, fmt.Errorf("failed to parse GHES Authorization Server URL: %w", err)
 	}
