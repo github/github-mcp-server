@@ -14,15 +14,15 @@ type APIHostResolver interface {
 	GraphqlURL(ctx context.Context) (*url.URL, error)
 	UploadURL(ctx context.Context) (*url.URL, error)
 	RawURL(ctx context.Context) (*url.URL, error)
-	OAuthURL(ctx context.Context) (*url.URL, error)
+	AuthorizationServerURL(ctx context.Context) (*url.URL, error)
 }
 
 type APIHost struct {
-	restURL   *url.URL
-	gqlURL    *url.URL
-	uploadURL *url.URL
-	rawURL    *url.URL
-	oauthURL  *url.URL
+	restURL                *url.URL
+	gqlURL                 *url.URL
+	uploadURL              *url.URL
+	rawURL                 *url.URL
+	authorizationServerURL *url.URL
 }
 
 var _ APIHostResolver = APIHost{}
@@ -54,8 +54,8 @@ func (a APIHost) RawURL(_ context.Context) (*url.URL, error) {
 	return a.rawURL, nil
 }
 
-func (a APIHost) OAuthURL(_ context.Context) (*url.URL, error) {
-	return a.oauthURL, nil
+func (a APIHost) AuthorizationServerURL(_ context.Context) (*url.URL, error) {
+	return a.authorizationServerURL, nil
 }
 
 func newDotcomHost() (APIHost, error) {
@@ -79,17 +79,18 @@ func newDotcomHost() (APIHost, error) {
 		return APIHost{}, fmt.Errorf("failed to parse dotcom Raw URL: %w", err)
 	}
 
-	oauthURL, err := url.Parse("https://github.com/login/oauth")
+	// The authorization server for GitHub.com is at github.com/login/oauth, not api.github.com
+	authorizationServerURL, err := url.Parse("https://github.com/login/oauth")
 	if err != nil {
-		return APIHost{}, fmt.Errorf("failed to parse dotcom OAuth URL: %w", err)
+		return APIHost{}, fmt.Errorf("failed to parse dotcom Authorization Server URL: %w", err)
 	}
 
 	return APIHost{
-		restURL:   baseRestURL,
-		gqlURL:    gqlURL,
-		uploadURL: uploadURL,
-		rawURL:    rawURL,
-		oauthURL:  oauthURL,
+		restURL:                baseRestURL,
+		gqlURL:                 gqlURL,
+		uploadURL:              uploadURL,
+		rawURL:                 rawURL,
+		authorizationServerURL: authorizationServerURL,
 	}, nil
 }
 
@@ -124,17 +125,17 @@ func newGHECHost(hostname string) (APIHost, error) {
 		return APIHost{}, fmt.Errorf("failed to parse GHEC Raw URL: %w", err)
 	}
 
-	oauthURL, err := url.Parse(fmt.Sprintf("https://%s/login/oauth", u.Hostname()))
+	authorizationServerURL, err := url.Parse(fmt.Sprintf("https://%s/login/oauth", u.Hostname()))
 	if err != nil {
-		return APIHost{}, fmt.Errorf("failed to parse GHEC OAuth URL: %w", err)
+		return APIHost{}, fmt.Errorf("failed to parse GHEC Authorization Server URL: %w", err)
 	}
 
 	return APIHost{
-		restURL:   restURL,
-		gqlURL:    gqlURL,
-		uploadURL: uploadURL,
-		rawURL:    rawURL,
-		oauthURL:  oauthURL,
+		restURL:                restURL,
+		gqlURL:                 gqlURL,
+		uploadURL:              uploadURL,
+		rawURL:                 rawURL,
+		authorizationServerURL: authorizationServerURL,
 	}, nil
 }
 
@@ -182,17 +183,17 @@ func newGHESHost(hostname string) (APIHost, error) {
 		return APIHost{}, fmt.Errorf("failed to parse GHES Raw URL: %w", err)
 	}
 
-	oauthURL, err := url.Parse(fmt.Sprintf("%s://%s/login/oauth", u.Scheme, u.Hostname()))
+	authorizationServerURL, err := url.Parse(fmt.Sprintf("%s://%s/login/oauth", u.Scheme, u.Hostname()))
 	if err != nil {
-		return APIHost{}, fmt.Errorf("failed to parse GHES OAuth URL: %w", err)
+		return APIHost{}, fmt.Errorf("failed to parse GHES Authorization Server URL: %w", err)
 	}
 
 	return APIHost{
-		restURL:   restURL,
-		gqlURL:    gqlURL,
-		uploadURL: uploadURL,
-		rawURL:    rawURL,
-		oauthURL:  oauthURL,
+		restURL:                restURL,
+		gqlURL:                 gqlURL,
+		uploadURL:              uploadURL,
+		rawURL:                 rawURL,
+		authorizationServerURL: authorizationServerURL,
 	}, nil
 }
 
