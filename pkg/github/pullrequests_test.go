@@ -1990,18 +1990,18 @@ func Test_GetPullRequestReviews(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
-			var returnedReviews []*github.PullRequestReview
+			var returnedReviews []MinimalPullRequestReview
 			err = json.Unmarshal([]byte(textContent.Text), &returnedReviews)
 			require.NoError(t, err)
 			assert.Len(t, returnedReviews, len(tc.expectedReviews))
 			for i, review := range returnedReviews {
+				assert.Equal(t, tc.expectedReviews[i].GetID(), review.ID)
+				assert.Equal(t, tc.expectedReviews[i].GetState(), review.State)
+				assert.Equal(t, tc.expectedReviews[i].GetBody(), review.Body)
 				require.NotNil(t, tc.expectedReviews[i].User)
 				require.NotNil(t, review.User)
-				assert.Equal(t, tc.expectedReviews[i].GetID(), review.GetID())
-				assert.Equal(t, tc.expectedReviews[i].GetState(), review.GetState())
-				assert.Equal(t, tc.expectedReviews[i].GetBody(), review.GetBody())
-				assert.Equal(t, tc.expectedReviews[i].GetUser().GetLogin(), review.GetUser().GetLogin())
-				assert.Equal(t, tc.expectedReviews[i].GetHTMLURL(), review.GetHTMLURL())
+				assert.Equal(t, tc.expectedReviews[i].GetUser().GetLogin(), review.User.Login)
+				assert.Equal(t, tc.expectedReviews[i].GetHTMLURL(), review.HTMLURL)
 			}
 		})
 	}
