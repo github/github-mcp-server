@@ -3,7 +3,6 @@
 This directory contains detailed installation instructions for the GitHub MCP Server across different host applications and IDEs. Choose the guide that matches your development environment.
 
 ## Installation Guides by Host Application
-- **[AdaL CLI](install-adal-cli.md)** - Installation guide for AdaL CLI
 - **[Copilot CLI](install-copilot-cli.md)** - Installation guide for GitHub Copilot CLI
 - **[GitHub Copilot in other IDEs](install-other-copilot-ides.md)** - Installation for JetBrains, Visual Studio, Eclipse, and Xcode with GitHub Copilot
 - **[Antigravity](install-antigravity.md)** - Installation for Google Antigravity IDE
@@ -12,12 +11,12 @@ This directory contains detailed installation instructions for the GitHub MCP Se
 - **[Google Gemini CLI](install-gemini-cli.md)** - Installation guide for Google Gemini CLI
 - **[OpenAI Codex](install-codex.md)** - Installation guide for OpenAI Codex
 - **[Windsurf](install-windsurf.md)** - Installation guide for Windsurf IDE
+- **[AdaL CLI](install-adal-cli.md)** - Installation guide for AdaL CLI
 
 ## Support by Host Application
 
 | Host Application | Local GitHub MCP Support | Remote GitHub MCP Support | Prerequisites | Difficulty |
 |-----------------|---------------|----------------|---------------|------------|
-| AdaL CLI | ✅ | ✅ PAT + ❌ No OAuth | Docker, GitHub PAT | Easy |
 | Copilot CLI | ✅ | ✅ PAT + ❌ No OAuth | Docker or Go build, GitHub PAT | Easy |
 | Copilot in VS Code | ✅ | ✅ Full (OAuth + PAT) | Local: Docker or Go build, GitHub PAT<br>Remote: VS Code 1.101+ | Easy |
 | Copilot Coding Agent | ✅ | ✅ Full (on by default; no auth needed) | Any _paid_ copilot license | Default on |
@@ -30,6 +29,7 @@ This directory contains detailed installation instructions for the GitHub MCP Se
 | Windsurf | ✅ | ✅ PAT + ❌ No OAuth | Docker or Go build, GitHub PAT | Easy |
 | Copilot in Xcode | ✅ | ✅ Full (OAuth + PAT) | Local: Docker or Go build, GitHub PAT<br>Remote: Copilot for Xcode 0.41.0+ | Easy |
 | Copilot in Eclipse | ✅ | ✅ Full (OAuth + PAT) | Local: Docker or Go build, GitHub PAT<br>Remote: Eclipse Plug-in for Copilot 0.10.0+ | Easy |
+| AdaL CLI | ✅ | ✅ PAT + ❌ No OAuth | Docker, GitHub PAT | Easy |
 
 **Legend:**
 - ✅ = Fully supported
