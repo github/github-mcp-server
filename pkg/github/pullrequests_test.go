@@ -1454,7 +1454,7 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 	tests := []struct {
 		name              string
 		mockedClient      *http.Client
-		requestArgs       map[string]interface{}
+		requestArgs       map[string]any
 		expectError       bool
 		expectedCheckRuns *github.ListCheckRunsResults
 		expectedErrMsg    string
@@ -1465,7 +1465,7 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 				GetReposPullsByOwnerByRepoByPullNumber:     mockResponse(t, http.StatusOK, mockPR),
 				GetReposCommitsCheckRunsByOwnerByRepoByRef: mockResponse(t, http.StatusOK, mockCheckRuns),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":     "get_check_runs",
 				"owner":      "owner",
 				"repo":       "repo",
@@ -1482,7 +1482,7 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
 				}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":     "get_check_runs",
 				"owner":      "owner",
 				"repo":       "repo",
@@ -1500,7 +1500,7 @@ func Test_GetPullRequestCheckRuns(t *testing.T) {
 					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
 				}),
 			}),
-			requestArgs: map[string]interface{}{
+			requestArgs: map[string]any{
 				"method":     "get_check_runs",
 				"owner":      "owner",
 				"repo":       "repo",
