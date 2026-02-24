@@ -134,13 +134,15 @@ var (
 		Icon:        "tag",
 	}
 
-	// Remote-only toolsets - these are only available in the remote MCP server
-	// but are documented here for consistency and to enable automated documentation.
 	ToolsetMetadataCopilot = inventory.ToolsetMetadata{
 		ID:          "copilot",
 		Description: "Copilot related tools",
+		Default:     true,
 		Icon:        "copilot",
 	}
+
+	// Remote-only toolsets - these are only available in the remote MCP server
+	// but are documented here for consistency and to enable automated documentation.
 	ToolsetMetadataCopilotSpaces = inventory.ToolsetMetadata{
 		ID:          "copilot_spaces",
 		Description: "Copilot Spaces tools",
@@ -194,7 +196,6 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ListIssueTypes(t),
 		IssueWrite(t),
 		AddIssueComment(t),
-		AssignCopilotToIssue(t),
 		SubIssueWrite(t),
 
 		// User tools
@@ -211,10 +212,13 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		UpdatePullRequestBranch(t),
 		CreatePullRequest(t),
 		UpdatePullRequest(t),
-		RequestCopilotReview(t),
 		PullRequestReviewWrite(t),
 		AddCommentToPendingReview(t),
 		AddReplyToPullRequestComment(t),
+
+		// Copilot tools
+		AssignCopilotToIssue(t),
+		RequestCopilotReview(t),
 
 		// Code security tools
 		GetCodeScanningAlert(t),
@@ -436,7 +440,6 @@ func GetDefaultToolsetIDs() []string {
 // in the local server.
 func RemoteOnlyToolsets() []inventory.ToolsetMetadata {
 	return []inventory.ToolsetMetadata{
-		ToolsetMetadataCopilot,
 		ToolsetMetadataCopilotSpaces,
 		ToolsetMetadataSupportSearch,
 	}

@@ -292,10 +292,16 @@ func createMCPRequest(args any) mcp.CallToolRequest {
 	}
 }
 
+// Well-known MCP client names used in tests.
+const (
+	ClientNameVSCodeInsiders = "Visual Studio Code - Insiders"
+	ClientNameVSCode         = "Visual Studio Code"
+)
+
 // createMCPRequestWithSession creates a CallToolRequest with a ServerSession
-// that has the given client name in its InitializeParams. This is used to test
-// UI capability detection based on ClientInfo.Name.
-func createMCPRequestWithSession(t *testing.T, clientName string, args any) mcp.CallToolRequest {
+// that has the given client name in its InitializeParams. When withUI is true
+// the session advertises MCP Apps UI support via the capability extension.
+func createMCPRequestWithSession(t *testing.T, clientName string, withUI bool, args any) mcp.CallToolRequest {
 	t.Helper()
 
 	argsMap, ok := args.(map[string]any)
@@ -307,11 +313,19 @@ func createMCPRequestWithSession(t *testing.T, clientName string, args any) mcp.
 
 	srv := mcp.NewServer(&mcp.Implementation{Name: "test"}, nil)
 
+	caps := &mcp.ClientCapabilities{}
+	if withUI {
+		caps.AddExtension("io.modelcontextprotocol/ui", map[string]any{
+			"mimeTypes": []string{"text/html;profile=mcp-app"},
+		})
+	}
+
 	st, _ := mcp.NewInMemoryTransports()
 	session, err := srv.Connect(context.Background(), st, &mcp.ServerSessionOptions{
 		State: &mcp.ServerSessionState{
 			InitializeParams: &mcp.InitializeParams{
-				ClientInfo: &mcp.Implementation{Name: clientName},
+				ClientInfo:   &mcp.Implementation{Name: clientName},
+				Capabilities: caps,
 			},
 		},
 	})

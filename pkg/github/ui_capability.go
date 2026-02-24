@@ -1,27 +1,32 @@
 package github
 
-import "github.com/modelcontextprotocol/go-sdk/mcp"
+import (
+	"context"
 
-// uiSupportedClients lists client names (from ClientInfo.Name) known to
-// support MCP Apps UI rendering.
-//
-// This is a temporary workaround until the Go SDK adds an Extensions field
-// to ClientCapabilities (see https://github.com/modelcontextprotocol/go-sdk/issues/777).
-// Once that lands, detection should use capabilities.extensions instead.
-var uiSupportedClients = map[string]bool{
-	"Visual Studio Code - Insiders": true,
-	"Visual Studio Code":            true,
-}
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+)
+
+// mcpAppsExtensionKey is the capability extension key that clients use to
+// advertise MCP Apps UI support.
+const mcpAppsExtensionKey = "io.modelcontextprotocol/ui"
 
 // clientSupportsUI reports whether the MCP client that sent this request
-// supports MCP Apps UI rendering, based on its ClientInfo.Name.
-func clientSupportsUI(req *mcp.CallToolRequest) bool {
-	if req == nil || req.Session == nil {
-		return false
+// supports MCP Apps UI rendering.
+// It checks the context first (set by HTTP/stateless servers from stored
+// session capabilities), then falls back to the go-sdk Session (for stdio).
+func clientSupportsUI(ctx context.Context, req *mcp.CallToolRequest) bool {
+	// Check context first (works for HTTP/stateless servers)
+	if supported, ok := ghcontext.HasUISupport(ctx); ok {
+		return supported
 	}
-	params := req.Session.InitializeParams()
-	if params == nil || params.ClientInfo == nil {
-		return false
+	// Fall back to go-sdk session (works for stdio/stateful servers)
+	if req != nil && req.Session != nil {
+		params := req.Session.InitializeParams()
+		if params != nil && params.Capabilities != nil {
+			_, hasUI := params.Capabilities.Extensions[mcpAppsExtensionKey]
+			return hasUI
+		}
 	}
-	return uiSupportedClients[params.ClientInfo.Name]
+	return false
 }
