@@ -454,12 +454,12 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, deps Tool
 		}
 	}
 
-	r, err := json.Marshal(reviews)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	minimalReviews := make([]MinimalPullRequestReview, 0, len(reviews))
+	for _, review := range reviews {
+		minimalReviews = append(minimalReviews, convertToMinimalPullRequestReview(review))
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return MarshalledTextResult(minimalReviews), nil
 }
 
 // PullRequestWriteUIResourceURI is the URI for the create_pull_request tool's MCP App UI resource.
