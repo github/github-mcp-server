@@ -455,12 +455,12 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, deps Tool
 		}
 	}
 
-	r, err := json.Marshal(reviews)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	minimalReviews := make([]MinimalPullRequestReview, 0, len(reviews))
+	for _, review := range reviews {
+		minimalReviews = append(minimalReviews, convertToMinimalPullRequestReview(review))
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return MarshalledTextResult(minimalReviews), nil
 }
 
 // PullRequestWriteUIResourceURI is the URI for the create_pull_request tool's MCP App UI resource.
@@ -538,7 +538,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			// to distinguish form submissions from LLM calls.
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 
-			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(req) && !uiSubmitted {
+			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(ctx, req) && !uiSubmitted {
 				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. The user will review and confirm via the interactive form.", owner, repo)), nil, nil
 			}
 

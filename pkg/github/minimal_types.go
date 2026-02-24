@@ -278,7 +278,37 @@ type MinimalProjectStatusUpdate struct {
 	Creator    *MinimalUser `json:"creator,omitempty"`
 }
 
+// MinimalPullRequestReview is the trimmed output type for pull request review objects to reduce verbosity.
+type MinimalPullRequestReview struct {
+	ID                int64        `json:"id"`
+	State             string       `json:"state"`
+	Body              string       `json:"body,omitempty"`
+	HTMLURL           string       `json:"html_url"`
+	User              *MinimalUser `json:"user,omitempty"`
+	CommitID          string       `json:"commit_id,omitempty"`
+	SubmittedAt       string       `json:"submitted_at,omitempty"`
+	AuthorAssociation string       `json:"author_association,omitempty"`
+}
+
 // Helper functions
+
+func convertToMinimalPullRequestReview(review *github.PullRequestReview) MinimalPullRequestReview {
+	m := MinimalPullRequestReview{
+		ID:                review.GetID(),
+		State:             review.GetState(),
+		Body:              review.GetBody(),
+		HTMLURL:           review.GetHTMLURL(),
+		User:              convertToMinimalUser(review.GetUser()),
+		CommitID:          review.GetCommitID(),
+		AuthorAssociation: review.GetAuthorAssociation(),
+	}
+
+	if review.SubmittedAt != nil {
+		m.SubmittedAt = review.SubmittedAt.Format(time.RFC3339)
+	}
+
+	return m
+}
 
 func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 	m := MinimalIssue{

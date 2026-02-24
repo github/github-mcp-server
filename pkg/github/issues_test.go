@@ -458,13 +458,12 @@ func Test_AddIssueComment(t *testing.T) {
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
-			var returnedComment github.IssueComment
-			err = json.Unmarshal([]byte(textContent.Text), &returnedComment)
+			// Unmarshal and verify the result contains minimal response
+			var minimalResponse MinimalResponse
+			err = json.Unmarshal([]byte(textContent.Text), &minimalResponse)
 			require.NoError(t, err)
-			assert.Equal(t, *tc.expectedComment.ID, *returnedComment.ID)
-			assert.Equal(t, *tc.expectedComment.Body, *returnedComment.Body)
-			assert.Equal(t, *tc.expectedComment.User.Login, *returnedComment.User.Login)
+			assert.Equal(t, fmt.Sprintf("%d", tc.expectedComment.GetID()), minimalResponse.ID)
+			assert.Equal(t, tc.expectedComment.GetHTMLURL(), minimalResponse.URL)
 
 		})
 	}
@@ -958,7 +957,7 @@ func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 	handler := serverTool.Handler(deps)
 
 	t.Run("UI client without _ui_submitted returns form message", func(t *testing.T) {
-		request := createMCPRequestWithSession(t, "Visual Studio Code - Insiders", map[string]any{
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
 			"method": "create",
 			"owner":  "owner",
 			"repo":   "repo",
@@ -972,7 +971,7 @@ func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 	})
 
 	t.Run("UI client with _ui_submitted executes directly", func(t *testing.T) {
-		request := createMCPRequestWithSession(t, "Visual Studio Code - Insiders", map[string]any{
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
 			"method":        "create",
 			"owner":         "owner",
 			"repo":          "repo",
