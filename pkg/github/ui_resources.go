@@ -17,7 +17,7 @@ func RegisterUIResources(s *mcp.Server) {
 			URI:         GetMeUIResourceURI,
 			Name:        "get_me_ui",
 			Description: "MCP App UI for the get_me tool",
-			MIMEType:    "text/html",
+			MIMEType:    MCPAppMIMEType,
 		},
 		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 			html := MustGetUIAsset("get-me.html")
@@ -25,7 +25,7 @@ func RegisterUIResources(s *mcp.Server) {
 				Contents: []*mcp.ResourceContents{
 					{
 						URI:      GetMeUIResourceURI,
-						MIMEType: "text/html",
+						MIMEType: MCPAppMIMEType,
 						Text:     html,
 						// MCP Apps UI metadata - CSP configuration to allow loading GitHub avatars
 						// See: https://github.com/modelcontextprotocol/ext-apps/blob/main/specification/draft/apps.mdx
@@ -49,7 +49,7 @@ func RegisterUIResources(s *mcp.Server) {
 			URI:         IssueWriteUIResourceURI,
 			Name:        "issue_write_ui",
 			Description: "MCP App UI for creating and updating GitHub issues",
-			MIMEType:    "text/html",
+			MIMEType:    MCPAppMIMEType,
 		},
 		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 			html := MustGetUIAsset("issue-write.html")
@@ -57,7 +57,7 @@ func RegisterUIResources(s *mcp.Server) {
 				Contents: []*mcp.ResourceContents{
 					{
 						URI:      IssueWriteUIResourceURI,
-						MIMEType: "text/html",
+						MIMEType: MCPAppMIMEType,
 						Text:     html,
 					},
 				},
@@ -71,7 +71,7 @@ func RegisterUIResources(s *mcp.Server) {
 			URI:         PullRequestWriteUIResourceURI,
 			Name:        "pr_write_ui",
 			Description: "MCP App UI for creating GitHub pull requests",
-			MIMEType:    "text/html",
+			MIMEType:    MCPAppMIMEType,
 		},
 		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 			html := MustGetUIAsset("pr-write.html")
@@ -79,7 +79,7 @@ func RegisterUIResources(s *mcp.Server) {
 				Contents: []*mcp.ResourceContents{
 					{
 						URI:      PullRequestWriteUIResourceURI,
-						MIMEType: "text/html",
+						MIMEType: MCPAppMIMEType,
 						Text:     html,
 					},
 				},
