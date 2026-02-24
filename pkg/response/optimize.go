@@ -28,12 +28,14 @@ func WithMaxDepth(d int) OptimizeListOption {
 	}
 }
 
-// WithPreservedFields sets keys that are exempt from all destructive strategies except whitespace normalization.
-// Keys are matched against post-flatten map keys, so for nested fields like "user.html_url", the dotted key must be
-// added explicitly. Empty collections are still dropped. Wins over collectionExtractors.
+// WithPreservedFields adds keys that are exempt from all destructive strategies except whitespace normalization.
+// Keys are matched against post-flatten map keys, so for nested fields like "user.html_url", the dotted key must
+// be added explicitly.
 func WithPreservedFields(fields ...string) OptimizeListOption {
 	return func(c *OptimizeListConfig) {
-		c.preservedFields = make(map[string]bool, len(fields))
+		if c.preservedFields == nil {
+			c.preservedFields = make(map[string]bool, len(fields))
+		}
 		for _, f := range fields {
 			c.preservedFields[f] = true
 		}

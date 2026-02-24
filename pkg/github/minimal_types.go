@@ -698,10 +698,15 @@ func convertToMinimalRelease(release *github.RepositoryRelease) MinimalRelease {
 }
 
 func convertToMinimalTag(tag *github.RepositoryTag) MinimalTag {
-	return MinimalTag{
+	m := MinimalTag{
 		Name: tag.GetName(),
-		SHA:  tag.GetCommit().GetSHA(),
 	}
+
+	if commit := tag.GetCommit(); commit != nil {
+		m.SHA = commit.GetSHA()
+	}
+
+	return m
 }
 
 func convertToMinimalReviewThreadsResponse(query reviewThreadsQuery) MinimalReviewThreadsResponse {
