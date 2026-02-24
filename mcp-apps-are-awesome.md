@@ -1,0 +1,1 @@
+You can just build MCP Apps
