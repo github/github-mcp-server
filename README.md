@@ -1097,7 +1097,7 @@ The following sets of tools are available:
     Possible options: 
      1. get - Get details of a specific pull request.
      2. get_diff - Get the diff of a pull request.
-     3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
+     3. get_status - Get combined commit status of a head commit in a pull request.
      4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
      5. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Use cursor-based pagination (perPage, after) to control results.
      6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
