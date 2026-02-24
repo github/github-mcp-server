@@ -1,7 +1,6 @@
 package github
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -106,7 +105,7 @@ func Test_ProjectsList_ListProjects(t *testing.T) {
 			}
 			handler := toolDef.Handler(deps)
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expectError, result.IsError)
@@ -151,7 +150,7 @@ func Test_ProjectsList_ListProjectFields(t *testing.T) {
 			"owner_type":     "org",
 			"project_number": float64(1),
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 		require.NoError(t, err)
 		require.False(t, result.IsError)
@@ -177,7 +176,7 @@ func Test_ProjectsList_ListProjectFields(t *testing.T) {
 			"owner":      "octo-org",
 			"owner_type": "org",
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 		require.NoError(t, err)
 		require.True(t, result.IsError)
@@ -207,7 +206,7 @@ func Test_ProjectsList_ListProjectItems(t *testing.T) {
 			"owner_type":     "org",
 			"project_number": float64(1),
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 		require.NoError(t, err)
 		require.False(t, result.IsError)
@@ -260,7 +259,7 @@ func Test_ProjectsGet_GetProject(t *testing.T) {
 			"owner_type":     "org",
 			"project_number": float64(1),
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 		require.NoError(t, err)
 		require.False(t, result.IsError)
@@ -285,7 +284,7 @@ func Test_ProjectsGet_GetProject(t *testing.T) {
 			"owner_type":     "org",
 			"project_number": float64(1),
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 		require.NoError(t, err)
 		require.True(t, result.IsError)
@@ -316,7 +315,7 @@ func Test_ProjectsGet_GetProjectField(t *testing.T) {
 			"project_number": float64(1),
 			"field_id":       float64(101),
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 		require.NoError(t, err)
 		require.False(t, result.IsError)
@@ -341,7 +340,7 @@ func Test_ProjectsGet_GetProjectField(t *testing.T) {
 			"owner_type":     "org",
 			"project_number": float64(1),
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 		require.NoError(t, err)
 		require.True(t, result.IsError)
@@ -372,7 +371,7 @@ func Test_ProjectsGet_GetProjectItem(t *testing.T) {
 			"project_number": float64(1),
 			"item_id":        float64(1001),
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 		require.NoError(t, err)
 		require.False(t, result.IsError)
@@ -397,7 +396,7 @@ func Test_ProjectsGet_GetProjectItem(t *testing.T) {
 			"owner_type":     "org",
 			"project_number": float64(1),
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 		require.NoError(t, err)
 		require.True(t, result.IsError)
@@ -520,7 +519,7 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 			"issue_number":   float64(123),
 			"item_type":      "issue",
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 		require.NoError(t, err)
 		require.False(t, result.IsError)
@@ -617,7 +616,7 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 			"pull_request_number": float64(456),
 			"item_type":           "pull_request",
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 		require.NoError(t, err)
 		require.False(t, result.IsError)
@@ -646,7 +645,7 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 			"item_repo":      "item-repo",
 			"issue_number":   float64(123),
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 		require.NoError(t, err)
 		require.True(t, result.IsError)
@@ -671,7 +670,7 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 			"issue_number":   float64(123),
 			"item_type":      "invalid_type",
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 		require.NoError(t, err)
 		require.True(t, result.IsError)
@@ -692,7 +691,7 @@ func Test_ProjectsWrite_AddProjectItem(t *testing.T) {
 			"owner_type":     "org",
 			"project_number": float64(1),
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 		require.NoError(t, err)
 		require.True(t, result.IsError)
@@ -727,7 +726,7 @@ func Test_ProjectsWrite_UpdateProjectItem(t *testing.T) {
 				"value": "In Progress",
 			},
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 		require.NoError(t, err)
 		require.False(t, result.IsError)
@@ -753,7 +752,7 @@ func Test_ProjectsWrite_UpdateProjectItem(t *testing.T) {
 			"project_number": float64(1),
 			"item_id":        float64(1001),
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 		require.NoError(t, err)
 		require.True(t, result.IsError)
@@ -784,7 +783,7 @@ func Test_ProjectsWrite_DeleteProjectItem(t *testing.T) {
 			"project_number": float64(1),
 			"item_id":        float64(1001),
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 		require.NoError(t, err)
 		require.False(t, result.IsError)
@@ -806,7 +805,7 @@ func Test_ProjectsWrite_DeleteProjectItem(t *testing.T) {
 			"owner_type":     "org",
 			"project_number": float64(1),
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 		require.NoError(t, err)
 		require.True(t, result.IsError)
@@ -873,7 +872,7 @@ func Test_ProjectsList_ListProjectStatusUpdates(t *testing.T) {
 			"owner":          "octocat",
 			"project_number": float64(1),
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 		require.NoError(t, err)
 		require.False(t, result.IsError)
@@ -923,7 +922,7 @@ func Test_ProjectsGet_GetProjectStatusUpdate(t *testing.T) {
 			"project_number":   float64(1),
 			"status_update_id": "SU_abc123",
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 		require.NoError(t, err)
 		require.False(t, result.IsError)
@@ -1006,7 +1005,7 @@ func Test_ProjectsWrite_CreateProjectStatusUpdate(t *testing.T) {
 			"body":           "Consolidated test",
 			"status":         "AT_RISK",
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 		require.NoError(t, err)
 		require.False(t, result.IsError)

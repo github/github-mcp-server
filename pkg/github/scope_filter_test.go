@@ -1,7 +1,6 @@
 package github
 
 import (
-	"context"
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -135,7 +134,7 @@ func TestCreateToolScopeFilter(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			filter := CreateToolScopeFilter(tt.tokenScopes)
-			result, err := filter(context.Background(), tt.tool)
+			result, err := filter(t.Context(), tt.tool)
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, result, "filter result should match expected")
@@ -175,7 +174,7 @@ func TestCreateToolScopeFilter_Integration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get available tools
-	availableTools := inv.AvailableTools(context.Background())
+	availableTools := inv.AvailableTools(t.Context())
 
 	// Should see public_tool and repo_tool, but not gist_tool
 	assert.Len(t, availableTools, 2)

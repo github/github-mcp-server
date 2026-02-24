@@ -1,7 +1,6 @@
 package github
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -100,7 +99,7 @@ func Test_ListGlobalSecurityAdvisories(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -212,7 +211,7 @@ func Test_GetGlobalSecurityAdvisory(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -344,7 +343,7 @@ func Test_ListRepositorySecurityAdvisories(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			if tc.expectError {
 				require.Error(t, err)
@@ -474,7 +473,7 @@ func Test_ListOrgRepositorySecurityAdvisories(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			if tc.expectError {
 				require.Error(t, err)

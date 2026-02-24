@@ -1,7 +1,6 @@
 package github
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
@@ -103,7 +102,7 @@ func Test_GetMe(t *testing.T) {
 			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 			require.NoError(t, err)
 
 			if tc.expectToolError {
@@ -341,7 +340,7 @@ func Test_GetTeams(t *testing.T) {
 			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 			require.NoError(t, err)
 
 			if tc.expectToolError {
@@ -484,7 +483,7 @@ func Test_GetTeamMembers(t *testing.T) {
 			handler := serverTool.Handler(tc.deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(ContextWithDeps(context.Background(), tc.deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), tc.deps), &request)
 			require.NoError(t, err)
 
 			if tc.expectToolError {

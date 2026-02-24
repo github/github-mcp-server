@@ -1,7 +1,6 @@
 package transport
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -69,7 +68,7 @@ func TestGraphQLFeaturesTransport(t *testing.T) {
 			}
 
 			// Create a request
-			ctx := context.Background()
+			ctx := t.Context()
 			if tc.features != nil {
 				ctx = ghcontext.WithGraphQLFeatures(ctx, tc.features...)
 			}
@@ -109,7 +108,7 @@ func TestGraphQLFeaturesTransport_NilTransport(t *testing.T) {
 	}
 
 	// Create a request with features
-	ctx := ghcontext.WithGraphQLFeatures(context.Background(), "test_feature")
+	ctx := ghcontext.WithGraphQLFeatures(t.Context(), "test_feature")
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, server.URL, nil)
 	require.NoError(t, err)
 
@@ -137,7 +136,7 @@ func TestGraphQLFeaturesTransport_DoesNotMutateOriginalRequest(t *testing.T) {
 	}
 
 	// Create a request with features
-	ctx := ghcontext.WithGraphQLFeatures(context.Background(), "test_feature")
+	ctx := ghcontext.WithGraphQLFeatures(t.Context(), "test_feature")
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, server.URL, nil)
 	require.NoError(t, err)
 

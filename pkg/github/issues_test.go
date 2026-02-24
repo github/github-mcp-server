@@ -2,7 +2,6 @@ package github
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -326,7 +325,7 @@ func Test_GetIssue(t *testing.T) {
 			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			if tc.expectHandlerError {
 				require.Error(t, err)
@@ -437,7 +436,7 @@ func Test_AddIssueComment(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -465,7 +464,6 @@ func Test_AddIssueComment(t *testing.T) {
 			assert.Equal(t, *tc.expectedComment.ID, *returnedComment.ID)
 			assert.Equal(t, *tc.expectedComment.Body, *returnedComment.Body)
 			assert.Equal(t, *tc.expectedComment.User.Login, *returnedComment.User.Login)
-
 		})
 	}
 }
@@ -741,7 +739,7 @@ func Test_SearchIssues(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -904,7 +902,7 @@ func Test_CreateIssue(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -964,7 +962,7 @@ func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 			"repo":   "repo",
 			"title":  "Test",
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 		require.NoError(t, err)
 
 		textContent := getTextResult(t, result)
@@ -979,7 +977,7 @@ func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 			"title":         "Test",
 			"_ui_submitted": true,
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 		require.NoError(t, err)
 
 		textContent := getTextResult(t, result)
@@ -994,7 +992,7 @@ func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 			"repo":   "repo",
 			"title":  "Test",
 		})
-		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 		require.NoError(t, err)
 
 		textContent := getTextResult(t, result)
@@ -1286,7 +1284,7 @@ func Test_ListIssues(t *testing.T) {
 			handler := serverTool.Handler(deps)
 
 			req := createMCPRequest(tc.reqParams)
-			res, err := handler(ContextWithDeps(context.Background(), deps), &req)
+			res, err := handler(ContextWithDeps(t.Context(), deps), &req)
 			text := getTextResult(t, res).Text
 
 			if tc.expectError {
@@ -1770,7 +1768,7 @@ func Test_UpdateIssue(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			// Verify results
 			if tc.expectError || tc.expectedErrMsg != "" {
@@ -2007,7 +2005,7 @@ func Test_GetIssueComments(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -2124,7 +2122,7 @@ func Test_GetIssueLabels(t *testing.T) {
 			handler := serverTool.Handler(deps)
 
 			request := createMCPRequest(tc.requestArgs)
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			require.NoError(t, err)
 			assert.NotNil(t, result)
@@ -2331,7 +2329,7 @@ func Test_AddSubIssue(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -2556,7 +2554,7 @@ func Test_GetSubIssues(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -2771,7 +2769,7 @@ func Test_RemoveSubIssue(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -3031,7 +3029,7 @@ func Test_ReprioritizeSubIssue(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			// Verify results
 			if tc.expectError {
@@ -3147,7 +3145,7 @@ func Test_ListIssueTypes(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Call handler
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			// Verify results
 			if tc.expectError {

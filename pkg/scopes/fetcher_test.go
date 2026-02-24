@@ -170,7 +170,7 @@ func TestFetcher_FetchTokenScopes(t *testing.T) {
 			apiHost := testAPIHostResolver{baseURL: server.URL}
 			fetcher := NewFetcher(apiHost, FetcherOptions{})
 
-			scopes, err := fetcher.FetchTokenScopes(context.Background(), "test-token")
+			scopes, err := fetcher.FetchTokenScopes(t.Context(), "test-token")
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -190,7 +190,7 @@ func TestFetcher_DefaultOptions(t *testing.T) {
 	fetcher := NewFetcher(apiHost, FetcherOptions{})
 
 	// Verify default API host is set
-	apiURL, err := fetcher.apiHost.BaseRESTURL(context.Background())
+	apiURL, err := fetcher.apiHost.BaseRESTURL(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "https://api.github.com", apiURL.String())
 
@@ -214,7 +214,7 @@ func TestFetcher_CustomAPIHost(t *testing.T) {
 	apiHost := testAPIHostResolver{baseURL: "https://api.github.enterprise.com"}
 	fetcher := NewFetcher(apiHost, FetcherOptions{})
 
-	apiURL, err := fetcher.apiHost.BaseRESTURL(context.Background())
+	apiURL, err := fetcher.apiHost.BaseRESTURL(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "https://api.github.enterprise.com", apiURL.String())
 }
@@ -229,7 +229,7 @@ func TestFetcher_ContextCancellation(t *testing.T) {
 	apiHost := testAPIHostResolver{baseURL: server.URL}
 	fetcher := NewFetcher(apiHost, FetcherOptions{})
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel() // Cancel immediately
 
 	_, err := fetcher.FetchTokenScopes(ctx, "test-token")

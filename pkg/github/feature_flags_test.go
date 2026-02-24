@@ -111,7 +111,7 @@ func TestHelloWorld_ConditionalBehavior_Featureflag(t *testing.T) {
 			handler := tool.Handler(deps)
 
 			// Call the handler with deps in context
-			ctx := ContextWithDeps(context.Background(), deps)
+			ctx := ContextWithDeps(t.Context(), deps)
 			result, err := handler(ctx, &mcp.CallToolRequest{
 				Params: &mcp.CallToolParamsRaw{
 					Arguments: json.RawMessage(`{}`),
@@ -173,7 +173,7 @@ func TestHelloWorld_ConditionalBehavior_Config(t *testing.T) {
 			handler := tool.Handler(deps)
 
 			// Call the handler with deps in context
-			ctx := ContextWithDeps(context.Background(), deps)
+			ctx := ContextWithDeps(t.Context(), deps)
 			result, err := handler(ctx, &mcp.CallToolRequest{
 				Params: &mcp.CallToolParamsRaw{
 					Arguments: json.RawMessage(`{}`),

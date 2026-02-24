@@ -31,11 +31,11 @@ func TestIsFeatureEnabled_WithEnabledFlag(t *testing.T) {
 	)
 
 	// Test enabled flag
-	result := deps.IsFeatureEnabled(context.Background(), "test_flag")
+	result := deps.IsFeatureEnabled(t.Context(), "test_flag")
 	assert.True(t, result, "Expected test_flag to be enabled")
 
 	// Test disabled flag
-	result = deps.IsFeatureEnabled(context.Background(), "other_flag")
+	result = deps.IsFeatureEnabled(t.Context(), "other_flag")
 	assert.False(t, result, "Expected other_flag to be disabled")
 }
 
@@ -55,7 +55,7 @@ func TestIsFeatureEnabled_WithoutChecker(t *testing.T) {
 	)
 
 	// Should return false when checker is nil
-	result := deps.IsFeatureEnabled(context.Background(), "any_flag")
+	result := deps.IsFeatureEnabled(t.Context(), "any_flag")
 	assert.False(t, result, "Expected false when checker is nil")
 }
 
@@ -79,7 +79,7 @@ func TestIsFeatureEnabled_EmptyFlagName(t *testing.T) {
 	)
 
 	// Should return false for empty flag name
-	result := deps.IsFeatureEnabled(context.Background(), "")
+	result := deps.IsFeatureEnabled(t.Context(), "")
 	assert.False(t, result, "Expected false for empty flag name")
 }
 
@@ -103,6 +103,6 @@ func TestIsFeatureEnabled_CheckerError(t *testing.T) {
 	)
 
 	// Should return false and log error (not crash)
-	result := deps.IsFeatureEnabled(context.Background(), "error_flag")
+	result := deps.IsFeatureEnabled(t.Context(), "error_flag")
 	assert.False(t, result, "Expected false when checker returns error")
 }

@@ -14,7 +14,7 @@ import (
 func TestGitHubErrorContext(t *testing.T) {
 	t.Run("API errors can be added to context and retrieved", func(t *testing.T) {
 		// Given a context with GitHub error tracking enabled
-		ctx := ContextWithGitHubErrors(context.Background())
+		ctx := ContextWithGitHubErrors(t.Context())
 
 		// Create a mock GitHub response
 		resp := &github.Response{
@@ -43,7 +43,7 @@ func TestGitHubErrorContext(t *testing.T) {
 
 	t.Run("GraphQL errors can be added to context and retrieved", func(t *testing.T) {
 		// Given a context with GitHub error tracking enabled
-		ctx := ContextWithGitHubErrors(context.Background())
+		ctx := ContextWithGitHubErrors(t.Context())
 
 		originalErr := fmt.Errorf("GraphQL query failed")
 
@@ -65,7 +65,7 @@ func TestGitHubErrorContext(t *testing.T) {
 
 	t.Run("Raw API errors can be added to context and retrieved", func(t *testing.T) {
 		// Given a context with GitHub error tracking enabled
-		ctx := ContextWithGitHubErrors(context.Background())
+		ctx := ContextWithGitHubErrors(t.Context())
 
 		// Create a mock HTTP response
 		resp := &http.Response{
@@ -92,7 +92,7 @@ func TestGitHubErrorContext(t *testing.T) {
 
 	t.Run("multiple errors can be accumulated in context", func(t *testing.T) {
 		// Given a context with GitHub error tracking enabled
-		ctx := ContextWithGitHubErrors(context.Background())
+		ctx := ContextWithGitHubErrors(t.Context())
 
 		// When we add multiple API errors
 		resp1 := &github.Response{Response: &http.Response{StatusCode: 404}}
@@ -140,7 +140,7 @@ func TestGitHubErrorContext(t *testing.T) {
 		// is shared, allowing middleware to inspect errors that were added later.
 
 		// Given a context with GitHub error tracking enabled
-		originalCtx := ContextWithGitHubErrors(context.Background())
+		originalCtx := ContextWithGitHubErrors(t.Context())
 
 		// Simulate a middleware that captures the context early
 		var middlewareCtx context.Context
@@ -182,7 +182,7 @@ func TestGitHubErrorContext(t *testing.T) {
 
 	t.Run("context without GitHub errors returns error", func(t *testing.T) {
 		// Given a regular context without GitHub error tracking
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// When we try to retrieve errors
 		apiErrors, err := GetGitHubAPIErrors(ctx)
@@ -207,7 +207,7 @@ func TestGitHubErrorContext(t *testing.T) {
 
 	t.Run("ContextWithGitHubErrors resets existing errors", func(t *testing.T) {
 		// Given a context with existing errors
-		ctx := ContextWithGitHubErrors(context.Background())
+		ctx := ContextWithGitHubErrors(t.Context())
 		resp := &github.Response{Response: &http.Response{StatusCode: 404}}
 		ctx, err := NewGitHubAPIErrorToCtx(ctx, "existing error", resp, fmt.Errorf("error"))
 		require.NoError(t, err)
@@ -241,7 +241,7 @@ func TestGitHubErrorContext(t *testing.T) {
 
 	t.Run("NewGitHubAPIErrorResponse creates MCP error result and stores context error", func(t *testing.T) {
 		// Given a context with GitHub error tracking enabled
-		ctx := ContextWithGitHubErrors(context.Background())
+		ctx := ContextWithGitHubErrors(t.Context())
 
 		resp := &github.Response{Response: &http.Response{StatusCode: 422}}
 		originalErr := fmt.Errorf("validation failed")
@@ -266,7 +266,7 @@ func TestGitHubErrorContext(t *testing.T) {
 
 	t.Run("NewGitHubGraphQLErrorResponse creates MCP error result and stores context error", func(t *testing.T) {
 		// Given a context with GitHub error tracking enabled
-		ctx := ContextWithGitHubErrors(context.Background())
+		ctx := ContextWithGitHubErrors(t.Context())
 
 		originalErr := fmt.Errorf("mutation failed")
 
@@ -289,7 +289,7 @@ func TestGitHubErrorContext(t *testing.T) {
 
 	t.Run("NewGitHubAPIStatusErrorResponse creates MCP error result from status code", func(t *testing.T) {
 		// Given a context with GitHub error tracking enabled
-		ctx := ContextWithGitHubErrors(context.Background())
+		ctx := ContextWithGitHubErrors(t.Context())
 
 		resp := &github.Response{Response: &http.Response{StatusCode: 422}}
 		body := []byte(`{"message": "Validation Failed"}`)
@@ -316,7 +316,7 @@ func TestGitHubErrorContext(t *testing.T) {
 
 	t.Run("NewGitHubAPIErrorToCtx with uninitialized context does not error", func(t *testing.T) {
 		// Given a regular context without GitHub error tracking initialized
-		ctx := context.Background()
+		ctx := t.Context()
 
 		// Create a mock GitHub response
 		resp := &github.Response{
@@ -392,7 +392,7 @@ func TestMiddlewareScenario(t *testing.T) {
 		// Simulate a realistic HTTP middleware scenario
 
 		// 1. Request comes in, middleware sets up error tracking
-		ctx := ContextWithGitHubErrors(context.Background())
+		ctx := ContextWithGitHubErrors(t.Context())
 
 		// 2. Middleware stores reference to context for later inspection
 		var middlewareCtx context.Context

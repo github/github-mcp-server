@@ -2,7 +2,6 @@ package raw
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"net/http"
 	"net/url"
@@ -110,7 +109,7 @@ func TestGetRawContent(t *testing.T) {
 			}
 			ghClient := github.NewClient(mockedClient)
 			client := NewClient(ghClient, base)
-			resp, err := client.GetRawContent(context.Background(), tc.owner, tc.repo, tc.path, tc.opts)
+			resp, err := client.GetRawContent(t.Context(), tc.owner, tc.repo, tc.path, tc.opts)
 			defer func() {
 				_ = resp.Body.Close()
 			}()

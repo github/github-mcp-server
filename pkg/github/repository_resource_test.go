@@ -1,7 +1,6 @@
 package github
 
 import (
-	"context"
 	"net/http"
 	"net/url"
 	"testing"
@@ -242,7 +241,7 @@ func Test_repositoryResourceContents(t *testing.T) {
 				Client:    client,
 				RawClient: mockRawClient,
 			}
-			ctx := ContextWithDeps(context.Background(), deps)
+			ctx := ContextWithDeps(t.Context(), deps)
 			handler := tc.handlerFn()
 
 			request := &mcp.ReadResourceRequest{

@@ -76,13 +76,13 @@ func mockTool(name string, toolsetID string, readOnly bool) ServerTool {
 
 func TestNewRegistryEmpty(t *testing.T) {
 	reg := mustBuild(t, NewBuilder())
-	if len(reg.AvailableTools(context.Background())) != 0 {
+	if len(reg.AvailableTools(t.Context())) != 0 {
 		t.Fatalf("Expected tools to be empty")
 	}
-	if len(reg.AvailableResourceTemplates(context.Background())) != 0 {
+	if len(reg.AvailableResourceTemplates(t.Context())) != 0 {
 		t.Fatalf("Expected resourceTemplates to be empty")
 	}
-	if len(reg.AvailablePrompts(context.Background())) != 0 {
+	if len(reg.AvailablePrompts(t.Context())) != 0 {
 		t.Fatalf("Expected prompts to be empty")
 	}
 }
@@ -109,7 +109,7 @@ func TestAvailableTools_NoFilters(t *testing.T) {
 	}
 
 	reg := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}))
-	available := reg.AvailableTools(context.Background())
+	available := reg.AvailableTools(t.Context())
 
 	if len(available) != 3 {
 		t.Fatalf("Expected 3 available tools, got %d", len(available))
@@ -132,14 +132,14 @@ func TestWithReadOnly(t *testing.T) {
 
 	// Build without read-only - should have both tools
 	reg := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}))
-	allTools := reg.AvailableTools(context.Background())
+	allTools := reg.AvailableTools(t.Context())
 	if len(allTools) != 2 {
 		t.Fatalf("Expected 2 tools without read-only, got %d", len(allTools))
 	}
 
 	// Build with read-only - should filter out write tools
 	readOnlyReg := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithReadOnly(true))
-	readOnlyTools := readOnlyReg.AvailableTools(context.Background())
+	readOnlyTools := readOnlyReg.AvailableTools(t.Context())
 	if len(readOnlyTools) != 1 {
 		t.Fatalf("Expected 1 tool in read-only, got %d", len(readOnlyTools))
 	}
@@ -157,14 +157,14 @@ func TestWithToolsets(t *testing.T) {
 
 	// Build with all toolsets
 	allReg := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}))
-	allTools := allReg.AvailableTools(context.Background())
+	allTools := allReg.AvailableTools(t.Context())
 	if len(allTools) != 3 {
 		t.Fatalf("Expected 3 tools without filter, got %d", len(allTools))
 	}
 
 	// Build with specific toolsets
 	filteredReg := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"toolset1", "toolset3"}))
-	filteredTools := filteredReg.AvailableTools(context.Background())
+	filteredTools := filteredReg.AvailableTools(t.Context())
 
 	if len(filteredTools) != 2 {
 		t.Fatalf("Expected 2 filtered tools, got %d", len(filteredTools))
@@ -188,7 +188,7 @@ func TestWithToolsetsTrimsWhitespace(t *testing.T) {
 
 	// Whitespace should be trimmed
 	filteredReg := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{" toolset1 ", "  toolset2  "}))
-	filteredTools := filteredReg.AvailableTools(context.Background())
+	filteredTools := filteredReg.AvailableTools(t.Context())
 
 	if len(filteredTools) != 2 {
 		t.Fatalf("Expected 2 tools after whitespace trimming, got %d", len(filteredTools))
@@ -202,7 +202,7 @@ func TestWithToolsetsDeduplicates(t *testing.T) {
 
 	// Duplicates should be removed
 	filteredReg := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"toolset1", "toolset1", " toolset1 "}))
-	filteredTools := filteredReg.AvailableTools(context.Background())
+	filteredTools := filteredReg.AvailableTools(t.Context())
 
 	if len(filteredTools) != 1 {
 		t.Fatalf("Expected 1 tool after deduplication, got %d", len(filteredTools))
@@ -216,7 +216,7 @@ func TestWithToolsetsIgnoresEmptyStrings(t *testing.T) {
 
 	// Empty strings should be ignored
 	filteredReg := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"", "toolset1", "  ", ""}))
-	filteredTools := filteredReg.AvailableTools(context.Background())
+	filteredTools := filteredReg.AvailableTools(t.Context())
 
 	if len(filteredTools) != 1 {
 		t.Fatalf("Expected 1 tool, got %d", len(filteredTools))
@@ -393,7 +393,7 @@ func TestWithTools(t *testing.T) {
 	// WithTools adds additional tools that bypass toolset filtering
 	// When combined with WithToolsets([]), only the additional tools should be available
 	filteredReg := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{}).WithTools([]string{"tool1", "tool3"}))
-	filteredTools := filteredReg.AvailableTools(context.Background())
+	filteredTools := filteredReg.AvailableTools(t.Context())
 
 	if len(filteredTools) != 2 {
 		t.Fatalf("Expected 2 filtered tools, got %d", len(filteredTools))
@@ -418,7 +418,7 @@ func TestChainedFilters(t *testing.T) {
 
 	// Chain read-only and toolset filter
 	filtered := mustBuild(t, NewBuilder().SetTools(tools).WithReadOnly(true).WithToolsets([]string{"toolset1"}))
-	result := filtered.AvailableTools(context.Background())
+	result := filtered.AvailableTools(t.Context())
 
 	if len(result) != 1 {
 		t.Fatalf("Expected 1 tool after chained filters, got %d", len(result))
@@ -571,7 +571,7 @@ func TestWithToolsAdditive(t *testing.T) {
 	// Enable only toolset2, but add issue_read as additional tool
 	filtered := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"toolset2"}).WithTools([]string{"issue_read"}))
 
-	available := filtered.AvailableTools(context.Background())
+	available := filtered.AvailableTools(t.Context())
 	if len(available) != 2 {
 		t.Errorf("expected 2 tools (repo_read from toolset + issue_read additional), got %d", len(available))
 	}
@@ -590,7 +590,7 @@ func TestWithToolsAdditive(t *testing.T) {
 
 	// Test WithTools respects read-only mode
 	readOnlyFiltered := mustBuild(t, NewBuilder().SetTools(tools).WithReadOnly(true).WithTools([]string{"issue_write"}))
-	available = readOnlyFiltered.AvailableTools(context.Background())
+	available = readOnlyFiltered.AvailableTools(t.Context())
 
 	// issue_write should be excluded because read-only applies to additional tools too
 	for _, tool := range available {
@@ -617,7 +617,7 @@ func TestWithToolsResolvesAliases(t *testing.T) {
 		}).
 		WithToolsets([]string{}).
 		WithTools([]string{"get_issue"}))
-	available := filtered.AvailableTools(context.Background())
+	available := filtered.AvailableTools(t.Context())
 
 	if len(available) != 1 {
 		t.Errorf("expected 1 tool, got %d", len(available))
@@ -681,7 +681,7 @@ func TestAllTools(t *testing.T) {
 	}
 
 	// But AvailableTools respects the filter
-	availableTools := readOnlyReg.AvailableTools(context.Background())
+	availableTools := readOnlyReg.AvailableTools(t.Context())
 	if len(availableTools) != 1 {
 		t.Fatalf("Expected 1 tool from AvailableTools, got %d", len(availableTools))
 	}
@@ -742,14 +742,14 @@ func TestForMCPRequest_Initialize(t *testing.T) {
 	filtered := reg.ForMCPRequest(MCPMethodInitialize, "")
 
 	// Initialize should return empty - capabilities come from ServerOptions
-	if len(filtered.AvailableTools(context.Background())) != 0 {
-		t.Errorf("Expected 0 tools for initialize, got %d", len(filtered.AvailableTools(context.Background())))
+	if got := len(filtered.AvailableTools(t.Context())); got != 0 {
+		t.Errorf("Expected 0 tools for initialize, got %d", got)
 	}
-	if len(filtered.AvailableResourceTemplates(context.Background())) != 0 {
-		t.Errorf("Expected 0 resources for initialize, got %d", len(filtered.AvailableResourceTemplates(context.Background())))
+	if got := len(filtered.AvailableResourceTemplates(t.Context())); got != 0 {
+		t.Errorf("Expected 0 resources for initialize, got %d", got)
 	}
-	if len(filtered.AvailablePrompts(context.Background())) != 0 {
-		t.Errorf("Expected 0 prompts for initialize, got %d", len(filtered.AvailablePrompts(context.Background())))
+	if got := len(filtered.AvailablePrompts(t.Context())); got != 0 {
+		t.Errorf("Expected 0 prompts for initialize, got %d", got)
 	}
 }
 
@@ -769,14 +769,14 @@ func TestForMCPRequest_ToolsList(t *testing.T) {
 	filtered := reg.ForMCPRequest(MCPMethodToolsList, "")
 
 	// tools/list should return all tools, no resources or prompts
-	if len(filtered.AvailableTools(context.Background())) != 2 {
-		t.Errorf("Expected 2 tools for tools/list, got %d", len(filtered.AvailableTools(context.Background())))
+	if got := len(filtered.AvailableTools(t.Context())); got != 2 {
+		t.Errorf("Expected 2 tools for tools/list, got %d", got)
 	}
-	if len(filtered.AvailableResourceTemplates(context.Background())) != 0 {
-		t.Errorf("Expected 0 resources for tools/list, got %d", len(filtered.AvailableResourceTemplates(context.Background())))
+	if got := len(filtered.AvailableResourceTemplates(t.Context())); got != 0 {
+		t.Errorf("Expected 0 resources for tools/list, got %d", got)
 	}
-	if len(filtered.AvailablePrompts(context.Background())) != 0 {
-		t.Errorf("Expected 0 prompts for tools/list, got %d", len(filtered.AvailablePrompts(context.Background())))
+	if got := len(filtered.AvailablePrompts(t.Context())); got != 0 {
+		t.Errorf("Expected 0 prompts for tools/list, got %d", got)
 	}
 }
 
@@ -790,7 +790,7 @@ func TestForMCPRequest_ToolsCall(t *testing.T) {
 	reg := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}))
 	filtered := reg.ForMCPRequest(MCPMethodToolsCall, "get_me")
 
-	available := filtered.AvailableTools(context.Background())
+	available := filtered.AvailableTools(t.Context())
 	if len(available) != 1 {
 		t.Fatalf("Expected 1 tool for tools/call with name, got %d", len(available))
 	}
@@ -807,8 +807,8 @@ func TestForMCPRequest_ToolsCall_NotFound(t *testing.T) {
 	reg := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}))
 	filtered := reg.ForMCPRequest(MCPMethodToolsCall, "nonexistent")
 
-	if len(filtered.AvailableTools(context.Background())) != 0 {
-		t.Errorf("Expected 0 tools for nonexistent tool, got %d", len(filtered.AvailableTools(context.Background())))
+	if got := len(filtered.AvailableTools(t.Context())); got != 0 {
+		t.Fatalf("Expected 0 tools for nonexistent tool, got %d", got)
 	}
 }
 
@@ -827,7 +827,7 @@ func TestForMCPRequest_ToolsCall_DeprecatedAlias(t *testing.T) {
 	// Request using the deprecated alias
 	filtered := reg.ForMCPRequest(MCPMethodToolsCall, "old_get_me")
 
-	available := filtered.AvailableTools(context.Background())
+	available := filtered.AvailableTools(t.Context())
 	if len(available) != 1 {
 		t.Fatalf("Expected 1 tool when using deprecated alias, got %d", len(available))
 	}
@@ -846,7 +846,7 @@ func TestForMCPRequest_ToolsCall_RespectsFilters(t *testing.T) {
 	filtered := reg.ForMCPRequest(MCPMethodToolsCall, "create_issue")
 
 	// The tool exists in the filtered group, but AvailableTools respects read-only
-	available := filtered.AvailableTools(context.Background())
+	available := filtered.AvailableTools(t.Context())
 	if len(available) != 0 {
 		t.Errorf("Expected 0 tools - write tool should be filtered by read-only, got %d", len(available))
 	}
@@ -867,14 +867,14 @@ func TestForMCPRequest_ResourcesList(t *testing.T) {
 	reg := mustBuild(t, NewBuilder().SetTools(tools).SetResources(resources).SetPrompts(prompts).WithToolsets([]string{"all"}))
 	filtered := reg.ForMCPRequest(MCPMethodResourcesList, "")
 
-	if len(filtered.AvailableTools(context.Background())) != 0 {
-		t.Errorf("Expected 0 tools for resources/list, got %d", len(filtered.AvailableTools(context.Background())))
+	if got := len(filtered.AvailableTools(t.Context())); got != 0 {
+		t.Errorf("Expected 0 tools for resources/list, got %d", got)
 	}
-	if len(filtered.AvailableResourceTemplates(context.Background())) != 2 {
-		t.Errorf("Expected 2 resources for resources/list, got %d", len(filtered.AvailableResourceTemplates(context.Background())))
+	if got := len(filtered.AvailableResourceTemplates(t.Context())); got != 2 {
+		t.Errorf("Expected 2 resources for resources/list, got %d", got)
 	}
-	if len(filtered.AvailablePrompts(context.Background())) != 0 {
-		t.Errorf("Expected 0 prompts for resources/list, got %d", len(filtered.AvailablePrompts(context.Background())))
+	if got := len(filtered.AvailablePrompts(t.Context())); got != 0 {
+		t.Errorf("Expected 0 prompts for resources/list, got %d", got)
 	}
 }
 
@@ -889,11 +889,12 @@ func TestForMCPRequest_ResourcesRead(t *testing.T) {
 	filtered := reg.ForMCPRequest(MCPMethodResourcesRead, "repo://owner/repo")
 
 	// All resources should be available - SDK handles URI template matching internally
-	available := filtered.AvailableResourceTemplates(context.Background())
+	available := filtered.AvailableResourceTemplates(t.Context())
 	if len(available) != 2 {
 		t.Fatalf("Expected 2 resources for resources/read (SDK handles matching), got %d", len(available))
 	}
 }
+
 func TestForMCPRequest_PromptsList(t *testing.T) {
 	tools := []ServerTool{
 		mockTool("tool1", "repos", true),
@@ -909,14 +910,14 @@ func TestForMCPRequest_PromptsList(t *testing.T) {
 	reg := mustBuild(t, NewBuilder().SetTools(tools).SetResources(resources).SetPrompts(prompts).WithToolsets([]string{"all"}))
 	filtered := reg.ForMCPRequest(MCPMethodPromptsList, "")
 
-	if len(filtered.AvailableTools(context.Background())) != 0 {
-		t.Errorf("Expected 0 tools for prompts/list, got %d", len(filtered.AvailableTools(context.Background())))
+	if got := len(filtered.AvailableTools(t.Context())); got != 0 {
+		t.Errorf("Expected 0 tools for prompts/list, got %d", got)
 	}
-	if len(filtered.AvailableResourceTemplates(context.Background())) != 0 {
-		t.Errorf("Expected 0 resources for prompts/list, got %d", len(filtered.AvailableResourceTemplates(context.Background())))
+	if got := len(filtered.AvailableResourceTemplates(t.Context())); got != 0 {
+		t.Errorf("Expected 0 resources for prompts/list, got %d", got)
 	}
-	if len(filtered.AvailablePrompts(context.Background())) != 2 {
-		t.Errorf("Expected 2 prompts for prompts/list, got %d", len(filtered.AvailablePrompts(context.Background())))
+	if got := len(filtered.AvailablePrompts(t.Context())); got != 2 {
+		t.Errorf("Expected 2 prompts for prompts/list, got %d", got)
 	}
 }
 
@@ -929,7 +930,7 @@ func TestForMCPRequest_PromptsGet(t *testing.T) {
 	reg := mustBuild(t, NewBuilder().SetPrompts(prompts).WithToolsets([]string{"all"}))
 	filtered := reg.ForMCPRequest(MCPMethodPromptsGet, "prompt1")
 
-	available := filtered.AvailablePrompts(context.Background())
+	available := filtered.AvailablePrompts(t.Context())
 	if len(available) != 1 {
 		t.Fatalf("Expected 1 prompt for prompts/get, got %d", len(available))
 	}
@@ -953,14 +954,14 @@ func TestForMCPRequest_UnknownMethod(t *testing.T) {
 	filtered := reg.ForMCPRequest("unknown/method", "")
 
 	// Unknown methods should return empty
-	if len(filtered.AvailableTools(context.Background())) != 0 {
-		t.Errorf("Expected 0 tools for unknown method, got %d", len(filtered.AvailableTools(context.Background())))
+	if got := len(filtered.AvailableTools(t.Context())); got != 0 {
+		t.Errorf("Expected 0 tools for unknown method, got %d", got)
 	}
-	if len(filtered.AvailableResourceTemplates(context.Background())) != 0 {
-		t.Errorf("Expected 0 resources for unknown method, got %d", len(filtered.AvailableResourceTemplates(context.Background())))
+	if got := len(filtered.AvailableResourceTemplates(t.Context())); got != 0 {
+		t.Errorf("Expected 0 resources for unknown method, got %d", got)
 	}
-	if len(filtered.AvailablePrompts(context.Background())) != 0 {
-		t.Errorf("Expected 0 prompts for unknown method, got %d", len(filtered.AvailablePrompts(context.Background())))
+	if got := len(filtered.AvailablePrompts(t.Context())); got != 0 {
+		t.Errorf("Expected 0 prompts for unknown method, got %d", got)
 	}
 }
 
@@ -980,25 +981,25 @@ func TestForMCPRequest_DoesNotMutateOriginal(t *testing.T) {
 	filtered := original.ForMCPRequest(MCPMethodToolsCall, "tool1")
 
 	// Original should be unchanged
-	if len(original.AvailableTools(context.Background())) != 2 {
-		t.Errorf("Original was mutated! Expected 2 tools, got %d", len(original.AvailableTools(context.Background())))
+	if got := len(original.AvailableTools(t.Context())); got != 2 {
+		t.Errorf("Original was mutated! Expected 2 tools, got %d", got)
 	}
-	if len(original.AvailableResourceTemplates(context.Background())) != 1 {
-		t.Errorf("Original was mutated! Expected 1 resource, got %d", len(original.AvailableResourceTemplates(context.Background())))
+	if got := len(original.AvailableResourceTemplates(t.Context())); got != 1 {
+		t.Errorf("Original was mutated! Expected 1 resource, got %d", got)
 	}
-	if len(original.AvailablePrompts(context.Background())) != 1 {
-		t.Errorf("Original was mutated! Expected 1 prompt, got %d", len(original.AvailablePrompts(context.Background())))
+	if got := len(original.AvailablePrompts(t.Context())); got != 1 {
+		t.Errorf("Original was mutated! Expected 1 prompt, got %d", got)
 	}
 
 	// Filtered should have only the requested tool
-	if len(filtered.AvailableTools(context.Background())) != 1 {
-		t.Errorf("Expected 1 tool in filtered, got %d", len(filtered.AvailableTools(context.Background())))
+	if got := len(filtered.AvailableTools(t.Context())); got != 1 {
+		t.Errorf("Expected 1 tool in filtered, got %d", got)
 	}
-	if len(filtered.AvailableResourceTemplates(context.Background())) != 0 {
-		t.Errorf("Expected 0 resources in filtered, got %d", len(filtered.AvailableResourceTemplates(context.Background())))
+	if got := len(filtered.AvailableResourceTemplates(t.Context())); got != 0 {
+		t.Errorf("Expected 0 resources in filtered, got %d", got)
 	}
-	if len(filtered.AvailablePrompts(context.Background())) != 0 {
-		t.Errorf("Expected 0 prompts in filtered, got %d", len(filtered.AvailablePrompts(context.Background())))
+	if got := len(filtered.AvailablePrompts(t.Context())); got != 0 {
+		t.Errorf("Expected 0 prompts in filtered, got %d", got)
 	}
 }
 
@@ -1016,7 +1017,7 @@ func TestForMCPRequest_ChainedWithOtherFilters(t *testing.T) {
 		WithReadOnly(true))
 	filtered := reg.ForMCPRequest(MCPMethodToolsList, "")
 
-	available := filtered.AvailableTools(context.Background())
+	available := filtered.AvailableTools(t.Context())
 
 	// Should have: get_me (context, read), list_repos (repos, read)
 	// Should NOT have: create_issue (issues not in default), delete_repo (write)
@@ -1055,11 +1056,11 @@ func TestForMCPRequest_ResourcesTemplatesList(t *testing.T) {
 	filtered := reg.ForMCPRequest(MCPMethodResourcesTemplatesList, "")
 
 	// Same behavior as resources/list
-	if len(filtered.AvailableTools(context.Background())) != 0 {
-		t.Errorf("Expected 0 tools, got %d", len(filtered.AvailableTools(context.Background())))
+	if got := len(filtered.AvailableTools(t.Context())); got != 0 {
+		t.Errorf("Expected 0 tools, got %d", got)
 	}
-	if len(filtered.AvailableResourceTemplates(context.Background())) != 1 {
-		t.Errorf("Expected 1 resource, got %d", len(filtered.AvailableResourceTemplates(context.Background())))
+	if got := len(filtered.AvailableResourceTemplates(t.Context())); got != 1 {
+		t.Errorf("Expected 1 resource, got %d", got)
 	}
 }
 
@@ -1102,7 +1103,7 @@ func TestFeatureFlagEnable(t *testing.T) {
 
 	// Without feature checker, tool with FeatureFlagEnable should be excluded
 	reg := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}))
-	available := reg.AvailableTools(context.Background())
+	available := reg.AvailableTools(t.Context())
 	if len(available) != 1 {
 		t.Fatalf("Expected 1 tool without feature checker, got %d", len(available))
 	}
@@ -1113,7 +1114,7 @@ func TestFeatureFlagEnable(t *testing.T) {
 	// With feature checker returning false, tool should still be excluded
 	checkerFalse := func(_ context.Context, _ string) (bool, error) { return false, nil }
 	regFalse := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checkerFalse))
-	availableFalse := regFalse.AvailableTools(context.Background())
+	availableFalse := regFalse.AvailableTools(t.Context())
 	if len(availableFalse) != 1 {
 		t.Fatalf("Expected 1 tool with false checker, got %d", len(availableFalse))
 	}
@@ -1123,7 +1124,7 @@ func TestFeatureFlagEnable(t *testing.T) {
 		return flag == "my_feature", nil
 	}
 	regTrue := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checkerTrue))
-	availableTrue := regTrue.AvailableTools(context.Background())
+	availableTrue := regTrue.AvailableTools(t.Context())
 	if len(availableTrue) != 2 {
 		t.Fatalf("Expected 2 tools with true checker, got %d", len(availableTrue))
 	}
@@ -1137,7 +1138,7 @@ func TestFeatureFlagDisable(t *testing.T) {
 
 	// Without feature checker, tool with FeatureFlagDisable should be included (flag is false)
 	reg := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}))
-	available := reg.AvailableTools(context.Background())
+	available := reg.AvailableTools(t.Context())
 	if len(available) != 2 {
 		t.Fatalf("Expected 2 tools without feature checker, got %d", len(available))
 	}
@@ -1147,7 +1148,7 @@ func TestFeatureFlagDisable(t *testing.T) {
 		return flag == "kill_switch", nil
 	}
 	regFiltered := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checkerTrue))
-	availableFiltered := regFiltered.AvailableTools(context.Background())
+	availableFiltered := regFiltered.AvailableTools(t.Context())
 	if len(availableFiltered) != 1 {
 		t.Fatalf("Expected 1 tool with kill_switch enabled, got %d", len(availableFiltered))
 	}
@@ -1165,21 +1166,21 @@ func TestFeatureFlagBoth(t *testing.T) {
 	// Enable flag not set -> excluded
 	checker1 := func(_ context.Context, _ string) (bool, error) { return false, nil }
 	reg1 := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checker1))
-	if len(reg1.AvailableTools(context.Background())) != 0 {
+	if len(reg1.AvailableTools(t.Context())) != 0 {
 		t.Error("Tool should be excluded when enable flag is false")
 	}
 
 	// Enable flag set, disable flag not set -> included
 	checker2 := func(_ context.Context, flag string) (bool, error) { return flag == "new_feature", nil }
 	reg2 := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checker2))
-	if len(reg2.AvailableTools(context.Background())) != 1 {
+	if len(reg2.AvailableTools(t.Context())) != 1 {
 		t.Error("Tool should be included when enable flag is true and disable flag is false")
 	}
 
 	// Enable flag set, disable flag also set -> excluded (disable wins)
 	checker3 := func(_ context.Context, _ string) (bool, error) { return true, nil }
 	reg3 := mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}).WithFeatureChecker(checker3))
-	if len(reg3.AvailableTools(context.Background())) != 0 {
+	if len(reg3.AvailableTools(t.Context())) != 0 {
 		t.Error("Tool should be excluded when both flags are true (disable wins)")
 	}
 }
@@ -1194,7 +1195,7 @@ func TestFeatureFlagError(t *testing.T) {
 		return false, fmt.Errorf("simulated error")
 	}
 	reg := mustBuild(t, NewBuilder().SetTools(tools).WithFeatureChecker(checkerError))
-	available := reg.AvailableTools(context.Background())
+	available := reg.AvailableTools(t.Context())
 	if len(available) != 0 {
 		t.Errorf("Expected 0 tools when checker errors, got %d", len(available))
 	}
@@ -1212,7 +1213,7 @@ func TestFeatureFlagResources(t *testing.T) {
 
 	// Without checker, resource with enable flag should be excluded
 	reg := mustBuild(t, NewBuilder().SetResources(resources).WithToolsets([]string{"all"}))
-	available := reg.AvailableResourceTemplates(context.Background())
+	available := reg.AvailableResourceTemplates(t.Context())
 	if len(available) != 1 {
 		t.Fatalf("Expected 1 resource without checker, got %d", len(available))
 	}
@@ -1220,8 +1221,8 @@ func TestFeatureFlagResources(t *testing.T) {
 	// With checker returning true, both should be included
 	checker := func(_ context.Context, _ string) (bool, error) { return true, nil }
 	regWithChecker := mustBuild(t, NewBuilder().SetResources(resources).WithToolsets([]string{"all"}).WithFeatureChecker(checker))
-	if len(regWithChecker.AvailableResourceTemplates(context.Background())) != 2 {
-		t.Errorf("Expected 2 resources with checker, got %d", len(regWithChecker.AvailableResourceTemplates(context.Background())))
+	if got := len(regWithChecker.AvailableResourceTemplates(t.Context())); got != 2 {
+		t.Errorf("Expected 2 resources with checker, got %d", got)
 	}
 }
 
@@ -1237,7 +1238,7 @@ func TestFeatureFlagPrompts(t *testing.T) {
 
 	// Without checker, prompt with enable flag should be excluded
 	reg := mustBuild(t, NewBuilder().SetPrompts(prompts).WithToolsets([]string{"all"}))
-	available := reg.AvailablePrompts(context.Background())
+	available := reg.AvailablePrompts(t.Context())
 	if len(available) != 1 {
 		t.Fatalf("Expected 1 prompt without checker, got %d", len(available))
 	}
@@ -1245,8 +1246,8 @@ func TestFeatureFlagPrompts(t *testing.T) {
 	// With checker returning true, both should be included
 	checker := func(_ context.Context, _ string) (bool, error) { return true, nil }
 	regWithChecker := mustBuild(t, NewBuilder().SetPrompts(prompts).WithToolsets([]string{"all"}).WithFeatureChecker(checker))
-	if len(regWithChecker.AvailablePrompts(context.Background())) != 2 {
-		t.Errorf("Expected 2 prompts with checker, got %d", len(regWithChecker.AvailablePrompts(context.Background())))
+	if got := len(regWithChecker.AvailablePrompts(t.Context())); got != 2 {
+		t.Errorf("Expected 2 prompts with checker, got %d", got)
 	}
 }
 
@@ -1328,7 +1329,7 @@ func TestServerToolEnabled(t *testing.T) {
 			tool.Enabled = tt.enabledFunc
 
 			reg := mustBuild(t, NewBuilder().SetTools([]ServerTool{tool}).WithToolsets([]string{"all"}))
-			available := reg.AvailableTools(context.Background())
+			available := reg.AvailableTools(t.Context())
 
 			if len(available) != tt.expectedCount {
 				t.Errorf("Expected %d tools, got %d", tt.expectedCount, len(available))
@@ -1362,20 +1363,20 @@ func TestServerToolEnabledWithContext(t *testing.T) {
 	reg := mustBuild(t, NewBuilder().SetTools([]ServerTool{tool}).WithToolsets([]string{"all"}))
 
 	// Without user in context - tool should be excluded
-	available := reg.AvailableTools(context.Background())
+	available := reg.AvailableTools(t.Context())
 	if len(available) != 0 {
 		t.Errorf("Expected 0 tools without user, got %d", len(available))
 	}
 
 	// With authorized user - tool should be included
-	ctxWithUser := context.WithValue(context.Background(), userKey, "authorized")
+	ctxWithUser := context.WithValue(t.Context(), userKey, "authorized")
 	availableWithUser := reg.AvailableTools(ctxWithUser)
 	if len(availableWithUser) != 1 {
 		t.Errorf("Expected 1 tool with authorized user, got %d", len(availableWithUser))
 	}
 
 	// With unauthorized user - tool should be excluded
-	ctxWithBadUser := context.WithValue(context.Background(), userKey, "unauthorized")
+	ctxWithBadUser := context.WithValue(t.Context(), userKey, "unauthorized")
 	availableWithBadUser := reg.AvailableTools(ctxWithBadUser)
 	if len(availableWithBadUser) != 0 {
 		t.Errorf("Expected 0 tools with unauthorized user, got %d", len(availableWithBadUser))
@@ -1400,7 +1401,7 @@ func TestBuilderWithFilter(t *testing.T) {
 		WithToolsets([]string{"all"}).
 		WithFilter(filter))
 
-	available := reg.AvailableTools(context.Background())
+	available := reg.AvailableTools(t.Context())
 	if len(available) != 2 {
 		t.Fatalf("Expected 2 tools after filter, got %d", len(available))
 	}
@@ -1436,7 +1437,7 @@ func TestBuilderWithMultipleFilters(t *testing.T) {
 		WithFilter(filter1).
 		WithFilter(filter2))
 
-	available := reg.AvailableTools(context.Background())
+	available := reg.AvailableTools(t.Context())
 	if len(available) != 2 {
 		t.Fatalf("Expected 2 tools after multiple filters, got %d", len(available))
 	}
@@ -1469,7 +1470,7 @@ func TestBuilderFilterError(t *testing.T) {
 		WithToolsets([]string{"all"}).
 		WithFilter(filter))
 
-	available := reg.AvailableTools(context.Background())
+	available := reg.AvailableTools(t.Context())
 	if len(available) != 0 {
 		t.Errorf("Expected 0 tools when filter returns error, got %d", len(available))
 	}
@@ -1499,7 +1500,7 @@ func TestBuilderFilterWithContext(t *testing.T) {
 		WithFilter(filter))
 
 	// With public scope - private_tool should be excluded
-	ctxPublic := context.WithValue(context.Background(), scopeKey, "public")
+	ctxPublic := context.WithValue(t.Context(), scopeKey, "public")
 	availablePublic := reg.AvailableTools(ctxPublic)
 	if len(availablePublic) != 1 {
 		t.Fatalf("Expected 1 tool with public scope, got %d", len(availablePublic))
@@ -1509,7 +1510,7 @@ func TestBuilderFilterWithContext(t *testing.T) {
 	}
 
 	// With private scope - both tools should be available
-	ctxPrivate := context.WithValue(context.Background(), scopeKey, "private")
+	ctxPrivate := context.WithValue(t.Context(), scopeKey, "private")
 	availablePrivate := reg.AvailableTools(ctxPrivate)
 	if len(availablePrivate) != 2 {
 		t.Errorf("Expected 2 tools with private scope, got %d", len(availablePrivate))
@@ -1528,7 +1529,7 @@ func TestEnabledAndFeatureFlagInteraction(t *testing.T) {
 	reg1 := mustBuild(t, NewBuilder().
 		SetTools([]ServerTool{tool}).
 		WithToolsets([]string{"all"}))
-	available1 := reg1.AvailableTools(context.Background())
+	available1 := reg1.AvailableTools(t.Context())
 	if len(available1) != 0 {
 		t.Error("Tool should be excluded when feature flag is not enabled")
 	}
@@ -1541,7 +1542,7 @@ func TestEnabledAndFeatureFlagInteraction(t *testing.T) {
 		SetTools([]ServerTool{tool}).
 		WithToolsets([]string{"all"}).
 		WithFeatureChecker(checker))
-	available2 := reg2.AvailableTools(context.Background())
+	available2 := reg2.AvailableTools(t.Context())
 	if len(available2) != 1 {
 		t.Error("Tool should be included when both Enabled and feature flag pass")
 	}
@@ -1554,7 +1555,7 @@ func TestEnabledAndFeatureFlagInteraction(t *testing.T) {
 		SetTools([]ServerTool{tool}).
 		WithToolsets([]string{"all"}).
 		WithFeatureChecker(checker))
-	available3 := reg3.AvailableTools(context.Background())
+	available3 := reg3.AvailableTools(t.Context())
 	if len(available3) != 0 {
 		t.Error("Tool should be excluded when Enabled returns false")
 	}
@@ -1576,7 +1577,7 @@ func TestEnabledAndBuilderFilterInteraction(t *testing.T) {
 		WithToolsets([]string{"all"}).
 		WithFilter(filter))
 
-	available := reg.AvailableTools(context.Background())
+	available := reg.AvailableTools(t.Context())
 	if len(available) != 0 {
 		t.Error("Tool should be excluded when filter returns false, despite Enabled returning true")
 	}
@@ -1604,7 +1605,7 @@ func TestAllFiltersInteraction(t *testing.T) {
 		WithFeatureChecker(checker).
 		WithFilter(filter))
 
-	available := reg.AvailableTools(context.Background())
+	available := reg.AvailableTools(t.Context())
 	if len(available) != 1 {
 		t.Error("Tool should be included when all filters pass")
 	}
@@ -1620,7 +1621,7 @@ func TestAllFiltersInteraction(t *testing.T) {
 		WithFeatureChecker(checker).
 		WithFilter(filterFalse))
 
-	available2 := reg2.AvailableTools(context.Background())
+	available2 := reg2.AvailableTools(t.Context())
 	if len(available2) != 0 {
 		t.Error("Tool should be excluded when any filter fails")
 	}
@@ -1642,7 +1643,7 @@ func TestFilteredTools(t *testing.T) {
 		WithToolsets([]string{"all"}).
 		WithFilter(filter))
 
-	filtered, err := reg.FilteredTools(context.Background())
+	filtered, err := reg.FilteredTools(t.Context())
 	if err != nil {
 		t.Fatalf("FilteredTools returned error: %v", err)
 	}
@@ -1668,7 +1669,7 @@ func TestFilteredToolsMatchesAvailableTools(t *testing.T) {
 		WithToolsets([]string{"toolset1"}).
 		WithReadOnly(true))
 
-	ctx := context.Background()
+	ctx := t.Context()
 	filtered, err := reg.FilteredTools(ctx)
 	if err != nil {
 		t.Fatalf("FilteredTools returned error: %v", err)
@@ -1723,7 +1724,7 @@ func TestFilteringOrder(t *testing.T) {
 		WithFeatureChecker(checker).
 		WithFilter(filter))
 
-	_ = reg.AvailableTools(context.Background())
+	_ = reg.AvailableTools(t.Context())
 
 	// Expected order: Enabled, FeatureFlag, ReadOnly (stops here because it's write tool)
 	expectedOrder := []string{"Enabled", "FeatureFlag"}
@@ -1753,7 +1754,7 @@ func TestForMCPRequest_ToolsCall_FeatureFlaggedVariants(t *testing.T) {
 		SetTools(tools).
 		WithToolsets([]string{"all"}))
 	filteredOff := regFlagOff.ForMCPRequest(MCPMethodToolsCall, "get_job_logs")
-	availableOff := filteredOff.AvailableTools(context.Background())
+	availableOff := filteredOff.AvailableTools(t.Context())
 	if len(availableOff) != 1 {
 		t.Fatalf("Flag OFF: Expected 1 tool, got %d", len(availableOff))
 	}
@@ -1771,7 +1772,7 @@ func TestForMCPRequest_ToolsCall_FeatureFlaggedVariants(t *testing.T) {
 		WithToolsets([]string{"all"}).
 		WithFeatureChecker(checker))
 	filteredOn := regFlagOn.ForMCPRequest(MCPMethodToolsCall, "get_job_logs")
-	availableOn := filteredOn.AvailableTools(context.Background())
+	availableOn := filteredOn.AvailableTools(t.Context())
 	if len(availableOn) != 1 {
 		t.Fatalf("Flag ON: Expected 1 tool, got %d", len(availableOn))
 	}
@@ -1806,7 +1807,7 @@ func TestWithTools_DeprecatedAliasAndFeatureFlag(t *testing.T) {
 		WithDeprecatedAliases(deprecatedAliases).
 		WithToolsets([]string{}).        // No toolsets enabled
 		WithTools([]string{"old_tool"})) // Explicitly request old tool
-	availableOff := regFlagOff.AvailableTools(context.Background())
+	availableOff := regFlagOff.AvailableTools(t.Context())
 	if len(availableOff) != 1 {
 		t.Fatalf("Flag OFF: Expected 1 tool, got %d", len(availableOff))
 	}
@@ -1824,7 +1825,7 @@ func TestWithTools_DeprecatedAliasAndFeatureFlag(t *testing.T) {
 		WithToolsets([]string{}).        // No toolsets enabled
 		WithTools([]string{"old_tool"}). // Request old tool name
 		WithFeatureChecker(checker))
-	availableOn := regFlagOn.AvailableTools(context.Background())
+	availableOn := regFlagOn.AvailableTools(t.Context())
 	if len(availableOn) != 1 {
 		t.Fatalf("Flag ON: Expected 1 tool, got %d", len(availableOn))
 	}
@@ -1861,7 +1862,7 @@ func TestWithInsidersMode_DisabledStripsUIMetadata(t *testing.T) {
 
 	// Default: insiders mode is disabled - UI meta should be stripped
 	reg := mustBuild(t, NewBuilder().SetTools([]ServerTool{toolWithUI}).WithToolsets([]string{"all"}))
-	available := reg.AvailableTools(context.Background())
+	available := reg.AvailableTools(t.Context())
 
 	require.Len(t, available, 1)
 	// UI metadata should be stripped
@@ -1886,7 +1887,7 @@ func TestWithInsidersMode_EnabledPreservesUIMetadata(t *testing.T) {
 		SetTools([]ServerTool{toolWithUI}).
 		WithToolsets([]string{"all"}).
 		WithInsidersMode(true))
-	available := reg.AvailableTools(context.Background())
+	available := reg.AvailableTools(t.Context())
 
 	require.Len(t, available, 1)
 	// UI metadata should be preserved
@@ -1909,7 +1910,7 @@ func TestWithInsidersMode_EnabledPreservesInsidersOnlyTools(t *testing.T) {
 		SetTools([]ServerTool{normalTool, insidersTool}).
 		WithToolsets([]string{"all"}).
 		WithInsidersMode(true))
-	available := reg.AvailableTools(context.Background())
+	available := reg.AvailableTools(t.Context())
 
 	require.Len(t, available, 2)
 	names := []string{available[0].Tool.Name, available[1].Tool.Name}
@@ -1927,7 +1928,7 @@ func TestWithInsidersMode_DisabledRemovesInsidersOnlyTools(t *testing.T) {
 		SetTools([]ServerTool{normalTool, insidersTool}).
 		WithToolsets([]string{"all"}).
 		WithInsidersMode(false))
-	available := reg.AvailableTools(context.Background())
+	available := reg.AvailableTools(t.Context())
 
 	require.Len(t, available, 1)
 	require.Equal(t, "normal", available[0].Tool.Name)
@@ -1944,7 +1945,7 @@ func TestWithInsidersMode_ToolsWithoutUIMetaUnaffected(t *testing.T) {
 	reg := mustBuild(t, NewBuilder().
 		SetTools([]ServerTool{toolNoUI, toolNilMeta}).
 		WithToolsets([]string{"all"}))
-	available := reg.AvailableTools(context.Background())
+	available := reg.AvailableTools(t.Context())
 
 	require.Len(t, available, 2)
 
@@ -1982,7 +1983,7 @@ func TestWithInsidersMode_UIOnlyMetaBecomesNil(t *testing.T) {
 	reg := mustBuild(t, NewBuilder().
 		SetTools([]ServerTool{toolUIOnly}).
 		WithToolsets([]string{"all"}))
-	available := reg.AvailableTools(context.Background())
+	available := reg.AvailableTools(t.Context())
 
 	require.Len(t, available, 1)
 	// Meta should be nil since ui was the only key
@@ -2202,7 +2203,7 @@ func TestWithExcludeTools(t *testing.T) {
 				WithToolsets(tt.toolsets).
 				WithExcludeTools(tt.excluded))
 
-			available := reg.AvailableTools(context.Background())
+			available := reg.AvailableTools(t.Context())
 			names := make(map[string]bool)
 			for _, tool := range available {
 				names[tool.Tool.Name] = true
@@ -2233,7 +2234,7 @@ func TestWithExcludeTools_OverridesAdditionalTools(t *testing.T) {
 		WithTools([]string{"tool3"}).
 		WithExcludeTools([]string{"tool3"}))
 
-	available := reg.AvailableTools(context.Background())
+	available := reg.AvailableTools(t.Context())
 	names := make(map[string]bool)
 	for _, tool := range available {
 		names[tool.Tool.Name] = true
@@ -2258,7 +2259,7 @@ func TestWithExcludeTools_CombinesWithReadOnly(t *testing.T) {
 		WithReadOnly(true).
 		WithExcludeTools([]string{"read_tool"}))
 
-	available := reg.AvailableTools(context.Background())
+	available := reg.AvailableTools(t.Context())
 	require.Len(t, available, 1)
 	require.Equal(t, "another_read", available[0].Tool.Name)
 }
@@ -2269,11 +2270,11 @@ func TestCreateExcludeToolsFilter(t *testing.T) {
 	blockedTool := mockTool("blocked_tool", "toolset1", true)
 	allowedTool := mockTool("allowed_tool", "toolset1", true)
 
-	allowed, err := filter(context.Background(), &blockedTool)
+	allowed, err := filter(t.Context(), &blockedTool)
 	require.NoError(t, err)
 	require.False(t, allowed, "blocked_tool should be excluded")
 
-	allowed, err = filter(context.Background(), &allowedTool)
+	allowed, err = filter(t.Context(), &allowedTool)
 	require.NoError(t, err)
 	require.True(t, allowed, "allowed_tool should be included")
 }

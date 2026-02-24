@@ -1,7 +1,6 @@
 package github
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -698,7 +697,6 @@ func TestAssignCopilotToIssue(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-
 			t.Parallel()
 			// Setup client with mock
 			client := githubv4.NewClient(tc.mockedClient)
@@ -711,7 +709,7 @@ func TestAssignCopilotToIssue(t *testing.T) {
 			request := createMCPRequest(tc.requestArgs)
 
 			// Disable polling in tests to avoid timeouts
-			ctx := ContextWithPollConfig(context.Background(), PollConfig{MaxAttempts: 0})
+			ctx := ContextWithPollConfig(t.Context(), PollConfig{MaxAttempts: 0})
 			ctx = ContextWithDeps(ctx, deps)
 
 			// Call handler
@@ -832,7 +830,7 @@ func Test_RequestCopilotReview(t *testing.T) {
 
 			request := createMCPRequest(tc.requestArgs)
 
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			result, err := handler(ContextWithDeps(t.Context(), deps), &request)
 
 			if tc.expectError {
 				require.NoError(t, err)
