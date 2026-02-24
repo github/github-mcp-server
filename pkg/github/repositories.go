@@ -307,7 +307,9 @@ func ListBranches(t translations.TranslationHelperFunc) inventory.ServerTool {
 				minimalBranches = append(minimalBranches, convertToMinimalBranch(branch))
 			}
 
-			r, err := response.OptimizeList(minimalBranches)
+			r, err := response.OptimizeList(minimalBranches,
+				response.WithPreservedFields("protected"),
+			)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}

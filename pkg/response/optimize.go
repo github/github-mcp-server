@@ -45,6 +45,10 @@ func WithPreservedFields(fields ...string) OptimizeListOption {
 // OptimizeList optimizes a list of items by applying flattening, URL removal, zero-value removal,
 // whitespace normalization, and fill-rate filtering.
 func OptimizeList[T any](items []T, opts ...OptimizeListOption) ([]byte, error) {
+	if items == nil {
+		return []byte("[]"), nil
+	}
+
 	cfg := OptimizeListConfig{maxDepth: defaultMaxDepth}
 	for _, opt := range opts {
 		opt(&cfg)
@@ -83,6 +87,7 @@ func flattenTo(item map[string]any, maxDepth int) map[string]any {
 }
 
 // flattenInto is the recursive worker for flattenTo.
+// Nested maps at maxDepth are intentionally dropped, as deeply nested data is not useful in list responses.
 func flattenInto(item map[string]any, prefix string, result map[string]any, depth int, maxDepth int) {
 	for key, value := range item {
 		fullKey := prefix + key

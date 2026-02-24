@@ -1613,7 +1613,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 
 			optimizedIssues, err := response.OptimizeList(minimalIssues)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to optimize issues: %w", err)
+				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
 
 			// Wrap optimized issues with pagination metadata

@@ -69,6 +69,24 @@ func TestFlatten(t *testing.T) {
 			"commit.author.date": "2026-01-01",
 		}, result)
 	})
+
+	t.Run("drops nested maps at maxDepth boundary", func(t *testing.T) {
+		input := map[string]any{
+			"title": "issue",
+			"user": map[string]any{
+				"login": "alice",
+				"org": map[string]any{
+					"name": "acme",
+				},
+			},
+		}
+		result := flattenTo(input, defaultMaxDepth)
+
+		assert.Equal(t, "issue", result["title"])
+		assert.Equal(t, "alice", result["user.login"])
+		assert.Nil(t, result["user.org"], "nested map at maxDepth is dropped")
+		assert.Nil(t, result["user.org.name"], "nested map contents at maxDepth are dropped")
+	})
 }
 
 func TestFilterByFillRate(t *testing.T) {
@@ -153,7 +171,7 @@ func TestOptimizeList_AllStrategies(t *testing.T) {
 func TestOptimizeList_NilInput(t *testing.T) {
 	raw, err := OptimizeList[map[string]any](nil)
 	require.NoError(t, err)
-	assert.Equal(t, "null", string(raw))
+	assert.Equal(t, "[]", string(raw))
 }
 
 func TestOptimizeList_SkipsFillRateBelowMinRows(t *testing.T) {
