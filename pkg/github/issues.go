@@ -688,7 +688,12 @@ func AddIssueComment(t translations.TranslationHelperFunc) inventory.ServerTool 
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create comment", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(createdComment)
+			minimalResponse := MinimalResponse{
+				ID:  fmt.Sprintf("%d", createdComment.GetID()),
+				URL: createdComment.GetHTMLURL(),
+			}
+
+			r, err := json.Marshal(minimalResponse)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
