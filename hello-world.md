@@ -1,1 +1,4 @@
-Hello, World! MCP Apps are awesome
+Hello, World! 
+
+MCP Apps are now in the Insiders version of
+the GitHub MCP Server
