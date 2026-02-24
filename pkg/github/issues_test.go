@@ -458,13 +458,12 @@ func Test_AddIssueComment(t *testing.T) {
 			// Parse the result and get the text content if no error
 			textContent := getTextResult(t, result)
 
-			// Unmarshal and verify the result
-			var returnedComment github.IssueComment
-			err = json.Unmarshal([]byte(textContent.Text), &returnedComment)
+			// Unmarshal and verify the result contains minimal response
+			var minimalResponse MinimalResponse
+			err = json.Unmarshal([]byte(textContent.Text), &minimalResponse)
 			require.NoError(t, err)
-			assert.Equal(t, *tc.expectedComment.ID, *returnedComment.ID)
-			assert.Equal(t, *tc.expectedComment.Body, *returnedComment.Body)
-			assert.Equal(t, *tc.expectedComment.User.Login, *returnedComment.User.Login)
+			assert.Equal(t, fmt.Sprintf("%d", tc.expectedComment.GetID()), minimalResponse.ID)
+			assert.Equal(t, tc.expectedComment.GetHTMLURL(), minimalResponse.URL)
 
 		})
 	}
