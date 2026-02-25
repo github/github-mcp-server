@@ -201,33 +201,6 @@ func getIssueQueryType(hasLabels bool, hasSince bool) any {
 	}
 }
 
-func fragmentToIssue(fragment IssueFragment) *github.Issue {
-	// Convert GraphQL labels to GitHub API labels format
-	var foundLabels []*github.Label
-	for _, labelNode := range fragment.Labels.Nodes {
-		foundLabels = append(foundLabels, &github.Label{
-			Name:        github.Ptr(string(labelNode.Name)),
-			NodeID:      github.Ptr(string(labelNode.ID)),
-			Description: github.Ptr(string(labelNode.Description)),
-		})
-	}
-
-	return &github.Issue{
-		Number:    github.Ptr(int(fragment.Number)),
-		Title:     github.Ptr(sanitize.Sanitize(string(fragment.Title))),
-		CreatedAt: &github.Timestamp{Time: fragment.CreatedAt.Time},
-		UpdatedAt: &github.Timestamp{Time: fragment.UpdatedAt.Time},
-		User: &github.User{
-			Login: github.Ptr(string(fragment.Author.Login)),
-		},
-		State:    github.Ptr(string(fragment.State)),
-		ID:       github.Ptr(fragment.DatabaseID),
-		Body:     github.Ptr(sanitize.Sanitize(string(fragment.Body))),
-		Labels:   foundLabels,
-		Comments: github.Ptr(int(fragment.Comments.TotalCount)),
-	}
-}
-
 // IssueRead creates a tool to get details of a specific issue in a GitHub repository.
 func IssueRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
@@ -1584,41 +1557,12 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				), nil, nil
 			}
 
-			// Extract and convert all issue nodes using the common interface
-			var issues []*github.Issue
-			var pageInfo struct {
-				HasNextPage     githubv4.Boolean
-				HasPreviousPage githubv4.Boolean
-				StartCursor     githubv4.String
-				EndCursor       githubv4.String
-			}
-			var totalCount int
-
+			var resp MinimalIssuesResponse
 			if queryResult, ok := issueQuery.(IssueQueryResult); ok {
-				fragment := queryResult.GetIssueFragment()
-				for _, issue := range fragment.Nodes {
-					issues = append(issues, fragmentToIssue(issue))
-				}
-				pageInfo = fragment.PageInfo
-				totalCount = fragment.TotalCount
+				resp = convertToMinimalIssuesResponse(queryResult.GetIssueFragment())
 			}
 
-			// Create response with issues
-			response := map[string]any{
-				"issues": issues,
-				"pageInfo": map[string]any{
-					"hasNextPage":     pageInfo.HasNextPage,
-					"hasPreviousPage": pageInfo.HasPreviousPage,
-					"startCursor":     string(pageInfo.StartCursor),
-					"endCursor":       string(pageInfo.EndCursor),
-				},
-				"totalCount": totalCount,
-			}
-			out, err := json.Marshal(response)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal issues: %w", err)
-			}
-			return utils.NewToolResultText(string(out)), nil, nil
+			return MarshalledTextResult(resp), nil, nil
 		})
 }
 

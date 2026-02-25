@@ -1187,7 +1187,6 @@ func Test_ListIssues(t *testing.T) {
 		expectError   bool
 		errContains   string
 		expectedCount int
-		verifyOrder   func(t *testing.T, issues []*github.Issue)
 	}{
 		{
 			name: "list all issues",
@@ -1296,31 +1295,17 @@ func Test_ListIssues(t *testing.T) {
 			require.NoError(t, err)
 
 			// Parse the structured response with pagination info
-			var response struct {
-				Issues   []*github.Issue `json:"issues"`
-				PageInfo struct {
-					HasNextPage     bool   `json:"hasNextPage"`
-					HasPreviousPage bool   `json:"hasPreviousPage"`
-					StartCursor     string `json:"startCursor"`
-					EndCursor       string `json:"endCursor"`
-				} `json:"pageInfo"`
-				TotalCount int `json:"totalCount"`
-			}
+			var response MinimalIssuesResponse
 			err = json.Unmarshal([]byte(text), &response)
 			require.NoError(t, err)
 
 			assert.Len(t, response.Issues, tc.expectedCount, "Expected %d issues, got %d", tc.expectedCount, len(response.Issues))
 
-			// Verify order if verifyOrder function is provided
-			if tc.verifyOrder != nil {
-				tc.verifyOrder(t, response.Issues)
-			}
-
 			// Verify that returned issues have expected structure
 			for _, issue := range response.Issues {
-				assert.NotNil(t, issue.Number, "Issue should have number")
-				assert.NotNil(t, issue.Title, "Issue should have title")
-				assert.NotNil(t, issue.State, "Issue should have state")
+				assert.NotZero(t, issue.Number, "Issue should have number")
+				assert.NotEmpty(t, issue.Title, "Issue should have title")
+				assert.NotEmpty(t, issue.State, "Issue should have state")
 			}
 		})
 	}
