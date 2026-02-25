@@ -1301,11 +1301,26 @@ func Test_ListIssues(t *testing.T) {
 
 			assert.Len(t, response.Issues, tc.expectedCount, "Expected %d issues, got %d", tc.expectedCount, len(response.Issues))
 
+			// Verify pagination metadata
+			assert.Equal(t, tc.expectedCount, response.TotalCount)
+			assert.False(t, response.PageInfo.HasNextPage)
+			assert.False(t, response.PageInfo.HasPreviousPage)
+
 			// Verify that returned issues have expected structure
 			for _, issue := range response.Issues {
 				assert.NotZero(t, issue.Number, "Issue should have number")
 				assert.NotEmpty(t, issue.Title, "Issue should have title")
 				assert.NotEmpty(t, issue.State, "Issue should have state")
+				assert.NotEmpty(t, issue.CreatedAt, "Issue should have created_at")
+				assert.NotEmpty(t, issue.UpdatedAt, "Issue should have updated_at")
+				assert.NotNil(t, issue.User, "Issue should have user")
+				assert.NotEmpty(t, issue.User.Login, "Issue user should have login")
+				assert.Empty(t, issue.HTMLURL, "html_url should be empty (not populated by GraphQL fragment)")
+
+				// Labels should be flattened to name strings
+				for _, label := range issue.Labels {
+					assert.NotEmpty(t, label, "Label should be a non-empty string")
+				}
 			}
 		})
 	}

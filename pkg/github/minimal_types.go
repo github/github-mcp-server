@@ -196,8 +196,8 @@ type MinimalIssue struct {
 // MinimalIssuesResponse is the trimmed output for a paginated list of issues.
 type MinimalIssuesResponse struct {
 	Issues     []MinimalIssue  `json:"issues"`
-	TotalCount int             `json:"total_count"`
-	PageInfo   MinimalPageInfo `json:"page_info"`
+	TotalCount int             `json:"totalCount"`
+	PageInfo   MinimalPageInfo `json:"pageInfo"`
 }
 
 // MinimalIssueComment is the trimmed output type for issue comment objects to reduce verbosity.
@@ -698,10 +698,10 @@ func convertToMinimalCommit(commit *github.RepositoryCommit, includeDiffs bool) 
 
 // MinimalPageInfo contains pagination cursor information.
 type MinimalPageInfo struct {
-	HasNextPage     bool   `json:"has_next_page"`
-	HasPreviousPage bool   `json:"has_previous_page"`
-	StartCursor     string `json:"start_cursor,omitempty"`
-	EndCursor       string `json:"end_cursor,omitempty"`
+	HasNextPage     bool   `json:"hasNextPage"`
+	HasPreviousPage bool   `json:"hasPreviousPage"`
+	StartCursor     string `json:"startCursor,omitempty"`
+	EndCursor       string `json:"endCursor,omitempty"`
 }
 
 // MinimalReviewComment is the trimmed output type for PR review comment objects.
@@ -727,8 +727,8 @@ type MinimalReviewThread struct {
 // MinimalReviewThreadsResponse is the trimmed output for a paginated list of PR review threads.
 type MinimalReviewThreadsResponse struct {
 	ReviewThreads []MinimalReviewThread `json:"review_threads"`
-	TotalCount    int                   `json:"total_count"`
-	PageInfo      MinimalPageInfo       `json:"page_info"`
+	TotalCount    int                   `json:"totalCount"`
+	PageInfo      MinimalPageInfo       `json:"pageInfo"`
 }
 
 func convertToMinimalPRFiles(files []*github.CommitFile) []MinimalPRFile {
