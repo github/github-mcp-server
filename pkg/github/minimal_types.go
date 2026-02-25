@@ -702,6 +702,25 @@ func convertToMinimalBranch(branch *github.Branch) MinimalBranch {
 	}
 }
 
+func convertToMinimalRelease(release *github.RepositoryRelease) MinimalRelease {
+	m := MinimalRelease{
+		ID:         release.GetID(),
+		TagName:    release.GetTagName(),
+		Name:       release.GetName(),
+		Body:       release.GetBody(),
+		HTMLURL:    release.GetHTMLURL(),
+		Prerelease: release.GetPrerelease(),
+		Draft:      release.GetDraft(),
+		Author:     convertToMinimalUser(release.GetAuthor()),
+	}
+
+	if release.PublishedAt != nil {
+		m.PublishedAt = release.PublishedAt.Format(time.RFC3339)
+	}
+
+	return m
+}
+
 // MinimalCheckRun is the trimmed output type for check run objects.
 type MinimalCheckRun struct {
 	ID          int64  `json:"id"`
