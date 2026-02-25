@@ -1111,9 +1111,9 @@ Options are:
 					if numErr != nil {
 						return utils.NewToolResultError("issue_number is required for update method"), nil, nil
 					}
-					return utils.NewToolResultText(fmt.Sprintf("Ready to update issue #%d in %s/%s. The user will review and confirm via the interactive form.", issueNumber, owner, repo)), nil, nil
+					return utils.NewToolResultText(fmt.Sprintf("Ready to update issue #%d in %s/%s. The user will review and confirm via the interactive form. The issue has NOT been updated yet - the user MUST confirm this operation.", issueNumber, owner, repo)), nil, nil
 				}
-				return utils.NewToolResultText(fmt.Sprintf("Ready to create an issue in %s/%s. The user will review and confirm via the interactive form.", owner, repo)), nil, nil
+				return utils.NewToolResultText(fmt.Sprintf("Ready to create an issue in %s/%s. The user will review and confirm via the interactive form. The issue has NOT been created yet - the user MUST confirm this operation.", owner, repo)), nil, nil
 			}
 
 			title, err := OptionalParam[string](args, "title")
