@@ -11,6 +11,7 @@ import (
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/response"
 	"github.com/github/github-mcp-server/pkg/sanitize"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -1603,9 +1604,21 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				totalCount = fragment.TotalCount
 			}
 
-			// Create response with issues
-			response := map[string]any{
-				"issues": issues,
+			minimalIssues := make([]MinimalIssue, 0, len(issues))
+			for _, issue := range issues {
+				if issue != nil {
+					minimalIssues = append(minimalIssues, convertToMinimalIssue(issue))
+				}
+			}
+
+			optimizedIssues, err := response.OptimizeList(minimalIssues)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to optimize issues: %w", err)
+			}
+
+			// Wrap optimized issues with pagination metadata
+			issueResponse := map[string]any{
+				"issues": json.RawMessage(optimizedIssues),
 				"pageInfo": map[string]any{
 					"hasNextPage":     pageInfo.HasNextPage,
 					"hasPreviousPage": pageInfo.HasPreviousPage,
@@ -1614,7 +1627,7 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				},
 				"totalCount": totalCount,
 			}
-			out, err := json.Marshal(response)
+			out, err := json.Marshal(issueResponse)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal issues: %w", err)
 			}

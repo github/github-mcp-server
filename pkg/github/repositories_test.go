@@ -1053,23 +1053,30 @@ func Test_ListCommits(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
-			var returnedCommits []MinimalCommit
+			var returnedCommits []map[string]any
 			err = json.Unmarshal([]byte(textContent.Text), &returnedCommits)
 			require.NoError(t, err)
 			assert.Len(t, returnedCommits, len(tc.expectedCommits))
 			for i, commit := range returnedCommits {
-				assert.Equal(t, tc.expectedCommits[i].GetSHA(), commit.SHA)
-				assert.Equal(t, tc.expectedCommits[i].GetHTMLURL(), commit.HTMLURL)
+				assert.Equal(t, tc.expectedCommits[i].GetSHA(), commit["sha"])
+				assert.Equal(t, tc.expectedCommits[i].GetHTMLURL(), commit["html_url"])
 				if tc.expectedCommits[i].Commit != nil {
-					assert.Equal(t, tc.expectedCommits[i].Commit.GetMessage(), commit.Commit.Message)
+					assert.Equal(t, tc.expectedCommits[i].Commit.GetMessage(), commit["commit.message"])
+					if tc.expectedCommits[i].Commit.Author != nil {
+						assert.Equal(t, tc.expectedCommits[i].Commit.Author.GetName(), commit["commit.author.name"])
+						assert.Equal(t, tc.expectedCommits[i].Commit.Author.GetEmail(), commit["commit.author.email"])
+						if tc.expectedCommits[i].Commit.Author.Date != nil {
+							assert.NotEmpty(t, commit["commit.author.date"], "commit.author.date should be present")
+						}
+					}
 				}
 				if tc.expectedCommits[i].Author != nil {
-					assert.Equal(t, tc.expectedCommits[i].Author.GetLogin(), commit.Author.Login)
+					assert.Equal(t, tc.expectedCommits[i].Author.GetLogin(), commit["author.login"])
 				}
 
 				// Files and stats are never included in list_commits
-				assert.Nil(t, commit.Files)
-				assert.Nil(t, commit.Stats)
+				assert.Nil(t, commit["files"])
+				assert.Nil(t, commit["stats"])
 			}
 		})
 	}
@@ -2791,15 +2798,15 @@ func Test_ListTags(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Parse and verify the result
-			var returnedTags []*github.RepositoryTag
+			var returnedTags []map[string]any
 			err = json.Unmarshal([]byte(textContent.Text), &returnedTags)
 			require.NoError(t, err)
 
 			// Verify each tag
 			require.Equal(t, len(tc.expectedTags), len(returnedTags))
 			for i, expectedTag := range tc.expectedTags {
-				assert.Equal(t, *expectedTag.Name, *returnedTags[i].Name)
-				assert.Equal(t, *expectedTag.Commit.SHA, *returnedTags[i].Commit.SHA)
+				assert.Equal(t, *expectedTag.Name, returnedTags[i]["name"])
+				assert.Equal(t, *expectedTag.Commit.SHA, returnedTags[i]["sha"])
 			}
 		})
 	}
