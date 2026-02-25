@@ -1,0 +1,34 @@
+{
+  "annotations": {
+    "title": "Update issue comment"
+  },
+  "description": "Update an existing comment on an issue or pull request in a GitHub repository. Use the comment ID from issue_read with method get_comments, or from the comment object when adding a comment.",
+  "inputSchema": {
+    "properties": {
+      "body": {
+        "description": "New comment content",
+        "type": "string"
+      },
+      "comment_id": {
+        "description": "ID of the comment to update (from issue_read get_comments or add_issue_comment response)",
+        "type": "number"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "comment_id",
+      "body"
+    ],
+    "type": "object"
+  },
+  "name": "update_issue_comment"
+}
