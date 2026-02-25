@@ -31,6 +31,9 @@ type ToolsetMetadata struct {
 	// Use the base name without size suffix, e.g., "repo" not "repo-16".
 	// See https://primer.style/foundations/icons for available icons.
 	Icon string
+	// InstructionsFunc optionally returns instructions for this toolset.
+	// It receives the inventory so it can check what other toolsets are enabled.
+	InstructionsFunc func(inv *Inventory) string
 }
 
 // Icons returns MCP Icon objects for this toolset, or nil if no icon is set.
@@ -79,6 +82,10 @@ type ServerTool struct {
 	// This includes the required scopes plus any higher-level scopes that provide
 	// the necessary permissions due to scope hierarchy.
 	AcceptedScopes []string
+
+	// InsidersOnly marks this tool as only available when insiders mode is enabled.
+	// When insiders mode is disabled, tools with this flag set are completely omitted.
+	InsidersOnly bool
 }
 
 // IsReadOnly returns true if this tool is marked as read-only via annotations.

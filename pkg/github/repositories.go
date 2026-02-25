@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,7 +16,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v82/github"
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -488,13 +489,14 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create/update file", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(fileContent)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
+			minimalResponse := convertToMinimalFileContentResponse(fileContent)
 
 			// Warn if file was updated without SHA validation (blind update)
 			if sha == "" && previousSHA != "" {
+				warning, err := json.Marshal(minimalResponse)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+				}
 				return utils.NewToolResultText(fmt.Sprintf(
 					"Warning: File updated without SHA validation. Previous file SHA was %s. "+
 						`Verify no unintended changes were overwritten: 
@@ -503,10 +505,10 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 3. Revert changes if shas do not match.
 
 %s`,
-					previousSHA, path, string(r))), nil, nil
+					previousSHA, path, string(warning))), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return MarshalledTextResult(minimalResponse), nil, nil
 		},
 	)
 }
@@ -715,86 +717,72 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 
 			if fileContent != nil && fileContent.SHA != nil {
 				fileSHA = *fileContent.SHA
-
-				rawClient, err := deps.GetRawClient(ctx)
+				fileSize := fileContent.GetSize()
+				// Build resource URI for the file using URI templates
+				pathParts := strings.Split(path, "/")
+				resourceURI, err := expandRepoResourceURI(owner, repo, sha, ref, pathParts)
 				if err != nil {
-					return utils.NewToolResultError("failed to get GitHub raw content client"), nil, nil
+					return utils.NewToolResultError("failed to build resource URI"), nil, nil
 				}
-				resp, err := rawClient.GetRawContent(ctx, owner, repo, path, rawOpts)
+
+				// main branch ref passed in ref parameter but it doesn't exist - default branch was used
+				var successNote string
+				if fallbackUsed {
+					successNote = fmt.Sprintf(" Note: the provided ref '%s' does not exist, default branch '%s' was used instead.", originalRef, rawOpts.Ref)
+				}
+
+				// For files >= 1MB, return a ResourceLink instead of content
+				const maxContentSize = 1024 * 1024 // 1MB
+				if fileSize >= maxContentSize {
+					size := int64(fileSize)
+					resourceLink := &mcp.ResourceLink{
+						URI:   resourceURI,
+						Name:  fileContent.GetName(),
+						Title: fmt.Sprintf("File: %s", path),
+						Size:  &size,
+					}
+					return utils.NewToolResultResourceLink(
+						fmt.Sprintf("File %s is too large to display (%d bytes). Use the download URL to fetch the content: %s (SHA: %s)%s",
+							path, fileSize, fileContent.GetDownloadURL(), fileSHA, successNote),
+						resourceLink), nil, nil
+				}
+
+				// For files < 1MB, get content directly from Contents API
+				content, err := fileContent.GetContent()
 				if err != nil {
-					return utils.NewToolResultError("failed to get raw repository content"), nil, nil
+					return utils.NewToolResultError(fmt.Sprintf("failed to decode file content: %s", err)), nil, nil
 				}
-				defer func() {
-					_ = resp.Body.Close()
-				}()
 
-				if resp.StatusCode == http.StatusOK {
-					// If the raw content is found, return it directly
-					body, err := io.ReadAll(resp.Body)
-					if err != nil {
-						return ghErrors.NewGitHubRawAPIErrorResponse(ctx, "failed to get raw repository content", resp, err), nil, nil
-					}
-					contentType := resp.Header.Get("Content-Type")
+				// Detect content type from the actual content bytes,
+				// mirroring the original approach of using the Content-Type header
+				// from the raw API response.
+				contentBytes := []byte(content)
+				contentType := http.DetectContentType(contentBytes)
 
-					var resourceURI string
-					switch {
-					case sha != "":
-						resourceURI, err = url.JoinPath("repo://", owner, repo, "sha", sha, "contents", path)
-						if err != nil {
-							return nil, nil, fmt.Errorf("failed to create resource URI: %w", err)
-						}
-					case ref != "":
-						resourceURI, err = url.JoinPath("repo://", owner, repo, ref, "contents", path)
-						if err != nil {
-							return nil, nil, fmt.Errorf("failed to create resource URI: %w", err)
-						}
-					default:
-						resourceURI, err = url.JoinPath("repo://", owner, repo, "contents", path)
-						if err != nil {
-							return nil, nil, fmt.Errorf("failed to create resource URI: %w", err)
-						}
-					}
+				// Determine if content is text or binary based on detected content type
+				isTextContent := strings.HasPrefix(contentType, "text/") ||
+					contentType == "application/json" ||
+					contentType == "application/xml" ||
+					strings.HasSuffix(contentType, "+json") ||
+					strings.HasSuffix(contentType, "+xml")
 
-					// main branch ref passed in ref parameter but it doesn't exist - default branch was used
-					var successNote string
-					if fallbackUsed {
-						successNote = fmt.Sprintf(" Note: the provided ref '%s' does not exist, default branch '%s' was used instead.", originalRef, rawOpts.Ref)
-					}
-
-					// Determine if content is text or binary
-					isTextContent := strings.HasPrefix(contentType, "text/") ||
-						contentType == "application/json" ||
-						contentType == "application/xml" ||
-						strings.HasSuffix(contentType, "+json") ||
-						strings.HasSuffix(contentType, "+xml")
-
-					if isTextContent {
-						result := &mcp.ResourceContents{
-							URI:      resourceURI,
-							Text:     string(body),
-							MIMEType: contentType,
-						}
-						// Include SHA in the result metadata
-						if fileSHA != "" {
-							return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)", fileSHA)+successNote, result), nil, nil
-						}
-						return utils.NewToolResultResource("successfully downloaded text file"+successNote, result), nil, nil
-					}
-
+				if isTextContent {
 					result := &mcp.ResourceContents{
 						URI:      resourceURI,
-						Blob:     body,
+						Text:     content,
 						MIMEType: contentType,
 					}
-					// Include SHA in the result metadata
-					if fileSHA != "" {
-						return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)", fileSHA)+successNote, result), nil, nil
-					}
-					return utils.NewToolResultResource("successfully downloaded binary file"+successNote, result), nil, nil
+					return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded text file (SHA: %s)%s", fileSHA, successNote), result), nil, nil
 				}
 
-				// Raw API call failed
-				return matchFiles(ctx, client, owner, repo, ref, path, rawOpts, resp.StatusCode)
+				// Binary content - encode as base64 blob
+				blobContent := base64.StdEncoding.EncodeToString(contentBytes)
+				result := &mcp.ResourceContents{
+					URI:      resourceURI,
+					Blob:     []byte(blobContent),
+					MIMEType: contentType,
+				}
+				return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded binary file (SHA: %s)%s", fileSHA, successNote), result), nil, nil
 			} else if dirContent != nil {
 				// file content or file SHA is nil which means it's a directory
 				r, err := json.Marshal(dirContent)
@@ -1078,7 +1066,7 @@ func DeleteFile(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			// Create a response similar to what the DeleteFile API would return
-			response := map[string]interface{}{
+			response := map[string]any{
 				"commit":  newCommit,
 				"content": nil,
 			}
@@ -1278,7 +1266,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			// Parse files parameter - this should be an array of objects with path and content
-			filesObj, ok := args["files"].([]interface{})
+			filesObj, ok := args["files"].([]any)
 			if !ok {
 				return utils.NewToolResultError("files parameter must be an array of objects with path and content"), nil, nil
 			}
@@ -1360,7 +1348,7 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 			var entries []*github.TreeEntry
 
 			for _, file := range filesObj {
-				fileMap, ok := file.(map[string]interface{})
+				fileMap, ok := file.(map[string]any)
 				if !ok {
 					return utils.NewToolResultError("each file must be an object with path and content"), nil, nil
 				}

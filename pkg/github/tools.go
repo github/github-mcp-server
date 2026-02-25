@@ -2,11 +2,12 @@ package github
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v82/github"
 	"github.com/shurcooL/githubv4"
 )
 
@@ -28,10 +29,11 @@ var (
 		Icon:        "check-circle",
 	}
 	ToolsetMetadataContext = inventory.ToolsetMetadata{
-		ID:          "context",
-		Description: "Tools that provide context about the current user and GitHub context you are operating in",
-		Default:     true,
-		Icon:        "person",
+		ID:               "context",
+		Description:      "Tools that provide context about the current user and GitHub context you are operating in",
+		Default:          true,
+		Icon:             "person",
+		InstructionsFunc: generateContextToolsetInstructions,
 	}
 	ToolsetMetadataRepos = inventory.ToolsetMetadata{
 		ID:          "repos",
@@ -45,16 +47,18 @@ var (
 		Icon:        "git-branch",
 	}
 	ToolsetMetadataIssues = inventory.ToolsetMetadata{
-		ID:          "issues",
-		Description: "GitHub Issues related tools",
-		Default:     true,
-		Icon:        "issue-opened",
+		ID:               "issues",
+		Description:      "GitHub Issues related tools",
+		Default:          true,
+		Icon:             "issue-opened",
+		InstructionsFunc: generateIssuesToolsetInstructions,
 	}
 	ToolsetMetadataPullRequests = inventory.ToolsetMetadata{
-		ID:          "pull_requests",
-		Description: "GitHub Pull Request related tools",
-		Default:     true,
-		Icon:        "git-pull-request",
+		ID:               "pull_requests",
+		Description:      "GitHub Pull Request related tools",
+		Default:          true,
+		Icon:             "git-pull-request",
+		InstructionsFunc: generatePullRequestsToolsetInstructions,
 	}
 	ToolsetMetadataUsers = inventory.ToolsetMetadata{
 		ID:          "users",
@@ -93,9 +97,10 @@ var (
 		Icon:        "bell",
 	}
 	ToolsetMetadataDiscussions = inventory.ToolsetMetadata{
-		ID:          "discussions",
-		Description: "GitHub Discussions related tools",
-		Icon:        "comment-discussion",
+		ID:               "discussions",
+		Description:      "GitHub Discussions related tools",
+		Icon:             "comment-discussion",
+		InstructionsFunc: generateDiscussionsToolsetInstructions,
 	}
 	ToolsetMetadataGists = inventory.ToolsetMetadata{
 		ID:          "gists",
@@ -108,9 +113,10 @@ var (
 		Icon:        "shield",
 	}
 	ToolsetMetadataProjects = inventory.ToolsetMetadata{
-		ID:          "projects",
-		Description: "GitHub Projects related tools",
-		Icon:        "project",
+		ID:               "projects",
+		Description:      "GitHub Projects related tools",
+		Icon:             "project",
+		InstructionsFunc: generateProjectsToolsetInstructions,
 	}
 	ToolsetMetadataStargazers = inventory.ToolsetMetadata{
 		ID:          "stargazers",
@@ -128,13 +134,15 @@ var (
 		Icon:        "tag",
 	}
 
-	// Remote-only toolsets - these are only available in the remote MCP server
-	// but are documented here for consistency and to enable automated documentation.
 	ToolsetMetadataCopilot = inventory.ToolsetMetadata{
 		ID:          "copilot",
 		Description: "Copilot related tools",
+		Default:     true,
 		Icon:        "copilot",
 	}
+
+	// Remote-only toolsets - these are only available in the remote MCP server
+	// but are documented here for consistency and to enable automated documentation.
 	ToolsetMetadataCopilotSpaces = inventory.ToolsetMetadata{
 		ID:          "copilot_spaces",
 		Description: "Copilot Spaces tools",
@@ -188,7 +196,6 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ListIssueTypes(t),
 		IssueWrite(t),
 		AddIssueComment(t),
-		AssignCopilotToIssue(t),
 		SubIssueWrite(t),
 
 		// User tools
@@ -205,9 +212,13 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		UpdatePullRequestBranch(t),
 		CreatePullRequest(t),
 		UpdatePullRequest(t),
-		RequestCopilotReview(t),
 		PullRequestReviewWrite(t),
 		AddCommentToPendingReview(t),
+		AddReplyToPullRequestComment(t),
+
+		// Copilot tools
+		AssignCopilotToIssue(t),
+		RequestCopilotReview(t),
 
 		// Code security tools
 		GetCodeScanningAlert(t),
@@ -236,21 +247,6 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ListDiscussionCategories(t),
 
 		// Actions tools
-		ListWorkflows(t),
-		ListWorkflowRuns(t),
-		GetWorkflowRun(t),
-		GetWorkflowRunLogs(t),
-		ListWorkflowJobs(t),
-		GetJobLogs(t),
-		ListWorkflowRunArtifacts(t),
-		DownloadWorkflowRunArtifact(t),
-		GetWorkflowRunUsage(t),
-		RunWorkflow(t),
-		RerunWorkflowRun(t),
-		RerunFailedJobs(t),
-		CancelWorkflowRun(t),
-		DeleteWorkflowRunLogs(t),
-		// Consolidated Actions tools (enabled via feature flag)
 		ActionsList(t),
 		ActionsGet(t),
 		ActionsRunTrigger(t),
@@ -269,17 +265,6 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		UpdateGist(t),
 
 		// Project tools
-		ListProjects(t),
-		GetProject(t),
-		ListProjectFields(t),
-		GetProjectField(t),
-		ListProjectItems(t),
-		GetProjectItem(t),
-		AddProjectItem(t),
-		DeleteProjectItem(t),
-		UpdateProjectItem(t),
-
-		// Consolidated project tools (enabled via feature flag)
 		ProjectsList(t),
 		ProjectsGet(t),
 		ProjectsWrite(t),
@@ -413,12 +398,7 @@ func RemoveToolset(tools []string, toRemove string) []string {
 }
 
 func ContainsToolset(tools []string, toCheck string) bool {
-	for _, tool := range tools {
-		if tool == toCheck {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(tools, toCheck)
 }
 
 // CleanTools cleans tool names by removing duplicates and trimming whitespace.
@@ -460,7 +440,6 @@ func GetDefaultToolsetIDs() []string {
 // in the local server.
 func RemoteOnlyToolsets() []inventory.ToolsetMetadata {
 	return []inventory.ToolsetMetadata{
-		ToolsetMetadataCopilot,
 		ToolsetMetadataCopilotSpaces,
 		ToolsetMetadataSupportSearch,
 	}

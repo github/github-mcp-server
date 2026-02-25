@@ -29,6 +29,8 @@ echo -e ".env\n.mcp.json" >> .gitignore
 ### Remote Server Setup (Streamable HTTP)
 
 > **Note**: For Claude Code versions **2.1.1 and newer**, use the `add-json` command format below. For older versions, see the [legacy command format](#for-older-versions-of-claude-code).
+>
+> **Windows / CLI note**: `claude mcp add-json` may return `Invalid input` when adding an HTTP server. If that happens, use the legacy `claude mcp add --transport http ...` command format below.
 
 1. Run the following command in the terminal (not in Claude Code CLI):
 ```bash
@@ -93,6 +95,15 @@ claude mcp add --transport http github https://api.githubcopilot.com/mcp -H "Aut
 With an environment variable:
 ```bash
 claude mcp add --transport http github https://api.githubcopilot.com/mcp -H "Authorization: Bearer $(grep GITHUB_PAT .env | cut -d '=' -f2)"
+```
+
+#### Windows (PowerShell)
+
+If you see `missing required argument 'name'`, put the server name immediately after `claude mcp add`:
+
+```powershell
+$pat = "YOUR_GITHUB_PAT"
+claude mcp add github --transport http https://api.githubcopilot.com/mcp/ -H "Authorization: Bearer $pat"
 ```
 
 ---
