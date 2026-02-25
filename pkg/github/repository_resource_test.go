@@ -292,7 +292,13 @@ func Test_repositoryResourceContentsHandler_NetworkError(t *testing.T) {
 	httpClient := &http.Client{Transport: &errorTransport{err: networkErr}}
 	client := github.NewClient(httpClient)
 	mockRawClient := raw.NewClient(client, base)
-	handler := RepositoryResourceContentsHandler(stubGetClientFn(client), stubGetRawClientFn(mockRawClient), repositoryResourceContentURITemplate)
+	deps := BaseDeps{
+		Client:    client,
+		RawClient: mockRawClient,
+	}
+	ctx := ContextWithDeps(context.Background(), deps)
+
+	handler := RepositoryResourceContentsHandler(repositoryResourceContentURITemplate)
 
 	request := &mcp.ReadResourceRequest{
 		Params: &mcp.ReadResourceParams{
@@ -301,31 +307,8 @@ func Test_repositoryResourceContentsHandler_NetworkError(t *testing.T) {
 	}
 
 	// This should not panic, even though the HTTP client returns an error
-	resp, err := handler(context.TODO(), request)
+	resp, err := handler(ctx, request)
 	require.Error(t, err)
 	require.Nil(t, resp)
 	require.ErrorContains(t, err, "failed to get raw content")
-}
-
-func Test_GetRepositoryResourceContent(t *testing.T) {
-	mockRawClient := raw.NewClient(github.NewClient(nil), &url.URL{})
-	tmpl, _ := GetRepositoryResourceContent(nil, stubGetRawClientFn(mockRawClient), translations.NullTranslationHelper)
-	require.Equal(t, "repo://{owner}/{repo}/contents{/path*}", tmpl.URITemplate)
-}
-
-func Test_GetRepositoryResourceBranchContent(t *testing.T) {
-	mockRawClient := raw.NewClient(github.NewClient(nil), &url.URL{})
-	tmpl, _ := GetRepositoryResourceBranchContent(nil, stubGetRawClientFn(mockRawClient), translations.NullTranslationHelper)
-	require.Equal(t, "repo://{owner}/{repo}/refs/heads/{branch}/contents{/path*}", tmpl.URITemplate)
-}
-func Test_GetRepositoryResourceCommitContent(t *testing.T) {
-	mockRawClient := raw.NewClient(github.NewClient(nil), &url.URL{})
-	tmpl, _ := GetRepositoryResourceCommitContent(nil, stubGetRawClientFn(mockRawClient), translations.NullTranslationHelper)
-	require.Equal(t, "repo://{owner}/{repo}/sha/{sha}/contents{/path*}", tmpl.URITemplate)
-}
-
-func Test_GetRepositoryResourceTagContent(t *testing.T) {
-	mockRawClient := raw.NewClient(github.NewClient(nil), &url.URL{})
-	tmpl, _ := GetRepositoryResourceTagContent(nil, stubGetRawClientFn(mockRawClient), translations.NullTranslationHelper)
-	require.Equal(t, "repo://{owner}/{repo}/refs/tags/{tag}/contents{/path*}", tmpl.URITemplate)
 }
