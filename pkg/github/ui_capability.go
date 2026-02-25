@@ -11,6 +11,9 @@ import (
 // advertise MCP Apps UI support.
 const mcpAppsExtensionKey = "io.modelcontextprotocol/ui"
 
+// MCPAppMIMEType is the MIME type for MCP App UI resources.
+const MCPAppMIMEType = "text/html;profile=mcp-app"
+
 // clientSupportsUI reports whether the MCP client that sent this request
 // supports MCP Apps UI rendering.
 // It checks the context first (set by HTTP/stateless servers from stored

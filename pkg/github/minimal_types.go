@@ -122,6 +122,12 @@ type MinimalBranch struct {
 	Protected bool   `json:"protected"`
 }
 
+// MinimalTag is the trimmed output type for tag objects.
+type MinimalTag struct {
+	Name string `json:"name"`
+	SHA  string `json:"sha"`
+}
+
 // MinimalResponse represents a minimal response for all CRUD operations.
 // Success is implicit in the HTTP response status, and all other information
 // can be derived from the URL or fetched separately if needed.
@@ -700,6 +706,57 @@ func convertToMinimalBranch(branch *github.Branch) MinimalBranch {
 		SHA:       branch.GetCommit().GetSHA(),
 		Protected: branch.GetProtected(),
 	}
+}
+
+func convertToMinimalTag(tag *github.RepositoryTag) MinimalTag {
+	m := MinimalTag{
+		Name: tag.GetName(),
+	}
+
+	if commit := tag.GetCommit(); commit != nil {
+		m.SHA = commit.GetSHA()
+	}
+
+	return m
+}
+
+// MinimalCheckRun is the trimmed output type for check run objects.
+type MinimalCheckRun struct {
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	Status      string `json:"status"`
+	Conclusion  string `json:"conclusion,omitempty"`
+	HTMLURL     string `json:"html_url,omitempty"`
+	DetailsURL  string `json:"details_url,omitempty"`
+	StartedAt   string `json:"started_at,omitempty"`
+	CompletedAt string `json:"completed_at,omitempty"`
+}
+
+// MinimalCheckRunsResult is the trimmed output type for check runs list results.
+type MinimalCheckRunsResult struct {
+	TotalCount int               `json:"total_count"`
+	CheckRuns  []MinimalCheckRun `json:"check_runs"`
+}
+
+// convertToMinimalCheckRun converts a GitHub API CheckRun to MinimalCheckRun
+func convertToMinimalCheckRun(checkRun *github.CheckRun) MinimalCheckRun {
+	minimalCheckRun := MinimalCheckRun{
+		ID:         checkRun.GetID(),
+		Name:       checkRun.GetName(),
+		Status:     checkRun.GetStatus(),
+		Conclusion: checkRun.GetConclusion(),
+		HTMLURL:    checkRun.GetHTMLURL(),
+		DetailsURL: checkRun.GetDetailsURL(),
+	}
+
+	if checkRun.StartedAt != nil {
+		minimalCheckRun.StartedAt = checkRun.StartedAt.Format("2006-01-02T15:04:05Z")
+	}
+	if checkRun.CompletedAt != nil {
+		minimalCheckRun.CompletedAt = checkRun.CompletedAt.Format("2006-01-02T15:04:05Z")
+	}
+
+	return minimalCheckRun
 }
 
 func convertToMinimalReviewThreadsResponse(query reviewThreadsQuery) MinimalReviewThreadsResponse {
