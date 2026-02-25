@@ -122,6 +122,12 @@ type MinimalBranch struct {
 	Protected bool   `json:"protected"`
 }
 
+// MinimalTag is the trimmed output type for tag objects.
+type MinimalTag struct {
+	Name string `json:"name"`
+	SHA  string `json:"sha"`
+}
+
 // MinimalResponse represents a minimal response for all CRUD operations.
 // Success is implicit in the HTTP response status, and all other information
 // can be derived from the URL or fetched separately if needed.
@@ -700,6 +706,18 @@ func convertToMinimalBranch(branch *github.Branch) MinimalBranch {
 		SHA:       branch.GetCommit().GetSHA(),
 		Protected: branch.GetProtected(),
 	}
+}
+
+func convertToMinimalTag(tag *github.RepositoryTag) MinimalTag {
+	m := MinimalTag{
+		Name: tag.GetName(),
+	}
+
+	if commit := tag.GetCommit(); commit != nil {
+		m.SHA = commit.GetSHA()
+	}
+
+	return m
 }
 
 // MinimalCheckRun is the trimmed output type for check run objects.
