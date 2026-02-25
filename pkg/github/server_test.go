@@ -63,15 +63,15 @@ func (s stubDeps) GetT() translations.TranslationHelperFunc          { return s.
 func (s stubDeps) GetFlags(_ context.Context) FeatureFlags           { return s.flags }
 func (s stubDeps) GetContentWindowSize() int                         { return s.contentWindowSize }
 func (s stubDeps) IsFeatureEnabled(_ context.Context, _ string) bool { return false }
-func (s stubDeps) Logger(_ context.Context) mcpLog.Logger {
+func (s stubDeps) Logger(ctx context.Context) mcpLog.Logger {
 	if s.obsv != nil {
-		return s.obsv.Logger(context.Background())
+		return s.obsv.Logger(ctx)
 	}
 	return mcpLog.NewNoopLogger()
 }
-func (s stubDeps) Metrics(_ context.Context) mcpMetrics.Metrics {
+func (s stubDeps) Metrics(ctx context.Context) mcpMetrics.Metrics {
 	if s.obsv != nil {
-		return s.obsv.Metrics(context.Background())
+		return s.obsv.Metrics(ctx)
 	}
 	return mcpMetrics.NewNoopMetrics()
 }
