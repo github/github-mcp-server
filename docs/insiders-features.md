@@ -34,7 +34,7 @@ The following tools have MCP Apps UIs:
 |------|-------------|
 | `get_me` | Displays your GitHub user profile with avatar, bio, and stats in a rich card |
 | `issue_write` | Opens an interactive form to create or update issues |
-| `create_pull_request` | Provides a full PR creation form to create a pull requests (or a draft pull request) |
+| `create_pull_request` | Provides a full PR creation form to create a pull request (or a draft pull request) |
 
 ### Client requirements
 
