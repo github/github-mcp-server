@@ -607,7 +607,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 
 			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(ctx, req) && !uiSubmitted {
-				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. The user will review and confirm via the interactive form.", owner, repo)), nil, nil
+				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. The user will review and confirm via the interactive form. The PR has NOT been created yet - the user MUST confirm this operation.", owner, repo)), nil, nil
 			}
 
 			// When creating PR, title/head/base are required
