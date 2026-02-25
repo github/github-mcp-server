@@ -3052,12 +3052,12 @@ func Test_ListReleases(t *testing.T) {
 
 			require.NoError(t, err)
 			textContent := getTextResult(t, result)
-			var returnedReleases []*github.RepositoryRelease
+			var returnedReleases []MinimalRelease
 			err = json.Unmarshal([]byte(textContent.Text), &returnedReleases)
 			require.NoError(t, err)
 			assert.Len(t, returnedReleases, len(tc.expectedResult))
-			for i, rel := range returnedReleases {
-				assert.Equal(t, *tc.expectedResult[i].TagName, *rel.TagName)
+			for i := range returnedReleases {
+				assert.Equal(t, *tc.expectedResult[i].TagName, returnedReleases[i].TagName)
 			}
 		})
 	}

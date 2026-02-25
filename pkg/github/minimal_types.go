@@ -708,6 +708,25 @@ func convertToMinimalBranch(branch *github.Branch) MinimalBranch {
 	}
 }
 
+func convertToMinimalRelease(release *github.RepositoryRelease) MinimalRelease {
+	m := MinimalRelease{
+		ID:         release.GetID(),
+		TagName:    release.GetTagName(),
+		Name:       release.GetName(),
+		Body:       release.GetBody(),
+		HTMLURL:    release.GetHTMLURL(),
+		Prerelease: release.GetPrerelease(),
+		Draft:      release.GetDraft(),
+		Author:     convertToMinimalUser(release.GetAuthor()),
+	}
+
+	if release.PublishedAt != nil {
+		m.PublishedAt = release.PublishedAt.Format(time.RFC3339)
+	}
+
+	return m
+}
+
 func convertToMinimalTag(tag *github.RepositoryTag) MinimalTag {
 	m := MinimalTag{
 		Name: tag.GetName(),
