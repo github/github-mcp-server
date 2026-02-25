@@ -290,12 +290,9 @@ func GetPullRequestFiles(ctx context.Context, client *github.Client, owner, repo
 		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get pull request files", resp, body), nil
 	}
 
-	r, err := json.Marshal(files)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
-	}
+	minimalFiles := convertToMinimalPRFiles(files)
 
-	return utils.NewToolResultText(string(r)), nil
+	return MarshalledTextResult(minimalFiles), nil
 }
 
 // GraphQL types for review threads query
@@ -409,24 +406,7 @@ func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 		}
 	}
 
-	// Build response with review threads and pagination info
-	response := map[string]any{
-		"reviewThreads": query.Repository.PullRequest.ReviewThreads.Nodes,
-		"pageInfo": map[string]any{
-			"hasNextPage":     query.Repository.PullRequest.ReviewThreads.PageInfo.HasNextPage,
-			"hasPreviousPage": query.Repository.PullRequest.ReviewThreads.PageInfo.HasPreviousPage,
-			"startCursor":     string(query.Repository.PullRequest.ReviewThreads.PageInfo.StartCursor),
-			"endCursor":       string(query.Repository.PullRequest.ReviewThreads.PageInfo.EndCursor),
-		},
-		"totalCount": int(query.Repository.PullRequest.ReviewThreads.TotalCount),
-	}
-
-	r, err := json.Marshal(response)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
-	}
-
-	return utils.NewToolResultText(string(r)), nil
+	return MarshalledTextResult(convertToMinimalReviewThreadsResponse(query)), nil
 }
 
 func GetPullRequestReviews(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
@@ -474,12 +454,12 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, deps Tool
 		}
 	}
 
-	r, err := json.Marshal(reviews)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	minimalReviews := make([]MinimalPullRequestReview, 0, len(reviews))
+	for _, review := range reviews {
+		minimalReviews = append(minimalReviews, convertToMinimalPullRequestReview(review))
 	}
 
-	return utils.NewToolResultText(string(r)), nil
+	return MarshalledTextResult(minimalReviews), nil
 }
 
 // PullRequestWriteUIResourceURI is the URI for the create_pull_request tool's MCP App UI resource.
@@ -557,7 +537,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			// to distinguish form submissions from LLM calls.
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 
-			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(req) && !uiSubmitted {
+			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(ctx, req) && !uiSubmitted {
 				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. The user will review and confirm via the interactive form.", owner, repo)), nil, nil
 			}
 
@@ -1950,95 +1930,6 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 			// In future, we may want to return the review ID, but for the moment, we're not leaking
 			// API implementation details to the LLM.
 			return utils.NewToolResultText("pull request review comment successfully added to pending review"), nil, nil
-		})
-}
-
-// RequestCopilotReview creates a tool to request a Copilot review for a pull request.
-// Note that this tool will not work on GHES where this feature is unsupported. In future, we should not expose this
-// tool if the configured host does not support it.
-func RequestCopilotReview(t translations.TranslationHelperFunc) inventory.ServerTool {
-	schema := &jsonschema.Schema{
-		Type: "object",
-		Properties: map[string]*jsonschema.Schema{
-			"owner": {
-				Type:        "string",
-				Description: "Repository owner",
-			},
-			"repo": {
-				Type:        "string",
-				Description: "Repository name",
-			},
-			"pullNumber": {
-				Type:        "number",
-				Description: "Pull request number",
-			},
-		},
-		Required: []string{"owner", "repo", "pullNumber"},
-	}
-
-	return NewTool(
-		ToolsetMetadataPullRequests,
-		mcp.Tool{
-			Name:        "request_copilot_review",
-			Description: t("TOOL_REQUEST_COPILOT_REVIEW_DESCRIPTION", "Request a GitHub Copilot code review for a pull request. Use this for automated feedback on pull requests, usually before requesting a human reviewer."),
-			Icons:       octicons.Icons("copilot"),
-			Annotations: &mcp.ToolAnnotations{
-				Title:        t("TOOL_REQUEST_COPILOT_REVIEW_USER_TITLE", "Request Copilot review"),
-				ReadOnlyHint: false,
-			},
-			InputSchema: schema,
-		},
-		[]scopes.Scope{scopes.Repo},
-		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
-			owner, err := RequiredParam[string](args, "owner")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			repo, err := RequiredParam[string](args, "repo")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			pullNumber, err := RequiredInt(args, "pullNumber")
-			if err != nil {
-				return utils.NewToolResultError(err.Error()), nil, nil
-			}
-
-			client, err := deps.GetClient(ctx)
-			if err != nil {
-				return utils.NewToolResultErrorFromErr("failed to get GitHub client", err), nil, nil
-			}
-
-			_, resp, err := client.PullRequests.RequestReviewers(
-				ctx,
-				owner,
-				repo,
-				pullNumber,
-				github.ReviewersRequest{
-					// The login name of the copilot reviewer bot
-					Reviewers: []string{"copilot-pull-request-reviewer[bot]"},
-				},
-			)
-			if err != nil {
-				return ghErrors.NewGitHubAPIErrorResponse(ctx,
-					"failed to request copilot review",
-					resp,
-					err,
-				), nil, nil
-			}
-			defer func() { _ = resp.Body.Close() }()
-
-			if resp.StatusCode != http.StatusCreated {
-				bodyBytes, err := io.ReadAll(resp.Body)
-				if err != nil {
-					return utils.NewToolResultErrorFromErr("failed to read response body", err), nil, nil
-				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to request copilot review", resp, bodyBytes), nil, nil
-			}
-
-			// Return nothing on success, as there's not much value in returning the Pull Request itself
-			return utils.NewToolResultText(""), nil, nil
 		})
 }
 

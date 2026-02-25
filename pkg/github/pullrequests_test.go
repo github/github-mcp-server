@@ -1229,15 +1229,15 @@ func Test_GetPullRequestFiles(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
-			var returnedFiles []*github.CommitFile
+			var returnedFiles []MinimalPRFile
 			err = json.Unmarshal([]byte(textContent.Text), &returnedFiles)
 			require.NoError(t, err)
 			assert.Len(t, returnedFiles, len(tc.expectedFiles))
 			for i, file := range returnedFiles {
-				assert.Equal(t, *tc.expectedFiles[i].Filename, *file.Filename)
-				assert.Equal(t, *tc.expectedFiles[i].Status, *file.Status)
-				assert.Equal(t, *tc.expectedFiles[i].Additions, *file.Additions)
-				assert.Equal(t, *tc.expectedFiles[i].Deletions, *file.Deletions)
+				assert.Equal(t, tc.expectedFiles[i].GetFilename(), file.Filename)
+				assert.Equal(t, tc.expectedFiles[i].GetStatus(), file.Status)
+				assert.Equal(t, tc.expectedFiles[i].GetAdditions(), file.Additions)
+				assert.Equal(t, tc.expectedFiles[i].GetDeletions(), file.Deletions)
 			}
 		})
 	}
@@ -1619,45 +1619,35 @@ func Test_GetPullRequestComments(t *testing.T) {
 			},
 			expectError: false,
 			validateResult: func(t *testing.T, textContent string) {
-				var result map[string]any
+				var result MinimalReviewThreadsResponse
 				err := json.Unmarshal([]byte(textContent), &result)
 				require.NoError(t, err)
 
-				// Validate response structure
-				assert.Contains(t, result, "reviewThreads")
-				assert.Contains(t, result, "pageInfo")
-				assert.Contains(t, result, "totalCount")
-
 				// Validate review threads
-				threads := result["reviewThreads"].([]any)
-				assert.Len(t, threads, 1)
+				assert.Len(t, result.ReviewThreads, 1)
 
-				thread := threads[0].(map[string]any)
-				assert.Equal(t, "RT_kwDOA0xdyM4AX1Yz", thread["ID"])
-				assert.Equal(t, false, thread["IsResolved"])
-				assert.Equal(t, false, thread["IsOutdated"])
-				assert.Equal(t, false, thread["IsCollapsed"])
+				thread := result.ReviewThreads[0]
+				assert.Equal(t, false, thread.IsResolved)
+				assert.Equal(t, false, thread.IsOutdated)
+				assert.Equal(t, false, thread.IsCollapsed)
 
 				// Validate comments within thread
-				comments := thread["Comments"].(map[string]any)
-				commentNodes := comments["Nodes"].([]any)
-				assert.Len(t, commentNodes, 2)
+				assert.Len(t, thread.Comments, 2)
 
 				// Validate first comment
-				comment1 := commentNodes[0].(map[string]any)
-				assert.Equal(t, "PRRC_kwDOA0xdyM4AX1Y0", comment1["ID"])
-				assert.Equal(t, "This looks good", comment1["Body"])
-				assert.Equal(t, "file1.go", comment1["Path"])
+				comment1 := thread.Comments[0]
+				assert.Equal(t, "This looks good", comment1.Body)
+				assert.Equal(t, "file1.go", comment1.Path)
+				assert.Equal(t, "reviewer1", comment1.Author)
 
 				// Validate pagination info
-				pageInfo := result["pageInfo"].(map[string]any)
-				assert.Equal(t, false, pageInfo["hasNextPage"])
-				assert.Equal(t, false, pageInfo["hasPreviousPage"])
-				assert.Equal(t, "cursor1", pageInfo["startCursor"])
-				assert.Equal(t, "cursor2", pageInfo["endCursor"])
+				assert.Equal(t, false, result.PageInfo.HasNextPage)
+				assert.Equal(t, false, result.PageInfo.HasPreviousPage)
+				assert.Equal(t, "cursor1", result.PageInfo.StartCursor)
+				assert.Equal(t, "cursor2", result.PageInfo.EndCursor)
 
 				// Validate total count
-				assert.Equal(t, float64(1), result["totalCount"])
+				assert.Equal(t, 1, result.TotalCount)
 			},
 		},
 		{
@@ -1761,27 +1751,22 @@ func Test_GetPullRequestComments(t *testing.T) {
 			expectError:     false,
 			lockdownEnabled: true,
 			validateResult: func(t *testing.T, textContent string) {
-				var result map[string]any
+				var result MinimalReviewThreadsResponse
 				err := json.Unmarshal([]byte(textContent), &result)
 				require.NoError(t, err)
 
 				// Validate that only maintainer comment is returned
-				threads := result["reviewThreads"].([]any)
-				assert.Len(t, threads, 1)
+				assert.Len(t, result.ReviewThreads, 1)
 
-				thread := threads[0].(map[string]any)
-				comments := thread["Comments"].(map[string]any)
+				thread := result.ReviewThreads[0]
 
 				// Should only have 1 comment (maintainer) after filtering
-				assert.Equal(t, float64(1), comments["TotalCount"])
+				assert.Equal(t, 1, thread.TotalCount)
+				assert.Len(t, thread.Comments, 1)
 
-				commentNodes := comments["Nodes"].([]any)
-				assert.Len(t, commentNodes, 1)
-
-				comment := commentNodes[0].(map[string]any)
-				author := comment["Author"].(map[string]any)
-				assert.Equal(t, "maintainer", author["Login"])
-				assert.Equal(t, "Maintainer review comment", comment["Body"])
+				comment := thread.Comments[0]
+				assert.Equal(t, "maintainer", comment.Author)
+				assert.Equal(t, "Maintainer review comment", comment.Body)
 			},
 		},
 	}
@@ -2005,18 +1990,18 @@ func Test_GetPullRequestReviews(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
-			var returnedReviews []*github.PullRequestReview
+			var returnedReviews []MinimalPullRequestReview
 			err = json.Unmarshal([]byte(textContent.Text), &returnedReviews)
 			require.NoError(t, err)
 			assert.Len(t, returnedReviews, len(tc.expectedReviews))
 			for i, review := range returnedReviews {
+				assert.Equal(t, tc.expectedReviews[i].GetID(), review.ID)
+				assert.Equal(t, tc.expectedReviews[i].GetState(), review.State)
+				assert.Equal(t, tc.expectedReviews[i].GetBody(), review.Body)
 				require.NotNil(t, tc.expectedReviews[i].User)
 				require.NotNil(t, review.User)
-				assert.Equal(t, tc.expectedReviews[i].GetID(), review.GetID())
-				assert.Equal(t, tc.expectedReviews[i].GetState(), review.GetState())
-				assert.Equal(t, tc.expectedReviews[i].GetBody(), review.GetBody())
-				assert.Equal(t, tc.expectedReviews[i].GetUser().GetLogin(), review.GetUser().GetLogin())
-				assert.Equal(t, tc.expectedReviews[i].GetHTMLURL(), review.GetHTMLURL())
+				assert.Equal(t, tc.expectedReviews[i].GetUser().GetLogin(), review.User.Login)
+				assert.Equal(t, tc.expectedReviews[i].GetHTMLURL(), review.HTMLURL)
 			}
 		})
 	}
@@ -2200,7 +2185,7 @@ func Test_CreatePullRequest_InsidersMode_UIGate(t *testing.T) {
 	handler := serverTool.Handler(deps)
 
 	t.Run("UI client without _ui_submitted returns form message", func(t *testing.T) {
-		request := createMCPRequestWithSession(t, "Visual Studio Code", map[string]any{
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
 			"owner": "owner",
 			"repo":  "repo",
 			"title": "Test PR",
@@ -2215,7 +2200,7 @@ func Test_CreatePullRequest_InsidersMode_UIGate(t *testing.T) {
 	})
 
 	t.Run("UI client with _ui_submitted executes directly", func(t *testing.T) {
-		request := createMCPRequestWithSession(t, "Visual Studio Code", map[string]any{
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
 			"owner":         "owner",
 			"repo":          "repo",
 			"title":         "Test PR",
@@ -2448,118 +2433,6 @@ func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 
 			// Parse the result and get the text content if no error
 			require.Equal(t, textContent.Text, "pull request review submitted successfully")
-		})
-	}
-}
-
-func Test_RequestCopilotReview(t *testing.T) {
-	t.Parallel()
-
-	serverTool := RequestCopilotReview(translations.NullTranslationHelper)
-	tool := serverTool.Tool
-	require.NoError(t, toolsnaps.Test(tool.Name, tool))
-
-	assert.Equal(t, "request_copilot_review", tool.Name)
-	assert.NotEmpty(t, tool.Description)
-	schema := tool.InputSchema.(*jsonschema.Schema)
-	assert.Contains(t, schema.Properties, "owner")
-	assert.Contains(t, schema.Properties, "repo")
-	assert.Contains(t, schema.Properties, "pullNumber")
-	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo", "pullNumber"})
-
-	// Setup mock PR for success case
-	mockPR := &github.PullRequest{
-		Number:  github.Ptr(42),
-		Title:   github.Ptr("Test PR"),
-		State:   github.Ptr("open"),
-		HTMLURL: github.Ptr("https://github.com/owner/repo/pull/42"),
-		Head: &github.PullRequestBranch{
-			SHA: github.Ptr("abcd1234"),
-			Ref: github.Ptr("feature-branch"),
-		},
-		Base: &github.PullRequestBranch{
-			Ref: github.Ptr("main"),
-		},
-		Body: github.Ptr("This is a test PR"),
-		User: &github.User{
-			Login: github.Ptr("testuser"),
-		},
-	}
-
-	tests := []struct {
-		name           string
-		mockedClient   *http.Client
-		requestArgs    map[string]any
-		expectError    bool
-		expectedErrMsg string
-	}{
-		{
-			name: "successful request",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: expect(t, expectations{
-					path: "/repos/owner/repo/pulls/1/requested_reviewers",
-					requestBody: map[string]any{
-						"reviewers": []any{"copilot-pull-request-reviewer[bot]"},
-					},
-				}).andThen(
-					mockResponse(t, http.StatusCreated, mockPR),
-				),
-			}),
-			requestArgs: map[string]any{
-				"owner":      "owner",
-				"repo":       "repo",
-				"pullNumber": float64(1),
-			},
-			expectError: false,
-		},
-		{
-			name: "request fails",
-			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
-				PostReposPullsRequestedReviewersByOwnerByRepoByPullNumber: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-					w.WriteHeader(http.StatusNotFound)
-					_, _ = w.Write([]byte(`{"message": "Not Found"}`))
-				}),
-			}),
-			requestArgs: map[string]any{
-				"owner":      "owner",
-				"repo":       "repo",
-				"pullNumber": float64(999),
-			},
-			expectError:    true,
-			expectedErrMsg: "failed to request copilot review",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			client := github.NewClient(tc.mockedClient)
-			serverTool := RequestCopilotReview(translations.NullTranslationHelper)
-			deps := BaseDeps{
-				Client: client,
-			}
-			handler := serverTool.Handler(deps)
-
-			request := createMCPRequest(tc.requestArgs)
-
-			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
-
-			if tc.expectError {
-				require.NoError(t, err)
-				require.True(t, result.IsError)
-				errorContent := getErrorResult(t, result)
-				assert.Contains(t, errorContent.Text, tc.expectedErrMsg)
-				return
-			}
-
-			require.NoError(t, err)
-			require.False(t, result.IsError)
-			assert.NotNil(t, result)
-			assert.Len(t, result.Content, 1)
-
-			textContent := getTextResult(t, result)
-			require.Equal(t, "", textContent.Text)
 		})
 	}
 }
