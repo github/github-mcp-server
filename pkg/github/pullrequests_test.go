@@ -671,16 +671,16 @@ func Test_ListPullRequests(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Unmarshal and verify the result
-			var returnedPRs []*github.PullRequest
+			var returnedPRs []MinimalPullRequest
 			err = json.Unmarshal([]byte(textContent.Text), &returnedPRs)
 			require.NoError(t, err)
 			assert.Len(t, returnedPRs, 2)
-			assert.Equal(t, *tc.expectedPRs[0].Number, *returnedPRs[0].Number)
-			assert.Equal(t, *tc.expectedPRs[0].Title, *returnedPRs[0].Title)
-			assert.Equal(t, *tc.expectedPRs[0].State, *returnedPRs[0].State)
-			assert.Equal(t, *tc.expectedPRs[1].Number, *returnedPRs[1].Number)
-			assert.Equal(t, *tc.expectedPRs[1].Title, *returnedPRs[1].Title)
-			assert.Equal(t, *tc.expectedPRs[1].State, *returnedPRs[1].State)
+			assert.Equal(t, *tc.expectedPRs[0].Number, returnedPRs[0].Number)
+			assert.Equal(t, *tc.expectedPRs[0].Title, returnedPRs[0].Title)
+			assert.Equal(t, *tc.expectedPRs[0].State, returnedPRs[0].State)
+			assert.Equal(t, *tc.expectedPRs[1].Number, returnedPRs[1].Number)
+			assert.Equal(t, *tc.expectedPRs[1].Title, returnedPRs[1].Title)
+			assert.Equal(t, *tc.expectedPRs[1].State, returnedPRs[1].State)
 		})
 	}
 }
