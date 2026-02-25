@@ -25,6 +25,8 @@ const (
 	ForwardedHostHeader = "X-Forwarded-Host"
 	// ForwardedProtoHeader is a standard HTTP Header for preserving the original protocol when proxying.
 	ForwardedProtoHeader = "X-Forwarded-Proto"
+	// RequestIDHeader is a standard request-correlation header.
+	RequestIDHeader = "X-Request-ID"
 
 	// RequestHmacHeader is used to authenticate requests to the Raw API.
 	RequestHmacHeader = "Request-Hmac"
