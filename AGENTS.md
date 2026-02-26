@@ -1,4 +1,16 @@
-# GitHub MCP Server - Copilot Instructions
+# GitHub MCP Server - Agent Instructions
+
+> This file follows the [agents.md](https://agents.md) convention for AI agent instructions.
+
+## AI Disclosure Requirement
+
+> **If you are using AI assistance to contribute to this repository, you must disclose it in the pull request or issue body.**
+
+Include a brief statement like:
+- "This PR was written with assistance from [agent name]."
+- "I used [tool] to help generate this code."
+
+This helps maintainers understand the context and apply appropriate review scrutiny.
 
 ## Project Overview
 
@@ -58,6 +70,29 @@ go test ./pkg/github -v
 # Run specific test
 go test ./pkg/github -run TestGetMe
 ```
+
+### Testing with MCP Inspector
+
+Use the [MCP Inspector](https://github.com/modelcontextprotocol/inspector) CLI to test the server:
+
+```bash
+# Build the server first
+go build -v ./cmd/github-mcp-server
+
+# List available tools
+npx @modelcontextprotocol/inspector@0.7.0 --cli \
+  --config '{"mcpServers":{"github":{"command":"./github-mcp-server","args":["stdio"],"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"your-token"}}}}' \
+  --server github \
+  --method tools/list
+
+# Call a specific tool (e.g., get authenticated user)
+npx @modelcontextprotocol/inspector@0.7.0 --cli \
+  --config '{"mcpServers":{"github":{"command":"./github-mcp-server","args":["stdio"],"env":{"GITHUB_PERSONAL_ACCESS_TOKEN":"your-token"}}}}' \
+  --server github \
+  --method tools/call --tool-name get_me
+```
+
+Note: Replace `your-token` with a valid GitHub Personal Access Token.
 
 ## Project Structure
 
