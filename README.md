@@ -88,6 +88,7 @@ Alternatively, to manually configure VS Code, choose the appropriate JSON block 
 - **[Cursor](/docs/installation-guides/install-cursor.md)** - Installation guide for Cursor IDE
 - **[Windsurf](/docs/installation-guides/install-windsurf.md)** - Installation guide for Windsurf IDE
 - **[Rovo Dev CLI](/docs/installation-guides/install-rovo-dev-cli.md)** - Installation guide for Rovo Dev CLI
+- **[AdaL CLI](/docs/installation-guides/install-adal-cli.md)** - Installation guide for AdaL CLI
 
 > **Note:** Each MCP host application needs to configure a GitHub App or OAuth App to support remote access via OAuth. Any host application that supports remote MCP servers should support the remote GitHub server with PAT authentication. Configuration details and support levels vary by host. Make sure to refer to the host application's documentation for more info.
 
@@ -357,6 +358,7 @@ For other MCP host applications, please refer to our installation guides:
 - **[Cursor](docs/installation-guides/install-cursor.md)** - Installation guide for Cursor IDE
 - **[Google Gemini CLI](docs/installation-guides/install-gemini-cli.md)** - Installation guide for Google Gemini CLI
 - **[Windsurf](docs/installation-guides/install-windsurf.md)** - Installation guide for Windsurf IDE
+- **[AdaL CLI](docs/installation-guides/install-adal-cli.md)** - Installation guide for AdaL CLI
 
 For a complete overview of all installation options, see our **[Installation Guides Index](docs/installation-guides)**.
 
