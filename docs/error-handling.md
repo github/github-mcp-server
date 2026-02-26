@@ -1,15 +1,15 @@
 # Error Handling
 
-This document describes the error handling patterns used in the GitHub MCP Server, specifically how we handle GitHub API errors and avoid direct use of mcp-go error types.
+This document describes the error handling patterns used in the GitHub MCP Server, specifically how we handle GitHub API errors using the MCP SDK's `SetError`/`GetError` mechanism.
 
 ## Overview
 
-The GitHub MCP Server implements a custom error handling approach that serves two primary purposes:
+The GitHub MCP Server uses the Go SDK's `CallToolResult.SetError()` to embed typed GitHub API errors directly in tool results. This approach enables:
 
 1. **Tool Response Generation**: Return appropriate MCP tool error responses to clients
-2. **Middleware Inspection**: Store detailed error information in the request context for middleware analysis
+2. **Error Type Inspection**: Consumers can use `result.GetError()` with `errors.As` to extract typed errors for analysis
 
-This dual approach enables better observability and debugging capabilities, particularly for remote server deployments where understanding the nature of failures (rate limiting, authentication, 404s, 500s, etc.) is crucial for validation and monitoring.
+This is powered by the Go SDK v1.3.0+ `SetError`/`GetError` methods on `CallToolResult`, which embed a Go `error` in the result alongside the error text content.
 
 ## Error Types
 
@@ -36,11 +36,23 @@ type GitHubGraphQLError struct {
 }
 ```
 
+### GitHubRawAPIError
+
+Used for raw HTTP API errors from the GitHub API:
+
+```go
+type GitHubRawAPIError struct {
+    Message  string         `json:"message"`
+    Response *http.Response `json:"-"`
+    Err      error          `json:"-"`
+}
+```
+
 ## Usage Patterns
 
 ### For GitHub REST API Errors
 
-Instead of directly returning `mcp.NewToolResultError()`, use:
+When a GitHub REST API call fails, use:
 
 ```go
 return ghErrors.NewGitHubAPIErrorResponse(ctx, message, response, err), nil
@@ -48,8 +60,8 @@ return ghErrors.NewGitHubAPIErrorResponse(ctx, message, response, err), nil
 
 This function:
 - Creates a `GitHubAPIError` with the provided message, response, and error
-- Stores the error in the context for middleware inspection
-- Returns an appropriate MCP tool error response
+- Calls `result.SetError()` to embed the typed error in the tool result
+- Returns a `CallToolResult` with `IsError: true` and error text content
 
 ### For GitHub GraphQL API Errors
 
@@ -57,17 +69,28 @@ This function:
 return ghErrors.NewGitHubGraphQLErrorResponse(ctx, message, err), nil
 ```
 
-### Context Management
-
-The error handling system uses context to store errors for later inspection:
+### For Raw HTTP API Errors
 
 ```go
-// Initialize context with error tracking
-ctx = errors.ContextWithGitHubErrors(ctx)
+return ghErrors.NewGitHubRawAPIErrorResponse(ctx, message, response, err), nil
+```
 
-// Retrieve errors for inspection (typically in middleware)
-apiErrors, err := errors.GetGitHubAPIErrors(ctx)
-graphqlErrors, err := errors.GetGitHubGraphQLErrors(ctx)
+### Extracting Errors from Results
+
+Consumers (such as middleware or the remote server) can extract typed errors from results:
+
+```go
+if err := result.GetError(); err != nil {
+    var apiErr *errors.GitHubAPIError
+    if errors.As(err, &apiErr) {
+        // Access apiErr.Response.StatusCode, apiErr.Message, etc.
+    }
+
+    var gqlErr *errors.GitHubGraphQLError
+    if errors.As(err, &gqlErr) {
+        // Access gqlErr.Message, gqlErr.Err, etc.
+    }
+}
 ```
 
 ## Design Principles
@@ -77,20 +100,20 @@ graphqlErrors, err := errors.GetGitHubGraphQLErrors(ctx)
 - **User-actionable errors** (authentication failures, rate limits, 404s) should be returned as failed tool calls using the error response functions
 - **Developer errors** (JSON marshaling failures, internal logic errors) should be returned as actual Go errors that bubble up through the MCP framework
 
-### Context Limitations
+### Type Safety with SetError/GetError
 
-This approach was designed to work around current limitations in mcp-go where context is not propagated through each step of request processing. By storing errors in context values, middleware can inspect them without requiring context propagation.
-
-### Graceful Error Handling
-
-Error storage operations in context are designed to fail gracefully - if context storage fails, the tool will still return an appropriate error response to the client.
+All GitHub API error types implement the `error` interface with `Unwrap()` support, enabling:
+- `errors.As()` to extract the specific error type (e.g., `*GitHubAPIError`)
+- `errors.Is()` to check for the underlying cause
+- Standard Go error handling patterns
 
 ## Benefits
 
-1. **Observability**: Middleware can inspect the specific types of GitHub API errors occurring
-2. **Debugging**: Detailed error information is preserved without exposing potentially sensitive data in logs
-3. **Validation**: Remote servers can use error types and HTTP status codes to validate that changes don't break functionality
-4. **Privacy**: Error inspection can be done programmatically using `errors.Is` checks without logging PII
+1. **Type Safety**: Errors are embedded in the result as typed Go errors, not just strings
+2. **Observability**: Middleware can inspect the specific types of GitHub API errors using `errors.As`
+3. **Simplicity**: No context-based error storage or middleware setup required
+4. **Debugging**: Detailed error information (HTTP status codes, response objects) is preserved
+5. **Privacy**: Error inspection can be done programmatically using `errors.Is`/`errors.As` checks
 
 ## Example Implementation
 
@@ -102,12 +125,12 @@ func GetIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (tool
             if err != nil {
                 return mcp.NewToolResultError(err.Error()), nil
             }
-            
+
             client, err := getClient(ctx)
             if err != nil {
                 return nil, fmt.Errorf("failed to get GitHub client: %w", err)
             }
-            
+
             issue, resp, err := client.Issues.Get(ctx, owner, repo, issueNumber)
             if err != nil {
                 return ghErrors.NewGitHubAPIErrorResponse(ctx,
@@ -116,10 +139,23 @@ func GetIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (tool
                     err,
                 ), nil
             }
-            
+
             return MarshalledTextResult(issue), nil
         }
 }
 ```
 
-This approach ensures that both the client receives an appropriate error response and any middleware can inspect the underlying GitHub API error for monitoring and debugging purposes.
+The error can then be inspected by consumers:
+
+```go
+result, err := handler(ctx, request)
+if err == nil && result.IsError {
+    if apiErr := result.GetError(); apiErr != nil {
+        var ghErr *errors.GitHubAPIError
+        if errors.As(apiErr, &ghErr) {
+            log.Printf("GitHub API error: status=%d message=%s",
+                ghErr.Response.StatusCode, ghErr.Message)
+        }
+    }
+}
+```

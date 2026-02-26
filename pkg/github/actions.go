@@ -78,7 +78,7 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 	// Collect logs for all failed jobs
 	var logResults []map[string]any
 	for _, job := range failedJobs {
-		jobResult, resp, err := getJobLogData(ctx, client, owner, repo, job.GetID(), job.GetName(), returnContent, tailLines, contentWindowSize)
+		jobResult, _, err := getJobLogData(ctx, client, owner, repo, job.GetID(), job.GetName(), returnContent, tailLines, contentWindowSize)
 		if err != nil {
 			// Continue with other jobs even if one fails
 			jobResult = map[string]any{
@@ -86,8 +86,7 @@ func handleFailedJobLogs(ctx context.Context, client *github.Client, owner, repo
 				"job_name": job.GetName(),
 				"error":    err.Error(),
 			}
-			// Enable reporting of status codes and error causes
-			_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get job logs", resp, err) // Explicitly ignore error for graceful handling
+
 		}
 
 		logResults = append(logResults, jobResult)

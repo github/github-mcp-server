@@ -19,7 +19,6 @@ func initializeRepository(ctx context.Context, client *github.Client, owner, rep
 	// First, we need to check what the default branch in this empty repo should be:
 	repository, resp, err := client.Repositories.Get(ctx, owner, repo)
 	if err != nil {
-		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get repository", resp, err)
 		return nil, nil, fmt.Errorf("failed to get repository: %w", err)
 	}
 	if resp != nil && resp.Body != nil {
@@ -37,7 +36,6 @@ func initializeRepository(ctx context.Context, client *github.Client, owner, rep
 	// Create an initial empty commit to create the default branch
 	createResp, resp, err := client.Repositories.CreateFile(ctx, owner, repo, "README.md", fileOpts)
 	if err != nil {
-		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to create initial file", resp, err)
 		return nil, nil, fmt.Errorf("failed to create initial file: %w", err)
 	}
 	if resp != nil && resp.Body != nil {
@@ -47,7 +45,6 @@ func initializeRepository(ctx context.Context, client *github.Client, owner, rep
 	// Get the commit that was just created to use as base for remaining files
 	baseCommit, resp, err = client.Git.GetCommit(ctx, owner, repo, *createResp.Commit.SHA)
 	if err != nil {
-		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get initial commit", resp, err)
 		return nil, nil, fmt.Errorf("failed to get initial commit: %w", err)
 	}
 	if resp != nil && resp.Body != nil {
@@ -56,7 +53,6 @@ func initializeRepository(ctx context.Context, client *github.Client, owner, rep
 
 	ref, resp, err = client.Git.GetRef(ctx, owner, repo, "refs/heads/"+defaultBranch)
 	if err != nil {
-		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get final reference", resp, err)
 		return nil, nil, fmt.Errorf("failed to get branch reference after initial commit: %w", err)
 	}
 	if resp != nil && resp.Body != nil {
@@ -70,7 +66,6 @@ func initializeRepository(ctx context.Context, client *github.Client, owner, rep
 func createReferenceFromDefaultBranch(ctx context.Context, client *github.Client, owner, repo, branch string) (*github.Reference, error) {
 	defaultRef, err := resolveDefaultBranch(ctx, client, owner, repo)
 	if err != nil {
-		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to resolve default branch", nil, err)
 		return nil, fmt.Errorf("failed to resolve default branch: %w", err)
 	}
 
@@ -80,7 +75,6 @@ func createReferenceFromDefaultBranch(ctx context.Context, client *github.Client
 		SHA: *defaultRef.Object.SHA,
 	})
 	if err != nil {
-		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to create new branch reference", resp, err)
 		return nil, fmt.Errorf("failed to create new branch reference: %w", err)
 	}
 	if resp != nil && resp.Body != nil {
@@ -219,7 +213,6 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 
 	// 2) If no SHA is provided, we try to resolve the ref into a fully-qualified format.
 	var reference *github.Reference
-	var resp *github.Response
 	var err error
 	var fallbackUsed bool
 
@@ -239,7 +232,7 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 	default:
 		// 2d) It's a short name, so we try to resolve it to either a branch or a tag.
 		branchRef := "refs/heads/" + originalRef
-		reference, resp, err = githubClient.Git.GetRef(ctx, owner, repo, branchRef)
+		reference, _, err = githubClient.Git.GetRef(ctx, owner, repo, branchRef)
 
 		if err == nil {
 			ref = branchRef // It's a branch.
@@ -248,7 +241,7 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 			ghErr, isGhErr := err.(*github.ErrorResponse)
 			if isGhErr && ghErr.Response.StatusCode == http.StatusNotFound {
 				tagRef := "refs/tags/" + originalRef
-				reference, resp, err = githubClient.Git.GetRef(ctx, owner, repo, tagRef)
+				reference, _, err = githubClient.Git.GetRef(ctx, owner, repo, tagRef)
 				if err == nil {
 					ref = tagRef // It's a tag.
 				} else {
@@ -269,19 +262,17 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 					}
 
 					// The tag lookup failed for a different reason.
-					_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get reference (tag)", resp, err)
 					return nil, false, fmt.Errorf("failed to get reference for tag '%s': %w", originalRef, err)
 				}
 			} else {
 				// The branch lookup failed for a different reason.
-				_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get reference (branch)", resp, err)
 				return nil, false, fmt.Errorf("failed to get reference for branch '%s': %w", originalRef, err)
 			}
 		}
 	}
 
 	if reference == nil {
-		reference, resp, err = githubClient.Git.GetRef(ctx, owner, repo, ref)
+		reference, _, err = githubClient.Git.GetRef(ctx, owner, repo, ref)
 		if err != nil {
 			if ref == "refs/heads/main" {
 				reference, err = resolveDefaultBranch(ctx, githubClient, owner, repo)
@@ -292,7 +283,6 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 				ref = reference.GetRef()
 				fallbackUsed = true
 			} else {
-				_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get final reference", resp, err)
 				return nil, false, fmt.Errorf("failed to get final reference for %q: %w", ref, err)
 			}
 		}
@@ -305,7 +295,6 @@ func resolveGitReference(ctx context.Context, githubClient *github.Client, owner
 func resolveDefaultBranch(ctx context.Context, githubClient *github.Client, owner, repo string) (*github.Reference, error) {
 	repoInfo, resp, err := githubClient.Repositories.Get(ctx, owner, repo)
 	if err != nil {
-		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get repository info", resp, err)
 		return nil, fmt.Errorf("failed to get repository info: %w", err)
 	}
 
@@ -317,7 +306,6 @@ func resolveDefaultBranch(ctx context.Context, githubClient *github.Client, owne
 
 	defaultRef, resp, err := githubClient.Git.GetRef(ctx, owner, repo, "heads/"+defaultBranch)
 	if err != nil {
-		_, _ = ghErrors.NewGitHubAPIErrorToCtx(ctx, "failed to get default branch reference", resp, err)
 		return nil, fmt.Errorf("failed to get default branch reference: %w", err)
 	}
 
