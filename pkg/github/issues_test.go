@@ -1187,7 +1187,6 @@ func Test_ListIssues(t *testing.T) {
 		expectError   bool
 		errContains   string
 		expectedCount int
-		verifyOrder   func(t *testing.T, issues []*github.Issue)
 	}{
 		{
 			name: "list all issues",
@@ -1296,31 +1295,32 @@ func Test_ListIssues(t *testing.T) {
 			require.NoError(t, err)
 
 			// Parse the structured response with pagination info
-			var response struct {
-				Issues   []*github.Issue `json:"issues"`
-				PageInfo struct {
-					HasNextPage     bool   `json:"hasNextPage"`
-					HasPreviousPage bool   `json:"hasPreviousPage"`
-					StartCursor     string `json:"startCursor"`
-					EndCursor       string `json:"endCursor"`
-				} `json:"pageInfo"`
-				TotalCount int `json:"totalCount"`
-			}
+			var response MinimalIssuesResponse
 			err = json.Unmarshal([]byte(text), &response)
 			require.NoError(t, err)
 
 			assert.Len(t, response.Issues, tc.expectedCount, "Expected %d issues, got %d", tc.expectedCount, len(response.Issues))
 
-			// Verify order if verifyOrder function is provided
-			if tc.verifyOrder != nil {
-				tc.verifyOrder(t, response.Issues)
-			}
+			// Verify pagination metadata
+			assert.Equal(t, tc.expectedCount, response.TotalCount)
+			assert.False(t, response.PageInfo.HasNextPage)
+			assert.False(t, response.PageInfo.HasPreviousPage)
 
 			// Verify that returned issues have expected structure
 			for _, issue := range response.Issues {
-				assert.NotNil(t, issue.Number, "Issue should have number")
-				assert.NotNil(t, issue.Title, "Issue should have title")
-				assert.NotNil(t, issue.State, "Issue should have state")
+				assert.NotZero(t, issue.Number, "Issue should have number")
+				assert.NotEmpty(t, issue.Title, "Issue should have title")
+				assert.NotEmpty(t, issue.State, "Issue should have state")
+				assert.NotEmpty(t, issue.CreatedAt, "Issue should have created_at")
+				assert.NotEmpty(t, issue.UpdatedAt, "Issue should have updated_at")
+				assert.NotNil(t, issue.User, "Issue should have user")
+				assert.NotEmpty(t, issue.User.Login, "Issue user should have login")
+				assert.Empty(t, issue.HTMLURL, "html_url should be empty (not populated by GraphQL fragment)")
+
+				// Labels should be flattened to name strings
+				for _, label := range issue.Labels {
+					assert.NotEmpty(t, label, "Label should be a non-empty string")
+				}
 			}
 		})
 	}
