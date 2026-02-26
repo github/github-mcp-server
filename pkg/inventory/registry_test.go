@@ -180,6 +180,27 @@ func TestWithToolsets(t *testing.T) {
 	}
 }
 
+func TestWithToolsets_DefaultAndCustomOrderIsDeterministic(t *testing.T) {
+	tools := []ServerTool{
+		mockToolWithDefault("tool-alpha", "alpha", true, true),
+		mockToolWithDefault("tool-beta", "beta", true, true),
+		mockToolWithDefault("tool-gamma", "gamma", true, false),
+	}
+
+	reg := mustBuild(t, NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"gamma", "default", "gamma"}))
+
+	enabledIDs := reg.EnabledToolsetIDs()
+	require.Equal(t, []ToolsetID{"alpha", "beta", "gamma"}, enabledIDs)
+
+	available := reg.AvailableTools(context.Background())
+	require.Len(t, available, 3)
+	require.Equal(t, "tool-alpha", available[0].Tool.Name)
+	require.Equal(t, "tool-beta", available[1].Tool.Name)
+	require.Equal(t, "tool-gamma", available[2].Tool.Name)
+}
+
 func TestWithToolsetsTrimsWhitespace(t *testing.T) {
 	tools := []ServerTool{
 		mockTool("tool1", "toolset1", true),
