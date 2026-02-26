@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -248,20 +249,49 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	logger := slog.New(slogHandler)
 	logger.Info("starting server", "version", cfg.Version, "host", cfg.Host, "dynamicToolsets", cfg.DynamicToolsets, "readOnly", cfg.ReadOnly, "lockdownEnabled", cfg.LockdownMode)
 
-	// Fetch token scopes for scope-based tool filtering (PAT tokens only)
-	// Only classic PATs (ghp_ prefix) return OAuth scopes via X-OAuth-Scopes header.
-	// Fine-grained PATs and other token types don't support this, so we skip filtering.
+	featureChecker := createFeatureChecker(cfg.EnabledFeatures)
+
+	// Fetch token scopes for scope-based tool filtering and startup validation.
+	// We currently fail closed for classic PAT and OAuth access tokens where scopes
+	// can be resolved deterministically.
 	var tokenScopes []string
-	if strings.HasPrefix(cfg.Token, "ghp_") {
+	if shouldValidateTokenScopesAtStartup(cfg.Token) {
 		fetchedScopes, err := fetchTokenScopesForHost(ctx, cfg.Token, cfg.Host)
 		if err != nil {
-			logger.Warn("failed to fetch token scopes, continuing without scope filtering", "error", err)
-		} else {
-			tokenScopes = fetchedScopes
-			logger.Info("token scopes fetched for filtering", "scopes", tokenScopes)
+			return fmt.Errorf("scope requirements check failed: unable to fetch token scopes: %w", err)
 		}
+		tokenScopes = fetchedScopes
+		logger.Info("token scopes fetched for filtering", "scopes", tokenScopes)
 	} else {
-		logger.Debug("skipping scope filtering for non-PAT token")
+		logger.Debug("skipping startup scope validation for token type")
+	}
+
+	if shouldValidateTokenScopesAtStartup(cfg.Token) {
+		startupInventory, err := github.NewInventory(t).
+			WithDeprecatedAliases(github.DeprecatedToolAliases).
+			WithReadOnly(cfg.ReadOnly).
+			WithToolsets(github.ResolvedEnabledToolsets(cfg.DynamicToolsets, cfg.EnabledToolsets, cfg.EnabledTools)).
+			WithTools(github.CleanTools(cfg.EnabledTools)).
+			WithExcludeTools(cfg.ExcludeTools).
+			WithServerInstructions().
+			WithFeatureChecker(featureChecker).
+			WithInsidersMode(cfg.InsidersMode).
+			Build()
+		if err != nil {
+			return fmt.Errorf("failed to build inventory for scope validation: %w", err)
+		}
+
+		missingScopes, blockedTools, err := evaluateScopeRequirements(startupInventory.AllTools(), tokenScopes)
+		if err != nil {
+			return fmt.Errorf("failed to evaluate token scope requirements: %w", err)
+		}
+		if len(blockedTools) > 0 {
+			return fmt.Errorf(
+				"scope requirements unmet at startup: missing scopes [%s]; blocked tools [%s]",
+				strings.Join(missingScopes, ", "),
+				strings.Join(blockedTools, ", "),
+			)
+		}
 	}
 
 	ghServer, err := NewStdioMCPServer(ctx, github.MCPServerConfig{
@@ -325,6 +355,43 @@ func RunStdioServer(cfg StdioServerConfig) error {
 	}
 
 	return nil
+}
+
+func shouldValidateTokenScopesAtStartup(token string) bool {
+	return strings.HasPrefix(token, "ghp_") || strings.HasPrefix(token, "gho_")
+}
+
+func evaluateScopeRequirements(tools []inventory.ServerTool, tokenScopes []string) ([]string, []string, error) {
+	filter := github.CreateToolScopeFilter(tokenScopes)
+	missingScopeSet := make(map[string]struct{})
+	blockedTools := make([]string, 0)
+
+	for i := range tools {
+		allowed, err := filter(context.Background(), &tools[i])
+		if err != nil {
+			return nil, nil, err
+		}
+		if allowed {
+			continue
+		}
+
+		blockedTools = append(blockedTools, tools[i].Tool.Name)
+		for _, required := range tools[i].RequiredScopes {
+			if required == "" {
+				continue
+			}
+			missingScopeSet[required] = struct{}{}
+		}
+	}
+
+	missingScopes := make([]string, 0, len(missingScopeSet))
+	for scope := range missingScopeSet {
+		missingScopes = append(missingScopes, scope)
+	}
+	sort.Strings(missingScopes)
+	sort.Strings(blockedTools)
+
+	return missingScopes, blockedTools, nil
 }
 
 // createFeatureChecker returns a FeatureFlagChecker that checks if a flag name
