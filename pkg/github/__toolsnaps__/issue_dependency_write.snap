@@ -1,0 +1,43 @@
+{
+  "annotations": {
+    "title": "Manage issue dependencies"
+  },
+  "description": "Manage issue dependencies by adding or removing 'blocked by' relationships between issues.",
+  "inputSchema": {
+    "properties": {
+      "blocking_issue_id": {
+        "description": "The ID (not number) of the issue that blocks this issue",
+        "type": "number"
+      },
+      "issue_number": {
+        "description": "The number of the issue that is blocked",
+        "type": "number"
+      },
+      "method": {
+        "description": "The action to perform on issue dependencies.\nOptions are:\n- 'add' - Add a 'blocked by' relationship, indicating this issue is blocked by another issue.\n- 'remove' - Remove a 'blocked by' relationship.\n",
+        "enum": [
+          "add",
+          "remove"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "owner",
+      "repo",
+      "issue_number",
+      "blocking_issue_id"
+    ],
+    "type": "object"
+  },
+  "name": "issue_dependency_write"
+}
