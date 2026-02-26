@@ -77,6 +77,7 @@ type MinimalCommitFile struct {
 	Additions int    `json:"additions,omitempty"`
 	Deletions int    `json:"deletions,omitempty"`
 	Changes   int    `json:"changes,omitempty"`
+	Patch     string `json:"patch,omitempty"`
 }
 
 // MinimalPRFile represents a file changed in a pull request.
@@ -570,7 +571,7 @@ func convertToMinimalUser(user *github.User) *MinimalUser {
 }
 
 // convertToMinimalCommit converts a GitHub API RepositoryCommit to MinimalCommit
-func convertToMinimalCommit(commit *github.RepositoryCommit, includeDiffs bool) MinimalCommit {
+func convertToMinimalCommit(commit *github.RepositoryCommit, includeDiffs bool, includePatch bool) MinimalCommit {
 	minimalCommit := MinimalCommit{
 		SHA:     commit.GetSHA(),
 		HTMLURL: commit.GetHTMLURL(),
@@ -639,6 +640,9 @@ func convertToMinimalCommit(commit *github.RepositoryCommit, includeDiffs bool) 
 					Additions: file.GetAdditions(),
 					Deletions: file.GetDeletions(),
 					Changes:   file.GetChanges(),
+				}
+				if includePatch {
+					minimalFile.Patch = file.GetPatch()
 				}
 				minimalCommit.Files = append(minimalCommit.Files, minimalFile)
 			}
