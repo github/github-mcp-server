@@ -1434,18 +1434,27 @@ func Test_CreateOrUpdateFile(t *testing.T) {
 			}
 
 			// Unmarshal and verify the result
-			var returnedContent github.RepositoryContentResponse
+			var returnedContent MinimalFileContentResponse
 			err = json.Unmarshal([]byte(textContent.Text), &returnedContent)
 			require.NoError(t, err)
 
 			// Verify content
-			assert.Equal(t, *tc.expectedContent.Content.Name, *returnedContent.Content.Name)
-			assert.Equal(t, *tc.expectedContent.Content.Path, *returnedContent.Content.Path)
-			assert.Equal(t, *tc.expectedContent.Content.SHA, *returnedContent.Content.SHA)
+			assert.Equal(t, tc.expectedContent.Content.GetName(), returnedContent.Content.Name)
+			assert.Equal(t, tc.expectedContent.Content.GetPath(), returnedContent.Content.Path)
+			assert.Equal(t, tc.expectedContent.Content.GetSHA(), returnedContent.Content.SHA)
+			assert.Equal(t, tc.expectedContent.Content.GetSize(), returnedContent.Content.Size)
+			assert.Equal(t, tc.expectedContent.Content.GetHTMLURL(), returnedContent.Content.HTMLURL)
 
 			// Verify commit
-			assert.Equal(t, *tc.expectedContent.Commit.SHA, *returnedContent.Commit.SHA)
-			assert.Equal(t, *tc.expectedContent.Commit.Message, *returnedContent.Commit.Message)
+			assert.Equal(t, tc.expectedContent.Commit.GetSHA(), returnedContent.Commit.SHA)
+			assert.Equal(t, tc.expectedContent.Commit.GetMessage(), returnedContent.Commit.Message)
+			assert.Equal(t, tc.expectedContent.Commit.GetHTMLURL(), returnedContent.Commit.HTMLURL)
+
+			// Verify commit author
+			require.NotNil(t, returnedContent.Commit.Author)
+			assert.Equal(t, tc.expectedContent.Commit.Author.GetName(), returnedContent.Commit.Author.Name)
+			assert.Equal(t, tc.expectedContent.Commit.Author.GetEmail(), returnedContent.Commit.Author.Email)
+			assert.NotEmpty(t, returnedContent.Commit.Author.Date)
 		})
 	}
 }
@@ -2782,15 +2791,15 @@ func Test_ListTags(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Parse and verify the result
-			var returnedTags []*github.RepositoryTag
+			var returnedTags []MinimalTag
 			err = json.Unmarshal([]byte(textContent.Text), &returnedTags)
 			require.NoError(t, err)
 
 			// Verify each tag
 			require.Equal(t, len(tc.expectedTags), len(returnedTags))
 			for i, expectedTag := range tc.expectedTags {
-				assert.Equal(t, *expectedTag.Name, *returnedTags[i].Name)
-				assert.Equal(t, *expectedTag.Commit.SHA, *returnedTags[i].Commit.SHA)
+				assert.Equal(t, *expectedTag.Name, returnedTags[i].Name)
+				assert.Equal(t, *expectedTag.Commit.SHA, returnedTags[i].SHA)
 			}
 		})
 	}
@@ -3043,12 +3052,12 @@ func Test_ListReleases(t *testing.T) {
 
 			require.NoError(t, err)
 			textContent := getTextResult(t, result)
-			var returnedReleases []*github.RepositoryRelease
+			var returnedReleases []MinimalRelease
 			err = json.Unmarshal([]byte(textContent.Text), &returnedReleases)
 			require.NoError(t, err)
 			assert.Len(t, returnedReleases, len(tc.expectedResult))
-			for i, rel := range returnedReleases {
-				assert.Equal(t, *tc.expectedResult[i].TagName, *rel.TagName)
+			for i := range returnedReleases {
+				assert.Equal(t, *tc.expectedResult[i].TagName, returnedReleases[i].TagName)
 			}
 		})
 	}

@@ -140,7 +140,7 @@ When no toolsets are specified, [default toolsets](#default-toolset) are used.
 </tr>
 </table>
 
-See [Remote Server Documentation](docs/remote-server.md#insiders-mode) for more details and examples.
+See [Remote Server Documentation](docs/remote-server.md#insiders-mode) for more details and examples, and [Insiders Features](docs/insiders-features.md) for a full list of what's available.
 
 #### GitHub Enterprise
 
@@ -153,7 +153,7 @@ Example for `https://octocorp.ghe.com` with GitHub PAT token:
 ```
 {
     ...
-    "proxima-github": {
+    "github-octocorp": {
       "type": "http",
       "url": "https://copilot-api.octocorp.ghe.com/mcp",
       "headers": {
@@ -560,6 +560,7 @@ The following sets of tools are available:
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/person-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/person-light.png"><img src="pkg/octicons/icons/person-light.png" width="20" height="20" alt="person"></picture> | `context`               | **Strongly recommended**: Tools that provide context about the current user and GitHub context you are operating in |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/workflow-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/workflow-light.png"><img src="pkg/octicons/icons/workflow-light.png" width="20" height="20" alt="workflow"></picture> | `actions` | GitHub Actions workflows and CI/CD operations |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/codescan-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/codescan-light.png"><img src="pkg/octicons/icons/codescan-light.png" width="20" height="20" alt="codescan"></picture> | `code_security` | Code security related tools, such as GitHub Code Scanning |
+| <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/copilot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/copilot-light.png"><img src="pkg/octicons/icons/copilot-light.png" width="20" height="20" alt="copilot"></picture> | `copilot` | Copilot related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/dependabot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/dependabot-light.png"><img src="pkg/octicons/icons/dependabot-light.png" width="20" height="20" alt="dependabot"></picture> | `dependabot` | Dependabot tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/comment-discussion-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/comment-discussion-light.png"><img src="pkg/octicons/icons/comment-discussion-light.png" width="20" height="20" alt="comment-discussion"></picture> | `discussions` | GitHub Discussions related tools |
 | <picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/logo-gist-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/logo-gist-light.png"><img src="pkg/octicons/icons/logo-gist-light.png" width="20" height="20" alt="logo-gist"></picture> | `gists` | GitHub Gist related tools |
@@ -686,6 +687,26 @@ The following sets of tools are available:
 
 <details>
 
+<summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/copilot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/copilot-light.png"><img src="pkg/octicons/icons/copilot-light.png" width="20" height="20" alt="copilot"></picture> Copilot</summary>
+
+- **assign_copilot_to_issue** - Assign Copilot to issue
+  - **Required OAuth Scopes**: `repo`
+  - `base_ref`: Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch (string, optional)
+  - `custom_instructions`: Optional custom instructions to guide the agent beyond the issue body. Use this to provide additional context, constraints, or guidance that is not captured in the issue description (string, optional)
+  - `issue_number`: Issue number (number, required)
+  - `owner`: Repository owner (string, required)
+  - `repo`: Repository name (string, required)
+
+- **request_copilot_review** - Request Copilot review
+  - **Required OAuth Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `pullNumber`: Pull request number (number, required)
+  - `repo`: Repository name (string, required)
+
+</details>
+
+<details>
+
 <summary><picture><source media="(prefers-color-scheme: dark)" srcset="pkg/octicons/icons/dependabot-dark.png"><source media="(prefers-color-scheme: light)" srcset="pkg/octicons/icons/dependabot-light.png"><img src="pkg/octicons/icons/dependabot-light.png" width="20" height="20" alt="dependabot"></picture> Dependabot</summary>
 
 - **get_dependabot_alert** - Get dependabot alert
@@ -791,14 +812,6 @@ The following sets of tools are available:
   - **Required OAuth Scopes**: `repo`
   - `body`: Comment content (string, required)
   - `issue_number`: Issue number to comment on (number, required)
-  - `owner`: Repository owner (string, required)
-  - `repo`: Repository name (string, required)
-
-- **assign_copilot_to_issue** - Assign Copilot to issue
-  - **Required OAuth Scopes**: `repo`
-  - `base_ref`: Git reference (e.g., branch) that the agent will start its work from. If not specified, defaults to the repository's default branch (string, optional)
-  - `custom_instructions`: Optional custom instructions to guide the agent beyond the issue body. Use this to provide additional context, constraints, or guidance that is not captured in the issue description (string, optional)
-  - `issue_number`: Issue number (number, required)
   - `owner`: Repository owner (string, required)
   - `repo`: Repository name (string, required)
 
@@ -983,9 +996,10 @@ The following sets of tools are available:
   - `fields`: Specific list of field IDs to include in the response when getting a project item (e.g. ["102589", "985201", "169875"]). If not provided, only the title field is included. Only used for 'get_project_item' method. (string[], optional)
   - `item_id`: The item's ID. Required for 'get_project_item' method. (number, optional)
   - `method`: The method to execute (string, required)
-  - `owner`: The owner (user or organization login). The name is not case sensitive. (string, required)
+  - `owner`: The owner (user or organization login). The name is not case sensitive. (string, optional)
   - `owner_type`: Owner type (user or org). If not provided, will be automatically detected. (string, optional)
-  - `project_number`: The project's number. (number, required)
+  - `project_number`: The project's number. (number, optional)
+  - `status_update_id`: The node ID of the project status update. Required for 'get_project_status_update' method. (string, optional)
 
 - **projects_list** - List GitHub Projects resources
   - **Required OAuth Scopes**: `read:project`
@@ -997,11 +1011,12 @@ The following sets of tools are available:
   - `owner`: The owner (user or organization login). The name is not case sensitive. (string, required)
   - `owner_type`: Owner type (user or org). If not provided, will automatically try both. (string, optional)
   - `per_page`: Results per page (max 50) (number, optional)
-  - `project_number`: The project's number. Required for 'list_project_fields' and 'list_project_items' methods. (number, optional)
+  - `project_number`: The project's number. Required for 'list_project_fields', 'list_project_items', and 'list_project_status_updates' methods. (number, optional)
   - `query`: Filter/query string. For list_projects: filter by title text and state (e.g. "roadmap is:open"). For list_project_items: advanced filtering using GitHub's project filtering syntax. (string, optional)
 
 - **projects_write** - Modify GitHub Project items
   - **Required OAuth Scopes**: `project`
+  - `body`: The body of the status update (markdown). Used for 'create_project_status_update' method. (string, optional)
   - `issue_number`: The issue number (use when item_type is 'issue' for 'add_project_item' method). Provide either issue_number or pull_request_number. (number, optional)
   - `item_id`: The project item ID. Required for 'update_project_item' and 'delete_project_item' methods. (number, optional)
   - `item_owner`: The owner (user or organization) of the repository containing the issue or pull request. Required for 'add_project_item' method. (string, optional)
@@ -1012,6 +1027,9 @@ The following sets of tools are available:
   - `owner_type`: Owner type (user or org). If not provided, will be automatically detected. (string, optional)
   - `project_number`: The project's number. (number, required)
   - `pull_request_number`: The pull request number (use when item_type is 'pull_request' for 'add_project_item' method). Provide either issue_number or pull_request_number. (number, optional)
+  - `start_date`: The start date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method. (string, optional)
+  - `status`: The status of the project. Used for 'create_project_status_update' method. (string, optional)
+  - `target_date`: The target date of the status update in YYYY-MM-DD format. Used for 'create_project_status_update' method. (string, optional)
   - `updated_field`: Object consisting of the ID of the project field to update and the new value for the field. To clear the field, set value to null. Example: {"id": 123456, "value": "New Value"}. Required for 'update_project_item' method. (object, optional)
 
 </details>
@@ -1079,11 +1097,12 @@ The following sets of tools are available:
     Possible options: 
      1. get - Get details of a specific pull request.
      2. get_diff - Get the diff of a pull request.
-     3. get_status - Get status of a head commit in a pull request. This reflects status of builds and checks.
+     3. get_status - Get combined commit status of a head commit in a pull request.
      4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.
      5. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Use cursor-based pagination (perPage, after) to control results.
      6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.
      7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.
+     8. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.
      (string, required)
   - `owner`: Repository owner (string, required)
   - `page`: Page number for pagination (min 1) (number, optional)
@@ -1101,12 +1120,6 @@ The following sets of tools are available:
   - `pullNumber`: Pull request number (number, required)
   - `repo`: Repository name (string, required)
   - `threadId`: The node ID of the review thread (e.g., PRRT_kwDOxxx). Required for resolve_thread and unresolve_thread methods. Get thread IDs from pull_request_read with method get_review_comments. (string, optional)
-
-- **request_copilot_review** - Request Copilot review
-  - **Required OAuth Scopes**: `repo`
-  - `owner`: Repository owner (string, required)
-  - `pullNumber`: Pull request number (number, required)
-  - `repo`: Repository name (string, required)
 
 - **search_pull_requests** - Search pull requests
   - **Required OAuth Scopes**: `repo`

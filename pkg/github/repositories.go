@@ -489,13 +489,14 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to create/update file", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(fileContent)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-			}
+			minimalResponse := convertToMinimalFileContentResponse(fileContent)
 
 			// Warn if file was updated without SHA validation (blind update)
 			if sha == "" && previousSHA != "" {
+				warning, err := json.Marshal(minimalResponse)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+				}
 				return utils.NewToolResultText(fmt.Sprintf(
 					"Warning: File updated without SHA validation. Previous file SHA was %s. "+
 						`Verify no unintended changes were overwritten: 
@@ -504,10 +505,10 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 3. Revert changes if shas do not match.
 
 %s`,
-					previousSHA, path, string(r))), nil, nil
+					previousSHA, path, string(warning))), nil, nil
 			}
 
-			return utils.NewToolResultText(string(r)), nil, nil
+			return MarshalledTextResult(minimalResponse), nil, nil
 		},
 	)
 }
@@ -1496,7 +1497,14 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list tags", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(tags)
+			minimalTags := make([]MinimalTag, 0, len(tags))
+			for _, tag := range tags {
+				if tag != nil {
+					minimalTags = append(minimalTags, convertToMinimalTag(tag))
+				}
+			}
+
+			r, err := json.Marshal(minimalTags)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -1669,7 +1677,14 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list releases", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(releases)
+			minimalReleases := make([]MinimalRelease, 0, len(releases))
+			for _, release := range releases {
+				if release != nil {
+					minimalReleases = append(minimalReleases, convertToMinimalRelease(release))
+				}
+			}
+
+			r, err := json.Marshal(minimalReleases)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}

@@ -61,6 +61,14 @@ var (
 				}
 			}
 
+			// Parse excluded tools (similar to tools)
+			var excludeTools []string
+			if viper.IsSet("exclude_tools") {
+				if err := viper.UnmarshalKey("exclude_tools", &excludeTools); err != nil {
+					return fmt.Errorf("failed to unmarshal exclude-tools: %w", err)
+				}
+			}
+
 			// Parse enabled features (similar to toolsets)
 			var enabledFeatures []string
 			if viper.IsSet("features") {
@@ -85,6 +93,7 @@ var (
 				ContentWindowSize:    viper.GetInt("content-window-size"),
 				LockdownMode:         viper.GetBool("lockdown-mode"),
 				InsidersMode:         viper.GetBool("insiders"),
+				ExcludeTools:         excludeTools,
 				RepoAccessCacheTTL:   &ttl,
 			}
 			return ghmcp.RunStdioServer(stdioServerConfig)
@@ -126,6 +135,7 @@ func init() {
 	// Add global flags that will be shared by all commands
 	rootCmd.PersistentFlags().StringSlice("toolsets", nil, github.GenerateToolsetsHelp())
 	rootCmd.PersistentFlags().StringSlice("tools", nil, "Comma-separated list of specific tools to enable")
+	rootCmd.PersistentFlags().StringSlice("exclude-tools", nil, "Comma-separated list of tool names to disable regardless of other settings")
 	rootCmd.PersistentFlags().StringSlice("features", nil, "Comma-separated list of feature flags to enable")
 	rootCmd.PersistentFlags().Bool("dynamic-toolsets", false, "Enable dynamic toolsets")
 	rootCmd.PersistentFlags().Bool("read-only", false, "Restrict the server to read-only operations")
@@ -147,6 +157,7 @@ func init() {
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
 	_ = viper.BindPFlag("tools", rootCmd.PersistentFlags().Lookup("tools"))
+	_ = viper.BindPFlag("exclude_tools", rootCmd.PersistentFlags().Lookup("exclude-tools"))
 	_ = viper.BindPFlag("features", rootCmd.PersistentFlags().Lookup("features"))
 	_ = viper.BindPFlag("dynamic_toolsets", rootCmd.PersistentFlags().Lookup("dynamic-toolsets"))
 	_ = viper.BindPFlag("read-only", rootCmd.PersistentFlags().Lookup("read-only"))
