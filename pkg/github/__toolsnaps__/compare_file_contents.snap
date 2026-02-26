@@ -1,0 +1,40 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Compare file contents"
+  },
+  "description": "Compare a file between two git refs, with semantic diffs for structured formats (JSON, YAML)",
+  "inputSchema": {
+    "properties": {
+      "base": {
+        "description": "Base git ref to compare from (commit SHA, branch name, or tag)",
+        "type": "string"
+      },
+      "head": {
+        "description": "Head git ref to compare to (commit SHA, branch name, or tag)",
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner (username or organization)",
+        "type": "string"
+      },
+      "path": {
+        "description": "Path to the file to compare",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "path",
+      "base",
+      "head"
+    ],
+    "type": "object"
+  },
+  "name": "compare_file_contents"
+}
