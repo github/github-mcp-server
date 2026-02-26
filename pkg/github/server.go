@@ -184,7 +184,7 @@ func NewServer(version string, opts *mcp.ServerOptions) *mcp.Server {
 
 	// Create a new MCP server
 	s := mcp.NewServer(&mcp.Implementation{
-		Name:    "github-mcp-server",
+		Name:    "github",
 		Title:   "GitHub MCP Server",
 		Version: version,
 		Icons:   octicons.Icons("mark-github"),
