@@ -1070,8 +1070,18 @@ The following sets of tools are available:
   - `repo`: Repository name (string, required)
   - `title`: PR title (string, required)
 
+- **get_prs_reviewed_by** - Get PRs reviewed by user
+  - **Required OAuth Scopes**: `repo`
+  - `owner`: Repository owner (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `repo`: Repository name (string, required)
+  - `reviewer`: GitHub username of the reviewer (string, required)
+  - `state`: PR state filter: open, closed, or all (string, optional)
+
 - **list_pull_requests** - List pull requests
   - **Required OAuth Scopes**: `repo`
+  - `author`: Filter by PR author username (client-side filter) (string, optional)
   - `base`: Filter by base branch (string, optional)
   - `direction`: Sort direction (string, optional)
   - `head`: Filter by head user/org and branch (string, optional)
@@ -1093,8 +1103,8 @@ The following sets of tools are available:
 
 - **pull_request_read** - Get details for a single pull request
   - **Required OAuth Scopes**: `repo`
-  - `method`: Action to specify what pull request data needs to be retrieved from GitHub. 
-    Possible options: 
+  - `method`: Action to specify what pull request data needs to be retrieved from GitHub.
+    Possible options:
      1. get - Get details of a specific pull request.
      2. get_diff - Get the diff of a pull request.
      3. get_status - Get combined commit status of a head commit in a pull request.
