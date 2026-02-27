@@ -2791,15 +2791,15 @@ func Test_ListTags(t *testing.T) {
 			textContent := getTextResult(t, result)
 
 			// Parse and verify the result
-			var returnedTags []*github.RepositoryTag
+			var returnedTags []MinimalTag
 			err = json.Unmarshal([]byte(textContent.Text), &returnedTags)
 			require.NoError(t, err)
 
 			// Verify each tag
 			require.Equal(t, len(tc.expectedTags), len(returnedTags))
 			for i, expectedTag := range tc.expectedTags {
-				assert.Equal(t, *expectedTag.Name, *returnedTags[i].Name)
-				assert.Equal(t, *expectedTag.Commit.SHA, *returnedTags[i].Commit.SHA)
+				assert.Equal(t, *expectedTag.Name, returnedTags[i].Name)
+				assert.Equal(t, *expectedTag.Commit.SHA, returnedTags[i].SHA)
 			}
 		})
 	}
@@ -3052,12 +3052,12 @@ func Test_ListReleases(t *testing.T) {
 
 			require.NoError(t, err)
 			textContent := getTextResult(t, result)
-			var returnedReleases []*github.RepositoryRelease
+			var returnedReleases []MinimalRelease
 			err = json.Unmarshal([]byte(textContent.Text), &returnedReleases)
 			require.NoError(t, err)
 			assert.Len(t, returnedReleases, len(tc.expectedResult))
-			for i, rel := range returnedReleases {
-				assert.Equal(t, *tc.expectedResult[i].TagName, *rel.TagName)
+			for i := range returnedReleases {
+				assert.Equal(t, *tc.expectedResult[i].TagName, returnedReleases[i].TagName)
 			}
 		})
 	}

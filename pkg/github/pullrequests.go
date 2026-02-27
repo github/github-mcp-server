@@ -607,7 +607,7 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 
 			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(ctx, req) && !uiSubmitted {
-				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. The user will review and confirm via the interactive form.", owner, repo)), nil, nil
+				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. IMPORTANT: The PR has NOT been created yet. Do NOT tell the user the PR was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
 			}
 
 			// When creating PR, title/head/base are required
@@ -1217,7 +1217,14 @@ func ListPullRequests(t translations.TranslationHelperFunc) inventory.ServerTool
 				}
 			}
 
-			r, err := json.Marshal(prs)
+			minimalPRs := make([]MinimalPullRequest, 0, len(prs))
+			for _, pr := range prs {
+				if pr != nil {
+					minimalPRs = append(minimalPRs, convertToMinimalPullRequest(pr))
+				}
+			}
+
+			r, err := json.Marshal(minimalPRs)
 			if err != nil {
 				return utils.NewToolResultErrorFromErr("failed to marshal response", err), nil, nil
 			}
