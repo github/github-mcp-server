@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PR Viewer</title>
+  </head>
+  <body>
+    <div id="app">
+      <div id="header">
+        <div id="header-left">
+          <h1 id="title">Pull Request</h1>
+          <div id="stats"></div>
+        </div>
+        <div id="header-controls">
+          <button id="view-mode-btn" title="Toggle split view" style="display: none;">Split</button>
+          <button id="fullscreen-btn" title="Fullscreen" style="display: none;">⛶</button>
+        </div>
+      </div>
+      <div id="tab-bar">
+        <button class="tab active" data-tab="details">Details</button>
+        <button class="tab" data-tab="diff">Diff</button>
+      </div>
+      <div id="content-area"></div>
+      <div id="diff-container" style="display: none;"></div>
+    </div>
+    <script type="module" src="./App.ts"></script>
+  </body>
+</html>

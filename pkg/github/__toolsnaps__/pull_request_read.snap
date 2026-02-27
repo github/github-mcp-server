@@ -1,4 +1,9 @@
 {
+  "_meta": {
+    "ui": {
+      "resourceUri": "ui://github-mcp-server/pr-read"
+    }
+  },
   "annotations": {
     "readOnlyHint": true,
     "title": "Get details for a single pull request"

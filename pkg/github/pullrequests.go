@@ -22,6 +22,9 @@ import (
 	"github.com/github/github-mcp-server/pkg/utils"
 )
 
+// PullRequestReadUIResourceURI is the URI for the pull_request_read tool's MCP App UI resource.
+const PullRequestReadUIResourceURI = "ui://github-mcp-server/pr-read"
+
 // PullRequestRead creates a tool to get details of a specific pull request.
 func PullRequestRead(t translations.TranslationHelperFunc) inventory.ServerTool {
 	schema := &jsonschema.Schema{
@@ -69,6 +72,11 @@ Possible options:
 				ReadOnlyHint: true,
 			},
 			InputSchema: schema,
+			Meta: mcp.Meta{
+				"ui": map[string]any{
+					"resourceUri": PullRequestReadUIResourceURI,
+				},
+			},
 		},
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
