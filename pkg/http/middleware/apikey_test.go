@@ -13,6 +13,7 @@ func TestWithAPIKey(t *testing.T) {
 		name               string
 		configuredKey      string
 		headerValue        string
+		queryValue         string
 		expectedStatusCode int
 		expectNextCalled   bool
 	}{
@@ -24,9 +25,24 @@ func TestWithAPIKey(t *testing.T) {
 			expectNextCalled:   true,
 		},
 		{
-			name:               "valid key passes through",
+			name:               "valid key in header passes through",
 			configuredKey:      "my-secret-key",
 			headerValue:        "my-secret-key",
+			expectedStatusCode: http.StatusOK,
+			expectNextCalled:   true,
+		},
+		{
+			name:               "valid key in query parameter passes through",
+			configuredKey:      "my-secret-key",
+			queryValue:         "my-secret-key",
+			expectedStatusCode: http.StatusOK,
+			expectNextCalled:   true,
+		},
+		{
+			name:               "header takes precedence over query parameter",
+			configuredKey:      "my-secret-key",
+			headerValue:        "my-secret-key",
+			queryValue:         "wrong-key",
 			expectedStatusCode: http.StatusOK,
 			expectNextCalled:   true,
 		},
@@ -38,9 +54,16 @@ func TestWithAPIKey(t *testing.T) {
 			expectNextCalled:   false,
 		},
 		{
-			name:               "wrong key returns 403",
+			name:               "wrong key in header returns 403",
 			configuredKey:      "my-secret-key",
 			headerValue:        "wrong-key",
+			expectedStatusCode: http.StatusForbidden,
+			expectNextCalled:   false,
+		},
+		{
+			name:               "wrong key in query returns 403",
+			configuredKey:      "my-secret-key",
+			queryValue:         "wrong-key",
 			expectedStatusCode: http.StatusForbidden,
 			expectNextCalled:   false,
 		},
@@ -56,7 +79,11 @@ func TestWithAPIKey(t *testing.T) {
 
 			handler := WithAPIKey(tt.configuredKey)(next)
 
-			req := httptest.NewRequest(http.MethodPost, "/", nil)
+			path := "/"
+			if tt.queryValue != "" {
+				path = "/?api-key=" + tt.queryValue
+			}
+			req := httptest.NewRequest(http.MethodPost, path, nil)
 			if tt.headerValue != "" {
 				req.Header.Set("X-API-Key", tt.headerValue)
 			}

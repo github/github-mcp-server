@@ -5,9 +5,11 @@ import (
 	"net/http"
 )
 
-// WithAPIKey returns middleware that validates the X-API-Key header against the
-// configured key. It uses constant-time comparison to prevent timing attacks.
-// If the key is empty, the middleware is a no-op (all requests pass through).
+// WithAPIKey returns middleware that validates the API key against the
+// configured key. It checks the X-API-Key header first, then falls back to
+// the "api-key" query parameter. It uses constant-time comparison to prevent
+// timing attacks. If the key is empty, the middleware is a no-op (all requests
+// pass through).
 func WithAPIKey(key string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		if key == "" {
@@ -15,6 +17,9 @@ func WithAPIKey(key string) func(http.Handler) http.Handler {
 		}
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			provided := r.Header.Get("X-API-Key")
+			if provided == "" {
+				provided = r.URL.Query().Get("api-key")
+			}
 			if provided == "" {
 				http.Error(w, "missing API key", http.StatusUnauthorized)
 				return
