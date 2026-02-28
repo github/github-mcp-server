@@ -73,6 +73,27 @@ ui/                        React-based UI (Vite + TypeScript)
 | `GITHUB_TOOLSETS` | Comma-separated toolsets to enable |
 | `GITHUB_READ_ONLY` | Set to `1` for read-only mode |
 | `GITHUB_DYNAMIC_TOOLSETS` | Set to `1` for dynamic toolset discovery |
+| `GITHUB_API_KEY` | Pre-shared API key for HTTP endpoint (clients send via `X-API-Key` header) |
+| `PORT` | HTTP listen port (auto-set by Railway/Cloud Run, falls back to `GITHUB_PORT` or `8082`) |
+
+## Railway Deployment
+
+The repo includes `railway.json` for one-click Railway deployment. Required env vars in Railway dashboard:
+
+- `GITHUB_PERSONAL_ACCESS_TOKEN` — your GitHub PAT
+- `GITHUB_API_KEY` — pre-shared key to protect the endpoint
+
+The server auto-reads Railway's `PORT` env var. HTTPS is provided by Railway.
+
+MCP clients connect via:
+```
+https://<your-app>.up.railway.app/
+```
+with headers:
+```
+X-API-Key: <your-api-key>
+Authorization: Bearer <github-pat>
+```
 
 ## Common CI Failures
 

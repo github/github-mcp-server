@@ -172,6 +172,8 @@ func init() {
 	_ = viper.BindPFlag("insiders", rootCmd.PersistentFlags().Lookup("insiders"))
 	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
 	_ = viper.BindPFlag("port", httpCmd.Flags().Lookup("port"))
+	// Also accept PORT env var for cloud platforms (Railway, Cloud Run, Render)
+	_ = viper.BindEnv("port", "GITHUB_PORT", "PORT")
 	_ = viper.BindPFlag("base-url", httpCmd.Flags().Lookup("base-url"))
 	_ = viper.BindPFlag("base-path", httpCmd.Flags().Lookup("base-path"))
 	_ = viper.BindPFlag("scope-challenge", httpCmd.Flags().Lookup("scope-challenge"))
