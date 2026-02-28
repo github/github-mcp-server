@@ -67,6 +67,10 @@ type ServerConfig struct {
 	// ScopeChallenge indicates if we should return OAuth scope challenges, and if we should perform
 	// tool filtering based on token scopes.
 	ScopeChallenge bool
+
+	// APIKey is an optional pre-shared key that clients must provide via the
+	// X-API-Key header. When empty, API key validation is skipped.
+	APIKey string
 }
 
 func RunHTTPServer(cfg ServerConfig) error {

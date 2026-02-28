@@ -127,6 +127,7 @@ func NewHTTPMcpHandler(
 
 func (h *Handler) RegisterMiddleware(r chi.Router) {
 	r.Use(
+		middleware.WithAPIKey(h.config.APIKey),
 		middleware.ExtractUserToken(h.oauthCfg),
 		middleware.WithRequestConfig,
 		middleware.WithMCPParse(),
