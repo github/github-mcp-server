@@ -24,6 +24,22 @@ ToolsetMetadataRepos = inventory.ToolsetMetadata{
 | `Default` | `bool` | Whether this toolset is enabled by default |
 | `Icon` | `string` | Octicon name for visual representation in MCP clients |
 
+## Strict Toolset Validation
+
+By default, unknown toolset names are ignored and a warning is logged. To fail closed on typos or stale config, enable strict mode:
+
+```bash
+github-mcp-server stdio --toolsets=repos,isssues --strict-toolsets
+```
+
+Strict mode exits startup with a validation error when any configured toolset is unrecognized.
+
+### Migration Path
+
+1. Run once without strict mode and check logs for `unrecognized toolsets ignored`.
+2. Fix typos or remove unsupported toolset names.
+3. Re-run with `--strict-toolsets` (or `GITHUB_STRICT_TOOLSETS=true`) in CI/production.
+
 ## Adding Icons to Toolsets
 
 Icons help users quickly identify toolsets in MCP-compatible clients. We use [Primer Octicons](https://primer.style/foundations/icons) for all icons.

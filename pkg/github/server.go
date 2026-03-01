@@ -30,6 +30,9 @@ type MCPServerConfig struct {
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration
 	EnabledToolsets []string
 
+	// StrictToolsets fails startup when configured toolsets are unrecognized.
+	StrictToolsets bool
+
 	// EnabledTools is a list of specific tools to enable (additive to toolsets)
 	// When specified, these tools are registered in addition to any specified toolset tools
 	EnabledTools []string
@@ -110,6 +113,9 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
 
 	if unrecognized := inv.UnrecognizedToolsets(); len(unrecognized) > 0 {
+		if cfg.StrictToolsets {
+			return nil, fmt.Errorf("strict toolset validation failed: unrecognized toolsets: %s", strings.Join(unrecognized, ", "))
+		}
 		cfg.Logger.Warn("Warning: unrecognized toolsets ignored", "toolsets", strings.Join(unrecognized, ", "))
 	}
 

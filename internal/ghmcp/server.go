@@ -181,6 +181,9 @@ type StdioServerConfig struct {
 	// See: https://github.com/github/github-mcp-server?tab=readme-ov-file#tool-configuration
 	EnabledToolsets []string
 
+	// StrictToolsets fails startup when configured toolsets are unrecognized.
+	StrictToolsets bool
+
 	// EnabledTools is a list of specific tools to enable (additive to toolsets)
 	// When specified, these tools are registered in addition to any specified toolset tools
 	EnabledTools []string
@@ -269,6 +272,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		Host:              cfg.Host,
 		Token:             cfg.Token,
 		EnabledToolsets:   cfg.EnabledToolsets,
+		StrictToolsets:    cfg.StrictToolsets,
 		EnabledTools:      cfg.EnabledTools,
 		EnabledFeatures:   cfg.EnabledFeatures,
 		DynamicToolsets:   cfg.DynamicToolsets,

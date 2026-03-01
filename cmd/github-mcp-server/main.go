@@ -83,6 +83,7 @@ var (
 				Host:                 viper.GetString("host"),
 				Token:                token,
 				EnabledToolsets:      enabledToolsets,
+				StrictToolsets:       viper.GetBool("strict_toolsets"),
 				EnabledTools:         enabledTools,
 				EnabledFeatures:      enabledFeatures,
 				DynamicToolsets:      viper.GetBool("dynamic_toolsets"),
@@ -134,6 +135,7 @@ func init() {
 
 	// Add global flags that will be shared by all commands
 	rootCmd.PersistentFlags().StringSlice("toolsets", nil, github.GenerateToolsetsHelp())
+	rootCmd.PersistentFlags().Bool("strict-toolsets", false, "Fail startup if any configured toolset is unrecognized")
 	rootCmd.PersistentFlags().StringSlice("tools", nil, "Comma-separated list of specific tools to enable")
 	rootCmd.PersistentFlags().StringSlice("exclude-tools", nil, "Comma-separated list of tool names to disable regardless of other settings")
 	rootCmd.PersistentFlags().StringSlice("features", nil, "Comma-separated list of feature flags to enable")
@@ -156,6 +158,7 @@ func init() {
 
 	// Bind flag to viper
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
+	_ = viper.BindPFlag("strict_toolsets", rootCmd.PersistentFlags().Lookup("strict-toolsets"))
 	_ = viper.BindPFlag("tools", rootCmd.PersistentFlags().Lookup("tools"))
 	_ = viper.BindPFlag("exclude_tools", rootCmd.PersistentFlags().Lookup("exclude-tools"))
 	_ = viper.BindPFlag("features", rootCmd.PersistentFlags().Lookup("features"))
