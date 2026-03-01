@@ -24,7 +24,7 @@
     "verify:relayers": "node scripts/verify-relayers-rebates.js"
   },
   "devDependencies": {
-    "@coral-xyz/anchor": "^0.30.1",
+    "@coral-xyz/anchor": "^0.32.1",
     "@solana/spl-token": "^0.1.8",
     "@solana/web3.js": "^1.98.4",
     "bs58": "^6.0.0"
