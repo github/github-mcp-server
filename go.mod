@@ -10,7 +10,7 @@ require (
 	github.com/josephburnett/jd/v2 v2.4.0
 	github.com/lithammer/fuzzysearch v1.1.8
 	github.com/microcosm-cc/bluemonday v1.0.27
-	github.com/modelcontextprotocol/go-sdk v1.3.1-0.20260220105450-b17143f71798
+	github.com/modelcontextprotocol/go-sdk v1.3.1
 	github.com/muesli/cache2go v0.0.0-20221011235721-518229cd8021
 	github.com/shurcooL/githubv4 v0.0.0-20240727222349-48295856cce7
 	github.com/shurcooL/graphql v0.0.0-20230722043721-ed46e5a46466
