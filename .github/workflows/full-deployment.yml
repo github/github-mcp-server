@@ -17,6 +17,10 @@ on:
 env:
   SOLANA_CLI_VERSION: '1.18.26'
   NODE_VERSION: '20'
+permissions:
+  contents: write
+  packages: read
+  actions: read
 
 jobs:
   deploy:
@@ -31,11 +35,13 @@ jobs:
         with:
           submodules: recursive
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
 
       - name: Install Solana CLI
         run: |
@@ -47,11 +53,13 @@ jobs:
           solana config set --url ${{ github.event.inputs.environment == 'devnet' && 'https://api.devnet.solana.com' || 'https://api.mainnet-beta.solana.com' }}
           echo "${{ secrets.SOLANA_DEPLOYER_KEY }}" > deployer-key.json
           solana config set --keypair deployer-key.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Dependencies
         run: |
-          npm install -g @solana/web3.js @coral-xyz/anchor-cli
-          npm install --save-dev
+          npm install -g @coral-xyz/anchor-cli
+          npm ci
 
       - name: Deploy Contracts
         id: deploy
@@ -95,7 +103,7 @@ jobs:
         run: |
           sleep 5
           solana program show GENEtH5amGSi8kHAtQoezp1XEXwZJ8vcuePYnXdKrMYz
-          solana transaction-history ${{ steps.deploy.outputs.tx_hash }}
+          solana confirm ${{ steps.deploy.outputs.tx_hash }}
 
       - name: Update Controller
         if: success()
@@ -131,14 +139,35 @@ jobs:
             
             [View on Solscan](https://solscan.io/tx/${{ steps.deploy.outputs.tx_hash }})
 
-  notify:
+  contract-scan:
     needs: deploy
+    runs-on: ubuntu-latest
+    if: needs.deploy.result == 'success'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Run contract scan
+        run: node scripts/scan-contracts.js
+      - name: Upload contract scan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-scan-results
+          path: contract_scan_results.json
+
+  notify:
+    needs: [deploy, contract-scan]
     runs-on: ubuntu-latest
     if: always()
     steps:
       - name: Deployment Status
         run: |
-          if [ "${{ needs.deploy.result }}" == "success" ]; then
+          if [ "${{ needs.deploy.result }}" == "success" ] && [ "${{ needs.contract-scan.result }}" == "success" ]; then
             echo "✅ Deployment successful!"
             echo "TX: ${{ needs.deploy.outputs.tx_hash }}"
             echo "Program: ${{ needs.deploy.outputs.program_id }}"

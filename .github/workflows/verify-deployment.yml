@@ -4,6 +4,9 @@ on:
   workflow_run:
     workflows: ["Full Deployment Pipeline"]
     types: [completed]
+permissions:
+  contents: write
+  actions: read
 
 jobs:
   verify:
@@ -12,6 +15,8 @@ jobs:
     
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -23,6 +28,7 @@ jobs:
         with:
           pattern: deployment-report-*
           merge-multiple: true
+          run-id: ${{ github.event.workflow_run.id }}
 
       - name: Verify on Solscan
         run: |

@@ -1,0 +1,132 @@
+name: "Dependency Audit & Vulnerability Scan"
+
+# Run on push to main (or any branch), and on a daily schedule
+on:
+  push:
+    branches:
+      - '**'
+  schedule:
+    - cron: '0 2 * * *' # daily at 02:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: dependency-audit
+  cancel-in-progress: true
+
+jobs:
+  audit-node:
+    name: "Node.js / npm audit"
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies (npm)
+        if: ${{ hashFiles('**/package-lock.json') != '' }}
+        run: |
+          npm ci
+
+      - name: Run npm audit (JSON)
+        if: ${{ hashFiles('**/package-lock.json') != '' }}
+        run: |
+          set -o pipefail
+          npm audit --json > npm-audit.json || true
+          cat npm-audit.json
+
+      - name: Upload npm audit artifact
+        if: ${{ hashFiles('**/package-lock.json') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-json
+          path: npm-audit.json
+
+      - name: Fail on high/critical npm findings
+        if: ${{ hashFiles('**/package-lock.json') != '' }}
+        run: |
+          jq -e '.advisories as $a | ($a | to_entries | map(.value) | map(select(.severity == "high" or .severity == "critical")) | length) > 0' npm-audit.json \
+            && (echo "High/Critical vulnerabilities found in npm dependencies" && exit 1) || echo "No high/critical npm vulnerabilities"
+
+  audit-go:
+    name: "Go / govulncheck"
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    needs: audit-node
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+
+      - name: Install govulncheck
+        run: |
+          set -eux
+          GO111MODULE=on go install golang.org/x/vuln/cmd/govulncheck@latest
+          export PATH=$PATH:$(go env GOPATH)/bin
+
+      - name: Run govulncheck (JSON)
+        run: |
+          set -eux
+          # run in module root; govulncheck returns 0 with no vulns, >0 otherwise
+          $(go env GOPATH)/bin/govulncheck -json ./... > govulncheck.json || true
+          cat govulncheck.json
+
+      - name: Upload govulncheck artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: govulncheck-json
+          path: govulncheck.json
+
+      - name: Fail on found Go vulnerabilities (HIGH/CRITICAL)
+        run: |
+          # govulncheck JSON has "vulns" entries; search for severity levels if available
+          if jq -e '.vulns | length > 0' govulncheck.json >/dev/null 2>&1; then
+            # Try to detect severity mentions; if none, fail so maintainers can review
+            if jq -e '.vulns | map(.fixed|length > 0 or true) | length > 0' govulncheck.json >/dev/null 2>&1; then
+              echo "Go vulnerabilities detected — please review govulncheck.json artifact."
+              exit 1
+            fi
+          fi
+          echo "No Go vulnerabilities detected (or none reported by govulncheck)."
+
+  results-notify:
+    name: "Publish summary"
+    runs-on: ubuntu-latest
+    needs: [audit-node, audit-go]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create short summary comment (if run from PR)
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = 'artifacts';
+            let summary = `🔎 Dependency audit artifacts available:\\n\\n`;
+            const files = fs.readdirSync(path);
+            files.forEach(f => summary += `- ${f}\\n`);
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number || github.context.payload.pull_request.number,
+              body: summary
+            });
+
+      - name: Finish
+        run: echo "Artifacts uploaded: $(ls -la artifacts || true)"

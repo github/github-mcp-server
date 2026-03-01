@@ -8,7 +8,7 @@ const MORALIS_NODE_URL = process.env.MORALIS_NODE_URL || 'https://site2.moralis-
 
 console.log('=== MORALIS API SETUP ===');
 console.log('');
-console.log('API Key:', MORALIS_API_KEY);
+console.log('API Key:', MORALIS_API_KEY ? `(set, length: ${MORALIS_API_KEY.length})` : '(not set)');
 console.log('Node URL:', MORALIS_NODE_URL);
 console.log('');
 

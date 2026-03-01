@@ -1,0 +1,1515 @@
+{
+  "scanned_from": "/workspace/mpc-agents",
+  "total_addresses": 98,
+  "allowlisted": 44,
+  "not_allowlisted": 54,
+  "addresses": [
+    {
+      "address": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+      "type": "evm",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "BACKFILL_DEPLOYMENT_SUMMARY.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_MANIFEST.json",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "0x55d398326f99059fF775485246999027B3197955",
+      "type": "evm",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "BACKFILL_DEPLOYMENT_SUMMARY.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_MANIFEST.json",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+      "type": "evm",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "ANNOUNCEMENT_SUMMARY.md",
+        "BACKFILL_DEPLOYMENT_SUMMARY.md",
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/ALLOWLIST_WORKFLOW_GUIDE.md",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "CryptonoutController/scripts/cross-chain-bridge.js",
+        "DEPLOYMENT_MANIFEST.json",
+        "DEPLOYMENT_READY.md",
+        "PUSH_TO_CRYPTONOUT.md",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "scripts/cross-chain-bridge.js"
+      ]
+    },
+    {
+      "address": "0xA0b86a33E6441e6e80D0c4C34F0b1e4E6a7c4b8d",
+      "type": "evm",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "BACKFILL_DEPLOYMENT_SUMMARY.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "0xc6D31F2F6CcBcd101604a92C6c08e0aee2937B3a",
+      "type": "evm",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "ANNOUNCEMENT_SUMMARY.md",
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "CryptonoutController/scripts/cross-chain-bridge.js",
+        "DEPLOYMENT_MANIFEST.json",
+        "DEPLOYMENT_READY.md",
+        "EVM_EXECUTOR_ADDRESSES.md",
+        "PUSH_TO_CRYPTONOUT.md",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "scripts/cross-chain-bridge.js"
+      ]
+    },
+    {
+      "address": "0xcB1C1FdE09f811B294172696404e88E658659905",
+      "type": "evm",
+      "allowlisted": false,
+      "files": [
+        "CryptonoutController/scripts/moralis-wallet-query.go",
+        "scripts/moralis-wallet-query.go"
+      ]
+    },
+    {
+      "address": "0xD2Aaa00700000000000000000000000000000000",
+      "type": "evm",
+      "allowlisted": false,
+      "files": [
+        "EVM_EXECUTOR_ADDRESSES.md"
+      ]
+    },
+    {
+      "address": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+      "type": "evm",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "BACKFILL_DEPLOYMENT_SUMMARY.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_MANIFEST.json",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "0xE38FB59ba3AEAbE2AD0f6FB7Fb84453F6d145D23",
+      "type": "evm",
+      "allowlisted": true,
+      "files": [
+        ".github/workflows/cross-chain-deploy.yml",
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CROSS_CHAIN_INTEGRATION.md",
+        "CryptonoutController/.github/workflows/cross-chain-deploy.yml",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/CROSS_CHAIN_INTEGRATION.md",
+        "CryptonoutController/DMT.sol",
+        "CryptonoutController/INTEGRATION_COMPLETE.md",
+        "CryptonoutController/README.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "CryptonoutController/scripts/cross-chain-bridge.js",
+        "DEPLOYMENT_MANIFEST.json",
+        "DEPLOYMENT_READY.md",
+        "EVM_EXECUTOR_ADDRESSES.md",
+        "INTEGRATION_COMPLETE.md",
+        "PUSH_TO_CRYPTONOUT.md",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "scripts/cross-chain-bridge.js"
+      ]
+    },
+    {
+      "address": "11111111111111111111111111111111",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "PROGRAMS_WITH_SIGNATURES.md",
+        "REANNOUNCEMENT.md",
+        "REPO_ANALYSIS.md",
+        "SOLSCAN_VERIFICATION.md",
+        "get_all_programs.js",
+        "get_programs_with_signatures.js",
+        "program_results.json",
+        "program_signatures.json",
+        "scripts/claim-assets-simple.sh",
+        "scripts/claim-assets.js",
+        "scripts/claim-to-treasury.sh",
+        "search_native_programs.js"
+      ]
+    },
+    {
+      "address": "2A8qGB3iZ21NxGjX4EjjWJKc9PFG1r7F4jkcR66dc4mb",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        ".github/workflows/bot-funding-deployment.yml",
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "BOT_DEPLOYMENT_GUIDE.md",
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/.github/workflows/bot-funding-deployment.yml",
+        "CryptonoutController/BOT_DEPLOYMENT_GUIDE.md",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_READY.md",
+        "DEPLOYMENT_STATUS.md",
+        "PUSH_TO_CRYPTONOUT.md",
+        "QUICK_DEPLOY.md",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "2MgqMXdwSf3bRZ6S8uKJSffZAaoZBhD2mjst3phJXE7p",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "MULTISIG_SIGNATURE_REQUEST.md",
+        "REPO_ANALYSIS.md",
+        "scripts/check-all-core.js",
+        "scripts/execute-authority-transfer.js",
+        "scripts/verify-on-chain.js"
+      ]
+    },
+    {
+      "address": "2YTrK8f6NwwUg7Tu6sYcCmRKYWpU8yYRYHPz87LTdcgx",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "BACKFILL_DEPLOYMENT_SUMMARY.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_MANIFEST.json",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "3i62KXuWERyTZJ5HbE7HNbhvBAhEdMjMjLQk3m39PpN4",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        ".github/workflows/bot-funding-deployment.yml",
+        "BOT_DEPLOYMENT_GUIDE.md",
+        "CryptonoutController/.github/workflows/bot-funding-deployment.yml",
+        "CryptonoutController/BOT_DEPLOYMENT_GUIDE.md",
+        "DEPLOYMENT_STATUS.md"
+      ]
+    },
+    {
+      "address": "3oFCkoneQShDsJMZYscXew4jGwgLjpxfykHuGo85QyLw",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        ".github/workflows/bot-funding-deployment.yml",
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "BOT_DEPLOYMENT_GUIDE.md",
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/.github/workflows/bot-funding-deployment.yml",
+        "CryptonoutController/BOT_DEPLOYMENT_GUIDE.md",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_MANIFEST.json",
+        "DEPLOYMENT_READY.md",
+        "DEPLOYMENT_STATUS.md",
+        "PUSH_TO_CRYPTONOUT.md",
+        "QUICK_DEPLOY.md",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "4Ec7ZxZS6Sbdg5UGSLHbAnM7GQHp2eFd4KYWRexAipQT",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        ".github/workflows/auto-update.yml",
+        "AUTHORITY_ANNOUNCEMENT.md",
+        "MULTISIG_SIGNATURE_REQUEST.md",
+        "NEW_MASTER_CONTROLLER.md",
+        "PROGRAMS_WITH_SIGNATURES.md",
+        "SYSTEM_STATUS_COMPLETE.md",
+        "get_all_programs.js",
+        "get_programs_with_signatures.js",
+        "program_results.json",
+        "program_signatures.json",
+        "scripts/check-all-core.js",
+        "scripts/execute-authority-transfer.js",
+        "scripts/reannounce-authority.js",
+        "scripts/verify-on-chain.js"
+      ]
+    },
+    {
+      "address": "4Ec7ZxZS6Sbdg5UGSLHp2eFd4KYWRexAipQT",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "REPO_ANALYSIS.md"
+      ]
+    },
+    {
+      "address": "4eJZVbbsiLAG6EkWvgEYEWKEpdhJPFBYMeJ6DBX98w6a",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        ".github/workflows/bot-funding-deployment.yml",
+        ".github/workflows/cross-chain-deploy.yml",
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "BACKFILL_DEPLOYMENT_SUMMARY.md",
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "COPILOT_ALLOWLIST.json",
+        "CROSS_CHAIN_INTEGRATION.md",
+        "CryptonoutController/.github/workflows/bot-funding-deployment.yml",
+        "CryptonoutController/.github/workflows/cross-chain-deploy.yml",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/CROSS_CHAIN_INTEGRATION.md",
+        "CryptonoutController/INTEGRATION_COMPLETE.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "CryptonoutController/scripts/cross-chain-bridge.js",
+        "DAO_SIGNERS_REPORT.md",
+        "DEPLOYMENT_MANIFEST.json",
+        "DEPLOYMENT_STATUS.md",
+        "DEPLOYMENT_VERIFICATION.md",
+        "INTEGRATION_COMPLETE.md",
+        "NEW_AUTHORITY.md",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "SOLSCAN_VERIFICATION.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "get_all_programs.js",
+        "program_results.json",
+        "scripts/check-deployment-signatures.sh",
+        "scripts/claim-to-treasury.sh",
+        "scripts/cross-chain-bridge.js",
+        "scripts/deploy-pentacle-contract.sh",
+        "scripts/verify-transactions.sh"
+      ]
+    },
+    {
+      "address": "4gLAGDEHs6sJ6AMmLdAwCUx9NPmPLxoMCZ3yiKyAyQ1m",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "BACKFILL_DEPLOYMENT_SUMMARY.md",
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "COPILOT_ALLOWLIST.json",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DAO_SIGNERS_REPORT.md",
+        "NEW_AUTHORITY.md",
+        "SOLANA_CLI_INSTALL.md",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "scripts/check-deployment-signatures.sh",
+        "scripts/set-upgrade-authority.sh",
+        "scripts/upgrade-program-authority.sh"
+      ]
+    },
+    {
+      "address": "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "scripts/quicknode-cleanup.js",
+        "scripts/reannounce-contracts.js"
+      ]
+    },
+    {
+      "address": "4p1FfVusdT83PxejTPLEz6ZQ4keN9LVEkKhzSt6PJ5zw",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "REPO_ANALYSIS.md",
+        "helius_lookup.js",
+        "search_native_programs.js"
+      ]
+    },
+    {
+      "address": "5kDqr3kwfeLhz5rS9cb14Tj2ZZPSq7LddVsxYDV8DnUm",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "BACKFILL_DEPLOYMENT_SUMMARY.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DAO_SIGNERS_REPORT.md",
+        "DEPLOYMENT_VERIFICATION.md",
+        "NEW_AUTHORITY.md",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "WALLET_CONNECTION_GUIDE.md",
+        "scripts/deploy-pentacle-contract.sh",
+        "scripts/real-deployment-guide.sh"
+      ]
+    },
+    {
+      "address": "5ynYfAM7KZZXwT4dd2cZQnYhFNy1LUysE8m7Lxzjzh2p",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_MANIFEST.json",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "61aq585V8cR2sZBeawJFt2NPqmN7zDi1sws4KLs5xHXV",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "REPO_ANALYSIS.md",
+        "search_native_programs.js"
+      ]
+    },
+    {
+      "address": "675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_MANIFEST.json",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "7uSCVM1MJPKctrSRzuFN7qfVoJX78q6V5q5JuzRPaK41",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        ".github/workflows/bot-funding-deployment.yml",
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "BOT_DEPLOYMENT_GUIDE.md",
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/.github/workflows/bot-funding-deployment.yml",
+        "CryptonoutController/BOT_DEPLOYMENT_GUIDE.md",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_MANIFEST.json",
+        "DEPLOYMENT_READY.md",
+        "DEPLOYMENT_STATUS.md",
+        "PUSH_TO_CRYPTONOUT.md",
+        "QUICK_DEPLOY.md",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "7ZyDFzet6sKgZLN4D89JLfo7chu2n7nYdkFt5RCFk8Sf",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "DEPLOYMENT_MANIFEST.json",
+        "MULTISIG_SIGNATURE_REQUEST.md",
+        "NEW_MASTER_CONTROLLER.md",
+        "PROGRAMS_WITH_SIGNATURES.md",
+        "REBATES_INCOME_REPORT.md",
+        "REPO_ANALYSIS.md",
+        "SECURITY_REPORT.md",
+        "SQUADS_MASTER_CONTROLLER.md",
+        "SYSTEM_STATUS_COMPLETE.md",
+        "get_programs_with_signatures.js",
+        "program_signatures.json",
+        "scripts/check-all-core.js",
+        "scripts/check-rebates-income.js",
+        "scripts/collect-assets.js",
+        "scripts/execute-authority-transfer.js",
+        "scripts/transfer-assets.js",
+        "scripts/verify-on-chain.js",
+        "scripts/verify-relayers-rebates.js"
+      ]
+    },
+    {
+      "address": "89FnbsKH8n6FXCghGUijxh3snqx3e6VXJ7q1fQAHWkQQ",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "MULTISIG_SIGNATURE_REQUEST.md",
+        "REPO_ANALYSIS.md",
+        "scripts/check-all-core.js",
+        "scripts/execute-authority-transfer.js",
+        "scripts/verify-on-chain.js"
+      ]
+    },
+    {
+      "address": "8cRrU1NzNpjL3k2BwjW3VixAcX6VFc29KHr4KZg8cs2Y",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_MANIFEST.json",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "8duk9DzqBVXmqiyci9PpBsKuRCwg6ytzWywjQztM6VzS",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        ".github/workflows/bot-funding-deployment.yml",
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "BOT_DEPLOYMENT_GUIDE.md",
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/.github/workflows/bot-funding-deployment.yml",
+        "CryptonoutController/BOT_DEPLOYMENT_GUIDE.md",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_READY.md",
+        "DEPLOYMENT_STATUS.md",
+        "PUSH_TO_CRYPTONOUT.md",
+        "QUICK_DEPLOY.md",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "96383f45573cb7f253c731d3b3ab81c87ef81934",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        ".github/workflows/docker-publish.yml"
+      ]
+    },
+    {
+      "address": "96891wG6iLVEDibwjYv8xWFGFiEezFQkvdyTrM69ou24",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        ".github/workflows/bot-funding-deployment.yml",
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "BOT_DEPLOYMENT_GUIDE.md",
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/.github/workflows/bot-funding-deployment.yml",
+        "CryptonoutController/BOT_DEPLOYMENT_GUIDE.md",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_READY.md",
+        "DEPLOYMENT_STATUS.md",
+        "PUSH_TO_CRYPTONOUT.md",
+        "QUICK_DEPLOY.md",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "REPO_ANALYSIS.md",
+        "SOLSCAN_VERIFICATION.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "get_all_programs.js",
+        "program_results.json",
+        "scripts/claim-assets-simple.sh",
+        "scripts/claim-assets.js",
+        "scripts/claim-to-treasury.sh",
+        "search_native_programs.js"
+      ]
+    },
+    {
+      "address": "BPFLoader2111111111111111111111111111111111",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "PROGRAMS_WITH_SIGNATURES.md",
+        "program_signatures.json"
+      ]
+    },
+    {
+      "address": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        ".github/workflows/security-scan.yml",
+        "PROGRAMS_WITH_SIGNATURES.md",
+        "REPO_ANALYSIS.md",
+        "get_all_programs.js",
+        "program_results.json",
+        "program_signatures.json",
+        "scripts/execute-authority-transfer.js",
+        "scripts/transfer-authority-zero-cost.js",
+        "search_native_programs.js"
+      ]
+    },
+    {
+      "address": "BYidGfUnfoQtqi4nHiuo57Fjreizbej6hawJLnbwJmYr",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "MULTISIG_SIGNATURE_REQUEST.md",
+        "REPO_ANALYSIS.md",
+        "scripts/check-all-core.js",
+        "scripts/execute-authority-transfer.js",
+        "scripts/verify-on-chain.js"
+      ]
+    },
+    {
+      "address": "CHRDWWqUs6LyeeoD7pJb3iRfnvYeMfwMUtf2N7zWk7uh",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "MULTISIG_SIGNATURE_REQUEST.md",
+        "REPO_ANALYSIS.md",
+        "scripts/check-all-core.js",
+        "scripts/execute-authority-transfer.js",
+        "scripts/verify-on-chain.js"
+      ]
+    },
+    {
+      "address": "Config1111111111111111111111111111111111111",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "search_native_programs.js"
+      ]
+    },
+    {
+      "address": "cuNEagBQEHWN1FnbGEjCXL2szYEXqfJPbP2HNUaca9Y",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "go.sum"
+      ]
+    },
+    {
+      "address": "CvQZZ23qYDWF2RUpxYJ8y9K4skmuvYEEjH7fK58jtipQ",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        ".github/workflows/solana-monitor.yml",
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "ANNOUNCEMENT_SUMMARY.md",
+        "AUTHORITY_ANNOUNCEMENT.md",
+        "BACKFILL_DEPLOYMENT_SUMMARY.md",
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "COPILOT_ALLOWLIST.json",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "CryptonoutController/scripts/cross-chain-bridge.js",
+        "DAO_SIGNERS_REPORT.md",
+        "DEPLOYMENT_MANIFEST.json",
+        "MULTISIG_SIGNATURE_REQUEST.md",
+        "NEW_MASTER_CONTROLLER.md",
+        "PROGRAMS_WITH_SIGNATURES.md",
+        "REBATES_INCOME_REPORT.md",
+        "REPO_ANALYSIS.md",
+        "SECURITY_REPORT.md",
+        "SOLANA_CLI_INSTALL.md",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "SYSTEM_STATUS_COMPLETE.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "get_programs_with_signatures.js",
+        "program_signatures.json",
+        "scripts/analyze-repo-addresses.sh",
+        "scripts/check-all-core.js",
+        "scripts/check-deployment-signatures.sh",
+        "scripts/check-rebates-income.js",
+        "scripts/collect-assets.js",
+        "scripts/cross-chain-bridge.js",
+        "scripts/dao-signers.json",
+        "scripts/execute-authority-transfer.js",
+        "scripts/get-dao-signers.js",
+        "scripts/get-dao-signers.sh",
+        "scripts/reannounce-authority.js",
+        "scripts/repo-address-analysis.json",
+        "scripts/transfer-assets.js",
+        "scripts/transfer-authority-zero-cost.js",
+        "scripts/upgrade-program-authority.sh",
+        "scripts/verify-on-chain.js",
+        "scripts/verify-relayers-rebates.js"
+      ]
+    },
+    {
+      "address": "DbhKvqweZECTyYQ7PRJoHmKt8f262fsBCGHxSaD5BPqA",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        ".github/workflows/bot-funding-deployment.yml",
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "BOT_DEPLOYMENT_GUIDE.md",
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/.github/workflows/bot-funding-deployment.yml",
+        "CryptonoutController/BOT_DEPLOYMENT_GUIDE.md",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_MANIFEST.json",
+        "DEPLOYMENT_READY.md",
+        "DEPLOYMENT_STATUS.md",
+        "PUSH_TO_CRYPTONOUT.md",
+        "QUICK_DEPLOY.md",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "scripts/quicknode-cleanup.js",
+        "scripts/reannounce-contracts.js"
+      ]
+    },
+    {
+      "address": "Dg5NLa5JuwfRMkuwZEguD9RpVrcQD3536GxogUv7pLNV",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "MULTISIG_SIGNATURE_REQUEST.md",
+        "REPO_ANALYSIS.md",
+        "scripts/check-all-core.js",
+        "scripts/execute-authority-transfer.js",
+        "scripts/verify-on-chain.js"
+      ]
+    },
+    {
+      "address": "DHBDPUkLLYCRAiyrgFBgvWfevquFkLR1TjGXKD4M4JPD",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_MANIFEST.json",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "DjVE6JNiYqPL2QXyCUUh8rNjHrbz9hXHNYt99MQ59qw1",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "ANNOUNCEMENT_SUMMARY.md",
+        "BACKFILL_DEPLOYMENT_SUMMARY.md",
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "COPILOT_ALLOWLIST.json",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DAO_SIGNERS_REPORT.md",
+        "DEPLOYMENT_MANIFEST.json",
+        "PROGRAMS_WITH_SIGNATURES.md",
+        "REPO_ANALYSIS.md",
+        "SOLANA_CLI_INSTALL.md",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "SOLSCAN_VERIFICATION.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "WALLET_CONNECTION_GUIDE.md",
+        "get_programs_with_signatures.js",
+        "program_signatures.json",
+        "scripts/analyze-repo-addresses.sh",
+        "scripts/check-deployment-signatures.sh",
+        "scripts/check-solscan-assets.sh",
+        "scripts/claim-assets-simple.sh",
+        "scripts/claim-assets.js",
+        "scripts/claim-to-treasury.sh",
+        "scripts/repo-address-analysis.json",
+        "scripts/upgrade-program-authority.sh"
+      ]
+    },
+    {
+      "address": "DWpWsitgmSgYmy2dQdWyKC1694ELPqMs",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "package-lock.json"
+      ]
+    },
+    {
+      "address": "EAy5Nfn6fhs4ixC4sMcKQYQaoedLokpWqbfDtWURCnk6",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_MANIFEST.json",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "EdFC98d1BBhJkeh7KDq26TwEGLeznhoyYsY6Y8LFY4y6",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CROSS_CHAIN_INTEGRATION.md",
+        "CryptonoutController/CROSS_CHAIN_INTEGRATION.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "EhJqf1p39c8NnH5iuZAJyw778LQua1AhZWxarT5SF8sT",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "MULTISIG_SIGNATURE_REQUEST.md",
+        "REPO_ANALYSIS.md",
+        "scripts/check-all-core.js",
+        "scripts/execute-authority-transfer.js",
+        "scripts/verify-on-chain.js"
+      ]
+    },
+    {
+      "address": "EoRJaGA4iVSQWDyv5Q3ThBXx1KGqYyos3gaXUFEiqUSN",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "BACKFILL_DEPLOYMENT_SUMMARY.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_MANIFEST.json",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "EVM_EXECUTOR_ADDRESSES.md",
+        "REPO_ANALYSIS.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "scripts/claim-assets-simple.sh",
+        "scripts/claim-assets.js",
+        "scripts/collect-assets.js",
+        "scripts/quicknode-cleanup.js",
+        "scripts/reannounce-contracts.js"
+      ]
+    },
+    {
+      "address": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "REPO_ANALYSIS.md",
+        "scripts/claim-assets-simple.sh",
+        "scripts/claim-assets.js",
+        "scripts/collect-assets.js",
+        "scripts/quicknode-cleanup.js",
+        "scripts/reannounce-contracts.js"
+      ]
+    },
+    {
+      "address": "F2EkpVd3pKLUi9u9BU794t3mWscJXzUAVw1WSjogTQuR",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "BACKFILL_DEPLOYMENT_SUMMARY.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_MANIFEST.json",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "FsQPFuje4WMdvbyoVef6MRMuzNZt9E8HM9YBN8T3Zbdq",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        ".github/workflows/full-deployment.yml",
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "BACKFILL_DEPLOYMENT_SUMMARY.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_LOG.md",
+        "DEPLOYMENT_MANIFEST.json",
+        "REPO_ANALYSIS.md",
+        "SIGNER_STATUS.md",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "WALLET_CONNECTION_GUIDE.md",
+        "scripts/check-deployment-signatures.sh",
+        "scripts/check-signer-ready.js",
+        "scripts/collect-assets.js"
+      ]
+    },
+    {
+      "address": "FVhQ3QHvXudWSdGix2sdcG47YmrmUxRhf3KCBmiKfekf",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "DEPLOYMENT_MANIFEST.json",
+        "REANNOUNCEMENT.md",
+        "REBATES_INCOME_REPORT.md",
+        "REPO_ANALYSIS.md",
+        "SECURITY_REPORT.md",
+        "SYSTEM_STATUS_COMPLETE.md",
+        "scripts/check-all-core.js",
+        "scripts/check-rebates-income.js",
+        "scripts/helius-account-info.js",
+        "scripts/reannounce-with-new-controller.js",
+        "scripts/verify-relayers-rebates.js"
+      ]
+    },
+    {
+      "address": "FZxmYkA6axyK3Njh3YNWXtybw9GgniVrXowS1pAAyrD1",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_MANIFEST.json",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "GENEtH5amGSi8kHAtQoezp1XEXwZJ8vcuePYnXdKrMYz",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        ".github/workflows/full-deployment.yml",
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "ANNOUNCEMENT_SUMMARY.md",
+        "BACKFILL_DEPLOYMENT_SUMMARY.md",
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "COPILOT_ALLOWLIST.json",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "CryptonoutController/scripts/cross-chain-bridge.js",
+        "DAO_SIGNERS_REPORT.md",
+        "DEPLOYMENT_LOG.md",
+        "DEPLOYMENT_MANIFEST.json",
+        "PROGRAMS_WITH_SIGNATURES.md",
+        "REPO_ANALYSIS.md",
+        "SOLANA_CLI_INSTALL.md",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "SOLSCAN_VERIFICATION.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "WALLET_CONNECTION_GUIDE.md",
+        "get_programs_with_signatures.js",
+        "package.json",
+        "program_signatures.json",
+        "scripts/analyze-repo-addresses.sh",
+        "scripts/check-deployment-signatures.sh",
+        "scripts/check-solscan-assets.sh",
+        "scripts/claim-assets-simple.sh",
+        "scripts/claim-assets.js",
+        "scripts/claim-to-treasury.sh",
+        "scripts/cross-chain-bridge.js",
+        "scripts/repo-address-analysis.json",
+        "scripts/upgrade-program-authority.sh"
+      ]
+    },
+    {
+      "address": "getLatestPendingReviewQueryParams",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "pkg/github/pullrequests_test.go"
+      ]
+    },
+    {
+      "address": "getLatestPendingReviewQueryReview",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "pkg/github/pullrequests_test.go"
+      ]
+    },
+    {
+      "address": "GetRepositoryResourceBranchContent",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "pkg/github/repository_resource.go",
+        "pkg/github/repository_resource_test.go",
+        "pkg/github/tools.go"
+      ]
+    },
+    {
+      "address": "GetRepositoryResourceCommitContent",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "pkg/github/repository_resource.go",
+        "pkg/github/repository_resource_test.go",
+        "pkg/github/tools.go"
+      ]
+    },
+    {
+      "address": "GGG2JyBtwbPAsYwUQED8GBbj9UMi7NQa3uwN3DmyGNtz",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "MULTISIG_SIGNATURE_REQUEST.md",
+        "REPO_ANALYSIS.md",
+        "scripts/check-all-core.js",
+        "scripts/execute-authority-transfer.js",
+        "scripts/verify-on-chain.js"
+      ]
+    },
+    {
+      "address": "GLzZk1sczzW6fM4uPFeQCtTZQaf8H5VaBt99tUMbJAAW",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        ".github/workflows/solana-monitor.yml",
+        "AUTHORITY_ANNOUNCEMENT.md",
+        "DEPLOYMENT_MANIFEST.json",
+        "MULTISIG_SIGNATURE_REQUEST.md",
+        "NEW_MASTER_CONTROLLER.md",
+        "PROGRAMS_WITH_SIGNATURES.md",
+        "REANNOUNCEMENT.md",
+        "REPO_ANALYSIS.md",
+        "SIGNER_STATUS.md",
+        "SYSTEM_STATUS_COMPLETE.md",
+        "get_programs_with_signatures.js",
+        "program_signatures.json",
+        "scripts/check-all-core.js",
+        "scripts/check-signer-ready.js",
+        "scripts/collect-assets.js",
+        "scripts/execute-authority-transfer.js",
+        "scripts/reannounce-authority.js",
+        "scripts/reannounce-with-new-controller.js",
+        "scripts/send-assets-with-signature.js",
+        "scripts/transfer-assets.js",
+        "scripts/transfer-authority-zero-cost.js",
+        "scripts/verify-on-chain.js"
+      ]
+    },
+    {
+      "address": "HeLiuSrpc1111111111111111111111111111111111",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        ".env.example",
+        "SECURITY_REPORT.md",
+        "SYSTEM_STATUS_COMPLETE.md",
+        "scripts/verify-relayers-rebates.js"
+      ]
+    },
+    {
+      "address": "HKBJoeUWH6pUQuLd9CZWrJBzGSE9roEW4bshnxd9AHsR",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        ".github/workflows/bot-funding-deployment.yml",
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "BOT_DEPLOYMENT_GUIDE.md",
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/.github/workflows/bot-funding-deployment.yml",
+        "CryptonoutController/ALLOWLIST_WORKFLOW_GUIDE.md",
+        "CryptonoutController/BOT_DEPLOYMENT_GUIDE.md",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_MANIFEST.json",
+        "DEPLOYMENT_READY.md",
+        "DEPLOYMENT_STATUS.md",
+        "PUSH_TO_CRYPTONOUT.md",
+        "QUICK_DEPLOY.md",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "HUwjG8LFabw28vJsQNoLXjxuzgdLhjGQw1DHZggzt76",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_MANIFEST.json",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "go.sum"
+      ]
+    },
+    {
+      "address": "J1toHzrhyxaoFTUoxrceFMSqd1vTdZ1Wat3xQVa8E5Jt",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DAO_SIGNERS_REPORT.md",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "scripts/dao-signers.json"
+      ]
+    },
+    {
+      "address": "jaJrDgf4U8DAZcUD3t5AwL7Cfe2QnkpXZXGegdUHc4ZE",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_MANIFEST.json",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "get_all_programs.js",
+        "program_results.json"
+      ]
+    },
+    {
+      "address": "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        ".github/workflows/security-scan.yml",
+        ".github/workflows/solana-monitor.yml",
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "AUTHORITY_ANNOUNCEMENT.md",
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_MANIFEST.json",
+        "MULTISIG_SIGNATURE_REQUEST.md",
+        "NEW_MASTER_CONTROLLER.md",
+        "PROGRAMS_WITH_SIGNATURES.md",
+        "REPO_ANALYSIS.md",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "SOLSCAN_VERIFICATION.md",
+        "SYSTEM_STATUS_COMPLETE.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "get_all_programs.js",
+        "get_programs_with_signatures.js",
+        "program_results.json",
+        "program_signatures.json",
+        "scripts/check-all-core.js",
+        "scripts/check-jupiter-program.sh",
+        "scripts/claim-to-treasury.sh",
+        "scripts/execute-authority-transfer.js",
+        "scripts/quicknode-priority-fee.js",
+        "scripts/reannounce-authority.js",
+        "scripts/transfer-authority-zero-cost.js",
+        "scripts/verify-on-chain.js"
+      ]
+    },
+    {
+      "address": "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "scripts/quicknode-cleanup.js",
+        "scripts/reannounce-contracts.js"
+      ]
+    },
+    {
+      "address": "K6U4dQ8jANMEqQQycXYiDcf3172NGefpQBzdDbavQbA",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "REPO_ANALYSIS.md",
+        "helius_lookup.js",
+        "search_native_programs.js"
+      ]
+    },
+    {
+      "address": "KTk8SrYvCqwP2WcgQjoRCiF5b4QDvkkz8EmgD",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "package-lock.json"
+      ]
+    },
+    {
+      "address": "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_MANIFEST.json",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "ListRepositorySecurityAdvisories",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "pkg/github/security_advisories.go",
+        "pkg/github/security_advisories_test.go",
+        "pkg/github/tools.go"
+      ]
+    },
+    {
+      "address": "ManageRepositoryNotificationSubscription",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "pkg/github/notifications.go",
+        "pkg/github/notifications_test.go",
+        "pkg/github/tools.go"
+      ]
+    },
+    {
+      "address": "MangoCzJ36AjZyKwVj3VnYU4GTonjfVEnJmvvWaxLac",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "scripts/quicknode-cleanup.js",
+        "scripts/reannounce-contracts.js"
+      ]
+    },
+    {
+      "address": "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "SOLSCAN_VERIFICATION.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "scripts/claim-assets-simple.sh",
+        "scripts/claim-assets.js",
+        "scripts/claim-to-treasury.sh"
+      ]
+    },
+    {
+      "address": "MPCSystem1111111111111111111111111111111111",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "scripts/quicknode-cleanup.js"
+      ]
+    },
+    {
+      "address": "mQBipzeneXqnAkWNL8raGvrj2c8dJv87LXs2Hn7BeXk",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DAO_SIGNERS_REPORT.md",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "scripts/dao-signers.json"
+      ]
+    },
+    {
+      "address": "NativeLoader1111111111111111111111111111111",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "PROGRAMS_WITH_SIGNATURES.md",
+        "program_signatures.json"
+      ]
+    },
+    {
+      "address": "NqGHDaaLWmND7uShuaZkVbGNQFy6pS96qHyfR3pGR2d",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        ".github/workflows/bot-funding-deployment.yml",
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "BOT_DEPLOYMENT_GUIDE.md",
+        "CHANGELOG_V2.0.0.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/.github/workflows/bot-funding-deployment.yml",
+        "CryptonoutController/ALLOWLIST_WORKFLOW_GUIDE.md",
+        "CryptonoutController/BOT_DEPLOYMENT_GUIDE.md",
+        "CryptonoutController/CHANGELOG_V2.0.0.md",
+        "CryptonoutController/SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_MANIFEST.json",
+        "DEPLOYMENT_READY.md",
+        "DEPLOYMENT_STATUS.md",
+        "PUSH_TO_CRYPTONOUT.md",
+        "QUICK_DEPLOY.md",
+        "SOLANA_MAINNET_ANNOUNCEMENT.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "Nvs5fzBLwdEF4nuxnFdsfajde4WfxtJr3CaiH",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "package-lock.json"
+      ]
+    },
+    {
+      "address": "orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "scripts/quicknode-cleanup.js",
+        "scripts/reannounce-contracts.js"
+      ]
+    },
+    {
+      "address": "ProcessResponseAsRingBufferToEnd",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "pkg/buffer/buffer.go",
+        "pkg/github/actions.go",
+        "pkg/github/actions_test.go"
+      ]
+    },
+    {
+      "address": "RepositorySubscriptionActionWatch",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "pkg/github/notifications.go"
+      ]
+    },
+    {
+      "address": "SMPLecH534NA9acpos4G6x7uf3LWbCAwZQE9e8ZekMu",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "MULTISIG_SIGNATURE_REQUEST.md",
+        "NEW_MASTER_CONTROLLER.md",
+        "PROGRAMS_WITH_SIGNATURES.md",
+        "REPO_ANALYSIS.md",
+        "SQUADS_MASTER_CONTROLLER.md",
+        "SYSTEM_STATUS_COMPLETE.md",
+        "get_programs_with_signatures.js",
+        "program_signatures.json",
+        "scripts/check-all-core.js",
+        "scripts/verify-on-chain.js"
+      ]
+    },
+    {
+      "address": "So11111111111111111111111111111111111111112",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "PROGRAMS_WITH_SIGNATURES.md",
+        "REPO_ANALYSIS.md",
+        "get_all_programs.js",
+        "get_programs_with_signatures.js",
+        "program_results.json",
+        "program_signatures.json",
+        "scripts/claim-assets-simple.sh",
+        "scripts/claim-assets.js",
+        "scripts/quicknode-cleanup.js",
+        "scripts/reannounce-contracts.js",
+        "search_native_programs.js"
+      ]
+    },
+    {
+      "address": "SRMuApVNdxXokk5GT7XD5cUUgXMBCoAz2LHeuAoKWRt",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "scripts/quicknode-cleanup.js",
+        "scripts/reannounce-contracts.js"
+      ]
+    },
+    {
+      "address": "Stake11111111111111111111111111111111111111",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "REPO_ANALYSIS.md",
+        "get_all_programs.js",
+        "program_results.json",
+        "search_native_programs.js"
+      ]
+    },
+    {
+      "address": "T1pyyaTNZsKv2WcRAB8oVnk93mLJw2XzjtVYqCsaHqt",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "SOLSCAN_VERIFICATION.md",
+        "scripts/check-solscan-assets.sh",
+        "scripts/claim-assets-simple.sh",
+        "scripts/claim-assets.js",
+        "scripts/claim-to-treasury.sh"
+      ]
+    },
+    {
+      "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "PROGRAMS_WITH_SIGNATURES.md",
+        "REPO_ANALYSIS.md",
+        "SOLSCAN_VERIFICATION.md",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "get_all_programs.js",
+        "get_programs_with_signatures.js",
+        "program_results.json",
+        "program_signatures.json",
+        "scripts/claim-assets-simple.sh",
+        "scripts/claim-assets.js",
+        "scripts/claim-to-treasury.sh",
+        "search_native_programs.js"
+      ]
+    },
+    {
+      "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    },
+    {
+      "address": "Vote111111111111111111111111111111111111111",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "REPO_ANALYSIS.md",
+        "get_all_programs.js",
+        "program_results.json",
+        "search_native_programs.js"
+      ]
+    },
+    {
+      "address": "WENWENvqqNya429ubCdR81ZmD69brwQaaBYY6p3LCpk",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "scripts/quicknode-cleanup.js",
+        "scripts/reannounce-contracts.js"
+      ]
+    },
+    {
+      "address": "xz7wQ8xDhdyP7tQxwdteLYeFfS68tSMNCZ",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "package-lock.json"
+      ]
+    },
+    {
+      "address": "yZcddTUn8DPbj11GxnMrNiAnXH14gNs559AsUpNpPgM",
+      "type": "solana",
+      "allowlisted": false,
+      "files": [
+        "go.sum"
+      ]
+    },
+    {
+      "address": "zhBqbd9tSQFPevg4188JxcgpccCj3t1Jxb29zsBc2R4",
+      "type": "solana",
+      "allowlisted": true,
+      "files": [
+        "ALLOWLIST_ANALYSIS_REPORT.md",
+        "BACKFILL_DEPLOYMENT_SUMMARY.md",
+        "COMPREHENSIVE_ALLOWLIST_UPDATE.json",
+        "CryptonoutController/VERCEL_DEPLOYMENT_ALLOWLIST.json",
+        "DEPLOYMENT_MANIFEST.json",
+        "VERCEL_DEPLOYMENT_ALLOWLIST.json"
+      ]
+    }
+  ]
+}
