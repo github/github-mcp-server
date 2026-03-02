@@ -28,6 +28,9 @@ func (t testAPIHostResolver) UploadURL(_ context.Context) (*url.URL, error) {
 func (t testAPIHostResolver) RawURL(_ context.Context) (*url.URL, error) {
 	return nil, nil
 }
+func (t testAPIHostResolver) AuthorizationServerURL(_ context.Context) (*url.URL, error) {
+	return nil, nil
+}
 
 func TestParseScopeHeader(t *testing.T) {
 	tests := []struct {

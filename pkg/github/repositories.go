@@ -1497,7 +1497,14 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list tags", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(tags)
+			minimalTags := make([]MinimalTag, 0, len(tags))
+			for _, tag := range tags {
+				if tag != nil {
+					minimalTags = append(minimalTags, convertToMinimalTag(tag))
+				}
+			}
+
+			r, err := json.Marshal(minimalTags)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -1670,7 +1677,14 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list releases", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(releases)
+			minimalReleases := make([]MinimalRelease, 0, len(releases))
+			for _, release := range releases {
+				if release != nil {
+					minimalReleases = append(minimalReleases, convertToMinimalRelease(release))
+				}
+			}
+
+			r, err := json.Marshal(minimalReleases)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
