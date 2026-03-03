@@ -2471,6 +2471,61 @@ func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 			expectToolError: false,
 		},
 		{
+			name: "successful review creation with string pullNumber",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							PullRequest struct {
+								ID githubv4.ID
+							} `graphql:"pullRequest(number: $prNum)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner": githubv4.String("owner"),
+						"repo":  githubv4.String("repo"),
+						"prNum": githubv4.Int(42),
+					},
+					githubv4mock.DataResponse(
+						map[string]any{
+							"repository": map[string]any{
+								"pullRequest": map[string]any{
+									"id": "PR_kwDODKw3uc6WYN1T",
+								},
+							},
+						},
+					),
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						AddPullRequestReview struct {
+							PullRequestReview struct {
+								ID githubv4.ID
+							}
+						} `graphql:"addPullRequestReview(input: $input)"`
+					}{},
+					githubv4.AddPullRequestReviewInput{
+						PullRequestID: githubv4.ID("PR_kwDODKw3uc6WYN1T"),
+						Body:          githubv4.NewString("This is a test review"),
+						Event:         githubv4mock.Ptr(githubv4.PullRequestReviewEventComment),
+						CommitOID:     githubv4.NewGitObjectID("abcd1234"),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{}),
+				),
+			),
+			requestArgs: map[string]any{
+				"method":     "create",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": "42", // Some MCP clients send numeric values as strings
+				"body":       "This is a test review",
+				"event":      "COMMENT",
+				"commitID":   "abcd1234",
+			},
+			expectToolError: false,
+		},
+		{
 			name: "failure to get pull request",
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
@@ -2849,6 +2904,65 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 						AddPullRequestReviewThread struct {
 							Thread struct {
 								ID githubv4.String // We don't need this, but a selector is required or GQL complains.
+							}
+						} `graphql:"addPullRequestReviewThread(input: $input)"`
+					}{},
+					githubv4.AddPullRequestReviewThreadInput{
+						Path:                githubv4.String("file.go"),
+						Body:                githubv4.String("This is a test comment"),
+						SubjectType:         githubv4mock.Ptr(githubv4.PullRequestReviewThreadSubjectTypeLine),
+						Line:                githubv4.NewInt(10),
+						Side:                githubv4mock.Ptr(githubv4.DiffSideRight),
+						StartLine:           githubv4.NewInt(5),
+						StartSide:           githubv4mock.Ptr(githubv4.DiffSideRight),
+						PullRequestReviewID: githubv4.NewID("PR_kwDODKw3uc6WYN1T"),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"addPullRequestReviewThread": map[string]any{
+							"thread": map[string]any{
+								"id": "MDEyOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMTIzNDU2",
+							},
+						},
+					}),
+				),
+			),
+		},
+		{
+			name: "successful line comment with string pullNumber and line",
+			requestArgs: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"pullNumber":  "42", // Some MCP clients send numeric values as strings
+				"path":        "file.go",
+				"body":        "This is a test comment",
+				"subjectType": "LINE",
+				"line":        "10", // string line number
+				"side":        "RIGHT",
+				"startLine":   "5", // string startLine
+				"startSide":   "RIGHT",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				viewerQuery("williammartin"),
+				getLatestPendingReviewQuery(getLatestPendingReviewQueryParams{
+					author: "williammartin",
+					owner:  "owner",
+					repo:   "repo",
+					prNum:  42,
+
+					reviews: []getLatestPendingReviewQueryReview{
+						{
+							id:    "PR_kwDODKw3uc6WYN1T",
+							state: "PENDING",
+							url:   "https://github.com/owner/repo/pull/42",
+						},
+					},
+				}),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						AddPullRequestReviewThread struct {
+							Thread struct {
+								ID githubv4.String
 							}
 						} `graphql:"addPullRequestReviewThread(input: $input)"`
 					}{},
