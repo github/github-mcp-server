@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/github/github-mcp-server/pkg/http/headers"
+	"github.com/github/github-mcp-server/pkg/utils"
 	"github.com/go-chi/chi/v5"
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/oauthex"
@@ -16,9 +17,6 @@ import (
 const (
 	// OAuthProtectedResourcePrefix is the well-known path prefix for OAuth protected resource metadata.
 	OAuthProtectedResourcePrefix = "/.well-known/oauth-protected-resource"
-
-	// DefaultAuthorizationServer is GitHub's OAuth authorization server.
-	DefaultAuthorizationServer = "https://github.com/login/oauth"
 )
 
 // SupportedScopes lists all OAuth scopes that may be required by MCP tools.
@@ -55,22 +53,27 @@ type Config struct {
 
 // AuthHandler handles OAuth-related HTTP endpoints.
 type AuthHandler struct {
-	cfg *Config
+	cfg     *Config
+	apiHost utils.APIHostResolver
 }
 
 // NewAuthHandler creates a new OAuth auth handler.
-func NewAuthHandler(cfg *Config) (*AuthHandler, error) {
+func NewAuthHandler(cfg *Config, apiHost utils.APIHostResolver) (*AuthHandler, error) {
 	if cfg == nil {
 		cfg = &Config{}
 	}
 
-	// Default authorization server to GitHub
-	if cfg.AuthorizationServer == "" {
-		cfg.AuthorizationServer = DefaultAuthorizationServer
+	if apiHost == nil {
+		var err error
+		apiHost, err = utils.NewAPIHost("https://api.github.com")
+		if err != nil {
+			return nil, fmt.Errorf("failed to create default API host: %w", err)
+		}
 	}
 
 	return &AuthHandler{
-		cfg: cfg,
+		cfg:     cfg,
+		apiHost: apiHost,
 	}, nil
 }
 
@@ -95,15 +98,28 @@ func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 
 func (h *AuthHandler) metadataHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
 		resourcePath := resolveResourcePath(
 			strings.TrimPrefix(r.URL.Path, OAuthProtectedResourcePrefix),
 			h.cfg.ResourcePath,
 		)
 		resourceURL := h.buildResourceURL(r, resourcePath)
 
+		var authorizationServerURL string
+		if h.cfg.AuthorizationServer != "" {
+			authorizationServerURL = h.cfg.AuthorizationServer
+		} else {
+			authURL, err := h.apiHost.AuthorizationServerURL(ctx)
+			if err != nil {
+				http.Error(w, fmt.Sprintf("failed to resolve authorization server URL: %v", err), http.StatusInternalServerError)
+				return
+			}
+			authorizationServerURL = authURL.String()
+		}
+
 		metadata := &oauthex.ProtectedResourceMetadata{
 			Resource:               resourceURL,
-			AuthorizationServers:   []string{h.cfg.AuthorizationServer},
+			AuthorizationServers:   []string{authorizationServerURL},
 			ResourceName:           "GitHub MCP Server",
 			ScopesSupported:        SupportedScopes,
 			BearerMethodsSupported: []string{"header"},

@@ -104,6 +104,31 @@ func TestInventoryFiltersForRequest(t *testing.T) {
 			},
 			expectedTools: []string{"get_file_contents", "create_repository", "list_issues"},
 		},
+		{
+			name: "excluded tools removes specific tools",
+			contextSetup: func(ctx context.Context) context.Context {
+				return ghcontext.WithExcludeTools(ctx, []string{"create_repository", "issue_write"})
+			},
+			expectedTools: []string{"get_file_contents", "list_issues"},
+		},
+		{
+			name: "excluded tools overrides explicit tools",
+			contextSetup: func(ctx context.Context) context.Context {
+				ctx = ghcontext.WithTools(ctx, []string{"list_issues", "create_repository"})
+				ctx = ghcontext.WithExcludeTools(ctx, []string{"create_repository"})
+				return ctx
+			},
+			expectedTools: []string{"list_issues"},
+		},
+		{
+			name: "excluded tools combines with readonly",
+			contextSetup: func(ctx context.Context) context.Context {
+				ctx = ghcontext.WithReadonly(ctx, true)
+				ctx = ghcontext.WithExcludeTools(ctx, []string{"list_issues"})
+				return ctx
+			},
+			expectedTools: []string{"get_file_contents"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -266,6 +291,40 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 				headers.MCPFeaturesHeader: "unknown_flag",
 			},
 			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "create_issue", "list_pull_requests", "create_pull_request", "hidden_by_holdback"},
+		},
+		{
+			name: "X-MCP-Exclude-Tools header removes specific tools",
+			path: "/",
+			headers: map[string]string{
+				headers.MCPExcludeToolsHeader: "create_issue,create_pull_request",
+			},
+			expectedTools: []string{"get_file_contents", "create_repository", "list_issues", "list_pull_requests", "hidden_by_holdback"},
+		},
+		{
+			name: "X-MCP-Exclude-Tools with toolset header",
+			path: "/",
+			headers: map[string]string{
+				headers.MCPToolsetsHeader:     "issues",
+				headers.MCPExcludeToolsHeader: "create_issue",
+			},
+			expectedTools: []string{"list_issues"},
+		},
+		{
+			name: "X-MCP-Exclude-Tools overrides X-MCP-Tools",
+			path: "/",
+			headers: map[string]string{
+				headers.MCPToolsHeader:        "list_issues,create_issue",
+				headers.MCPExcludeToolsHeader: "create_issue",
+			},
+			expectedTools: []string{"list_issues"},
+		},
+		{
+			name: "X-MCP-Exclude-Tools with readonly path",
+			path: "/readonly",
+			headers: map[string]string{
+				headers.MCPExcludeToolsHeader: "list_issues",
+			},
+			expectedTools: []string{"get_file_contents", "list_pull_requests", "hidden_by_holdback"},
 		},
 	}
 

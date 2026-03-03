@@ -82,6 +82,22 @@ func IsInsidersMode(ctx context.Context) bool {
 	return false
 }
 
+// excludeToolsCtxKey is a context key for excluded tools
+type excludeToolsCtxKey struct{}
+
+// WithExcludeTools adds the excluded tools to the context
+func WithExcludeTools(ctx context.Context, tools []string) context.Context {
+	return context.WithValue(ctx, excludeToolsCtxKey{}, tools)
+}
+
+// GetExcludeTools retrieves the excluded tools from the context
+func GetExcludeTools(ctx context.Context) []string {
+	if tools, ok := ctx.Value(excludeToolsCtxKey{}).([]string); ok {
+		return tools
+	}
+	return nil
+}
+
 // headerFeaturesCtxKey is a context key for raw header feature flags
 type headerFeaturesCtxKey struct{}
 
@@ -96,4 +112,20 @@ func GetHeaderFeatures(ctx context.Context) []string {
 		return features
 	}
 	return nil
+}
+
+// uiSupportCtxKey is a context key for MCP Apps UI support
+type uiSupportCtxKey struct{}
+
+// WithUISupport stores whether the client supports MCP Apps UI in the context.
+// This is used by HTTP/stateless servers where the go-sdk session may not
+// persist client capabilities across requests.
+func WithUISupport(ctx context.Context, supported bool) context.Context {
+	return context.WithValue(ctx, uiSupportCtxKey{}, supported)
+}
+
+// HasUISupport retrieves the MCP Apps UI support flag from context.
+func HasUISupport(ctx context.Context) (supported bool, ok bool) {
+	v, ok := ctx.Value(uiSupportCtxKey{}).(bool)
+	return v, ok
 }
