@@ -235,11 +235,11 @@ func parseAPIHost(s string) (APIHost, error) {
 		return APIHost{}, fmt.Errorf("host must have a scheme (http or https): %s", s)
 	}
 
-	if strings.HasSuffix(u.Hostname(), "github.com") {
+	if u.Hostname() == "github.com" || strings.HasSuffix(u.Hostname(), ".github.com") {
 		return newDotcomHost()
 	}
 
-	if strings.HasSuffix(u.Hostname(), "ghe.com") {
+	if u.Hostname() == "ghe.com" || strings.HasSuffix(u.Hostname(), ".ghe.com") {
 		return newGHECHost(s)
 	}
 
