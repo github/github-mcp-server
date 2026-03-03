@@ -2,6 +2,7 @@ package github
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/google/go-github/v82/github"
@@ -198,6 +199,62 @@ func Test_RequiredInt(t *testing.T) {
 			expected:    0,
 			expectError: true,
 		},
+		{
+			name:        "NaN string",
+			params:      map[string]any{"count": "NaN"},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "Inf string",
+			params:      map[string]any{"count": "Inf"},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "negative Inf string",
+			params:      map[string]any{"count": "-Inf"},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "fractional string",
+			params:      map[string]any{"count": "1.5"},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "fractional float64",
+			params:      map[string]any{"count": float64(1.5)},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "NaN float64",
+			params:      map[string]any{"count": math.NaN()},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "Inf float64",
+			params:      map[string]any{"count": math.Inf(1)},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "MaxFloat64",
+			params:      map[string]any{"count": math.MaxFloat64},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
 	}
 
 	for _, tc := range tests {
@@ -259,6 +316,27 @@ func Test_OptionalIntParam(t *testing.T) {
 		{
 			name:        "wrong type parameter",
 			params:      map[string]any{"count": "not-a-number"},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "NaN string",
+			params:      map[string]any{"count": "NaN"},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "fractional string",
+			params:      map[string]any{"count": "1.5"},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "fractional float64",
+			params:      map[string]any{"count": float64(1.5)},
 			paramName:   "count",
 			expected:    0,
 			expectError: true,
