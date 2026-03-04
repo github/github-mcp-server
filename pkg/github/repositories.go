@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
@@ -323,9 +322,9 @@ func CreateOrUpdateFile(t translations.TranslationHelperFunc) inventory.ServerTo
 If updating, you should provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.
 
 In order to obtain the SHA of original file version before updating, use the following git command:
-git ls-tree HEAD <path to file>
+git rev-parse HEAD:<path to file>
 
-If the SHA is not provided, the tool will attempt to acquire it by fetching the current file contents from the repository, which may lead to rewriting latest committed changes if the file has changed since last retrieval.
+SHA MUST be provided for existing file updates.
 `),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_CREATE_OR_UPDATE_FILE_USER_TITLE", "Create or update file"),
@@ -360,7 +359,7 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 					},
 					"sha": {
 						Type:        "string",
-						Description: "The blob SHA of the file being replaced.",
+						Description: "The blob SHA of the file being replaced. Required if the file already exists.",
 					},
 				},
 				Required: []string{"owner", "repo", "path", "content", "message", "branch"},
@@ -420,55 +419,39 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 
 			path = strings.TrimPrefix(path, "/")
 
-			// SHA validation using conditional HEAD request (efficient - no body transfer)
-			var previousSHA string
-			contentURL := fmt.Sprintf("repos/%s/%s/contents/%s", owner, repo, url.PathEscape(path))
-			if branch != "" {
-				contentURL += "?ref=" + url.QueryEscape(branch)
-			}
+			// SHA validation using Contents API to fetch current file metadata (blob SHA)
+			getOpts := &github.RepositoryContentGetOptions{Ref: branch}
 
 			if sha != "" {
 				// User provided SHA - validate it's still current
-				req, err := client.NewRequest("HEAD", contentURL, nil)
-				if err == nil {
-					req.Header.Set("If-None-Match", fmt.Sprintf(`"%s"`, sha))
-					resp, _ := client.Do(ctx, req, nil)
-					if resp != nil {
-						defer resp.Body.Close()
-
-						switch resp.StatusCode {
-						case http.StatusNotModified:
-							// SHA matches current - proceed
-							opts.SHA = github.Ptr(sha)
-						case http.StatusOK:
-							// SHA is stale - reject with current SHA so user can check diff
-							currentSHA := strings.Trim(resp.Header.Get("ETag"), `"`)
-							return utils.NewToolResultError(fmt.Sprintf(
-								"SHA mismatch: provided SHA %s is stale. Current file SHA is %s. "+
-									"Use get_file_contents or compare commits to review changes before updating.",
-								sha, currentSHA)), nil, nil
-						case http.StatusNotFound:
-							// File doesn't exist - this is a create, ignore provided SHA
-						}
+				existingFile, _, respCheck, getErr := client.Repositories.GetContents(ctx, owner, repo, path, getOpts)
+				if respCheck != nil {
+					_ = respCheck.Body.Close()
+				}
+				if getErr == nil && existingFile != nil {
+					currentSHA := existingFile.GetSHA()
+					if currentSHA != sha {
+						return utils.NewToolResultError(fmt.Sprintf(
+							"SHA mismatch: provided SHA %s is stale. Current file SHA is %s. "+
+								"Pull the latest changes and use git rev-parse HEAD:%s to get the current SHA.",
+							sha, currentSHA, path)), nil, nil
 					}
 				}
+				// If file not found or error, proceed (could be a new file creation)
 			} else {
-				// No SHA provided - check if file exists to warn about blind update
-				req, err := client.NewRequest("HEAD", contentURL, nil)
-				if err == nil {
-					resp, _ := client.Do(ctx, req, nil)
-					if resp != nil {
-						defer resp.Body.Close()
-						if resp.StatusCode == http.StatusOK {
-							previousSHA = strings.Trim(resp.Header.Get("ETag"), `"`)
-						}
-						// 404 = new file, no previous SHA needed
-					}
+				// No SHA provided - check if file already exists
+				existingFile, _, respCheck, getErr := client.Repositories.GetContents(ctx, owner, repo, path, getOpts)
+				if respCheck != nil {
+					_ = respCheck.Body.Close()
 				}
-			}
-
-			if previousSHA != "" {
-				opts.SHA = github.Ptr(previousSHA)
+				if getErr == nil && existingFile != nil {
+					// File exists but no SHA was provided - reject to prevent blind overwrites
+					return utils.NewToolResultError(fmt.Sprintf(
+						"File already exists at %s. You must provide the current file's SHA when updating. "+
+							"Use git rev-parse HEAD:%s to get the blob SHA, then retry with the sha parameter.",
+						path, path)), nil, nil
+				}
+				// If file not found or error, no previous SHA needed (new file creation)
 			}
 
 			fileContent, resp, err := client.Repositories.CreateFile(ctx, owner, repo, path, opts)
@@ -490,23 +473,6 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 			}
 
 			minimalResponse := convertToMinimalFileContentResponse(fileContent)
-
-			// Warn if file was updated without SHA validation (blind update)
-			if sha == "" && previousSHA != "" {
-				warning, err := json.Marshal(minimalResponse)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-				}
-				return utils.NewToolResultText(fmt.Sprintf(
-					"Warning: File updated without SHA validation. Previous file SHA was %s. "+
-						`Verify no unintended changes were overwritten: 
-1. Extract the SHA of the local version using git ls-tree HEAD %s.
-2. Compare with the previous SHA above.
-3. Revert changes if shas do not match.
-
-%s`,
-					previousSHA, path, string(warning))), nil, nil
-			}
 
 			return MarshalledTextResult(minimalResponse), nil, nil
 		},
