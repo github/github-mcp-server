@@ -30,8 +30,11 @@ function renameOutput(): Plugin {
   };
 }
 
+// Only use React plugin for React-based apps
+const isReactApp = app !== "pr-read";
+
 export default defineConfig({
-  plugins: [react(), viteSingleFile(), renameOutput()],
+  plugins: [...(isReactApp ? [react()] : []), viteSingleFile(), renameOutput()],
   build: {
     outDir: resolve(__dirname, "../pkg/github/ui_dist"),
     emptyOutDir: false,
