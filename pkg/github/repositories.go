@@ -322,7 +322,7 @@ func CreateOrUpdateFile(t translations.TranslationHelperFunc) inventory.ServerTo
 If updating, you should provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.
 
 In order to obtain the SHA of original file version before updating, use the following git command:
-git rev-parse HEAD:<path to file>
+git rev-parse <branch>:<path to file>
 
 SHA MUST be provided for existing file updates.
 `),
@@ -448,8 +448,8 @@ SHA MUST be provided for existing file updates.
 					if currentSHA != sha {
 						return utils.NewToolResultError(fmt.Sprintf(
 							"SHA mismatch: provided SHA %s is stale. Current file SHA is %s. "+
-								"Pull the latest changes and use git rev-parse HEAD:%s to get the current SHA.",
-							sha, currentSHA, path)), nil, nil
+								"Pull the latest changes and use git rev-parse %s:%s to get the current SHA.",
+							sha, currentSHA, branch, path)), nil, nil
 					}
 				}
 			} else {
@@ -477,8 +477,8 @@ SHA MUST be provided for existing file updates.
 					// File exists but no SHA was provided - reject to prevent blind overwrites
 					return utils.NewToolResultError(fmt.Sprintf(
 						"File already exists at %s. You must provide the current file's SHA when updating. "+
-							"Use git rev-parse HEAD:%s to get the blob SHA, then retry with the sha parameter.",
-						path, path)), nil, nil
+							"Use git rev-parse %s:%s to get the blob SHA, then retry with the sha parameter.",
+						path, branch, path)), nil, nil
 				}
 				// If file not found, no previous SHA needed (new file creation)
 			}
