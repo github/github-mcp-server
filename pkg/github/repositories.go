@@ -428,7 +428,17 @@ SHA MUST be provided for existing file updates.
 				if respCheck != nil {
 					_ = respCheck.Body.Close()
 				}
-				if getErr == nil && existingFile != nil {
+				if getErr != nil {
+					// 404 means file doesn't exist - proceed (new file creation)
+					// Any other error (403, 500, network) should be surfaced
+					if respCheck == nil || respCheck.StatusCode != http.StatusNotFound {
+						return ghErrors.NewGitHubAPIErrorResponse(ctx,
+							"failed to verify file SHA",
+							respCheck,
+							getErr,
+						), nil, nil
+					}
+				} else if existingFile != nil {
 					currentSHA := existingFile.GetSHA()
 					if currentSHA != sha {
 						return utils.NewToolResultError(fmt.Sprintf(
@@ -437,21 +447,30 @@ SHA MUST be provided for existing file updates.
 							sha, currentSHA, path)), nil, nil
 					}
 				}
-				// If file not found or error, proceed (could be a new file creation)
 			} else {
 				// No SHA provided - check if file already exists
 				existingFile, _, respCheck, getErr := client.Repositories.GetContents(ctx, owner, repo, path, getOpts)
 				if respCheck != nil {
 					_ = respCheck.Body.Close()
 				}
-				if getErr == nil && existingFile != nil {
+				if getErr != nil {
+					// 404 means file doesn't exist - proceed with creation
+					// Any other error (403, 500, network) should be surfaced
+					if respCheck == nil || respCheck.StatusCode != http.StatusNotFound {
+						return ghErrors.NewGitHubAPIErrorResponse(ctx,
+							"failed to check if file exists",
+							respCheck,
+							getErr,
+						), nil, nil
+					}
+				} else if existingFile != nil {
 					// File exists but no SHA was provided - reject to prevent blind overwrites
 					return utils.NewToolResultError(fmt.Sprintf(
 						"File already exists at %s. You must provide the current file's SHA when updating. "+
 							"Use git rev-parse HEAD:%s to get the blob SHA, then retry with the sha parameter.",
 						path, path)), nil, nil
 				}
-				// If file not found or error, no previous SHA needed (new file creation)
+				// If file not found, no previous SHA needed (new file creation)
 			}
 
 			fileContent, resp, err := client.Repositories.CreateFile(ctx, owner, repo, path, opts)
