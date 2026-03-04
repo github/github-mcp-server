@@ -424,11 +424,12 @@ SHA MUST be provided for existing file updates.
 
 			if sha != "" {
 				// User provided SHA - validate it's still current
-				existingFile, _, respCheck, getErr := client.Repositories.GetContents(ctx, owner, repo, path, getOpts)
+				existingFile, dirContent, respCheck, getErr := client.Repositories.GetContents(ctx, owner, repo, path, getOpts)
 				if respCheck != nil {
 					_ = respCheck.Body.Close()
 				}
-				if getErr != nil {
+				switch {
+				case getErr != nil:
 					// 404 means file doesn't exist - proceed (new file creation)
 					// Any other error (403, 500, network) should be surfaced
 					if respCheck == nil || respCheck.StatusCode != http.StatusNotFound {
@@ -438,7 +439,11 @@ SHA MUST be provided for existing file updates.
 							getErr,
 						), nil, nil
 					}
-				} else if existingFile != nil {
+				case dirContent != nil:
+					return utils.NewToolResultError(fmt.Sprintf(
+						"Path %s is a directory, not a file. This tool only works with files.",
+						path)), nil, nil
+				case existingFile != nil:
 					currentSHA := existingFile.GetSHA()
 					if currentSHA != sha {
 						return utils.NewToolResultError(fmt.Sprintf(
@@ -449,11 +454,12 @@ SHA MUST be provided for existing file updates.
 				}
 			} else {
 				// No SHA provided - check if file already exists
-				existingFile, _, respCheck, getErr := client.Repositories.GetContents(ctx, owner, repo, path, getOpts)
+				existingFile, dirContent, respCheck, getErr := client.Repositories.GetContents(ctx, owner, repo, path, getOpts)
 				if respCheck != nil {
 					_ = respCheck.Body.Close()
 				}
-				if getErr != nil {
+				switch {
+				case getErr != nil:
 					// 404 means file doesn't exist - proceed with creation
 					// Any other error (403, 500, network) should be surfaced
 					if respCheck == nil || respCheck.StatusCode != http.StatusNotFound {
@@ -463,7 +469,11 @@ SHA MUST be provided for existing file updates.
 							getErr,
 						), nil, nil
 					}
-				} else if existingFile != nil {
+				case dirContent != nil:
+					return utils.NewToolResultError(fmt.Sprintf(
+						"Path %s is a directory, not a file. This tool only works with files.",
+						path)), nil, nil
+				case existingFile != nil:
 					// File exists but no SHA was provided - reject to prevent blind overwrites
 					return utils.NewToolResultError(fmt.Sprintf(
 						"File already exists at %s. You must provide the current file's SHA when updating. "+
