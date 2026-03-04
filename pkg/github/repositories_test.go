@@ -2942,6 +2942,10 @@ func Test_GetTag(t *testing.T) {
 				SHA:     github.Ptr("lightweight-commit-sha"),
 				Tag:     github.Ptr("v2.0.0"),
 				Message: github.Ptr("Initial commit"),
+				Tagger: &github.CommitAuthor{
+					Name:  github.Ptr("Test User"),
+					Email: github.Ptr("test@example.com"),
+				},
 				Object: &github.GitObject{
 					Type: github.Ptr("commit"),
 					SHA:  github.Ptr("lightweight-commit-sha"),
@@ -2966,6 +2970,29 @@ func Test_GetTag(t *testing.T) {
 			},
 			expectError:    true,
 			expectedErrMsg: "failed to get tag reference",
+		},
+		{
+			name: "lightweight tag commit not found",
+			mockedClient: NewMockedHTTPClient(
+				WithRequestMatch(
+					GetReposGitRefByOwnerByRepoByRef,
+					mockLightweightTagRef,
+				),
+				WithRequestMatchHandler(
+					GetReposGitCommitsByOwnerByRepoByCommitSHA,
+					http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = w.Write([]byte(`{"message": "Commit does not exist"}`))
+					}),
+				),
+			),
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"tag":   "v2.0.0",
+			},
+			expectError:    true,
+			expectedErrMsg: "failed to get commit for lightweight tag",
 		},
 		{
 			name: "tag object not found",
@@ -3032,6 +3059,11 @@ func Test_GetTag(t *testing.T) {
 			assert.Equal(t, *tc.expectedTag.Message, *returnedTag.Message)
 			assert.Equal(t, *tc.expectedTag.Object.Type, *returnedTag.Object.Type)
 			assert.Equal(t, *tc.expectedTag.Object.SHA, *returnedTag.Object.SHA)
+			if tc.expectedTag.Tagger != nil {
+				require.NotNil(t, returnedTag.Tagger, "expected Tagger to be set")
+				assert.Equal(t, *tc.expectedTag.Tagger.Name, *returnedTag.Tagger.Name)
+				assert.Equal(t, *tc.expectedTag.Tagger.Email, *returnedTag.Tagger.Email)
+			}
 		})
 	}
 }

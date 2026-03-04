@@ -1574,22 +1574,22 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			// First get the tag reference
-			ref, resp, err := client.Git.GetRef(ctx, owner, repo, "refs/tags/"+tag)
+			ref, refResp, err := client.Git.GetRef(ctx, owner, repo, "refs/tags/"+tag)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to get tag reference",
-					resp,
+					refResp,
 					err,
 				), nil, nil
 			}
-			defer func() { _ = resp.Body.Close() }()
+			defer func() { _ = refResp.Body.Close() }()
 
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
+			if refResp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(refResp.Body)
 				if err != nil {
 					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get tag reference", resp, body), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get tag reference", refResp, body), nil, nil
 			}
 
 			// Handle both annotated and lightweight tags.
@@ -1597,22 +1597,22 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 			// Lightweight tags have ref.Object.Type == "commit" and point directly to a commit.
 			if ref.Object.Type != nil && *ref.Object.Type == "commit" {
 				// Lightweight tag — resolve the commit directly
-				commit, resp, err := client.Git.GetCommit(ctx, owner, repo, *ref.Object.SHA)
+				commit, commitResp, err := client.Git.GetCommit(ctx, owner, repo, *ref.Object.SHA)
 				if err != nil {
 					return ghErrors.NewGitHubAPIErrorResponse(ctx,
 						"failed to get commit for lightweight tag",
-						resp,
+						commitResp,
 						err,
 					), nil, nil
 				}
-				defer func() { _ = resp.Body.Close() }()
+				defer func() { _ = commitResp.Body.Close() }()
 
-				if resp.StatusCode != http.StatusOK {
-					body, err := io.ReadAll(resp.Body)
+				if commitResp.StatusCode != http.StatusOK {
+					body, err := io.ReadAll(commitResp.Body)
 					if err != nil {
 						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 					}
-					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get commit for lightweight tag", resp, body), nil, nil
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get commit for lightweight tag", commitResp, body), nil, nil
 				}
 
 				// Return a tag-like structure for consistency
@@ -1644,22 +1644,22 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 
 			// Annotated tag — fetch the tag object
-			tagObj, resp, err := client.Git.GetTag(ctx, owner, repo, *ref.Object.SHA)
+			tagObj, tagResp, err := client.Git.GetTag(ctx, owner, repo, *ref.Object.SHA)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
 					"failed to get tag object",
-					resp,
+					tagResp,
 					err,
 				), nil, nil
 			}
-			defer func() { _ = resp.Body.Close() }()
+			defer func() { _ = tagResp.Body.Close() }()
 
-			if resp.StatusCode != http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
+			if tagResp.StatusCode != http.StatusOK {
+				body, err := io.ReadAll(tagResp.Body)
 				if err != nil {
 					return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 				}
-				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get tag object", resp, body), nil, nil
+				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get tag object", tagResp, body), nil, nil
 			}
 
 			r, err := json.Marshal(tagObj)
