@@ -1592,7 +1592,58 @@ func GetTag(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get tag reference", resp, body), nil, nil
 			}
 
-			// Then get the tag object
+			// Handle both annotated and lightweight tags.
+			// Annotated tags have ref.Object.Type == "tag" and point to a tag object.
+			// Lightweight tags have ref.Object.Type == "commit" and point directly to a commit.
+			if ref.Object.Type != nil && *ref.Object.Type == "commit" {
+				// Lightweight tag — resolve the commit directly
+				commit, resp, err := client.Git.GetCommit(ctx, owner, repo, *ref.Object.SHA)
+				if err != nil {
+					return ghErrors.NewGitHubAPIErrorResponse(ctx,
+						"failed to get commit for lightweight tag",
+						resp,
+						err,
+					), nil, nil
+				}
+				defer func() { _ = resp.Body.Close() }()
+
+				if resp.StatusCode != http.StatusOK {
+					body, err := io.ReadAll(resp.Body)
+					if err != nil {
+						return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+					}
+					return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to get commit for lightweight tag", resp, body), nil, nil
+				}
+
+				// Return a tag-like structure for consistency
+				lightweightTag := &github.Tag{
+					SHA: ref.Object.SHA,
+					Tag: github.Ptr(tag),
+					Object: &github.GitObject{
+						Type: github.Ptr("commit"),
+						SHA:  ref.Object.SHA,
+					},
+				}
+				if commit.Message != nil {
+					lightweightTag.Message = commit.Message
+				}
+				if commit.Author != nil {
+					lightweightTag.Tagger = &github.CommitAuthor{
+						Name:  commit.Author.Name,
+						Email: commit.Author.Email,
+						Date:  commit.Author.Date,
+					}
+				}
+
+				r, err := json.Marshal(lightweightTag)
+				if err != nil {
+					return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
+				}
+
+				return utils.NewToolResultText(string(r)), nil, nil
+			}
+
+			// Annotated tag — fetch the tag object
 			tagObj, resp, err := client.Git.GetTag(ctx, owner, repo, *ref.Object.SHA)
 			if err != nil {
 				return ghErrors.NewGitHubAPIErrorResponse(ctx,
