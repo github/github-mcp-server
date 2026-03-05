@@ -501,6 +501,10 @@ func ParseToolsetModes(configs []string, allKnownToolsets []inventory.ToolsetID)
 			} else {
 				readOnlyToolsets[inventory.ToolsetID(name)] = true
 			}
+		} else {
+			// Explicit :rw removes a prior :ro entry (supports "all:ro,repos:rw"
+			// to make everything read-only except repos).
+			delete(readOnlyToolsets, inventory.ToolsetID(name))
 		}
 	}
 

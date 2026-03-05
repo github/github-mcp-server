@@ -130,6 +130,12 @@ func RepositoryResourceContentsHandler(resourceURITemplate *uritemplate.Template
 			return nil, errors.New("repo is required")
 		}
 
+		// Inject owner into context so MultiOrgDeps routes to the correct
+		// org's GitHub App installation. For tools/call this is done by
+		// OwnerExtractMiddleware; for resources we must do it here because
+		// the owner comes from the URI, not tool arguments.
+		ctx = ContextWithOwner(ctx, owner)
+
 		pathValue := uriValues.Get("path")
 		pathComponents := pathValue.List()
 		var path string

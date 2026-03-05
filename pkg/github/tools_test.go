@@ -248,3 +248,26 @@ func TestParseToolsetModes_NilInput(t *testing.T) {
 		t.Errorf("expected nil modes for nil input, got %v", modes)
 	}
 }
+
+func TestParseToolsetModes_AllRoWithRwException(t *testing.T) {
+	allToolsets := []inventory.ToolsetID{"repos", "issues", "pull_requests", "users"}
+	names, readOnly := ParseToolsetModes([]string{"all:ro", "repos:rw"}, allToolsets)
+
+	require.Equal(t, []string{"all", "repos"}, names)
+	// repos should NOT be in readOnly because :rw overrides the prior all:ro
+	require.False(t, readOnly[inventory.ToolsetID("repos")],
+		"repos:rw should override all:ro for repos")
+	// Other toolsets should still be read-only
+	require.True(t, readOnly[inventory.ToolsetID("issues")])
+	require.True(t, readOnly[inventory.ToolsetID("pull_requests")])
+	require.True(t, readOnly[inventory.ToolsetID("users")])
+}
+
+func TestParseToolsetModes_RwWithoutPriorRo(t *testing.T) {
+	// :rw on a toolset that was never marked :ro should be a no-op (no crash)
+	names, readOnly := ParseToolsetModes([]string{"repos:rw", "issues:ro"}, nil)
+
+	require.Equal(t, []string{"repos", "issues"}, names)
+	require.False(t, readOnly[inventory.ToolsetID("repos")])
+	require.True(t, readOnly[inventory.ToolsetID("issues")])
+}

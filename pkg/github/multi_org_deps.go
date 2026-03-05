@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -28,9 +29,11 @@ type MultiOrgDeps struct {
 	lockdownMode      bool
 	repoAccessOpts    []lockdown.RepoAccessOption
 
-	// Per-org lockdown caches. Each org gets its own RepoAccessCache backed by
-	// that org's GQL client. Protected by repoAccessMu.
-	repoAccessCaches map[string]*lockdown.RepoAccessCache
+	// Per-installation lockdown caches. Each installation ID gets its own
+	// RepoAccessCache backed by that installation's GQL client. Keyed by
+	// installation ID (not owner string) to prevent unbounded growth.
+	// Protected by repoAccessMu.
+	repoAccessCaches map[int64]*lockdown.RepoAccessCache
 	repoAccessMu     sync.RWMutex
 }
 
@@ -55,7 +58,7 @@ func NewMultiOrgDeps(
 		featureChecker:    featureChecker,
 		lockdownMode:      lockdownMode,
 		repoAccessOpts:    repoAccessOpts,
-		repoAccessCaches:  make(map[string]*lockdown.RepoAccessCache),
+		repoAccessCaches:  make(map[int64]*lockdown.RepoAccessCache),
 	}
 }
 
@@ -82,24 +85,35 @@ func (d *MultiOrgDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
 }
 
 // GetRepoAccessCache implements ToolDependencies. Returns nil when lockdown
-// mode is disabled. When enabled, returns a per-org RepoAccessCache backed by
-// that org's GQL client. Caches are created lazily and reused across requests
-// for the same org. Uses lockdown.NewRepoAccessCache (not the singleton
-// GetInstance) so each org gets an independent cache with its own GQL client.
+// mode is disabled. When enabled, returns a per-installation RepoAccessCache
+// backed by that installation's GQL client. Caches are keyed by installation ID
+// (not owner string) to prevent unbounded growth: unknown owners that fall back
+// to the default installation share a single cache entry.
+//
+// Caches are created lazily and reused across requests for the same installation.
+// Uses lockdown.NewRepoAccessCache (not the singleton GetInstance) so each
+// installation gets an independent cache with its own GQL client.
 func (d *MultiOrgDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAccessCache, error) {
 	if !d.lockdownMode {
 		return nil, nil
 	}
 
+	// Resolve owner → installation ID to use as cache key. This mirrors the
+	// transport cache fix: unknown owners that fall back to the default
+	// installation share a single cache entry instead of creating unbounded
+	// entries keyed by arbitrary owner strings.
 	owner := OwnerFromContext(ctx)
-	key := normalizeOwner(owner)
-	if key == "" {
-		key = "_default"
+	installID := d.factory.getInstallationID(owner)
+	if installID == 0 {
+		return nil, fmt.Errorf(
+			"no GitHub App installation configured for org %q and no default installation set",
+			owner,
+		)
 	}
 
 	// Fast path: check if cache already exists (read lock).
 	d.repoAccessMu.RLock()
-	if cache, ok := d.repoAccessCaches[key]; ok {
+	if cache, ok := d.repoAccessCaches[installID]; ok {
 		d.repoAccessMu.RUnlock()
 		return cache, nil
 	}
@@ -109,7 +123,7 @@ func (d *MultiOrgDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAc
 	d.repoAccessMu.Lock()
 	defer d.repoAccessMu.Unlock()
 
-	if cache, ok := d.repoAccessCaches[key]; ok {
+	if cache, ok := d.repoAccessCaches[installID]; ok {
 		return cache, nil
 	}
 
@@ -119,7 +133,7 @@ func (d *MultiOrgDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAc
 	}
 
 	cache := lockdown.NewRepoAccessCache(gqlClient, d.repoAccessOpts...)
-	d.repoAccessCaches[key] = cache
+	d.repoAccessCaches[installID] = cache
 	return cache, nil
 }
 

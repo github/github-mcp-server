@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	ghinstallation "github.com/bradleyfalzon/ghinstallation/v2"
+	"github.com/github/github-mcp-server/pkg/http/transport"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/utils"
 	gogithub "github.com/google/go-github/v82/github"
@@ -207,12 +208,12 @@ func (f *MultiOrgClientFactory) GetRESTClient(ctx context.Context, owner string)
 		)
 	}
 
-	transport, err := f.getOrCreateTransport(installID)
+	ghTransport, err := f.getOrCreateTransport(installID)
 	if err != nil {
 		return nil, err
 	}
 
-	client := gogithub.NewClient(&http.Client{Transport: transport})
+	client := gogithub.NewClient(&http.Client{Transport: ghTransport})
 	client.UserAgent = f.getUserAgent()
 
 	// Set the REST base URL from the resolver so GHE installations work.
@@ -247,12 +248,20 @@ func (f *MultiOrgClientFactory) GetGQLClient(ctx context.Context, owner string) 
 		)
 	}
 
-	transport, err := f.getOrCreateTransport(installID)
+	ghTransport, err := f.getOrCreateTransport(installID)
 	if err != nil {
 		return nil, err
 	}
 
-	httpClient := &http.Client{Transport: transport}
+	// Wrap the installation transport with a user agent transport so GraphQL
+	// requests carry the same UA as REST requests. The REST client sets UA via
+	// gogithub.Client.UserAgent, but githubv4.Client has no equivalent field.
+	httpClient := &http.Client{
+		Transport: &transport.UserAgentTransport{
+			Transport: ghTransport,
+			Agent:     f.getUserAgent(),
+		},
+	}
 
 	// Use NewEnterpriseClient unconditionally: if apiHost resolves to dotcom
 	// the URL will be "https://api.github.com/graphql", which is identical to

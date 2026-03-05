@@ -40,6 +40,14 @@ func RepositoryResourceCompletionHandler(getClient GetClientFn) func(ctx context
 			resolved = map[string]string{}
 		}
 
+		// Inject owner into context so MultiOrgDeps routes to the correct
+		// org's GitHub App installation. For tools/call this is done by
+		// OwnerExtractMiddleware; for completions the owner comes from the
+		// resolved arguments, not tool call params.
+		if owner := resolved["owner"]; owner != "" {
+			ctx = ContextWithOwner(ctx, owner)
+		}
+
 		client, err := getClient(ctx)
 		if err != nil {
 			return nil, err
