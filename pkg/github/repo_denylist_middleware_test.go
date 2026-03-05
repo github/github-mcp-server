@@ -374,6 +374,70 @@ func TestRepoDenylistMiddleware_OrgWildcard_Blocked(t *testing.T) {
 	assert.False(t, handler.called, "handler should not have been called")
 }
 
+// Test: create_repository uses "organization"+"name" instead of "owner"+"repo"
+func TestRepoDenylistMiddleware_CreateRepository_OrgNameBlocked(t *testing.T) {
+	denylist := NewRepoDenylist([]string{"denied-org/*"})
+	mw := RepoDenylistMiddleware(denylist)
+
+	handler := &denylistPassthroughHandler{}
+	wrapped := mw(handler.handle)
+
+	// create_repository uses "organization" and "name", not "owner" and "repo"
+	req := makeDenylistToolRequest(t, "create_repository", map[string]any{
+		"organization": "denied-org",
+		"name":         "new-repo",
+		"private":      true,
+	})
+
+	result, err := wrapped(context.Background(), "tools/call", req)
+	require.NoError(t, err)
+	assert.True(t, isBlockedResult(t, result),
+		"create_repository with denied organization should be blocked")
+	assert.False(t, handler.called, "handler should not have been called")
+}
+
+// Test: create_repository with allowed org passes through
+func TestRepoDenylistMiddleware_CreateRepository_AllowedOrg(t *testing.T) {
+	denylist := NewRepoDenylist([]string{"denied-org/*"})
+	mw := RepoDenylistMiddleware(denylist)
+
+	handler := &denylistPassthroughHandler{}
+	wrapped := mw(handler.handle)
+
+	req := makeDenylistToolRequest(t, "create_repository", map[string]any{
+		"organization": "allowed-org",
+		"name":         "new-repo",
+		"private":      true,
+	})
+
+	result, err := wrapped(context.Background(), "tools/call", req)
+	require.NoError(t, err)
+	assert.False(t, isBlockedResult(t, result),
+		"create_repository with allowed organization should pass through")
+	assert.True(t, handler.called, "handler should have been called")
+}
+
+// Test: create_repository exact repo match (organization + name)
+func TestRepoDenylistMiddleware_CreateRepository_ExactRepoBlocked(t *testing.T) {
+	denylist := NewRepoDenylist([]string{"my-org/forbidden-repo"})
+	mw := RepoDenylistMiddleware(denylist)
+
+	handler := &denylistPassthroughHandler{}
+	wrapped := mw(handler.handle)
+
+	req := makeDenylistToolRequest(t, "create_repository", map[string]any{
+		"organization": "my-org",
+		"name":         "forbidden-repo",
+		"private":      true,
+	})
+
+	result, err := wrapped(context.Background(), "tools/call", req)
+	require.NoError(t, err)
+	assert.True(t, isBlockedResult(t, result),
+		"create_repository with exact denied org/name should be blocked")
+	assert.False(t, handler.called, "handler should not have been called")
+}
+
 // Test: Case-insensitive denylist matching
 func TestRepoDenylistMiddleware_CaseInsensitive_Blocked(t *testing.T) {
 	denylist := NewRepoDenylist([]string{"Owner/Secret-Repo"})

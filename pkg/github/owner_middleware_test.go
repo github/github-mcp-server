@@ -125,3 +125,42 @@ func TestOwnerExtractMiddleware_OwnerTakesPrecedenceOverOrg(t *testing.T) {
 
 	assert.Equal(t, "owner-val", OwnerFromContext(capture.capturedCtx))
 }
+
+func TestOwnerExtractMiddleware_WithOrganizationParam(t *testing.T) {
+	// create_repository and fork_repository use "organization" instead of "owner"/"org".
+	capture := &captureHandler{}
+	middleware := OwnerExtractMiddleware()
+	handler := middleware(capture.handle)
+
+	req := makeCallToolRequest(t, map[string]any{"organization": "target-org", "name": "new-repo"})
+	_, err := handler(context.Background(), "tools/call", req)
+	require.NoError(t, err)
+
+	assert.Equal(t, "target-org", OwnerFromContext(capture.capturedCtx))
+}
+
+func TestOwnerExtractMiddleware_OwnerTakesPrecedenceOverOrganization(t *testing.T) {
+	// "owner" should take precedence over "organization".
+	capture := &captureHandler{}
+	middleware := OwnerExtractMiddleware()
+	handler := middleware(capture.handle)
+
+	req := makeCallToolRequest(t, map[string]any{"owner": "owner-val", "organization": "org-val"})
+	_, err := handler(context.Background(), "tools/call", req)
+	require.NoError(t, err)
+
+	assert.Equal(t, "owner-val", OwnerFromContext(capture.capturedCtx))
+}
+
+func TestOwnerExtractMiddleware_OrgTakesPrecedenceOverOrganization(t *testing.T) {
+	// "org" should take precedence over "organization".
+	capture := &captureHandler{}
+	middleware := OwnerExtractMiddleware()
+	handler := middleware(capture.handle)
+
+	req := makeCallToolRequest(t, map[string]any{"org": "org-val", "organization": "organization-val"})
+	_, err := handler(context.Background(), "tools/call", req)
+	require.NoError(t, err)
+
+	assert.Equal(t, "org-val", OwnerFromContext(capture.capturedCtx))
+}

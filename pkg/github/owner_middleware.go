@@ -22,15 +22,17 @@ func OwnerFromContext(ctx context.Context) string {
 	return owner
 }
 
-// OwnerExtractMiddleware creates MCP middleware that extracts the "owner" or "org" parameter
+// OwnerExtractMiddleware creates MCP middleware that extracts the owner/org parameter
 // from tools/call requests and stores it in context. This allows MultiOrgDeps to
 // route API calls to the correct org's GitHub App installation.
 //
-// The middleware checks for "owner" first, then falls back to "org" (used by team-related
-// tools such as get_team_members and get_teams).
+// The middleware checks params in priority order:
+//  1. "owner" — standard param used by most tools
+//  2. "org" — used by team-related tools (get_team_members, get_teams)
+//  3. "organization" — used by create_repository and fork_repository
 //
 // For non-tools/call methods (resources, prompts, etc.), the request passes through unchanged.
-// For tools/call requests without an "owner" or "org" parameter, the request passes through
+// For tools/call requests without any recognized org parameter, the request passes through
 // with no owner in context (MultiOrgDeps will use the default installation).
 func OwnerExtractMiddleware() mcp.Middleware {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
@@ -56,6 +58,9 @@ func OwnerExtractMiddleware() mcp.Middleware {
 				ctx = ContextWithOwner(ctx, owner)
 			} else if org, ok := args["org"].(string); ok && org != "" {
 				ctx = ContextWithOwner(ctx, org)
+			} else if organization, ok := args["organization"].(string); ok && organization != "" {
+				// create_repository and fork_repository use "organization"
+				ctx = ContextWithOwner(ctx, organization)
 			}
 
 			return next(ctx, method, req)

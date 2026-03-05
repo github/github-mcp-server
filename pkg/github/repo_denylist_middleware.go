@@ -60,6 +60,20 @@ func RepoDenylistMiddleware(denylist *RepoDenylist) mcp.Middleware {
 			owner, _ := args["owner"].(string)
 			repo, _ := args["repo"].(string)
 
+			// Some tools use non-standard param names for the org/repo.
+			// create_repository uses "organization" + "name" instead of "owner" + "repo".
+			// Fall back to these if the standard params are absent.
+			if owner == "" {
+				if org, ok := args["organization"].(string); ok {
+					owner = org
+				}
+			}
+			if repo == "" {
+				if name, ok := args["name"].(string); ok {
+					repo = name
+				}
+			}
+
 			// Only check if both owner and repo are present.
 			if owner != "" && repo != "" {
 				if denylist.IsDenied(owner, repo) {
