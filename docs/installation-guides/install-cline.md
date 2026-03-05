@@ -51,6 +51,6 @@ Replace `YOUR_GITHUB_PAT` with your [GitHub Personal Access Token](https://githu
 
 ## Troubleshooting
 
-- **SSE error 405 with remote server**: Cline does not yet support Streamable HTTP transport — use the local Docker setup instead
+- **SSE error 405 with remote server**: Ensure `"type"` is set to `"streamableHttp"` (camelCase, no hyphen) in `cline_mcp_settings.json`. Using `"streamable-http"` or omitting `"type"` causes Cline to fall back to SSE, which this server does not support.
 - **Authentication failures**: Verify your PAT has the required scopes
 - **Docker issues**: Ensure Docker Desktop is installed and running
