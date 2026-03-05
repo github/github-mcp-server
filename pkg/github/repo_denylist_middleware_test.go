@@ -48,6 +48,12 @@ func isBlockedResult(t *testing.T, result mcp.Result) bool {
 	return toolResult.IsError
 }
 
+// assertDenylistBlocked asserts that the result is a blocked (error) tool result.
+func assertDenylistBlocked(t *testing.T, result mcp.Result) {
+	t.Helper()
+	assert.True(t, isBlockedResult(t, result), "expected a blocked (IsError=true) tool result")
+}
+
 // --- RepoDenylistMiddleware tests ---
 
 // Test 1: Tool with denied owner/repo → blocked
@@ -541,6 +547,60 @@ func TestRepoDenylistMiddleware_ForkRepository_BothAllowed(t *testing.T) {
 	assert.False(t, isBlockedResult(t, result),
 		"fork with both source and destination allowed should pass through")
 	assert.True(t, handler.called)
+}
+
+// Test: org param denied (org-scoped tool like get_team_members)
+func TestRepoDenylistMiddleware_OrgParamDenied(t *testing.T) {
+	denylist := NewRepoDenylist([]string{"denied-org/*"})
+	handler := &denylistPassthroughHandler{}
+	middleware := RepoDenylistMiddleware(denylist)
+	mwHandler := middleware(handler.handle)
+
+	req := makeDenylistToolRequest(t, "get_team_members", map[string]any{
+		"org":       "denied-org",
+		"team_slug": "engineering",
+	})
+	result, err := mwHandler(context.Background(), "tools/call", req)
+
+	require.NoError(t, err)
+	assert.False(t, handler.called, "tool call to denied org via 'org' param should be blocked")
+	assertDenylistBlocked(t, result)
+}
+
+// Test: org param allowed passes through
+func TestRepoDenylistMiddleware_OrgParamAllowed(t *testing.T) {
+	denylist := NewRepoDenylist([]string{"denied-org/*"})
+	handler := &denylistPassthroughHandler{}
+	middleware := RepoDenylistMiddleware(denylist)
+	mwHandler := middleware(handler.handle)
+
+	req := makeDenylistToolRequest(t, "get_team_members", map[string]any{
+		"org":       "allowed-org",
+		"team_slug": "engineering",
+	})
+	result, err := mwHandler(context.Background(), "tools/call", req)
+
+	require.NoError(t, err)
+	assert.True(t, handler.called, "tool call to allowed org should pass through")
+	assert.Nil(t, result)
+}
+
+// Test: owner-only (no repo) org wildcard denied
+func TestRepoDenylistMiddleware_OwnerOnlyOrgWildcardDenied(t *testing.T) {
+	denylist := NewRepoDenylist([]string{"denied-org/*"})
+	handler := &denylistPassthroughHandler{}
+	middleware := RepoDenylistMiddleware(denylist)
+	mwHandler := middleware(handler.handle)
+
+	// Tool with owner but no repo — should be blocked by org wildcard
+	req := makeDenylistToolRequest(t, "list_org_repos", map[string]any{
+		"owner": "denied-org",
+	})
+	result, err := mwHandler(context.Background(), "tools/call", req)
+
+	require.NoError(t, err)
+	assert.False(t, handler.called, "tool call to denied org via owner-only should be blocked")
+	assertDenylistBlocked(t, result)
 }
 
 // Test: Case-insensitive denylist matching

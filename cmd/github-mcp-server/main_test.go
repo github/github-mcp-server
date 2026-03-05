@@ -53,6 +53,14 @@ func TestParseOrgInstallations(t *testing.T) {
 			expected: map[string]int64{"good": 111},
 		},
 		{
+			name: "zero value installation ID silently skipped",
+			envVars: map[string]string{
+				"GITHUB_INSTALLATION_ID_ZERORG": "0",
+				"GITHUB_INSTALLATION_ID_GOOD":   "12345",
+			},
+			expected: map[string]int64{"good": 12345},
+		},
+		{
 			name:     "default installation ID from viper",
 			viperID:  99999,
 			expected: map[string]int64{"_default": 99999},

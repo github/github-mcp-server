@@ -23,7 +23,8 @@ var searchToolNames = map[string]bool{
 }
 
 // repoURIPattern extracts owner and repo from a resource URI of the form repo://{owner}/{repo}/...
-var repoURIPattern = regexp.MustCompile(`^repo://([^/]+)/([^/]+)/`)
+// The (?i) flag makes matching case-insensitive for defensive correctness.
+var repoURIPattern = regexp.MustCompile(`(?i)^repo://([^/]+)/([^/]+)/`)
 
 // RepoDenylistMiddleware returns MCP middleware that blocks tool calls targeting
 // denied repositories. Checks owner/repo from tool arguments.
@@ -33,6 +34,11 @@ var repoURIPattern = regexp.MustCompile(`^repo://([^/]+)/([^/]+)/`)
 //
 // The denylist is checked before any API call — denied repos are rejected
 // without revealing whether they exist (no 404 leakage).
+//
+// Limitation: create_repository and fork_repository without an "organization"
+// param target the user's personal namespace, which is not checked against the
+// denylist. Resolving the current user's login would require an API call in the
+// middleware hot path. Personal namespace denylisting is not a supported use case.
 //
 // Nil-safe: a nil or empty denylist returns a no-op pass-through middleware.
 func RepoDenylistMiddleware(denylist *RepoDenylist) mcp.Middleware {
@@ -103,6 +109,28 @@ func RepoDenylistMiddleware(denylist *RepoDenylist) mcp.Middleware {
 				}
 			}
 
+			// Check owner-only org wildcard (owner/* entries). Catches tools that
+			// pass owner without repo (e.g., list operations on an org).
+			if owner != "" && repo == "" && denylist.IsOrgDenied(owner) {
+				slog.WarnContext(ctx, "denylist: blocked tool call to denied org via owner param",
+					"owner", owner, "tool", toolReq.Params.Name)
+				return utils.NewToolResultError(fmt.Sprintf(
+					"Access denied: org %s is on the repository denylist.", owner,
+				)), nil
+			}
+
+			// Check "org" param for org-scoped tools (e.g., get_team_members,
+			// list_org_repository_security_advisories). These tools don't use
+			// owner+repo but still access org-level data that should be denied.
+			orgParam, _ := args["org"].(string)
+			if orgParam != "" && denylist.IsOrgDenied(orgParam) {
+				slog.WarnContext(ctx, "denylist: blocked tool call to denied org",
+					"org", orgParam, "tool", toolReq.Params.Name)
+				return utils.NewToolResultError(fmt.Sprintf(
+					"Access denied: org %s is on the repository denylist.", orgParam,
+				)), nil
+			}
+
 			return next(ctx, method, req)
 		}
 	}
@@ -114,7 +142,11 @@ func RepoDenylistMiddleware(denylist *RepoDenylist) mcp.Middleware {
 // Blocks queries with explicit repo: or org:/user: qualifiers matching denied entries.
 // Also blocks if owner+repo args are passed directly (some search tools accept these).
 // Does NOT filter search results — unscoped searches that happen to return results
-// from denied repos are not blocked.
+// from denied repos are not blocked. This is a deliberate design decision:
+// post-response filtering would require wrapping every search tool handler and
+// parsing GitHub API response formats, which is fragile and architecturally
+// expensive. The denylist prevents intentional targeting of denied repos via
+// qualifiers; incidental appearance in broad search results is accepted.
 //
 // Nil-safe: a nil or empty denylist returns a no-op pass-through middleware.
 func SearchDenylistMiddleware(denylist *RepoDenylist) mcp.Middleware {

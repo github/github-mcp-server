@@ -83,7 +83,12 @@ type MCPServerConfig struct {
 	// Multi-org installations (org name → installation ID)
 	Installations map[string]int64
 
-	// Write guard
+	// WritePrivateOnly restricts repository write operations to private repos only.
+	// When true, any tool with ReadOnlyHint=false that takes owner+repo params will
+	// have its target repo's visibility checked before execution. Public repos are
+	// blocked. Note: this also blocks star/unstar operations on public repos, since
+	// those tools are not marked ReadOnlyHint=true. This is intentional — the guard
+	// is conservative by design.
 	WritePrivateOnly bool
 
 	// Repo denylist entries (parsed from GITHUB_REPO_DENYLIST)
@@ -127,8 +132,11 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 
 	ghServer := NewServer(cfg.Version, serverOpts)
 
-	// Add middlewares. Order matters - for example, the error context middleware should be applied last so that it runs FIRST (closest to the handler) to ensure all errors are captured,
-	// and any middleware that needs to read or modify the context should be before it.
+	// Add middlewares registered within NewMCPServer. These are the innermost layers —
+	// callers (e.g., NewStdioMCPServer) may register additional outer middleware after
+	// this function returns. addGitHubAPIErrorToContext is outermost within this scope
+	// so it runs first among these, but guard middleware registered by the caller
+	// (denylist, owner extract, write guard, user agent) runs before it.
 	ghServer.AddReceivingMiddleware(middleware...)
 	ghServer.AddReceivingMiddleware(InjectDepsMiddleware(deps))
 	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)

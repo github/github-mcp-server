@@ -233,7 +233,7 @@ func parseOrgInstallations() map[string]int64 {
 			if len(parts) == 2 {
 				org := strings.ToLower(strings.TrimPrefix(parts[0], prefix))
 				org = strings.ReplaceAll(org, "_", "-") // Normalize underscores to dashes
-				if id, err := strconv.ParseInt(parts[1], 10, 64); err == nil {
+				if id, err := strconv.ParseInt(parts[1], 10, 64); err == nil && id != 0 {
 					installations[org] = id
 				}
 			}
