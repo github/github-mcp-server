@@ -132,7 +132,12 @@ func (d *MultiOrgDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAc
 		return nil, err
 	}
 
-	cache := lockdown.NewRepoAccessCache(gqlClient, d.repoAccessOpts...)
+	// Use installation ID in the cache2go table name (not pointer address)
+	// to avoid collisions if Go GC reuses a pointer address for a new client.
+	opts := append(d.repoAccessOpts,
+		lockdown.WithCacheName(fmt.Sprintf("repo-access-install-%d", installID)),
+	)
+	cache := lockdown.NewRepoAccessCache(gqlClient, opts...)
 	d.repoAccessCaches[installID] = cache
 	return cache, nil
 }

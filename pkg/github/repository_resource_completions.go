@@ -25,7 +25,9 @@ var RepositoryResourceArgumentResolvers = map[string]CompleteHandler{
 }
 
 // RepositoryResourceCompletionHandler returns a CompletionHandlerFunc for repository resource completions.
-func RepositoryResourceCompletionHandler(getClient GetClientFn) func(ctx context.Context, req *mcp.CompleteRequest) (*mcp.CompleteResult, error) {
+// The denylist parameter blocks completions for denied repos (branches, tags, tree paths).
+// Pass nil to skip denylist enforcement.
+func RepositoryResourceCompletionHandler(getClient GetClientFn, denylist *RepoDenylist) func(ctx context.Context, req *mcp.CompleteRequest) (*mcp.CompleteResult, error) {
 	return func(ctx context.Context, req *mcp.CompleteRequest) (*mcp.CompleteResult, error) {
 		if req.Params.Ref.Type != "ref/resource" {
 			return nil, nil // Not a resource completion
@@ -46,6 +48,22 @@ func RepositoryResourceCompletionHandler(getClient GetClientFn) func(ctx context
 		// resolved arguments, not tool call params.
 		if owner := resolved["owner"]; owner != "" {
 			ctx = ContextWithOwner(ctx, owner)
+		}
+
+		// Enforce denylist on completion paths. Completions call GitHub APIs
+		// (branches, tags, tree) which would leak data for denied repos.
+		if denylist != nil && !denylist.IsEmpty() {
+			owner := resolved["owner"]
+			repo := resolved["repo"]
+			if owner != "" && repo != "" && denylist.IsDenied(owner, repo) {
+				return &mcp.CompleteResult{
+					Completion: mcp.CompletionResultDetails{
+						Values:  []string{},
+						Total:   0,
+						HasMore: false,
+					},
+				}, nil
+			}
 		}
 
 		client, err := getClient(ctx)

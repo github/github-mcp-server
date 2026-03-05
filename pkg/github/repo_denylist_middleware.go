@@ -71,13 +71,13 @@ func RepoDenylistMiddleware(denylist *RepoDenylist) mcp.Middleware {
 				}
 			}
 
-			// Also check "organization" + "name" params. These are used by:
-			//   - create_repository: organization is the target org, name is the repo
-			//   - fork_repository: organization is the DESTINATION org, name is the fork name
+			// Also check "organization" param for destination org enforcement.
+			// Used by create_repository (organization + name) and fork_repository
+			// (organization only — forks inherit the source repo name).
+			//
 			// For fork_repository both owner/repo (source) AND organization (dest)
 			// may be present — we must check both independently.
 			organization, _ := args["organization"].(string)
-			name, _ := args["name"].(string)
 			if organization != "" {
 				// Check org wildcard (org/*) — blocks creating/forking into denied orgs.
 				if denylist.IsOrgDenied(organization) {
@@ -87,12 +87,18 @@ func RepoDenylistMiddleware(denylist *RepoDenylist) mcp.Middleware {
 						"Access denied: org %s is on the repository denylist.", organization,
 					)), nil
 				}
-				// Check exact match (org/repo) when both organization and name are present.
-				if name != "" && denylist.IsDenied(organization, name) {
+
+				// Check exact match (org/repo). Use "name" if present (create_repository),
+				// otherwise fall back to "repo" (fork_repository inherits source repo name).
+				repoName, _ := args["name"].(string)
+				if repoName == "" {
+					repoName = repo // source repo name — forks inherit this by default
+				}
+				if repoName != "" && denylist.IsDenied(organization, repoName) {
 					slog.WarnContext(ctx, "denylist: blocked tool call to denied repo",
-						"owner", organization, "repo", name, "tool", toolReq.Params.Name)
+						"owner", organization, "repo", repoName, "tool", toolReq.Params.Name)
 					return utils.NewToolResultError(fmt.Sprintf(
-						"Access denied: %s/%s is on the repository denylist.", organization, name,
+						"Access denied: %s/%s is on the repository denylist.", organization, repoName,
 					)), nil
 				}
 			}
@@ -169,8 +175,9 @@ func SearchDenylistMiddleware(denylist *RepoDenylist) mcp.Middleware {
 				}
 			}
 
-			// Check org:/user: qualifier.
-			if org := extractOrgFromQuery(query); org != "" {
+			// Check all org:/user: qualifiers (catches multi-qualifier bypass
+			// attempts like "user:allowed org:denied").
+			for _, org := range extractAllOrgsFromQuery(query) {
 				if denylist.IsOrgDenied(org) {
 					slog.WarnContext(ctx, "denylist: blocked search with denied org: qualifier",
 						"org", org, "tool", toolReq.Params.Name)

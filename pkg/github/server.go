@@ -93,11 +93,14 @@ type MCPServerConfig struct {
 type MCPServerOption func(*mcp.ServerOptions)
 
 func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependencies, inv *inventory.Inventory, middleware ...mcp.Middleware) (*mcp.Server, error) {
+	// Construct denylist early so it can be used by both completions and resource handlers.
+	denylist := NewRepoDenylist(cfg.RepoDenylistEntries)
+
 	// Create the MCP server
 	serverOpts := &mcp.ServerOptions{
 		Instructions:      inv.Instructions(),
 		Logger:            cfg.Logger,
-		CompletionHandler: CompletionsHandler(deps.GetClient),
+		CompletionHandler: CompletionsHandler(deps.GetClient, denylist),
 	}
 
 	// Apply any additional server options
@@ -138,7 +141,6 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 	inv.RegisterPrompts(ctx, ghServer)
 
 	// Register resource templates, wrapping handlers with denylist protection if active.
-	denylist := NewRepoDenylist(cfg.RepoDenylistEntries)
 	if denylist.IsEmpty() {
 		// No denylist — register resources normally.
 		inv.RegisterResourceTemplates(ctx, ghServer, deps)
@@ -227,12 +229,12 @@ func NewServer(version string, opts *mcp.ServerOptions) *mcp.Server {
 	return s
 }
 
-func CompletionsHandler(getClient GetClientFn) func(ctx context.Context, req *mcp.CompleteRequest) (*mcp.CompleteResult, error) {
+func CompletionsHandler(getClient GetClientFn, denylist *RepoDenylist) func(ctx context.Context, req *mcp.CompleteRequest) (*mcp.CompleteResult, error) {
 	return func(ctx context.Context, req *mcp.CompleteRequest) (*mcp.CompleteResult, error) {
 		switch req.Params.Ref.Type {
 		case "ref/resource":
 			if strings.HasPrefix(req.Params.Ref.URI, "repo://") {
-				return RepositoryResourceCompletionHandler(getClient)(ctx, req)
+				return RepositoryResourceCompletionHandler(getClient, denylist)(ctx, req)
 			}
 			return nil, fmt.Errorf("unsupported resource URI: %s", req.Params.Ref.URI)
 		case "ref/prompt":

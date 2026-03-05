@@ -238,6 +238,25 @@ func TestSearchDenylistMiddleware_MultiQualifierBypass_Blocked(t *testing.T) {
 }
 
 // Test: Non-search tool is not intercepted by SearchDenylistMiddleware
+// Test: multi-qualifier org bypass — "user:allowed org:denied" must be caught
+func TestSearchDenylistMiddleware_MultiOrgQualifierBypass_Blocked(t *testing.T) {
+	denylist := NewRepoDenylist([]string{"denied-org/*"})
+	mw := SearchDenylistMiddleware(denylist)
+
+	handler := &denylistPassthroughHandler{}
+	wrapped := mw(handler.handle)
+
+	req := makeDenylistToolRequest(t, "search_code", map[string]any{
+		"query": "user:allowed-user org:denied-org function main",
+	})
+
+	result, err := wrapped(context.Background(), "tools/call", req)
+	require.NoError(t, err)
+	assert.True(t, isBlockedResult(t, result),
+		"search with denied org in second qualifier should be blocked")
+	assert.False(t, handler.called)
+}
+
 func TestSearchDenylistMiddleware_NonSearchTool_PassesThrough(t *testing.T) {
 	denylist := NewRepoDenylist([]string{"owner/secret-repo"})
 	mw := SearchDenylistMiddleware(denylist)
@@ -477,6 +496,29 @@ func TestRepoDenylistMiddleware_ForkRepository_DestinationOrgDenied(t *testing.T
 	require.NoError(t, err)
 	assert.True(t, isBlockedResult(t, result),
 		"fork into denied destination org should be blocked")
+	assert.False(t, handler.called)
+}
+
+// Test: fork_repository — destination exact deny with implicit repo name
+func TestRepoDenylistMiddleware_ForkRepository_DestinationExactDeny(t *testing.T) {
+	// fork_repository has no "name" param — fork inherits source repo name.
+	// Denylist entry "denied-org/source-repo" should block forking source-repo into denied-org.
+	denylist := NewRepoDenylist([]string{"denied-org/source-repo"})
+	mw := RepoDenylistMiddleware(denylist)
+
+	handler := &denylistPassthroughHandler{}
+	wrapped := mw(handler.handle)
+
+	req := makeDenylistToolRequest(t, "fork_repository", map[string]any{
+		"owner":        "allowed-org",
+		"repo":         "source-repo",
+		"organization": "denied-org",
+	})
+
+	result, err := wrapped(context.Background(), "tools/call", req)
+	require.NoError(t, err)
+	assert.True(t, isBlockedResult(t, result),
+		"fork into denied-org/source-repo (implicit name) should be blocked")
 	assert.False(t, handler.called)
 }
 

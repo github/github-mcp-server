@@ -28,8 +28,13 @@ func checkRepoVisibility(ctx context.Context, client *gogithub.Client, owner, re
 	return repoData.GetPrivate(), nil
 }
 
-// WritePrivateOnlyMiddleware returns MCP middleware that blocks write tool calls
-// targeting public repositories. Must be registered when GITHUB_WRITE_PRIVATE_ONLY=true.
+// WritePrivateOnlyMiddleware returns MCP middleware that blocks repository write
+// tool calls targeting public repositories. Must be registered when
+// GITHUB_WRITE_PRIVATE_ONLY=true.
+//
+// Scope: only repo-scoped write tools are guarded. Non-repo writes (gists,
+// notifications, etc.) pass through because they have no repository visibility
+// to check.
 //
 // The middleware is fail-closed: any error verifying repository visibility
 // (API failure, 404, 403, network error) blocks the write.
@@ -135,7 +140,7 @@ func handleWriteGuard(
 		return utils.NewToolResultError(fmt.Sprintf(
 			"Write blocked: %s/%s is a public repository. "+
 				"The server is configured with GITHUB_WRITE_PRIVATE_ONLY=true, which restricts "+
-				"all write operations to private repositories only. "+
+				"repository write operations to private repositories only. "+
 				"To proceed: use a private repository, or ask the administrator to unset GITHUB_WRITE_PRIVATE_ONLY.",
 			owner, repo,
 		)), nil

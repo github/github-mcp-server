@@ -68,7 +68,7 @@ func TestRepositoryResourceCompletionHandler(t *testing.T) {
 				return &github.Client{}, nil
 			}
 
-			handler := RepositoryResourceCompletionHandler(getClient)
+			handler := RepositoryResourceCompletionHandler(getClient, nil)
 			result, err := handler(t.Context(), tt.request)
 
 			if tt.wantErr {
@@ -86,7 +86,7 @@ func TestRepositoryResourceCompletionHandler_GetClientError(t *testing.T) {
 		return nil, errors.New("client error")
 	}
 
-	handler := RepositoryResourceCompletionHandler(getClient)
+	handler := RepositoryResourceCompletionHandler(getClient, nil)
 	request := &mcp.CompleteRequest{
 		Params: &mcp.CompleteParams{
 			Ref: &mcp.CompleteReference{
@@ -250,7 +250,7 @@ func TestRepositoryResourceCompletionHandler_MaxResults(t *testing.T) {
 		return &github.Client{}, nil
 	}
 
-	handler := RepositoryResourceCompletionHandler(getClient)
+	handler := RepositoryResourceCompletionHandler(getClient, nil)
 
 	// Mock a resolver that returns more than 100 results
 	originalResolver := RepositoryResourceArgumentResolvers["owner"]
@@ -295,7 +295,7 @@ func TestRepositoryResourceCompletionHandler_WithContext(t *testing.T) {
 		return &github.Client{}, nil
 	}
 
-	handler := RepositoryResourceCompletionHandler(getClient)
+	handler := RepositoryResourceCompletionHandler(getClient, nil)
 
 	// Mock a resolver that just returns the resolved arguments for testing
 	originalResolver := RepositoryResourceArgumentResolvers["repo"]
@@ -338,7 +338,7 @@ func TestRepositoryResourceCompletionHandler_NilContext(t *testing.T) {
 		return &github.Client{}, nil
 	}
 
-	handler := RepositoryResourceCompletionHandler(getClient)
+	handler := RepositoryResourceCompletionHandler(getClient, nil)
 
 	// Mock a resolver that checks for empty resolved map
 	originalResolver := RepositoryResourceArgumentResolvers["repo"]

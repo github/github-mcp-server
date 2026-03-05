@@ -29,12 +29,16 @@ func extractAllReposFromQuery(query string) []repoQueryInfo {
 	return results
 }
 
-// extractOrgFromQuery attempts to extract an organization or user name from a search query.
-// It looks for patterns like "org:squareup" or "user:octocat".
-func extractOrgFromQuery(query string) string {
-	matches := orgOrUserQualifierPattern.FindStringSubmatch(query)
-	if len(matches) == 2 {
-		return matches[1]
+// extractAllOrgsFromQuery returns all "org:X" and "user:X" qualifiers found in
+// the query. Used by denylist enforcement to prevent bypass via multiple
+// qualifiers (e.g. "user:allowed org:denied").
+func extractAllOrgsFromQuery(query string) []string {
+	matches := orgOrUserQualifierPattern.FindAllStringSubmatch(query, -1)
+	results := make([]string, 0, len(matches))
+	for _, m := range matches {
+		if len(m) == 2 {
+			results = append(results, m[1])
+		}
 	}
-	return ""
+	return results
 }

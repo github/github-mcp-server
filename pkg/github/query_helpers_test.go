@@ -50,67 +50,57 @@ func Test_extractAllReposFromQuery(t *testing.T) {
 	}
 }
 
-func Test_extractOrgFromQuery(t *testing.T) {
+func Test_extractAllOrgsFromQuery(t *testing.T) {
 	tests := []struct {
 		name     string
 		query    string
-		expected string
+		expected []string
 	}{
 		{
-			name:     "org qualifier",
+			name:     "single org qualifier",
 			query:    "goosed org:squareup",
-			expected: "squareup",
+			expected: []string{"squareup"},
 		},
 		{
-			name:     "org qualifier at start",
-			query:    "org:tidal-engineering language:go",
-			expected: "tidal-engineering",
-		},
-		{
-			name:     "user qualifier",
+			name:     "single user qualifier",
 			query:    "user:octocat repos:>10",
-			expected: "octocat",
+			expected: []string{"octocat"},
+		},
+		{
+			name:     "multiple qualifiers — catches bypass attempts",
+			query:    "user:allowed-user org:denied-org",
+			expected: []string{"allowed-user", "denied-org"},
 		},
 		{
 			name:     "no org qualifier",
 			query:    "golang test",
-			expected: "",
-		},
-		{
-			name:     "repo qualifier without org",
-			query:    "repo:squareup/goosed-slackbot",
-			expected: "",
-		},
-		{
-			name:     "both org and repo qualifiers",
-			query:    "function main repo:squareup/goosed org:squareup",
-			expected: "squareup",
+			expected: []string{},
 		},
 		{
 			name:     "empty query",
 			query:    "",
-			expected: "",
+			expected: []string{},
 		},
 		{
 			name:     "mixed-case ORG: qualifier",
 			query:    "ORG:squareup language:go",
-			expected: "squareup",
+			expected: []string{"squareup"},
 		},
 		{
 			name:     "mixed-case User: qualifier",
 			query:    "User:octocat repos:>10",
-			expected: "octocat",
+			expected: []string{"octocat"},
 		},
 		{
-			name:     "uppercase USER: qualifier",
-			query:    "USER:octocat",
-			expected: "octocat",
+			name:     "both org and repo qualifiers",
+			query:    "function main repo:squareup/goosed org:squareup",
+			expected: []string{"squareup"},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := extractOrgFromQuery(tc.query)
+			result := extractAllOrgsFromQuery(tc.query)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
