@@ -77,7 +77,7 @@ type MCPServerConfig struct {
 
 	// GitHub App authentication
 	AppID          int64
-	InstallationID int64
+	InstallationID int64  // default installation; folded into Installations["_default"] by CLI
 	PrivateKey     []byte // resolved private key bytes (from file or content)
 
 	// Multi-org installations (org name → installation ID)

@@ -164,14 +164,6 @@ func (f *MultiOrgClientFactory) getOrCreateTransport(installID int64) (*ghinstal
 	return t, nil
 }
 
-// normalizeOwner applies the same normalization as getInstallationID so that
-// lookups are consistent with the installations map keys.
-func normalizeOwner(owner string) string {
-	owner = strings.ToLower(owner)
-	owner = strings.ReplaceAll(owner, "_", "-")
-	return owner
-}
-
 // SetUserAgent updates the user agent string used for all clients created by
 // this factory. Called after the MCP initialize handshake provides client info.
 // Thread-safe: may be called concurrently with client creation.

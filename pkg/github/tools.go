@@ -450,12 +450,17 @@ func AllToolsetIDs() []inventory.ToolsetID {
 //
 // Supported mode suffixes (case-insensitive):
 //   - ":ro" or ":readonly" → read-only for this toolset
-//   - ":rw" or ":readwrite" → read-write (default; no entry added to map)
+//   - ":rw" or ":readwrite" → read-write (explicitly removes prior :ro)
 //   - No suffix → read-write (default)
 //   - Unknown suffix → treated as part of the name (backwards compatibility)
 //
 // Special case: "all:ro" marks every toolset ID in allKnownToolsets as read-only.
 // Pass nil for allKnownToolsets if not yet known (deferred expansion).
+//
+// Order matters: entries are processed left-to-right. "all:ro,repos:rw" makes
+// everything read-only except repos. The reverse "repos:rw,all:ro" makes repos
+// read-only because all:ro runs after the rw delete. Use "all:ro,<name>:rw" to
+// express exceptions.
 func ParseToolsetModes(configs []string, allKnownToolsets []inventory.ToolsetID) (toolsetNames []string, readOnlyToolsets map[inventory.ToolsetID]bool) {
 	// Preserve nil semantics: nil input means "use defaults" in WithToolsets.
 	// An empty non-nil slice means "enable none" — different behavior.

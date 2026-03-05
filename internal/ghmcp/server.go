@@ -39,9 +39,9 @@ type githubClients struct {
 // createGitHubClients creates all the GitHub API clients needed by the server.
 // If skipLockdown is true, the repo access cache is not initialized even when
 // cfg.LockdownMode is set. This must be true when GitHub App multi-org auth is
-// active: lockdown.GetInstance is a singleton, and initializing it here with the
-// PAT-based GQL client would prevent MultiOrgDeps from later initializing it with
-// the correct per-org client.
+// active: MultiOrgDeps creates per-installation caches via
+// lockdown.NewRepoAccessCache (not the singleton GetInstance), and initializing
+// the singleton here with the PAT-based GQL client would conflict.
 func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolver, skipLockdown bool) (*githubClients, error) {
 	restURL, err := apiHost.BaseRESTURL(context.Background())
 	if err != nil {
@@ -88,7 +88,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	// Set up repo access cache for lockdown mode.
 	// Skipped when skipLockdown is true (multi-org app auth): the singleton must
 	// not be initialized with this PAT client — MultiOrgDeps creates its own
-	// per-org instance via lockdown.GetInstance with the correct org-scoped client.
+	// per-installation cache via lockdown.NewRepoAccessCache (non-singleton).
 	var repoAccessCache *lockdown.RepoAccessCache
 	if cfg.LockdownMode && !skipLockdown {
 		opts := []lockdown.RepoAccessOption{
@@ -225,14 +225,18 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 	// Register guard middleware BEFORE the user-agent middleware.
 	// Use single-call form so the first arg is outermost (runs first per request).
 	//
-	// Execution order: denylist → owner extract → write guard → addUserAgentsMiddleware
-	//   → InjectDepsMiddleware → addGitHubAPIErrorToContext → handler
+	// Execution order (outermost first):
+	//   UA → denylist → searchDenylist → ownerExtract → writeGuard
+	//     → addGitHubAPIError → InjectDeps → handler
 	//
-	// Denylist is outermost: pure in-memory lookup, no API calls, blocks before any
-	// GitHub API call. Owner extract second: populates context owner for MultiOrgDeps
-	// routing so that subsequent middleware can use deps.GetClient(ctx) with the
-	// correct org-scoped client. Write guard third: calls deps.GetClient(ctx) which
-	// uses OwnerFromContext — must run AFTER owner extract.
+	// UA is outermost because it's registered last (wraps everything).
+	// addGitHubAPIError and InjectDeps are innermost — registered first in NewMCPServer.
+	//
+	// Denylist runs before any GitHub API call (pure in-memory lookup).
+	// Owner extract populates context owner for MultiOrgDeps routing so that
+	// subsequent middleware can use deps.GetClient(ctx) with the correct
+	// org-scoped client. Write guard calls deps.GetClient(ctx) which uses
+	// OwnerFromContext — must run AFTER owner extract.
 	var guardMiddleware []mcp.Middleware
 
 	// Denylist guard (outermost — pure in-memory, no API calls).

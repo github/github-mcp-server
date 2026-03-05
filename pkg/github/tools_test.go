@@ -263,6 +263,20 @@ func TestParseToolsetModes_AllRoWithRwException(t *testing.T) {
 	require.True(t, readOnly[inventory.ToolsetID("users")])
 }
 
+func TestParseToolsetModes_AllRoWithRwException_ReversedOrder(t *testing.T) {
+	// Order matters: "repos:rw,all:ro" → repos ends up read-only because all:ro
+	// runs after the rw delete. This is the documented behavior.
+	allToolsets := []inventory.ToolsetID{"repos", "issues", "pull_requests"}
+	names, readOnly := ParseToolsetModes([]string{"repos:rw", "all:ro"}, allToolsets)
+
+	require.Equal(t, []string{"repos", "all"}, names)
+	// repos IS read-only because all:ro processed last
+	require.True(t, readOnly[inventory.ToolsetID("repos")],
+		"reversed order: all:ro after repos:rw should make repos read-only")
+	require.True(t, readOnly[inventory.ToolsetID("issues")])
+	require.True(t, readOnly[inventory.ToolsetID("pull_requests")])
+}
+
 func TestParseToolsetModes_RwWithoutPriorRo(t *testing.T) {
 	// :rw on a toolset that was never marked :ro should be a no-op (no crash)
 	names, readOnly := ParseToolsetModes([]string{"repos:rw", "issues:ro"}, nil)

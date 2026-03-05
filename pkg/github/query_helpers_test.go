@@ -6,52 +6,45 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_extractRepoFromQuery(t *testing.T) {
+func Test_extractAllReposFromQuery(t *testing.T) {
 	tests := []struct {
 		name     string
 		query    string
-		expected repoQueryInfo
+		expected []repoQueryInfo
 	}{
 		{
-			name:     "repo:owner/repo pattern",
+			name:     "single repo: qualifier",
 			query:    "repo:squareup/goosed-slackbot language:go",
-			expected: repoQueryInfo{owner: "squareup", repo: "goosed-slackbot"},
+			expected: []repoQueryInfo{{owner: "squareup", repo: "goosed-slackbot"}},
 		},
 		{
-			name:     "bare owner/repo pattern",
-			query:    "squareup/goosed-slackbot",
-			expected: repoQueryInfo{owner: "squareup", repo: "goosed-slackbot"},
+			name:  "multiple repo: qualifiers",
+			query: "repo:squareup/goosed repo:tidal/music-player",
+			expected: []repoQueryInfo{
+				{owner: "squareup", repo: "goosed"},
+				{owner: "tidal", repo: "music-player"},
+			},
 		},
 		{
-			name:     "org qualifier only",
-			query:    "goosed org:squareup",
-			expected: repoQueryInfo{},
-		},
-		{
-			name:     "no repo pattern",
-			query:    "golang test",
-			expected: repoQueryInfo{},
+			name:     "no repo qualifier",
+			query:    "golang test org:squareup",
+			expected: []repoQueryInfo{},
 		},
 		{
 			name:     "empty query",
 			query:    "",
-			expected: repoQueryInfo{},
+			expected: []repoQueryInfo{},
 		},
 		{
-			name:     "mixed-case Repo: qualifier",
-			query:    "Repo:owner/myrepo language:go",
-			expected: repoQueryInfo{owner: "owner", repo: "myrepo"},
-		},
-		{
-			name:     "uppercase REPO: qualifier",
+			name:     "mixed-case REPO: qualifier",
 			query:    "REPO:squareup/goosed-slackbot",
-			expected: repoQueryInfo{owner: "squareup", repo: "goosed-slackbot"},
+			expected: []repoQueryInfo{{owner: "squareup", repo: "goosed-slackbot"}},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			result := extractRepoFromQuery(tc.query)
+			result := extractAllReposFromQuery(tc.query)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
