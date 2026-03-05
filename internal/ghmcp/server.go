@@ -222,6 +222,21 @@ type StdioServerConfig struct {
 
 	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
 	RepoAccessCacheTTL *time.Duration
+
+	// GitHub App authentication
+	AppID          int64
+	InstallationID int64
+	PrivateKeyPath string
+	PrivateKey     string
+
+	// Multi-org installations (org name → installation ID)
+	Installations map[string]int64
+
+	// Write guard
+	WritePrivateOnly bool
+
+	// Repo denylist
+	RepoDenylist []string
 }
 
 // RunStdioServer is not concurrent safe.

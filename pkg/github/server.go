@@ -74,6 +74,20 @@ type MCPServerConfig struct {
 
 	// Additional server options to apply
 	ServerOptions []MCPServerOption
+
+	// GitHub App authentication
+	AppID          int64
+	InstallationID int64
+	PrivateKey     []byte // resolved private key bytes (from file or content)
+
+	// Multi-org installations (org name → installation ID)
+	Installations map[string]int64
+
+	// Write guard
+	WritePrivateOnly bool
+
+	// Repo denylist entries (parsed from GITHUB_REPO_DENYLIST)
+	RepoDenylistEntries []string
 }
 
 type MCPServerOption func(*mcp.ServerOptions)
