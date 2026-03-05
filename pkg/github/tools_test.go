@@ -3,6 +3,7 @@ package github
 import (
 	"testing"
 
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -184,4 +185,56 @@ func TestGenerateToolsetsHelp(t *testing.T) {
 	assert.Contains(t, helpText, "actions")
 	assert.Contains(t, helpText, "gists")
 	assert.Contains(t, helpText, "notifications")
+}
+
+// --- ParseToolsetModes tests ---
+
+func TestParseToolsetModes_MixedModes(t *testing.T) {
+	names, readOnly := ParseToolsetModes([]string{"repos:rw", "issues:ro", "users"}, nil)
+
+	require.Equal(t, []string{"repos", "issues", "users"}, names)
+	require.False(t, readOnly["repos"], "repos should be rw")
+	require.True(t, readOnly["issues"], "issues should be ro")
+	require.False(t, readOnly["users"], "users (no suffix) should be rw")
+}
+
+func TestParseToolsetModes_AllRo(t *testing.T) {
+	knownToolsets := []inventory.ToolsetID{"repos", "issues", "users"}
+	names, readOnly := ParseToolsetModes([]string{"all:ro"}, knownToolsets)
+
+	require.Equal(t, []string{"all"}, names, "all:ro should produce 'all' as the name")
+	require.True(t, readOnly["repos"], "repos should be read-only after all:ro expansion")
+	require.True(t, readOnly["issues"], "issues should be read-only after all:ro expansion")
+	require.True(t, readOnly["users"], "users should be read-only after all:ro expansion")
+}
+
+func TestParseToolsetModes_NoModes(t *testing.T) {
+	names, readOnly := ParseToolsetModes([]string{"repos", "issues", "users"}, nil)
+
+	require.Equal(t, []string{"repos", "issues", "users"}, names)
+	require.Empty(t, readOnly, "no toolsets should be read-only when no modes specified")
+}
+
+func TestParseToolsetModes_CaseInsensitive(t *testing.T) {
+	names, readOnly := ParseToolsetModes([]string{"repos:RO", "issues:RW", "users:ReadOnly"}, nil)
+
+	require.Equal(t, []string{"repos", "issues", "users"}, names)
+	require.True(t, readOnly["repos"], "repos:RO should be read-only (case-insensitive)")
+	require.False(t, readOnly["issues"], "issues:RW should be rw")
+	require.True(t, readOnly["users"], "users:ReadOnly should be read-only (case-insensitive)")
+}
+
+func TestParseToolsetModes_UnknownSuffix_TreatedAsName(t *testing.T) {
+	// Unknown suffix → treat entire string as name (backwards compat)
+	names, readOnly := ParseToolsetModes([]string{"repos:unknown"}, nil)
+
+	require.Equal(t, []string{"repos:unknown"}, names, "unknown suffix should be kept as part of name")
+	require.Empty(t, readOnly)
+}
+
+func TestParseToolsetModes_EmptyInput(t *testing.T) {
+	names, readOnly := ParseToolsetModes([]string{}, nil)
+
+	require.Empty(t, names)
+	require.Empty(t, readOnly)
 }

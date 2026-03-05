@@ -78,6 +78,10 @@ func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool) bool {
 	if r.readOnly && !tool.IsReadOnly() {
 		return false
 	}
+	// 3.5 Check per-toolset read-only
+	if r.toolsetReadOnly != nil && r.toolsetReadOnly[tool.Toolset.ID] && !tool.IsReadOnly() {
+		return false
+	}
 	// 4. Apply builder filters
 	for _, filter := range r.filters {
 		allowed, err := filter(ctx, tool)
@@ -225,6 +229,10 @@ func (r *Inventory) ToolsForToolset(toolsetID ToolsetID) []ServerTool {
 		// Only check read-only filter, not toolset enabled filter
 		if tool.Toolset.ID == toolsetID {
 			if r.readOnly && !tool.IsReadOnly() {
+				continue
+			}
+			// Per-toolset read-only check
+			if r.toolsetReadOnly != nil && r.toolsetReadOnly[tool.Toolset.ID] && !tool.IsReadOnly() {
 				continue
 			}
 			result = append(result, *tool)

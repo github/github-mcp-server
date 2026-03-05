@@ -169,11 +169,18 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		)
 	}
 
+	// Parse toolset modes (e.g., "repos:rw,issues:ro") from config.
+	// This splits the name:mode suffix from the toolset name and builds a read-only map.
+	// "all:ro" is expanded to all known toolset IDs so every toolset becomes read-only.
+	allKnownToolsets := github.AllToolsetIDs()
+	toolsetNames, readOnlyToolsets := github.ParseToolsetModes(cfg.EnabledToolsets, allKnownToolsets)
+
 	// Build and register the tool/resource/prompt inventory
 	inventoryBuilder := github.NewInventory(cfg.Translator).
 		WithDeprecatedAliases(github.DeprecatedToolAliases).
 		WithReadOnly(cfg.ReadOnly).
-		WithToolsets(github.ResolvedEnabledToolsets(cfg.DynamicToolsets, cfg.EnabledToolsets, cfg.EnabledTools)).
+		WithToolsets(github.ResolvedEnabledToolsets(cfg.DynamicToolsets, toolsetNames, cfg.EnabledTools)).
+		WithToolsetModes(readOnlyToolsets).
 		WithTools(github.CleanTools(cfg.EnabledTools)).
 		WithExcludeTools(cfg.ExcludeTools).
 		WithServerInstructions().

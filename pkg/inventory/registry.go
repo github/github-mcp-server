@@ -56,6 +56,10 @@ type Inventory struct {
 	// filters are functions that will be applied to all tools during filtering.
 	// If any filter returns false or an error, the tool is excluded.
 	filters []ToolFilter
+	// toolsetReadOnly maps toolset IDs to read-only status.
+	// When a toolset is in this map with value true, write tools in that toolset are filtered out.
+	// This is checked independently of the global readOnly flag (OR logic: either makes a tool read-only).
+	toolsetReadOnly map[ToolsetID]bool
 	// unrecognizedToolsets holds toolset IDs that were requested but don't match any registered toolsets
 	unrecognizedToolsets []string
 	// server instructions hold high-level instructions for agents to use the server effectively
@@ -114,6 +118,7 @@ func (r *Inventory) ForMCPRequest(method string, itemName string) *Inventory {
 		featureChecker:       r.featureChecker,
 		filters:              r.filters, // shared, not modified
 		unrecognizedToolsets: r.unrecognizedToolsets,
+		toolsetReadOnly:      r.toolsetReadOnly, // shared, not modified
 	}
 
 	// Helper to clear all item types

@@ -435,6 +435,73 @@ func GetDefaultToolsetIDs() []string {
 	return result
 }
 
+// AllToolsetIDs returns the IDs of all registered toolsets.
+// Used by ParseToolsetModes to expand "all:ro" to all toolset IDs.
+// This builds a temporary inventory — it is a one-time cost at startup.
+func AllToolsetIDs() []inventory.ToolsetID {
+	inv, _ := NewInventory(stubTranslator).Build()
+	return inv.ToolsetIDs()
+}
+
+// ParseToolsetModes parses toolset config strings like "repos:rw,issues:ro,users".
+// Returns:
+//   - toolsetNames: just the names (for WithToolsets); "all" is preserved as-is
+//   - readOnlyToolsets: map of ToolsetID → true for toolsets configured as read-only
+//
+// Supported mode suffixes (case-insensitive):
+//   - ":ro" or ":readonly" → read-only for this toolset
+//   - ":rw" or ":readwrite" → read-write (default; no entry added to map)
+//   - No suffix → read-write (default)
+//   - Unknown suffix → treated as part of the name (backwards compatibility)
+//
+// Special case: "all:ro" marks every toolset ID in allKnownToolsets as read-only.
+// Pass nil for allKnownToolsets if not yet known (deferred expansion).
+func ParseToolsetModes(configs []string, allKnownToolsets []inventory.ToolsetID) (toolsetNames []string, readOnlyToolsets map[inventory.ToolsetID]bool) {
+	readOnlyToolsets = make(map[inventory.ToolsetID]bool)
+	toolsetNames = make([]string, 0, len(configs))
+
+	for _, config := range configs {
+		config = strings.TrimSpace(config)
+		if config == "" {
+			continue
+		}
+
+		name := config
+		isReadOnly := false
+
+		if idx := strings.LastIndex(config, ":"); idx > 0 {
+			candidate := config[:idx]
+			mode := strings.ToLower(config[idx+1:])
+			switch mode {
+			case "ro", "readonly":
+				name = candidate
+				isReadOnly = true
+			case "rw", "readwrite":
+				name = candidate
+				// default, no-op
+			default:
+				// Unknown mode — treat entire string as name (backwards compat)
+				name = config
+			}
+		}
+
+		toolsetNames = append(toolsetNames, name)
+
+		if isReadOnly {
+			if name == "all" {
+				// Expand "all:ro" to every known toolset ID
+				for _, id := range allKnownToolsets {
+					readOnlyToolsets[id] = true
+				}
+			} else {
+				readOnlyToolsets[inventory.ToolsetID(name)] = true
+			}
+		}
+	}
+
+	return toolsetNames, readOnlyToolsets
+}
+
 // RemoteOnlyToolsets returns toolset metadata for toolsets that are only
 // available in the remote MCP server. These are documented but not registered
 // in the local server.

@@ -2277,3 +2277,146 @@ func TestCreateExcludeToolsFilter(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, allowed, "allowed_tool should be included")
 }
+
+// --- Per-toolset read-only mode tests ---
+
+func TestWithToolsetModes_WritesHiddenInReadOnlyToolset(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("issues_read", "issues", true),
+		mockTool("issues_write", "issues", false),
+		mockTool("repos_read", "repos", true),
+		mockTool("repos_write", "repos", false),
+	}
+
+	modes := map[ToolsetID]bool{
+		"issues": true, // issues is read-only
+	}
+
+	reg := mustBuild(t, NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"all"}).
+		WithToolsetModes(modes))
+
+	available := reg.AvailableTools(context.Background())
+
+	names := make(map[string]bool)
+	for _, tool := range available {
+		names[tool.Tool.Name] = true
+	}
+
+	require.True(t, names["issues_read"], "read tool in read-only toolset should be visible")
+	require.False(t, names["issues_write"], "write tool in read-only toolset should be hidden")
+	require.True(t, names["repos_read"], "read tool in rw toolset should be visible")
+	require.True(t, names["repos_write"], "write tool in rw toolset should be visible")
+}
+
+func TestWithToolsetModes_ReadToolsUnaffectedInReadOnlyToolset(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("issues_read1", "issues", true),
+		mockTool("issues_read2", "issues", true),
+		mockTool("issues_write", "issues", false),
+	}
+
+	modes := map[ToolsetID]bool{
+		"issues": true,
+	}
+
+	reg := mustBuild(t, NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"all"}).
+		WithToolsetModes(modes))
+
+	available := reg.AvailableTools(context.Background())
+
+	require.Len(t, available, 2, "only read tools should be available in read-only toolset")
+	for _, tool := range available {
+		require.True(t, tool.IsReadOnly(), "all available tools should be read-only")
+	}
+}
+
+func TestWithToolsetModes_DoesNotAffectOtherToolsets(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("issues_write", "issues", false),
+		mockTool("repos_write", "repos", false),
+		mockTool("users_write", "users", false),
+	}
+
+	modes := map[ToolsetID]bool{
+		"issues": true, // only issues is read-only
+	}
+
+	reg := mustBuild(t, NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"all"}).
+		WithToolsetModes(modes))
+
+	available := reg.AvailableTools(context.Background())
+
+	names := make(map[string]bool)
+	for _, tool := range available {
+		names[tool.Tool.Name] = true
+	}
+
+	require.False(t, names["issues_write"], "write tool in read-only toolset should be hidden")
+	require.True(t, names["repos_write"], "write tool in rw toolset should be visible")
+	require.True(t, names["users_write"], "write tool in rw toolset should be visible")
+}
+
+func TestToolsForToolset_RespectsPerToolsetReadOnly(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("issues_read", "issues", true),
+		mockTool("issues_write", "issues", false),
+		mockTool("repos_read", "repos", true),
+		mockTool("repos_write", "repos", false),
+	}
+
+	modes := map[ToolsetID]bool{
+		"issues": true,
+	}
+
+	// Use empty toolsets so ToolsForToolset is the only way to access tools
+	reg := mustBuild(t, NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{}).
+		WithToolsetModes(modes))
+
+	issuesTools := reg.ToolsForToolset("issues")
+	require.Len(t, issuesTools, 1, "ToolsForToolset should only return read tools for read-only toolset")
+	require.Equal(t, "issues_read", issuesTools[0].Tool.Name)
+
+	reposTools := reg.ToolsForToolset("repos")
+	require.Len(t, reposTools, 2, "ToolsForToolset should return all tools for rw toolset")
+}
+
+func TestWithToolsetModes_GlobalReadOnlyAndPerToolsetBothWork(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("issues_read", "issues", true),
+		mockTool("issues_write", "issues", false),
+		mockTool("repos_read", "repos", true),
+		mockTool("repos_write", "repos", false),
+	}
+
+	// Global read-only makes ALL toolsets read-only
+	// Per-toolset mode on issues is redundant but should not break anything
+	modes := map[ToolsetID]bool{
+		"issues": true,
+	}
+
+	reg := mustBuild(t, NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"all"}).
+		WithReadOnly(true).
+		WithToolsetModes(modes))
+
+	available := reg.AvailableTools(context.Background())
+
+	names := make(map[string]bool)
+	for _, tool := range available {
+		names[tool.Tool.Name] = true
+	}
+
+	require.True(t, names["issues_read"], "read tool should be visible")
+	require.False(t, names["issues_write"], "write tool should be hidden (global read-only)")
+	require.True(t, names["repos_read"], "read tool should be visible")
+	require.False(t, names["repos_write"], "write tool should be hidden (global read-only)")
+}

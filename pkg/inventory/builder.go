@@ -49,6 +49,7 @@ type Builder struct {
 	filters              []ToolFilter // filters to apply to all tools
 	generateInstructions bool
 	insidersMode         bool
+	toolsetReadOnly      map[ToolsetID]bool // per-toolset read-only overrides
 }
 
 // NewBuilder creates a new Builder.
@@ -154,6 +155,16 @@ func (b *Builder) WithExcludeTools(toolNames []string) *Builder {
 	return b
 }
 
+// WithToolsetModes sets per-toolset read-only overrides.
+// Toolsets in this map with value true will have their write tools filtered out,
+// independent of the global WithReadOnly setting.
+// This is additive with WithReadOnly — if either is true, write tools are excluded.
+// Returns self for chaining.
+func (b *Builder) WithToolsetModes(modes map[ToolsetID]bool) *Builder {
+	b.toolsetReadOnly = modes
+	return b
+}
+
 // WithInsidersMode enables or disables insiders mode features.
 // When insiders mode is disabled (default), UI metadata is removed from tools
 // so clients won't attempt to load UI resources.
@@ -218,6 +229,7 @@ func (b *Builder) Build() (*Inventory, error) {
 		readOnly:          b.readOnly,
 		featureChecker:    b.featureChecker,
 		filters:           b.filters,
+		toolsetReadOnly:   b.toolsetReadOnly,
 	}
 
 	// Process toolsets and pre-compute metadata in a single pass
