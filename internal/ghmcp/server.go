@@ -240,7 +240,8 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 	//     → addGitHubAPIError → InjectDeps → handler
 	//
 	// UA is outermost because it's registered last (wraps everything).
-	// addGitHubAPIError and InjectDeps are innermost — registered first in NewMCPServer.
+	// addGitHubAPIError and InjectDeps are innermost — registered last in NewMCPServer
+	// (last-registered = innermost = closest to the handler).
 	//
 	// Denylist runs before any GitHub API call (pure in-memory lookup).
 	// Owner extract populates context owner for MultiOrgDeps routing so that

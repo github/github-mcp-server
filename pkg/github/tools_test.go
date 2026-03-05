@@ -285,3 +285,11 @@ func TestParseToolsetModes_RwWithoutPriorRo(t *testing.T) {
 	require.False(t, readOnly[inventory.ToolsetID("repos")])
 	require.True(t, readOnly[inventory.ToolsetID("issues")])
 }
+
+func TestParseToolsetModes_AllRoNilToolsets(t *testing.T) {
+	// "all:ro" with nil allKnownToolsets: "all" is consumed as a name,
+	// but no toolset IDs are expanded into the readOnly map.
+	names, readOnly := ParseToolsetModes([]string{"all:ro"}, nil)
+	assert.Equal(t, []string{"all"}, names, "all:ro should produce 'all' as the name")
+	assert.Empty(t, readOnly, "all:ro with nil allKnownToolsets should produce empty readOnly map")
+}

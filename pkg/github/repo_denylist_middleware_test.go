@@ -622,3 +622,46 @@ func TestRepoDenylistMiddleware_CaseInsensitive_Blocked(t *testing.T) {
 	assert.True(t, isBlockedResult(t, result), "expected blocked result for case-insensitive match")
 	assert.False(t, handler.called, "handler should not have been called")
 }
+
+// Test: Uppercase REPO:// URI is blocked ((?i) case-insensitive match)
+func TestDenylistResourceHandler_UppercaseURI(t *testing.T) {
+	denylist := NewRepoDenylist([]string{"owner/secret-repo"})
+
+	innerCalled := false
+	inner := mcp.ResourceHandler(func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+		innerCalled = true
+		return &mcp.ReadResourceResult{}, nil
+	})
+
+	wrapped := DenylistResourceHandler(denylist, inner)
+
+	req := &mcp.ReadResourceRequest{
+		Params: &mcp.ReadResourceParams{
+			URI: "REPO://owner/secret-repo/contents/README.md",
+		},
+	}
+
+	result, err := wrapped(context.Background(), req)
+	assert.Error(t, err, "uppercase REPO:// URI for denied repo should be blocked")
+	assert.Nil(t, result, "expected nil result for uppercase denied URI")
+	assert.False(t, innerCalled, "inner handler should not have been called")
+}
+
+// Test: Negation qualifier -org: is NOT blocked (not a targeting qualifier)
+// The regex (?:^|[\s("]) does not match '-', so "-org:denied-org" is not extracted.
+func TestSearchDenylistMiddleware_NegationQualifierNotBlocked(t *testing.T) {
+	denylist := NewRepoDenylist([]string{"denied-org/*"})
+	handler := &denylistPassthroughHandler{}
+	middleware := SearchDenylistMiddleware(denylist)
+	mwHandler := middleware(handler.handle)
+
+	// -org: is a negation qualifier — should NOT be blocked
+	req := makeDenylistToolRequest(t, "search_code", map[string]any{
+		"query": "-org:denied-org language:go",
+	})
+	result, err := mwHandler(context.Background(), "tools/call", req)
+
+	require.NoError(t, err)
+	assert.True(t, handler.called, "negation qualifier -org: should not trigger denylist")
+	assert.Nil(t, result)
+}
