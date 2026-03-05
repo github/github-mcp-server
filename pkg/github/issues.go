@@ -62,7 +62,7 @@ func fetchIssueIDs(ctx context.Context, gqlClient *githubv4.Client, owner, repo 
 		}
 
 		if err := gqlClient.Query(ctx, &query, vars); err != nil {
-			return "", "", fmt.Errorf("failed to get issue ID")
+			return "", "", fmt.Errorf("failed to get issue ID: %w", err)
 		}
 
 		return query.Repository.Issue.ID, "", nil
@@ -84,7 +84,7 @@ func fetchIssueIDs(ctx context.Context, gqlClient *githubv4.Client, owner, repo 
 	vars["duplicateOf"] = githubv4.Int(duplicateOf) // #nosec G115 - issue numbers are always small positive integers
 
 	if err := gqlClient.Query(ctx, &query, vars); err != nil {
-		return "", "", fmt.Errorf("failed to get issue ID")
+		return "", "", fmt.Errorf("failed to get issue ID: %w", err)
 	}
 
 	return query.Repository.Issue.ID, query.Repository.DuplicateIssue.ID, nil
