@@ -33,11 +33,13 @@ type MultiOrgClientFactory struct {
 	privateKey     []byte
 	installations  map[string]int64 // org (lowercase-dashed) → installation_id
 	defaultInstall int64
-	transports     map[string]*ghinstallation.Transport
+	transports     map[int64]*ghinstallation.Transport // keyed by installation_id (bounded)
 	transportsMu   sync.RWMutex
 	apiHost        utils.APIHostResolver
 	rawURL         *url.URL // pre-resolved for raw client construction
 	version        string
+	userAgent      string // set via SetUserAgent after initialize handshake
+	userAgentMu    sync.RWMutex
 }
 
 // NewMultiOrgClientFactory creates a new factory.
@@ -68,7 +70,7 @@ func NewMultiOrgClientFactory(
 		privateKey:     privateKey,
 		installations:  installsCopy,
 		defaultInstall: defaultInstall,
-		transports:     make(map[string]*ghinstallation.Transport),
+		transports:     make(map[int64]*ghinstallation.Transport),
 		apiHost:        apiHost,
 		rawURL:         rawURL,
 		version:        version,
@@ -113,14 +115,15 @@ func (f *MultiOrgClientFactory) getInstallationID(owner string) int64 {
 	return f.defaultInstall
 }
 
-// getOrCreateTransport returns a cached transport for the org, creating one if
-// needed. Uses double-checked locking for thread safety.
+// getOrCreateTransport returns a cached transport for the given installation ID,
+// creating one if needed. Uses double-checked locking for thread safety.
 //
-// The org key passed here should already be normalized (lowercase-dashed) so
-// that the cache key is stable.
-func (f *MultiOrgClientFactory) getOrCreateTransport(org string, installID int64) (*ghinstallation.Transport, error) {
+// The cache is keyed by installation ID (not owner string) to prevent unbounded
+// growth: unknown owners that fall back to the default installation reuse the
+// same transport instead of creating a new entry per unique owner string.
+func (f *MultiOrgClientFactory) getOrCreateTransport(installID int64) (*ghinstallation.Transport, error) {
 	f.transportsMu.RLock()
-	if t, ok := f.transports[org]; ok {
+	if t, ok := f.transports[installID]; ok {
 		f.transportsMu.RUnlock()
 		return t, nil
 	}
@@ -131,13 +134,13 @@ func (f *MultiOrgClientFactory) getOrCreateTransport(org string, installID int64
 
 	// Double-check after acquiring write lock (another goroutine may have
 	// created the transport between the RUnlock and Lock above).
-	if t, ok := f.transports[org]; ok {
+	if t, ok := f.transports[installID]; ok {
 		return t, nil
 	}
 
 	t, err := ghinstallation.New(http.DefaultTransport, f.appID, installID, f.privateKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create installation transport for org %q: %w", org, err)
+		return nil, fmt.Errorf("failed to create installation transport for install %d: %w", installID, err)
 	}
 
 	// Configure GHE base URL if the resolver points to a non-dotcom host.
@@ -156,16 +159,37 @@ func (f *MultiOrgClientFactory) getOrCreateTransport(org string, installID int64
 		}
 	}
 
-	f.transports[org] = t
+	f.transports[installID] = t
 	return t, nil
 }
 
 // normalizeOwner applies the same normalization as getInstallationID so that
-// the transport cache key is consistent with the installations map keys.
+// lookups are consistent with the installations map keys.
 func normalizeOwner(owner string) string {
 	owner = strings.ToLower(owner)
 	owner = strings.ReplaceAll(owner, "_", "-")
 	return owner
+}
+
+// SetUserAgent updates the user agent string used for all clients created by
+// this factory. Called after the MCP initialize handshake provides client info.
+// Thread-safe: may be called concurrently with client creation.
+func (f *MultiOrgClientFactory) SetUserAgent(ua string) {
+	f.userAgentMu.Lock()
+	f.userAgent = ua
+	f.userAgentMu.Unlock()
+}
+
+// getUserAgent returns the current user agent string. Falls back to the
+// version-based default if SetUserAgent has not been called yet.
+func (f *MultiOrgClientFactory) getUserAgent() string {
+	f.userAgentMu.RLock()
+	ua := f.userAgent
+	f.userAgentMu.RUnlock()
+	if ua != "" {
+		return ua
+	}
+	return "github-mcp-server/" + f.version
 }
 
 // GetRESTClient returns a REST client authenticated as the GitHub App
@@ -183,13 +207,13 @@ func (f *MultiOrgClientFactory) GetRESTClient(ctx context.Context, owner string)
 		)
 	}
 
-	transport, err := f.getOrCreateTransport(normalizeOwner(owner), installID)
+	transport, err := f.getOrCreateTransport(installID)
 	if err != nil {
 		return nil, err
 	}
 
 	client := gogithub.NewClient(&http.Client{Transport: transport})
-	client.UserAgent = fmt.Sprintf("github-mcp-server/%s", f.version)
+	client.UserAgent = f.getUserAgent()
 
 	// Set the REST base URL from the resolver so GHE installations work.
 	if f.apiHost != nil {
@@ -223,7 +247,7 @@ func (f *MultiOrgClientFactory) GetGQLClient(ctx context.Context, owner string) 
 		)
 	}
 
-	transport, err := f.getOrCreateTransport(normalizeOwner(owner), installID)
+	transport, err := f.getOrCreateTransport(installID)
 	if err != nil {
 		return nil, err
 	}

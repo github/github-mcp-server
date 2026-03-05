@@ -74,6 +74,27 @@ func WithCacheName(name string) RepoAccessOption {
 	}
 }
 
+// NewRepoAccessCache creates a new, independent RepoAccessCache.
+// Unlike GetInstance, this does NOT use the package-level singleton — each call
+// returns a distinct cache. Use this when multiple caches are needed (e.g.,
+// multi-org GitHub App auth where each org has its own GQL client).
+func NewRepoAccessCache(client *githubv4.Client, opts ...RepoAccessOption) *RepoAccessCache {
+	c := &RepoAccessCache{
+		client: client,
+		cache:  cache2go.Cache(defaultRepoAccessCacheKey + "-" + fmt.Sprintf("%p", client)),
+		ttl:    defaultRepoAccessTTL,
+		trustedBotLogins: map[string]struct{}{
+			"copilot": {},
+		},
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(c)
+		}
+	}
+	return c
+}
+
 // GetInstance returns the singleton instance of RepoAccessCache.
 // It initializes the instance on first call with the provided client and options.
 // Subsequent calls ignore the client and options parameters and return the existing instance.

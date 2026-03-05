@@ -143,7 +143,7 @@ func TestGetRESTClient_FailClosed_NoMatchNoDefault(t *testing.T) {
 	f := &MultiOrgClientFactory{
 		installations:  makeInstallations("my-org", 111),
 		defaultInstall: 0,
-		transports:     make(map[string]*ghinstallation.Transport),
+		transports:     make(map[int64]*ghinstallation.Transport),
 	}
 
 	_, err := f.GetRESTClient(context.Background(), "unknown-org")
@@ -156,7 +156,7 @@ func TestGetGQLClient_FailClosed_NoMatchNoDefault(t *testing.T) {
 	f := &MultiOrgClientFactory{
 		installations:  makeInstallations("my-org", 111),
 		defaultInstall: 0,
-		transports:     make(map[string]*ghinstallation.Transport),
+		transports:     make(map[int64]*ghinstallation.Transport),
 	}
 
 	_, err := f.GetGQLClient(context.Background(), "unknown-org")
@@ -169,7 +169,7 @@ func TestGetRawClient_FailClosed_NoRawURL(t *testing.T) {
 	f := &MultiOrgClientFactory{
 		installations:  makeInstallations("my-org", 111),
 		defaultInstall: 111,
-		transports:     make(map[string]*ghinstallation.Transport),
+		transports:     make(map[int64]*ghinstallation.Transport),
 		privateKey:     testRSAPEM,
 		appID:          1234,
 		rawURL:         nil, // not configured
@@ -185,7 +185,7 @@ func TestGetRawClient_FailClosed_NoMatchNoDefault(t *testing.T) {
 	f := &MultiOrgClientFactory{
 		installations:  makeInstallations("my-org", 111),
 		defaultInstall: 0,
-		transports:     make(map[string]*ghinstallation.Transport),
+		transports:     make(map[int64]*ghinstallation.Transport),
 		rawURL:         rawURL,
 	}
 
@@ -238,28 +238,28 @@ func TestResolvePrivateKey_FileNotFound(t *testing.T) {
 
 // --- Transport caching tests ---
 
-func TestTransportCaching_SameOrgReturnsSameTransport(t *testing.T) {
+func TestTransportCaching_SameInstallReturnsSameTransport(t *testing.T) {
 	f := NewMultiOrgClientFactory(1234, testRSAPEM, makeInstallations("my-org", 111), nil, nil, "test")
 
-	t1, err := f.getOrCreateTransport("my-org", 111)
+	t1, err := f.getOrCreateTransport(111)
 	require.NoError(t, err)
 
-	t2, err := f.getOrCreateTransport("my-org", 111)
+	t2, err := f.getOrCreateTransport(111)
 	require.NoError(t, err)
 
-	assert.Same(t, t1, t2, "same org should return the same cached transport pointer")
+	assert.Same(t, t1, t2, "same installation ID should return the same cached transport pointer")
 }
 
-func TestTransportCaching_DifferentOrgsGetDifferentTransports(t *testing.T) {
+func TestTransportCaching_DifferentInstallsGetDifferentTransports(t *testing.T) {
 	f := NewMultiOrgClientFactory(1234, testRSAPEM, makeInstallations("org-a", 111, "org-b", 222), nil, nil, "test")
 
-	ta, err := f.getOrCreateTransport("org-a", 111)
+	ta, err := f.getOrCreateTransport(111)
 	require.NoError(t, err)
 
-	tb, err := f.getOrCreateTransport("org-b", 222)
+	tb, err := f.getOrCreateTransport(222)
 	require.NoError(t, err)
 
-	assert.NotSame(t, ta, tb, "different orgs should get different transports")
+	assert.NotSame(t, ta, tb, "different installation IDs should get different transports")
 }
 
 // --- Thread safety test ---
@@ -276,7 +276,7 @@ func TestTransportCaching_ConcurrentAccess(t *testing.T) {
 		i := i
 		go func() {
 			defer wg.Done()
-			tr, err := f.getOrCreateTransport("my-org", 111)
+			tr, err := f.getOrCreateTransport(111)
 			if err == nil {
 				results[i] = tr
 			}
@@ -298,4 +298,63 @@ func TestTransportCaching_ConcurrentAccess(t *testing.T) {
 			assert.Same(t, first, r, "goroutine %d got a different transport pointer", i)
 		}
 	}
+}
+
+// --- Transport cache bounded by installation ID (DoS prevention) ---
+
+func TestTransportCache_UnknownOwnersShareDefaultTransport(t *testing.T) {
+	// When multiple unknown owners fall back to the default installation,
+	// they should all share the same transport (keyed by installation ID,
+	// not by owner string). This prevents unbounded cache growth.
+	f := NewMultiOrgClientFactory(1234, testRSAPEM,
+		makeInstallations("known-org", 111, "_default", 999), nil, nil, "test")
+
+	// Remove _default from installations (constructor extracts it)
+	// The factory should have defaultInstall=999
+
+	t1, err := f.getOrCreateTransport(f.getInstallationID("unknown-a"))
+	require.NoError(t, err)
+
+	t2, err := f.getOrCreateTransport(f.getInstallationID("unknown-b"))
+	require.NoError(t, err)
+
+	t3, err := f.getOrCreateTransport(f.getInstallationID("unknown-c"))
+	require.NoError(t, err)
+
+	assert.Same(t, t1, t2, "unknown owners should share the default transport")
+	assert.Same(t, t2, t3, "unknown owners should share the default transport")
+	assert.Equal(t, 1, len(f.transports),
+		"only one transport should be cached for all unknown owners (keyed by install ID)")
+}
+
+// --- SetUserAgent / getUserAgent tests ---
+
+func TestSetUserAgent(t *testing.T) {
+	f := NewMultiOrgClientFactory(1234, testRSAPEM, makeInstallations("my-org", 111), nil, nil, "v1.0")
+
+	// Before SetUserAgent, getUserAgent should return version-based default.
+	assert.Equal(t, "github-mcp-server/v1.0", f.getUserAgent())
+
+	// After SetUserAgent, getUserAgent should return the custom UA.
+	f.SetUserAgent("github-mcp-server/v1.0 (my-client/2.0)")
+	assert.Equal(t, "github-mcp-server/v1.0 (my-client/2.0)", f.getUserAgent())
+}
+
+func TestSetUserAgent_ConcurrentSafety(t *testing.T) {
+	f := NewMultiOrgClientFactory(1234, testRSAPEM, makeInstallations("my-org", 111), nil, nil, "v1.0")
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		f.SetUserAgent("agent-a")
+	}()
+	go func() {
+		defer wg.Done()
+		_ = f.getUserAgent()
+	}()
+
+	wg.Wait()
+	// No race detector failure = pass. The actual value is non-deterministic.
 }

@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"sync"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
@@ -26,6 +27,11 @@ type MultiOrgDeps struct {
 	featureChecker    inventory.FeatureFlagChecker
 	lockdownMode      bool
 	repoAccessOpts    []lockdown.RepoAccessOption
+
+	// Per-org lockdown caches. Each org gets its own RepoAccessCache backed by
+	// that org's GQL client. Protected by repoAccessMu.
+	repoAccessCaches map[string]*lockdown.RepoAccessCache
+	repoAccessMu     sync.RWMutex
 }
 
 // Compile-time assertion: MultiOrgDeps must implement ToolDependencies.
@@ -49,6 +55,7 @@ func NewMultiOrgDeps(
 		featureChecker:    featureChecker,
 		lockdownMode:      lockdownMode,
 		repoAccessOpts:    repoAccessOpts,
+		repoAccessCaches:  make(map[string]*lockdown.RepoAccessCache),
 	}
 }
 
@@ -75,17 +82,45 @@ func (d *MultiOrgDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
 }
 
 // GetRepoAccessCache implements ToolDependencies. Returns nil when lockdown
-// mode is disabled. When enabled, creates a per-request RepoAccessCache using
-// the GQL client for the owner in context.
+// mode is disabled. When enabled, returns a per-org RepoAccessCache backed by
+// that org's GQL client. Caches are created lazily and reused across requests
+// for the same org. Uses lockdown.NewRepoAccessCache (not the singleton
+// GetInstance) so each org gets an independent cache with its own GQL client.
 func (d *MultiOrgDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAccessCache, error) {
 	if !d.lockdownMode {
 		return nil, nil
 	}
+
+	owner := OwnerFromContext(ctx)
+	key := normalizeOwner(owner)
+	if key == "" {
+		key = "_default"
+	}
+
+	// Fast path: check if cache already exists (read lock).
+	d.repoAccessMu.RLock()
+	if cache, ok := d.repoAccessCaches[key]; ok {
+		d.repoAccessMu.RUnlock()
+		return cache, nil
+	}
+	d.repoAccessMu.RUnlock()
+
+	// Slow path: create cache under write lock (double-checked locking).
+	d.repoAccessMu.Lock()
+	defer d.repoAccessMu.Unlock()
+
+	if cache, ok := d.repoAccessCaches[key]; ok {
+		return cache, nil
+	}
+
 	gqlClient, err := d.GetGQLClient(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return lockdown.GetInstance(gqlClient, d.repoAccessOpts...), nil
+
+	cache := lockdown.NewRepoAccessCache(gqlClient, d.repoAccessOpts...)
+	d.repoAccessCaches[key] = cache
+	return cache, nil
 }
 
 // GetT implements ToolDependencies.

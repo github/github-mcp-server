@@ -134,13 +134,14 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 
 	// Determine which deps to use: MultiOrgDeps for GitHub App multi-org, BaseDeps otherwise.
 	var deps github.ToolDependencies
+	var multiOrgFactory *github.MultiOrgClientFactory // non-nil when app auth active
 	if appAuthActive {
 		// GitHub App auth with multi-org support.
 		rawURL, err := apiHost.RawURL(context.Background())
 		if err != nil {
 			return nil, fmt.Errorf("failed to get raw URL for multi-org factory: %w", err)
 		}
-		factory := github.NewMultiOrgClientFactory(
+		multiOrgFactory = github.NewMultiOrgClientFactory(
 			cfg.AppID,
 			cfg.PrivateKey,
 			cfg.Installations,
@@ -159,7 +160,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 			}
 		}
 		deps = github.NewMultiOrgDeps(
-			factory,
+			multiOrgFactory,
 			cfg.Translator,
 			flags,
 			cfg.ContentWindowSize,
@@ -268,7 +269,9 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 	}
 
 	// Existing user-agent middleware (must come AFTER guards).
-	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.rest, clients.gqlHTTP))
+	// Pass multiOrgFactory so the initialize handshake propagates the user agent
+	// to all per-org clients created by the factory. nil when PAT auth is used.
+	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.rest, clients.gqlHTTP, multiOrgFactory))
 
 	return ghServer, nil
 }
@@ -478,7 +481,13 @@ func createFeatureChecker(enabledFeatures []string) inventory.FeatureFlagChecker
 	}
 }
 
-func addUserAgentsMiddleware(cfg github.MCPServerConfig, restClient *gogithub.Client, gqlHTTPClient *http.Client) func(next mcp.MethodHandler) mcp.MethodHandler {
+// addUserAgentsMiddleware returns middleware that sets the user agent on all
+// GitHub API clients after the MCP initialize handshake provides client info.
+//
+// The optional multiOrgFactory parameter propagates the user agent to clients
+// created by MultiOrgClientFactory (GitHub App multi-org auth). When nil, only
+// the PAT-based REST and GQL clients are updated.
+func addUserAgentsMiddleware(cfg github.MCPServerConfig, restClient *gogithub.Client, gqlHTTPClient *http.Client, multiOrgFactory *github.MultiOrgClientFactory) func(next mcp.MethodHandler) mcp.MethodHandler {
 	return func(next mcp.MethodHandler) mcp.MethodHandler {
 		return func(ctx context.Context, method string, request mcp.Request) (result mcp.Result, err error) {
 			if method != "initialize" {
@@ -506,6 +515,12 @@ func addUserAgentsMiddleware(cfg github.MCPServerConfig, restClient *gogithub.Cl
 			gqlHTTPClient.Transport = &transport.UserAgentTransport{
 				Transport: gqlHTTPClient.Transport,
 				Agent:     userAgent,
+			}
+
+			// Propagate user agent to multi-org factory so all per-org clients
+			// created after this point use the correct user agent string.
+			if multiOrgFactory != nil {
+				multiOrgFactory.SetUserAgent(userAgent)
 			}
 
 			return next(ctx, method, request)

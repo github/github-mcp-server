@@ -215,3 +215,53 @@ func TestMultiOrgDeps_IsFeatureEnabled_CheckerEnabledReturnsTrue(t *testing.T) {
 	assert.True(t, deps.IsFeatureEnabled(context.Background(), "enabled-flag"))
 	assert.False(t, deps.IsFeatureEnabled(context.Background(), "other-flag"))
 }
+
+// --- Per-org lockdown cache tests ---
+
+func TestMultiOrgDeps_GetRepoAccessCache_DisabledReturnsNil(t *testing.T) {
+	rawURL, _ := url.Parse("https://raw.githubusercontent.com/")
+	factory := NewMultiOrgClientFactory(1234, testRSAPEM, makeInstallations("my-org", 111), nil, rawURL, "test")
+	deps := NewMultiOrgDeps(factory, translations.NullTranslationHelper, FeatureFlags{}, 256, nil, false, nil)
+
+	cache, err := deps.GetRepoAccessCache(context.Background())
+	assert.NoError(t, err)
+	assert.Nil(t, cache, "lockdown disabled should return nil cache")
+}
+
+func TestMultiOrgDeps_GetRepoAccessCache_PerOrgIsolation(t *testing.T) {
+	rawURL, _ := url.Parse("https://raw.githubusercontent.com/")
+	factory := NewMultiOrgClientFactory(1234, testRSAPEM,
+		makeInstallations("org-a", 111, "org-b", 222), nil, rawURL, "test")
+	deps := NewMultiOrgDeps(factory, translations.NullTranslationHelper, FeatureFlags{}, 256, nil, true, nil)
+
+	ctxA := ContextWithOwner(context.Background(), "org-a")
+	cacheA, err := deps.GetRepoAccessCache(ctxA)
+	require.NoError(t, err)
+	require.NotNil(t, cacheA, "lockdown enabled should return non-nil cache")
+
+	ctxB := ContextWithOwner(context.Background(), "org-b")
+	cacheB, err := deps.GetRepoAccessCache(ctxB)
+	require.NoError(t, err)
+	require.NotNil(t, cacheB)
+
+	assert.NotSame(t, cacheA, cacheB,
+		"different orgs should get different lockdown cache instances")
+
+	// Same org should return the same cached instance.
+	cacheA2, err := deps.GetRepoAccessCache(ctxA)
+	require.NoError(t, err)
+	assert.Same(t, cacheA, cacheA2,
+		"same org should return the same cached lockdown instance")
+}
+
+func TestMultiOrgDeps_GetRepoAccessCache_DefaultOwner(t *testing.T) {
+	rawURL, _ := url.Parse("https://raw.githubusercontent.com/")
+	factory := NewMultiOrgClientFactory(1234, testRSAPEM,
+		makeInstallations("my-org", 111, "_default", 999), nil, rawURL, "test")
+	deps := NewMultiOrgDeps(factory, translations.NullTranslationHelper, FeatureFlags{}, 256, nil, true, nil)
+
+	// No owner in context → should use "_default" key.
+	cache, err := deps.GetRepoAccessCache(context.Background())
+	require.NoError(t, err)
+	require.NotNil(t, cache, "should create cache for default installation")
+}
