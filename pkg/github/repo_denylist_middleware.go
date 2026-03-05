@@ -60,27 +60,39 @@ func RepoDenylistMiddleware(denylist *RepoDenylist) mcp.Middleware {
 			owner, _ := args["owner"].(string)
 			repo, _ := args["repo"].(string)
 
-			// Some tools use non-standard param names for the org/repo.
-			// create_repository uses "organization" + "name" instead of "owner" + "repo".
-			// Fall back to these if the standard params are absent.
-			if owner == "" {
-				if org, ok := args["organization"].(string); ok {
-					owner = org
-				}
-			}
-			if repo == "" {
-				if name, ok := args["name"].(string); ok {
-					repo = name
-				}
-			}
-
-			// Only check if both owner and repo are present.
+			// Check standard owner/repo (used by most tools).
 			if owner != "" && repo != "" {
 				if denylist.IsDenied(owner, repo) {
 					slog.WarnContext(ctx, "denylist: blocked tool call to denied repo",
 						"owner", owner, "repo", repo, "tool", toolReq.Params.Name)
 					return utils.NewToolResultError(fmt.Sprintf(
 						"Access denied: %s/%s is on the repository denylist.", owner, repo,
+					)), nil
+				}
+			}
+
+			// Also check "organization" + "name" params. These are used by:
+			//   - create_repository: organization is the target org, name is the repo
+			//   - fork_repository: organization is the DESTINATION org, name is the fork name
+			// For fork_repository both owner/repo (source) AND organization (dest)
+			// may be present — we must check both independently.
+			organization, _ := args["organization"].(string)
+			name, _ := args["name"].(string)
+			if organization != "" {
+				// Check org wildcard (org/*) — blocks creating/forking into denied orgs.
+				if denylist.IsOrgDenied(organization) {
+					slog.WarnContext(ctx, "denylist: blocked tool call to denied organization",
+						"organization", organization, "tool", toolReq.Params.Name)
+					return utils.NewToolResultError(fmt.Sprintf(
+						"Access denied: org %s is on the repository denylist.", organization,
+					)), nil
+				}
+				// Check exact match (org/repo) when both organization and name are present.
+				if name != "" && denylist.IsDenied(organization, name) {
+					slog.WarnContext(ctx, "denylist: blocked tool call to denied repo",
+						"owner", organization, "repo", name, "tool", toolReq.Params.Name)
+					return utils.NewToolResultError(fmt.Sprintf(
+						"Access denied: %s/%s is on the repository denylist.", organization, name,
 					)), nil
 				}
 			}

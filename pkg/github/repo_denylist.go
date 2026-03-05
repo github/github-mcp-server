@@ -1,6 +1,7 @@
 package github
 
 import (
+	"log/slog"
 	"strings"
 )
 
@@ -26,6 +27,8 @@ func NewRepoDenylist(entries []string) *RepoDenylist {
 		}
 		parts := strings.SplitN(entry, "/", 2)
 		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			slog.Warn("denylist: skipping invalid entry (expected 'owner/repo' or 'owner/*')",
+				"entry", entry)
 			continue
 		}
 		owner, repo := parts[0], parts[1]

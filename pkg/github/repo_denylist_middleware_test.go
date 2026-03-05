@@ -438,6 +438,69 @@ func TestRepoDenylistMiddleware_CreateRepository_ExactRepoBlocked(t *testing.T) 
 	assert.False(t, handler.called, "handler should not have been called")
 }
 
+// Test: fork_repository — source repo denied
+func TestRepoDenylistMiddleware_ForkRepository_SourceDenied(t *testing.T) {
+	denylist := NewRepoDenylist([]string{"secret-org/private-repo"})
+	mw := RepoDenylistMiddleware(denylist)
+
+	handler := &denylistPassthroughHandler{}
+	wrapped := mw(handler.handle)
+
+	req := makeDenylistToolRequest(t, "fork_repository", map[string]any{
+		"owner":        "secret-org",
+		"repo":         "private-repo",
+		"organization": "my-org", // destination is allowed
+	})
+
+	result, err := wrapped(context.Background(), "tools/call", req)
+	require.NoError(t, err)
+	assert.True(t, isBlockedResult(t, result),
+		"fork from denied source repo should be blocked")
+	assert.False(t, handler.called)
+}
+
+// Test: fork_repository — destination org denied (source allowed)
+func TestRepoDenylistMiddleware_ForkRepository_DestinationOrgDenied(t *testing.T) {
+	denylist := NewRepoDenylist([]string{"denied-org/*"})
+	mw := RepoDenylistMiddleware(denylist)
+
+	handler := &denylistPassthroughHandler{}
+	wrapped := mw(handler.handle)
+
+	req := makeDenylistToolRequest(t, "fork_repository", map[string]any{
+		"owner":        "allowed-org",
+		"repo":         "public-repo",
+		"organization": "denied-org", // destination is denied
+	})
+
+	result, err := wrapped(context.Background(), "tools/call", req)
+	require.NoError(t, err)
+	assert.True(t, isBlockedResult(t, result),
+		"fork into denied destination org should be blocked")
+	assert.False(t, handler.called)
+}
+
+// Test: fork_repository — both source and destination allowed
+func TestRepoDenylistMiddleware_ForkRepository_BothAllowed(t *testing.T) {
+	denylist := NewRepoDenylist([]string{"secret-org/*"})
+	mw := RepoDenylistMiddleware(denylist)
+
+	handler := &denylistPassthroughHandler{}
+	wrapped := mw(handler.handle)
+
+	req := makeDenylistToolRequest(t, "fork_repository", map[string]any{
+		"owner":        "allowed-org",
+		"repo":         "public-repo",
+		"organization": "other-allowed-org",
+	})
+
+	result, err := wrapped(context.Background(), "tools/call", req)
+	require.NoError(t, err)
+	assert.False(t, isBlockedResult(t, result),
+		"fork with both source and destination allowed should pass through")
+	assert.True(t, handler.called)
+}
+
 // Test: Case-insensitive denylist matching
 func TestRepoDenylistMiddleware_CaseInsensitive_Blocked(t *testing.T) {
 	denylist := NewRepoDenylist([]string{"Owner/Secret-Repo"})
