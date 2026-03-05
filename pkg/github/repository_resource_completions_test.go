@@ -370,3 +370,98 @@ func TestRepositoryResourceCompletionHandler_NilContext(t *testing.T) {
 	// Restore original resolver
 	RepositoryResourceArgumentResolvers["repo"] = originalResolver
 }
+
+// --- Denylist enforcement tests ---
+
+func TestRepositoryResourceCompletionHandler_DenylistBlocksOrgWildcard(t *testing.T) {
+	getClient := func(_ context.Context) (*github.Client, error) {
+		t.Fatal("getClient should not be called for denied org")
+		return nil, nil
+	}
+	denylist := NewRepoDenylist([]string{"denied-org/*"})
+	handler := RepositoryResourceCompletionHandler(getClient, denylist)
+
+	request := &mcp.CompleteRequest{
+		Params: &mcp.CompleteParams{
+			Ref: &mcp.CompleteReference{Type: "ref/resource"},
+			Argument: mcp.CompleteParamsArgument{
+				Name:  "repo",
+				Value: "test",
+			},
+			Context: &mcp.CompleteContext{
+				Arguments: map[string]string{"owner": "denied-org"},
+			},
+		},
+	}
+
+	result, err := handler(context.Background(), request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Empty(t, result.Completion.Values,
+		"completions for denied org should return empty values")
+}
+
+func TestRepositoryResourceCompletionHandler_DenylistBlocksExactRepo(t *testing.T) {
+	getClient := func(_ context.Context) (*github.Client, error) {
+		t.Fatal("getClient should not be called for denied repo")
+		return nil, nil
+	}
+	denylist := NewRepoDenylist([]string{"my-org/secret-repo"})
+	handler := RepositoryResourceCompletionHandler(getClient, denylist)
+
+	request := &mcp.CompleteRequest{
+		Params: &mcp.CompleteParams{
+			Ref: &mcp.CompleteReference{Type: "ref/resource"},
+			Argument: mcp.CompleteParamsArgument{
+				Name:  "branch",
+				Value: "main",
+			},
+			Context: &mcp.CompleteContext{
+				Arguments: map[string]string{
+					"owner": "my-org",
+					"repo":  "secret-repo",
+				},
+			},
+		},
+	}
+
+	result, err := handler(context.Background(), request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Empty(t, result.Completion.Values,
+		"completions for denied repo should return empty values")
+}
+
+func TestRepositoryResourceCompletionHandler_DenylistAllowsNonDenied(t *testing.T) {
+	getClient := func(_ context.Context) (*github.Client, error) {
+		return github.NewClient(nil), nil
+	}
+	denylist := NewRepoDenylist([]string{"denied-org/*"})
+	handler := RepositoryResourceCompletionHandler(getClient, denylist)
+
+	// Restore owner resolver after test
+	originalResolver := RepositoryResourceArgumentResolvers["owner"]
+	RepositoryResourceArgumentResolvers["owner"] = func(_ context.Context, _ *github.Client, _ map[string]string, _ string) ([]string, error) {
+		return []string{"allowed-org"}, nil
+	}
+	defer func() { RepositoryResourceArgumentResolvers["owner"] = originalResolver }()
+
+	request := &mcp.CompleteRequest{
+		Params: &mcp.CompleteParams{
+			Ref: &mcp.CompleteReference{Type: "ref/resource"},
+			Argument: mcp.CompleteParamsArgument{
+				Name:  "owner",
+				Value: "allowed",
+			},
+			Context: &mcp.CompleteContext{
+				Arguments: map[string]string{},
+			},
+		},
+	}
+
+	result, err := handler(context.Background(), request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.NotEmpty(t, result.Completion.Values,
+		"completions for non-denied org should return values")
+}

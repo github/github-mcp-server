@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/muesli/cache2go"
@@ -42,8 +43,9 @@ const (
 )
 
 var (
-	instance   *RepoAccessCache
-	instanceMu sync.Mutex
+	instance    *RepoAccessCache
+	instanceMu  sync.Mutex
+	newCacheSeq atomic.Int64 // monotonic counter for unique default cache names
 )
 
 // RepoAccessOption configures RepoAccessCache at construction time.
@@ -84,9 +86,10 @@ func WithCacheName(name string) RepoAccessOption {
 // instances share the same default cache2go table, which would mix entries
 // from different installations.
 func NewRepoAccessCache(client *githubv4.Client, opts ...RepoAccessOption) *RepoAccessCache {
+	seq := newCacheSeq.Add(1)
 	c := &RepoAccessCache{
 		client: client,
-		cache:  cache2go.Cache(defaultRepoAccessCacheKey + "-new"),
+		cache:  cache2go.Cache(fmt.Sprintf("%s-new-%d", defaultRepoAccessCacheKey, seq)),
 		ttl:    defaultRepoAccessTTL,
 		trustedBotLogins: map[string]struct{}{
 			"copilot": {},
