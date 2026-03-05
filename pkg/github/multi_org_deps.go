@@ -1,0 +1,111 @@
+package github
+
+import (
+	"context"
+
+	"github.com/github/github-mcp-server/pkg/inventory"
+	"github.com/github/github-mcp-server/pkg/lockdown"
+	"github.com/github/github-mcp-server/pkg/raw"
+	"github.com/github/github-mcp-server/pkg/translations"
+	gogithub "github.com/google/go-github/v82/github"
+	"github.com/shurcooL/githubv4"
+)
+
+// MultiOrgDeps implements ToolDependencies by routing API calls to the correct
+// org's GitHub App installation based on the owner in context.
+//
+// The owner is extracted from context by OwnerFromContext, which is populated
+// by OwnerExtractMiddleware before tool handlers are invoked. If no owner is
+// present in context, the factory falls back to the default installation (if
+// configured), or returns an error (fail-closed).
+type MultiOrgDeps struct {
+	factory           *MultiOrgClientFactory
+	t                 translations.TranslationHelperFunc
+	flags             FeatureFlags
+	contentWindowSize int
+	featureChecker    inventory.FeatureFlagChecker
+	lockdownMode      bool
+	repoAccessOpts    []lockdown.RepoAccessOption
+}
+
+// Compile-time assertion: MultiOrgDeps must implement ToolDependencies.
+var _ ToolDependencies = (*MultiOrgDeps)(nil)
+
+// NewMultiOrgDeps creates a MultiOrgDeps with the provided factory and configuration.
+func NewMultiOrgDeps(
+	factory *MultiOrgClientFactory,
+	t translations.TranslationHelperFunc,
+	flags FeatureFlags,
+	contentWindowSize int,
+	featureChecker inventory.FeatureFlagChecker,
+	lockdownMode bool,
+	repoAccessOpts []lockdown.RepoAccessOption,
+) *MultiOrgDeps {
+	return &MultiOrgDeps{
+		factory:           factory,
+		t:                 t,
+		flags:             flags,
+		contentWindowSize: contentWindowSize,
+		featureChecker:    featureChecker,
+		lockdownMode:      lockdownMode,
+		repoAccessOpts:    repoAccessOpts,
+	}
+}
+
+// GetClient implements ToolDependencies. Routes to the GitHub App installation
+// for the owner stored in context. Falls back to the default installation if
+// no owner is present.
+func (d *MultiOrgDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
+	owner := OwnerFromContext(ctx)
+	return d.factory.GetRESTClient(ctx, owner)
+}
+
+// GetGQLClient implements ToolDependencies. Routes to the GitHub App
+// installation for the owner stored in context.
+func (d *MultiOrgDeps) GetGQLClient(ctx context.Context) (*githubv4.Client, error) {
+	owner := OwnerFromContext(ctx)
+	return d.factory.GetGQLClient(ctx, owner)
+}
+
+// GetRawClient implements ToolDependencies. Routes to the GitHub App
+// installation for the owner stored in context.
+func (d *MultiOrgDeps) GetRawClient(ctx context.Context) (*raw.Client, error) {
+	owner := OwnerFromContext(ctx)
+	return d.factory.GetRawClient(ctx, owner)
+}
+
+// GetRepoAccessCache implements ToolDependencies. Returns nil when lockdown
+// mode is disabled. When enabled, creates a per-request RepoAccessCache using
+// the GQL client for the owner in context.
+func (d *MultiOrgDeps) GetRepoAccessCache(ctx context.Context) (*lockdown.RepoAccessCache, error) {
+	if !d.lockdownMode {
+		return nil, nil
+	}
+	gqlClient, err := d.GetGQLClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return lockdown.GetInstance(gqlClient, d.repoAccessOpts...), nil
+}
+
+// GetT implements ToolDependencies.
+func (d *MultiOrgDeps) GetT() translations.TranslationHelperFunc { return d.t }
+
+// GetFlags implements ToolDependencies.
+func (d *MultiOrgDeps) GetFlags(_ context.Context) FeatureFlags { return d.flags }
+
+// GetContentWindowSize implements ToolDependencies.
+func (d *MultiOrgDeps) GetContentWindowSize() int { return d.contentWindowSize }
+
+// IsFeatureEnabled implements ToolDependencies. Returns false if the feature
+// checker is nil, the flag name is empty, or an error occurs during the check.
+func (d *MultiOrgDeps) IsFeatureEnabled(ctx context.Context, flagName string) bool {
+	if d.featureChecker == nil || flagName == "" {
+		return false
+	}
+	enabled, err := d.featureChecker(ctx, flagName)
+	if err != nil {
+		return false
+	}
+	return enabled
+}
