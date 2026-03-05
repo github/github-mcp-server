@@ -4,7 +4,7 @@
 
 ## Remote Server
 
-Cline stores MCP settings in `cline_mcp_settings.json`. To edit it, click the Cline icon in your editor's sidebar, open the menu  in the top right corner of the Cline panel, and select **"MCP Servers"**. You can add a remote server through the **"Remote Servers"** tab, or click **"Configure MCP Servers"** to edit the JSON directly.
+Cline stores MCP settings in `cline_mcp_settings.json`. To edit it, click the Cline icon in your editor's sidebar, open the menu in the top right corner of the Cline panel, and select **"MCP Servers"**. You can add a remote server through the **"Remote Servers"** tab, or click **"Configure MCP Servers"** to edit the JSON directly.
 
 ```json
 {
