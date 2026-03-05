@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -33,9 +34,8 @@ var (
 		Short: "Start stdio server",
 		Long:  `Start a server that communicates via standard input/output streams using JSON-RPC messages.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			token := viper.GetString("personal_access_token")
-			if token == "" {
-				return errors.New("GITHUB_PERSONAL_ACCESS_TOKEN not set")
+			if err := validateAuthConfig(); err != nil {
+				return fmt.Errorf("auth configuration error: %w", err)
 			}
 
 			// If you're wondering why we're not using viper.GetStringSlice("toolsets"),
@@ -77,11 +77,19 @@ var (
 				}
 			}
 
+			// Parse repo denylist (same pattern as toolsets — viper bug #380)
+			var repoDenylist []string
+			if viper.IsSet("repo-denylist") {
+				if err := viper.UnmarshalKey("repo-denylist", &repoDenylist); err != nil {
+					return fmt.Errorf("failed to unmarshal repo-denylist: %w", err)
+				}
+			}
+
 			ttl := viper.GetDuration("repo-access-cache-ttl")
 			stdioServerConfig := ghmcp.StdioServerConfig{
 				Version:              version,
 				Host:                 viper.GetString("host"),
-				Token:                token,
+				Token:                viper.GetString("personal_access_token"),
 				EnabledToolsets:      enabledToolsets,
 				EnabledTools:         enabledTools,
 				EnabledFeatures:      enabledFeatures,
@@ -95,6 +103,13 @@ var (
 				InsidersMode:         viper.GetBool("insiders"),
 				ExcludeTools:         excludeTools,
 				RepoAccessCacheTTL:   &ttl,
+				AppID:                viper.GetInt64("app_id"),
+				InstallationID:       viper.GetInt64("installation_id"),
+				PrivateKeyPath:       viper.GetString("private_key_file_path"),
+				PrivateKey:           viper.GetString("private_key"),
+				Installations:        parseOrgInstallations(),
+				WritePrivateOnly:     viper.GetBool("write-private-only"),
+				RepoDenylist:         repoDenylist,
 			}
 			return ghmcp.RunStdioServer(stdioServerConfig)
 		},
@@ -148,6 +163,18 @@ func init() {
 	rootCmd.PersistentFlags().Bool("insiders", false, "Enable insiders features")
 	rootCmd.PersistentFlags().Duration("repo-access-cache-ttl", 5*time.Minute, "Override the repo access cache TTL (e.g. 1m, 0s to disable)")
 
+	// GitHub App authentication flags
+	rootCmd.PersistentFlags().Int64("gh-app-id", 0, "GitHub App ID for authentication")
+	rootCmd.PersistentFlags().Int64("gh-installation-id", 0, "Default GitHub App Installation ID")
+	rootCmd.PersistentFlags().String("gh-private-key-path", "", "Path to GitHub App private key file")
+	rootCmd.PersistentFlags().String("gh-private-key", "", "GitHub App private key content")
+
+	// Write guard
+	rootCmd.PersistentFlags().Bool("write-private-only", false, "Restrict write operations to private repositories only")
+
+	// Repo denylist
+	rootCmd.PersistentFlags().StringSlice("repo-denylist", nil, "Comma-separated list of owner/repo or owner/* patterns to deny access")
+
 	// HTTP-specific flags
 	httpCmd.Flags().Int("port", 8082, "HTTP server port")
 	httpCmd.Flags().String("base-url", "", "Base URL where this server is publicly accessible (for OAuth resource metadata)")
@@ -169,6 +196,12 @@ func init() {
 	_ = viper.BindPFlag("lockdown-mode", rootCmd.PersistentFlags().Lookup("lockdown-mode"))
 	_ = viper.BindPFlag("insiders", rootCmd.PersistentFlags().Lookup("insiders"))
 	_ = viper.BindPFlag("repo-access-cache-ttl", rootCmd.PersistentFlags().Lookup("repo-access-cache-ttl"))
+	_ = viper.BindPFlag("app_id", rootCmd.PersistentFlags().Lookup("gh-app-id"))
+	_ = viper.BindPFlag("installation_id", rootCmd.PersistentFlags().Lookup("gh-installation-id"))
+	_ = viper.BindPFlag("private_key_file_path", rootCmd.PersistentFlags().Lookup("gh-private-key-path"))
+	_ = viper.BindPFlag("private_key", rootCmd.PersistentFlags().Lookup("gh-private-key"))
+	_ = viper.BindPFlag("write-private-only", rootCmd.PersistentFlags().Lookup("write-private-only"))
+	_ = viper.BindPFlag("repo-denylist", rootCmd.PersistentFlags().Lookup("repo-denylist"))
 	_ = viper.BindPFlag("port", httpCmd.Flags().Lookup("port"))
 	_ = viper.BindPFlag("base-url", httpCmd.Flags().Lookup("base-url"))
 	_ = viper.BindPFlag("base-path", httpCmd.Flags().Lookup("base-path"))
@@ -183,6 +216,73 @@ func initConfig() {
 	viper.SetEnvPrefix("github")
 	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	viper.AutomaticEnv()
+}
+
+// parseOrgInstallations parses GITHUB_INSTALLATION_ID_<ORG> environment variables
+// and returns a map of organization name to installation ID.
+// Org names are normalized to lowercase with underscores converted to dashes.
+// Also includes the default GITHUB_INSTALLATION_ID under "_default" key if set.
+func parseOrgInstallations() map[string]int64 {
+	installations := make(map[string]int64)
+	prefix := "GITHUB_INSTALLATION_ID_"
+
+	for _, env := range os.Environ() {
+		if strings.HasPrefix(env, prefix) {
+			parts := strings.SplitN(env, "=", 2)
+			if len(parts) == 2 {
+				org := strings.ToLower(strings.TrimPrefix(parts[0], prefix))
+				org = strings.ReplaceAll(org, "_", "-") // Normalize underscores to dashes
+				if id, err := strconv.ParseInt(parts[1], 10, 64); err == nil {
+					installations[org] = id
+				}
+			}
+		}
+	}
+
+	// Add default installation ID under "_default" key if set
+	if defaultID := viper.GetInt64("installation_id"); defaultID != 0 {
+		installations["_default"] = defaultID
+	}
+
+	return installations
+}
+
+// validateAuthConfig checks that a complete authentication method is configured.
+// Either a full GitHub App config (AppID + InstallationID/multi-org + PrivateKey)
+// or a PAT must be provided. Partial App auth config is an error.
+func validateAuthConfig() error {
+	appID := viper.GetInt64("app_id")
+	installationID := viper.GetInt64("installation_id")
+	privateKeyPath := viper.GetString("private_key_file_path")
+	privateKey := viper.GetString("private_key")
+	token := viper.GetString("personal_access_token")
+
+	hasAppID := appID != 0
+	hasInstallationID := installationID != 0
+	hasPrivateKey := privateKeyPath != "" || privateKey != ""
+	// Multi-org installations also count as "has installation"
+	hasMultiOrgInstallations := len(parseOrgInstallations()) > 0
+	hasAnyInstallation := hasInstallationID || hasMultiOrgInstallations
+
+	// If ANY app auth component is present, ALL must be present
+	if (hasAppID || hasAnyInstallation || hasPrivateKey) &&
+		!(hasAppID && hasAnyInstallation && hasPrivateKey) {
+		return errors.New(
+			"incomplete GitHub App configuration: GITHUB_APP_ID, " +
+				"GITHUB_INSTALLATION_ID (or per-org GITHUB_INSTALLATION_ID_<ORG>), " +
+				"and GITHUB_PRIVATE_KEY (or GITHUB_PRIVATE_KEY_FILE_PATH) must all be set",
+		)
+	}
+
+	// If no app auth configured, require PAT
+	if !hasAppID && token == "" {
+		return errors.New(
+			"no authentication method configured: set GITHUB_PERSONAL_ACCESS_TOKEN " +
+				"or configure GitHub App authentication (GITHUB_APP_ID + GITHUB_INSTALLATION_ID + GITHUB_PRIVATE_KEY)",
+		)
+	}
+
+	return nil
 }
 
 func main() {
