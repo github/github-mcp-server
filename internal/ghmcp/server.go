@@ -118,6 +118,11 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 	// Skip lockdown singleton init when GitHub App multi-org auth is active.
 	// MultiOrgDeps creates its own per-org lockdown cache; initializing the
 	// singleton here with the PAT client would corrupt it for all org requests.
+	//
+	// App auth is active when AppID is set AND at least one installation is
+	// configured. The Installations map includes "_default" from
+	// GITHUB_INSTALLATION_ID (populated by parseOrgInstallations in main.go),
+	// so setting just AppID + InstallationID + PrivateKey is sufficient.
 	appAuthActive := cfg.AppID != 0 && len(cfg.Installations) > 0
 	clients, err := createGitHubClients(cfg, apiHost, appAuthActive)
 	if err != nil {
@@ -210,6 +215,11 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		return nil, fmt.Errorf("failed to build inventory: %w", err)
 	}
 
+	// Build denylist once here so it can be passed to both NewMCPServer (for
+	// completions and resource handlers) and the middleware section below.
+	denylist := github.NewRepoDenylist(cfg.RepoDenylistEntries)
+	cfg.Denylist = denylist
+
 	ghServer, err := github.NewMCPServer(ctx, &cfg, deps, inventory)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub MCP server: %w", err)
@@ -240,7 +250,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 	var guardMiddleware []mcp.Middleware
 
 	// Denylist guard (outermost — pure in-memory, no API calls).
-	denylist := github.NewRepoDenylist(cfg.RepoDenylistEntries)
+	// Reuses the denylist built above — no second NewRepoDenylist call.
 	if !denylist.IsEmpty() {
 		guardMiddleware = append(guardMiddleware,
 			github.RepoDenylistMiddleware(denylist),
@@ -251,6 +261,11 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 	// Owner extraction middleware (must run BEFORE write guard for correct
 	// multi-org routing: WritePrivateOnlyMiddleware calls deps.GetClient(ctx)
 	// which uses OwnerFromContext to select the org-scoped client).
+	//
+	// Only registered for GitHub App auth: PAT auth uses BaseDeps whose
+	// GetClient ignores the context owner, so extraction is unnecessary.
+	// If a new ToolDependencies implementation is added that requires owner
+	// context, this condition must be updated.
 	if appAuthActive {
 		guardMiddleware = append(guardMiddleware, github.OwnerExtractMiddleware())
 	}

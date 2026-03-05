@@ -465,3 +465,104 @@ func TestRepositoryResourceCompletionHandler_DenylistAllowsNonDenied(t *testing.
 	assert.NotEmpty(t, result.Completion.Values,
 		"completions for non-denied org should return values")
 }
+
+// --- Post-resolver denylist filtering tests ---
+
+func TestRepositoryResourceCompletionHandler_DenylistFiltersOwnerResults(t *testing.T) {
+	// Owner resolver returns a mix of allowed and denied orgs.
+	// The post-resolver filter should strip out denied-org from the results.
+	getClient := func(_ context.Context) (*github.Client, error) {
+		return github.NewClient(nil), nil
+	}
+	denylist := NewRepoDenylist([]string{"denied-org/*"})
+	handler := RepositoryResourceCompletionHandler(getClient, denylist)
+
+	originalResolver := RepositoryResourceArgumentResolvers["owner"]
+	RepositoryResourceArgumentResolvers["owner"] = func(_ context.Context, _ *github.Client, _ map[string]string, _ string) ([]string, error) {
+		return []string{"allowed-org", "denied-org", "another-org"}, nil
+	}
+	defer func() { RepositoryResourceArgumentResolvers["owner"] = originalResolver }()
+
+	request := &mcp.CompleteRequest{
+		Params: &mcp.CompleteParams{
+			Ref:      &mcp.CompleteReference{Type: "ref/resource"},
+			Argument: mcp.CompleteParamsArgument{Name: "owner", Value: ""},
+			Context:  &mcp.CompleteContext{Arguments: map[string]string{}},
+		},
+	}
+
+	result, err := handler(context.Background(), request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Contains(t, result.Completion.Values, "allowed-org")
+	assert.Contains(t, result.Completion.Values, "another-org")
+	assert.NotContains(t, result.Completion.Values, "denied-org",
+		"denied-org should be filtered from owner completion results")
+}
+
+func TestRepositoryResourceCompletionHandler_DenylistFiltersRepoResults(t *testing.T) {
+	// Repo resolver returns a mix of allowed and denied repos.
+	// The post-resolver filter should strip out secret-repo from the results.
+	getClient := func(_ context.Context) (*github.Client, error) {
+		return github.NewClient(nil), nil
+	}
+	denylist := NewRepoDenylist([]string{"my-org/secret-repo"})
+	handler := RepositoryResourceCompletionHandler(getClient, denylist)
+
+	originalResolver := RepositoryResourceArgumentResolvers["repo"]
+	RepositoryResourceArgumentResolvers["repo"] = func(_ context.Context, _ *github.Client, _ map[string]string, _ string) ([]string, error) {
+		return []string{"public-repo", "secret-repo", "other-repo"}, nil
+	}
+	defer func() { RepositoryResourceArgumentResolvers["repo"] = originalResolver }()
+
+	request := &mcp.CompleteRequest{
+		Params: &mcp.CompleteParams{
+			Ref:      &mcp.CompleteReference{Type: "ref/resource"},
+			Argument: mcp.CompleteParamsArgument{Name: "repo", Value: ""},
+			Context: &mcp.CompleteContext{
+				Arguments: map[string]string{"owner": "my-org"},
+			},
+		},
+	}
+
+	result, err := handler(context.Background(), request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Contains(t, result.Completion.Values, "public-repo")
+	assert.Contains(t, result.Completion.Values, "other-repo")
+	assert.NotContains(t, result.Completion.Values, "secret-repo",
+		"secret-repo should be filtered from repo completion results")
+}
+
+func TestRepositoryResourceCompletionHandler_DenylistFiltersAllReposForDeniedOrg(t *testing.T) {
+	// When owner is a wildcard-denied org, the pre-resolver check returns empty early.
+	// This test verifies the end-to-end behavior: no repos leak for a fully denied org.
+	getClient := func(_ context.Context) (*github.Client, error) {
+		t.Fatal("getClient should not be called for denied org")
+		return nil, nil
+	}
+	denylist := NewRepoDenylist([]string{"denied-org/*"})
+	handler := RepositoryResourceCompletionHandler(getClient, denylist)
+
+	originalResolver := RepositoryResourceArgumentResolvers["repo"]
+	RepositoryResourceArgumentResolvers["repo"] = func(_ context.Context, _ *github.Client, _ map[string]string, _ string) ([]string, error) {
+		return []string{"repo-a", "repo-b"}, nil
+	}
+	defer func() { RepositoryResourceArgumentResolvers["repo"] = originalResolver }()
+
+	request := &mcp.CompleteRequest{
+		Params: &mcp.CompleteParams{
+			Ref:      &mcp.CompleteReference{Type: "ref/resource"},
+			Argument: mcp.CompleteParamsArgument{Name: "repo", Value: ""},
+			Context: &mcp.CompleteContext{
+				Arguments: map[string]string{"owner": "denied-org"},
+			},
+		},
+	}
+
+	result, err := handler(context.Background(), request)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Empty(t, result.Completion.Values,
+		"all repos for a wildcard-denied org should be filtered out")
+}

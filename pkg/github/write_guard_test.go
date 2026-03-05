@@ -321,6 +321,46 @@ func TestWritePrivateOnlyMiddleware_NonToolsCall_PassThrough(t *testing.T) {
 	assert.Nil(t, result)
 }
 
+// Test 11: Unknown tool (not in inventory) is treated as write tool (fail-closed).
+func TestWritePrivateOnlyMiddleware_UnknownTool_TreatedAsWrite(t *testing.T) {
+	inv := makeEmptyInventory(t) // tool not in inventory
+	deps := makeDepsWithRepoResponse(t, false /* isPrivate=false → public */)
+
+	handler := &passthroughHandler{}
+	middleware := WritePrivateOnlyMiddleware(deps, inv)
+	mwHandler := middleware(handler.handle)
+
+	req := makeWriteGuardRequest(t, "unknown_tool_xyz", map[string]any{
+		"owner": "myorg",
+		"repo":  "publicrepo",
+	})
+	result, err := mwHandler(context.Background(), "tools/call", req)
+
+	require.NoError(t, err, "blocking should return nil Go error")
+	assert.False(t, handler.called, "unknown tool should be treated as write and blocked for public repo")
+	assertBlocked(t, result)
+}
+
+// Test 12: Unknown tool with private repo passes through.
+func TestWritePrivateOnlyMiddleware_UnknownTool_PrivateRepo_PassThrough(t *testing.T) {
+	inv := makeEmptyInventory(t)
+	deps := makeDepsWithRepoResponse(t, true /* isPrivate */)
+
+	handler := &passthroughHandler{}
+	middleware := WritePrivateOnlyMiddleware(deps, inv)
+	mwHandler := middleware(handler.handle)
+
+	req := makeWriteGuardRequest(t, "unknown_tool_xyz", map[string]any{
+		"owner": "myorg",
+		"repo":  "privaterepo",
+	})
+	result, err := mwHandler(context.Background(), "tools/call", req)
+
+	require.NoError(t, err)
+	assertPassedThrough(t, handler)
+	assert.Nil(t, result)
+}
+
 // --- checkRepoVisibility unit tests ---
 
 // TestCheckRepoVisibility_Private verifies that a private repo returns (true, nil).

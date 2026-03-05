@@ -88,13 +88,20 @@ type MCPServerConfig struct {
 
 	// Repo denylist entries (parsed from GITHUB_REPO_DENYLIST)
 	RepoDenylistEntries []string
+
+	// Pre-built repo denylist (constructed once by the caller).
+	// When non-nil, used directly instead of building from RepoDenylistEntries.
+	Denylist *RepoDenylist
 }
 
 type MCPServerOption func(*mcp.ServerOptions)
 
 func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependencies, inv *inventory.Inventory, middleware ...mcp.Middleware) (*mcp.Server, error) {
-	// Construct denylist early so it can be used by both completions and resource handlers.
-	denylist := NewRepoDenylist(cfg.RepoDenylistEntries)
+	// Use pre-built denylist if provided, otherwise construct from entries.
+	denylist := cfg.Denylist
+	if denylist == nil {
+		denylist = NewRepoDenylist(cfg.RepoDenylistEntries)
+	}
 
 	// Create the MCP server
 	serverOpts := &mcp.ServerOptions{

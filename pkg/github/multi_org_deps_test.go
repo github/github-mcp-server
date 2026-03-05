@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"sync"
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -264,4 +265,43 @@ func TestMultiOrgDeps_GetRepoAccessCache_DefaultOwner(t *testing.T) {
 	cache, err := deps.GetRepoAccessCache(context.Background())
 	require.NoError(t, err)
 	require.NotNil(t, cache, "should create cache for default installation")
+}
+
+func TestMultiOrgDeps_GetRepoAccessCache_Concurrent(t *testing.T) {
+	// Verify that concurrent calls for the same owner return the same
+	// *lockdown.RepoAccessCache pointer (no races, no duplicate allocations).
+	deps := newTestMultiOrgDeps(makeInstallations("my-org", 111), true /* lockdownMode */)
+
+	const goroutines = 50
+	results := make([]*lockdown.RepoAccessCache, goroutines)
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	ctx := ContextWithOwner(context.Background(), "my-org")
+	for i := 0; i < goroutines; i++ {
+		i := i
+		go func() {
+			defer wg.Done()
+			cache, err := deps.GetRepoAccessCache(ctx)
+			if err == nil {
+				results[i] = cache
+			}
+		}()
+	}
+	wg.Wait()
+
+	// All goroutines should have gotten the same cache pointer (cached).
+	var first *lockdown.RepoAccessCache
+	for _, r := range results {
+		if r != nil {
+			first = r
+			break
+		}
+	}
+	require.NotNil(t, first, "at least one goroutine should have gotten a cache")
+	for i, r := range results {
+		if r != nil {
+			assert.Same(t, first, r, "goroutine %d got a different cache pointer", i)
+		}
+	}
 }

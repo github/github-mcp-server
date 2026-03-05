@@ -40,6 +40,21 @@ func Test_extractAllReposFromQuery(t *testing.T) {
 			query:    "REPO:squareup/goosed-slackbot",
 			expected: []repoQueryInfo{{owner: "squareup", repo: "goosed-slackbot"}},
 		},
+		{
+			name:     "norepo: prefix does not match",
+			query:    "norepo:owner/repo language:go",
+			expected: []repoQueryInfo{},
+		},
+		{
+			name:     "repo: at start of string matches",
+			query:    "repo:owner/repo language:go",
+			expected: []repoQueryInfo{{owner: "owner", repo: "repo"}},
+		},
+		{
+			name:     "repo: after space matches",
+			query:    "language:go repo:owner/repo",
+			expected: []repoQueryInfo{{owner: "owner", repo: "repo"}},
+		},
 	}
 
 	for _, tc := range tests {
@@ -95,6 +110,11 @@ func Test_extractAllOrgsFromQuery(t *testing.T) {
 			name:     "both org and repo qualifiers",
 			query:    "function main repo:squareup/goosed org:squareup",
 			expected: []string{"squareup"},
+		},
+		{
+			name:     "org with slash-appended value extracts only org name",
+			query:    "org:denied-org/subrepo language:go",
+			expected: []string{"denied-org"},
 		},
 	}
 

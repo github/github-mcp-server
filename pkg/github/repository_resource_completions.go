@@ -101,6 +101,35 @@ func RepositoryResourceCompletionHandler(getClient GetClientFn, denylist *RepoDe
 			values = values[:100]
 		}
 
+		// Post-resolver denylist filtering: remove denied owners from suggestions.
+		// This catches owners that pass the pre-resolver check (which only blocks
+		// when owner is already resolved) but appear in the resolver's results.
+		if denylist != nil && !denylist.IsEmpty() && argName == "owner" {
+			filtered := values[:0]
+			for _, v := range values {
+				if !denylist.IsOrgDenied(v) {
+					filtered = append(filtered, v)
+				}
+			}
+			values = filtered
+		}
+
+		// Post-resolver denylist filtering: remove denied repos from suggestions.
+		// This catches repos that pass the pre-resolver check (which only blocks
+		// when both owner and repo are resolved) but appear in the resolver's results.
+		if denylist != nil && !denylist.IsEmpty() && argName == "repo" {
+			owner := resolved["owner"]
+			if owner != "" {
+				filtered := values[:0]
+				for _, v := range values {
+					if !denylist.IsDenied(owner, v) {
+						filtered = append(filtered, v)
+					}
+				}
+				values = filtered
+			}
+		}
+
 		return &mcp.CompleteResult{
 			Completion: mcp.CompletionResultDetails{
 				Values:  values,

@@ -97,7 +97,7 @@ func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool) bool {
 	if r.additionalTools != nil && r.additionalTools[tool.Tool.Name] {
 		return true
 	}
-	// 5. Check toolset filter
+	// 6. Check toolset filter
 	if !r.isToolsetEnabled(tool.Toolset.ID) {
 		return false
 	}

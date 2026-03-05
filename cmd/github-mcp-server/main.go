@@ -34,7 +34,8 @@ var (
 		Short: "Start stdio server",
 		Long:  `Start a server that communicates via standard input/output streams using JSON-RPC messages.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			if err := validateAuthConfig(); err != nil {
+			installations := parseOrgInstallations()
+			if err := validateAuthConfig(installations); err != nil {
 				return fmt.Errorf("auth configuration error: %w", err)
 			}
 
@@ -107,7 +108,7 @@ var (
 				InstallationID:       viper.GetInt64("installation_id"),
 				PrivateKeyPath:       viper.GetString("private_key_file_path"),
 				PrivateKey:           viper.GetString("private_key"),
-				Installations:        parseOrgInstallations(),
+				Installations:        installations,
 				WritePrivateOnly:     viper.GetBool("write-private-only"),
 				RepoDenylist:         repoDenylist,
 			}
@@ -250,7 +251,9 @@ func parseOrgInstallations() map[string]int64 {
 // validateAuthConfig checks that a complete authentication method is configured.
 // Either a full GitHub App config (AppID + InstallationID/multi-org + PrivateKey)
 // or a PAT must be provided. Partial App auth config is an error.
-func validateAuthConfig() error {
+// installations is the pre-parsed result of parseOrgInstallations() (avoids a
+// second os.Environ() scan since the caller already has it).
+func validateAuthConfig(installations map[string]int64) error {
 	appID := viper.GetInt64("app_id")
 	installationID := viper.GetInt64("installation_id")
 	privateKeyPath := viper.GetString("private_key_file_path")
@@ -261,7 +264,7 @@ func validateAuthConfig() error {
 	hasInstallationID := installationID != 0
 	hasPrivateKey := privateKeyPath != "" || privateKey != ""
 	// Multi-org installations also count as "has installation"
-	hasMultiOrgInstallations := len(parseOrgInstallations()) > 0
+	hasMultiOrgInstallations := len(installations) > 0
 	hasAnyInstallation := hasInstallationID || hasMultiOrgInstallations
 
 	// If ANY app auth component is present, ALL must be present
