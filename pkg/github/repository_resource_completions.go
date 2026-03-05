@@ -55,6 +55,20 @@ func RepositoryResourceCompletionHandler(getClient GetClientFn, denylist *RepoDe
 		if denylist != nil && !denylist.IsEmpty() {
 			owner := resolved["owner"]
 			repo := resolved["repo"]
+
+			// Check org wildcard (owner/*) — blocks even when repo is not yet
+			// resolved (e.g., during repo completion for a denied org).
+			if owner != "" && denylist.IsOrgDenied(owner) {
+				return &mcp.CompleteResult{
+					Completion: mcp.CompletionResultDetails{
+						Values:  []string{},
+						Total:   0,
+						HasMore: false,
+					},
+				}, nil
+			}
+
+			// Check exact match (owner/repo) when both are resolved.
 			if owner != "" && repo != "" && denylist.IsDenied(owner, repo) {
 				return &mcp.CompleteResult{
 					Completion: mcp.CompletionResultDetails{
