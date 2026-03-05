@@ -115,20 +115,60 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 	// Create feature checker
 	featureChecker := createFeatureChecker(cfg.EnabledFeatures)
 
-	// Create dependencies for tool handlers
-	deps := github.NewBaseDeps(
-		clients.rest,
-		clients.gql,
-		clients.raw,
-		clients.repoAccess,
-		cfg.Translator,
-		github.FeatureFlags{
-			LockdownMode: cfg.LockdownMode,
-			InsidersMode: cfg.InsidersMode,
-		},
-		cfg.ContentWindowSize,
-		featureChecker,
-	)
+	flags := github.FeatureFlags{
+		LockdownMode: cfg.LockdownMode,
+		InsidersMode: cfg.InsidersMode,
+	}
+
+	// Determine which deps to use: MultiOrgDeps for GitHub App multi-org, BaseDeps otherwise.
+	var deps github.ToolDependencies
+	if cfg.AppID != 0 && len(cfg.Installations) > 0 {
+		// GitHub App auth with multi-org support.
+		rawURL, err := apiHost.RawURL(context.Background())
+		if err != nil {
+			return nil, fmt.Errorf("failed to get raw URL for multi-org factory: %w", err)
+		}
+		factory := github.NewMultiOrgClientFactory(
+			cfg.AppID,
+			cfg.PrivateKey,
+			cfg.Installations,
+			apiHost,
+			rawURL,
+			cfg.Version,
+		)
+		// Build repoAccessOpts to pass to MultiOrgDeps (mirrors createGitHubClients logic).
+		var repoAccessOpts []lockdown.RepoAccessOption
+		if cfg.LockdownMode {
+			repoAccessOpts = append(repoAccessOpts,
+				lockdown.WithLogger(cfg.Logger.With("component", "lockdown")),
+			)
+			if cfg.RepoAccessTTL != nil {
+				repoAccessOpts = append(repoAccessOpts, lockdown.WithTTL(*cfg.RepoAccessTTL))
+			}
+		}
+		deps = github.NewMultiOrgDeps(
+			factory,
+			cfg.Translator,
+			flags,
+			cfg.ContentWindowSize,
+			featureChecker,
+			cfg.LockdownMode,
+			repoAccessOpts,
+		)
+	} else {
+		// Standard PAT auth — use existing BaseDeps path.
+		deps = github.NewBaseDeps(
+			clients.rest,
+			clients.gql,
+			clients.raw,
+			clients.repoAccess,
+			cfg.Translator,
+			flags,
+			cfg.ContentWindowSize,
+			featureChecker,
+		)
+	}
+
 	// Build and register the tool/resource/prompt inventory
 	inventoryBuilder := github.NewInventory(cfg.Translator).
 		WithDeprecatedAliases(github.DeprecatedToolAliases).
@@ -162,6 +202,49 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		github.RegisterUIResources(ghServer)
 	}
 
+	// Register guard middleware BEFORE the user-agent middleware.
+	// Use single-call form so the first arg is outermost (runs first per request).
+	//
+	// Execution order: denylist → write guard → owner extract → addUserAgentsMiddleware
+	//   → InjectDepsMiddleware → addGitHubAPIErrorToContext → handler
+	//
+	// Denylist is outermost: pure in-memory lookup, no API calls, blocks before any
+	// GitHub API call. Write guard second: makes a Repositories.Get() API call.
+	// Owner extract third: populates context owner for MultiOrgDeps routing.
+	var guardMiddleware []mcp.Middleware
+
+	// Denylist guard (outermost — blocks before any API call).
+	denylist := github.NewRepoDenylist(cfg.RepoDenylistEntries)
+	if !denylist.IsEmpty() {
+		guardMiddleware = append(guardMiddleware,
+			github.RepoDenylistMiddleware(denylist),
+			github.SearchDenylistMiddleware(denylist),
+		)
+	}
+
+	// Write guard (after denylist, before deps injection).
+	if cfg.WritePrivateOnly {
+		if cfg.ReadOnly {
+			cfg.Logger.Warn("GITHUB_WRITE_PRIVATE_ONLY has no effect when --read-only is active")
+		} else {
+			guardMiddleware = append(guardMiddleware,
+				github.WritePrivateOnlyMiddleware(deps, inventory),
+			)
+		}
+	}
+
+	// Owner extraction middleware (for multi-org routing via MultiOrgDeps).
+	if cfg.AppID != 0 && len(cfg.Installations) > 0 {
+		guardMiddleware = append(guardMiddleware, github.OwnerExtractMiddleware())
+	}
+
+	// Register all guard middleware in a single call to preserve ordering.
+	// AddReceivingMiddleware(m1, m2, m3) → m1 is outermost (runs first).
+	if len(guardMiddleware) > 0 {
+		ghServer.AddReceivingMiddleware(guardMiddleware...)
+	}
+
+	// Existing user-agent middleware (must come AFTER guards).
 	ghServer.AddReceivingMiddleware(addUserAgentsMiddleware(cfg, clients.rest, clients.gqlHTTP))
 
 	return ghServer, nil
@@ -279,23 +362,39 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		logger.Debug("skipping scope filtering for non-PAT token")
 	}
 
+	// Resolve private key (from file path or inline content) for GitHub App auth.
+	var privateKey []byte
+	if cfg.PrivateKeyPath != "" || cfg.PrivateKey != "" {
+		var err error
+		privateKey, err = github.ResolvePrivateKey([]byte(cfg.PrivateKey), cfg.PrivateKeyPath)
+		if err != nil {
+			return fmt.Errorf("failed to resolve private key: %w", err)
+		}
+	}
+
 	ghServer, err := NewStdioMCPServer(ctx, github.MCPServerConfig{
-		Version:           cfg.Version,
-		Host:              cfg.Host,
-		Token:             cfg.Token,
-		EnabledToolsets:   cfg.EnabledToolsets,
-		EnabledTools:      cfg.EnabledTools,
-		EnabledFeatures:   cfg.EnabledFeatures,
-		DynamicToolsets:   cfg.DynamicToolsets,
-		ReadOnly:          cfg.ReadOnly,
-		Translator:        t,
-		ContentWindowSize: cfg.ContentWindowSize,
-		LockdownMode:      cfg.LockdownMode,
-		InsidersMode:      cfg.InsidersMode,
-		ExcludeTools:      cfg.ExcludeTools,
-		Logger:            logger,
-		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
-		TokenScopes:       tokenScopes,
+		Version:             cfg.Version,
+		Host:                cfg.Host,
+		Token:               cfg.Token,
+		EnabledToolsets:     cfg.EnabledToolsets,
+		EnabledTools:        cfg.EnabledTools,
+		EnabledFeatures:     cfg.EnabledFeatures,
+		DynamicToolsets:     cfg.DynamicToolsets,
+		ReadOnly:            cfg.ReadOnly,
+		Translator:          t,
+		ContentWindowSize:   cfg.ContentWindowSize,
+		LockdownMode:        cfg.LockdownMode,
+		InsidersMode:        cfg.InsidersMode,
+		ExcludeTools:        cfg.ExcludeTools,
+		Logger:              logger,
+		RepoAccessTTL:       cfg.RepoAccessCacheTTL,
+		TokenScopes:         tokenScopes,
+		AppID:               cfg.AppID,
+		InstallationID:      cfg.InstallationID,
+		PrivateKey:          privateKey,
+		Installations:       cfg.Installations,
+		WritePrivateOnly:    cfg.WritePrivateOnly,
+		RepoDenylistEntries: cfg.RepoDenylist,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)

@@ -131,7 +131,27 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 	// In dynamic mode with no explicit toolsets, this is a no-op since enabledToolsets
 	// is empty - users enable toolsets at runtime via the dynamic tools below (but can
 	// enable toolsets or tools explicitly that do need registration).
-	inv.RegisterAll(ctx, ghServer, deps)
+	//
+	// Resources are registered separately so we can wrap handlers with the denylist
+	// when RepoDenylistEntries is configured. Tool and prompt registration is unchanged.
+	inv.RegisterTools(ctx, ghServer, deps)
+	inv.RegisterPrompts(ctx, ghServer)
+
+	// Register resource templates, wrapping handlers with denylist protection if active.
+	denylist := NewRepoDenylist(cfg.RepoDenylistEntries)
+	if denylist.IsEmpty() {
+		// No denylist — register resources normally.
+		inv.RegisterResourceTemplates(ctx, ghServer, deps)
+	} else {
+		// Denylist active — wrap each resource handler before registering.
+		for _, res := range inv.AvailableResourceTemplates(ctx) {
+			templateCopy := res.Template
+			if len(templateCopy.Icons) == 0 {
+				templateCopy.Icons = res.Toolset.Icons()
+			}
+			ghServer.AddResourceTemplate(&templateCopy, DenylistResourceHandler(denylist, res.Handler(deps)))
+		}
+	}
 
 	// Register dynamic toolset management tools (enable/disable) - these are separate
 	// meta-tools that control the inventory, not part of the inventory itself
