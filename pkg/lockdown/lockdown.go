@@ -81,10 +81,9 @@ func WithCacheName(name string) RepoAccessOption {
 // returns a distinct cache. Use this when multiple caches are needed (e.g.,
 // multi-org GitHub App auth where each installation has its own GQL client).
 //
-// IMPORTANT: Callers MUST use WithCacheName to provide a stable, unique cache
-// table name (e.g., based on installation ID). Without WithCacheName, all
-// instances share the same default cache2go table, which would mix entries
-// from different installations.
+// A unique cache table name is generated automatically via a monotonic counter.
+// Use WithCacheName to override the default name with a stable, human-readable
+// identifier (e.g., based on installation ID) for easier debugging.
 func NewRepoAccessCache(client *githubv4.Client, opts ...RepoAccessOption) *RepoAccessCache {
 	seq := newCacheSeq.Add(1)
 	c := &RepoAccessCache{

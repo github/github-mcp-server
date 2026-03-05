@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -439,7 +440,12 @@ func GetDefaultToolsetIDs() []string {
 // Used by ParseToolsetModes to expand "all:ro" to all toolset IDs.
 // This builds a temporary inventory — it is a one-time cost at startup.
 func AllToolsetIDs() []inventory.ToolsetID {
-	inv, _ := NewInventory(stubTranslator).Build()
+	// Build() should never fail here: no tools are set, so no unrecognized
+	// tools are possible. Panic on error to surface unexpected regressions.
+	inv, err := NewInventory(stubTranslator).Build()
+	if err != nil {
+		panic(fmt.Sprintf("AllToolsetIDs: unexpected Build() error: %v", err))
+	}
 	return inv.ToolsetIDs()
 }
 

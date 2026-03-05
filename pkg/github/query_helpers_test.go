@@ -55,6 +55,21 @@ func Test_extractAllReposFromQuery(t *testing.T) {
 			query:    "language:go repo:owner/repo",
 			expected: []repoQueryInfo{{owner: "owner", repo: "repo"}},
 		},
+		{
+			name:     "repo: in parentheses matches",
+			query:    "(repo:denied-org/secret-repo)",
+			expected: []repoQueryInfo{{owner: "denied-org", repo: "secret-repo"}},
+		},
+		{
+			name:     "repo: in double quotes matches",
+			query:    `"repo:denied-org/secret-repo"`,
+			expected: []repoQueryInfo{{owner: "denied-org", repo: "secret-repo"}},
+		},
+		{
+			name:     "repo: after open paren with other qualifiers",
+			query:    "(repo:org1/repo1 OR repo:org2/repo2)",
+			expected: []repoQueryInfo{{owner: "org1", repo: "repo1"}, {owner: "org2", repo: "repo2"}},
+		},
 	}
 
 	for _, tc := range tests {
@@ -115,6 +130,16 @@ func Test_extractAllOrgsFromQuery(t *testing.T) {
 			name:     "org with slash-appended value extracts only org name",
 			query:    "org:denied-org/subrepo language:go",
 			expected: []string{"denied-org"},
+		},
+		{
+			name:     "org: in parentheses matches",
+			query:    "(org:denied-org) language:go",
+			expected: []string{"denied-org"},
+		},
+		{
+			name:     "user: in double quotes matches",
+			query:    `"user:denied-user" repos:>10`,
+			expected: []string{"denied-user"},
 		},
 	}
 

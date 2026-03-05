@@ -115,7 +115,7 @@ func handleWriteGuard(
 
 	// Get the GitHub client from deps (captured at middleware construction time).
 	client, err := deps.GetClient(ctx)
-	if err != nil {
+	if err != nil || client == nil {
 		slog.WarnContext(ctx, "write guard: failed to get GitHub client",
 			"tool", toolReq.Params.Name, "owner", owner, "repo", repo, "error", err)
 		return utils.NewToolResultError(

@@ -5,8 +5,8 @@ import (
 )
 
 var (
-	repoQualifierPattern      = regexp.MustCompile(`(?i)(?:^|\s)repo:([^/\s]+)/([^/\s]+)`)
-	orgOrUserQualifierPattern = regexp.MustCompile(`(?i)(?:org|user):([^/\s]+)`)
+	repoQualifierPattern      = regexp.MustCompile(`(?i)(?:^|[\s("])repo:([^/\s)"]+)/([^/\s)"]+)`)
+	orgOrUserQualifierPattern = regexp.MustCompile(`(?i)(?:^|[\s("])(?:org|user):([^/\s)"]+)`)
 )
 
 // repoQueryInfo holds extracted repository information from a query

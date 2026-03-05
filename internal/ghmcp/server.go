@@ -210,7 +210,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		inventoryBuilder = inventoryBuilder.WithFilter(github.CreateToolScopeFilter(cfg.TokenScopes))
 	}
 
-	inventory, err := inventoryBuilder.Build()
+	inv, err := inventoryBuilder.Build()
 	if err != nil {
 		return nil, fmt.Errorf("failed to build inventory: %w", err)
 	}
@@ -220,7 +220,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 	denylist := github.NewRepoDenylist(cfg.RepoDenylistEntries)
 	cfg.Denylist = denylist
 
-	ghServer, err := github.NewMCPServer(ctx, &cfg, deps, inventory)
+	ghServer, err := github.NewMCPServer(ctx, &cfg, deps, inv)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub MCP server: %w", err)
 	}
@@ -276,7 +276,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 			cfg.Logger.Warn("GITHUB_WRITE_PRIVATE_ONLY has no effect when --read-only is active")
 		} else {
 			guardMiddleware = append(guardMiddleware,
-				github.WritePrivateOnlyMiddleware(deps, inventory),
+				github.WritePrivateOnlyMiddleware(deps, inv),
 			)
 		}
 	}
