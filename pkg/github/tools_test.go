@@ -238,3 +238,13 @@ func TestParseToolsetModes_EmptyInput(t *testing.T) {
 	require.Empty(t, names)
 	require.Empty(t, readOnly)
 }
+
+func TestParseToolsetModes_NilInput(t *testing.T) {
+	names, modes := ParseToolsetModes(nil, nil)
+	if names != nil {
+		t.Errorf("expected nil names for nil input, got %v", names)
+	}
+	if modes != nil {
+		t.Errorf("expected nil modes for nil input, got %v", modes)
+	}
+}

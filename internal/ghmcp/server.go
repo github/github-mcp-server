@@ -37,7 +37,12 @@ type githubClients struct {
 }
 
 // createGitHubClients creates all the GitHub API clients needed by the server.
-func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolver) (*githubClients, error) {
+// If skipLockdown is true, the repo access cache is not initialized even when
+// cfg.LockdownMode is set. This must be true when GitHub App multi-org auth is
+// active: lockdown.GetInstance is a singleton, and initializing it here with the
+// PAT-based GQL client would prevent MultiOrgDeps from later initializing it with
+// the correct per-org client.
+func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolver, skipLockdown bool) (*githubClients, error) {
 	restURL, err := apiHost.BaseRESTURL(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get base REST URL: %w", err)
@@ -80,9 +85,12 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	// Create raw content client (shares REST client's HTTP transport)
 	rawClient := raw.NewClient(restClient, rawURL)
 
-	// Set up repo access cache for lockdown mode
+	// Set up repo access cache for lockdown mode.
+	// Skipped when skipLockdown is true (multi-org app auth): the singleton must
+	// not be initialized with this PAT client — MultiOrgDeps creates its own
+	// per-org instance via lockdown.GetInstance with the correct org-scoped client.
 	var repoAccessCache *lockdown.RepoAccessCache
-	if cfg.LockdownMode {
+	if cfg.LockdownMode && !skipLockdown {
 		opts := []lockdown.RepoAccessOption{
 			lockdown.WithLogger(cfg.Logger.With("component", "lockdown")),
 		}
@@ -107,7 +115,11 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		return nil, fmt.Errorf("failed to parse API host: %w", err)
 	}
 
-	clients, err := createGitHubClients(cfg, apiHost)
+	// Skip lockdown singleton init when GitHub App multi-org auth is active.
+	// MultiOrgDeps creates its own per-org lockdown cache; initializing the
+	// singleton here with the PAT client would corrupt it for all org requests.
+	appAuthActive := cfg.AppID != 0 && len(cfg.Installations) > 0
+	clients, err := createGitHubClients(cfg, apiHost, appAuthActive)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GitHub clients: %w", err)
 	}
@@ -122,7 +134,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 
 	// Determine which deps to use: MultiOrgDeps for GitHub App multi-org, BaseDeps otherwise.
 	var deps github.ToolDependencies
-	if cfg.AppID != 0 && len(cfg.Installations) > 0 {
+	if appAuthActive {
 		// GitHub App auth with multi-org support.
 		rawURL, err := apiHost.RawURL(context.Background())
 		if err != nil {
@@ -212,15 +224,17 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 	// Register guard middleware BEFORE the user-agent middleware.
 	// Use single-call form so the first arg is outermost (runs first per request).
 	//
-	// Execution order: denylist → write guard → owner extract → addUserAgentsMiddleware
+	// Execution order: denylist → owner extract → write guard → addUserAgentsMiddleware
 	//   → InjectDepsMiddleware → addGitHubAPIErrorToContext → handler
 	//
 	// Denylist is outermost: pure in-memory lookup, no API calls, blocks before any
-	// GitHub API call. Write guard second: makes a Repositories.Get() API call.
-	// Owner extract third: populates context owner for MultiOrgDeps routing.
+	// GitHub API call. Owner extract second: populates context owner for MultiOrgDeps
+	// routing so that subsequent middleware can use deps.GetClient(ctx) with the
+	// correct org-scoped client. Write guard third: calls deps.GetClient(ctx) which
+	// uses OwnerFromContext — must run AFTER owner extract.
 	var guardMiddleware []mcp.Middleware
 
-	// Denylist guard (outermost — blocks before any API call).
+	// Denylist guard (outermost — pure in-memory, no API calls).
 	denylist := github.NewRepoDenylist(cfg.RepoDenylistEntries)
 	if !denylist.IsEmpty() {
 		guardMiddleware = append(guardMiddleware,
@@ -229,7 +243,14 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		)
 	}
 
-	// Write guard (after denylist, before deps injection).
+	// Owner extraction middleware (must run BEFORE write guard for correct
+	// multi-org routing: WritePrivateOnlyMiddleware calls deps.GetClient(ctx)
+	// which uses OwnerFromContext to select the org-scoped client).
+	if appAuthActive {
+		guardMiddleware = append(guardMiddleware, github.OwnerExtractMiddleware())
+	}
+
+	// Write guard (after owner extract — needs owner in context for correct client).
 	if cfg.WritePrivateOnly {
 		if cfg.ReadOnly {
 			cfg.Logger.Warn("GITHUB_WRITE_PRIVATE_ONLY has no effect when --read-only is active")
@@ -238,11 +259,6 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 				github.WritePrivateOnlyMiddleware(deps, inventory),
 			)
 		}
-	}
-
-	// Owner extraction middleware (for multi-org routing via MultiOrgDeps).
-	if cfg.AppID != 0 && len(cfg.Installations) > 0 {
-		guardMiddleware = append(guardMiddleware, github.OwnerExtractMiddleware())
 	}
 
 	// Register all guard middleware in a single call to preserve ordering.

@@ -37,6 +37,16 @@ func Test_extractRepoFromQuery(t *testing.T) {
 			query:    "",
 			expected: repoQueryInfo{},
 		},
+		{
+			name:     "mixed-case Repo: qualifier",
+			query:    "Repo:owner/myrepo language:go",
+			expected: repoQueryInfo{owner: "owner", repo: "myrepo"},
+		},
+		{
+			name:     "uppercase REPO: qualifier",
+			query:    "REPO:squareup/goosed-slackbot",
+			expected: repoQueryInfo{owner: "squareup", repo: "goosed-slackbot"},
+		},
 	}
 
 	for _, tc := range tests {
@@ -87,6 +97,21 @@ func Test_extractOrgFromQuery(t *testing.T) {
 			name:     "empty query",
 			query:    "",
 			expected: "",
+		},
+		{
+			name:     "mixed-case ORG: qualifier",
+			query:    "ORG:squareup language:go",
+			expected: "squareup",
+		},
+		{
+			name:     "mixed-case User: qualifier",
+			query:    "User:octocat repos:>10",
+			expected: "octocat",
+		},
+		{
+			name:     "uppercase USER: qualifier",
+			query:    "USER:octocat",
+			expected: "octocat",
 		},
 	}
 

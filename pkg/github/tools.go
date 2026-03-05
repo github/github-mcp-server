@@ -457,6 +457,11 @@ func AllToolsetIDs() []inventory.ToolsetID {
 // Special case: "all:ro" marks every toolset ID in allKnownToolsets as read-only.
 // Pass nil for allKnownToolsets if not yet known (deferred expansion).
 func ParseToolsetModes(configs []string, allKnownToolsets []inventory.ToolsetID) (toolsetNames []string, readOnlyToolsets map[inventory.ToolsetID]bool) {
+	// Preserve nil semantics: nil input means "use defaults" in WithToolsets.
+	// An empty non-nil slice means "enable none" — different behavior.
+	if configs == nil {
+		return nil, nil
+	}
 	readOnlyToolsets = make(map[inventory.ToolsetID]bool)
 	toolsetNames = make([]string, 0, len(configs))
 

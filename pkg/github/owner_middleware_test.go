@@ -98,3 +98,30 @@ func TestContextWithOwner_RoundTrip(t *testing.T) {
 	ctx := ContextWithOwner(context.Background(), "block-xyz")
 	assert.Equal(t, "block-xyz", OwnerFromContext(ctx))
 }
+
+func TestOwnerExtractMiddleware_WithOrgParam(t *testing.T) {
+	// Tools like get_team_members and get_teams use "org" instead of "owner".
+	// The middleware should fall back to "org" when "owner" is absent.
+	capture := &captureHandler{}
+	middleware := OwnerExtractMiddleware()
+	handler := middleware(capture.handle)
+
+	req := makeCallToolRequest(t, map[string]any{"org": "my-org"})
+	_, err := handler(context.Background(), "tools/call", req)
+	require.NoError(t, err)
+
+	assert.Equal(t, "my-org", OwnerFromContext(capture.capturedCtx))
+}
+
+func TestOwnerExtractMiddleware_OwnerTakesPrecedenceOverOrg(t *testing.T) {
+	// When both "owner" and "org" are present, "owner" wins.
+	capture := &captureHandler{}
+	middleware := OwnerExtractMiddleware()
+	handler := middleware(capture.handle)
+
+	req := makeCallToolRequest(t, map[string]any{"owner": "owner-val", "org": "org-val"})
+	_, err := handler(context.Background(), "tools/call", req)
+	require.NoError(t, err)
+
+	assert.Equal(t, "owner-val", OwnerFromContext(capture.capturedCtx))
+}
