@@ -80,6 +80,8 @@ var (
 			ttl := viper.GetDuration("repo-access-cache-ttl")
 			stdioServerConfig := ghmcp.StdioServerConfig{
 				Version:              version,
+				Name:                 viper.GetString("server-name"),
+				Title:                viper.GetString("server-title"),
 				Host:                 viper.GetString("host"),
 				Token:                token,
 				EnabledToolsets:      enabledToolsets,
@@ -108,6 +110,8 @@ var (
 			ttl := viper.GetDuration("repo-access-cache-ttl")
 			httpConfig := ghhttp.ServerConfig{
 				Version:              version,
+				Name:                 viper.GetString("server-name"),
+				Title:                viper.GetString("server-title"),
 				Host:                 viper.GetString("host"),
 				Port:                 viper.GetInt("port"),
 				BaseURL:              viper.GetString("base-url"),
@@ -133,6 +137,8 @@ func init() {
 	rootCmd.SetVersionTemplate("{{.Short}}\n{{.Version}}\n")
 
 	// Add global flags that will be shared by all commands
+	rootCmd.PersistentFlags().String("server-name", "", "Override the server name in the MCP initialization response")
+	rootCmd.PersistentFlags().String("server-title", "", "Override the server title in the MCP initialization response")
 	rootCmd.PersistentFlags().StringSlice("toolsets", nil, github.GenerateToolsetsHelp())
 	rootCmd.PersistentFlags().StringSlice("tools", nil, "Comma-separated list of specific tools to enable")
 	rootCmd.PersistentFlags().StringSlice("exclude-tools", nil, "Comma-separated list of tool names to disable regardless of other settings")
@@ -155,6 +161,8 @@ func init() {
 	httpCmd.Flags().Bool("scope-challenge", false, "Enable OAuth scope challenge responses")
 
 	// Bind flag to viper
+	_ = viper.BindPFlag("server-name", rootCmd.PersistentFlags().Lookup("server-name"))
+	_ = viper.BindPFlag("server-title", rootCmd.PersistentFlags().Lookup("server-title"))
 	_ = viper.BindPFlag("toolsets", rootCmd.PersistentFlags().Lookup("toolsets"))
 	_ = viper.BindPFlag("tools", rootCmd.PersistentFlags().Lookup("tools"))
 	_ = viper.BindPFlag("exclude_tools", rootCmd.PersistentFlags().Lookup("exclude-tools"))

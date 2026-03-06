@@ -13,6 +13,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v82/github"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -150,7 +151,73 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 	// is already tested in pkg/github/*_test.go.
 }
 
-// TestResolveEnabledToolsets verifies the toolset resolution logic.
+// TestNewServer_NameAndTitle verifies that the server name and title can be
+// overridden and fall back to sensible defaults when empty.
+func TestNewServer_NameAndTitle(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		serverName    string
+		serverTitle   string
+		expectedName  string
+		expectedTitle string
+	}{
+		{
+			name:          "defaults when empty",
+			serverName:    "",
+			serverTitle:   "",
+			expectedName:  "github-mcp-server",
+			expectedTitle: "GitHub MCP Server",
+		},
+		{
+			name:          "custom name and title",
+			serverName:    "my-github-server",
+			serverTitle:   "My GitHub MCP Server",
+			expectedName:  "my-github-server",
+			expectedTitle: "My GitHub MCP Server",
+		},
+		{
+			name:          "custom name only",
+			serverName:    "ghes-server",
+			serverTitle:   "",
+			expectedName:  "ghes-server",
+			expectedTitle: "GitHub MCP Server",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := NewServer("v1.0.0", tt.serverName, tt.serverTitle, nil)
+			require.NotNil(t, srv)
+
+			// Connect a client to retrieve the initialize result and verify ServerInfo.
+			st, ct := mcp.NewInMemoryTransports()
+			client := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil)
+
+			var initResult *mcp.InitializeResult
+			go func() {
+				cs, err := client.Connect(context.Background(), ct, nil)
+				if err == nil {
+					initResult = cs.InitializeResult()
+				}
+			}()
+
+			_, err := srv.Connect(context.Background(), st, nil)
+			require.NoError(t, err)
+
+			// Give the goroutine time to complete
+			// (In-memory transport is synchronous, so this is safe)
+			require.Eventually(t, func() bool { return initResult != nil }, time.Second, 10*time.Millisecond)
+			require.NotNil(t, initResult.ServerInfo)
+			assert.Equal(t, tt.expectedName, initResult.ServerInfo.Name)
+			assert.Equal(t, tt.expectedTitle, initResult.ServerInfo.Title)
+		})
+	}
+}
+
 func TestResolveEnabledToolsets(t *testing.T) {
 	t.Parallel()
 
