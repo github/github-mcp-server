@@ -197,10 +197,14 @@ func CompletionsHandler(getClient GetClientFn) func(ctx context.Context, req *mc
 	return func(ctx context.Context, req *mcp.CompleteRequest) (*mcp.CompleteResult, error) {
 		switch req.Params.Ref.Type {
 		case "ref/resource":
-			if strings.HasPrefix(req.Params.Ref.URI, "repo://") {
+			switch {
+			case strings.HasPrefix(req.Params.Ref.URI, "repo://"):
 				return RepositoryResourceCompletionHandler(getClient)(ctx, req)
+			case strings.HasPrefix(req.Params.Ref.URI, "issue://"):
+				return IssueResourceCompletionHandler(getClient)(ctx, req)
+			default:
+				return nil, fmt.Errorf("unsupported resource URI: %s", req.Params.Ref.URI)
 			}
-			return nil, fmt.Errorf("unsupported resource URI: %s", req.Params.Ref.URI)
 		case "ref/prompt":
 			return nil, nil
 		default:
