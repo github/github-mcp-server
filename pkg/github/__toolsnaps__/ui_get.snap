@@ -1,0 +1,36 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get UI data"
+  },
+  "description": "Fetch UI data for MCP Apps (labels, assignees, milestones, issue types, branches).",
+  "inputSchema": {
+    "properties": {
+      "method": {
+        "description": "The type of data to fetch",
+        "enum": [
+          "labels",
+          "assignees",
+          "milestones",
+          "issue_types",
+          "branches"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "Repository owner (required for all methods)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name (required for labels, assignees, milestones, branches)",
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "owner"
+    ],
+    "type": "object"
+  },
+  "name": "ui_get"
+}
