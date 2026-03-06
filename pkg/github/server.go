@@ -20,9 +20,10 @@ type MCPServerConfig struct {
 	// Version of the server
 	Version string
 
-	// Name of the server used during intialization
+	// Name of the server used during initialization
 	Name string
 
+	// Title of the server used during initialization
 	Title string
 
 	// GitHub Host to target for API requests (e.g. github.com or github.enterprise.com)
