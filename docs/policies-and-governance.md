@@ -1,4 +1,53 @@
 # Policies & Governance for the GitHub MCP Server
+# Hey there! 👋 Welcome to my GitHub profile
+
+I'm a passionate developer and open-source enthusiast committed to writing clean, maintainable code and building solutions that make an impact.
+
+## 🚀 About Me
+
+- 💻 I'm constantly learning and exploring new technologies
+- 🎯 Focused on creating meaningful projects that solve real-world problems
+- 🤝 Love collaborating with other developers and contributing to the community
+- 📚 Believer in the power of documentation and knowledge sharing
+
+## 💡 What I Do
+
+I develop software across various domains, with a strong emphasis on:
+- **Code Quality** - Writing clean, well-documented, and maintainable code
+- **Problem Solving** - Tackling complex challenges with creative solutions
+- **Community Contribution** - Active participation in open-source projects
+- **Continuous Improvement** - Always learning and refining my craft
+
+## 🛠️ Tech Stack
+
+**Languages:** (To be filled in)  
+**Frameworks & Libraries:** (To be filled in)  
+**Tools & Platforms:** (To be filled in)  
+**Databases:** (To be filled in)  
+
+## 📊 GitHub Stats
+
+![GitHub Stats](https://github-readme-stats.vercel.app/api?username=JTCombs95-commits&show_icons=true&theme=github_dark)
+
+## 🌐 Let's Connect
+
+I'm always interested in discussing interesting projects and ideas!
+
+- 📧 Email: (jt_combs95@icloud.com)
+- 🔗 LinkedIn: (Jonathan Combs)
+- 🐦 Twitter: (@Jtcombs95)
+- 🌍 Facebook: (https://www.facebook.com/share/1869VQhrLe/?mibextid=wwXIfr)
+- 💼 Other: (To be filled in)
+
+## 📝 Fun Facts
+
+- (Add an interesting fact about yourself)
+- (Add something you're passionate about)
+- (Add a hobby or interest)
+
+---
+
+*Thanks for stopping by! Feel free to explore my repositories, and don't hesitate to reach out if you'd like to collaborate.* 🚀
 
 Organizations and enterprises have several existing control mechanisms for the GitHub MCP server on GitHub.com:
 - MCP servers in Copilot Policy
