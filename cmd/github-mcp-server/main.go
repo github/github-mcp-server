@@ -108,6 +108,8 @@ var (
 			ttl := viper.GetDuration("repo-access-cache-ttl")
 			httpConfig := ghhttp.ServerConfig{
 				Version:              version,
+				Name:                 viper.GetString("server-name"),
+				Title:                viper.GetString("server-title"),
 				Host:                 viper.GetString("host"),
 				Port:                 viper.GetInt("port"),
 				BaseURL:              viper.GetString("base-url"),
@@ -139,6 +141,8 @@ func init() {
 	rootCmd.PersistentFlags().StringSlice("features", nil, "Comma-separated list of feature flags to enable")
 	rootCmd.PersistentFlags().Bool("dynamic-toolsets", false, "Enable dynamic toolsets")
 	rootCmd.PersistentFlags().Bool("read-only", false, "Restrict the server to read-only operations")
+	rootCmd.PersistentFlags().String("server-name", "github-mcp-server", "Name provided by the server during initialization")
+	rootCmd.PersistentFlags().String("server-title", "GitHub MCP Server", "Title provided the server during initialization")
 	rootCmd.PersistentFlags().String("log-file", "", "Path to log file")
 	rootCmd.PersistentFlags().Bool("enable-command-logging", false, "When enabled, the server will log all command requests and responses to the log file")
 	rootCmd.PersistentFlags().Bool("export-translations", false, "Save translations to a JSON file")
@@ -161,6 +165,8 @@ func init() {
 	_ = viper.BindPFlag("features", rootCmd.PersistentFlags().Lookup("features"))
 	_ = viper.BindPFlag("dynamic_toolsets", rootCmd.PersistentFlags().Lookup("dynamic-toolsets"))
 	_ = viper.BindPFlag("read-only", rootCmd.PersistentFlags().Lookup("read-only"))
+	_ = viper.BindPFlag("server-name", rootCmd.PersistentFlags().Lookup("server-name"))
+	_ = viper.BindPFlag("server-title", rootCmd.PersistentFlags().Lookup("server-title"))
 	_ = viper.BindPFlag("log-file", rootCmd.PersistentFlags().Lookup("log-file"))
 	_ = viper.BindPFlag("enable-command-logging", rootCmd.PersistentFlags().Lookup("enable-command-logging"))
 	_ = viper.BindPFlag("export-translations", rootCmd.PersistentFlags().Lookup("export-translations"))
