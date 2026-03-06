@@ -1080,13 +1080,20 @@ Options are:
 
 			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(ctx, req) && !uiSubmitted {
 				if method == "update" {
-					issueNumber, numErr := RequiredInt(args, "issue_number")
-					if numErr != nil {
-						return utils.NewToolResultError("issue_number is required for update method"), nil, nil
+					// Skip the UI form when a state change is requested because
+					// the form only handles title/body editing and would lose the
+					// state transition (e.g. closing or reopening the issue).
+					state, _ := OptionalParam[string](args, "state")
+					if state == "" {
+						issueNumber, numErr := RequiredInt(args, "issue_number")
+						if numErr != nil {
+							return utils.NewToolResultError("issue_number is required for update method"), nil, nil
+						}
+						return utils.NewToolResultText(fmt.Sprintf("Ready to update issue #%d in %s/%s. IMPORTANT: The issue has NOT been updated yet. Do NOT tell the user the issue was updated. The user MUST click Submit in the form to update it.", issueNumber, owner, repo)), nil, nil
 					}
-					return utils.NewToolResultText(fmt.Sprintf("Ready to update issue #%d in %s/%s. IMPORTANT: The issue has NOT been updated yet. Do NOT tell the user the issue was updated. The user MUST click Submit in the form to update it.", issueNumber, owner, repo)), nil, nil
+				} else {
+					return utils.NewToolResultText(fmt.Sprintf("Ready to create an issue in %s/%s. IMPORTANT: The issue has NOT been created yet. Do NOT tell the user the issue was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
 				}
-				return utils.NewToolResultText(fmt.Sprintf("Ready to create an issue in %s/%s. IMPORTANT: The issue has NOT been created yet. Do NOT tell the user the issue was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
 			}
 
 			title, err := OptionalParam[string](args, "title")
