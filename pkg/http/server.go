@@ -31,14 +31,6 @@ type ServerConfig struct {
 	// Version of the server
 	Version string
 
-	// Name overrides the server name in the MCP initialization response.
-	// If empty, defaults to "github-mcp-server".
-	Name string
-
-	// Title overrides the server title in the MCP initialization response.
-	// If empty, defaults to "GitHub MCP Server".
-	Title string
-
 	// GitHub Host to target for API requests (e.g. github.com or github.enterprise.com)
 	Host string
 

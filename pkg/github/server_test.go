@@ -151,36 +151,48 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 	// is already tested in pkg/github/*_test.go.
 }
 
-// TestNewServer_NameAndTitle verifies that the server name and title can be
-// overridden and fall back to sensible defaults when empty.
-func TestNewServer_NameAndTitle(t *testing.T) {
+// TestNewServer_NameAndTitleViaTranslation verifies that server name and title
+// can be overridden via the translation helper (GITHUB_MCP_SERVER_NAME /
+// GITHUB_MCP_SERVER_TITLE env vars or github-mcp-server-config.json) and
+// fall back to sensible defaults when not overridden.
+func TestNewServer_NameAndTitleViaTranslation(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name          string
-		serverName    string
-		serverTitle   string
+		translator    translations.TranslationHelperFunc
 		expectedName  string
 		expectedTitle string
 	}{
 		{
-			name:          "defaults when empty",
-			serverName:    "",
-			serverTitle:   "",
+			name:          "defaults when using NullTranslationHelper",
+			translator:    translations.NullTranslationHelper,
 			expectedName:  "github-mcp-server",
 			expectedTitle: "GitHub MCP Server",
 		},
 		{
-			name:          "custom name and title",
-			serverName:    "my-github-server",
-			serverTitle:   "My GitHub MCP Server",
+			name: "custom name and title via translator",
+			translator: func(key, defaultValue string) string {
+				switch key {
+				case "SERVER_NAME":
+					return "my-github-server"
+				case "SERVER_TITLE":
+					return "My GitHub MCP Server"
+				default:
+					return defaultValue
+				}
+			},
 			expectedName:  "my-github-server",
 			expectedTitle: "My GitHub MCP Server",
 		},
 		{
-			name:          "custom name only",
-			serverName:    "ghes-server",
-			serverTitle:   "",
+			name: "custom name only via translator",
+			translator: func(key, defaultValue string) string {
+				if key == "SERVER_NAME" {
+					return "ghes-server"
+				}
+				return defaultValue
+			},
 			expectedName:  "ghes-server",
 			expectedTitle: "GitHub MCP Server",
 		},
@@ -190,34 +202,41 @@ func TestNewServer_NameAndTitle(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			srv := NewServer("v1.0.0", tt.serverName, tt.serverTitle, nil)
+			srv := NewServer("v1.0.0", tt.translator("SERVER_NAME", "github-mcp-server"), tt.translator("SERVER_TITLE", "GitHub MCP Server"), nil)
 			require.NotNil(t, srv)
 
 			// Connect a client to retrieve the initialize result and verify ServerInfo.
 			st, ct := mcp.NewInMemoryTransports()
 			client := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil)
 
-			var initResult *mcp.InitializeResult
+			type clientResult struct {
+				result *mcp.InitializeResult
+				err    error
+			}
+			clientResultCh := make(chan clientResult, 1)
 			go func() {
 				cs, err := client.Connect(context.Background(), ct, nil)
-				if err == nil {
-					initResult = cs.InitializeResult()
+				if err != nil {
+					clientResultCh <- clientResult{err: err}
+					return
 				}
+				clientResultCh <- clientResult{result: cs.InitializeResult()}
 			}()
 
 			_, err := srv.Connect(context.Background(), st, nil)
 			require.NoError(t, err)
 
-			// Give the goroutine time to complete
-			// (In-memory transport is synchronous, so this is safe)
-			require.Eventually(t, func() bool { return initResult != nil }, time.Second, 10*time.Millisecond)
-			require.NotNil(t, initResult.ServerInfo)
-			assert.Equal(t, tt.expectedName, initResult.ServerInfo.Name)
-			assert.Equal(t, tt.expectedTitle, initResult.ServerInfo.Title)
+			got := <-clientResultCh
+			require.NoError(t, got.err)
+			require.NotNil(t, got.result)
+			require.NotNil(t, got.result.ServerInfo)
+			assert.Equal(t, tt.expectedName, got.result.ServerInfo.Name)
+			assert.Equal(t, tt.expectedTitle, got.result.ServerInfo.Title)
 		})
 	}
 }
 
+// TestResolveEnabledToolsets verifies the toolset resolution logic.
 func TestResolveEnabledToolsets(t *testing.T) {
 	t.Parallel()
 
