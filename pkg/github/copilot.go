@@ -209,7 +209,7 @@ func AssignCopilotToIssue(t translations.TranslationHelperFunc) inventory.Server
 				BaseRef            string `mapstructure:"base_ref"`
 				CustomInstructions string `mapstructure:"custom_instructions"`
 			}
-			if err := mapstructure.Decode(args, &params); err != nil {
+			if err := mapstructure.WeakDecode(args, &params); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 

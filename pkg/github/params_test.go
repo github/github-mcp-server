@@ -2,6 +2,7 @@ package github
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/google/go-github/v82/github"
@@ -164,6 +165,13 @@ func Test_RequiredInt(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name:        "valid string number parameter",
+			params:      map[string]any{"count": "42"},
+			paramName:   "count",
+			expected:    42,
+			expectError: false,
+		},
+		{
 			name:        "missing parameter",
 			params:      map[string]any{},
 			paramName:   "count",
@@ -171,8 +179,78 @@ func Test_RequiredInt(t *testing.T) {
 			expectError: true,
 		},
 		{
+			name:        "zero string parameter",
+			params:      map[string]any{"count": "0"},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
 			name:        "wrong type parameter",
 			params:      map[string]any{"count": "not-a-number"},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "boolean type parameter",
+			params:      map[string]any{"count": true},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "NaN string",
+			params:      map[string]any{"count": "NaN"},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "Inf string",
+			params:      map[string]any{"count": "Inf"},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "negative Inf string",
+			params:      map[string]any{"count": "-Inf"},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "fractional string",
+			params:      map[string]any{"count": "1.5"},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "fractional float64",
+			params:      map[string]any{"count": float64(1.5)},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "NaN float64",
+			params:      map[string]any{"count": math.NaN()},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "Inf float64",
+			params:      map[string]any{"count": math.Inf(1)},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "MaxFloat64",
+			params:      map[string]any{"count": math.MaxFloat64},
 			paramName:   "count",
 			expected:    0,
 			expectError: true,
@@ -208,6 +286,13 @@ func Test_OptionalIntParam(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name:        "valid string number parameter",
+			params:      map[string]any{"count": "42"},
+			paramName:   "count",
+			expected:    42,
+			expectError: false,
+		},
+		{
 			name:        "missing parameter",
 			params:      map[string]any{},
 			paramName:   "count",
@@ -222,8 +307,36 @@ func Test_OptionalIntParam(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name:        "zero string value",
+			params:      map[string]any{"count": "0"},
+			paramName:   "count",
+			expected:    0,
+			expectError: false,
+		},
+		{
 			name:        "wrong type parameter",
 			params:      map[string]any{"count": "not-a-number"},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "NaN string",
+			params:      map[string]any{"count": "NaN"},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "fractional string",
+			params:      map[string]any{"count": "1.5"},
+			paramName:   "count",
+			expected:    0,
+			expectError: true,
+		},
+		{
+			name:        "fractional float64",
+			params:      map[string]any{"count": float64(1.5)},
 			paramName:   "count",
 			expected:    0,
 			expectError: true,
@@ -262,6 +375,14 @@ func Test_OptionalNumberParamWithDefault(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name:        "valid string number parameter",
+			params:      map[string]any{"count": "42"},
+			paramName:   "count",
+			defaultVal:  10,
+			expected:    42,
+			expectError: false,
+		},
+		{
 			name:        "missing parameter",
 			params:      map[string]any{},
 			paramName:   "count",
@@ -272,6 +393,14 @@ func Test_OptionalNumberParamWithDefault(t *testing.T) {
 		{
 			name:        "zero value",
 			params:      map[string]any{"count": float64(0)},
+			paramName:   "count",
+			defaultVal:  10,
+			expected:    10,
+			expectError: false,
+		},
+		{
+			name:        "zero string value uses default",
+			params:      map[string]any{"count": "0"},
 			paramName:   "count",
 			defaultVal:  10,
 			expected:    10,
@@ -485,6 +614,18 @@ func TestOptionalPaginationParams(t *testing.T) {
 			},
 			expected:    PaginationParams{},
 			expectError: true,
+		},
+		{
+			name: "string page and perPage parameters",
+			params: map[string]any{
+				"page":    "3",
+				"perPage": "25",
+			},
+			expected: PaginationParams{
+				Page:    3,
+				PerPage: 25,
+			},
+			expectError: false,
 		},
 	}
 

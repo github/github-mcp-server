@@ -166,6 +166,115 @@ func TestAssignCopilotToIssue(t *testing.T) {
 			),
 		},
 		{
+			name: "successful assignment with string issue_number",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": "123", // Some MCP clients send numeric values as strings
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							SuggestedActors struct {
+								Nodes []struct {
+									Bot struct {
+										ID       githubv4.ID
+										Login    githubv4.String
+										TypeName string `graphql:"__typename"`
+									} `graphql:"... on Bot"`
+								}
+								PageInfo struct {
+									HasNextPage bool
+									EndCursor   string
+								}
+							} `graphql:"suggestedActors(first: 100, after: $endCursor, capabilities: CAN_BE_ASSIGNED)"`
+						} `graphql:"repository(owner: $owner, name: $name)"`
+					}{},
+					map[string]any{
+						"owner":     githubv4.String("owner"),
+						"name":      githubv4.String("repo"),
+						"endCursor": (*githubv4.String)(nil),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"suggestedActors": map[string]any{
+								"nodes": []any{
+									map[string]any{
+										"id":         githubv4.ID("copilot-swe-agent-id"),
+										"login":      githubv4.String("copilot-swe-agent"),
+										"__typename": "Bot",
+									},
+								},
+							},
+						},
+					}),
+				),
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							ID    githubv4.ID
+							Issue struct {
+								ID        githubv4.ID
+								Assignees struct {
+									Nodes []struct {
+										ID githubv4.ID
+									}
+								} `graphql:"assignees(first: 100)"`
+							} `graphql:"issue(number: $number)"`
+						} `graphql:"repository(owner: $owner, name: $name)"`
+					}{},
+					map[string]any{
+						"owner":  githubv4.String("owner"),
+						"name":   githubv4.String("repo"),
+						"number": githubv4.Int(123),
+					},
+					githubv4mock.DataResponse(map[string]any{
+						"repository": map[string]any{
+							"id": githubv4.ID("test-repo-id"),
+							"issue": map[string]any{
+								"id": githubv4.ID("test-issue-id"),
+								"assignees": map[string]any{
+									"nodes": []any{},
+								},
+							},
+						},
+					}),
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						UpdateIssue struct {
+							Issue struct {
+								ID     githubv4.ID
+								Number githubv4.Int
+								URL    githubv4.String
+							}
+						} `graphql:"updateIssue(input: $input)"`
+					}{},
+					UpdateIssueInput{
+						ID:          githubv4.ID("test-issue-id"),
+						AssigneeIDs: []githubv4.ID{githubv4.ID("copilot-swe-agent-id")},
+						AgentAssignment: &AgentAssignmentInput{
+							BaseRef:            nil,
+							CustomAgent:        ptrGitHubv4String(""),
+							CustomInstructions: ptrGitHubv4String(""),
+							TargetRepositoryID: githubv4.ID("test-repo-id"),
+						},
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"updateIssue": map[string]any{
+							"issue": map[string]any{
+								"id":     githubv4.ID("test-issue-id"),
+								"number": githubv4.Int(123),
+								"url":    githubv4.String("https://github.com/owner/repo/issues/123"),
+							},
+						},
+					}),
+				),
+			),
+		},
+		{
 			name: "successful assignment when there are existing assignees",
 			requestArgs: map[string]any{
 				"owner":        "owner",
