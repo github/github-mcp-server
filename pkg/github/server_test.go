@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/github/github-mcp-server/pkg/lockdown"
+	"github.com/github/github-mcp-server/pkg/observability"
+	mcpLog "github.com/github/github-mcp-server/pkg/observability/log"
+	mcpMetrics "github.com/github/github-mcp-server/pkg/observability/metrics"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v82/github"
@@ -29,6 +32,7 @@ type stubDeps struct {
 	t                 translations.TranslationHelperFunc
 	flags             FeatureFlags
 	contentWindowSize int
+	obsv              observability.Exporters
 }
 
 func (s stubDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
@@ -59,6 +63,18 @@ func (s stubDeps) GetT() translations.TranslationHelperFunc          { return s.
 func (s stubDeps) GetFlags(_ context.Context) FeatureFlags           { return s.flags }
 func (s stubDeps) GetContentWindowSize() int                         { return s.contentWindowSize }
 func (s stubDeps) IsFeatureEnabled(_ context.Context, _ string) bool { return false }
+func (s stubDeps) Logger(ctx context.Context) mcpLog.Logger {
+	if s.obsv != nil {
+		return s.obsv.Logger(ctx)
+	}
+	return mcpLog.NewNoopLogger()
+}
+func (s stubDeps) Metrics(ctx context.Context) mcpMetrics.Metrics {
+	if s.obsv != nil {
+		return s.obsv.Metrics(ctx)
+	}
+	return mcpMetrics.NewNoopMetrics()
+}
 
 // Helper functions to create stub client functions for error testing
 func stubClientFnFromHTTP(httpClient *http.Client) func(context.Context) (*gogithub.Client, error) {

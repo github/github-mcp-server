@@ -104,6 +104,7 @@ func TestHelloWorld_ConditionalBehavior_Featureflag(t *testing.T) {
 				FeatureFlags{},
 				0,
 				checker,
+				nil,
 			)
 
 			// Get the tool and its handler
@@ -165,6 +166,7 @@ func TestHelloWorld_ConditionalBehavior_Config(t *testing.T) {
 				translations.NullTranslationHelper,
 				FeatureFlags{InsidersMode: tt.insidersMode},
 				0,
+				nil,
 				nil,
 			)
 

@@ -128,6 +128,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		},
 		cfg.ContentWindowSize,
 		featureChecker,
+		cfg.Logger,
 	)
 	// Build and register the tool/resource/prompt inventory
 	inventoryBuilder := github.NewInventory(cfg.Translator).
