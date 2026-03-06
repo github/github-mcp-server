@@ -31,6 +31,12 @@ type ServerConfig struct {
 	// Version of the server
 	Version string
 
+	// Name of the server
+	Name string
+
+	// Title of the server
+	Title string
+
 	// GitHub Host to target for API requests (e.g. github.com or github.enterprise.com)
 	Host string
 

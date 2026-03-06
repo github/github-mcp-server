@@ -201,6 +201,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	ghServer, err := h.githubMcpServerFactory(r, h.deps, invToUse, &github.MCPServerConfig{
 		Version:           h.config.Version,
+		Name:              h.config.Name,
+		Title:             h.config.Title,
 		Translator:        h.t,
 		ContentWindowSize: h.config.ContentWindowSize,
 		Logger:            h.logger,

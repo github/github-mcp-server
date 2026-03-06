@@ -20,6 +20,11 @@ type MCPServerConfig struct {
 	// Version of the server
 	Version string
 
+	// Name of the server used during intialization
+	Name string
+
+	Title string
+
 	// GitHub Host to target for API requests (e.g. github.com or github.enterprise.com)
 	Host string
 
@@ -101,7 +106,14 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 		}
 	}
 
-	ghServer := NewServer(cfg.Version, serverOpts)
+	serverInfo := &mcp.Implementation{
+		Name:    cfg.Name,
+		Title:   cfg.Title,
+		Version: cfg.Version,
+		Icons:   octicons.Icons("mark-github"),
+	}
+
+	ghServer := NewServer(serverInfo, serverOpts)
 
 	// Add middlewares. Order matters - for example, the error context middleware should be applied last so that it runs FIRST (closest to the handler) to ensure all errors are captured,
 	// and any middleware that needs to read or modify the context should be before it.
@@ -177,20 +189,13 @@ func addGitHubAPIErrorToContext(next mcp.MethodHandler) mcp.MethodHandler {
 }
 
 // NewServer creates a new GitHub MCP server with the specified GH client and logger.
-func NewServer(version string, opts *mcp.ServerOptions) *mcp.Server {
+func NewServer(serverInfo *mcp.Implementation, opts *mcp.ServerOptions) *mcp.Server {
 	if opts == nil {
 		opts = &mcp.ServerOptions{}
 	}
 
 	// Create a new MCP server
-	s := mcp.NewServer(&mcp.Implementation{
-		Name:    "github-mcp-server",
-		Title:   "GitHub MCP Server",
-		Version: version,
-		Icons:   octicons.Icons("mark-github"),
-	}, opts)
-
-	return s
+	return mcp.NewServer(serverInfo, opts)
 }
 
 func CompletionsHandler(getClient GetClientFn) func(ctx context.Context, req *mcp.CompleteRequest) (*mcp.CompleteResult, error) {

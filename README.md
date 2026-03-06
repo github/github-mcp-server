@@ -1498,6 +1498,30 @@ Following tools will filter out content from users lacking the push access:
 - `pull_request_read:get_review_comments`
 - `pull_request_read:get_reviews`
 
+## Running multiple servers simultaneously
+When running multiple GitHub MCP servers simultaniously you should consider to set the server's name and title to differentiate between them.
+
+```bash
+./github-mcp-server --server-name <the server\'s name> --server-title <the server\'s title>
+```
+
+When running with Docker, set the corresponding environment variable:
+
+```bash
+docker run -i --rm \
+  -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
+  -e GITHUB_SERVER_NAME=<the server\'s name> \
+  -e GITHUB_SERVER_TITLE=<the server\'s title>
+  ghcr.io/github/github-mcp-server
+```
+
+### Example:
+To connect to your GitHub Enterprise Server as well as to `github.com` one can start two servers locally like this:
+```bash
+./github-mcp-server --server-name "github-mcp-server-dotcom" --server-title "GitHub MCP Server for github.com"
+./github-mcp-server --server-name "github-mcp-server-ghes" --server-title "GitHub MCP Server for my GHES"
+```
+
 ## i18n / Overriding Descriptions
 
 The descriptions of the tools can be overridden by creating a
