@@ -469,6 +469,109 @@ func Test_AddIssueComment(t *testing.T) {
 	}
 }
 
+func Test_UpdateIssueComment(t *testing.T) {
+	// Verify tool definition once
+	serverTool := UpdateIssueComment(translations.NullTranslationHelper)
+	tool := serverTool.Tool
+	require.NoError(t, toolsnaps.Test(tool.Name, tool))
+
+	assert.Equal(t, "update_issue_comment", tool.Name)
+	assert.NotEmpty(t, tool.Description)
+
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "owner")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "repo")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "comment_id")
+	assert.Contains(t, tool.InputSchema.(*jsonschema.Schema).Properties, "body")
+	assert.ElementsMatch(t, tool.InputSchema.(*jsonschema.Schema).Required, []string{"owner", "repo", "comment_id", "body"})
+
+	mockComment := &github.IssueComment{
+		ID:   github.Ptr(int64(456)),
+		Body: github.Ptr("Updated comment body"),
+		User: &github.User{
+			Login: github.Ptr("testuser"),
+		},
+		HTMLURL: github.Ptr("https://github.com/owner/repo/issues/42#issuecomment-456"),
+	}
+
+	tests := []struct {
+		name            string
+		mockedClient    *http.Client
+		requestArgs     map[string]any
+		expectError     bool
+		expectedComment *github.IssueComment
+		expectedErrMsg  string
+	}{
+		{
+			name: "successful comment update",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesCommentsByOwnerByRepoByCommentID: mockResponse(t, http.StatusOK, mockComment),
+			}),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"comment_id": float64(456),
+				"body":       "Updated comment body",
+			},
+			expectError:     false,
+			expectedComment: mockComment,
+		},
+		{
+			name: "comment update fails - missing body",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesCommentsByOwnerByRepoByCommentID: mockResponse(t, http.StatusOK, mockComment),
+			}),
+			requestArgs: map[string]any{
+				"owner":      "owner",
+				"repo":       "repo",
+				"comment_id": float64(456),
+				"body":       "",
+			},
+			expectError:    false,
+			expectedErrMsg: "missing required parameter: body",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := github.NewClient(tc.mockedClient)
+			deps := BaseDeps{
+				Client: client,
+			}
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+
+			if tc.expectError {
+				require.Error(t, err)
+				if tc.expectedErrMsg != "" {
+					assert.Contains(t, err.Error(), tc.expectedErrMsg)
+				}
+				return
+			}
+
+			if tc.expectedErrMsg != "" {
+				require.NotNil(t, result)
+				textContent := getTextResult(t, result)
+				assert.Contains(t, textContent.Text, tc.expectedErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+
+			textContent := getTextResult(t, result)
+
+			var returnedComment github.IssueComment
+			err = json.Unmarshal([]byte(textContent.Text), &returnedComment)
+			require.NoError(t, err)
+			assert.Equal(t, *tc.expectedComment.ID, *returnedComment.ID)
+			assert.Equal(t, *tc.expectedComment.Body, *returnedComment.Body)
+			assert.Equal(t, *tc.expectedComment.User.Login, *returnedComment.User.Login)
+		})
+	}
+}
+
 func Test_SearchIssues(t *testing.T) {
 	// Verify tool definition once
 	serverTool := SearchIssues(translations.NullTranslationHelper)
