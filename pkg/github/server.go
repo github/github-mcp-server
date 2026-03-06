@@ -20,6 +20,14 @@ type MCPServerConfig struct {
 	// Version of the server
 	Version string
 
+	// Name overrides the server name in the MCP initialization response.
+	// If empty, defaults to "github-mcp-server".
+	Name string
+
+	// Title overrides the server title in the MCP initialization response.
+	// If empty, defaults to "GitHub MCP Server".
+	Title string
+
 	// GitHub Host to target for API requests (e.g. github.com or github.enterprise.com)
 	Host string
 
@@ -101,7 +109,7 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 		}
 	}
 
-	ghServer := NewServer(cfg.Version, serverOpts)
+	ghServer := NewServer(cfg.Version, cfg.Name, cfg.Title, serverOpts)
 
 	// Add middlewares. Order matters - for example, the error context middleware should be applied last so that it runs FIRST (closest to the handler) to ensure all errors are captured,
 	// and any middleware that needs to read or modify the context should be before it.
@@ -177,15 +185,22 @@ func addGitHubAPIErrorToContext(next mcp.MethodHandler) mcp.MethodHandler {
 }
 
 // NewServer creates a new GitHub MCP server with the specified GH client and logger.
-func NewServer(version string, opts *mcp.ServerOptions) *mcp.Server {
+func NewServer(version, name, title string, opts *mcp.ServerOptions) *mcp.Server {
 	if opts == nil {
 		opts = &mcp.ServerOptions{}
 	}
 
+	if name == "" {
+		name = "github-mcp-server"
+	}
+	if title == "" {
+		title = "GitHub MCP Server"
+	}
+
 	// Create a new MCP server
 	s := mcp.NewServer(&mcp.Implementation{
-		Name:    "github-mcp-server",
-		Title:   "GitHub MCP Server",
+		Name:    name,
+		Title:   title,
 		Version: version,
 		Icons:   octicons.Icons("mark-github"),
 	}, opts)
