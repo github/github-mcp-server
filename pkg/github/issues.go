@@ -1083,8 +1083,7 @@ Options are:
 					// Skip the UI form when a state change is requested because
 					// the form only handles title/body editing and would lose the
 					// state transition (e.g. closing or reopening the issue).
-					state, _ := OptionalParam[string](args, "state")
-					if state == "" {
+					if _, hasState := args["state"]; !hasState {
 						issueNumber, numErr := RequiredInt(args, "issue_number")
 						if numErr != nil {
 							return utils.NewToolResultError("issue_number is required for update method"), nil, nil
