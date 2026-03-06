@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	ghcontext "github.com/github/github-mcp-server/pkg/context"
 	gherrors "github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/octicons"
@@ -107,6 +108,7 @@ func NewMCPServer(ctx context.Context, cfg *MCPServerConfig, deps ToolDependenci
 	// and any middleware that needs to read or modify the context should be before it.
 	ghServer.AddReceivingMiddleware(middleware...)
 	ghServer.AddReceivingMiddleware(InjectDepsMiddleware(deps))
+	ghServer.AddReceivingMiddleware(withOperationID)
 	ghServer.AddReceivingMiddleware(addGitHubAPIErrorToContext)
 
 	if unrecognized := inv.UnrecognizedToolsets(); len(unrecognized) > 0 {
@@ -172,6 +174,27 @@ func addGitHubAPIErrorToContext(next mcp.MethodHandler) mcp.MethodHandler {
 		// Ensure the context is cleared of any previous errors
 		// as context isn't propagated through middleware
 		ctx = gherrors.ContextWithGitHubErrors(ctx)
+		return next(ctx, method, req)
+	}
+}
+
+func withOperationID(next mcp.MethodHandler) mcp.MethodHandler {
+	return func(ctx context.Context, method string, req mcp.Request) (result mcp.Result, err error) {
+		requestID, ok := ghcontext.RequestID(ctx)
+		if !ok || requestID == "" {
+			requestID, err = ghcontext.GenerateRequestID()
+			if err != nil {
+				return nil, err
+			}
+			ctx = ghcontext.WithRequestID(ctx, requestID)
+		}
+
+		operationID, err := ghcontext.GenerateOperationID()
+		if err != nil {
+			return nil, err
+		}
+		ctx = ghcontext.WithOperationID(ctx, operationID)
+
 		return next(ctx, method, req)
 	}
 }
