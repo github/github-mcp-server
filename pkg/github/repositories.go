@@ -1233,7 +1233,8 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 						Type:        "array",
 						Description: "Array of file objects to push, each object with path (string) and content (string)",
 						Items: &jsonschema.Schema{
-							Type: "object",
+							Type:                "object",
+							AdditionalProperties: jsonschema.BoolPtr(false),
 							Properties: map[string]*jsonschema.Schema{
 								"path": {
 									Type:        "string",
