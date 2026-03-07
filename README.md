@@ -1,6 +1,11 @@
+# GitHub MCP Server
+
+[![AI Moderator](https://github.com/github/github-mcp-server/actions/workflows/moderator.yml/badge.svg)](https://github.com/github/github-mcp-server/actions/workflows/moderator.yml)
+[![Copilot code review](https://github.com/github/github-mcp-server/actions/workflows/copilot-pull-request-reviewer/copilot-pull-request-reviewer/badge.svg)](https://github.com/github/github-mcp-server/actions/workflows/copilot-pull-request-reviewer/copilot-pull-request-reviewer)
+[![Codespaces Prebuilds](https://github.com/github/github-mcp-server/actions/workflows/codespaces/create_codespaces_prebuilds/badge.svg)](https://github.com/github/github-mcp-server/actions/workflows/codespaces/create_codespaces_prebuilds)
+[![CodeQL](https://github.com/github/github-mcp-server/actions/workflows/code-scanning.yml/badge.svg)](https://github.com/github/github-mcp-server/actions/workflows/code-scanning.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/github/github-mcp-server)](https://goreportcard.com/report/github.com/github/github-mcp-server)
 
-# GitHub MCP Server
 
 The GitHub MCP Server connects AI tools directly to GitHub's platform. This gives AI agents, assistants, and chatbots the ability to read repositories and code files, manage issues and PRs, analyze code, and automate workflows. All through natural language interactions.
 
