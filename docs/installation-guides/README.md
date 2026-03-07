@@ -13,6 +13,7 @@ This directory contains detailed installation instructions for the GitHub MCP Se
 - **[OpenAI Codex](install-codex.md)** - Installation guide for OpenAI Codex
 - **[Roo Code](install-roo-code.md)** - Installation guide for Roo Code
 - **[Windsurf](install-windsurf.md)** - Installation guide for Windsurf IDE
+- **[AdaL CLI](install-adal-cli.md)** - Installation guide for AdaL CLI
 
 ## Support by Host Application
 
@@ -32,6 +33,7 @@ This directory contains detailed installation instructions for the GitHub MCP Se
 | Windsurf | ✅ | ✅ PAT + ❌ No OAuth | Docker or Go build, GitHub PAT | Easy |
 | Copilot in Xcode | ✅ | ✅ Full (OAuth + PAT) | Local: Docker or Go build, GitHub PAT<br>Remote: Copilot for Xcode 0.41.0+ | Easy |
 | Copilot in Eclipse | ✅ | ✅ Full (OAuth + PAT) | Local: Docker or Go build, GitHub PAT<br>Remote: Eclipse Plug-in for Copilot 0.10.0+ | Easy |
+| AdaL CLI | ✅ | ✅ PAT + ❌ No OAuth | Docker, GitHub PAT | Easy |
 
 **Legend:**
 - ✅ = Fully supported
