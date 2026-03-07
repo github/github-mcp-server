@@ -185,6 +185,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		ListStarredRepositories(t),
 		StarRepository(t),
 		UnstarRepository(t),
+		CompareFileContents(t),
 
 		// Git tools
 		GetRepositoryTree(t),
