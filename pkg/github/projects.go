@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
@@ -1084,7 +1085,8 @@ func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, owne
 	var mutation struct {
 		AddProjectV2ItemByID struct {
 			Item struct {
-				ID githubv4.ID
+				ID             githubv4.ID
+				FullDatabaseID string `graphql:"fullDatabaseId"`
 			}
 		} `graphql:"addProjectV2ItemById(input: $input)"`
 	}
@@ -1109,6 +1111,12 @@ func addProjectItem(ctx context.Context, gqlClient *githubv4.Client, owner, owne
 	result := map[string]any{
 		"id":      mutation.AddProjectV2ItemByID.Item.ID,
 		"message": fmt.Sprintf("Successfully added %s %s/%s#%d to project %s/%d", itemType, itemOwner, itemRepo, itemNumber, owner, projectNumber),
+	}
+	if fullDatabaseID := mutation.AddProjectV2ItemByID.Item.FullDatabaseID; fullDatabaseID != "" {
+		result["full_database_id"] = fullDatabaseID
+		if itemID, err := strconv.ParseInt(fullDatabaseID, 10, 64); err == nil {
+			result["item_id"] = itemID
+		}
 	}
 
 	r, err := json.Marshal(result)
