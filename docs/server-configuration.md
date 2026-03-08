@@ -336,6 +336,40 @@ Starts with only discovery tools (`enable_toolset`, `list_available_toolsets`, `
 
 When both dynamic mode and specific tools are enabled in the server configuration, the server will start with the 3 dynamic tools + the specified tools.
 
+### Strict Toolset Validation
+
+**Best for:** Locked-down environments where toolset allow-lists must fail closed.
+
+By default, unknown toolset names are ignored and logged as warnings so existing configurations remain backward compatible. If you want startup to fail when a configured toolset name is unknown, enable strict validation.
+
+<table>
+<tr><th>Local Server Only</th></tr>
+<tr valign="top">
+<td>
+
+```json
+{
+  "type": "stdio",
+  "command": "go",
+  "args": [
+    "run",
+    "./cmd/github-mcp-server",
+    "stdio",
+    "--toolsets=repos,issues,typo",
+    "--strict-toolsets"
+  ],
+  "env": {
+    "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}"
+  }
+}
+```
+
+</td>
+</tr>
+</table>
+
+Use this when a typo in a toolset name should be treated as a startup error instead of silently falling back to a narrower or unintended capability set.
+
 ---
 
 ### Lockdown Mode

@@ -79,22 +79,23 @@ var (
 
 			ttl := viper.GetDuration("repo-access-cache-ttl")
 			stdioServerConfig := ghmcp.StdioServerConfig{
-				Version:              version,
-				Host:                 viper.GetString("host"),
-				Token:                token,
-				EnabledToolsets:      enabledToolsets,
-				EnabledTools:         enabledTools,
-				EnabledFeatures:      enabledFeatures,
-				DynamicToolsets:      viper.GetBool("dynamic_toolsets"),
-				ReadOnly:             viper.GetBool("read-only"),
-				ExportTranslations:   viper.GetBool("export-translations"),
-				EnableCommandLogging: viper.GetBool("enable-command-logging"),
-				LogFilePath:          viper.GetString("log-file"),
-				ContentWindowSize:    viper.GetInt("content-window-size"),
-				LockdownMode:         viper.GetBool("lockdown-mode"),
-				InsidersMode:         viper.GetBool("insiders"),
-				ExcludeTools:         excludeTools,
-				RepoAccessCacheTTL:   &ttl,
+				Version:                 version,
+				Host:                    viper.GetString("host"),
+				Token:                   token,
+				EnabledToolsets:         enabledToolsets,
+				StrictToolsetValidation: viper.GetBool("strict_toolsets"),
+				EnabledTools:            enabledTools,
+				EnabledFeatures:         enabledFeatures,
+				DynamicToolsets:         viper.GetBool("dynamic_toolsets"),
+				ReadOnly:                viper.GetBool("read-only"),
+				ExportTranslations:      viper.GetBool("export-translations"),
+				EnableCommandLogging:    viper.GetBool("enable-command-logging"),
+				LogFilePath:             viper.GetString("log-file"),
+				ContentWindowSize:       viper.GetInt("content-window-size"),
+				LockdownMode:            viper.GetBool("lockdown-mode"),
+				InsidersMode:            viper.GetBool("insiders"),
+				ExcludeTools:            excludeTools,
+				RepoAccessCacheTTL:      &ttl,
 			}
 			return ghmcp.RunStdioServer(stdioServerConfig)
 		},
@@ -138,6 +139,7 @@ func init() {
 	rootCmd.PersistentFlags().StringSlice("exclude-tools", nil, "Comma-separated list of tool names to disable regardless of other settings")
 	rootCmd.PersistentFlags().StringSlice("features", nil, "Comma-separated list of feature flags to enable")
 	rootCmd.PersistentFlags().Bool("dynamic-toolsets", false, "Enable dynamic toolsets")
+	rootCmd.PersistentFlags().Bool("strict-toolsets", false, "Fail startup if configured toolsets include unknown names")
 	rootCmd.PersistentFlags().Bool("read-only", false, "Restrict the server to read-only operations")
 	rootCmd.PersistentFlags().String("log-file", "", "Path to log file")
 	rootCmd.PersistentFlags().Bool("enable-command-logging", false, "When enabled, the server will log all command requests and responses to the log file")
@@ -160,6 +162,7 @@ func init() {
 	_ = viper.BindPFlag("exclude_tools", rootCmd.PersistentFlags().Lookup("exclude-tools"))
 	_ = viper.BindPFlag("features", rootCmd.PersistentFlags().Lookup("features"))
 	_ = viper.BindPFlag("dynamic_toolsets", rootCmd.PersistentFlags().Lookup("dynamic-toolsets"))
+	_ = viper.BindPFlag("strict_toolsets", rootCmd.PersistentFlags().Lookup("strict-toolsets"))
 	_ = viper.BindPFlag("read-only", rootCmd.PersistentFlags().Lookup("read-only"))
 	_ = viper.BindPFlag("log-file", rootCmd.PersistentFlags().Lookup("log-file"))
 	_ = viper.BindPFlag("enable-command-logging", rootCmd.PersistentFlags().Lookup("enable-command-logging"))

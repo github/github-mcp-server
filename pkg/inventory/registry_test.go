@@ -280,6 +280,34 @@ func TestUnrecognizedToolsets(t *testing.T) {
 	}
 }
 
+func TestBuildErrorsOnUnrecognizedToolsetsWhenStrict(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("tool1", "toolset1", true),
+	}
+
+	_, err := NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"toolset1", "typo"}).
+		WithStrictToolsetValidation(true).
+		Build()
+
+	require.Error(t, err, "expected error for unrecognized toolset in strict mode")
+	require.ErrorIs(t, err, ErrUnknownToolsets)
+	require.Contains(t, err.Error(), "typo")
+}
+
+func TestBuildAllowsUnrecognizedToolsetsWhenNotStrict(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("tool1", "toolset1", true),
+	}
+
+	reg := mustBuild(t, NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"toolset1", "typo"}))
+
+	require.Equal(t, []string{"typo"}, reg.UnrecognizedToolsets())
+}
+
 func TestBuildErrorsOnUnrecognizedTools(t *testing.T) {
 	tools := []ServerTool{
 		mockTool("tool1", "toolset1", true),

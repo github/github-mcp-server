@@ -12,6 +12,8 @@ import (
 var (
 	// ErrUnknownTools is returned when tools specified via WithTools() are not recognized.
 	ErrUnknownTools = errors.New("unknown tools specified in WithTools")
+	// ErrUnknownToolsets is returned when toolsets specified via WithToolsets() are not recognized.
+	ErrUnknownToolsets = errors.New("unknown toolsets specified in WithToolsets")
 )
 
 // ToolFilter is a function that determines if a tool should be included.
@@ -49,6 +51,7 @@ type Builder struct {
 	filters              []ToolFilter // filters to apply to all tools
 	generateInstructions bool
 	insidersMode         bool
+	strictToolsets       bool
 }
 
 // NewBuilder creates a new Builder.
@@ -108,6 +111,13 @@ func (b *Builder) WithServerInstructions() *Builder {
 func (b *Builder) WithToolsets(toolsetIDs []string) *Builder {
 	b.toolsetIDs = toolsetIDs
 	b.toolsetIDsIsNil = toolsetIDs == nil
+	return b
+}
+
+// WithStrictToolsetValidation controls whether unknown toolset IDs should fail Build().
+// When disabled, unknown toolsets are recorded on the inventory for warning-only behavior.
+func (b *Builder) WithStrictToolsetValidation(strict bool) *Builder {
+	b.strictToolsets = strict
 	return b
 }
 
@@ -222,6 +232,9 @@ func (b *Builder) Build() (*Inventory, error) {
 
 	// Process toolsets and pre-compute metadata in a single pass
 	r.enabledToolsets, r.unrecognizedToolsets, r.toolsetIDs, r.toolsetIDSet, r.defaultToolsetIDs, r.toolsetDescriptions = b.processToolsets()
+	if b.strictToolsets && len(r.unrecognizedToolsets) > 0 {
+		return nil, fmt.Errorf("%w: %s", ErrUnknownToolsets, strings.Join(r.unrecognizedToolsets, ", "))
+	}
 
 	// Build set of valid tool names for validation
 	validToolNames := make(map[string]bool, len(tools))
