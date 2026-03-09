@@ -117,6 +117,9 @@ jobs:
           platforms: linux/amd64,linux/arm64
           build-args: |
             VERSION=${{ github.ref_name }}
+          secrets: |
+            oauth_client_id=${{ secrets.OAUTH_CLIENT_ID }}
+            oauth_client_secret=${{ secrets.OAUTH_CLIENT_SECRET }}
 
       # Sign the resulting Docker image digest except on PRs.
       # This will only write to the public Rekor transparency log when the Docker

@@ -9,7 +9,7 @@ builds:
   - env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}} -X github.com/github/github-mcp-server/internal/buildinfo.OAuthClientID={{ .Env.OAUTH_CLIENT_ID }} -X github.com/github/github-mcp-server/internal/buildinfo.OAuthClientSecret={{ .Env.OAUTH_CLIENT_SECRET }}
     goos:
       - linux
       - windows

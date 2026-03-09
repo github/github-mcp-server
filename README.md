@@ -239,6 +239,39 @@ To keep your GitHub PAT secure and reusable across different MCP hosts:
 
 </details>
 
+### OAuth Authentication (stdio mode)
+
+For stdio mode, you can use OAuth 2.1 instead of a Personal Access Token. The server triggers the OAuth flow on the first tool call:
+
+| Environment | Flow | Setup |
+|-------------|------|-------|
+| Docker with port | PKCE (URL elicitation) | Set `GITHUB_OAUTH_CLIENT_ID` + bind port |
+| Docker without port | Device flow (enter code at github.com/login/device) | Set `GITHUB_OAUTH_CLIENT_ID` |
+| Native binary | PKCE (browser auto-opens) | Set `GITHUB_OAUTH_CLIENT_ID` |
+
+**Docker example (PKCE with bound port — recommended):**
+```json
+{
+  "mcpServers": {
+    "github": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm",
+        "-e", "GITHUB_OAUTH_CLIENT_ID",
+        "-e", "GITHUB_OAUTH_CLIENT_SECRET",
+        "-e", "GITHUB_OAUTH_CALLBACK_PORT=8085",
+        "-p", "127.0.0.1:8085:8085",
+        "ghcr.io/github/github-mcp-server"],
+      "env": {
+        "GITHUB_OAUTH_CLIENT_ID": "your_client_id",
+        "GITHUB_OAUTH_CLIENT_SECRET": "your_client_secret"
+      }
+    }
+  }
+}
+```
+
+See [docs/oauth-authentication.md](docs/oauth-authentication.md) for full setup instructions, including how to create a GitHub OAuth App.
+
 ### GitHub Enterprise Server and Enterprise Cloud with data residency (ghe.com)
 
 The flag `--gh-host` and the environment variable `GITHUB_HOST` can be used to set

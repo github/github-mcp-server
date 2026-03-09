@@ -23,10 +23,15 @@ COPY . .
 # Copy built UI assets over the placeholder
 COPY --from=ui-build /app/pkg/github/ui_dist/* ./pkg/github/ui_dist/
 
-# Build the server
+# Build the server. OAuth credentials are injected via build secrets to avoid
+# leaking them in image history. Secrets are read at build time only.
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION} -X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --mount=type=secret,id=oauth_client_id \
+    --mount=type=secret,id=oauth_client_secret \
+    export OAUTH_CLIENT_ID="$(cat /run/secrets/oauth_client_id 2>/dev/null || echo '')" && \
+    export OAUTH_CLIENT_SECRET="$(cat /run/secrets/oauth_client_secret 2>/dev/null || echo '')" && \
+    CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION} -X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ) -X github.com/github/github-mcp-server/internal/buildinfo.OAuthClientID=${OAUTH_CLIENT_ID} -X github.com/github/github-mcp-server/internal/buildinfo.OAuthClientSecret=${OAUTH_CLIENT_SECRET}" \
     -o /bin/github-mcp-server ./cmd/github-mcp-server
 
 # Make a stage to run the app
