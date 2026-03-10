@@ -422,6 +422,24 @@ To specify toolsets you want available to the LLM, you can pass an allow-list in
 
 The environment variable `GITHUB_TOOLSETS` takes precedence over the command line argument if both are provided.
 
+#### Strict Toolset Validation
+
+You can enable strict validation to fail fast when configuration includes unknown toolset names.
+
+1. **Using Command Line Argument**:
+
+  ```bash
+  github-mcp-server --toolsets repos,issues --strict-toolsets
+  ```
+
+2. **Using Environment Variable**:
+
+  ```bash
+  GITHUB_TOOLSETS="repos,issues" GITHUB_STRICT_TOOLSETS=true ./github-mcp-server
+  ```
+
+When enabled, startup returns an error if any configured toolset name is invalid.
+
 #### Specifying Individual Tools
 
 You can also configure specific tools using the `--tools` flag. Tools can be used independently or combined with toolsets and dynamic toolsets discovery for fine-grained control.
@@ -469,6 +487,7 @@ When using Docker, you can pass the toolsets as environment variables:
 docker run -i --rm \
   -e GITHUB_PERSONAL_ACCESS_TOKEN=<your-token> \
   -e GITHUB_TOOLSETS="repos,issues,pull_requests,actions,code_security" \
+  -e GITHUB_STRICT_TOOLSETS=true \
   ghcr.io/github/github-mcp-server
 ```
 
