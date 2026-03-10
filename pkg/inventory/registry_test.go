@@ -481,6 +481,26 @@ func TestToolsForToolset(t *testing.T) {
 	}
 }
 
+func TestToolsForToolset_RespectsReadOnly(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("tool_read", "toolset1", true),
+		mockTool("tool_write", "toolset1", false),
+	}
+
+	reg := mustBuild(
+		t,
+		NewBuilder().SetTools(tools).WithToolsets([]string{}).WithReadOnly(true),
+	)
+	toolset1Tools := reg.ToolsForToolset("toolset1")
+
+	if len(toolset1Tools) != 1 {
+		t.Fatalf("Expected 1 read-only tool for toolset1, got %d", len(toolset1Tools))
+	}
+	if toolset1Tools[0].Tool.Name != "tool_read" {
+		t.Fatalf("Expected tool_read, got %q", toolset1Tools[0].Tool.Name)
+	}
+}
+
 func TestWithDeprecatedAliases(t *testing.T) {
 	tools := []ServerTool{
 		mockTool("new_name", "toolset1", true),
@@ -849,6 +869,30 @@ func TestForMCPRequest_ToolsCall_RespectsFilters(t *testing.T) {
 	available := filtered.AvailableTools(context.Background())
 	if len(available) != 0 {
 		t.Errorf("Expected 0 tools - write tool should be filtered by read-only, got %d", len(available))
+	}
+}
+
+func TestForMCPRequest_ToolsCall_DeprecatedAliasRespectsReadOnly(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("projects_write", "projects", false),
+	}
+
+	reg := mustBuild(
+		t,
+		NewBuilder().
+			SetTools(tools).
+			WithToolsets([]string{"all"}).
+			WithReadOnly(true).
+			WithDeprecatedAliases(map[string]string{
+				"add_project_item": "projects_write",
+			}),
+	)
+
+	filtered := reg.ForMCPRequest(MCPMethodToolsCall, "add_project_item")
+	available := filtered.AvailableTools(context.Background())
+
+	if len(available) != 0 {
+		t.Fatalf("Expected 0 tools - deprecated alias should still respect read-only, got %d", len(available))
 	}
 }
 
