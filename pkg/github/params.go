@@ -3,6 +3,7 @@ package github
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 
 	"github.com/google/go-github/v82/github"
@@ -39,6 +40,66 @@ func isAcceptedError(err error) bool {
 	return errors.As(err, &acceptedError)
 }
 
+// toInt converts a value to int, handling both float64 and string representations.
+// Some MCP clients send numeric values as strings. It rejects NaN, ±Inf,
+// fractional values, and values outside the int range.
+func toInt(val any) (int, error) {
+	var f float64
+	switch v := val.(type) {
+	case float64:
+		f = v
+	case string:
+		var err error
+		f, err = strconv.ParseFloat(v, 64)
+		if err != nil {
+			return 0, fmt.Errorf("invalid numeric value: %s", v)
+		}
+	default:
+		return 0, fmt.Errorf("expected number, got %T", val)
+	}
+	if math.IsNaN(f) || math.IsInf(f, 0) {
+		return 0, fmt.Errorf("non-finite numeric value")
+	}
+	if f != math.Trunc(f) {
+		return 0, fmt.Errorf("non-integer numeric value: %v", f)
+	}
+	if f > math.MaxInt || f < math.MinInt {
+		return 0, fmt.Errorf("numeric value out of int range: %v", f)
+	}
+	return int(f), nil
+}
+
+// toInt64 converts a value to int64, handling both float64 and string representations.
+// Some MCP clients send numeric values as strings. It rejects NaN, ±Inf,
+// fractional values, and values that lose precision in the float64→int64 conversion.
+func toInt64(val any) (int64, error) {
+	var f float64
+	switch v := val.(type) {
+	case float64:
+		f = v
+	case string:
+		var err error
+		f, err = strconv.ParseFloat(v, 64)
+		if err != nil {
+			return 0, fmt.Errorf("invalid numeric value: %s", v)
+		}
+	default:
+		return 0, fmt.Errorf("expected number, got %T", val)
+	}
+	if math.IsNaN(f) || math.IsInf(f, 0) {
+		return 0, fmt.Errorf("non-finite numeric value")
+	}
+	if f != math.Trunc(f) {
+		return 0, fmt.Errorf("non-integer numeric value: %v", f)
+	}
+	result := int64(f)
+	// Check round-trip to detect precision loss for large int64 values
+	if float64(result) != f {
+		return 0, fmt.Errorf("numeric value %v is too large to fit in int64", f)
+	}
+	return result, nil
+}
+
 // RequiredParam is a helper function that can be used to fetch a requested parameter from the request.
 // It does the following checks:
 // 1. Checks if the parameter is present in the request.
@@ -68,33 +129,47 @@ func RequiredParam[T comparable](args map[string]any, p string) (T, error) {
 // RequiredInt is a helper function that can be used to fetch a requested parameter from the request.
 // It does the following checks:
 // 1. Checks if the parameter is present in the request.
-// 2. Checks if the parameter is of the expected type.
+// 2. Checks if the parameter is of the expected type (float64 or numeric string).
 // 3. Checks if the parameter is not empty, i.e: non-zero value
 func RequiredInt(args map[string]any, p string) (int, error) {
-	v, err := RequiredParam[float64](args, p)
-	if err != nil {
-		return 0, err
+	v, ok := args[p]
+	if !ok {
+		return 0, fmt.Errorf("missing required parameter: %s", p)
 	}
-	return int(v), nil
+
+	result, err := toInt(v)
+	if err != nil {
+		return 0, fmt.Errorf("parameter %s is not a valid number: %w", p, err)
+	}
+
+	if result == 0 {
+		return 0, fmt.Errorf("missing required parameter: %s", p)
+	}
+
+	return result, nil
 }
 
 // RequiredBigInt is a helper function that can be used to fetch a requested parameter from the request.
 // It does the following checks:
 // 1. Checks if the parameter is present in the request.
-// 2. Checks if the parameter is of the expected type (float64).
+// 2. Checks if the parameter is of the expected type (float64 or numeric string).
 // 3. Checks if the parameter is not empty, i.e: non-zero value.
 // 4. Validates that the float64 value can be safely converted to int64 without truncation.
 func RequiredBigInt(args map[string]any, p string) (int64, error) {
-	v, err := RequiredParam[float64](args, p)
-	if err != nil {
-		return 0, err
+	val, ok := args[p]
+	if !ok {
+		return 0, fmt.Errorf("missing required parameter: %s", p)
 	}
 
-	result := int64(v)
-	// Check if converting back produces the same value to avoid silent truncation
-	if float64(result) != v {
-		return 0, fmt.Errorf("parameter %s value %f is too large to fit in int64", p, v)
+	result, err := toInt64(val)
+	if err != nil {
+		return 0, fmt.Errorf("parameter %s is not a valid number: %w", p, err)
 	}
+
+	if result == 0 {
+		return 0, fmt.Errorf("missing required parameter: %s", p)
+	}
+
 	return result, nil
 }
 
@@ -121,13 +196,19 @@ func OptionalParam[T any](args map[string]any, p string) (T, error) {
 // OptionalIntParam is a helper function that can be used to fetch a requested parameter from the request.
 // It does the following checks:
 // 1. Checks if the parameter is present in the request, if not, it returns its zero-value
-// 2. If it is present, it checks if the parameter is of the expected type and returns it
+// 2. If it is present, it checks if the parameter is of the expected type (float64 or numeric string) and returns it
 func OptionalIntParam(args map[string]any, p string) (int, error) {
-	v, err := OptionalParam[float64](args, p)
-	if err != nil {
-		return 0, err
+	val, ok := args[p]
+	if !ok {
+		return 0, nil
 	}
-	return int(v), nil
+
+	result, err := toInt(val)
+	if err != nil {
+		return 0, fmt.Errorf("parameter %s is not a valid number: %w", p, err)
+	}
+
+	return result, nil
 }
 
 // OptionalIntParamWithDefault is a helper function that can be used to fetch a requested parameter from the request

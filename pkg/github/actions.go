@@ -702,8 +702,8 @@ For single job logs, provide job_id. For all failed jobs in a run, provide run_i
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
-			// Default to 500 lines if not specified
-			if tailLines == 0 {
+			// Default to 500 lines if not specified or invalid
+			if tailLines <= 0 {
 				tailLines = 500
 			}
 
