@@ -409,3 +409,51 @@ func TestHTTPHandlerRoutes(t *testing.T) {
 		})
 	}
 }
+
+func TestWithGlobalReadonly(t *testing.T) {
+	tests := []struct {
+		name           string
+		readonly       bool
+		expectReadonly bool
+	}{
+		{
+			name:           "readonly config enables readonly mode",
+			readonly:       true,
+			expectReadonly: true,
+		},
+		{
+			name:           "non-readonly config leaves readonly disabled",
+			readonly:       false,
+			expectReadonly: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &ServerConfig{
+				Version:  "test",
+				ReadOnly: tt.readonly,
+			}
+
+			middleware := withGlobalReadonly(cfg)
+
+			// Create a handler that will check the context
+			var contextReadonly bool
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				contextReadonly = ghcontext.IsReadonly(r.Context())
+				w.WriteHeader(http.StatusOK)
+			})
+
+			// Apply middleware
+			handler := middleware(next)
+
+			// Create request and execute
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			// Verify the readonly state matches the config
+			assert.Equal(t, tt.expectReadonly, contextReadonly, "readonly context should match config")
+		})
+	}
+}

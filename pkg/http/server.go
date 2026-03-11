@@ -67,6 +67,9 @@ type ServerConfig struct {
 	// ScopeChallenge indicates if we should return OAuth scope challenges, and if we should perform
 	// tool filtering based on token scopes.
 	ScopeChallenge bool
+
+	// ReadOnly indicates if the server should run in read-only mode globally
+	ReadOnly bool
 }
 
 func RunHTTPServer(cfg ServerConfig) error {
@@ -145,6 +148,9 @@ func RunHTTPServer(cfg ServerConfig) error {
 		// Register Middleware First, needs to be before route registration
 		handler.RegisterMiddleware(r)
 
+		// Apply global readonly setting from server config
+		r.Use(withGlobalReadonly(&cfg))
+
 		// Register MCP server routes
 		handler.RegisterRoutes(r)
 	})
@@ -217,5 +223,19 @@ func createHTTPFeatureChecker() inventory.FeatureFlagChecker {
 			return true, nil
 		}
 		return false, nil
+	}
+}
+
+// withGlobalReadonly is middleware that applies the server's global readonly setting
+func withGlobalReadonly(cfg *ServerConfig) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if cfg.ReadOnly {
+				ctx := ghcontext.WithReadonly(r.Context(), true)
+				next.ServeHTTP(w, r.WithContext(ctx))
+			} else {
+				next.ServeHTTP(w, r)
+			}
+		})
 	}
 }
