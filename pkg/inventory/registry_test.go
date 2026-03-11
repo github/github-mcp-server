@@ -2277,3 +2277,50 @@ func TestCreateExcludeToolsFilter(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, allowed, "allowed_tool should be included")
 }
+
+func TestHiddenTools_ReportsStableReasonCodes(t *testing.T) {
+	tools := []ServerTool{
+		mockTool("read_tool", "toolset1", true),
+		mockTool("write_tool", "toolset1", false),
+		mockTool("toolset_hidden", "toolset2", true),
+		mockToolWithFlags("flag_hidden", "toolset1", true, "feature_x", ""),
+		mockTool("builder_hidden", "toolset1", true),
+	}
+	filter := func(_ context.Context, tool *ServerTool) (bool, error) {
+		return tool.Tool.Name != "builder_hidden", nil
+	}
+	inv := mustBuild(t, NewBuilder().
+		SetTools(tools).
+		WithToolsets([]string{"toolset1"}).
+		WithReadOnly(true).
+		WithFeatureChecker(func(_ context.Context, _ string) (bool, error) { return false, nil }).
+		WithFilter(filter))
+
+	hidden := inv.HiddenTools(context.Background())
+	reasonsByName := make(map[string]HiddenToolReason, len(hidden))
+	for _, item := range hidden {
+		reasonsByName[item.Name] = item.Reason
+	}
+
+	require.Equal(t, HiddenToolReasonReadOnlyMode, reasonsByName["write_tool"])
+	require.Equal(t, HiddenToolReasonToolsetDisabled, reasonsByName["toolset_hidden"])
+	require.Equal(t, HiddenToolReasonFeatureFlag, reasonsByName["flag_hidden"])
+	require.Equal(t, HiddenToolReasonBuilderFilterFalse, reasonsByName["builder_hidden"])
+	_, hasReadTool := reasonsByName["read_tool"]
+	require.False(t, hasReadTool, "read_tool should not be hidden")
+}
+
+func TestHiddenTools_ReportsBuilderFilterErrorReason(t *testing.T) {
+	tool := mockTool("error_tool", "toolset1", true)
+	inv := mustBuild(t, NewBuilder().
+		SetTools([]ServerTool{tool}).
+		WithToolsets([]string{"all"}).
+		WithFilter(func(_ context.Context, _ *ServerTool) (bool, error) {
+			return false, fmt.Errorf("forced filter failure")
+		}))
+
+	hidden := inv.HiddenTools(context.Background())
+	require.Len(t, hidden, 1)
+	require.Equal(t, "error_tool", hidden[0].Name)
+	require.Equal(t, HiddenToolReasonBuilderFilterError, hidden[0].Reason)
+}

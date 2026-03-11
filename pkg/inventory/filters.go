@@ -13,6 +13,24 @@ import (
 // Returns (enabled, error). If error occurs, the caller should log and treat as false.
 type FeatureFlagChecker func(ctx context.Context, flagName string) (bool, error)
 
+// HiddenToolReason is a stable machine-readable reason for tool filtering decisions.
+type HiddenToolReason string
+
+const (
+	HiddenToolReasonEnabledFalse       HiddenToolReason = "enabled_false"
+	HiddenToolReasonFeatureFlag        HiddenToolReason = "feature_flag_blocked"
+	HiddenToolReasonReadOnlyMode       HiddenToolReason = "read_only_mode"
+	HiddenToolReasonBuilderFilterFalse HiddenToolReason = "builder_filter_false"
+	HiddenToolReasonBuilderFilterError HiddenToolReason = "builder_filter_error"
+	HiddenToolReasonToolsetDisabled    HiddenToolReason = "toolset_disabled"
+)
+
+// HiddenTool describes a hidden tool name and its first matching hidden reason.
+type HiddenTool struct {
+	Name   string
+	Reason HiddenToolReason
+}
+
 // isToolsetEnabled checks if a toolset is enabled based on current filters.
 func (r *Inventory) isToolsetEnabled(toolsetID ToolsetID) bool {
 	// Check enabled toolsets filter
@@ -51,6 +69,49 @@ func (r *Inventory) isFeatureFlagAllowed(ctx context.Context, enableFlag, disabl
 	return true
 }
 
+// toolEnabledReason evaluates the tool filter chain in order and returns hidden reason if excluded.
+func (r *Inventory) toolEnabledReason(ctx context.Context, tool *ServerTool) (bool, HiddenToolReason) {
+	// 1. Check tool's own Enabled function first
+	if tool.Enabled != nil {
+		enabled, err := tool.Enabled(ctx)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Tool.Enabled check error for %q: %v\n", tool.Tool.Name, err)
+			return false, HiddenToolReasonEnabledFalse
+		}
+		if !enabled {
+			return false, HiddenToolReasonEnabledFalse
+		}
+	}
+	// 2. Check feature flags
+	if !r.isFeatureFlagAllowed(ctx, tool.FeatureFlagEnable, tool.FeatureFlagDisable) {
+		return false, HiddenToolReasonFeatureFlag
+	}
+	// 3. Check read-only filter (applies to all tools)
+	if r.readOnly && !tool.IsReadOnly() {
+		return false, HiddenToolReasonReadOnlyMode
+	}
+	// 4. Apply builder filters
+	for _, filter := range r.filters {
+		allowed, err := filter(ctx, tool)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Builder filter error for tool %q: %v\n", tool.Tool.Name, err)
+			return false, HiddenToolReasonBuilderFilterError
+		}
+		if !allowed {
+			return false, HiddenToolReasonBuilderFilterFalse
+		}
+	}
+	// 5. Check if tool is in additionalTools (bypasses toolset filter)
+	if r.additionalTools != nil && r.additionalTools[tool.Tool.Name] {
+		return true, ""
+	}
+	// 6. Check toolset filter
+	if !r.isToolsetEnabled(tool.Toolset.ID) {
+		return false, HiddenToolReasonToolsetDisabled
+	}
+	return true, ""
+}
+
 // isToolEnabled checks if a specific tool is enabled based on current filters.
 // Filter evaluation order:
 //  1. Tool.Enabled (tool self-filtering)
@@ -59,45 +120,8 @@ func (r *Inventory) isFeatureFlagAllowed(ctx context.Context, enableFlag, disabl
 //  4. Builder filters (via WithFilter)
 //  5. Toolset/additional tools
 func (r *Inventory) isToolEnabled(ctx context.Context, tool *ServerTool) bool {
-	// 1. Check tool's own Enabled function first
-	if tool.Enabled != nil {
-		enabled, err := tool.Enabled(ctx)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Tool.Enabled check error for %q: %v\n", tool.Tool.Name, err)
-			return false
-		}
-		if !enabled {
-			return false
-		}
-	}
-	// 2. Check feature flags
-	if !r.isFeatureFlagAllowed(ctx, tool.FeatureFlagEnable, tool.FeatureFlagDisable) {
-		return false
-	}
-	// 3. Check read-only filter (applies to all tools)
-	if r.readOnly && !tool.IsReadOnly() {
-		return false
-	}
-	// 4. Apply builder filters
-	for _, filter := range r.filters {
-		allowed, err := filter(ctx, tool)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Builder filter error for tool %q: %v\n", tool.Tool.Name, err)
-			return false
-		}
-		if !allowed {
-			return false
-		}
-	}
-	// 5. Check if tool is in additionalTools (bypasses toolset filter)
-	if r.additionalTools != nil && r.additionalTools[tool.Tool.Name] {
-		return true
-	}
-	// 5. Check toolset filter
-	if !r.isToolsetEnabled(tool.Toolset.ID) {
-		return false
-	}
-	return true
+	enabled, _ := r.toolEnabledReason(ctx, tool)
+	return enabled
 }
 
 // AvailableTools returns the tools that pass all current filters,
@@ -283,4 +307,33 @@ func (r *Inventory) EnabledToolsetIDs() []ToolsetID {
 // The context is used for Enabled function evaluation and builder filter checks.
 func (r *Inventory) FilteredTools(ctx context.Context) ([]ServerTool, error) {
 	return r.AvailableTools(ctx), nil
+}
+
+// HiddenTools returns hidden tools and stable reason codes for why they were filtered out.
+// The first matching reason in the filter evaluation order is returned per tool name.
+func (r *Inventory) HiddenTools(ctx context.Context) []HiddenTool {
+	seen := make(map[string]bool)
+	result := make([]HiddenTool, 0)
+	for i := range r.tools {
+		tool := &r.tools[i]
+		enabled, reason := r.toolEnabledReason(ctx, tool)
+		if enabled {
+			continue
+		}
+		if seen[tool.Tool.Name] {
+			continue
+		}
+		seen[tool.Tool.Name] = true
+		result = append(result, HiddenTool{
+			Name:   tool.Tool.Name,
+			Reason: reason,
+		})
+	}
+	sort.Slice(result, func(i, j int) bool {
+		if result[i].Name != result[j].Name {
+			return result[i].Name < result[j].Name
+		}
+		return result[i].Reason < result[j].Reason
+	})
+	return result
 }
