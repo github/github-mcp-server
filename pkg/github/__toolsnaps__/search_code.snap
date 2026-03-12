@@ -5,39 +5,39 @@
   },
   "description": "Fast and precise code search across ALL GitHub repositories using GitHub's native search engine. Best for finding exact symbols, functions, classes, or specific code patterns.",
   "inputSchema": {
-    "type": "object",
-    "required": [
-      "query"
-    ],
     "properties": {
       "order": {
-        "type": "string",
         "description": "Sort order for results",
         "enum": [
           "asc",
           "desc"
-        ]
+        ],
+        "type": "string"
       },
       "page": {
-        "type": "number",
         "description": "Page number for pagination (min 1)",
-        "minimum": 1
+        "minimum": 1,
+        "type": "number"
       },
       "perPage": {
-        "type": "number",
         "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
         "minimum": 1,
-        "maximum": 100
+        "type": "number"
       },
       "query": {
-        "type": "string",
-        "description": "Search query using GitHub's powerful code search syntax. Examples: 'content:Skill language:Java org:github', 'NOT is:archived language:Python OR language:go', 'repo:github/github-mcp-server'. Supports exact matching, language filters, path filters, and more."
+        "description": "Search query using GitHub's powerful code search syntax. Examples: 'content:Skill language:Java org:github', 'NOT is:archived language:Python OR language:go', 'repo:github/github-mcp-server'. Supports exact matching, language filters, path filters, and more.",
+        "type": "string"
       },
       "sort": {
-        "type": "string",
-        "description": "Sort field ('indexed' only)"
+        "description": "Sort field ('indexed' only)",
+        "type": "string"
       }
-    }
+    },
+    "required": [
+      "query"
+    ],
+    "type": "object"
   },
   "name": "search_code"
 }

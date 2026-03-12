@@ -4,21 +4,21 @@
   },
   "description": "Mark all notifications as read",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "lastReadAt": {
-        "type": "string",
-        "description": "Describes the last point that notifications were checked (optional). Default: Now"
+        "description": "Describes the last point that notifications were checked (optional). Default: Now",
+        "type": "string"
       },
       "owner": {
-        "type": "string",
-        "description": "Optional repository owner. If provided with repo, only notifications for this repository are marked as read."
+        "description": "Optional repository owner. If provided with repo, only notifications for this repository are marked as read.",
+        "type": "string"
       },
       "repo": {
-        "type": "string",
-        "description": "Optional repository name. If provided with owner, only notifications for this repository are marked as read."
+        "description": "Optional repository name. If provided with owner, only notifications for this repository are marked as read.",
+        "type": "string"
       }
-    }
+    },
+    "type": "object"
   },
   "name": "mark_all_notifications_read"
 }

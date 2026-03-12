@@ -5,26 +5,26 @@
   },
   "description": "Get details of a specific code scanning alert in a GitHub repository.",
   "inputSchema": {
-    "type": "object",
+    "properties": {
+      "alertNumber": {
+        "description": "The number of the alert.",
+        "type": "number"
+      },
+      "owner": {
+        "description": "The owner of the repository.",
+        "type": "string"
+      },
+      "repo": {
+        "description": "The name of the repository.",
+        "type": "string"
+      }
+    },
     "required": [
       "owner",
       "repo",
       "alertNumber"
     ],
-    "properties": {
-      "alertNumber": {
-        "type": "number",
-        "description": "The number of the alert."
-      },
-      "owner": {
-        "type": "string",
-        "description": "The owner of the repository."
-      },
-      "repo": {
-        "type": "string",
-        "description": "The name of the repository."
-      }
-    }
+    "type": "object"
   },
   "name": "get_code_scanning_alert"
 }

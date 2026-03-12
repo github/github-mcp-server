@@ -5,25 +5,23 @@
   },
   "description": "List global security advisories from GitHub.",
   "inputSchema": {
-    "type": "object",
     "properties": {
       "affects": {
-        "type": "string",
-        "description": "Filter advisories by affected package or version (e.g. \"package1,package2@1.0.0\")."
+        "description": "Filter advisories by affected package or version (e.g. \"package1,package2@1.0.0\").",
+        "type": "string"
       },
       "cveId": {
-        "type": "string",
-        "description": "Filter by CVE ID."
+        "description": "Filter by CVE ID.",
+        "type": "string"
       },
       "cwes": {
-        "type": "array",
         "description": "Filter by Common Weakness Enumeration IDs (e.g. [\"79\", \"284\", \"22\"]).",
         "items": {
           "type": "string"
-        }
+        },
+        "type": "array"
       },
       "ecosystem": {
-        "type": "string",
         "description": "Filter by package ecosystem.",
         "enum": [
           "actions",
@@ -38,26 +36,26 @@
           "pub",
           "rubygems",
           "rust"
-        ]
+        ],
+        "type": "string"
       },
       "ghsaId": {
-        "type": "string",
-        "description": "Filter by GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx)."
+        "description": "Filter by GitHub Security Advisory ID (format: GHSA-xxxx-xxxx-xxxx).",
+        "type": "string"
       },
       "isWithdrawn": {
-        "type": "boolean",
-        "description": "Whether to only return withdrawn advisories."
+        "description": "Whether to only return withdrawn advisories.",
+        "type": "boolean"
       },
       "modified": {
-        "type": "string",
-        "description": "Filter by publish or update date or date range (ISO 8601 date or range)."
+        "description": "Filter by publish or update date or date range (ISO 8601 date or range).",
+        "type": "string"
       },
       "published": {
-        "type": "string",
-        "description": "Filter by publish date or date range (ISO 8601 date or range)."
+        "description": "Filter by publish date or date range (ISO 8601 date or range).",
+        "type": "string"
       },
       "severity": {
-        "type": "string",
         "description": "Filter by severity.",
         "enum": [
           "unknown",
@@ -65,23 +63,25 @@
           "medium",
           "high",
           "critical"
-        ]
+        ],
+        "type": "string"
       },
       "type": {
-        "type": "string",
-        "description": "Advisory type.",
         "default": "reviewed",
+        "description": "Advisory type.",
         "enum": [
           "reviewed",
           "malware",
           "unreviewed"
-        ]
+        ],
+        "type": "string"
       },
       "updated": {
-        "type": "string",
-        "description": "Filter by update date or date range (ISO 8601 date or range)."
+        "description": "Filter by update date or date range (ISO 8601 date or range).",
+        "type": "string"
       }
-    }
+    },
+    "type": "object"
   },
   "name": "list_global_security_advisories"
 }

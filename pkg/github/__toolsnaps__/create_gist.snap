@@ -4,30 +4,30 @@
   },
   "description": "Create a new gist",
   "inputSchema": {
-    "type": "object",
+    "properties": {
+      "content": {
+        "description": "Content for simple single-file gist creation",
+        "type": "string"
+      },
+      "description": {
+        "description": "Description of the gist",
+        "type": "string"
+      },
+      "filename": {
+        "description": "Filename for simple single-file gist creation",
+        "type": "string"
+      },
+      "public": {
+        "default": false,
+        "description": "Whether the gist is public",
+        "type": "boolean"
+      }
+    },
     "required": [
       "filename",
       "content"
     ],
-    "properties": {
-      "content": {
-        "type": "string",
-        "description": "Content for simple single-file gist creation"
-      },
-      "description": {
-        "type": "string",
-        "description": "Description of the gist"
-      },
-      "filename": {
-        "type": "string",
-        "description": "Filename for simple single-file gist creation"
-      },
-      "public": {
-        "type": "boolean",
-        "description": "Whether the gist is public",
-        "default": false
-      }
-    }
+    "type": "object"
   },
   "name": "create_gist"
 }

@@ -4,30 +4,30 @@
   },
   "description": "Update an existing gist",
   "inputSchema": {
-    "type": "object",
+    "properties": {
+      "content": {
+        "description": "Content for the file",
+        "type": "string"
+      },
+      "description": {
+        "description": "Updated description of the gist",
+        "type": "string"
+      },
+      "filename": {
+        "description": "Filename to update or create",
+        "type": "string"
+      },
+      "gist_id": {
+        "description": "ID of the gist to update",
+        "type": "string"
+      }
+    },
     "required": [
       "gist_id",
       "filename",
       "content"
     ],
-    "properties": {
-      "content": {
-        "type": "string",
-        "description": "Content for the file"
-      },
-      "description": {
-        "type": "string",
-        "description": "Updated description of the gist"
-      },
-      "filename": {
-        "type": "string",
-        "description": "Filename to update or create"
-      },
-      "gist_id": {
-        "type": "string",
-        "description": "ID of the gist to update"
-      }
-    }
+    "type": "object"
   },
   "name": "update_gist"
 }

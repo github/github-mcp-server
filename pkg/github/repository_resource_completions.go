@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/go-github/v79/github"
+	"github.com/google/go-github/v82/github"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -33,8 +33,10 @@ func RepositoryResourceCompletionHandler(getClient GetClientFn) func(ctx context
 
 		argName := req.Params.Argument.Name
 		argValue := req.Params.Argument.Value
-		resolved := req.Params.Context.Arguments
-		if resolved == nil {
+		var resolved map[string]string
+		if req.Params.Context != nil && req.Params.Context.Arguments != nil {
+			resolved = req.Params.Context.Arguments
+		} else {
 			resolved = map[string]string{}
 		}
 

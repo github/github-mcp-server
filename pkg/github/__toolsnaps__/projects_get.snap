@@ -1,0 +1,61 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get details of GitHub Projects resources"
+  },
+  "description": "Get details about specific GitHub Projects resources.\nUse this tool to get details about individual projects, project fields, and project items by their unique IDs.\n",
+  "inputSchema": {
+    "properties": {
+      "field_id": {
+        "description": "The field's ID. Required for 'get_project_field' method.",
+        "type": "number"
+      },
+      "fields": {
+        "description": "Specific list of field IDs to include in the response when getting a project item (e.g. [\"102589\", \"985201\", \"169875\"]). If not provided, only the title field is included. Only used for 'get_project_item' method.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "item_id": {
+        "description": "The item's ID. Required for 'get_project_item' method.",
+        "type": "number"
+      },
+      "method": {
+        "description": "The method to execute",
+        "enum": [
+          "get_project",
+          "get_project_field",
+          "get_project_item",
+          "get_project_status_update"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "The owner (user or organization login). The name is not case sensitive.",
+        "type": "string"
+      },
+      "owner_type": {
+        "description": "Owner type (user or org). If not provided, will be automatically detected.",
+        "enum": [
+          "user",
+          "org"
+        ],
+        "type": "string"
+      },
+      "project_number": {
+        "description": "The project's number.",
+        "type": "number"
+      },
+      "status_update_id": {
+        "description": "The node ID of the project status update. Required for 'get_project_status_update' method.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "method"
+    ],
+    "type": "object"
+  },
+  "name": "projects_get"
+}

@@ -4,31 +4,31 @@
   },
   "description": "Manage a repository notification subscription: ignore, watch, or delete repository notifications subscription for the provided repository.",
   "inputSchema": {
-    "type": "object",
-    "required": [
-      "owner",
-      "repo",
-      "action"
-    ],
     "properties": {
       "action": {
-        "type": "string",
         "description": "Action to perform: ignore, watch, or delete the repository notification subscription.",
         "enum": [
           "ignore",
           "watch",
           "delete"
-        ]
+        ],
+        "type": "string"
       },
       "owner": {
-        "type": "string",
-        "description": "The account owner of the repository."
+        "description": "The account owner of the repository.",
+        "type": "string"
       },
       "repo": {
-        "type": "string",
-        "description": "The name of the repository."
+        "description": "The name of the repository.",
+        "type": "string"
       }
-    }
+    },
+    "required": [
+      "owner",
+      "repo",
+      "action"
+    ],
+    "type": "object"
   },
   "name": "manage_repository_notification_subscription"
 }

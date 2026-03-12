@@ -4,13 +4,16 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // IssueToFixWorkflowPrompt provides a guided workflow for creating an issue and then generating a PR to fix it
-func IssueToFixWorkflowPrompt(t translations.TranslationHelperFunc) (tool mcp.Prompt, handler mcp.PromptHandler) {
-	return mcp.Prompt{
+func IssueToFixWorkflowPrompt(t translations.TranslationHelperFunc) inventory.ServerPrompt {
+	return inventory.NewServerPrompt(
+		ToolsetMetadataIssues,
+		mcp.Prompt{
 			Name:        "issue_to_fix_workflow",
 			Description: t("PROMPT_ISSUE_TO_FIX_WORKFLOW_DESCRIPTION", "Create an issue for a problem and then generate a pull request to fix it"),
 			Arguments: []*mcp.PromptArgument{
@@ -102,5 +105,6 @@ func IssueToFixWorkflowPrompt(t translations.TranslationHelperFunc) (tool mcp.Pr
 			return &mcp.GetPromptResult{
 				Messages: messages,
 			}, nil
-		}
+		},
+	)
 }

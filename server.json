@@ -1,14 +1,38 @@
 {
-  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.github/github-mcp-server",
   "description": "Connect AI assistants to GitHub - manage repos, issues, PRs, and workflows through natural language.",
   "title": "GitHub",
-  "status": "active",
   "repository": {
     "url": "https://github.com/github/github-mcp-server",
     "source": "github"
   },
   "version": "${VERSION}",
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/github/github-mcp-server:${VERSION}",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "-e",
+          "description": "Set an environment variable in the runtime",
+          "value": "GITHUB_PERSONAL_ACCESS_TOKEN={token}",
+          "isRequired": true,
+          "variables": {
+            "token": {
+              "isRequired": true,
+              "isSecret": true,
+              "format": "string"
+            }
+          }
+        }
+      ]
+    }
+  ],
   "remotes": [
     {
       "type": "streamable-http",
@@ -16,8 +40,7 @@
       "headers": [
         {
           "name": "Authorization",
-          "description": "Authentication token (PAT or App token)",
-          "isRequired": true,
+          "description": "Authorization header with authentication token (PAT or App token)",
           "isSecret": true
         }
       ]

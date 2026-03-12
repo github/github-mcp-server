@@ -14,6 +14,8 @@ env:
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
+    # Only run on the main repository, not on forks
+    if: github.repository == 'github/github-mcp-server'
     runs-on: ${{ fromJSON(matrix.runner) }}
     permissions:
       actions: read
@@ -33,6 +35,10 @@ jobs:
             category: /language:go
             build-mode: autobuild
             runner: '["ubuntu-22.04"]'
+          - language: javascript
+            category: /language:javascript
+            build-mode: none
+            runner: '["ubuntu-22.04"]'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -46,6 +52,9 @@ jobs:
           queries: "" # Default query suite
           packs: github/ccr-${{ matrix.language }}-queries
           config: |
+            paths-ignore:
+              - third-party
+              - third-party-licenses.*.md
             default-setup:
               org:
                 model-packs: [ ${{ github.event.inputs.code_scanning_codeql_packs }} ]
@@ -68,6 +77,18 @@ jobs:
         with:
           go-version: ${{ fromJSON(steps.resolve-environment.outputs.environment).configuration.go.version }}
           cache: false
+
+      - name: Set up Node.js
+        if: matrix.language == 'go' || matrix.language == 'javascript'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Build UI
+        if: matrix.language == 'go'
+        run: script/build-ui
 
       - name: Autobuild
         uses: github/codeql-action/autobuild@v4

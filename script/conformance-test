@@ -1,0 +1,432 @@
+#!/bin/bash
+set -e
+
+# Conformance test script for comparing MCP server behavior between branches
+# Builds both main and current branch, runs various flag combinations,
+# and produces a conformance report with timing and diffs.
+#
+# Output:
+#   - Progress/status messages go to stderr (for visibility in CI)
+#   - Final report summary goes to stdout (for piping/capture)
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+REPORT_DIR="$PROJECT_DIR/conformance-report"
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+# Colors for output (only used on stderr)
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Helper to print to stderr
+log() {
+    echo -e "$@" >&2
+}
+
+log "${BLUE}=== MCP Server Conformance Test ===${NC}"
+log "Current branch: $CURRENT_BRANCH"
+log "Report directory: $REPORT_DIR"
+
+# Find the common ancestor
+MERGE_BASE=$(git merge-base HEAD origin/main)
+log "Comparing against merge-base: $MERGE_BASE"
+log ""
+
+# Create report directory
+rm -rf "$REPORT_DIR"
+mkdir -p "$REPORT_DIR"/{main,branch,diffs}
+
+# Build binaries
+log "${YELLOW}Building binaries...${NC}"
+
+log "Building current branch ($CURRENT_BRANCH)..."
+go build -o "$REPORT_DIR/branch/github-mcp-server" ./cmd/github-mcp-server
+BRANCH_BUILD_OK=$?
+
+log "Building main branch (using temp worktree at merge-base)..."
+TEMP_WORKTREE=$(mktemp -d)
+git worktree add --quiet "$TEMP_WORKTREE" "$MERGE_BASE"
+(cd "$TEMP_WORKTREE" && go build -o "$REPORT_DIR/main/github-mcp-server" ./cmd/github-mcp-server)
+MAIN_BUILD_OK=$?
+git worktree remove --force "$TEMP_WORKTREE"
+
+if [ $BRANCH_BUILD_OK -ne 0 ] || [ $MAIN_BUILD_OK -ne 0 ]; then
+    log "${RED}Build failed!${NC}"
+    exit 1
+fi
+
+log "${GREEN}Both binaries built successfully${NC}"
+log ""
+
+# MCP JSON-RPC messages
+INIT_MSG='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"conformance-test","version":"1.0.0"}}}'
+INITIALIZED_MSG='{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}'
+LIST_TOOLS_MSG='{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+LIST_RESOURCES_MSG='{"jsonrpc":"2.0","id":3,"method":"resources/listTemplates","params":{}}'
+LIST_PROMPTS_MSG='{"jsonrpc":"2.0","id":4,"method":"prompts/list","params":{}}'
+
+# Dynamic toolset management tool calls (for dynamic mode testing)
+LIST_TOOLSETS_MSG='{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"list_available_toolsets","arguments":{}}}'
+GET_TOOLSET_TOOLS_MSG='{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"get_toolset_tools","arguments":{"toolset":"repos"}}}'
+ENABLE_TOOLSET_MSG='{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"enable_toolset","arguments":{"toolset":"repos"}}}'
+LIST_TOOLSETS_AFTER_MSG='{"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"list_available_toolsets","arguments":{}}}'
+
+# Function to normalize JSON for comparison
+# Sorts all arrays (including nested ones) and formats consistently
+# Also handles embedded JSON strings in "text" fields (from tool call responses)
+normalize_json() {
+    local file="$1"
+    if [ -s "$file" ]; then
+        # First, try to parse and re-serialize any JSON embedded in text fields
+        # This handles tool call responses where the result is JSON-in-a-string
+        jq -S '
+            # Function to sort arrays recursively
+            def deep_sort:
+                if type == "array" then
+                    [.[] | deep_sort] | sort_by(tostring)
+                elif type == "object" then
+                    to_entries | map(.value |= deep_sort) | from_entries
+                else
+                    .
+                end;
+            
+            # Walk the structure, and for any "text" field that looks like JSON array/object, parse and sort it
+            walk(
+                if type == "object" and .text and (.text | type == "string") and ((.text | startswith("[")) or (.text | startswith("{"))) then
+                    .text = ((.text | fromjson | deep_sort) | tojson)
+                else
+                    .
+                end
+            ) | deep_sort
+        ' "$file" 2>/dev/null > "${file}.tmp" && mv "${file}.tmp" "$file"
+    fi
+}
+
+# Function to run MCP server and capture output with timing
+run_mcp_test() {
+    local binary="$1"
+    local name="$2"
+    local flags="$3"
+    local output_prefix="$4"
+    
+    local start_time end_time duration
+    start_time=$(date +%s.%N)
+    
+    # Run the server with all list commands - each response is on its own line
+    output=$(
+        (
+            echo "$INIT_MSG"
+            echo "$INITIALIZED_MSG"
+            echo "$LIST_TOOLS_MSG"
+            echo "$LIST_RESOURCES_MSG"
+            echo "$LIST_PROMPTS_MSG"
+            sleep 0.5
+        ) | GITHUB_PERSONAL_ACCESS_TOKEN=1 $binary stdio $flags 2>/dev/null
+    )
+    
+    end_time=$(date +%s.%N)
+    duration=$(echo "$end_time - $start_time" | bc)
+    
+    # Parse and save each response by matching JSON-RPC id
+    # Each line is a separate JSON response
+    echo "$output" | while IFS= read -r line; do
+        id=$(echo "$line" | jq -r '.id // empty' 2>/dev/null)
+        case "$id" in
+            1) echo "$line" | jq -S '.' > "${output_prefix}_initialize.json" 2>/dev/null ;;
+            2) echo "$line" | jq -S '.' > "${output_prefix}_tools.json" 2>/dev/null ;;
+            3) echo "$line" | jq -S '.' > "${output_prefix}_resources.json" 2>/dev/null ;;
+            4) echo "$line" | jq -S '.' > "${output_prefix}_prompts.json" 2>/dev/null ;;
+        esac
+    done
+    
+    # Create empty files if not created (in case of errors or missing responses)
+    touch "${output_prefix}_initialize.json" "${output_prefix}_tools.json" \
+          "${output_prefix}_resources.json" "${output_prefix}_prompts.json"
+    
+    # Normalize all JSON files for consistent comparison (sorts arrays, keys)
+    for endpoint in initialize tools resources prompts; do
+        normalize_json "${output_prefix}_${endpoint}.json"
+    done
+    
+    echo "$duration"
+}
+
+# Function to run MCP server with dynamic tool calls (for dynamic mode testing)
+run_mcp_dynamic_test() {
+    local binary="$1"
+    local name="$2"
+    local flags="$3"
+    local output_prefix="$4"
+    
+    local start_time end_time duration
+    start_time=$(date +%s.%N)
+    
+    # Run the server with dynamic tool calls in sequence:
+    # 1. Initialize
+    # 2. List available toolsets (before enable)
+    # 3. Get tools for repos toolset
+    # 4. Enable repos toolset
+    # 5. List available toolsets (after enable - should show repos as enabled)
+    output=$(
+        (
+            echo "$INIT_MSG"
+            echo "$INITIALIZED_MSG"
+            echo "$LIST_TOOLSETS_MSG"
+            sleep 0.1
+            echo "$GET_TOOLSET_TOOLS_MSG"
+            sleep 0.1
+            echo "$ENABLE_TOOLSET_MSG"
+            sleep 0.1
+            echo "$LIST_TOOLSETS_AFTER_MSG"
+            sleep 0.3
+        ) | GITHUB_PERSONAL_ACCESS_TOKEN=1 $binary stdio $flags 2>/dev/null
+    )
+    
+    end_time=$(date +%s.%N)
+    duration=$(echo "$end_time - $start_time" | bc)
+    
+    # Parse and save each response by matching JSON-RPC id
+    echo "$output" | while IFS= read -r line; do
+        id=$(echo "$line" | jq -r '.id // empty' 2>/dev/null)
+        case "$id" in
+            1) echo "$line" | jq -S '.' > "${output_prefix}_initialize.json" 2>/dev/null ;;
+            10) echo "$line" | jq -S '.' > "${output_prefix}_list_toolsets_before.json" 2>/dev/null ;;
+            11) echo "$line" | jq -S '.' > "${output_prefix}_get_toolset_tools.json" 2>/dev/null ;;
+            12) echo "$line" | jq -S '.' > "${output_prefix}_enable_toolset.json" 2>/dev/null ;;
+            13) echo "$line" | jq -S '.' > "${output_prefix}_list_toolsets_after.json" 2>/dev/null ;;
+        esac
+    done
+    
+    # Create empty files if not created
+    touch "${output_prefix}_initialize.json" "${output_prefix}_list_toolsets_before.json" \
+          "${output_prefix}_get_toolset_tools.json" "${output_prefix}_enable_toolset.json" \
+          "${output_prefix}_list_toolsets_after.json"
+    
+    # Normalize all JSON files
+    for endpoint in initialize list_toolsets_before get_toolset_tools enable_toolset list_toolsets_after; do
+        normalize_json "${output_prefix}_${endpoint}.json"
+    done
+    
+    echo "$duration"
+}
+
+# Test configurations - array of "name|flags|type"
+# type can be "standard" or "dynamic" (for dynamic tool call testing)
+declare -a TEST_CONFIGS=(
+    "default||standard"
+    "read-only|--read-only|standard"
+    "dynamic-toolsets|--dynamic-toolsets|standard"
+    "read-only+dynamic|--read-only --dynamic-toolsets|standard"
+    "toolsets-repos|--toolsets=repos|standard"
+    "toolsets-issues|--toolsets=issues|standard"
+    "toolsets-pull_requests|--toolsets=pull_requests|standard"
+    "toolsets-repos,issues|--toolsets=repos,issues|standard"
+    "toolsets-all|--toolsets=all|standard"
+    "tools-get_me|--tools=get_me|standard"
+    "tools-get_me,list_issues|--tools=get_me,list_issues|standard"
+    "toolsets-repos+read-only|--toolsets=repos --read-only|standard"
+    "toolsets-all+dynamic|--toolsets=all --dynamic-toolsets|standard"
+    "toolsets-repos+dynamic|--toolsets=repos --dynamic-toolsets|standard"
+    "toolsets-repos,issues+dynamic|--toolsets=repos,issues --dynamic-toolsets|standard"
+    "dynamic-tool-calls|--dynamic-toolsets|dynamic"
+)
+
+# Summary arrays
+declare -a TEST_NAMES
+declare -a MAIN_TIMES
+declare -a BRANCH_TIMES
+declare -a DIFF_STATUS
+
+log "${YELLOW}Running conformance tests...${NC}"
+log ""
+
+for config in "${TEST_CONFIGS[@]}"; do
+    IFS='|' read -r test_name flags test_type <<< "$config"
+    
+    log "${BLUE}Test: ${test_name}${NC}"
+    log "  Flags: ${flags:-<none>}"
+    log "  Type: ${test_type}"
+    
+    # Create output directories
+    mkdir -p "$REPORT_DIR/main/$test_name"
+    mkdir -p "$REPORT_DIR/branch/$test_name"
+    mkdir -p "$REPORT_DIR/diffs/$test_name"
+    
+    if [ "$test_type" = "dynamic" ]; then
+        # Run dynamic tool call test
+        main_time=$(run_mcp_dynamic_test "$REPORT_DIR/main/github-mcp-server" "main" "$flags" "$REPORT_DIR/main/$test_name/output")
+        log "  Main:   ${main_time}s"
+        
+        branch_time=$(run_mcp_dynamic_test "$REPORT_DIR/branch/github-mcp-server" "branch" "$flags" "$REPORT_DIR/branch/$test_name/output")
+        log "  Branch: ${branch_time}s"
+        
+        endpoints="initialize list_toolsets_before get_toolset_tools enable_toolset list_toolsets_after"
+    else
+        # Run standard test
+        main_time=$(run_mcp_test "$REPORT_DIR/main/github-mcp-server" "main" "$flags" "$REPORT_DIR/main/$test_name/output")
+        log "  Main:   ${main_time}s"
+        
+        branch_time=$(run_mcp_test "$REPORT_DIR/branch/github-mcp-server" "branch" "$flags" "$REPORT_DIR/branch/$test_name/output")
+        log "  Branch: ${branch_time}s"
+        
+        endpoints="initialize tools resources prompts"
+    fi
+    
+    # Calculate time difference
+    time_diff=$(echo "$branch_time - $main_time" | bc)
+    if (( $(echo "$time_diff > 0" | bc -l) )); then
+        log "  Δ Time: ${RED}+${time_diff}s (slower)${NC}"
+    else
+        log "  Δ Time: ${GREEN}${time_diff}s (faster)${NC}"
+    fi
+    
+    # Generate diffs for each endpoint
+    has_diff=false
+    for endpoint in $endpoints; do
+        main_file="$REPORT_DIR/main/$test_name/output_${endpoint}.json"
+        branch_file="$REPORT_DIR/branch/$test_name/output_${endpoint}.json"
+        diff_file="$REPORT_DIR/diffs/$test_name/${endpoint}.diff"
+        
+        if ! diff -u "$main_file" "$branch_file" > "$diff_file" 2>/dev/null; then
+            has_diff=true
+            lines=$(wc -l < "$diff_file" | tr -d ' ')
+            log "  ${YELLOW}${endpoint}: DIFF (${lines} lines)${NC}"
+        else
+            rm -f "$diff_file"  # No diff, remove empty file
+            log "  ${GREEN}${endpoint}: OK${NC}"
+        fi
+    done
+    
+    # Store results
+    TEST_NAMES+=("$test_name")
+    MAIN_TIMES+=("$main_time")
+    BRANCH_TIMES+=("$branch_time")
+    if [ "$has_diff" = true ]; then
+        DIFF_STATUS+=("DIFF")
+    else
+        DIFF_STATUS+=("OK")
+    fi
+    
+    log ""
+done
+
+# Generate summary report
+REPORT_FILE="$REPORT_DIR/CONFORMANCE_REPORT.md"
+
+cat > "$REPORT_FILE" << EOF
+# MCP Server Conformance Report
+
+Generated: $(date)
+Current Branch: $CURRENT_BRANCH
+Compared Against: merge-base ($MERGE_BASE)
+
+## Summary
+
+| Test | Main Time | Branch Time | Δ Time | Status |
+|------|-----------|-------------|--------|--------|
+EOF
+
+total_main=0
+total_branch=0
+diff_count=0
+ok_count=0
+
+for i in "${!TEST_NAMES[@]}"; do
+    name="${TEST_NAMES[$i]}"
+    main_t="${MAIN_TIMES[$i]}"
+    branch_t="${BRANCH_TIMES[$i]}"
+    status="${DIFF_STATUS[$i]}"
+    
+    delta=$(echo "$branch_t - $main_t" | bc)
+    if (( $(echo "$delta > 0" | bc -l) )); then
+        delta_str="+${delta}s"
+    else
+        delta_str="${delta}s"
+    fi
+    
+    if [ "$status" = "DIFF" ]; then
+        status_str="⚠️ DIFF"
+        ((diff_count++)) || true
+    else
+        status_str="✅ OK"
+        ((ok_count++)) || true
+    fi
+    
+    total_main=$(echo "$total_main + $main_t" | bc)
+    total_branch=$(echo "$total_branch + $branch_t" | bc)
+    
+    echo "| $name | ${main_t}s | ${branch_t}s | $delta_str | $status_str |" >> "$REPORT_FILE"
+done
+
+total_delta=$(echo "$total_branch - $total_main" | bc)
+if (( $(echo "$total_delta > 0" | bc -l) )); then
+    total_delta_str="+${total_delta}s"
+else
+    total_delta_str="${total_delta}s"
+fi
+
+cat >> "$REPORT_FILE" << EOF
+| **TOTAL** | **${total_main}s** | **${total_branch}s** | **$total_delta_str** | **$ok_count OK / $diff_count DIFF** |
+
+## Statistics
+
+- **Tests Passed (no diff):** $ok_count
+- **Tests with Differences:** $diff_count
+- **Total Main Time:** ${total_main}s
+- **Total Branch Time:** ${total_branch}s
+- **Overall Time Delta:** $total_delta_str
+
+## Detailed Diffs
+
+EOF
+
+# Add diff details to report
+for i in "${!TEST_NAMES[@]}"; do
+    name="${TEST_NAMES[$i]}"
+    status="${DIFF_STATUS[$i]}"
+    
+    if [ "$status" = "DIFF" ]; then
+        echo "### $name" >> "$REPORT_FILE"
+        echo "" >> "$REPORT_FILE"
+        
+        # Check all possible endpoints
+        for endpoint in initialize tools resources prompts list_toolsets_before get_toolset_tools enable_toolset list_toolsets_after; do
+            diff_file="$REPORT_DIR/diffs/$name/${endpoint}.diff"
+            if [ -f "$diff_file" ] && [ -s "$diff_file" ]; then
+                echo "#### ${endpoint}" >> "$REPORT_FILE"
+                echo '```diff' >> "$REPORT_FILE"
+                cat "$diff_file" >> "$REPORT_FILE"
+                echo '```' >> "$REPORT_FILE"
+                echo "" >> "$REPORT_FILE"
+            fi
+        done
+    fi
+done
+
+log "${BLUE}=== Conformance Test Complete ===${NC}"
+log ""
+log "Report: ${GREEN}$REPORT_FILE${NC}"
+log ""
+
+# Output summary to stdout (for CI capture)
+echo "=== Conformance Test Summary ==="
+echo "Tests passed: $ok_count"
+echo "Tests with diffs: $diff_count"
+echo "Total main time: ${total_main}s"
+echo "Total branch time: ${total_branch}s"
+echo "Time delta: $total_delta_str"
+
+if [ $diff_count -gt 0 ]; then
+    log ""
+    log "${YELLOW}⚠️  Some tests have differences. Review the diffs in:${NC}"
+    log "  $REPORT_DIR/diffs/"
+    echo ""
+    echo "RESULT: DIFFERENCES FOUND"
+    # Don't exit with error - diffs may be intentional improvements
+else
+    echo ""
+    echo "RESULT: ALL TESTS PASSED"
+fi

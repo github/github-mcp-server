@@ -5,44 +5,44 @@
   },
   "description": "Find GitHub organizations by name, location, or other organization metadata. Ideal for discovering companies, open source foundations, or teams.",
   "inputSchema": {
-    "type": "object",
-    "required": [
-      "query"
-    ],
     "properties": {
       "order": {
-        "type": "string",
         "description": "Sort order",
         "enum": [
           "asc",
           "desc"
-        ]
+        ],
+        "type": "string"
       },
       "page": {
-        "type": "number",
         "description": "Page number for pagination (min 1)",
-        "minimum": 1
+        "minimum": 1,
+        "type": "number"
       },
       "perPage": {
-        "type": "number",
         "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
         "minimum": 1,
-        "maximum": 100
+        "type": "number"
       },
       "query": {
-        "type": "string",
-        "description": "Organization search query. Examples: 'microsoft', 'location:california', 'created:\u003e=2025-01-01'. Search is automatically scoped to type:org."
+        "description": "Organization search query. Examples: 'microsoft', 'location:california', 'created:\u003e=2025-01-01'. Search is automatically scoped to type:org.",
+        "type": "string"
       },
       "sort": {
-        "type": "string",
         "description": "Sort field by category",
         "enum": [
           "followers",
           "repositories",
           "joined"
-        ]
+        ],
+        "type": "string"
       }
-    }
+    },
+    "required": [
+      "query"
+    ],
+    "type": "object"
   },
   "name": "search_orgs"
 }

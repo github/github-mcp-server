@@ -5,44 +5,44 @@
   },
   "description": "Find GitHub users by username, real name, or other profile information. Useful for locating developers, contributors, or team members.",
   "inputSchema": {
-    "type": "object",
-    "required": [
-      "query"
-    ],
     "properties": {
       "order": {
-        "type": "string",
         "description": "Sort order",
         "enum": [
           "asc",
           "desc"
-        ]
+        ],
+        "type": "string"
       },
       "page": {
-        "type": "number",
         "description": "Page number for pagination (min 1)",
-        "minimum": 1
+        "minimum": 1,
+        "type": "number"
       },
       "perPage": {
-        "type": "number",
         "description": "Results per page for pagination (min 1, max 100)",
+        "maximum": 100,
         "minimum": 1,
-        "maximum": 100
+        "type": "number"
       },
       "query": {
-        "type": "string",
-        "description": "User search query. Examples: 'john smith', 'location:seattle', 'followers:\u003e100'. Search is automatically scoped to type:user."
+        "description": "User search query. Examples: 'john smith', 'location:seattle', 'followers:\u003e100'. Search is automatically scoped to type:user.",
+        "type": "string"
       },
       "sort": {
-        "type": "string",
         "description": "Sort users by number of followers or repositories, or when the person joined GitHub.",
         "enum": [
           "followers",
           "repositories",
           "joined"
-        ]
+        ],
+        "type": "string"
       }
-    }
+    },
+    "required": [
+      "query"
+    ],
+    "type": "object"
   },
   "name": "search_users"
 }

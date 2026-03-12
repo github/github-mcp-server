@@ -1,0 +1,66 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "List GitHub Projects resources"
+  },
+  "description": "Tools for listing GitHub Projects resources.\nUse this tool to list projects for a user or organization, or list project fields and items for a specific project.\n",
+  "inputSchema": {
+    "properties": {
+      "after": {
+        "description": "Forward pagination cursor from previous pageInfo.nextCursor.",
+        "type": "string"
+      },
+      "before": {
+        "description": "Backward pagination cursor from previous pageInfo.prevCursor (rare).",
+        "type": "string"
+      },
+      "fields": {
+        "description": "Field IDs to include when listing project items (e.g. [\"102589\", \"985201\"]). CRITICAL: Always provide to get field values. Without this, only titles returned. Only used for 'list_project_items' method.",
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "method": {
+        "description": "The action to perform",
+        "enum": [
+          "list_projects",
+          "list_project_fields",
+          "list_project_items",
+          "list_project_status_updates"
+        ],
+        "type": "string"
+      },
+      "owner": {
+        "description": "The owner (user or organization login). The name is not case sensitive.",
+        "type": "string"
+      },
+      "owner_type": {
+        "description": "Owner type (user or org). If not provided, will automatically try both.",
+        "enum": [
+          "user",
+          "org"
+        ],
+        "type": "string"
+      },
+      "per_page": {
+        "description": "Results per page (max 50)",
+        "type": "number"
+      },
+      "project_number": {
+        "description": "The project's number. Required for 'list_project_fields', 'list_project_items', and 'list_project_status_updates' methods.",
+        "type": "number"
+      },
+      "query": {
+        "description": "Filter/query string. For list_projects: filter by title text and state (e.g. \"roadmap is:open\"). For list_project_items: advanced filtering using GitHub's project filtering syntax.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "method",
+      "owner"
+    ],
+    "type": "object"
+  },
+  "name": "projects_list"
+}

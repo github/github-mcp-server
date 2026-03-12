@@ -1,0 +1,45 @@
+# Required Octicons for the GitHub MCP Server
+# This file is the source of truth for icon requirements.
+# Used by:
+#   - script/fetch-icons (to download icons)
+#   - pkg/octicons/octicons_test.go (to validate icons are embedded)
+#   - pkg/github/toolset_icons_test.go (to validate toolset icons exist)
+#
+# Add new icons here when:
+#   - Adding a new toolset with an icon
+#   - Adding a new tool that needs a custom icon
+#
+# Format: one icon name per line (without -24.svg suffix)
+# Lines starting with # are comments
+# Empty lines are ignored
+
+apps
+beaker
+bell
+book
+check-circle
+codescan
+comment-discussion
+copilot
+dependabot
+file
+git-branch
+git-commit
+git-merge
+git-pull-request
+issue-opened
+logo-gist
+mark-github
+organization
+people
+person
+project
+repo
+repo-forked
+shield
+shield-lock
+star
+star-fill
+tag
+tools
+workflow
