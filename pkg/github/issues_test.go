@@ -1000,6 +1000,112 @@ func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
 			"non-UI client should execute directly")
 	})
+
+	t.Run("UI client with state change skips form and executes directly", func(t *testing.T) {
+		mockBaseIssue := &github.Issue{
+			Number:  github.Ptr(1),
+			Title:   github.Ptr("Test"),
+			State:   github.Ptr("open"),
+			HTMLURL: github.Ptr("https://github.com/owner/repo/issues/1"),
+		}
+		issueIDQueryResponse := githubv4mock.DataResponse(map[string]any{
+			"repository": map[string]any{
+				"issue": map[string]any{
+					"id": "I_kwDOA0xdyM50BPaO",
+				},
+			},
+		})
+		closeSuccessResponse := githubv4mock.DataResponse(map[string]any{
+			"closeIssue": map[string]any{
+				"issue": map[string]any{
+					"id":     "I_kwDOA0xdyM50BPaO",
+					"number": 1,
+					"url":    "https://github.com/owner/repo/issues/1",
+					"state":  "CLOSED",
+				},
+			},
+		})
+		completedReason := IssueClosedStateReasonCompleted
+
+		closeClient := github.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+			PatchReposIssuesByOwnerByRepoByIssueNumber: mockResponse(t, http.StatusOK, mockBaseIssue),
+		}))
+		closeGQLClient := githubv4.NewClient(githubv4mock.NewMockedHTTPClient(
+			githubv4mock.NewQueryMatcher(
+				struct {
+					Repository struct {
+						Issue struct {
+							ID githubv4.ID
+						} `graphql:"issue(number: $issueNumber)"`
+					} `graphql:"repository(owner: $owner, name: $repo)"`
+				}{},
+				map[string]any{
+					"owner":       githubv4.String("owner"),
+					"repo":        githubv4.String("repo"),
+					"issueNumber": githubv4.Int(1),
+				},
+				issueIDQueryResponse,
+			),
+			githubv4mock.NewMutationMatcher(
+				struct {
+					CloseIssue struct {
+						Issue struct {
+							ID     githubv4.ID
+							Number githubv4.Int
+							URL    githubv4.String
+							State  githubv4.String
+						}
+					} `graphql:"closeIssue(input: $input)"`
+				}{},
+				CloseIssueInput{
+					IssueID:     "I_kwDOA0xdyM50BPaO",
+					StateReason: &completedReason,
+				},
+				nil,
+				closeSuccessResponse,
+			),
+		))
+
+		closeDeps := BaseDeps{
+			Client:    closeClient,
+			GQLClient: closeGQLClient,
+			Flags:     FeatureFlags{InsidersMode: true},
+		}
+		closeHandler := serverTool.Handler(closeDeps)
+
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
+			"method":       "update",
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(1),
+			"state":        "closed",
+			"state_reason": "completed",
+		})
+		result, err := closeHandler(ContextWithDeps(context.Background(), closeDeps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.NotContains(t, textContent.Text, "Ready to update issue",
+			"state change should skip UI form")
+		assert.Contains(t, textContent.Text, "https://github.com/owner/repo/issues/1",
+			"state change should execute directly and return issue URL")
+	})
+
+	t.Run("UI client update without state change returns form message", func(t *testing.T) {
+		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{
+			"method":       "update",
+			"owner":        "owner",
+			"repo":         "repo",
+			"issue_number": float64(1),
+			"title":        "New Title",
+		})
+		result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+		require.NoError(t, err)
+
+		textContent := getTextResult(t, result)
+		assert.Contains(t, textContent.Text, "Ready to update issue #1",
+			"update without state should show UI form")
+	})
 }
 
 func Test_ListIssues(t *testing.T) {
@@ -1187,7 +1293,6 @@ func Test_ListIssues(t *testing.T) {
 		expectError   bool
 		errContains   string
 		expectedCount int
-		verifyOrder   func(t *testing.T, issues []*github.Issue)
 	}{
 		{
 			name: "list all issues",
@@ -1296,31 +1401,32 @@ func Test_ListIssues(t *testing.T) {
 			require.NoError(t, err)
 
 			// Parse the structured response with pagination info
-			var response struct {
-				Issues   []*github.Issue `json:"issues"`
-				PageInfo struct {
-					HasNextPage     bool   `json:"hasNextPage"`
-					HasPreviousPage bool   `json:"hasPreviousPage"`
-					StartCursor     string `json:"startCursor"`
-					EndCursor       string `json:"endCursor"`
-				} `json:"pageInfo"`
-				TotalCount int `json:"totalCount"`
-			}
+			var response MinimalIssuesResponse
 			err = json.Unmarshal([]byte(text), &response)
 			require.NoError(t, err)
 
 			assert.Len(t, response.Issues, tc.expectedCount, "Expected %d issues, got %d", tc.expectedCount, len(response.Issues))
 
-			// Verify order if verifyOrder function is provided
-			if tc.verifyOrder != nil {
-				tc.verifyOrder(t, response.Issues)
-			}
+			// Verify pagination metadata
+			assert.Equal(t, tc.expectedCount, response.TotalCount)
+			assert.False(t, response.PageInfo.HasNextPage)
+			assert.False(t, response.PageInfo.HasPreviousPage)
 
 			// Verify that returned issues have expected structure
 			for _, issue := range response.Issues {
-				assert.NotNil(t, issue.Number, "Issue should have number")
-				assert.NotNil(t, issue.Title, "Issue should have title")
-				assert.NotNil(t, issue.State, "Issue should have state")
+				assert.NotZero(t, issue.Number, "Issue should have number")
+				assert.NotEmpty(t, issue.Title, "Issue should have title")
+				assert.NotEmpty(t, issue.State, "Issue should have state")
+				assert.NotEmpty(t, issue.CreatedAt, "Issue should have created_at")
+				assert.NotEmpty(t, issue.UpdatedAt, "Issue should have updated_at")
+				assert.NotNil(t, issue.User, "Issue should have user")
+				assert.NotEmpty(t, issue.User.Login, "Issue user should have login")
+				assert.Empty(t, issue.HTMLURL, "html_url should be empty (not populated by GraphQL fragment)")
+
+				// Labels should be flattened to name strings
+				for _, label := range issue.Labels {
+					assert.NotEmpty(t, label, "Label should be a non-empty string")
+				}
 			}
 		})
 	}

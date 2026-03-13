@@ -1577,7 +1577,7 @@ Available methods:
 		[]scopes.Scope{scopes.Repo},
 		func(ctx context.Context, deps ToolDependencies, _ *mcp.CallToolRequest, args map[string]any) (*mcp.CallToolResult, any, error) {
 			var params PullRequestReviewWriteParams
-			if err := mapstructure.Decode(args, &params); err != nil {
+			if err := mapstructure.WeakDecode(args, &params); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
@@ -1972,7 +1972,7 @@ func AddCommentToPendingReview(t translations.TranslationHelperFunc) inventory.S
 				StartLine   *int32
 				StartSide   *string
 			}
-			if err := mapstructure.Decode(args, &params); err != nil {
+			if err := mapstructure.WeakDecode(args, &params); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 

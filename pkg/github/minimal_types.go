@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/google/go-github/v82/github"
+
+	"github.com/github/github-mcp-server/pkg/sanitize"
 )
 
 // MinimalUser is the output type for user and organization search results.
@@ -176,7 +178,7 @@ type MinimalIssue struct {
 	StateReason       string            `json:"state_reason,omitempty"`
 	Draft             bool              `json:"draft,omitempty"`
 	Locked            bool              `json:"locked,omitempty"`
-	HTMLURL           string            `json:"html_url"`
+	HTMLURL           string            `json:"html_url,omitempty"`
 	User              *MinimalUser      `json:"user,omitempty"`
 	AuthorAssociation string            `json:"author_association,omitempty"`
 	Labels            []string          `json:"labels,omitempty"`
@@ -189,6 +191,13 @@ type MinimalIssue struct {
 	ClosedAt          string            `json:"closed_at,omitempty"`
 	ClosedBy          string            `json:"closed_by,omitempty"`
 	IssueType         string            `json:"issue_type,omitempty"`
+}
+
+// MinimalIssuesResponse is the trimmed output for a paginated list of issues.
+type MinimalIssuesResponse struct {
+	Issues     []MinimalIssue  `json:"issues"`
+	TotalCount int             `json:"totalCount"`
+	PageInfo   MinimalPageInfo `json:"pageInfo"`
 }
 
 // MinimalIssueComment is the trimmed output type for issue comment objects to reduce verbosity.
@@ -374,6 +383,45 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 	}
 
 	return m
+}
+
+func fragmentToMinimalIssue(fragment IssueFragment) MinimalIssue {
+	m := MinimalIssue{
+		Number:    int(fragment.Number),
+		Title:     sanitize.Sanitize(string(fragment.Title)),
+		Body:      sanitize.Sanitize(string(fragment.Body)),
+		State:     string(fragment.State),
+		Comments:  int(fragment.Comments.TotalCount),
+		CreatedAt: fragment.CreatedAt.Format(time.RFC3339),
+		UpdatedAt: fragment.UpdatedAt.Format(time.RFC3339),
+		User: &MinimalUser{
+			Login: string(fragment.Author.Login),
+		},
+	}
+
+	for _, label := range fragment.Labels.Nodes {
+		m.Labels = append(m.Labels, string(label.Name))
+	}
+
+	return m
+}
+
+func convertToMinimalIssuesResponse(fragment IssueQueryFragment) MinimalIssuesResponse {
+	minimalIssues := make([]MinimalIssue, 0, len(fragment.Nodes))
+	for _, issue := range fragment.Nodes {
+		minimalIssues = append(minimalIssues, fragmentToMinimalIssue(issue))
+	}
+
+	return MinimalIssuesResponse{
+		Issues:     minimalIssues,
+		TotalCount: fragment.TotalCount,
+		PageInfo: MinimalPageInfo{
+			HasNextPage:     bool(fragment.PageInfo.HasNextPage),
+			HasPreviousPage: bool(fragment.PageInfo.HasPreviousPage),
+			StartCursor:     string(fragment.PageInfo.StartCursor),
+			EndCursor:       string(fragment.PageInfo.EndCursor),
+		},
+	}
 }
 
 func convertToMinimalIssueComment(comment *github.IssueComment) MinimalIssueComment {
@@ -650,10 +698,10 @@ func convertToMinimalCommit(commit *github.RepositoryCommit, includeDiffs bool) 
 
 // MinimalPageInfo contains pagination cursor information.
 type MinimalPageInfo struct {
-	HasNextPage     bool   `json:"has_next_page"`
-	HasPreviousPage bool   `json:"has_previous_page"`
-	StartCursor     string `json:"start_cursor,omitempty"`
-	EndCursor       string `json:"end_cursor,omitempty"`
+	HasNextPage     bool   `json:"hasNextPage"`
+	HasPreviousPage bool   `json:"hasPreviousPage"`
+	StartCursor     string `json:"startCursor,omitempty"`
+	EndCursor       string `json:"endCursor,omitempty"`
 }
 
 // MinimalReviewComment is the trimmed output type for PR review comment objects.
@@ -679,8 +727,8 @@ type MinimalReviewThread struct {
 // MinimalReviewThreadsResponse is the trimmed output for a paginated list of PR review threads.
 type MinimalReviewThreadsResponse struct {
 	ReviewThreads []MinimalReviewThread `json:"review_threads"`
-	TotalCount    int                   `json:"total_count"`
-	PageInfo      MinimalPageInfo       `json:"page_info"`
+	TotalCount    int                   `json:"totalCount"`
+	PageInfo      MinimalPageInfo       `json:"pageInfo"`
 }
 
 func convertToMinimalPRFiles(files []*github.CommitFile) []MinimalPRFile {

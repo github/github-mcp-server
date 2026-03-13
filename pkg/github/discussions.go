@@ -313,7 +313,7 @@ func GetDiscussion(t translations.TranslationHelperFunc) inventory.ServerTool {
 				Repo             string
 				DiscussionNumber int32
 			}
-			if err := mapstructure.Decode(args, &params); err != nil {
+			if err := mapstructure.WeakDecode(args, &params); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 			client, err := deps.GetGQLClient(ctx)
@@ -417,7 +417,7 @@ func GetDiscussionComments(t translations.TranslationHelperFunc) inventory.Serve
 				Repo             string
 				DiscussionNumber int32
 			}
-			if err := mapstructure.Decode(args, &params); err != nil {
+			if err := mapstructure.WeakDecode(args, &params); err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 

@@ -62,7 +62,7 @@ func fetchIssueIDs(ctx context.Context, gqlClient *githubv4.Client, owner, repo 
 		}
 
 		if err := gqlClient.Query(ctx, &query, vars); err != nil {
-			return "", "", fmt.Errorf("failed to get issue ID")
+			return "", "", fmt.Errorf("failed to get issue ID: %w", err)
 		}
 
 		return query.Repository.Issue.ID, "", nil
@@ -84,7 +84,7 @@ func fetchIssueIDs(ctx context.Context, gqlClient *githubv4.Client, owner, repo 
 	vars["duplicateOf"] = githubv4.Int(duplicateOf) // #nosec G115 - issue numbers are always small positive integers
 
 	if err := gqlClient.Query(ctx, &query, vars); err != nil {
-		return "", "", fmt.Errorf("failed to get issue ID")
+		return "", "", fmt.Errorf("failed to get issue ID: %w", err)
 	}
 
 	return query.Repository.Issue.ID, query.Repository.DuplicateIssue.ID, nil
@@ -198,33 +198,6 @@ func getIssueQueryType(hasLabels bool, hasSince bool) any {
 		return &ListIssuesQueryWithSince{}
 	default:
 		return &ListIssuesQuery{}
-	}
-}
-
-func fragmentToIssue(fragment IssueFragment) *github.Issue {
-	// Convert GraphQL labels to GitHub API labels format
-	var foundLabels []*github.Label
-	for _, labelNode := range fragment.Labels.Nodes {
-		foundLabels = append(foundLabels, &github.Label{
-			Name:        github.Ptr(string(labelNode.Name)),
-			NodeID:      github.Ptr(string(labelNode.ID)),
-			Description: github.Ptr(string(labelNode.Description)),
-		})
-	}
-
-	return &github.Issue{
-		Number:    github.Ptr(int(fragment.Number)),
-		Title:     github.Ptr(sanitize.Sanitize(string(fragment.Title))),
-		CreatedAt: &github.Timestamp{Time: fragment.CreatedAt.Time},
-		UpdatedAt: &github.Timestamp{Time: fragment.UpdatedAt.Time},
-		User: &github.User{
-			Login: github.Ptr(string(fragment.Author.Login)),
-		},
-		State:    github.Ptr(string(fragment.State)),
-		ID:       github.Ptr(fragment.DatabaseID),
-		Body:     github.Ptr(sanitize.Sanitize(string(fragment.Body))),
-		Labels:   foundLabels,
-		Comments: github.Ptr(int(fragment.Comments.TotalCount)),
 	}
 }
 
@@ -1107,13 +1080,19 @@ Options are:
 
 			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(ctx, req) && !uiSubmitted {
 				if method == "update" {
-					issueNumber, numErr := RequiredInt(args, "issue_number")
-					if numErr != nil {
-						return utils.NewToolResultError("issue_number is required for update method"), nil, nil
+					// Skip the UI form when a state change is requested because
+					// the form only handles title/body editing and would lose the
+					// state transition (e.g. closing or reopening the issue).
+					if _, hasState := args["state"]; !hasState {
+						issueNumber, numErr := RequiredInt(args, "issue_number")
+						if numErr != nil {
+							return utils.NewToolResultError("issue_number is required for update method"), nil, nil
+						}
+						return utils.NewToolResultText(fmt.Sprintf("Ready to update issue #%d in %s/%s. IMPORTANT: The issue has NOT been updated yet. Do NOT tell the user the issue was updated. The user MUST click Submit in the form to update it.", issueNumber, owner, repo)), nil, nil
 					}
-					return utils.NewToolResultText(fmt.Sprintf("Ready to update issue #%d in %s/%s. IMPORTANT: The issue has NOT been updated yet. Do NOT tell the user the issue was updated. The user MUST click Submit in the form to update it.", issueNumber, owner, repo)), nil, nil
+				} else {
+					return utils.NewToolResultText(fmt.Sprintf("Ready to create an issue in %s/%s. IMPORTANT: The issue has NOT been created yet. Do NOT tell the user the issue was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
 				}
-				return utils.NewToolResultText(fmt.Sprintf("Ready to create an issue in %s/%s. IMPORTANT: The issue has NOT been created yet. Do NOT tell the user the issue was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
 			}
 
 			title, err := OptionalParam[string](args, "title")
@@ -1584,41 +1563,12 @@ func ListIssues(t translations.TranslationHelperFunc) inventory.ServerTool {
 				), nil, nil
 			}
 
-			// Extract and convert all issue nodes using the common interface
-			var issues []*github.Issue
-			var pageInfo struct {
-				HasNextPage     githubv4.Boolean
-				HasPreviousPage githubv4.Boolean
-				StartCursor     githubv4.String
-				EndCursor       githubv4.String
-			}
-			var totalCount int
-
+			var resp MinimalIssuesResponse
 			if queryResult, ok := issueQuery.(IssueQueryResult); ok {
-				fragment := queryResult.GetIssueFragment()
-				for _, issue := range fragment.Nodes {
-					issues = append(issues, fragmentToIssue(issue))
-				}
-				pageInfo = fragment.PageInfo
-				totalCount = fragment.TotalCount
+				resp = convertToMinimalIssuesResponse(queryResult.GetIssueFragment())
 			}
 
-			// Create response with issues
-			response := map[string]any{
-				"issues": issues,
-				"pageInfo": map[string]any{
-					"hasNextPage":     pageInfo.HasNextPage,
-					"hasPreviousPage": pageInfo.HasPreviousPage,
-					"startCursor":     string(pageInfo.StartCursor),
-					"endCursor":       string(pageInfo.EndCursor),
-				},
-				"totalCount": totalCount,
-			}
-			out, err := json.Marshal(response)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to marshal issues: %w", err)
-			}
-			return utils.NewToolResultText(string(out)), nil, nil
+			return MarshalledTextResult(resp), nil, nil
 		})
 }
 
