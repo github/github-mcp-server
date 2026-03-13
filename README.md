@@ -1536,6 +1536,34 @@ set the following environment variable:
 export GITHUB_MCP_TOOL_ADD_ISSUE_COMMENT_DESCRIPTION="an alternative description"
 ```
 
+### Overriding Server Name and Title
+
+The same override mechanism can be used to customize the MCP server's `name` and
+`title` fields in the initialization response. This is useful when running
+multiple GitHub MCP Server instances (e.g., one for github.com and one for
+GitHub Enterprise Server) so that agents can distinguish between them.
+
+| Key | Environment Variable | Default |
+|-----|---------------------|---------|
+| `SERVER_NAME` | `GITHUB_MCP_SERVER_NAME` | `github-mcp-server` |
+| `SERVER_TITLE` | `GITHUB_MCP_SERVER_TITLE` | `GitHub MCP Server` |
+
+For example, to configure a server instance for GitHub Enterprise Server:
+
+```json
+{
+  "SERVER_NAME": "ghes-mcp-server",
+  "SERVER_TITLE": "GHES MCP Server"
+}
+```
+
+Or using environment variables:
+
+```sh
+export GITHUB_MCP_SERVER_NAME="ghes-mcp-server"
+export GITHUB_MCP_SERVER_TITLE="GHES MCP Server"
+```
+
 ## Library Usage
 
 The exported Go API of this module should currently be considered unstable, and subject to breaking changes. In the future, we may offer stability; please file an issue if there is a use case where this would be valuable.

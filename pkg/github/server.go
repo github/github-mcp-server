@@ -176,7 +176,9 @@ func addGitHubAPIErrorToContext(next mcp.MethodHandler) mcp.MethodHandler {
 	}
 }
 
-// NewServer creates a new GitHub MCP server with the specified GH client and logger.
+// NewServer creates a new GitHub MCP server with the given version, server
+// name, display title, and options. If name or title are empty the defaults
+// "github-mcp-server" and "GitHub MCP Server" are used.
 func NewServer(version, name, title string, opts *mcp.ServerOptions) *mcp.Server {
 	if opts == nil {
 		opts = &mcp.ServerOptions{}

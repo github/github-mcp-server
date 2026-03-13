@@ -220,11 +220,13 @@ func TestNewServer_NameAndTitleViaTranslation(t *testing.T) {
 					clientResultCh <- clientResult{err: err}
 					return
 				}
+				t.Cleanup(func() { _ = cs.Close() })
 				clientResultCh <- clientResult{result: cs.InitializeResult()}
 			}()
 
-			_, err := srv.Connect(context.Background(), st, nil)
+			ss, err := srv.Connect(context.Background(), st, nil)
 			require.NoError(t, err)
+			t.Cleanup(func() { _ = ss.Close() })
 
 			got := <-clientResultCh
 			require.NoError(t, got.err)
