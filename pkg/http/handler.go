@@ -236,12 +236,55 @@ func DefaultGitHubMCPServerFactory(r *http.Request, deps github.ToolDependencies
 	return github.NewMCPServer(r.Context(), cfg, deps, inventory)
 }
 
-// DefaultInventoryFactory creates the default inventory factory for HTTP mode
-func DefaultInventoryFactory(_ *ServerConfig, t translations.TranslationHelperFunc, featureChecker inventory.FeatureFlagChecker, scopeFetcher scopes.FetcherInterface) InventoryFactoryFunc {
+// DefaultInventoryFactory creates the default inventory factory for HTTP mode.
+// When the ServerConfig includes static flags (--toolsets, --read-only, etc.),
+// a static inventory is built once at factory creation to pre-filter the tool
+// universe. Per-request headers can only narrow within these bounds.
+func DefaultInventoryFactory(cfg *ServerConfig, t translations.TranslationHelperFunc, featureChecker inventory.FeatureFlagChecker, scopeFetcher scopes.FetcherInterface) InventoryFactoryFunc {
+	// Build the static tool/resource/prompt universe from CLI flags.
+	// This is done once at startup and captured in the closure.
+	staticTools, staticResources, staticPrompts := buildStaticInventory(cfg, t, featureChecker)
+	hasStaticFilters := hasStaticConfig(cfg)
+
+	// Pre-compute valid tool names for filtering per-request tool headers.
+	// When a request asks for a tool by name that's been excluded from the
+	// static universe, we silently drop it rather than returning an error.
+	validToolNames := make(map[string]bool, len(staticTools))
+	for i := range staticTools {
+		validToolNames[staticTools[i].Tool.Name] = true
+	}
+
 	return func(r *http.Request) (*inventory.Inventory, error) {
-		b := github.NewInventory(t).
+		b := inventory.NewBuilder().
+			SetTools(staticTools).
+			SetResources(staticResources).
+			SetPrompts(staticPrompts).
 			WithDeprecatedAliases(github.DeprecatedToolAliases).
 			WithFeatureChecker(featureChecker)
+
+		// When static flags constrain the universe, default to showing
+		// everything within those bounds (per-request filters narrow further).
+		// When no static flags are set, preserve existing behavior where
+		// the default toolsets apply.
+		if hasStaticFilters {
+			b = b.WithToolsets([]string{"all"})
+		}
+
+		// Static read-only is an upper bound — enforce before request filters
+		if cfg.ReadOnly {
+			b = b.WithReadOnly(true)
+		}
+
+		// Static insiders mode — enforce before request filters
+		if cfg.InsidersMode {
+			b = b.WithInsidersMode(true)
+		}
+
+		// Filter request tool names to only those in the static universe,
+		// so requests for statically-excluded tools degrade gracefully.
+		if hasStaticFilters {
+			r = filterRequestTools(r, validToolNames)
+		}
 
 		b = InventoryFiltersForRequest(r, b)
 		b = PATScopeFilter(b, r, scopeFetcher)
@@ -250,6 +293,69 @@ func DefaultInventoryFactory(_ *ServerConfig, t translations.TranslationHelperFu
 
 		return b.Build()
 	}
+}
+
+// filterRequestTools returns a shallow copy of the request with any per-request
+// tool names (from X-MCP-Tools header) filtered to only include tools that exist
+// in validNames. This ensures requests for statically-excluded tools are silently
+// ignored rather than causing build errors.
+func filterRequestTools(r *http.Request, validNames map[string]bool) *http.Request {
+	reqTools := ghcontext.GetTools(r.Context())
+	if len(reqTools) == 0 {
+		return r
+	}
+
+	filtered := make([]string, 0, len(reqTools))
+	for _, name := range reqTools {
+		if validNames[name] {
+			filtered = append(filtered, name)
+		}
+	}
+	ctx := ghcontext.WithTools(r.Context(), filtered)
+	return r.WithContext(ctx)
+}
+
+// hasStaticConfig returns true if any static filtering flags are set on the ServerConfig.
+func hasStaticConfig(cfg *ServerConfig) bool {
+	return cfg.ReadOnly ||
+		cfg.EnabledToolsets != nil ||
+		cfg.EnabledTools != nil ||
+		cfg.DynamicToolsets ||
+		len(cfg.ExcludeTools) > 0 ||
+		cfg.InsidersMode
+}
+
+// buildStaticInventory pre-filters the full tool/resource/prompt universe using
+// the static CLI flags (--toolsets, --read-only, --exclude-tools, etc.).
+// The returned slices serve as the upper bound for per-request inventory builders.
+func buildStaticInventory(cfg *ServerConfig, t translations.TranslationHelperFunc, featureChecker inventory.FeatureFlagChecker) ([]inventory.ServerTool, []inventory.ServerResourceTemplate, []inventory.ServerPrompt) {
+	if !hasStaticConfig(cfg) {
+		return github.AllTools(t), github.AllResources(t), github.AllPrompts(t)
+	}
+
+	b := github.NewInventory(t).
+		WithFeatureChecker(featureChecker).
+		WithReadOnly(cfg.ReadOnly).
+		WithToolsets(github.ResolvedEnabledToolsets(cfg.DynamicToolsets, cfg.EnabledToolsets, cfg.EnabledTools)).
+		WithInsidersMode(cfg.InsidersMode)
+
+	if len(cfg.EnabledTools) > 0 {
+		b = b.WithTools(github.CleanTools(cfg.EnabledTools))
+	}
+
+	if len(cfg.ExcludeTools) > 0 {
+		b = b.WithExcludeTools(cfg.ExcludeTools)
+	}
+
+	inv, err := b.Build()
+	if err != nil {
+		// Fall back to all tools if there's an error (e.g. unknown tool names).
+		// The error will surface again at per-request time if relevant.
+		return github.AllTools(t), github.AllResources(t), github.AllPrompts(t)
+	}
+
+	ctx := context.Background()
+	return inv.AvailableTools(ctx), inv.AvailableResourceTemplates(ctx), inv.AvailablePrompts(ctx)
 }
 
 // InventoryFiltersForRequest applies filters to the inventory builder
