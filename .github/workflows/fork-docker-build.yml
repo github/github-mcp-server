@@ -4,14 +4,7 @@ name: Fork Docker Build
 # It builds and optionally pushes Docker images to your registry
 
 on:
-  push:
-    branches:
-      - main
-      - develop
-      # Add any other branches you want to build
-  pull_request:
-    branches:
-      - main
+  # Only trigger on workflow_dispatch - manual trigger only
   workflow_dispatch:
     inputs:
       push_image:
@@ -19,6 +12,11 @@ on:
         required: false
         type: boolean
         default: false
+      branch:
+        description: 'Branch to build from'
+        required: false
+        type: string
+        default: 'main'
 
 env:
   # Docker Hub registry
@@ -43,13 +41,13 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log into Docker Hub
-        # Only login if we're pushing (not on PRs, or manual dispatch with push enabled)
-        if: github.event_name != 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.push_image)
+        # Only login if we're pushing
+        if: github.event_name == 'workflow_dispatch' && inputs.push_image
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: herterkairos
-          password: ${{ secrets.DOCKERHUB_TOKEN_READONLY }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Extract Docker metadata
         id: meta
@@ -66,8 +64,8 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          # Never push - read-only mode for conflict avoidance
-          push: false
+          # Push when manually triggered with push_image=true
+          push: ${{ github.event_name == 'workflow_dispatch' && inputs.push_image }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -76,21 +74,21 @@ jobs:
           platforms: linux/amd64
           build-args: |
             VERSION=${{ github.ref_name }}
-          # Export to Docker for local testing if needed
-          load: true
 
       - name: Build summary
         run: |
           echo "## Docker Build Complete! 🐳" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Mode:** Read-only (build verification only)" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ inputs.push_image }}" == "true" ]; then
+            echo "**Status:** ✅ Built and pushed to Docker Hub" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Status:** ✅ Built only (not pushed)" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "**Repository:** ${{ github.repository }}" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Tags (not pushed):" >> $GITHUB_STEP_SUMMARY
+          echo "### Tags:" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "ℹ️ Images are built but not pushed to avoid conflicts with upstream." >> $GITHUB_STEP_SUMMARY
