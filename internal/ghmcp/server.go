@@ -12,7 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/github/github-mcp-server/pkg/errors"
 	"github.com/github/github-mcp-server/pkg/github"
 	"github.com/github/github-mcp-server/pkg/http/transport"
 	"github.com/github/github-mcp-server/pkg/inventory"
@@ -305,8 +304,6 @@ func RunStdioServer(cfg StdioServerConfig) error {
 			in, out = loggedIO, loggedIO
 		}
 
-		// enable GitHub errors in the context
-		ctx := errors.ContextWithGitHubErrors(ctx)
 		errC <- ghServer.Run(ctx, &mcp.IOTransport{Reader: in, Writer: out})
 	}()
 
