@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  github-mcp-server:
+    image: herterkairos/github-mcp-server:latest
+    container_name: github-mcp-server
+    environment:
+      # Required: Your GitHub token
+      - GITHUB_PERSONAL_ACCESS_TOKEN=${GITHUB_PERSONAL_ACCESS_TOKEN}
+      
+      # Optional: Enable read-only mode
+      - GITHUB_READ_ONLY=true
+      
+      # Optional: GitHub Enterprise hostname
+      - GITHUB_HOST=ghe.kairospower.com
+      
+      # Optional: Enable specific toolsets
+      - GITHUB_TOOLSETS=repos,issues,pull_requests,actions
+    command: ["http", "--read-only"]
+    logging:
+      driver: "awslogs"
+      options:
+        awslogs-region: "us-gov-west-1"
+        awslogs-group: "$CLOUDWATCH_LOG_GROUP"
+        awslogs-stream: "docker/ghe-mcp-${CLOUDWATCH_LOG_SFX}"
+    restart: unless-stopped    
+    networks:
+      - kalypso-frontend
+networks:
+  kalypso-frontend:
+    external: true
+    name: kalypso-frontend_default

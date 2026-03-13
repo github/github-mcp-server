@@ -6,6 +6,8 @@ permissions:
 
 jobs:
   build:
+    # Only run in upstream repo, not in forks
+    if: github.repository == 'github/github-mcp-server'
     strategy:
       fail-fast: false
       matrix:
