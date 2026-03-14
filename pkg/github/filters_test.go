@@ -2,6 +2,7 @@ package github
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -238,4 +239,145 @@ func TestApplyReviewCommentFilters_EmptyThread(t *testing.T) {
 	applyReviewCommentFilters(resp, ReviewCommentFilters{Author: "alice"})
 	assert.Empty(t, resp.ReviewThreads)
 	assert.Equal(t, 0, resp.TotalCount)
+}
+
+// --- date filter helpers ---
+
+var (
+	t1 = time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC)
+	t2 = time.Date(2024, 1, 20, 0, 0, 0, 0, time.UTC)
+	t3 = time.Date(2024, 1, 30, 0, 0, 0, 0, time.UTC)
+)
+
+func makeCommentWithDate(login, body, createdAt string) MinimalIssueComment {
+	return MinimalIssueComment{
+		Body:      body,
+		User:      &MinimalUser{Login: login},
+		CreatedAt: createdAt,
+	}
+}
+
+func makeReviewWithDate(login, state, submittedAt string) MinimalPullRequestReview {
+	return MinimalPullRequestReview{
+		State:       state,
+		User:        &MinimalUser{Login: login},
+		SubmittedAt: submittedAt,
+	}
+}
+
+func makeThreadWithDate(author, path, body, createdAt string) MinimalReviewThread {
+	return MinimalReviewThread{
+		Comments: []MinimalReviewComment{
+			{Author: author, Path: path, Body: body, CreatedAt: createdAt},
+		},
+	}
+}
+
+// --- applyCommentFilters date tests ---
+
+func TestApplyCommentFilters_CreatedAfter(t *testing.T) {
+	t.Parallel()
+	comments := []MinimalIssueComment{
+		makeCommentWithDate("alice", "old", t1.Format(time.RFC3339)),
+		makeCommentWithDate("alice", "mid", t2.Format(time.RFC3339)),
+		makeCommentWithDate("alice", "new", t3.Format(time.RFC3339)),
+	}
+	result := applyCommentFilters(comments, CommentFilters{CreatedAfter: t1})
+	assert.Len(t, result, 2)
+	assert.Equal(t, "mid", result[0].Body)
+	assert.Equal(t, "new", result[1].Body)
+}
+
+func TestApplyCommentFilters_CreatedBefore(t *testing.T) {
+	t.Parallel()
+	comments := []MinimalIssueComment{
+		makeCommentWithDate("alice", "old", t1.Format(time.RFC3339)),
+		makeCommentWithDate("alice", "mid", t2.Format(time.RFC3339)),
+		makeCommentWithDate("alice", "new", t3.Format(time.RFC3339)),
+	}
+	result := applyCommentFilters(comments, CommentFilters{CreatedBefore: t3})
+	assert.Len(t, result, 2)
+	assert.Equal(t, "old", result[0].Body)
+	assert.Equal(t, "mid", result[1].Body)
+}
+
+func TestApplyCommentFilters_CreatedAfterAndBefore(t *testing.T) {
+	t.Parallel()
+	comments := []MinimalIssueComment{
+		makeCommentWithDate("alice", "old", t1.Format(time.RFC3339)),
+		makeCommentWithDate("alice", "mid", t2.Format(time.RFC3339)),
+		makeCommentWithDate("alice", "new", t3.Format(time.RFC3339)),
+	}
+	result := applyCommentFilters(comments, CommentFilters{CreatedAfter: t1, CreatedBefore: t3})
+	assert.Len(t, result, 1)
+	assert.Equal(t, "mid", result[0].Body)
+}
+
+func TestApplyCommentFilters_InvalidDateSkipped(t *testing.T) {
+	t.Parallel()
+	comments := []MinimalIssueComment{
+		makeCommentWithDate("alice", "bad date", "not-a-date"),
+		makeCommentWithDate("alice", "good", t2.Format(time.RFC3339)),
+	}
+	result := applyCommentFilters(comments, CommentFilters{CreatedAfter: t1})
+	assert.Len(t, result, 1)
+	assert.Equal(t, "good", result[0].Body)
+}
+
+// --- applyReviewFilters date tests ---
+
+func TestApplyReviewFilters_SubmittedAfter(t *testing.T) {
+	t.Parallel()
+	reviews := []MinimalPullRequestReview{
+		makeReviewWithDate("alice", "APPROVED", t1.Format(time.RFC3339)),
+		makeReviewWithDate("alice", "COMMENTED", t2.Format(time.RFC3339)),
+		makeReviewWithDate("alice", "CHANGES_REQUESTED", t3.Format(time.RFC3339)),
+	}
+	result := applyReviewFilters(reviews, ReviewFilters{SubmittedAfter: t2})
+	assert.Len(t, result, 1)
+	assert.Equal(t, "CHANGES_REQUESTED", result[0].State)
+}
+
+func TestApplyReviewFilters_SubmittedBefore(t *testing.T) {
+	t.Parallel()
+	reviews := []MinimalPullRequestReview{
+		makeReviewWithDate("alice", "APPROVED", t1.Format(time.RFC3339)),
+		makeReviewWithDate("alice", "COMMENTED", t2.Format(time.RFC3339)),
+		makeReviewWithDate("alice", "CHANGES_REQUESTED", t3.Format(time.RFC3339)),
+	}
+	result := applyReviewFilters(reviews, ReviewFilters{SubmittedBefore: t2})
+	assert.Len(t, result, 1)
+	assert.Equal(t, "APPROVED", result[0].State)
+}
+
+// --- applyReviewCommentFilters date tests ---
+
+func TestApplyReviewCommentFilters_CreatedAfter(t *testing.T) {
+	t.Parallel()
+	resp := &MinimalReviewThreadsResponse{
+		ReviewThreads: []MinimalReviewThread{
+			makeThreadWithDate("alice", "src/a.go", "old", t1.Format(time.RFC3339)),
+			makeThreadWithDate("alice", "src/b.go", "mid", t2.Format(time.RFC3339)),
+			makeThreadWithDate("alice", "src/c.go", "new", t3.Format(time.RFC3339)),
+		},
+		TotalCount: 3,
+	}
+	applyReviewCommentFilters(resp, ReviewCommentFilters{CreatedAfter: t1})
+	assert.Len(t, resp.ReviewThreads, 2)
+	assert.Equal(t, 2, resp.TotalCount)
+}
+
+func TestApplyReviewCommentFilters_CreatedBefore(t *testing.T) {
+	t.Parallel()
+	resp := &MinimalReviewThreadsResponse{
+		ReviewThreads: []MinimalReviewThread{
+			makeThreadWithDate("alice", "src/a.go", "old", t1.Format(time.RFC3339)),
+			makeThreadWithDate("alice", "src/b.go", "mid", t2.Format(time.RFC3339)),
+			makeThreadWithDate("alice", "src/c.go", "new", t3.Format(time.RFC3339)),
+		},
+		TotalCount: 3,
+	}
+	applyReviewCommentFilters(resp, ReviewCommentFilters{CreatedBefore: t3})
+	assert.Len(t, resp.ReviewThreads, 2)
+	assert.Equal(t, 2, resp.TotalCount)
 }

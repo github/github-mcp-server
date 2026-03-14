@@ -75,6 +75,22 @@ Possible options:
 				Description: "Filter reviews by state. Valid values: APPROVED, CHANGES_REQUESTED, COMMENTED, DISMISSED, PENDING. Applies to get_reviews only.",
 				Enum:        []any{"APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED", "PENDING"},
 			},
+			"createdAfter": {
+				Type:        "string",
+				Description: "Filter by creation timestamp (RFC3339, e.g. 2024-01-15T10:00:00Z). Applies to get_comments and get_review_comments.",
+			},
+			"createdBefore": {
+				Type:        "string",
+				Description: "Filter by creation timestamp (RFC3339, e.g. 2024-01-15T10:00:00Z). Applies to get_comments and get_review_comments.",
+			},
+			"submittedAfter": {
+				Type:        "string",
+				Description: "Filter reviews submitted after this timestamp (RFC3339, e.g. 2024-01-15T10:00:00Z). Applies to get_reviews only.",
+			},
+			"submittedBefore": {
+				Type:        "string",
+				Description: "Filter reviews submitted before this timestamp (RFC3339, e.g. 2024-01-15T10:00:00Z). Applies to get_reviews only.",
+			},
 		},
 		Required: []string{"method", "owner", "repo", "pullNumber"},
 	}

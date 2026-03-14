@@ -237,6 +237,14 @@ Options are:
 				Type:        "string",
 				Description: "Filter comments to those whose body contains this string (case-insensitive substring or regex). Only applies to get_comments.",
 			},
+			"createdAfter": {
+				Type:        "string",
+				Description: "Filter comments created after this timestamp (RFC3339, e.g. 2024-01-15T10:00:00Z). Only applies to get_comments.",
+			},
+			"createdBefore": {
+				Type:        "string",
+				Description: "Filter comments created before this timestamp (RFC3339, e.g. 2024-01-15T10:00:00Z). Only applies to get_comments.",
+			},
 		},
 		Required: []string{"method", "owner", "repo", "issue_number"},
 	}

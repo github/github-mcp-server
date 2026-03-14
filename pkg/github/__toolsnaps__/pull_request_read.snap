@@ -14,6 +14,14 @@
         "description": "Filter comments to those whose body contains this string (case-insensitive substring or regex). Applies to get_comments and get_review_comments.",
         "type": "string"
       },
+      "createdAfter": {
+        "description": "Filter by creation timestamp (RFC3339, e.g. 2024-01-15T10:00:00Z). Applies to get_comments and get_review_comments.",
+        "type": "string"
+      },
+      "createdBefore": {
+        "description": "Filter by creation timestamp (RFC3339, e.g. 2024-01-15T10:00:00Z). Applies to get_comments and get_review_comments.",
+        "type": "string"
+      },
       "filePath": {
         "description": "Glob pattern to filter review comment threads by file path (e.g. src/**/*.ts). Applies to get_review_comments only.",
         "type": "string"
@@ -68,6 +76,14 @@
           "DISMISSED",
           "PENDING"
         ],
+        "type": "string"
+      },
+      "submittedAfter": {
+        "description": "Filter reviews submitted after this timestamp (RFC3339, e.g. 2024-01-15T10:00:00Z). Applies to get_reviews only.",
+        "type": "string"
+      },
+      "submittedBefore": {
+        "description": "Filter reviews submitted before this timestamp (RFC3339, e.g. 2024-01-15T10:00:00Z). Applies to get_reviews only.",
         "type": "string"
       }
     },

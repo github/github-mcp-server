@@ -1,9 +1,11 @@
 package github
 
 import (
+	"fmt"
 	"path"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // CommentFilters holds optional client-side filters for issue and PR comments.
@@ -15,6 +17,14 @@ type CommentFilters struct {
 	// BodyContains filters to comments whose body contains this string or matches
 	// this regex. Empty means no filter.
 	BodyContains string
+
+	// CreatedAfter filters to comments created after this time (exclusive).
+	// Zero value means no filter.
+	CreatedAfter time.Time
+
+	// CreatedBefore filters to comments created before this time (exclusive).
+	// Zero value means no filter.
+	CreatedBefore time.Time
 }
 
 // ReviewCommentFilters holds optional client-side filters for PR inline review comments.
@@ -31,6 +41,14 @@ type ReviewCommentFilters struct {
 	// BodyContains filters to threads that contain at least one comment whose body
 	// contains this string or matches this regex. Empty means no filter.
 	BodyContains string
+
+	// CreatedAfter filters to threads that contain at least one comment created after this time (exclusive).
+	// Zero value means no filter.
+	CreatedAfter time.Time
+
+	// CreatedBefore filters to threads that contain at least one comment created before this time (exclusive).
+	// Zero value means no filter.
+	CreatedBefore time.Time
 }
 
 // ReviewFilters holds optional client-side filters for PR reviews.
@@ -43,6 +61,14 @@ type ReviewFilters struct {
 	// Valid values: APPROVED, CHANGES_REQUESTED, COMMENTED, DISMISSED, PENDING.
 	// Empty means no filter.
 	State string
+
+	// SubmittedAfter filters to reviews submitted after this time (exclusive).
+	// Zero value means no filter.
+	SubmittedAfter time.Time
+
+	// SubmittedBefore filters to reviews submitted before this time (exclusive).
+	// Zero value means no filter.
+	SubmittedBefore time.Time
 }
 
 // optionalCommentFilters extracts CommentFilters from tool args.
@@ -55,7 +81,20 @@ func optionalCommentFilters(args map[string]any) (CommentFilters, error) {
 	if err != nil {
 		return CommentFilters{}, err
 	}
-	return CommentFilters{Author: author, BodyContains: bodyContains}, nil
+	createdAfter, err := optionalTimeParam(args, "createdAfter")
+	if err != nil {
+		return CommentFilters{}, err
+	}
+	createdBefore, err := optionalTimeParam(args, "createdBefore")
+	if err != nil {
+		return CommentFilters{}, err
+	}
+	return CommentFilters{
+		Author:        author,
+		BodyContains:  bodyContains,
+		CreatedAfter:  createdAfter,
+		CreatedBefore: createdBefore,
+	}, nil
 }
 
 // optionalReviewCommentFilters extracts ReviewCommentFilters from tool args.
@@ -72,7 +111,21 @@ func optionalReviewCommentFilters(args map[string]any) (ReviewCommentFilters, er
 	if err != nil {
 		return ReviewCommentFilters{}, err
 	}
-	return ReviewCommentFilters{Author: author, FilePath: filePath, BodyContains: bodyContains}, nil
+	createdAfter, err := optionalTimeParam(args, "createdAfter")
+	if err != nil {
+		return ReviewCommentFilters{}, err
+	}
+	createdBefore, err := optionalTimeParam(args, "createdBefore")
+	if err != nil {
+		return ReviewCommentFilters{}, err
+	}
+	return ReviewCommentFilters{
+		Author:        author,
+		FilePath:      filePath,
+		BodyContains:  bodyContains,
+		CreatedAfter:  createdAfter,
+		CreatedBefore: createdBefore,
+	}, nil
 }
 
 // optionalReviewFilters extracts ReviewFilters from tool args.
@@ -85,7 +138,37 @@ func optionalReviewFilters(args map[string]any) (ReviewFilters, error) {
 	if err != nil {
 		return ReviewFilters{}, err
 	}
-	return ReviewFilters{Reviewer: reviewer, State: state}, nil
+	submittedAfter, err := optionalTimeParam(args, "submittedAfter")
+	if err != nil {
+		return ReviewFilters{}, err
+	}
+	submittedBefore, err := optionalTimeParam(args, "submittedBefore")
+	if err != nil {
+		return ReviewFilters{}, err
+	}
+	return ReviewFilters{
+		Reviewer:        reviewer,
+		State:           state,
+		SubmittedAfter:  submittedAfter,
+		SubmittedBefore: submittedBefore,
+	}, nil
+}
+
+// optionalTimeParam reads an optional ISO 8601 datetime string from args and parses it.
+// Returns zero time if the param is absent or empty.
+func optionalTimeParam(args map[string]any, key string) (time.Time, error) {
+	s, err := OptionalParam[string](args, key)
+	if err != nil {
+		return time.Time{}, err
+	}
+	if s == "" {
+		return time.Time{}, nil
+	}
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid datetime for %q (expected RFC3339, e.g. 2006-01-02T15:04:05Z): %w", key, err)
+	}
+	return t, nil
 }
 
 // matchesBody returns true if body contains the filter string as a case-insensitive
@@ -112,6 +195,18 @@ func matchesAuthor(login, filter string) bool {
 	return strings.EqualFold(login, filter)
 }
 
+// matchesCreatedAt returns true if t falls within the [after, before) window.
+// Zero values for after/before mean no bound on that side.
+func matchesCreatedAt(t, after, before time.Time) bool {
+	if !after.IsZero() && !t.After(after) {
+		return false
+	}
+	if !before.IsZero() && !t.Before(before) {
+		return false
+	}
+	return true
+}
+
 // matchesFilePath returns true if filePath matches the glob pattern.
 // An empty pattern always matches.
 func matchesFilePath(filePath, pattern string) bool {
@@ -129,7 +224,7 @@ func matchesFilePath(filePath, pattern string) bool {
 // applyCommentFilters filters a slice of MinimalIssueComment using the given filters.
 // Returns the original slice if all filters are empty.
 func applyCommentFilters(comments []MinimalIssueComment, f CommentFilters) []MinimalIssueComment {
-	if f.Author == "" && f.BodyContains == "" {
+	if f.Author == "" && f.BodyContains == "" && f.CreatedAfter.IsZero() && f.CreatedBefore.IsZero() {
 		return comments
 	}
 	out := make([]MinimalIssueComment, 0, len(comments))
@@ -144,6 +239,12 @@ func applyCommentFilters(comments []MinimalIssueComment, f CommentFilters) []Min
 		if !matchesBody(c.Body, f.BodyContains) {
 			continue
 		}
+		if !f.CreatedAfter.IsZero() || !f.CreatedBefore.IsZero() {
+			t, err := time.Parse(time.RFC3339, c.CreatedAt)
+			if err != nil || !matchesCreatedAt(t, f.CreatedAfter, f.CreatedBefore) {
+				continue
+			}
+		}
 		out = append(out, c)
 	}
 	return out
@@ -152,7 +253,7 @@ func applyCommentFilters(comments []MinimalIssueComment, f CommentFilters) []Min
 // applyReviewCommentFilters filters a MinimalReviewThreadsResponse in-place,
 // keeping only threads that pass all active filters.
 func applyReviewCommentFilters(resp *MinimalReviewThreadsResponse, f ReviewCommentFilters) {
-	if f.Author == "" && f.FilePath == "" && f.BodyContains == "" {
+	if f.Author == "" && f.FilePath == "" && f.BodyContains == "" && f.CreatedAfter.IsZero() && f.CreatedBefore.IsZero() {
 		return
 	}
 	kept := resp.ReviewThreads[:0]
@@ -179,18 +280,25 @@ func threadMatchesReviewCommentFilters(thread MinimalReviewThread, f ReviewComme
 		return false
 	}
 
-	// Author / body filter — thread passes if at least one comment matches both.
+	// Author / body / date filter — thread passes if at least one comment matches all.
 	for _, c := range thread.Comments {
-		if matchesAuthor(c.Author, f.Author) && matchesBody(c.Body, f.BodyContains) {
-			return true
+		if !matchesAuthor(c.Author, f.Author) || !matchesBody(c.Body, f.BodyContains) {
+			continue
 		}
+		if !f.CreatedAfter.IsZero() || !f.CreatedBefore.IsZero() {
+			t, err := time.Parse(time.RFC3339, c.CreatedAt)
+			if err != nil || !matchesCreatedAt(t, f.CreatedAfter, f.CreatedBefore) {
+				continue
+			}
+		}
+		return true
 	}
 	return false
 }
 
 // applyReviewFilters filters a slice of MinimalPullRequestReview using the given filters.
 func applyReviewFilters(reviews []MinimalPullRequestReview, f ReviewFilters) []MinimalPullRequestReview {
-	if f.Reviewer == "" && f.State == "" {
+	if f.Reviewer == "" && f.State == "" && f.SubmittedAfter.IsZero() && f.SubmittedBefore.IsZero() {
 		return reviews
 	}
 	out := make([]MinimalPullRequestReview, 0, len(reviews))
@@ -204,6 +312,12 @@ func applyReviewFilters(reviews []MinimalPullRequestReview, f ReviewFilters) []M
 		}
 		if f.State != "" && !strings.EqualFold(r.State, f.State) {
 			continue
+		}
+		if !f.SubmittedAfter.IsZero() || !f.SubmittedBefore.IsZero() {
+			t, err := time.Parse(time.RFC3339, r.SubmittedAt)
+			if err != nil || !matchesCreatedAt(t, f.SubmittedAfter, f.SubmittedBefore) {
+				continue
+			}
 		}
 		out = append(out, r)
 	}
