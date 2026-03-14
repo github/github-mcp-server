@@ -72,6 +72,10 @@ type MCPServerConfig struct {
 	// This is used for PAT scope filtering where we can't issue scope challenges.
 	TokenScopes []string
 
+	// SkipSSLVerify disables TLS certificate verification for all GitHub API requests.
+	// Use only for private GitHub Enterprise instances with self-signed or missing certificates.
+	SkipSSLVerify bool
+
 	// Additional server options to apply
 	ServerOptions []MCPServerOption
 }
