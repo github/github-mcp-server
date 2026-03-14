@@ -6,6 +6,18 @@
   "description": "Get information on a specific pull request in GitHub repository.",
   "inputSchema": {
     "properties": {
+      "author": {
+        "description": "Filter comments by author login (case-insensitive). Applies to get_comments and get_review_comments.",
+        "type": "string"
+      },
+      "bodyContains": {
+        "description": "Filter comments to those whose body contains this string (case-insensitive substring or regex). Applies to get_comments and get_review_comments.",
+        "type": "string"
+      },
+      "filePath": {
+        "description": "Glob pattern to filter review comment threads by file path (e.g. src/**/*.ts). Applies to get_review_comments only.",
+        "type": "string"
+      },
       "method": {
         "description": "Action to specify what pull request data needs to be retrieved from GitHub. \nPossible options: \n 1. get - Get details of a specific pull request.\n 2. get_diff - Get the diff of a pull request.\n 3. get_status - Get combined commit status of a head commit in a pull request.\n 4. get_files - Get the list of files changed in a pull request. Use with pagination parameters to control the number of results returned.\n 5. get_review_comments - Get review threads on a pull request. Each thread contains logically grouped review comments made on the same code location during pull request reviews. Returns threads with metadata (isResolved, isOutdated, isCollapsed) and their associated comments. Use cursor-based pagination (perPage, after) to control results.\n 6. get_reviews - Get the reviews on a pull request. When asked for review comments, use get_review_comments method.\n 7. get_comments - Get comments on a pull request. Use this if user doesn't specifically want review comments. Use with pagination parameters to control the number of results returned.\n 8. get_check_runs - Get check runs for the head commit of a pull request. Check runs are the individual CI/CD jobs and checks that run on the PR.\n",
         "enum": [
@@ -41,6 +53,21 @@
       },
       "repo": {
         "description": "Repository name",
+        "type": "string"
+      },
+      "reviewer": {
+        "description": "Filter reviews by reviewer login (case-insensitive). Applies to get_reviews only.",
+        "type": "string"
+      },
+      "state": {
+        "description": "Filter reviews by state. Valid values: APPROVED, CHANGES_REQUESTED, COMMENTED, DISMISSED, PENDING. Applies to get_reviews only.",
+        "enum": [
+          "APPROVED",
+          "CHANGES_REQUESTED",
+          "COMMENTED",
+          "DISMISSED",
+          "PENDING"
+        ],
         "type": "string"
       }
     },

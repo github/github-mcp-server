@@ -54,6 +54,27 @@ Possible options:
 				Type:        "number",
 				Description: "Pull request number",
 			},
+			"author": {
+				Type:        "string",
+				Description: "Filter comments by author login (case-insensitive). Applies to get_comments and get_review_comments.",
+			},
+			"bodyContains": {
+				Type:        "string",
+				Description: "Filter comments to those whose body contains this string (case-insensitive substring or regex). Applies to get_comments and get_review_comments.",
+			},
+			"filePath": {
+				Type:        "string",
+				Description: "Glob pattern to filter review comment threads by file path (e.g. src/**/*.ts). Applies to get_review_comments only.",
+			},
+			"reviewer": {
+				Type:        "string",
+				Description: "Filter reviews by reviewer login (case-insensitive). Applies to get_reviews only.",
+			},
+			"state": {
+				Type:        "string",
+				Description: "Filter reviews by state. Valid values: APPROVED, CHANGES_REQUESTED, COMMENTED, DISMISSED, PENDING. Applies to get_reviews only.",
+				Enum:        []any{"APPROVED", "CHANGES_REQUESTED", "COMMENTED", "DISMISSED", "PENDING"},
+			},
 		},
 		Required: []string{"method", "owner", "repo", "pullNumber"},
 	}
@@ -121,13 +142,25 @@ Possible options:
 				if err != nil {
 					return utils.NewToolResultError(err.Error()), nil, nil
 				}
-				result, err := GetPullRequestReviewComments(ctx, gqlClient, deps, owner, repo, pullNumber, cursorPagination)
+				reviewCommentFilters, err := optionalReviewCommentFilters(args)
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				result, err := GetPullRequestReviewComments(ctx, gqlClient, deps, owner, repo, pullNumber, cursorPagination, reviewCommentFilters)
 				return result, nil, err
 			case "get_reviews":
-				result, err := GetPullRequestReviews(ctx, client, deps, owner, repo, pullNumber)
+				reviewFilters, err := optionalReviewFilters(args)
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				result, err := GetPullRequestReviews(ctx, client, deps, owner, repo, pullNumber, reviewFilters)
 				return result, nil, err
 			case "get_comments":
-				result, err := GetIssueComments(ctx, client, deps, owner, repo, pullNumber, pagination)
+				commentFilters, err := optionalCommentFilters(args)
+				if err != nil {
+					return utils.NewToolResultError(err.Error()), nil, nil
+				}
+				result, err := GetIssueComments(ctx, client, deps, owner, repo, pullNumber, pagination, commentFilters)
 				return result, nil, err
 			case "get_check_runs":
 				result, err := GetPullRequestCheckRuns(ctx, client, owner, repo, pullNumber, pagination)
@@ -408,7 +441,7 @@ type pageInfoFragment struct {
 	EndCursor       githubv4.String
 }
 
-func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination CursorPaginationParams) (*mcp.CallToolResult, error) {
+func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Client, deps ToolDependencies, owner, repo string, pullNumber int, pagination CursorPaginationParams, filters ReviewCommentFilters) (*mcp.CallToolResult, error) {
 	cache, err := deps.GetRepoAccessCache(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
@@ -475,10 +508,12 @@ func GetPullRequestReviewComments(ctx context.Context, gqlClient *githubv4.Clien
 		}
 	}
 
-	return MarshalledTextResult(convertToMinimalReviewThreadsResponse(query)), nil
+	result := convertToMinimalReviewThreadsResponse(query)
+	applyReviewCommentFilters(&result, filters)
+	return MarshalledTextResult(result), nil
 }
 
-func GetPullRequestReviews(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int) (*mcp.CallToolResult, error) {
+func GetPullRequestReviews(ctx context.Context, client *github.Client, deps ToolDependencies, owner, repo string, pullNumber int, filters ReviewFilters) (*mcp.CallToolResult, error) {
 	cache, err := deps.GetRepoAccessCache(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
@@ -528,7 +563,7 @@ func GetPullRequestReviews(ctx context.Context, client *github.Client, deps Tool
 		minimalReviews = append(minimalReviews, convertToMinimalPullRequestReview(review))
 	}
 
-	return MarshalledTextResult(minimalReviews), nil
+	return MarshalledTextResult(applyReviewFilters(minimalReviews, filters)), nil
 }
 
 // PullRequestWriteUIResourceURI is the URI for the create_pull_request tool's MCP App UI resource.

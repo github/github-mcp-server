@@ -229,6 +229,14 @@ Options are:
 				Type:        "number",
 				Description: "The number of the issue",
 			},
+			"author": {
+				Type:        "string",
+				Description: "Filter comments by author login. Only applies to get_comments.",
+			},
+			"bodyContains": {
+				Type:        "string",
+				Description: "Filter comments to those whose body contains this string (case-insensitive substring or regex). Only applies to get_comments.",
+			},
 		},
 		Required: []string{"method", "owner", "repo", "issue_number"},
 	}
@@ -280,12 +288,17 @@ Options are:
 				return utils.NewToolResultErrorFromErr("failed to get GitHub graphql client", err), nil, nil
 			}
 
+			commentFilters, err := optionalCommentFilters(args)
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+
 			switch method {
 			case "get":
 				result, err := GetIssue(ctx, client, deps, owner, repo, issueNumber)
 				return result, nil, err
 			case "get_comments":
-				result, err := GetIssueComments(ctx, client, deps, owner, repo, issueNumber, pagination)
+				result, err := GetIssueComments(ctx, client, deps, owner, repo, issueNumber, pagination, commentFilters)
 				return result, nil, err
 			case "get_sub_issues":
 				result, err := GetSubIssues(ctx, client, deps, owner, repo, issueNumber, pagination)
@@ -351,7 +364,7 @@ func GetIssue(ctx context.Context, client *github.Client, deps ToolDependencies,
 	return MarshalledTextResult(minimalIssue), nil
 }
 
-func GetIssueComments(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
+func GetIssueComments(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams, filters CommentFilters) (*mcp.CallToolResult, error) {
 	cache, err := deps.GetRepoAccessCache(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get repo access cache: %w", err)
@@ -408,7 +421,7 @@ func GetIssueComments(ctx context.Context, client *github.Client, deps ToolDepen
 		minimalComments = append(minimalComments, convertToMinimalIssueComment(comment))
 	}
 
-	return MarshalledTextResult(minimalComments), nil
+	return MarshalledTextResult(applyCommentFilters(minimalComments, filters)), nil
 }
 
 func GetSubIssues(ctx context.Context, client *github.Client, deps ToolDependencies, owner string, repo string, issueNumber int, pagination PaginationParams) (*mcp.CallToolResult, error) {
