@@ -58,8 +58,11 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 		return nil, fmt.Errorf("failed to get Raw URL: %w", err)
 	}
 
+	// Construct base transport — may disable TLS verification for private GHE instances
+	baseTransport := transport.NewBaseTransport(cfg.SkipSSLVerify)
+
 	// Construct REST client
-	restClient := gogithub.NewClient(nil).WithAuthToken(cfg.Token)
+	restClient := gogithub.NewClient(&http.Client{Transport: baseTransport}).WithAuthToken(cfg.Token)
 	restClient.UserAgent = fmt.Sprintf("github-mcp-server/%s", cfg.Version)
 	restClient.BaseURL = restURL
 	restClient.UploadURL = uploadURL
@@ -69,7 +72,7 @@ func createGitHubClients(cfg github.MCPServerConfig, apiHost utils.APIHostResolv
 	gqlHTTPClient := &http.Client{
 		Transport: &transport.BearerAuthTransport{
 			Transport: &transport.GraphQLFeaturesTransport{
-				Transport: http.DefaultTransport,
+				Transport: baseTransport,
 			},
 			Token: cfg.Token,
 		},
@@ -222,6 +225,10 @@ type StdioServerConfig struct {
 
 	// RepoAccessCacheTTL overrides the default TTL for repository access cache entries.
 	RepoAccessCacheTTL *time.Duration
+
+	// SkipSSLVerify disables TLS certificate verification for all GitHub API requests.
+	// Use only for private GitHub Enterprise instances with self-signed or missing certificates.
+	SkipSSLVerify bool
 }
 
 // RunStdioServer is not concurrent safe.
@@ -281,6 +288,7 @@ func RunStdioServer(cfg StdioServerConfig) error {
 		Logger:            logger,
 		RepoAccessTTL:     cfg.RepoAccessCacheTTL,
 		TokenScopes:       tokenScopes,
+		SkipSSLVerify:     cfg.SkipSSLVerify,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create MCP server: %w", err)
