@@ -1,0 +1,25 @@
+{
+  "annotations": {
+    "readOnlyHint": true,
+    "title": "Get repository"
+  },
+  "description": "Get metadata for a GitHub repository",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "Repository owner (user or organization)",
+        "type": "string"
+      },
+      "repo": {
+        "description": "Repository name",
+        "type": "string"
+      },
+      "url": {
+        "description": "GitHub repository URL (e.g. https://github.com/owner/repo). If provided, owner and repo are parsed from the URL.",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "name": "get_repository"
+}

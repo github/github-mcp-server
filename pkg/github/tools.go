@@ -165,6 +165,7 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GetTeamMembers(t),
 
 		// Repository tools
+		GetRepository(t),
 		SearchRepositories(t),
 		GetFileContents(t),
 		ListCommits(t),
