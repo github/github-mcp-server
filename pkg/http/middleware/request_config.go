@@ -15,6 +15,18 @@ func WithRequestConfig(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
+		requestID := strings.TrimSpace(r.Header.Get(headers.RequestIDHeader))
+		if requestID == "" {
+			generatedRequestID, err := ghcontext.GenerateRequestID()
+			if err != nil {
+				http.Error(w, "failed to generate request id", http.StatusInternalServerError)
+				return
+			}
+			requestID = generatedRequestID
+		}
+		ctx = ghcontext.WithRequestID(ctx, requestID)
+		w.Header().Set(headers.RequestIDHeader, requestID)
+
 		// Readonly mode
 		if relaxedParseBool(r.Header.Get(headers.MCPReadOnlyHeader)) {
 			ctx = ghcontext.WithReadonly(ctx, true)
