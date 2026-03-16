@@ -36,6 +36,8 @@ func TestGitHubErrorContext(t *testing.T) {
 
 		apiError := apiErrors[0]
 		assert.Equal(t, "failed to fetch resource", apiError.Message)
+		assert.Empty(t, apiError.Code)
+		assert.Nil(t, apiError.RetryAfterSeconds)
 		assert.Equal(t, resp, apiError.Response)
 		assert.Equal(t, originalErr, apiError.Err)
 		assert.Equal(t, "failed to fetch resource: resource not found", apiError.Error())
@@ -86,6 +88,8 @@ func TestGitHubErrorContext(t *testing.T) {
 
 		rawError := rawErrors[0]
 		assert.Equal(t, "failed to fetch raw content", rawError.Message)
+		assert.Empty(t, rawError.Code)
+		assert.Nil(t, rawError.RetryAfterSeconds)
 		assert.Equal(t, resp, rawError.Response)
 		assert.Equal(t, originalErr, rawError.Err)
 	})
@@ -260,6 +264,7 @@ func TestGitHubErrorContext(t *testing.T) {
 
 		apiError := apiErrors[0]
 		assert.Equal(t, "API call failed", apiError.Message)
+		assert.Empty(t, apiError.Code)
 		assert.Equal(t, resp, apiError.Response)
 		assert.Equal(t, originalErr, apiError.Err)
 	})
@@ -308,6 +313,7 @@ func TestGitHubErrorContext(t *testing.T) {
 
 		apiError := apiErrors[0]
 		assert.Equal(t, "failed to create issue", apiError.Message)
+		assert.Empty(t, apiError.Code)
 		assert.Equal(t, resp, apiError.Response)
 		// The synthetic error should contain the status code and body
 		assert.Contains(t, apiError.Err.Error(), "unexpected status 422")
@@ -383,6 +389,71 @@ func TestGitHubErrorTypes(t *testing.T) {
 		// Should implement error interface
 		var err error = gqlErr
 		assert.Equal(t, "test message: query failed", err.Error())
+	})
+
+	t.Run("GitHubAPIError classifies rate limit variants and preserves retry metadata", func(t *testing.T) {
+		t.Run("secondary rate limit", func(t *testing.T) {
+			resp := &github.Response{
+				Response: &http.Response{
+					StatusCode: http.StatusForbidden,
+					Status:     "403 Forbidden",
+					Header: http.Header{
+						"Retry-After": []string{"60"},
+					},
+				},
+			}
+
+			apiErr := newGitHubAPIError("failed to search", resp, fmt.Errorf("secondary rate limit exceeded"))
+
+			require.NotNil(t, apiErr.RetryAfterSeconds)
+			assert.Equal(t, "secondary_rate_limited", apiErr.Code)
+			assert.Equal(t, 60, *apiErr.RetryAfterSeconds)
+		})
+
+		t.Run("abuse rate limit", func(t *testing.T) {
+			resp := &github.Response{
+				Response: &http.Response{
+					StatusCode: http.StatusForbidden,
+					Status:     "403 Forbidden",
+					Header:     http.Header{},
+				},
+			}
+
+			apiErr := newGitHubAPIError("failed to create issue", resp, fmt.Errorf("You have triggered an abuse detection mechanism"))
+
+			assert.Equal(t, "abuse_rate_limited", apiErr.Code)
+			assert.Nil(t, apiErr.RetryAfterSeconds)
+		})
+
+		t.Run("primary rate limit", func(t *testing.T) {
+			resp := &github.Response{
+				Response: &http.Response{
+					StatusCode: http.StatusForbidden,
+					Status:     "403 Forbidden",
+					Header: http.Header{
+						"X-RateLimit-Remaining": []string{"0"},
+					},
+				},
+			}
+
+			apiErr := newGitHubAPIError("failed to list issues", resp, fmt.Errorf("API rate limit exceeded"))
+
+			assert.Equal(t, "rate_limited", apiErr.Code)
+			assert.Nil(t, apiErr.RetryAfterSeconds)
+		})
+
+		t.Run("invalid token still classified", func(t *testing.T) {
+			resp := &github.Response{
+				Response: &http.Response{
+					StatusCode: http.StatusUnauthorized,
+					Status:     "401 Unauthorized",
+				},
+			}
+
+			apiErr := newGitHubAPIError("failed to authenticate", resp, fmt.Errorf("bad credentials"))
+
+			assert.Equal(t, "invalid_token", apiErr.Code)
+		})
 	})
 }
 
