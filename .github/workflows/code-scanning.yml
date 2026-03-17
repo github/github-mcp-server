@@ -35,6 +35,10 @@ jobs:
             category: /language:go
             build-mode: autobuild
             runner: '["ubuntu-22.04"]'
+          - language: javascript
+            category: /language:javascript
+            build-mode: none
+            runner: '["ubuntu-22.04"]'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -75,7 +79,7 @@ jobs:
           cache: false
 
       - name: Set up Node.js
-        if: matrix.language == 'go'
+        if: matrix.language == 'go' || matrix.language == 'javascript'
         uses: actions/setup-node@v4
         with:
           node-version: "20"
