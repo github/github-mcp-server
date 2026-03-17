@@ -1,0 +1,72 @@
+{
+  "annotations": {
+    "title": "Create iteration field"
+  },
+  "description": "Create an iteration field on a ProjectsV2 with weekly sprints. Returns field ID and iteration IDs.",
+  "inputSchema": {
+    "properties": {
+      "duration": {
+        "description": "Duration in days for each iteration (typically 7 for weekly)",
+        "type": "number"
+      },
+      "field_name": {
+        "description": "Field name (e.g., 'Sprint', 'Iteration')",
+        "type": "string"
+      },
+      "iterations": {
+        "description": "Array of iteration definitions",
+        "items": {
+          "properties": {
+            "duration": {
+              "type": "number"
+            },
+            "startDate": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "title",
+            "startDate",
+            "duration"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "owner": {
+        "description": "GitHub username or organization name",
+        "type": "string"
+      },
+      "owner_type": {
+        "description": "Owner type",
+        "enum": [
+          "user",
+          "org"
+        ],
+        "type": "string"
+      },
+      "project_number": {
+        "description": "The project's number",
+        "type": "number"
+      },
+      "start_date": {
+        "description": "Start date in YYYY-MM-DD format",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "owner_type",
+      "project_number",
+      "field_name",
+      "duration",
+      "start_date",
+      "iterations"
+    ],
+    "type": "object"
+  },
+  "name": "create_iteration_field"
+}

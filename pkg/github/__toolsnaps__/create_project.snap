@@ -1,0 +1,33 @@
+{
+  "annotations": {
+    "title": "Create project"
+  },
+  "description": "Create a new GitHub Project (ProjectsV2). Returns the project ID and number.",
+  "inputSchema": {
+    "properties": {
+      "owner": {
+        "description": "GitHub username or organization name",
+        "type": "string"
+      },
+      "owner_type": {
+        "description": "Owner type",
+        "enum": [
+          "user",
+          "org"
+        ],
+        "type": "string"
+      },
+      "title": {
+        "description": "Project title",
+        "type": "string"
+      }
+    },
+    "required": [
+      "owner",
+      "owner_type",
+      "title"
+    ],
+    "type": "object"
+  },
+  "name": "create_project"
+}
