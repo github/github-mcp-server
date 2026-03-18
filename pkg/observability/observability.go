@@ -2,29 +2,33 @@ package observability
 
 import (
 	"context"
+	"log/slog"
 
-	"github.com/github/github-mcp-server/pkg/observability/log"
 	"github.com/github/github-mcp-server/pkg/observability/metrics"
 )
 
+// Exporters bundles observability primitives (logger + metrics) for dependency injection.
+// The logger is Go's stdlib *slog.Logger — integrators provide their own slog.Handler.
 type Exporters interface {
-	Logger(context.Context) log.Logger
+	Logger() *slog.Logger
 	Metrics(context.Context) metrics.Metrics
 }
 
 type exporters struct {
-	logger  log.Logger
+	logger  *slog.Logger
 	metrics metrics.Metrics
 }
 
-func NewExporters(logger log.Logger, metrics metrics.Metrics) Exporters {
+// NewExporters creates an Exporters bundle. Pass a configured *slog.Logger
+// (with whatever slog.Handler you need) and a Metrics implementation.
+func NewExporters(logger *slog.Logger, metrics metrics.Metrics) Exporters {
 	return &exporters{
 		logger:  logger,
 		metrics: metrics,
 	}
 }
 
-func (e *exporters) Logger(_ context.Context) log.Logger {
+func (e *exporters) Logger() *slog.Logger {
 	return e.logger
 }
 
