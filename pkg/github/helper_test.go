@@ -20,8 +20,9 @@ import (
 // These constants define the URL patterns used in HTTP mocking for tests
 const (
 	// User endpoints
-	GetUser                        = "GET /user"
+	GetAuthenticatedUser           = "GET /user"
 	GetUserStarred                 = "GET /user/starred"
+	GetUserByUsername              = "GET /users/{username}"
 	GetUsersGistsByUsername        = "GET /users/{username}/gists"
 	GetUsersStarredByUsername      = "GET /users/{username}/starred"
 	PutUserStarredByOwnerByRepo    = "PUT /user/starred/{owner}/{repo}"
