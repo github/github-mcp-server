@@ -68,7 +68,7 @@ func (s stubDeps) Logger(_ context.Context) *slog.Logger {
 	if s.obsv != nil {
 		return s.obsv.Logger()
 	}
-	return nil
+	return slog.New(slog.DiscardHandler)
 }
 func (s stubDeps) Metrics(ctx context.Context) metrics.Metrics {
 	if s.obsv != nil {

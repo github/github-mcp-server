@@ -2,6 +2,7 @@ package observability
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/github/github-mcp-server/pkg/observability/metrics"
@@ -21,11 +22,15 @@ type exporters struct {
 
 // NewExporters creates an Exporters bundle. Pass a configured *slog.Logger
 // (with whatever slog.Handler you need) and a Metrics implementation.
-func NewExporters(logger *slog.Logger, metrics metrics.Metrics) Exporters {
+// The logger must not be nil; use slog.New(slog.DiscardHandler) if logging is unwanted.
+func NewExporters(logger *slog.Logger, metrics metrics.Metrics) (Exporters, error) {
+	if logger == nil {
+		return nil, errors.New("logger must not be nil: use slog.New(slog.DiscardHandler) to discard logs")
+	}
 	return &exporters{
 		logger:  logger,
 		metrics: metrics,
-	}
+	}, nil
 }
 
 func (e *exporters) Logger() *slog.Logger {
