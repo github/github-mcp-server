@@ -107,7 +107,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 
 	featureChecker := createHTTPFeatureChecker()
 
-	obs, err := observability.NewExporters(logger, nil)
+	obs, err := observability.NewExporters(logger, observability.NewNoopMetrics())
 	if err != nil {
 		return fmt.Errorf("failed to create observability exporters: %w", err)
 	}
