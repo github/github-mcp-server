@@ -387,16 +387,17 @@ func convertToMinimalIssue(issue *github.Issue) MinimalIssue {
 
 func fragmentToMinimalIssue(fragment IssueFragment) MinimalIssue {
 	m := MinimalIssue{
-		Number:    int(fragment.Number),
-		Title:     sanitize.Sanitize(string(fragment.Title)),
-		Body:      sanitize.Sanitize(string(fragment.Body)),
-		State:     string(fragment.State),
-		Comments:  int(fragment.Comments.TotalCount),
-		CreatedAt: fragment.CreatedAt.Format(time.RFC3339),
-		UpdatedAt: fragment.UpdatedAt.Format(time.RFC3339),
+		Number:            int(fragment.Number),
+		Title:             sanitize.Sanitize(string(fragment.Title)),
+		Body:              sanitize.Sanitize(string(fragment.Body)),
+		State:             string(fragment.State),
+		Comments:          int(fragment.Comments.TotalCount),
+		CreatedAt:         fragment.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:         fragment.UpdatedAt.Format(time.RFC3339),
 		User: &MinimalUser{
 			Login: string(fragment.Author.Login),
 		},
+		AuthorAssociation: string(fragment.Author.Association),
 	}
 
 	for _, label := range fragment.Labels.Nodes {
