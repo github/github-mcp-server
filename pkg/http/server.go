@@ -18,6 +18,7 @@ import (
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	"github.com/github/github-mcp-server/pkg/observability"
+	"github.com/github/github-mcp-server/pkg/observability/metrics"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/github/github-mcp-server/pkg/utils"
@@ -107,7 +108,7 @@ func RunHTTPServer(cfg ServerConfig) error {
 
 	featureChecker := createHTTPFeatureChecker()
 
-	obs, err := observability.NewExporters(logger, nil)
+	obs, err := observability.NewExporters(logger, metrics.NewNoopMetrics())
 	if err != nil {
 		return fmt.Errorf("failed to create observability exporters: %w", err)
 	}
