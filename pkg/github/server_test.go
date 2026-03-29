@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"testing"
 	"time"
@@ -306,4 +308,55 @@ func TestResolveEnabledToolsets(t *testing.T) {
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
+}
+
+func TestNewMCPServer_StrictToolsetsFailsOnUnknownToolset(t *testing.T) {
+	t.Parallel()
+
+	cfg := MCPServerConfig{
+		Version:           "test",
+		Token:             "test-token",
+		EnabledToolsets:   []string{"unknown-toolset"},
+		StrictToolsets:    true,
+		Translator:        translations.NullTranslationHelper,
+		ContentWindowSize: 5000,
+		Logger:            slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	inv, err := NewInventory(cfg.Translator).
+		WithDeprecatedAliases(DeprecatedToolAliases).
+		WithToolsets(cfg.EnabledToolsets).
+		Build()
+	require.NoError(t, err)
+	require.NotEmpty(t, inv.UnrecognizedToolsets())
+
+	_, err = NewMCPServer(context.Background(), &cfg, stubDeps{}, inv)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "strict toolset validation failed")
+	assert.Contains(t, err.Error(), "unknown-toolset")
+}
+
+func TestNewMCPServer_NonStrictToolsetsAllowsUnknownToolset(t *testing.T) {
+	t.Parallel()
+
+	cfg := MCPServerConfig{
+		Version:           "test",
+		Token:             "test-token",
+		EnabledToolsets:   []string{"unknown-toolset"},
+		StrictToolsets:    false,
+		Translator:        translations.NullTranslationHelper,
+		ContentWindowSize: 5000,
+		Logger:            slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	inv, err := NewInventory(cfg.Translator).
+		WithDeprecatedAliases(DeprecatedToolAliases).
+		WithToolsets(cfg.EnabledToolsets).
+		Build()
+	require.NoError(t, err)
+	require.NotEmpty(t, inv.UnrecognizedToolsets())
+
+	server, err := NewMCPServer(context.Background(), &cfg, stubDeps{}, inv)
+	require.NoError(t, err)
+	require.NotNil(t, server)
 }
