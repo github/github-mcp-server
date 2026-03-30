@@ -107,8 +107,10 @@ const (
 	GetReposSecretScanningAlertsByOwnerByRepoByAlertNumber = "GET /repos/{owner}/{repo}/secret-scanning/alerts/{alert_number}" //nolint:gosec // False positive - this is an API endpoint pattern, not a credential
 
 	// Dependabot endpoints
-	GetReposDependabotAlertsByOwnerByRepo              = "GET /repos/{owner}/{repo}/dependabot/alerts"
-	GetReposDependabotAlertsByOwnerByRepoByAlertNumber = "GET /repos/{owner}/{repo}/dependabot/alerts/{alert_number}"
+	GetReposDependabotAlertsByOwnerByRepo                = "GET /repos/{owner}/{repo}/dependabot/alerts"
+	GetReposDependabotAlertsByOwnerByRepoByAlertNumber   = "GET /repos/{owner}/{repo}/dependabot/alerts/{alert_number}"
+	PatchReposDependabotAlertsByOwnerByRepoByAlertNumber = "PATCH /repos/{owner}/{repo}/dependabot/alerts/{alert_number}"
+	GetOrgsDependabotAlertsByOrg                         = "GET /orgs/{org}/dependabot/alerts"
 
 	// Security advisories endpoints
 	GetAdvisories                           = "GET /advisories"
