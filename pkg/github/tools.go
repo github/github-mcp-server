@@ -231,6 +231,8 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		// Dependabot tools
 		GetDependabotAlert(t),
 		ListDependabotAlerts(t),
+		ListOrgDependabotAlerts(t),
+		UpdateDependabotAlert(t),
 
 		// Notification tools
 		ListNotifications(t),
