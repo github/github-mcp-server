@@ -394,6 +394,10 @@ docker run -it --rm ghcr.io/github/github-mcp-server tool-search "issue" --max-r
 github-mcp-server tool-search "issue" --max-results 5
 ```
 
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/github-github-mcp-server).
+
 ## Tool Configuration
 
 The GitHub MCP Server supports enabling or disabling specific groups of functionalities via the `--toolsets` flag. This allows you to control which GitHub API capabilities are available to your AI tools. Enabling only the toolsets that you need can help the LLM with tool choice and reduce the context size.
