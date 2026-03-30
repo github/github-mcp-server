@@ -720,9 +720,32 @@ The following sets of tools are available:
   - **Required OAuth Scopes**: `security_events`
   - **Accepted OAuth Scopes**: `repo`, `security_events`
   - `owner`: The owner of the repository. (string, required)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
   - `repo`: The name of the repository. (string, required)
   - `severity`: Filter dependabot alerts by severity (string, optional)
   - `state`: Filter dependabot alerts by state. Defaults to open (string, optional)
+
+- **list_org_dependabot_alerts** - List org Dependabot alerts
+  - **Required OAuth Scopes**: `security_events`
+  - **Accepted OAuth Scopes**: `repo`, `security_events`
+  - `ecosystem`: Filter Dependabot alerts by package ecosystem (e.g. npm, pip, maven) (string, optional)
+  - `org`: The organization name. (string, required)
+  - `package`: Filter Dependabot alerts by package name (string, optional)
+  - `page`: Page number for pagination (min 1) (number, optional)
+  - `perPage`: Results per page for pagination (min 1, max 100) (number, optional)
+  - `severity`: Filter Dependabot alerts by severity (string, optional)
+  - `state`: Filter Dependabot alerts by state. Defaults to open (string, optional)
+
+- **update_dependabot_alert** - Update Dependabot alert
+  - **Required OAuth Scopes**: `security_events`
+  - **Accepted OAuth Scopes**: `repo`, `security_events`
+  - `alertNumber`: The number of the alert. (number, required)
+  - `dismissedComment`: An optional comment associated with dismissing the alert. (string, optional)
+  - `dismissedReason`: Required when state is dismissed. The reason for dismissing the alert. (string, optional)
+  - `owner`: The owner of the repository. (string, required)
+  - `repo`: The name of the repository. (string, required)
+  - `state`: The state to set for the alert. (string, required)
 
 </details>
 
