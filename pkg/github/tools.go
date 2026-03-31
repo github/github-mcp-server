@@ -116,6 +116,7 @@ var (
 		ID:               "projects",
 		Description:      "GitHub Projects related tools",
 		Icon:             "project",
+		Default:          true,
 		InstructionsFunc: generateProjectsToolsetInstructions,
 	}
 	ToolsetMetadataStargazers = inventory.ToolsetMetadata{
