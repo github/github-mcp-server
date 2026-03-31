@@ -3,12 +3,20 @@ package github_test
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 
 	"github.com/github/github-mcp-server/pkg/github"
+	"github.com/github/github-mcp-server/pkg/observability"
+	"github.com/github/github-mcp-server/pkg/observability/metrics"
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/stretchr/testify/assert"
 )
+
+func testExporters() observability.Exporters {
+	obs, _ := observability.NewExporters(slog.New(slog.DiscardHandler), metrics.NewNoopMetrics())
+	return obs
+}
 
 func TestIsFeatureEnabled_WithEnabledFlag(t *testing.T) {
 	t.Parallel()
@@ -28,7 +36,7 @@ func TestIsFeatureEnabled_WithEnabledFlag(t *testing.T) {
 		github.FeatureFlags{},
 		0,       // contentWindowSize
 		checker, // featureChecker
-		nil,     // obsv
+		testExporters(),
 	)
 
 	// Test enabled flag
@@ -53,7 +61,7 @@ func TestIsFeatureEnabled_WithoutChecker(t *testing.T) {
 		github.FeatureFlags{},
 		0,   // contentWindowSize
 		nil, // featureChecker (nil)
-		nil, // obsv
+		testExporters(),
 	)
 
 	// Should return false when checker is nil
@@ -78,7 +86,7 @@ func TestIsFeatureEnabled_EmptyFlagName(t *testing.T) {
 		github.FeatureFlags{},
 		0,       // contentWindowSize
 		checker, // featureChecker
-		nil,     // obsv
+		testExporters(),
 	)
 
 	// Should return false for empty flag name
@@ -103,7 +111,7 @@ func TestIsFeatureEnabled_CheckerError(t *testing.T) {
 		github.FeatureFlags{},
 		0,       // contentWindowSize
 		checker, // featureChecker
-		nil,     // obsv
+		testExporters(),
 	)
 
 	// Should return false and log error (not crash)

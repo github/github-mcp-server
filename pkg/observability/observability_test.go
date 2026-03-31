@@ -23,16 +23,24 @@ func TestNewExporters(t *testing.T) {
 }
 
 func TestNewExporters_WithNilLogger(t *testing.T) {
-	_, err := NewExporters(nil, nil)
+	_, err := NewExporters(nil, metrics.NewNoopMetrics())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "logger must not be nil")
 }
 
+func TestNewExporters_WithNilMetrics(t *testing.T) {
+	_, err := NewExporters(slog.New(slog.DiscardHandler), nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "metrics must not be nil")
+}
+
 func TestNewExporters_WithDiscardLogger(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
-	exp, err := NewExporters(logger, nil)
+	m := metrics.NewNoopMetrics()
+	exp, err := NewExporters(logger, m)
 
 	require.NoError(t, err)
 	assert.NotNil(t, exp)
 	assert.Equal(t, logger, exp.Logger())
+	assert.Equal(t, m, exp.Metrics(context.Background()))
 }

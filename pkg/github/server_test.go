@@ -65,19 +65,20 @@ func (s stubDeps) GetFlags(_ context.Context) FeatureFlags           { return s.
 func (s stubDeps) GetContentWindowSize() int                         { return s.contentWindowSize }
 func (s stubDeps) IsFeatureEnabled(_ context.Context, _ string) bool { return false }
 func (s stubDeps) Logger(_ context.Context) *slog.Logger {
-	if s.obsv != nil {
-		return s.obsv.Logger()
-	}
-	return slog.New(slog.DiscardHandler)
+	return s.obsv.Logger()
 }
 func (s stubDeps) Metrics(ctx context.Context) metrics.Metrics {
-	if s.obsv != nil {
-		return s.obsv.Metrics(ctx)
-	}
-	return metrics.NewNoopMetrics()
+	return s.obsv.Metrics(ctx)
 }
 
 // Helper functions to create stub client functions for error testing
+
+// stubExporters returns a discard-logger + noop-metrics Exporters for tests.
+func stubExporters() observability.Exporters {
+	obs, _ := observability.NewExporters(slog.New(slog.DiscardHandler), metrics.NewNoopMetrics())
+	return obs
+}
+
 func stubClientFnFromHTTP(httpClient *http.Client) func(context.Context) (*gogithub.Client, error) {
 	return func(_ context.Context) (*gogithub.Client, error) {
 		return gogithub.NewClient(httpClient), nil
@@ -141,7 +142,7 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 		InsidersMode:      false,
 	}
 
-	deps := stubDeps{}
+	deps := stubDeps{obsv: stubExporters()}
 
 	// Build inventory
 	inv, err := NewInventory(cfg.Translator).

@@ -188,17 +188,11 @@ func (d BaseDeps) GetContentWindowSize() int { return d.ContentWindowSize }
 
 // Logger implements ToolDependencies.
 func (d BaseDeps) Logger(_ context.Context) *slog.Logger {
-	if d.Obsv == nil {
-		return slog.New(slog.DiscardHandler)
-	}
 	return d.Obsv.Logger()
 }
 
 // Metrics implements ToolDependencies.
 func (d BaseDeps) Metrics(ctx context.Context) metrics.Metrics {
-	if d.Obsv == nil {
-		return metrics.NewNoopMetrics()
-	}
 	return d.Obsv.Metrics(ctx)
 }
 

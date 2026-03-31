@@ -22,14 +22,18 @@ type exporters struct {
 
 // NewExporters creates an Exporters bundle. Pass a configured *slog.Logger
 // (with whatever slog.Handler you need) and a Metrics implementation.
-// The logger must not be nil; use slog.New(slog.DiscardHandler) if logging is unwanted.
-func NewExporters(logger *slog.Logger, metrics metrics.Metrics) (Exporters, error) {
+// Neither may be nil; use slog.New(slog.DiscardHandler) and metrics.NewNoopMetrics()
+// if logging or metrics are unwanted.
+func NewExporters(logger *slog.Logger, m metrics.Metrics) (Exporters, error) {
 	if logger == nil {
 		return nil, errors.New("logger must not be nil: use slog.New(slog.DiscardHandler) to discard logs")
 	}
+	if m == nil {
+		return nil, errors.New("metrics must not be nil: use metrics.NewNoopMetrics() to discard metrics")
+	}
 	return &exporters{
 		logger:  logger,
-		metrics: metrics,
+		metrics: m,
 	}, nil
 }
 
