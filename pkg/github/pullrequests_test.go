@@ -2471,6 +2471,61 @@ func TestCreateAndSubmitPullRequestReview(t *testing.T) {
 			expectToolError: false,
 		},
 		{
+			name: "successful review creation with string pullNumber",
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewQueryMatcher(
+					struct {
+						Repository struct {
+							PullRequest struct {
+								ID githubv4.ID
+							} `graphql:"pullRequest(number: $prNum)"`
+						} `graphql:"repository(owner: $owner, name: $repo)"`
+					}{},
+					map[string]any{
+						"owner": githubv4.String("owner"),
+						"repo":  githubv4.String("repo"),
+						"prNum": githubv4.Int(42),
+					},
+					githubv4mock.DataResponse(
+						map[string]any{
+							"repository": map[string]any{
+								"pullRequest": map[string]any{
+									"id": "PR_kwDODKw3uc6WYN1T",
+								},
+							},
+						},
+					),
+				),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						AddPullRequestReview struct {
+							PullRequestReview struct {
+								ID githubv4.ID
+							}
+						} `graphql:"addPullRequestReview(input: $input)"`
+					}{},
+					githubv4.AddPullRequestReviewInput{
+						PullRequestID: githubv4.ID("PR_kwDODKw3uc6WYN1T"),
+						Body:          githubv4.NewString("This is a test review"),
+						Event:         githubv4mock.Ptr(githubv4.PullRequestReviewEventComment),
+						CommitOID:     githubv4.NewGitObjectID("abcd1234"),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{}),
+				),
+			),
+			requestArgs: map[string]any{
+				"method":     "create",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": "42", // Some MCP clients send numeric values as strings
+				"body":       "This is a test review",
+				"event":      "COMMENT",
+				"commitID":   "abcd1234",
+			},
+			expectToolError: false,
+		},
+		{
 			name: "failure to get pull request",
 			mockedClient: githubv4mock.NewMockedHTTPClient(
 				githubv4mock.NewQueryMatcher(
@@ -2849,6 +2904,65 @@ func TestAddPullRequestReviewCommentToPendingReview(t *testing.T) {
 						AddPullRequestReviewThread struct {
 							Thread struct {
 								ID githubv4.String // We don't need this, but a selector is required or GQL complains.
+							}
+						} `graphql:"addPullRequestReviewThread(input: $input)"`
+					}{},
+					githubv4.AddPullRequestReviewThreadInput{
+						Path:                githubv4.String("file.go"),
+						Body:                githubv4.String("This is a test comment"),
+						SubjectType:         githubv4mock.Ptr(githubv4.PullRequestReviewThreadSubjectTypeLine),
+						Line:                githubv4.NewInt(10),
+						Side:                githubv4mock.Ptr(githubv4.DiffSideRight),
+						StartLine:           githubv4.NewInt(5),
+						StartSide:           githubv4mock.Ptr(githubv4.DiffSideRight),
+						PullRequestReviewID: githubv4.NewID("PR_kwDODKw3uc6WYN1T"),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"addPullRequestReviewThread": map[string]any{
+							"thread": map[string]any{
+								"id": "MDEyOlB1bGxSZXF1ZXN0UmV2aWV3VGhyZWFkMTIzNDU2",
+							},
+						},
+					}),
+				),
+			),
+		},
+		{
+			name: "successful line comment with string pullNumber and line",
+			requestArgs: map[string]any{
+				"owner":       "owner",
+				"repo":        "repo",
+				"pullNumber":  "42", // Some MCP clients send numeric values as strings
+				"path":        "file.go",
+				"body":        "This is a test comment",
+				"subjectType": "LINE",
+				"line":        "10", // string line number
+				"side":        "RIGHT",
+				"startLine":   "5", // string startLine
+				"startSide":   "RIGHT",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				viewerQuery("williammartin"),
+				getLatestPendingReviewQuery(getLatestPendingReviewQueryParams{
+					author: "williammartin",
+					owner:  "owner",
+					repo:   "repo",
+					prNum:  42,
+
+					reviews: []getLatestPendingReviewQueryReview{
+						{
+							id:    "PR_kwDODKw3uc6WYN1T",
+							state: "PENDING",
+							url:   "https://github.com/owner/repo/pull/42",
+						},
+					},
+				}),
+				githubv4mock.NewMutationMatcher(
+					struct {
+						AddPullRequestReviewThread struct {
+							Thread struct {
+								ID githubv4.String
 							}
 						} `graphql:"addPullRequestReviewThread(input: $input)"`
 					}{},
@@ -3492,6 +3606,201 @@ func TestAddReplyToPullRequestComment(t *testing.T) {
 			require.False(t, result.IsError)
 			textContent := getTextResult(t, result)
 			assert.Contains(t, textContent.Text, "This is a reply to the comment")
+		})
+	}
+}
+
+func TestResolveReviewThread(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		requestArgs        map[string]any
+		mockedClient       *http.Client
+		expectToolError    bool
+		expectedToolErrMsg string
+		expectedResult     string
+	}{
+		{
+			name: "successful resolve thread",
+			requestArgs: map[string]any{
+				"method":     "resolve_thread",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"threadId":   "PRRT_kwDOTest123",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewMutationMatcher(
+					struct {
+						ResolveReviewThread struct {
+							Thread struct {
+								ID         githubv4.ID
+								IsResolved githubv4.Boolean
+							}
+						} `graphql:"resolveReviewThread(input: $input)"`
+					}{},
+					githubv4.ResolveReviewThreadInput{
+						ThreadID: githubv4.ID("PRRT_kwDOTest123"),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"resolveReviewThread": map[string]any{
+							"thread": map[string]any{
+								"id":         "PRRT_kwDOTest123",
+								"isResolved": true,
+							},
+						},
+					}),
+				),
+			),
+			expectedResult: "review thread resolved successfully",
+		},
+		{
+			name: "successful unresolve thread",
+			requestArgs: map[string]any{
+				"method":     "unresolve_thread",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"threadId":   "PRRT_kwDOTest123",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewMutationMatcher(
+					struct {
+						UnresolveReviewThread struct {
+							Thread struct {
+								ID         githubv4.ID
+								IsResolved githubv4.Boolean
+							}
+						} `graphql:"unresolveReviewThread(input: $input)"`
+					}{},
+					githubv4.UnresolveReviewThreadInput{
+						ThreadID: githubv4.ID("PRRT_kwDOTest123"),
+					},
+					nil,
+					githubv4mock.DataResponse(map[string]any{
+						"unresolveReviewThread": map[string]any{
+							"thread": map[string]any{
+								"id":         "PRRT_kwDOTest123",
+								"isResolved": false,
+							},
+						},
+					}),
+				),
+			),
+			expectedResult: "review thread unresolved successfully",
+		},
+		{
+			name: "empty threadId for resolve",
+			requestArgs: map[string]any{
+				"method":     "resolve_thread",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"threadId":   "",
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "threadId is required",
+		},
+		{
+			name: "empty threadId for unresolve",
+			requestArgs: map[string]any{
+				"method":     "unresolve_thread",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"threadId":   "",
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "threadId is required",
+		},
+		{
+			name: "omitted threadId for resolve",
+			requestArgs: map[string]any{
+				"method":     "resolve_thread",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "threadId is required",
+		},
+		{
+			name: "omitted threadId for unresolve",
+			requestArgs: map[string]any{
+				"method":     "unresolve_thread",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+			},
+			mockedClient:       githubv4mock.NewMockedHTTPClient(),
+			expectToolError:    true,
+			expectedToolErrMsg: "threadId is required",
+		},
+		{
+			name: "thread not found",
+			requestArgs: map[string]any{
+				"method":     "resolve_thread",
+				"owner":      "owner",
+				"repo":       "repo",
+				"pullNumber": float64(42),
+				"threadId":   "PRRT_invalid",
+			},
+			mockedClient: githubv4mock.NewMockedHTTPClient(
+				githubv4mock.NewMutationMatcher(
+					struct {
+						ResolveReviewThread struct {
+							Thread struct {
+								ID         githubv4.ID
+								IsResolved githubv4.Boolean
+							}
+						} `graphql:"resolveReviewThread(input: $input)"`
+					}{},
+					githubv4.ResolveReviewThreadInput{
+						ThreadID: githubv4.ID("PRRT_invalid"),
+					},
+					nil,
+					githubv4mock.ErrorResponse("Could not resolve to a PullRequestReviewThread with the id of 'PRRT_invalid'"),
+				),
+			),
+			expectToolError:    true,
+			expectedToolErrMsg: "Could not resolve to a PullRequestReviewThread",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Setup client with mock
+			client := githubv4.NewClient(tc.mockedClient)
+			serverTool := PullRequestReviewWrite(translations.NullTranslationHelper)
+			deps := BaseDeps{
+				GQLClient: client,
+			}
+			handler := serverTool.Handler(deps)
+
+			// Create call request
+			request := createMCPRequest(tc.requestArgs)
+
+			// Call handler
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+
+			textContent := getTextResult(t, result)
+
+			if tc.expectToolError {
+				require.True(t, result.IsError)
+				assert.Contains(t, textContent.Text, tc.expectedToolErrMsg)
+				return
+			}
+
+			require.False(t, result.IsError)
+			assert.Equal(t, tc.expectedResult, textContent.Text)
 		})
 	}
 }
