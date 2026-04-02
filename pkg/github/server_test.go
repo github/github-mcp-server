@@ -5,14 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/github/github-mcp-server/pkg/lockdown"
+	"github.com/github/github-mcp-server/pkg/observability"
+	"github.com/github/github-mcp-server/pkg/observability/metrics"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v82/github"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/shurcooL/githubv4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,6 +33,7 @@ type stubDeps struct {
 	t                 translations.TranslationHelperFunc
 	flags             FeatureFlags
 	contentWindowSize int
+	obsv              observability.Exporters
 }
 
 func (s stubDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
@@ -59,8 +64,21 @@ func (s stubDeps) GetT() translations.TranslationHelperFunc          { return s.
 func (s stubDeps) GetFlags(_ context.Context) FeatureFlags           { return s.flags }
 func (s stubDeps) GetContentWindowSize() int                         { return s.contentWindowSize }
 func (s stubDeps) IsFeatureEnabled(_ context.Context, _ string) bool { return false }
+func (s stubDeps) Logger(_ context.Context) *slog.Logger {
+	return s.obsv.Logger()
+}
+func (s stubDeps) Metrics(ctx context.Context) metrics.Metrics {
+	return s.obsv.Metrics(ctx)
+}
 
 // Helper functions to create stub client functions for error testing
+
+// stubExporters returns a discard-logger + noop-metrics Exporters for tests.
+func stubExporters() observability.Exporters {
+	obs, _ := observability.NewExporters(slog.New(slog.DiscardHandler), metrics.NewNoopMetrics())
+	return obs
+}
+
 func stubClientFnFromHTTP(httpClient *http.Client) func(context.Context) (*gogithub.Client, error) {
 	return func(_ context.Context) (*gogithub.Client, error) {
 		return gogithub.NewClient(httpClient), nil
@@ -124,7 +142,7 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 		InsidersMode:      false,
 	}
 
-	deps := stubDeps{}
+	deps := stubDeps{obsv: stubExporters()}
 
 	// Build inventory
 	inv, err := NewInventory(cfg.Translator).
@@ -148,6 +166,93 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 	//
 	// The actual middleware functionality and tool execution with ContextWithDeps
 	// is already tested in pkg/github/*_test.go.
+}
+
+// TestNewServer_NameAndTitleViaTranslation verifies that server name and title
+// can be overridden via the translation helper (GITHUB_MCP_SERVER_NAME /
+// GITHUB_MCP_SERVER_TITLE env vars or github-mcp-server-config.json) and
+// fall back to sensible defaults when not overridden.
+func TestNewServer_NameAndTitleViaTranslation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		translator    translations.TranslationHelperFunc
+		expectedName  string
+		expectedTitle string
+	}{
+		{
+			name:          "defaults when using NullTranslationHelper",
+			translator:    translations.NullTranslationHelper,
+			expectedName:  "github-mcp-server",
+			expectedTitle: "GitHub MCP Server",
+		},
+		{
+			name: "custom name and title via translator",
+			translator: func(key, defaultValue string) string {
+				switch key {
+				case "SERVER_NAME":
+					return "my-github-server"
+				case "SERVER_TITLE":
+					return "My GitHub MCP Server"
+				default:
+					return defaultValue
+				}
+			},
+			expectedName:  "my-github-server",
+			expectedTitle: "My GitHub MCP Server",
+		},
+		{
+			name: "custom name only via translator",
+			translator: func(key, defaultValue string) string {
+				if key == "SERVER_NAME" {
+					return "ghes-server"
+				}
+				return defaultValue
+			},
+			expectedName:  "ghes-server",
+			expectedTitle: "GitHub MCP Server",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := NewServer("v1.0.0", tt.translator("SERVER_NAME", "github-mcp-server"), tt.translator("SERVER_TITLE", "GitHub MCP Server"), nil)
+			require.NotNil(t, srv)
+
+			// Connect a client to retrieve the initialize result and verify ServerInfo.
+			st, ct := mcp.NewInMemoryTransports()
+			client := mcp.NewClient(&mcp.Implementation{Name: "test-client"}, nil)
+
+			type clientResult struct {
+				result *mcp.InitializeResult
+				err    error
+			}
+			clientResultCh := make(chan clientResult, 1)
+			go func() {
+				cs, err := client.Connect(context.Background(), ct, nil)
+				if err != nil {
+					clientResultCh <- clientResult{err: err}
+					return
+				}
+				t.Cleanup(func() { _ = cs.Close() })
+				clientResultCh <- clientResult{result: cs.InitializeResult()}
+			}()
+
+			ss, err := srv.Connect(context.Background(), st, nil)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = ss.Close() })
+
+			got := <-clientResultCh
+			require.NoError(t, got.err)
+			require.NotNil(t, got.result)
+			require.NotNil(t, got.result.ServerInfo)
+			assert.Equal(t, tt.expectedName, got.result.ServerInfo.Name)
+			assert.Equal(t, tt.expectedTitle, got.result.ServerInfo.Title)
+		})
+	}
 }
 
 // TestResolveEnabledToolsets verifies the toolset resolution logic.

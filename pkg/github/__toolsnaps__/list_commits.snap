@@ -19,6 +19,10 @@
         "minimum": 1,
         "type": "number"
       },
+      "path": {
+        "description": "Only commits containing this file path will be returned",
+        "type": "string"
+      },
       "perPage": {
         "description": "Results per page for pagination (min 1, max 100)",
         "maximum": 100,
@@ -31,6 +35,14 @@
       },
       "sha": {
         "description": "Commit SHA, branch or tag name to list commits of. If not provided, uses the default branch of the repository. If a commit SHA is provided, will list commits up to that SHA.",
+        "type": "string"
+      },
+      "since": {
+        "description": "Only commits after this date will be returned (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD)",
+        "type": "string"
+      },
+      "until": {
+        "description": "Only commits before this date will be returned (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD)",
         "type": "string"
       }
     },
