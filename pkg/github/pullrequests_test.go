@@ -2312,9 +2312,9 @@ func Test_CreatePullRequest(t *testing.T) {
 	}
 }
 
-// Test_CreatePullRequest_InsidersMode_UIGate verifies the insiders mode UI gate
+// Test_CreatePullRequest_MCPApps_UIGate verifies the MCP Apps feature flag UI gate
 // behavior: UI clients get a form message, non-UI clients execute directly.
-func Test_CreatePullRequest_InsidersMode_UIGate(t *testing.T) {
+func Test_CreatePullRequest_MCPApps_UIGate(t *testing.T) {
 	t.Parallel()
 
 	mockPR := &github.PullRequest{
@@ -2332,11 +2332,17 @@ func Test_CreatePullRequest_InsidersMode_UIGate(t *testing.T) {
 		PostReposPullsByOwnerByRepo: mockResponse(t, http.StatusCreated, mockPR),
 	}))
 
-	deps := BaseDeps{
-		Client:    client,
-		GQLClient: githubv4.NewClient(nil),
-		Flags:     FeatureFlags{InsidersMode: true},
+	mcpAppsChecker := func(_ context.Context, flag string) (bool, error) {
+		return flag == MCPAppsFeatureFlag, nil
 	}
+	deps := NewBaseDeps(
+		client, githubv4.NewClient(nil), nil, nil,
+		translations.NullTranslationHelper,
+		FeatureFlags{},
+		0,
+		mcpAppsChecker,
+		stubExporters(),
+	)
 	handler := serverTool.Handler(deps)
 
 	t.Run("UI client without _ui_submitted returns form message", func(t *testing.T) {

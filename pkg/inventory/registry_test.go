@@ -1874,24 +1874,24 @@ func TestWithInsidersMode_DisabledStripsUIMetadata(t *testing.T) {
 	}
 }
 
-func TestWithInsidersMode_EnabledPreservesUIMetadata(t *testing.T) {
+func TestWithMCPApps_EnabledPreservesUIMetadata(t *testing.T) {
 	uiData := map[string]any{"html": "<div>hello</div>"}
 	toolWithUI := mockToolWithMeta("tool_with_ui", "toolset1", map[string]any{
 		"ui":          uiData,
 		"description": "kept",
 	})
 
-	// Insiders mode enabled - UI meta should be preserved
+	// MCP Apps enabled - UI meta should be preserved
 	reg := mustBuild(t, NewBuilder().
 		SetTools([]ServerTool{toolWithUI}).
 		WithToolsets([]string{"all"}).
-		WithInsidersMode(true))
+		WithMCPApps(true))
 	available := reg.AvailableTools(context.Background())
 
 	require.Len(t, available, 1)
 	// UI metadata should be preserved
 	if available[0].Tool.Meta["ui"] == nil {
-		t.Errorf("Expected 'ui' meta to be preserved in insiders mode")
+		t.Errorf("Expected 'ui' meta to be preserved with MCP Apps enabled")
 	}
 	// Other metadata should also be preserved
 	if available[0].Tool.Meta["description"] != "kept" {
@@ -1933,14 +1933,14 @@ func TestWithInsidersMode_DisabledRemovesInsidersOnlyTools(t *testing.T) {
 	require.Equal(t, "normal", available[0].Tool.Name)
 }
 
-func TestWithInsidersMode_ToolsWithoutUIMetaUnaffected(t *testing.T) {
+func TestWithMCPApps_ToolsWithoutUIMetaUnaffected(t *testing.T) {
 	toolNoUI := mockToolWithMeta("tool_no_ui", "toolset1", map[string]any{
 		"description": "kept",
 		"version":     "1.0",
 	})
 	toolNilMeta := mockTool("tool_nil_meta", "toolset1", true)
 
-	// Test with insiders disabled
+	// Test with MCP Apps disabled (default) - non-UI meta should be unaffected
 	reg := mustBuild(t, NewBuilder().
 		SetTools([]ServerTool{toolNoUI, toolNilMeta}).
 		WithToolsets([]string{"all"}))
@@ -1973,8 +1973,8 @@ func TestWithInsidersMode_ToolsWithoutUIMetaUnaffected(t *testing.T) {
 	}
 }
 
-func TestWithInsidersMode_UIOnlyMetaBecomesNil(t *testing.T) {
-	// Tool with ONLY ui metadata - should become nil after stripping
+func TestWithMCPApps_UIOnlyMetaBecomesNil(t *testing.T) {
+	// Tool with ONLY ui metadata - should become nil after stripping when MCP Apps is disabled
 	toolUIOnly := mockToolWithMeta("tool_ui_only", "toolset1", map[string]any{
 		"ui": map[string]any{"html": "<div>hello</div>"},
 	})
@@ -1985,44 +1985,75 @@ func TestWithInsidersMode_UIOnlyMetaBecomesNil(t *testing.T) {
 	available := reg.AvailableTools(context.Background())
 
 	require.Len(t, available, 1)
-	// Meta should be nil since ui was the only key
+	// Meta should be nil since ui was the only key and MCP Apps is off by default
 	if available[0].Tool.Meta != nil {
 		t.Errorf("Expected Meta to be nil after stripping only key, got %v", available[0].Tool.Meta)
 	}
 }
 
-func TestStripInsidersMetaFromTool(t *testing.T) {
+func TestWithMCPApps_EnabledPreservesUIMeta(t *testing.T) {
+	// Tool with ui metadata - should be preserved when MCP Apps is enabled
+	toolWithUI := mockToolWithMeta("tool_with_ui", "toolset1", map[string]any{
+		"ui":          map[string]any{"html": "<div>hello</div>"},
+		"description": "kept",
+	})
+
+	reg := mustBuild(t, NewBuilder().
+		SetTools([]ServerTool{toolWithUI}).
+		WithToolsets([]string{"all"}).
+		WithMCPApps(true))
+	available := reg.AvailableTools(context.Background())
+
+	require.Len(t, available, 1)
+	require.NotNil(t, available[0].Tool.Meta, "Meta should be preserved with MCP Apps enabled")
+	require.NotNil(t, available[0].Tool.Meta["ui"], "ui key should be preserved with MCP Apps enabled")
+	require.Equal(t, "kept", available[0].Tool.Meta["description"])
+}
+
+func TestStripMetaKeys(t *testing.T) {
 	tests := []struct {
 		name         string
 		meta         map[string]any
+		keys         []string
 		expectChange bool
 		expectedMeta map[string]any // nil means Meta should be nil
 	}{
 		{
 			name:         "nil meta - no change",
 			meta:         nil,
+			keys:         mcpAppsMetaKeys,
 			expectChange: false,
 		},
 		{
-			name:         "no insiders keys - no change",
+			name:         "no matching keys - no change",
 			meta:         map[string]any{"description": "test", "version": "1.0"},
+			keys:         mcpAppsMetaKeys,
 			expectChange: false,
 		},
 		{
 			name:         "ui key only - becomes nil",
 			meta:         map[string]any{"ui": "data"},
+			keys:         mcpAppsMetaKeys,
 			expectChange: true,
 			expectedMeta: nil,
 		},
 		{
 			name:         "ui key with other keys - ui stripped",
 			meta:         map[string]any{"ui": "data", "description": "kept"},
+			keys:         mcpAppsMetaKeys,
 			expectChange: true,
 			expectedMeta: map[string]any{"description": "kept"},
 		},
 		{
 			name:         "ui is nil value - no change (nil value means key not present)",
 			meta:         map[string]any{"ui": nil, "description": "kept"},
+			keys:         mcpAppsMetaKeys,
+			expectChange: false,
+		},
+		{
+			name:         "empty keys list - no change",
+			meta:         map[string]any{"ui": "data"},
+			keys:         []string{},
 			expectChange: false,
 		},
 	}
@@ -2030,7 +2061,7 @@ func TestStripInsidersMetaFromTool(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tool := mockToolWithMeta("test", "toolset1", tt.meta)
-			result := stripInsidersMetaFromTool(tool)
+			result := stripMetaKeys(tool, tt.keys)
 
 			if tt.expectChange {
 				require.NotNil(t, result, "expected change but got nil")
@@ -2050,14 +2081,14 @@ func TestStripInsidersMetaFromTool(t *testing.T) {
 	}
 }
 
-func TestStripInsidersFeatures(t *testing.T) {
+func TestStripMCPAppsMetadata(t *testing.T) {
 	tools := []ServerTool{
 		mockToolWithMeta("tool1", "toolset1", map[string]any{"ui": "data"}),
 		mockToolWithMeta("tool2", "toolset1", map[string]any{"description": "kept"}),
 		mockTool("tool3", "toolset1", true), // nil meta
 	}
 
-	result := stripInsidersFeatures(tools)
+	result := stripMCPAppsMetadata(tools)
 
 	require.Len(t, result, 3)
 
@@ -2089,16 +2120,9 @@ func TestStripInsidersFeatures_RemovesInsidersOnlyTools(t *testing.T) {
 	require.Equal(t, "normal2", result[1].Tool.Name)
 }
 
-func TestInsidersOnlyMetaKeys_FutureAdditions(t *testing.T) {
+func TestStripMetaKeys_MultipleKeys(t *testing.T) {
 	// This test verifies the mechanism works for multiple keys
-	// If we add new experimental keys to insidersOnlyMetaKeys, they should be stripped
-
-	// Save original and restore after test
-	originalKeys := insidersOnlyMetaKeys
-	defer func() { insidersOnlyMetaKeys = originalKeys }()
-
-	// Add a hypothetical future experimental key
-	insidersOnlyMetaKeys = []string{"ui", "experimental_feature", "beta"}
+	keys := []string{"ui", "experimental_feature", "beta"}
 
 	tool := mockToolWithMeta("test", "toolset1", map[string]any{
 		"ui":                   "ui data",
@@ -2107,7 +2131,7 @@ func TestInsidersOnlyMetaKeys_FutureAdditions(t *testing.T) {
 		"description":          "kept",
 	})
 
-	result := stripInsidersMetaFromTool(tool)
+	result := stripMetaKeys(tool, keys)
 
 	require.NotNil(t, result)
 	require.NotNil(t, result.Tool.Meta)
@@ -2117,12 +2141,12 @@ func TestInsidersOnlyMetaKeys_FutureAdditions(t *testing.T) {
 	require.Equal(t, "kept", result.Tool.Meta["description"], "description should be preserved")
 }
 
-func TestWithInsidersMode_DoesNotMutateOriginalTools(t *testing.T) {
+func TestWithMCPApps_DoesNotMutateOriginalTools(t *testing.T) {
 	originalMeta := map[string]any{"ui": "data", "description": "kept"}
 	tool := mockToolWithMeta("test", "toolset1", originalMeta)
 	tools := []ServerTool{tool}
 
-	// Build with insiders disabled - should strip ui
+	// Build with MCP Apps disabled (default) - should strip ui
 	_ = mustBuild(t, NewBuilder().SetTools(tools).WithToolsets([]string{"all"}))
 
 	// Original tool should be unchanged

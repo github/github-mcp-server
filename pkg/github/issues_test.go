@@ -932,9 +932,9 @@ func Test_CreateIssue(t *testing.T) {
 	}
 }
 
-// Test_IssueWrite_InsidersMode_UIGate verifies the insiders mode UI gate
+// Test_IssueWrite_MCPApps_UIGate verifies the MCP Apps feature flag UI gate
 // behavior: UI clients get a form message, non-UI clients execute directly.
-func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
+func Test_IssueWrite_MCPApps_UIGate(t *testing.T) {
 	t.Parallel()
 
 	mockIssue := &github.Issue{
@@ -949,11 +949,17 @@ func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 		PostReposIssuesByOwnerByRepo: mockResponse(t, http.StatusCreated, mockIssue),
 	}))
 
-	deps := BaseDeps{
-		Client:    client,
-		GQLClient: githubv4.NewClient(nil),
-		Flags:     FeatureFlags{InsidersMode: true},
+	mcpAppsChecker := func(_ context.Context, flag string) (bool, error) {
+		return flag == MCPAppsFeatureFlag, nil
 	}
+	deps := NewBaseDeps(
+		client, githubv4.NewClient(nil), nil, nil,
+		translations.NullTranslationHelper,
+		FeatureFlags{},
+		0,
+		mcpAppsChecker,
+		stubExporters(),
+	)
 	handler := serverTool.Handler(deps)
 
 	t.Run("UI client without _ui_submitted returns form message", func(t *testing.T) {
@@ -1066,11 +1072,14 @@ func Test_IssueWrite_InsidersMode_UIGate(t *testing.T) {
 			),
 		))
 
-		closeDeps := BaseDeps{
-			Client:    closeClient,
-			GQLClient: closeGQLClient,
-			Flags:     FeatureFlags{InsidersMode: true},
-		}
+		closeDeps := NewBaseDeps(
+			closeClient, closeGQLClient, nil, nil,
+			translations.NullTranslationHelper,
+			FeatureFlags{},
+			0,
+			mcpAppsChecker,
+			stubExporters(),
+		)
 		closeHandler := serverTool.Handler(closeDeps)
 
 		request := createMCPRequestWithSession(t, ClientNameVSCodeInsiders, true, map[string]any{

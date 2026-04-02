@@ -49,6 +49,7 @@ type Builder struct {
 	filters              []ToolFilter // filters to apply to all tools
 	generateInstructions bool
 	insidersMode         bool
+	mcpApps              bool
 }
 
 // NewBuilder creates a new Builder.
@@ -155,11 +156,20 @@ func (b *Builder) WithExcludeTools(toolNames []string) *Builder {
 }
 
 // WithInsidersMode enables or disables insiders mode features.
-// When insiders mode is disabled (default), UI metadata is removed from tools
-// so clients won't attempt to load UI resources.
+// When insiders mode is disabled (default), tools marked InsidersOnly are removed
+// and insiders-only Meta keys are stripped.
 // Returns self for chaining.
 func (b *Builder) WithInsidersMode(enabled bool) *Builder {
 	b.insidersMode = enabled
+	return b
+}
+
+// WithMCPApps enables or disables MCP Apps UI features.
+// When disabled (default), the "ui" Meta key is stripped from tools
+// so clients won't attempt to load UI resources.
+// Returns self for chaining.
+func (b *Builder) WithMCPApps(enabled bool) *Builder {
+	b.mcpApps = enabled
 	return b
 }
 
@@ -208,6 +218,11 @@ func (b *Builder) Build() (*Inventory, error) {
 	tools := b.tools
 	if !b.insidersMode {
 		tools = stripInsidersFeatures(b.tools)
+	}
+
+	// When MCP Apps is disabled, strip UI metadata from tools
+	if !b.mcpApps {
+		tools = stripMCPAppsMetadata(tools)
 	}
 
 	r := &Inventory{
@@ -378,9 +393,9 @@ func (b *Builder) processToolsets() (map[ToolsetID]bool, []string, []ToolsetID, 
 // insidersOnlyMetaKeys lists the Meta keys that are only available in insiders mode.
 // Add new experimental feature keys here to have them automatically stripped
 // when insiders mode is disabled.
-var insidersOnlyMetaKeys = []string{
-	"ui", // MCP Apps UI metadata
-}
+// Note: "ui" (MCP Apps) is now controlled by the remote_mcp_ui_apps feature flag via
+// WithMCPApps and mcpAppsMetaKeys, not by insiders mode.
+var insidersOnlyMetaKeys = []string{}
 
 // stripInsidersFeatures removes insiders-only features from tools.
 // This includes removing tools marked with InsidersOnly and stripping
@@ -392,7 +407,7 @@ func stripInsidersFeatures(tools []ServerTool) []ServerTool {
 		if tool.InsidersOnly {
 			continue
 		}
-		if stripped := stripInsidersMetaFromTool(tool); stripped != nil {
+		if stripped := stripMetaKeys(tool, insidersOnlyMetaKeys); stripped != nil {
 			result = append(result, *stripped)
 		} else {
 			result = append(result, tool)
@@ -401,30 +416,49 @@ func stripInsidersFeatures(tools []ServerTool) []ServerTool {
 	return result
 }
 
-// stripInsidersMetaFromTool removes insiders-only Meta keys from a single tool.
+// mcpAppsMetaKeys lists the Meta keys controlled by the remote_mcp_ui_apps feature flag.
+var mcpAppsMetaKeys = []string{
+	"ui", // MCP Apps UI metadata
+}
+
+// stripMCPAppsMetadata removes MCP Apps UI metadata from tools when the
+// remote_mcp_ui_apps feature flag is not enabled.
+func stripMCPAppsMetadata(tools []ServerTool) []ServerTool {
+	result := make([]ServerTool, 0, len(tools))
+	for _, tool := range tools {
+		if stripped := stripMetaKeys(tool, mcpAppsMetaKeys); stripped != nil {
+			result = append(result, *stripped)
+		} else {
+			result = append(result, tool)
+		}
+	}
+	return result
+}
+
+// stripMetaKeys removes the specified Meta keys from a single tool.
 // Returns a modified copy if changes were made, nil otherwise.
-func stripInsidersMetaFromTool(tool ServerTool) *ServerTool {
-	if tool.Tool.Meta == nil {
+func stripMetaKeys(tool ServerTool, keys []string) *ServerTool {
+	if tool.Tool.Meta == nil || len(keys) == 0 {
 		return nil
 	}
 
-	// Check if any insiders-only keys exist
-	hasInsidersKeys := false
-	for _, key := range insidersOnlyMetaKeys {
+	// Check if any of the specified keys exist
+	hasKeys := false
+	for _, key := range keys {
 		if tool.Tool.Meta[key] != nil {
-			hasInsidersKeys = true
+			hasKeys = true
 			break
 		}
 	}
-	if !hasInsidersKeys {
+	if !hasKeys {
 		return nil
 	}
 
-	// Make a shallow copy and remove insiders-only keys
+	// Make a shallow copy and remove specified keys
 	toolCopy := tool
 	newMeta := make(map[string]any, len(tool.Tool.Meta))
 	for k, v := range tool.Tool.Meta {
-		if !slices.Contains(insidersOnlyMetaKeys, k) {
+		if !slices.Contains(keys, k) {
 			newMeta[k] = v
 		}
 	}

@@ -601,12 +601,12 @@ func CreatePullRequest(t translations.TranslationHelperFunc) inventory.ServerToo
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// When insiders mode is enabled and the client supports MCP Apps UI,
+			// When the MCP Apps feature flag is enabled and the client supports MCP Apps UI,
 			// check if this is a UI form submission. The UI sends _ui_submitted=true
 			// to distinguish form submissions from LLM calls.
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 
-			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(ctx, req) && !uiSubmitted {
+			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted {
 				return utils.NewToolResultText(fmt.Sprintf("Ready to create a pull request in %s/%s. IMPORTANT: The PR has NOT been created yet. Do NOT tell the user the PR was created. The user MUST click Submit in the form to create it.", owner, repo)), nil, nil
 			}
 

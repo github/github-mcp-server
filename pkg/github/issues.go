@@ -1073,12 +1073,12 @@ Options are:
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
 
-			// When insiders mode is enabled and the client supports MCP Apps UI,
+			// When the MCP Apps feature flag is enabled and the client supports MCP Apps UI,
 			// check if this is a UI form submission. The UI sends _ui_submitted=true
 			// to distinguish form submissions from LLM calls.
 			uiSubmitted, _ := OptionalParam[bool](args, "_ui_submitted")
 
-			if deps.GetFlags(ctx).InsidersMode && clientSupportsUI(ctx, req) && !uiSubmitted {
+			if deps.IsFeatureEnabled(ctx, MCPAppsFeatureFlag) && clientSupportsUI(ctx, req) && !uiSubmitted {
 				if method == "update" {
 					// Skip the UI form when a state change is requested because
 					// the form only handles title/body editing and would lose the

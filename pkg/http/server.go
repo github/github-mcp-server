@@ -27,7 +27,9 @@ import (
 
 // knownFeatureFlags are the feature flags that can be enabled via X-MCP-Features header.
 // Only these flags are accepted from headers.
-var knownFeatureFlags = []string{}
+var knownFeatureFlags = []string{
+	github.MCPAppsFeatureFlag,
+}
 
 type ServerConfig struct {
 	// Version of the server
@@ -212,7 +214,8 @@ func initGlobalToolScopeMap(t translations.TranslationHelperFunc) error {
 }
 
 // createHTTPFeatureChecker creates a feature checker that reads header features from context
-// and validates them against the knownFeatureFlags whitelist
+// and validates them against the knownFeatureFlags whitelist.
+// It also handles transitional behavior where insiders mode implies remote_mcp_ui_apps.
 func createHTTPFeatureChecker() inventory.FeatureFlagChecker {
 	// Pre-compute whitelist as set for O(1) lookup
 	knownSet := make(map[string]bool, len(knownFeatureFlags))
@@ -222,6 +225,10 @@ func createHTTPFeatureChecker() inventory.FeatureFlagChecker {
 
 	return func(ctx context.Context, flag string) (bool, error) {
 		if knownSet[flag] && slices.Contains(ghcontext.GetHeaderFeatures(ctx), flag) {
+			return true, nil
+		}
+		// Transitional: insiders mode implies remote_mcp_ui_apps feature flag
+		if flag == github.MCPAppsFeatureFlag && ghcontext.IsInsidersMode(ctx) {
 			return true, nil
 		}
 		return false, nil

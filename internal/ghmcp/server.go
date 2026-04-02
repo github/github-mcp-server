@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -114,8 +115,13 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		return nil, fmt.Errorf("failed to create GitHub clients: %w", err)
 	}
 
-	// Create feature checker
-	featureChecker := createFeatureChecker(cfg.EnabledFeatures)
+	// Create feature checker — insiders mode transitionally enables remote_mcp_ui_apps
+	enabledFeatures := cfg.EnabledFeatures
+	if cfg.InsidersMode && !slices.Contains(enabledFeatures, github.MCPAppsFeatureFlag) {
+		enabledFeatures = append(slices.Clone(enabledFeatures), github.MCPAppsFeatureFlag)
+	}
+	featureChecker := createFeatureChecker(enabledFeatures)
+	mcpAppsEnabled := slices.Contains(enabledFeatures, github.MCPAppsFeatureFlag)
 
 	// Create dependencies for tool handlers
 	obs, err := observability.NewExporters(cfg.Logger, metrics.NewNoopMetrics())
@@ -145,7 +151,8 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		WithExcludeTools(cfg.ExcludeTools).
 		WithServerInstructions().
 		WithFeatureChecker(featureChecker).
-		WithInsidersMode(cfg.InsidersMode)
+		WithInsidersMode(cfg.InsidersMode).
+		WithMCPApps(mcpAppsEnabled)
 
 	// Apply token scope filtering if scopes are known (for PAT filtering)
 	if cfg.TokenScopes != nil {
@@ -162,10 +169,11 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		return nil, fmt.Errorf("failed to create GitHub MCP server: %w", err)
 	}
 
-	// Register MCP App UI resources if available (requires running script/build-ui).
-	// We check availability to allow Insiders mode to work for non-UI features
-	// even when UI assets haven't been built.
-	if cfg.InsidersMode && github.UIAssetsAvailable() {
+	// Register MCP App UI resources if the remote_mcp_ui_apps feature flag is enabled
+	// and UI assets are available (requires running script/build-ui).
+	// We check availability to allow the feature flag to be enabled without
+	// requiring a UI build (graceful degradation).
+	if mcpAppsEnabled && github.UIAssetsAvailable() {
 		github.RegisterUIResources(ghServer)
 	}
 
