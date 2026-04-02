@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/github/github-mcp-server/pkg/lockdown"
+	"github.com/github/github-mcp-server/pkg/observability"
+	"github.com/github/github-mcp-server/pkg/observability/metrics"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/translations"
 	gogithub "github.com/google/go-github/v82/github"
@@ -30,6 +33,7 @@ type stubDeps struct {
 	t                 translations.TranslationHelperFunc
 	flags             FeatureFlags
 	contentWindowSize int
+	obsv              observability.Exporters
 }
 
 func (s stubDeps) GetClient(ctx context.Context) (*gogithub.Client, error) {
@@ -60,8 +64,21 @@ func (s stubDeps) GetT() translations.TranslationHelperFunc          { return s.
 func (s stubDeps) GetFlags(_ context.Context) FeatureFlags           { return s.flags }
 func (s stubDeps) GetContentWindowSize() int                         { return s.contentWindowSize }
 func (s stubDeps) IsFeatureEnabled(_ context.Context, _ string) bool { return false }
+func (s stubDeps) Logger(_ context.Context) *slog.Logger {
+	return s.obsv.Logger()
+}
+func (s stubDeps) Metrics(ctx context.Context) metrics.Metrics {
+	return s.obsv.Metrics(ctx)
+}
 
 // Helper functions to create stub client functions for error testing
+
+// stubExporters returns a discard-logger + noop-metrics Exporters for tests.
+func stubExporters() observability.Exporters {
+	obs, _ := observability.NewExporters(slog.New(slog.DiscardHandler), metrics.NewNoopMetrics())
+	return obs
+}
+
 func stubClientFnFromHTTP(httpClient *http.Client) func(context.Context) (*gogithub.Client, error) {
 	return func(_ context.Context) (*gogithub.Client, error) {
 		return gogithub.NewClient(httpClient), nil
@@ -125,7 +142,7 @@ func TestNewMCPServer_CreatesSuccessfully(t *testing.T) {
 		InsidersMode:      false,
 	}
 
-	deps := stubDeps{}
+	deps := stubDeps{obsv: stubExporters()}
 
 	// Build inventory
 	inv, err := NewInventory(cfg.Translator).
