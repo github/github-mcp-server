@@ -86,4 +86,26 @@ func RegisterUIResources(s *mcp.Server) {
 			}, nil
 		},
 	)
+
+	// Register the pull_request_read UI resource
+	s.AddResource(
+		&mcp.Resource{
+			URI:         PullRequestReadUIResourceURI,
+			Name:        "pr_read_ui",
+			Description: "MCP App UI for viewing pull request details and diffs",
+			MIMEType:    MCPAppMIMEType,
+		},
+		func(_ context.Context, _ *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+			html := MustGetUIAsset("pr-read.html")
+			return &mcp.ReadResourceResult{
+				Contents: []*mcp.ResourceContents{
+					{
+						URI:      PullRequestReadUIResourceURI,
+						MIMEType: MCPAppMIMEType,
+						Text:     html,
+					},
+				},
+			}, nil
+		},
+	)
 }

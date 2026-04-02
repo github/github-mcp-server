@@ -5,10 +5,11 @@
   "type": "module",
   "description": "MCP App UIs for github-mcp-server using Primer React",
   "scripts": {
-    "build": "npm run build:get-me && npm run build:issue-write && npm run build:pr-write",
+    "build": "npm run build:get-me && npm run build:issue-write && npm run build:pr-write && npm run build:pr-read",
     "build:get-me": "cross-env APP=get-me vite build",
     "build:issue-write": "cross-env APP=issue-write vite build",
     "build:pr-write": "cross-env APP=pr-write vite build",
+    "build:pr-read": "cross-env APP=pr-read vite build",
     "dev": "npm run build",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
