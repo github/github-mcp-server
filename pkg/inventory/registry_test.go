@@ -2045,10 +2045,11 @@ func TestStripMetaKeys(t *testing.T) {
 			expectedMeta: map[string]any{"description": "kept"},
 		},
 		{
-			name:         "ui is nil value - no change (nil value means key not present)",
+			name:         "ui is nil value - ui stripped",
 			meta:         map[string]any{"ui": nil, "description": "kept"},
 			keys:         mcpAppsMetaKeys,
-			expectChange: false,
+			expectChange: true,
+			expectedMeta: map[string]any{"description": "kept"},
 		},
 		{
 			name:         "empty keys list - no change",
