@@ -1,0 +1,55 @@
+{
+  "version": "1.0",
+  "environment": "production",
+  
+  "allowed_repos": [
+    "scutuatua-crypto/actions-toolkit",
+    "scutuatua-crypto/auth-wiki",
+    "scutuatua-crypto/builders-hub",
+    "scutuatua-crypto/docs",
+    "scutuatua-crypto/docs-1",
+    "scutuatua-crypto/polkadot-docs",
+    "scutuatua-crypto/astro-blog-starter-template",
+    "scutuatua-crypto/vite-react",
+    "scutuatua-crypto/vitest",
+    "scutuatua-crypto/dev",
+    "scutuatua-crypto/tma.js",
+    "scutuatua-crypto/github-mcp-server"
+  ],
+  
+  "allowed_repos_limited": [
+    "scutuatua-crypto/assetflow",
+    "scutuatua-crypto/assetflow-app",
+    "scutuatua-crypto/asset-platform",
+    "scutuatua-crypto/cryptotruck",
+    "scutuatua-crypto/tribute-bot"
+  ],
+  
+  "dangerous_repos_blocked": [
+    "scutuatua-crypto/Reef-reward",
+    "scutuatua-crypto/reef-yield-hub",
+    "scutuatua-crypto/yield-hunter.html",
+    "scutuatua-crypto/cosmwasm-whaletrucker-sdk",
+    "scutuatua-crypto/whaletrucker",
+    "scutuatua-crypto/whaletrucker-reef",
+    "scutuatua-crypto/reef-*",
+    "scutuatua-crypto/ton-trucker",
+    "scutuatua-crypto/TipMyNode"
+  ],
+  
+  "security_settings": {
+    "read_only": true,
+    "disable_write_operations": true,
+    "disable_workflow_operations": true,
+    "max_file_size": "10MB",
+    "allowed_file_extensions": [
+      ".ts", ".js", ".go", ".py", ".md", ".json", ".yaml", ".yml"
+    ]
+  },
+  
+  "audit_logging": {
+    "enabled": true,
+    "log_file": "/var/log/mcp-server/audit.log",
+    "log_all_operations": true
+  }
+}
