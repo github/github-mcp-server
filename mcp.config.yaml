@@ -1,0 +1,12 @@
+tier1_safe_repos:
+  - actions-toolkit
+  - auth-wiki
+  - builders-hub
+  - docs
+  - docs-1
+  - polkadot-docs
+  - astro-blog-starter-template
+  - vite-react
+  - vitest
+  - dev
+  - tma.js
