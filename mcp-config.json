@@ -1,0 +1,21 @@
+{
+  "allowed_repos": [
+    "scutuatua-crypto/actions-toolkit",
+    "scutuatua-crypto/auth-wiki",
+    "scutuatua-crypto/builders-hub",
+    "scutuatua-crypto/docs",
+    "scutuatua-crypto/vite-react"
+  ],
+  "dangerous_repos": [
+    "scutuatua-crypto/reef-*",
+    "scutuatua-crypto/whaletrucker*",
+    "scutuatua-crypto/ton-trucker"
+  ],
+  "allowed_toolsets": [
+    "repos",
+    "issues",
+    "users",
+    "discussions"
+  ],
+  "read_only": true
+}
