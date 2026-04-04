@@ -1,6 +1,7 @@
 import { ThemeProvider, BaseStyles, Box } from "@primer/react";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
+import { FeedbackFooter } from "./FeedbackFooter";
 
 interface AppProviderProps {
   children: ReactNode;
@@ -19,7 +20,10 @@ export function AppProvider({ children }: AppProviderProps) {
   return (
     <ThemeProvider colorMode="auto">
       <BaseStyles>
-        <Box p={3}>{children}</Box>
+        <Box p={3}>
+          {children}
+          <FeedbackFooter />
+        </Box>
       </BaseStyles>
     </ThemeProvider>
   );

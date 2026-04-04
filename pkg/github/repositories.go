@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 
 	ghErrors "github.com/github/github-mcp-server/pkg/errors"
@@ -148,6 +147,18 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 						Type:        "string",
 						Description: "Author username or email address to filter commits by",
 					},
+					"path": {
+						Type:        "string",
+						Description: "Only commits containing this file path will be returned",
+					},
+					"since": {
+						Type:        "string",
+						Description: "Only commits after this date will be returned (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD)",
+					},
+					"until": {
+						Type:        "string",
+						Description: "Only commits before this date will be returned (ISO 8601 format: YYYY-MM-DDTHH:MM:SSZ or YYYY-MM-DD)",
+					},
 				},
 				Required: []string{"owner", "repo"},
 			}),
@@ -170,6 +181,18 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
 			}
+			path, err := OptionalParam[string](args, "path")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			sinceStr, err := OptionalParam[string](args, "since")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
+			untilStr, err := OptionalParam[string](args, "until")
+			if err != nil {
+				return utils.NewToolResultError(err.Error()), nil, nil
+			}
 			pagination, err := OptionalPaginationParams(args)
 			if err != nil {
 				return utils.NewToolResultError(err.Error()), nil, nil
@@ -181,11 +204,26 @@ func ListCommits(t translations.TranslationHelperFunc) inventory.ServerTool {
 			}
 			opts := &github.CommitsListOptions{
 				SHA:    sha,
+				Path:   path,
 				Author: author,
 				ListOptions: github.ListOptions{
 					Page:    pagination.Page,
 					PerPage: perPage,
 				},
+			}
+			if sinceStr != "" {
+				sinceTime, err := parseISOTimestamp(sinceStr)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("invalid since timestamp: %s", err)), nil, nil
+				}
+				opts.Since = sinceTime
+			}
+			if untilStr != "" {
+				untilTime, err := parseISOTimestamp(untilStr)
+				if err != nil {
+					return utils.NewToolResultError(fmt.Sprintf("invalid until timestamp: %s", err)), nil, nil
+				}
+				opts.Until = untilTime
 			}
 
 			client, err := deps.GetClient(ctx)
@@ -323,9 +361,9 @@ func CreateOrUpdateFile(t translations.TranslationHelperFunc) inventory.ServerTo
 If updating, you should provide the SHA of the file you want to update. Use this tool to create or update a file in a GitHub repository remotely; do not use it for local file operations.
 
 In order to obtain the SHA of original file version before updating, use the following git command:
-git ls-tree HEAD <path to file>
+git rev-parse <branch>:<path to file>
 
-If the SHA is not provided, the tool will attempt to acquire it by fetching the current file contents from the repository, which may lead to rewriting latest committed changes if the file has changed since last retrieval.
+SHA MUST be provided for existing file updates.
 `),
 			Annotations: &mcp.ToolAnnotations{
 				Title:        t("TOOL_CREATE_OR_UPDATE_FILE_USER_TITLE", "Create or update file"),
@@ -360,7 +398,7 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 					},
 					"sha": {
 						Type:        "string",
-						Description: "The blob SHA of the file being replaced.",
+						Description: "The blob SHA of the file being replaced. Required if the file already exists.",
 					},
 				},
 				Required: []string{"owner", "repo", "path", "content", "message", "branch"},
@@ -420,55 +458,68 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 
 			path = strings.TrimPrefix(path, "/")
 
-			// SHA validation using conditional HEAD request (efficient - no body transfer)
-			var previousSHA string
-			contentURL := fmt.Sprintf("repos/%s/%s/contents/%s", owner, repo, url.PathEscape(path))
-			if branch != "" {
-				contentURL += "?ref=" + url.QueryEscape(branch)
-			}
+			// SHA validation using Contents API to fetch current file metadata (blob SHA)
+			getOpts := &github.RepositoryContentGetOptions{Ref: branch}
 
 			if sha != "" {
 				// User provided SHA - validate it's still current
-				req, err := client.NewRequest("HEAD", contentURL, nil)
-				if err == nil {
-					req.Header.Set("If-None-Match", fmt.Sprintf(`"%s"`, sha))
-					resp, _ := client.Do(ctx, req, nil)
-					if resp != nil {
-						defer resp.Body.Close()
-
-						switch resp.StatusCode {
-						case http.StatusNotModified:
-							// SHA matches current - proceed
-							opts.SHA = github.Ptr(sha)
-						case http.StatusOK:
-							// SHA is stale - reject with current SHA so user can check diff
-							currentSHA := strings.Trim(resp.Header.Get("ETag"), `"`)
-							return utils.NewToolResultError(fmt.Sprintf(
-								"SHA mismatch: provided SHA %s is stale. Current file SHA is %s. "+
-									"Use get_file_contents or compare commits to review changes before updating.",
-								sha, currentSHA)), nil, nil
-						case http.StatusNotFound:
-							// File doesn't exist - this is a create, ignore provided SHA
-						}
+				existingFile, dirContent, respCheck, getErr := client.Repositories.GetContents(ctx, owner, repo, path, getOpts)
+				if respCheck != nil {
+					_ = respCheck.Body.Close()
+				}
+				switch {
+				case getErr != nil:
+					// 404 means file doesn't exist - proceed (new file creation)
+					// Any other error (403, 500, network) should be surfaced
+					if respCheck == nil || respCheck.StatusCode != http.StatusNotFound {
+						return ghErrors.NewGitHubAPIErrorResponse(ctx,
+							"failed to verify file SHA",
+							respCheck,
+							getErr,
+						), nil, nil
+					}
+				case dirContent != nil:
+					return utils.NewToolResultError(fmt.Sprintf(
+						"Path %s is a directory, not a file. This tool only works with files.",
+						path)), nil, nil
+				case existingFile != nil:
+					currentSHA := existingFile.GetSHA()
+					if currentSHA != sha {
+						return utils.NewToolResultError(fmt.Sprintf(
+							"SHA mismatch: provided SHA %s is stale. Current file SHA is %s. "+
+								"Pull the latest changes and use git rev-parse %s:%s to get the current SHA.",
+							sha, currentSHA, branch, path)), nil, nil
 					}
 				}
 			} else {
-				// No SHA provided - check if file exists to warn about blind update
-				req, err := client.NewRequest("HEAD", contentURL, nil)
-				if err == nil {
-					resp, _ := client.Do(ctx, req, nil)
-					if resp != nil {
-						defer resp.Body.Close()
-						if resp.StatusCode == http.StatusOK {
-							previousSHA = strings.Trim(resp.Header.Get("ETag"), `"`)
-						}
-						// 404 = new file, no previous SHA needed
-					}
+				// No SHA provided - check if file already exists
+				existingFile, dirContent, respCheck, getErr := client.Repositories.GetContents(ctx, owner, repo, path, getOpts)
+				if respCheck != nil {
+					_ = respCheck.Body.Close()
 				}
-			}
-
-			if previousSHA != "" {
-				opts.SHA = github.Ptr(previousSHA)
+				switch {
+				case getErr != nil:
+					// 404 means file doesn't exist - proceed with creation
+					// Any other error (403, 500, network) should be surfaced
+					if respCheck == nil || respCheck.StatusCode != http.StatusNotFound {
+						return ghErrors.NewGitHubAPIErrorResponse(ctx,
+							"failed to check if file exists",
+							respCheck,
+							getErr,
+						), nil, nil
+					}
+				case dirContent != nil:
+					return utils.NewToolResultError(fmt.Sprintf(
+						"Path %s is a directory, not a file. This tool only works with files.",
+						path)), nil, nil
+				case existingFile != nil:
+					// File exists but no SHA was provided - reject to prevent blind overwrites
+					return utils.NewToolResultError(fmt.Sprintf(
+						"File already exists at %s. You must provide the current file's SHA when updating. "+
+							"Use git rev-parse %s:%s to get the blob SHA, then retry with the sha parameter.",
+						path, branch, path)), nil, nil
+				}
+				// If file not found, no previous SHA needed (new file creation)
 			}
 
 			fileContent, resp, err := client.Repositories.CreateFile(ctx, owner, repo, path, opts)
@@ -490,23 +541,6 @@ If the SHA is not provided, the tool will attempt to acquire it by fetching the 
 			}
 
 			minimalResponse := convertToMinimalFileContentResponse(fileContent)
-
-			// Warn if file was updated without SHA validation (blind update)
-			if sha == "" && previousSHA != "" {
-				warning, err := json.Marshal(minimalResponse)
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
-				}
-				return utils.NewToolResultText(fmt.Sprintf(
-					"Warning: File updated without SHA validation. Previous file SHA was %s. "+
-						`Verify no unintended changes were overwritten: 
-1. Extract the SHA of the local version using git ls-tree HEAD %s.
-2. Compare with the previous SHA above.
-3. Revert changes if shas do not match.
-
-%s`,
-					previousSHA, path, string(warning))), nil, nil
-			}
 
 			return MarshalledTextResult(minimalResponse), nil, nil
 		},
@@ -729,6 +763,20 @@ func GetFileContents(t translations.TranslationHelperFunc) inventory.ServerTool 
 				var successNote string
 				if fallbackUsed {
 					successNote = fmt.Sprintf(" Note: the provided ref '%s' does not exist, default branch '%s' was used instead.", originalRef, rawOpts.Ref)
+				}
+
+				// Empty files (0 bytes) have no content to decode; return
+				// them directly as empty text to avoid errors from
+				// GetContent when the API returns null content with a
+				// base64 encoding field, and to avoid DetectContentType
+				// misclassifying them as binary.
+				if fileSize == 0 {
+					result := &mcp.ResourceContents{
+						URI:      resourceURI,
+						Text:     "",
+						MIMEType: "text/plain",
+					}
+					return utils.NewToolResultResource(fmt.Sprintf("successfully downloaded empty file (SHA: %s)%s", fileSHA, successNote), result), nil, nil
 				}
 
 				// For files >= 1MB, return a ResourceLink instead of content
@@ -1224,7 +1272,8 @@ func PushFiles(t translations.TranslationHelperFunc) inventory.ServerTool {
 						Type:        "array",
 						Description: "Array of file objects to push, each object with path (string) and content (string)",
 						Items: &jsonschema.Schema{
-							Type: "object",
+							Type:                 "object",
+							AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 							Properties: map[string]*jsonschema.Schema{
 								"path": {
 									Type:        "string",
@@ -1497,7 +1546,14 @@ func ListTags(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list tags", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(tags)
+			minimalTags := make([]MinimalTag, 0, len(tags))
+			for _, tag := range tags {
+				if tag != nil {
+					minimalTags = append(minimalTags, convertToMinimalTag(tag))
+				}
+			}
+
+			r, err := json.Marshal(minimalTags)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
@@ -1670,7 +1726,14 @@ func ListReleases(t translations.TranslationHelperFunc) inventory.ServerTool {
 				return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to list releases", resp, body), nil, nil
 			}
 
-			r, err := json.Marshal(releases)
+			minimalReleases := make([]MinimalRelease, 0, len(releases))
+			for _, release := range releases {
+				if release != nil {
+					minimalReleases = append(minimalReleases, convertToMinimalRelease(release))
+				}
+			}
+
+			r, err := json.Marshal(minimalReleases)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to marshal response: %w", err)
 			}
