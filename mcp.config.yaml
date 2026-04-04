@@ -1,3 +1,4 @@
+# Why safe: Documentation, templates, no wallet/payment code
 tier1_safe_repos:
   - actions-toolkit
   - auth-wiki
@@ -10,3 +11,41 @@ tier1_safe_repos:
   - vitest
   - dev
   - tma.js
+
+# Why caution: reward/yield logic, asset tracking, but no private keys
+tier2_caution_repos:
+  - assetflow
+  - assetflow-app
+  - asset-platform
+  - cryptotruck
+  - tribute-bot
+# Why caution: Deal with rewards/tracking but no private keys
+tier2_caution_repos:
+  - assetflow
+  - assetflow-app
+  - asset-platform
+  - cryptotruck
+  - tribute-bot
+
+# Why dangerous: Wallets, keys, SDKs, yield execution, unknown repos
+tier3_dangerous_repos:
+  # Reward/Yield systems (direct distribution)
+  - Reef-reward              # 🚫 Reward distribution
+  - reef-yield-hub           # 🚫 Yield management
+  - yield-hunter.html        # 🚫 Yield hunting
+
+  # Wallet / SDK / Blockchain interaction
+  - cosmwasm-whaletrucker-sdk  # 🚫 Blockchain SDK
+  - whaletrucker              # 🚫 Whale tracking (SDK-linked)
+  - whaletrucker-reef         # 🚫 Whale tracking (reef-linked)
+  - reef-*                    # 🚫 All reef repos (wildcard)
+
+  # Cross-chain / crypto apps
+  - ton-trucker               # 🚫 Trucker app (crypto)
+  - TipMyNode                 # 🚫 Crypto tipping
+
+  # Unknown / Legacy / Not repos
+  - chic-lily-9f6201          # 🚫 Unknown purpose
+  - CONTRIBUTING.md           # 🚫 Not a repo
+  - README.md                 # 🚫 Not a repo
+  - Fast-ritual               # 🚫 Unknown
