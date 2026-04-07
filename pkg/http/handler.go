@@ -262,15 +262,10 @@ func InventoryFiltersForRequest(r *http.Request, builder *inventory.Builder) *in
 		builder = builder.WithReadOnly(true)
 	}
 
-	insiders := ghcontext.IsInsidersMode(ctx)
-	if insiders {
-		builder = builder.WithInsidersMode(true)
-	}
-
 	// Enable MCP Apps if the feature flag is present in the request headers
-	// or if insiders mode is active (transitional: insiders implies remote_mcp_ui_apps).
+	// or if insiders mode is active (insiders expands InsidersFeatureFlags).
 	headerFeatures := ghcontext.GetHeaderFeatures(ctx)
-	mcpApps := slices.Contains(headerFeatures, github.MCPAppsFeatureFlag) || insiders
+	mcpApps := slices.Contains(headerFeatures, github.MCPAppsFeatureFlag) || ghcontext.IsInsidersMode(ctx)
 	if mcpApps {
 		builder = builder.WithMCPApps(true)
 	}

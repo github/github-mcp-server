@@ -48,7 +48,6 @@ type Builder struct {
 	featureChecker       FeatureFlagChecker
 	filters              []ToolFilter // filters to apply to all tools
 	generateInstructions bool
-	insidersMode         bool
 	mcpApps              bool
 }
 
@@ -155,15 +154,6 @@ func (b *Builder) WithExcludeTools(toolNames []string) *Builder {
 	return b
 }
 
-// WithInsidersMode enables or disables insiders mode features.
-// When insiders mode is disabled (default), tools marked InsidersOnly are removed
-// and insiders-only Meta keys are stripped.
-// Returns self for chaining.
-func (b *Builder) WithInsidersMode(enabled bool) *Builder {
-	b.insidersMode = enabled
-	return b
-}
-
 // WithMCPApps enables or disables MCP Apps UI features.
 // When disabled (default), the "ui" Meta key is stripped from tools
 // so clients won't attempt to load UI resources.
@@ -214,11 +204,7 @@ func cleanTools(tools []string) []string {
 // (i.e., they don't exist in the tool set and are not deprecated aliases).
 // This ensures invalid tool configurations fail fast at build time.
 func (b *Builder) Build() (*Inventory, error) {
-	// When insiders mode is disabled, strip insiders-only features from tools
 	tools := b.tools
-	if !b.insidersMode {
-		tools = stripInsidersFeatures(b.tools)
-	}
 
 	// When MCP Apps is disabled, strip UI metadata from tools
 	if !b.mcpApps {
@@ -388,32 +374,6 @@ func (b *Builder) processToolsets() (map[ToolsetID]bool, []string, []ToolsetID, 
 		enabledToolsets[id] = true
 	}
 	return enabledToolsets, unrecognized, allToolsetIDs, validIDs, defaultToolsetIDList, descriptions
-}
-
-// insidersOnlyMetaKeys lists the Meta keys that are only available in insiders mode.
-// Add new experimental feature keys here to have them automatically stripped
-// when insiders mode is disabled.
-// Note: "ui" (MCP Apps) is now controlled by the remote_mcp_ui_apps feature flag via
-// WithMCPApps and mcpAppsMetaKeys, not by insiders mode.
-var insidersOnlyMetaKeys = []string{}
-
-// stripInsidersFeatures removes insiders-only features from tools.
-// This includes removing tools marked with InsidersOnly and stripping
-// Meta keys listed in insidersOnlyMetaKeys from remaining tools.
-func stripInsidersFeatures(tools []ServerTool) []ServerTool {
-	result := make([]ServerTool, 0, len(tools))
-	for _, tool := range tools {
-		// Skip tools marked as insiders-only
-		if tool.InsidersOnly {
-			continue
-		}
-		if stripped := stripMetaKeys(tool, insidersOnlyMetaKeys); stripped != nil {
-			result = append(result, *stripped)
-		} else {
-			result = append(result, tool)
-		}
-	}
-	return result
 }
 
 // mcpAppsMetaKeys lists the Meta keys controlled by the remote_mcp_ui_apps feature flag.

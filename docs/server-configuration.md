@@ -394,7 +394,7 @@ Lockdown mode ensures the server only surfaces content in public repositories fr
 Insiders Mode unlocks experimental features. We created this mode to have a way to roll out experimental features and collect feedback. So if you are using Insiders, please don't hesitate to share your feedback with us! Features in Insiders Mode may change, evolve, or be removed based on user feedback.
 
 > [!NOTE]
-> Insiders mode also enables the `remote_mcp_ui_apps` feature flag for backward compatibility. See [MCP Apps](#mcp-apps) below.
+> Insiders mode enables a curated set of feature flags, including `remote_mcp_ui_apps`. See [MCP Apps](#mcp-apps) below.
 
 <table>
 <tr><th>Remote Server</th><th>Local Server</th></tr>

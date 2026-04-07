@@ -115,10 +115,15 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		return nil, fmt.Errorf("failed to create GitHub clients: %w", err)
 	}
 
-	// Create feature checker — insiders mode transitionally enables remote_mcp_ui_apps
+	// Create feature checker — insiders mode expands InsidersFeatureFlags
 	enabledFeatures := cfg.EnabledFeatures
-	if cfg.InsidersMode && !slices.Contains(enabledFeatures, github.MCPAppsFeatureFlag) {
-		enabledFeatures = append(slices.Clone(enabledFeatures), github.MCPAppsFeatureFlag)
+	if cfg.InsidersMode {
+		enabledFeatures = slices.Clone(enabledFeatures)
+		for _, flag := range github.InsidersFeatureFlags {
+			if !slices.Contains(enabledFeatures, flag) {
+				enabledFeatures = append(enabledFeatures, flag)
+			}
+		}
 	}
 	featureChecker := createFeatureChecker(enabledFeatures)
 	mcpAppsEnabled := slices.Contains(enabledFeatures, github.MCPAppsFeatureFlag)
@@ -151,7 +156,6 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		WithExcludeTools(cfg.ExcludeTools).
 		WithServerInstructions().
 		WithFeatureChecker(featureChecker).
-		WithInsidersMode(cfg.InsidersMode).
 		WithMCPApps(mcpAppsEnabled)
 
 	// Apply token scope filtering if scopes are known (for PAT filtering)

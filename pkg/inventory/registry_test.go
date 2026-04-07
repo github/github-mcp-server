@@ -1853,13 +1853,13 @@ func mockToolWithMeta(name string, toolsetID string, meta map[string]any) Server
 	)
 }
 
-func TestWithInsidersMode_DisabledStripsUIMetadata(t *testing.T) {
+func TestWithMCPApps_DisabledStripsUIMetadata(t *testing.T) {
 	toolWithUI := mockToolWithMeta("tool_with_ui", "toolset1", map[string]any{
 		"ui":          map[string]any{"html": "<div>hello</div>"},
 		"description": "kept",
 	})
 
-	// Default: insiders mode is disabled - UI meta should be stripped
+	// Default: MCP Apps is disabled - UI meta should be stripped
 	reg := mustBuild(t, NewBuilder().SetTools([]ServerTool{toolWithUI}).WithToolsets([]string{"all"}))
 	available := reg.AvailableTools(context.Background())
 
@@ -1897,40 +1897,6 @@ func TestWithMCPApps_EnabledPreservesUIMetadata(t *testing.T) {
 	if available[0].Tool.Meta["description"] != "kept" {
 		t.Errorf("Expected 'description' meta to be preserved, got %v", available[0].Tool.Meta["description"])
 	}
-}
-
-func TestWithInsidersMode_EnabledPreservesInsidersOnlyTools(t *testing.T) {
-	normalTool := mockTool("normal", "toolset1", true)
-	insidersTool := mockTool("insiders_only", "toolset1", true)
-	insidersTool.InsidersOnly = true
-
-	// With insiders mode enabled, both tools should be available
-	reg := mustBuild(t, NewBuilder().
-		SetTools([]ServerTool{normalTool, insidersTool}).
-		WithToolsets([]string{"all"}).
-		WithInsidersMode(true))
-	available := reg.AvailableTools(context.Background())
-
-	require.Len(t, available, 2)
-	names := []string{available[0].Tool.Name, available[1].Tool.Name}
-	require.Contains(t, names, "normal")
-	require.Contains(t, names, "insiders_only")
-}
-
-func TestWithInsidersMode_DisabledRemovesInsidersOnlyTools(t *testing.T) {
-	normalTool := mockTool("normal", "toolset1", true)
-	insidersTool := mockTool("insiders_only", "toolset1", true)
-	insidersTool.InsidersOnly = true
-
-	// With insiders mode disabled, insiders-only tool should be removed
-	reg := mustBuild(t, NewBuilder().
-		SetTools([]ServerTool{normalTool, insidersTool}).
-		WithToolsets([]string{"all"}).
-		WithInsidersMode(false))
-	available := reg.AvailableTools(context.Background())
-
-	require.Len(t, available, 1)
-	require.Equal(t, "normal", available[0].Tool.Name)
 }
 
 func TestWithMCPApps_ToolsWithoutUIMetaUnaffected(t *testing.T) {
@@ -1989,25 +1955,6 @@ func TestWithMCPApps_UIOnlyMetaBecomesNil(t *testing.T) {
 	if available[0].Tool.Meta != nil {
 		t.Errorf("Expected Meta to be nil after stripping only key, got %v", available[0].Tool.Meta)
 	}
-}
-
-func TestWithMCPApps_EnabledPreservesUIMeta(t *testing.T) {
-	// Tool with ui metadata - should be preserved when MCP Apps is enabled
-	toolWithUI := mockToolWithMeta("tool_with_ui", "toolset1", map[string]any{
-		"ui":          map[string]any{"html": "<div>hello</div>"},
-		"description": "kept",
-	})
-
-	reg := mustBuild(t, NewBuilder().
-		SetTools([]ServerTool{toolWithUI}).
-		WithToolsets([]string{"all"}).
-		WithMCPApps(true))
-	available := reg.AvailableTools(context.Background())
-
-	require.Len(t, available, 1)
-	require.NotNil(t, available[0].Tool.Meta, "Meta should be preserved with MCP Apps enabled")
-	require.NotNil(t, available[0].Tool.Meta["ui"], "ui key should be preserved with MCP Apps enabled")
-	require.Equal(t, "kept", available[0].Tool.Meta["description"])
 }
 
 func TestStripMetaKeys(t *testing.T) {
@@ -2102,23 +2049,6 @@ func TestStripMCPAppsMetadata(t *testing.T) {
 
 	// tool3: unchanged (nil)
 	require.Nil(t, result[2].Tool.Meta)
-}
-
-func TestStripInsidersFeatures_RemovesInsidersOnlyTools(t *testing.T) {
-	// Create tools: one normal, one insiders-only, one normal
-	normalTool1 := mockTool("normal1", "toolset1", true)
-	insidersTool := mockTool("insiders_only", "toolset1", true)
-	insidersTool.InsidersOnly = true
-	normalTool2 := mockTool("normal2", "toolset1", true)
-
-	tools := []ServerTool{normalTool1, insidersTool, normalTool2}
-
-	result := stripInsidersFeatures(tools)
-
-	// Should only have 2 tools (insiders-only tool filtered out)
-	require.Len(t, result, 2)
-	require.Equal(t, "normal1", result[0].Tool.Name)
-	require.Equal(t, "normal2", result[1].Tool.Name)
 }
 
 func TestStripMetaKeys_MultipleKeys(t *testing.T) {
