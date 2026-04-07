@@ -391,10 +391,7 @@ Lockdown mode ensures the server only surfaces content in public repositories fr
 
 **Best for:** Users who want early access to experimental features and new tools before they reach general availability.
 
-Insiders Mode unlocks experimental features. We created this mode to have a way to roll out experimental features and collect feedback. So if you are using Insiders, please don't hesitate to share your feedback with us! Features in Insiders Mode may change, evolve, or be removed based on user feedback.
-
-> [!NOTE]
-> Insiders mode enables a curated set of feature flags, including `remote_mcp_ui_apps`. See [MCP Apps](#mcp-apps) below.
+Insiders Mode unlocks experimental features, such as [MCP Apps](#mcp-apps) support. We created this mode to have a way to roll out experimental features and collect feedback. So if you are using Insiders, please don't hesitate to share your feedback with us! Features in Insiders Mode may change, evolve, or be removed based on user feedback.
 
 <table>
 <tr><th>Remote Server</th><th>Local Server</th></tr>
@@ -451,7 +448,7 @@ See [Insiders Features](./insiders-features.md) for a full list of what's availa
 
 [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) is an extension to the Model Context Protocol that enables servers to deliver interactive user interfaces to end users. Instead of returning plain text that the LLM must interpret and relay, tools can render forms, profiles, and dashboards right in the chat.
 
-MCP Apps is controlled by the `remote_mcp_ui_apps` feature flag and can be enabled independently of insiders mode.
+MCP Apps is enabled by [Insiders Mode](#insiders-mode), or independently via the `remote_mcp_ui_apps` feature flag.
 
 **Supported tools:**
 
