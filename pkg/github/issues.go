@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net/http"
 	"strings"
 	"time"
@@ -790,37 +791,96 @@ Options are:
 }
 
 func AddSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int, replaceParent bool) (*mcp.CallToolResult, error) {
+	const (
+		maxRetries    = 3
+		minJitterMs   = 50
+		maxJitterMs   = 200
+		jitterRangeMs = maxJitterMs - minJitterMs + 1
+	)
+
 	subIssueRequest := github.SubIssueRequest{
 		SubIssueID:    int64(subIssueID),
 		ReplaceParent: github.Ptr(replaceParent),
 	}
 
-	subIssue, resp, err := client.SubIssue.Add(ctx, owner, repo, int64(issueNumber), subIssueRequest)
-	if err != nil {
+	var lastResp *github.Response
+	var lastErr error
+	var lastBody []byte
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		if attempt > 0 {
+			// Random jitter: 50-200ms to desynchronize parallel retries
+			// #nosec G404 -- Using non-cryptographic random for jitter is acceptable
+			jitter := time.Duration(minJitterMs+rand.IntN(jitterRangeMs)) * time.Millisecond
+			time.Sleep(jitter)
+		}
+
+		subIssue, resp, err := client.SubIssue.Add(ctx, owner, repo, int64(issueNumber), subIssueRequest)
+		lastResp = resp
+		lastErr = err
+
+		// Success case
+		if err == nil && resp.StatusCode == http.StatusCreated {
+			_ = resp.Body.Close()
+			r, err := json.Marshal(subIssue)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal response: %w", err)
+			}
+			return utils.NewToolResultText(string(r)), nil
+		}
+
+		// Check if this is a retryable priority conflict error
+		shouldRetry := false
+		if resp != nil && resp.StatusCode == http.StatusUnprocessableEntity && resp.Body != nil {
+			// Read the body to check for priority conflict
+			body, readErr := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			if readErr == nil {
+				lastBody = body
+				if strings.Contains(string(body), "Priority has already been taken") {
+					shouldRetry = true
+				}
+			}
+		}
+
+		// If not a retryable error or last attempt, break and return error
+		if !shouldRetry || attempt == maxRetries-1 {
+			break
+		}
+	}
+
+	// Handle final error after all retries exhausted
+	if lastErr != nil {
 		return ghErrors.NewGitHubAPIErrorResponse(ctx,
 			"failed to add sub-issue",
-			resp,
-			err,
+			lastResp,
+			lastErr,
 		), nil
 	}
 
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusCreated {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
+	// Handle non-201 status codes after retries exhausted
+	if lastResp != nil && lastResp.StatusCode != http.StatusCreated {
+		// Use the body we already read during retry attempts if available
+		if len(lastBody) > 0 {
+			return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add sub-issue", lastResp, lastBody), nil
 		}
-		return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add sub-issue", resp, body), nil
+		// Otherwise try to read the body if it's still available
+		if lastResp.Body != nil {
+			body, err := io.ReadAll(lastResp.Body)
+			_ = lastResp.Body.Close()
+			if err != nil {
+				return nil, fmt.Errorf("failed to read response body: %w", err)
+			}
+			return ghErrors.NewGitHubAPIStatusErrorResponse(ctx, "failed to add sub-issue", lastResp, body), nil
+		}
 	}
 
-	r, err := json.Marshal(subIssue)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal response: %w", err)
+	// This should not be reached in normal operation - indicates a logic error
+	statusCode := 0
+	if lastResp != nil {
+		statusCode = lastResp.StatusCode
 	}
-
-	return utils.NewToolResultText(string(r)), nil
-
+	return nil, fmt.Errorf("unexpected error: failed to add sub-issue after %d attempts (last status: %d)", maxRetries, statusCode)
 }
 
 func RemoveSubIssue(ctx context.Context, client *github.Client, owner string, repo string, issueNumber int, subIssueID int) (*mcp.CallToolResult, error) {
