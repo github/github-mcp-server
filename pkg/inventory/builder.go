@@ -445,7 +445,7 @@ func stripMetaKeys(tool ServerTool, keys []string) *ServerTool {
 	// Check if any of the specified keys exist
 	hasKeys := false
 	for _, key := range keys {
-		if tool.Tool.Meta[key] != nil {
+		if _, ok := tool.Tool.Meta[key]; ok {
 			hasKeys = true
 			break
 		}
