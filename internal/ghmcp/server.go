@@ -18,6 +18,8 @@ import (
 	"github.com/github/github-mcp-server/pkg/inventory"
 	"github.com/github/github-mcp-server/pkg/lockdown"
 	mcplog "github.com/github/github-mcp-server/pkg/log"
+	"github.com/github/github-mcp-server/pkg/observability"
+	"github.com/github/github-mcp-server/pkg/observability/metrics"
 	"github.com/github/github-mcp-server/pkg/raw"
 	"github.com/github/github-mcp-server/pkg/scopes"
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -116,6 +118,10 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 	featureChecker := createFeatureChecker(cfg.EnabledFeatures)
 
 	// Create dependencies for tool handlers
+	obs, err := observability.NewExporters(cfg.Logger, metrics.NewNoopMetrics())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create observability exporters: %w", err)
+	}
 	deps := github.NewBaseDeps(
 		clients.rest,
 		clients.gql,
@@ -128,6 +134,7 @@ func NewStdioMCPServer(ctx context.Context, cfg github.MCPServerConfig) (*mcp.Se
 		},
 		cfg.ContentWindowSize,
 		featureChecker,
+		obs,
 	)
 	// Build and register the tool/resource/prompt inventory
 	inventoryBuilder := github.NewInventory(cfg.Translator).

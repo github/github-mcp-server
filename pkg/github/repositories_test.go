@@ -900,6 +900,9 @@ func Test_ListCommits(t *testing.T) {
 	assert.Contains(t, schema.Properties, "repo")
 	assert.Contains(t, schema.Properties, "sha")
 	assert.Contains(t, schema.Properties, "author")
+	assert.Contains(t, schema.Properties, "path")
+	assert.Contains(t, schema.Properties, "since")
+	assert.Contains(t, schema.Properties, "until")
 	assert.Contains(t, schema.Properties, "page")
 	assert.Contains(t, schema.Properties, "perPage")
 	assert.ElementsMatch(t, schema.Required, []string{"owner", "repo"})
@@ -1019,6 +1022,80 @@ func Test_ListCommits(t *testing.T) {
 			},
 			expectError:     false,
 			expectedCommits: mockCommits,
+		},
+		{
+			name: "successful commits fetch with path filter",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposCommitsByOwnerByRepo: expectQueryParams(t, map[string]string{
+					"path":     "src/main.go",
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockCommits),
+				),
+			}),
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"path":  "src/main.go",
+			},
+			expectError:     false,
+			expectedCommits: mockCommits,
+		},
+		{
+			name: "successful commits fetch with since and until",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposCommitsByOwnerByRepo: expectQueryParams(t, map[string]string{
+					"since":    "2023-01-01T00:00:00Z",
+					"until":    "2023-12-31T23:59:59Z",
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockCommits),
+				),
+			}),
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"since": "2023-01-01T00:00:00Z",
+				"until": "2023-12-31T23:59:59Z",
+			},
+			expectError:     false,
+			expectedCommits: mockCommits,
+		},
+		{
+			name: "successful commits fetch with path, since, and author",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				GetReposCommitsByOwnerByRepo: expectQueryParams(t, map[string]string{
+					"path":     "projects/plugins/boost",
+					"since":    "2023-06-15T00:00:00Z",
+					"author":   "username",
+					"page":     "1",
+					"per_page": "30",
+				}).andThen(
+					mockResponse(t, http.StatusOK, mockCommits),
+				),
+			}),
+			requestArgs: map[string]any{
+				"owner":  "owner",
+				"repo":   "repo",
+				"path":   "projects/plugins/boost",
+				"since":  "2023-06-15T00:00:00Z",
+				"author": "username",
+			},
+			expectError:     false,
+			expectedCommits: mockCommits,
+		},
+		{
+			name:         "invalid since timestamp returns error",
+			mockedClient: MockHTTPClientWithHandlers(map[string]http.HandlerFunc{}),
+			requestArgs: map[string]any{
+				"owner": "owner",
+				"repo":  "repo",
+				"since": "not-a-date",
+			},
+			expectError:    true,
+			expectedErrMsg: "invalid since timestamp",
 		},
 		{
 			name: "successful commits fetch with pagination",
