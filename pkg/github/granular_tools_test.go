@@ -31,37 +31,51 @@ func TestIssuesGranularToolset(t *testing.T) {
 			toolNames = append(toolNames, tool.Tool.Name)
 		}
 
-		assert.Contains(t, toolNames, "create_issue")
-		assert.Contains(t, toolNames, "update_issue_title")
-		assert.Contains(t, toolNames, "update_issue_body")
-		assert.Contains(t, toolNames, "update_issue_assignees")
-		assert.Contains(t, toolNames, "update_issue_labels")
-		assert.Contains(t, toolNames, "update_issue_milestone")
-		assert.Contains(t, toolNames, "update_issue_type")
-		assert.Contains(t, toolNames, "update_issue_state")
-		assert.Contains(t, toolNames, "add_sub_issue")
-		assert.Contains(t, toolNames, "remove_sub_issue")
-		assert.Contains(t, toolNames, "reprioritize_sub_issue")
+		expected := []string{
+			"create_issue",
+			"update_issue_title",
+			"update_issue_body",
+			"update_issue_assignees",
+			"update_issue_labels",
+			"update_issue_milestone",
+			"update_issue_type",
+			"update_issue_state",
+			"add_sub_issue",
+			"remove_sub_issue",
+			"reprioritize_sub_issue",
+		}
+		for _, name := range expected {
+			assert.Contains(t, toolNames, name)
+		}
+		assert.Len(t, tools, len(expected))
 	})
 
 	t.Run("all tools belong to issues_granular toolset", func(t *testing.T) {
-		tools := granularToolsForToolset(ToolsetMetadataIssuesGranular.ID)
-
-		for _, tool := range tools {
-			assert.Equal(t, ToolsetMetadataIssuesGranular.ID, tool.Toolset.ID, "tool %s should belong to issues_granular toolset", tool.Tool.Name)
+		for _, tool := range granularToolsForToolset(ToolsetMetadataIssuesGranular.ID) {
+			assert.Equal(t, ToolsetMetadataIssuesGranular.ID, tool.Toolset.ID, "tool %s", tool.Tool.Name)
 		}
 	})
 
-	t.Run("all tools have ReadOnlyHint false", func(t *testing.T) {
-		tools := granularToolsForToolset(ToolsetMetadataIssuesGranular.ID)
-
-		for _, tool := range tools {
+	t.Run("all tools are write tools", func(t *testing.T) {
+		for _, tool := range granularToolsForToolset(ToolsetMetadataIssuesGranular.ID) {
 			assert.False(t, tool.Tool.Annotations.ReadOnlyHint, "tool %s should have ReadOnlyHint=false", tool.Tool.Name)
 		}
 	})
 
 	t.Run("toolset is non-default", func(t *testing.T) {
-		assert.False(t, ToolsetMetadataIssuesGranular.Default, "issues_granular toolset should not be default")
+		assert.False(t, ToolsetMetadataIssuesGranular.Default)
+	})
+
+	t.Run("no duplicate names with issues toolset", func(t *testing.T) {
+		issueTools := make(map[string]bool)
+		for _, tool := range AllTools(translations.NullTranslationHelper) {
+			if tool.Toolset.ID == ToolsetMetadataIssues.ID {
+				issueTools[tool.Tool.Name] = true
+			}
+		}
+		for _, tool := range granularToolsForToolset(ToolsetMetadataIssuesGranular.ID) {
+			assert.False(t, issueTools[tool.Tool.Name], "tool %s duplicates a tool in the issues toolset", tool.Tool.Name)
+		}
 	})
 }
 
@@ -74,29 +88,47 @@ func TestPullRequestsGranularToolset(t *testing.T) {
 			toolNames = append(toolNames, tool.Tool.Name)
 		}
 
-		assert.Contains(t, toolNames, "update_pull_request_title")
-		assert.Contains(t, toolNames, "update_pull_request_body")
-		assert.Contains(t, toolNames, "update_pull_request_state")
-		assert.Contains(t, toolNames, "update_pull_request_draft_state")
-		assert.Contains(t, toolNames, "request_pull_request_reviewers")
-		assert.Contains(t, toolNames, "create_pull_request_review")
-		assert.Contains(t, toolNames, "submit_pending_pull_request_review")
-		assert.Contains(t, toolNames, "delete_pending_pull_request_review")
-		assert.Contains(t, toolNames, "add_pull_request_review_comment")
+		expected := []string{
+			"update_pull_request_title",
+			"update_pull_request_body",
+			"update_pull_request_state",
+			"update_pull_request_draft_state",
+			"request_pull_request_reviewers",
+			"create_pull_request_review",
+			"submit_pending_pull_request_review",
+			"delete_pending_pull_request_review",
+			"add_pull_request_review_comment",
+		}
+		for _, name := range expected {
+			assert.Contains(t, toolNames, name)
+		}
+		assert.Len(t, tools, len(expected))
 	})
 
 	t.Run("all tools belong to pull_requests_granular toolset", func(t *testing.T) {
-		tools := granularToolsForToolset(ToolsetMetadataPullRequestsGranular.ID)
-
-		for _, tool := range tools {
-			assert.Equal(t, ToolsetMetadataPullRequestsGranular.ID, tool.Toolset.ID, "tool %s should belong to pull_requests_granular toolset", tool.Tool.Name)
+		for _, tool := range granularToolsForToolset(ToolsetMetadataPullRequestsGranular.ID) {
+			assert.Equal(t, ToolsetMetadataPullRequestsGranular.ID, tool.Toolset.ID, "tool %s", tool.Tool.Name)
 		}
 	})
 
 	t.Run("toolset is non-default", func(t *testing.T) {
-		assert.False(t, ToolsetMetadataPullRequestsGranular.Default, "pull_requests_granular toolset should not be default")
+		assert.False(t, ToolsetMetadataPullRequestsGranular.Default)
+	})
+
+	t.Run("no duplicate names with pull_requests toolset", func(t *testing.T) {
+		prTools := make(map[string]bool)
+		for _, tool := range AllTools(translations.NullTranslationHelper) {
+			if tool.Toolset.ID == ToolsetMetadataPullRequests.ID {
+				prTools[tool.Tool.Name] = true
+			}
+		}
+		for _, tool := range granularToolsForToolset(ToolsetMetadataPullRequestsGranular.ID) {
+			assert.False(t, prTools[tool.Tool.Name], "tool %s duplicates a tool in the pull_requests toolset", tool.Tool.Name)
+		}
 	})
 }
+
+// --- Issue granular tool handler tests ---
 
 func TestGranularCreateIssue(t *testing.T) {
 	mockIssue := &gogithub.Issue{
@@ -180,6 +212,51 @@ func TestGranularUpdateIssueTitle(t *testing.T) {
 	assert.False(t, result.IsError)
 }
 
+func TestGranularUpdateIssueBody(t *testing.T) {
+	client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+			"body": "Updated body",
+		}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{
+			Number: gogithub.Ptr(1),
+			Body:   gogithub.Ptr("Updated body"),
+		})),
+	}))
+	deps := BaseDeps{Client: client}
+	serverTool := GranularUpdateIssueBody(translations.NullTranslationHelper)
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(1),
+		"body":         "Updated body",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+}
+
+func TestGranularUpdateIssueAssignees(t *testing.T) {
+	client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+			"assignees": []any{"user1", "user2"},
+		}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
+	}))
+	deps := BaseDeps{Client: client}
+	serverTool := GranularUpdateIssueAssignees(translations.NullTranslationHelper)
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(1),
+		"assignees":    []string{"user1", "user2"},
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+}
+
 func TestGranularUpdateIssueLabels(t *testing.T) {
 	client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
@@ -201,26 +278,171 @@ func TestGranularUpdateIssueLabels(t *testing.T) {
 	assert.False(t, result.IsError)
 }
 
-func TestGranularUpdateIssueState(t *testing.T) {
+func TestGranularUpdateIssueMilestone(t *testing.T) {
 	client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
 		PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
-			"state":        "closed",
-			"state_reason": "completed",
-		}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{
-			Number: gogithub.Ptr(1),
-			State:  gogithub.Ptr("closed"),
-		})),
+			"milestone": float64(5),
+		}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
 	}))
 	deps := BaseDeps{Client: client}
-	serverTool := GranularUpdateIssueState(translations.NullTranslationHelper)
+	serverTool := GranularUpdateIssueMilestone(translations.NullTranslationHelper)
 	handler := serverTool.Handler(deps)
 
 	request := createMCPRequest(map[string]any{
 		"owner":        "owner",
 		"repo":         "repo",
 		"issue_number": float64(1),
-		"state":        "closed",
-		"state_reason": "completed",
+		"milestone":    float64(5),
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+}
+
+func TestGranularUpdateIssueType(t *testing.T) {
+	client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, map[string]any{
+			"type": "bug",
+		}).andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{Number: gogithub.Ptr(1)})),
+	}))
+	deps := BaseDeps{Client: client}
+	serverTool := GranularUpdateIssueType(translations.NullTranslationHelper)
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":        "owner",
+		"repo":         "repo",
+		"issue_number": float64(1),
+		"issue_type":   "bug",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+}
+
+func TestGranularUpdateIssueState(t *testing.T) {
+	tests := []struct {
+		name        string
+		requestArgs map[string]any
+		expectedReq map[string]any
+	}{
+		{
+			name: "close with reason",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"state":        "closed",
+				"state_reason": "completed",
+			},
+			expectedReq: map[string]any{
+				"state":        "closed",
+				"state_reason": "completed",
+			},
+		},
+		{
+			name: "reopen without reason",
+			requestArgs: map[string]any{
+				"owner":        "owner",
+				"repo":         "repo",
+				"issue_number": float64(1),
+				"state":        "open",
+			},
+			expectedReq: map[string]any{
+				"state": "open",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+				PatchReposIssuesByOwnerByRepoByIssueNumber: expectRequestBody(t, tc.expectedReq).
+					andThen(mockResponse(t, http.StatusOK, &gogithub.Issue{
+						Number: gogithub.Ptr(1),
+						State:  gogithub.Ptr(tc.requestArgs["state"].(string)),
+					})),
+			}))
+			deps := BaseDeps{Client: client}
+			serverTool := GranularUpdateIssueState(translations.NullTranslationHelper)
+			handler := serverTool.Handler(deps)
+
+			request := createMCPRequest(tc.requestArgs)
+			result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+			require.NoError(t, err)
+			assert.False(t, result.IsError)
+		})
+	}
+}
+
+// --- Pull request granular tool handler tests ---
+
+func TestGranularUpdatePullRequestTitle(t *testing.T) {
+	client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		PatchReposPullsByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]any{
+			"title": "New PR Title",
+		}).andThen(mockResponse(t, http.StatusOK, &gogithub.PullRequest{
+			Number: gogithub.Ptr(1),
+			Title:  gogithub.Ptr("New PR Title"),
+		})),
+	}))
+	deps := BaseDeps{Client: client}
+	serverTool := GranularUpdatePullRequestTitle(translations.NullTranslationHelper)
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(1),
+		"title":      "New PR Title",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+}
+
+func TestGranularUpdatePullRequestBody(t *testing.T) {
+	client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		PatchReposPullsByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]any{
+			"body": "Updated description",
+		}).andThen(mockResponse(t, http.StatusOK, &gogithub.PullRequest{
+			Number: gogithub.Ptr(1),
+			Body:   gogithub.Ptr("Updated description"),
+		})),
+	}))
+	deps := BaseDeps{Client: client}
+	serverTool := GranularUpdatePullRequestBody(translations.NullTranslationHelper)
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(1),
+		"body":       "Updated description",
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+}
+
+func TestGranularUpdatePullRequestState(t *testing.T) {
+	client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		PatchReposPullsByOwnerByRepoByPullNumber: expectRequestBody(t, map[string]any{
+			"state": "closed",
+		}).andThen(mockResponse(t, http.StatusOK, &gogithub.PullRequest{
+			Number: gogithub.Ptr(1),
+			State:  gogithub.Ptr("closed"),
+		})),
+	}))
+	deps := BaseDeps{Client: client}
+	serverTool := GranularUpdatePullRequestState(translations.NullTranslationHelper)
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(1),
+		"state":      "closed",
 	})
 	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 	require.NoError(t, err)
@@ -240,6 +462,29 @@ func TestGranularRequestPullRequestReviewers(t *testing.T) {
 		"repo":       "repo",
 		"pullNumber": float64(1),
 		"reviewers":  []string{"user1", "user2"},
+	})
+	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
+	require.NoError(t, err)
+	assert.False(t, result.IsError)
+}
+
+func TestGranularCreatePullRequestReview(t *testing.T) {
+	client := gogithub.NewClient(MockHTTPClientWithHandlers(map[string]http.HandlerFunc{
+		"POST /repos/{owner}/{repo}/pulls/{pull_number}/reviews": mockResponse(t, http.StatusOK, &gogithub.PullRequestReview{
+			ID:    gogithub.Ptr(int64(1)),
+			State: gogithub.Ptr("APPROVED"),
+		}),
+	}))
+	deps := BaseDeps{Client: client}
+	serverTool := GranularCreatePullRequestReview(translations.NullTranslationHelper)
+	handler := serverTool.Handler(deps)
+
+	request := createMCPRequest(map[string]any{
+		"owner":      "owner",
+		"repo":       "repo",
+		"pullNumber": float64(1),
+		"body":       "LGTM",
+		"event":      "APPROVE",
 	})
 	result, err := handler(ContextWithDeps(context.Background(), deps), &request)
 	require.NoError(t, err)
