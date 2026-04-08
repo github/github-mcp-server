@@ -141,6 +141,18 @@ var (
 		Icon:        "copilot",
 	}
 
+	ToolsetMetadataIssuesGranular = inventory.ToolsetMetadata{
+		ID:          "issues_granular",
+		Description: "Granular issue tools with fine-grained control over individual operations",
+		Icon:        "issue-opened",
+	}
+
+	ToolsetMetadataPullRequestsGranular = inventory.ToolsetMetadata{
+		ID:          "pull_requests_granular",
+		Description: "Granular pull request tools with fine-grained control over individual operations",
+		Icon:        "git-pull-request",
+	}
+
 	// Remote-only toolsets - these are only available in the remote MCP server
 	// but are documented here for consistency and to enable automated documentation.
 	ToolsetMetadataCopilotSpaces = inventory.ToolsetMetadata{
@@ -274,6 +286,30 @@ func AllTools(t translations.TranslationHelperFunc) []inventory.ServerTool {
 		GetLabelForLabelsToolset(t),
 		ListLabels(t),
 		LabelWrite(t),
+
+		// Granular issue tools (opt-in, non-default)
+		GranularCreateIssue(t),
+		GranularUpdateIssueTitle(t),
+		GranularUpdateIssueBody(t),
+		GranularUpdateIssueAssignees(t),
+		GranularUpdateIssueLabels(t),
+		GranularUpdateIssueMilestone(t),
+		GranularUpdateIssueType(t),
+		GranularUpdateIssueState(t),
+		GranularAddSubIssue(t),
+		GranularRemoveSubIssue(t),
+		GranularReprioritizeSubIssue(t),
+
+		// Granular pull request tools (opt-in, non-default)
+		GranularUpdatePullRequestTitle(t),
+		GranularUpdatePullRequestBody(t),
+		GranularUpdatePullRequestState(t),
+		GranularUpdatePullRequestDraftState(t),
+		GranularRequestPullRequestReviewers(t),
+		GranularCreatePullRequestReview(t),
+		GranularSubmitPendingPullRequestReview(t),
+		GranularDeletePendingPullRequestReview(t),
+		GranularAddPullRequestReviewComment(t),
 	}
 }
 
